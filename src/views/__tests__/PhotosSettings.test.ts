@@ -1,33 +1,42 @@
-// SP7-P8a-T5: PhotosSettings.vue —— 设置页容器,接 T3(存储卡)/T4(AI 卡)+ 真路由
-// `/photos/settings` + 侧栏入口。回源坐标见 task-5-brief.md 头部与组件文件头注释。
+// SP7-P8a-T5: PhotosSettings.vue -- the settings page container, wiring in T3 (storage card) /
+// T4 (AI card) + a real route `/photos/settings` + sidebar entry. See task-5-brief.md's header
+// and the component's own file-header comment for the source-mapping coordinates.
 //
-// 两张卡各自已有专属单测(PhotosStorageCard.test.ts/PhotosAiCard.test.ts)覆盖卡内部
-// 逻辑,这里用 global.stubs 顶替成两个最小 stub(各自带 #storage/#ai 锚点 + 一个能
-// emit('toast', ...) 的触发器),只验证容器自己的接线,不重复测卡内部行为——照
-// PhotosSearch.test.ts:1056-1060 的既定 stub 写法。
+// Both cards already have their own dedicated unit tests (PhotosStorageCard.test.ts /
+// PhotosAiCard.test.ts) covering their internal logic; here global.stubs replaces them with two
+// minimal stubs (each carrying a #storage/#ai anchor + a trigger that can emit('toast', ...)),
+// verifying only the container's own wiring, not re-testing the cards' internal behaviour --
+// following the established stub pattern from PhotosSearch.test.ts:1056-1060.
 //
-// 测试基建偏离登记(brief 与本仓实际不符,以本仓实测为准,详见 task-5-report.md):
-// 1. brief Step1 的守卫用例断言"不挂第二份侧栏"写的是
-//    `wrapper.findComponent(PhotosSidebar).exists()` 应为 false——但 AreaShell.vue 本身
-//    没有侧栏概念(已读源码确认,只有 header/slot),侧栏是每个 /photos/* 视图自己在壳内挂
-//    一份(PhotosAlbums.vue:187 的既定先例,本组件同构照抄)。若真按 `false` 断言,等于要求
-//    本页完全不挂侧栏——那是实打实的 UX 回归(用户进设置页看不到导航),且直接违反本任务
-//    dispatch 明确要求的"照 PhotosAlbums.vue 结构复制"。改为断言"恰好一份"
-//    (`findAllComponents(...).length === 1`),这才是"不重复挂"这条不变量真正要守住的东西。
-// 2. brief Step1 的"挂载时拉齐五项数据"与 Interface Debt 段("你的容器必须且只能调用这四个,
-//    fetchStorage 归 StorageCard 自己")矛盾——本文件以后者为准(更具体、更权威),断言四个
-//    显式 action + 一条"fetchStorage 未被容器调用"的反向锁定(防止日后有人加回去造成双取数)。
+// Test-infrastructure deviations logged here (where the brief disagrees with this repo's actual
+// behaviour, this repo's measured behaviour wins -- see task-5-report.md for the full record):
+// 1. The brief's Step 1 guard case asserts "no second sidebar mounted" by checking
+//    `wrapper.findComponent(PhotosSidebar).exists()` should be false -- but AreaShell.vue itself
+//    has no concept of a sidebar (confirmed by reading its source: only header/slot). The
+//    sidebar is mounted once by each /photos/* view inside the shell (an established precedent
+//    at PhotosAlbums.vue:187, which this component mirrors). Asserting `false` literally would
+//    require this page to mount no sidebar at all -- a real UX regression (the user would see no
+//    navigation on the settings page) and a direct violation of this task's dispatch, which
+//    explicitly requires "copying PhotosAlbums.vue's structure". Changed to asserting "exactly
+//    one" (`findAllComponents(...).length === 1`), which is what the "no duplicate mount"
+//    invariant actually needs to guard.
+// 2. The brief's Step 1 "fetch all five pieces of data on mount" contradicts the Interface Debt
+//    section ("your container must call these four and only these four -- fetchStorage belongs
+//    to StorageCard itself"). This file follows the latter (more specific and authoritative),
+//    asserting the four explicit actions plus a reverse lock that "fetchStorage is never called
+//    by the container" (guarding against someone adding it back and causing a double fetch).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
-// P8a-T6 review fix (Important 1): getConfig 加进 mock——之前是空对象 `photos: {}`,
-// 意味着任何真实(未 spy)的 fetchAiFeatures 调用都会在调用 `service.photos.getConfig()`
-// 时同步抛 TypeError(不是函数),被 fetchAiFeatures 自己的 try/catch 吞掉,行为上凑巧
-// "看起来"正确但完全没有验证到"只发一次真实网络请求"这条不变量——新增的网络级去重用例
-// (见下方 describe)需要一个真的 vi.fn() 才能数调用次数。
+// P8a-T6 review fix (Important 1): getConfig added into the mock -- it used to be the empty
+// object `photos: {}`, which meant any real (un-spied) fetchAiFeatures call would synchronously
+// throw a TypeError (not a function) when calling `service.photos.getConfig()`, swallowed by
+// fetchAiFeatures's own try/catch. It happened to "look" correct but never actually verified the
+// "only one real network request is sent" invariant -- the new network-level dedup test case
+// (see the describe block below) needs a real vi.fn() to count calls.
 vi.mock('@nimotech/nimoos-service', () => ({ service: { photos: { getConfig: vi.fn() } } }))
 
 import PhotosSettings from '../PhotosSettings.vue'
@@ -72,9 +81,11 @@ async function mountView(path = '/photos/settings') {
   return w
 }
 
-// 同 mountView,但把 router 一并交回去——评审 Important 1 的两条用例需要在挂载*之后*
-// 再 router.push 同一路由只改 query,验证"用户已经停留在本页"这条路径(watch,不是
-// mounted 那次)。不改 mountView 本身的返回形状,避免动到上面所有既有用例的解构写法。
+// Same as mountView, but hands the router back too -- the two review-fix (Important 1) test
+// cases need to router.push the same route with only the query changed *after* mounting, to
+// verify the "user is already sitting on this page" path (watch, not the mounted-time path).
+// mountView's own return shape is left untouched to avoid touching every existing test case's
+// destructuring above.
 async function mountViewWithRouter(path = '/photos/settings') {
   const router = makeRouter(path)
   await router.isReady()
@@ -89,16 +100,20 @@ async function mountViewWithRouter(path = '/photos/settings') {
   return { w, router }
 }
 
-// jsdom 不实现 scrollIntoView(brief ruling #2)——手动记录调用在哪个元素上,不依赖
-// vitest mock 的 this-context API 版本差异。
+// jsdom does not implement scrollIntoView (brief ruling #2) -- manually record which element
+// each call targets, rather than depending on vitest mock's this-context API version quirks.
 let scrollCalls: Element[]
-// 同时记录每次 querySelector 的参数字符串——"?section= 非法值不滚动"这条不变量,如果只
-// 靠 scrollIntoView 是否被调来判断会失真:页面里唯一存在的两个 id 就是 storage/ai,任何
-// "非法" 取值(如 Vue2 settings=1 场景的 '1')天然查不到元素,scrollIntoView 不会被调,
-// 不管白名单守卫在不在都一样——这条不变量测不出变异。真正要锁住的是"scrollTo 有没有被
-// 调用过",用 querySelector 的调用参数直接证明,不依赖它是否命中真实元素。另外
-// '#1' 是不合法的 CSS id 选择器(数字开头),jsdom 真实 querySelector 会抛 SyntaxError——
-// 这里转发给真实实现但吞掉该错误,不让它变成未处理的 rejection 污染其它用例。
+// Also record the argument string of every querySelector call -- the "?section= illegal value
+// does not scroll" invariant would be false if judged only by whether scrollIntoView was called:
+// the only two ids that exist on the page are storage/ai, so any "illegal" value (e.g. the
+// string '1' from Vue2's settings=1 scenario) naturally finds no element and scrollIntoView
+// naturally never gets called -- regardless of whether the whitelist guard is present or not,
+// this invariant cannot detect a mutation that way. What actually needs to be locked down is
+// "was scrollTo ever called", proven directly by querySelector's call arguments, independent of
+// whether it hits a real element. Also, '#1' is not a legal CSS id selector (starts with a
+// digit); jsdom's real querySelector throws a SyntaxError for it -- this forwards to the real
+// implementation but swallows that error so it doesn't become an unhandled rejection polluting
+// other test cases.
 let queryCalls: string[]
 beforeEach(() => {
   localStorage.clear()
@@ -118,13 +133,14 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = function (this: Element) { scrollCalls.push(this) }
 })
 afterEach(() => {
-  // 防御性收尾:若某条用例中途抛错,不让 fake timers 状态漏到下一条用例。
+  // Defensive teardown: if a test case throws mid-way, don't let fake-timer state leak into
+  // the next test case.
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
-describe('PhotosSettings 容器', () => {
-  it('挂载时调用 fetchAbout/fetchRetention/fetchScanInterval/fetchAiFeatures 四项,不重复调用 fetchStorage', async () => {
+describe('PhotosSettings container', () => {
+  it('calls fetchAbout/fetchRetention/fetchScanInterval/fetchAiFeatures on mount, without re-calling fetchStorage', async () => {
     const store = usePhotosSettingsStore()
     const fetchAbout = vi.spyOn(store, 'fetchAbout').mockResolvedValue(undefined)
     const fetchRetention = vi.spyOn(store, 'fetchRetention').mockResolvedValue(undefined)
@@ -137,30 +153,37 @@ describe('PhotosSettings 容器', () => {
     expect(fetchAbout).toHaveBeenCalledTimes(1)
     expect(fetchRetention).toHaveBeenCalledTimes(1)
     expect(fetchScanInterval).toHaveBeenCalledTimes(1)
-    // P8a-T6:本页头部注释(:14-17)自己说了"整页只有一份 PhotosSidebar 副本",而 T6 给
-    // PhotosSidebar 也接了 fetchAiFeatures()(§7e-15,侧栏要用 aiFeatures.smartview 决定
-    // 是否隐藏智能视图入口)——本页自身 + 它挂载的这一份侧栏,同帧各调一次,是 2 次
-    // *action 调用*,不是 2 次网络请求(settings.ts 的在途去重把并发调用合并成 1 次
-    // getConfig,见 settings.test.ts 的去重用例)。这条断言从 1 改成 2 是行为的真实变化,
-    // 不是放宽断言掩盖回归。
+    // P8a-T6: this page's own header comment (:14-17) states "the whole page has exactly one
+    // PhotosSidebar copy", and T6 wires PhotosSidebar into fetchAiFeatures() too (§7e-15 -- the
+    // sidebar needs aiFeatures.smartview to decide whether to hide the smart-view entry) -- this
+    // page itself plus the one sidebar it mounts each call the action once in the same frame,
+    // which is 2 *action calls*, not 2 network requests (settings.ts's in-flight dedup merges
+    // concurrent calls into 1 getConfig, see settings.test.ts's dedup case). This assertion
+    // changing from 1 to 2 is a genuine behaviour change, not a loosened assertion papering over
+    // a regression.
     expect(fetchAiFeatures).toHaveBeenCalledTimes(2)
     expect(fetchStorage).not.toHaveBeenCalled()
   })
 
-  // P8a-T6 review fix (Important 1):上一条用例把 fetchAiFeatures spy 成
-  // `.mockResolvedValue(...)`,店里真正的去重代码(settings.ts 里 `aiFeaturesInFlight` 那段)
-  // 根本没有跑到——那条断言只证明了"本页 + 它挂的侧栏各调了一次 action",证明不了"两次 action
-  // 调用最终只打了一次真实网络请求"。这里不 spy `fetchAiFeatures`,让真实实现跑起来,直接在
-  // HTTP 层(`service.photos.getConfig`,mock 但未替换实现的 vi.fn())数调用次数——这才是
-  // §7e-15 需要的那条不变量:侧栏与页面自身同帧各触发一次 action,必须只落地一次请求。
+  // P8a-T6 review fix (Important 1): the previous test case spies fetchAiFeatures as
+  // `.mockResolvedValue(...)`, so the store's real dedup code (the `aiFeaturesInFlight` block in
+  // settings.ts) never actually runs -- that assertion only proves "this page + the sidebar it
+  // mounts each call the action once", not that "the two action calls ultimately land only one
+  // real network request". Here `fetchAiFeatures` is not spied, letting the real implementation
+  // run, and counts calls directly at the HTTP layer (`service.photos.getConfig`, a vi.fn() that
+  // is mocked but has its implementation left untouched) -- that is the actual invariant §7e-15
+  // needs: the sidebar and the page itself each trigger the action once in the same frame, and
+  // it must land exactly one request.
   //
-  // fetchRetention/fetchScanInterval 必须单独 spy 掉(mockResolvedValue,不让真实实现跑):
-  // 这两个 action 各自也会调 service.photos.getConfig()(为了拿当前 watchDirs/retentionDays
-  // 随写回一起回传,settings.ts 头部注释里的"读了再写"模式),与 aiFeatures 的去重是两件不
-  // 相关的事——第一次没 spy 它们时手动跑过,得到 3 次调用(去重后的 1 次 aiFeatures + 1 次
-  // fetchRetention + 1 次 fetchScanInterval),不是去重失效,是测试没有把无关的 getConfig
-  // 来源隔离干净。fetchAbout 不碰 getConfig,不需要 spy。
-  it('§7e-15 网络级去重证明:PhotosSettings 自身 + 它挂的 PhotosSidebar 同帧各调一次 fetchAiFeatures,真实 getConfig 只发一次', async () => {
+  // fetchRetention/fetchScanInterval must be spied individually (mockResolvedValue, so the real
+  // implementation doesn't run): both of these actions also call service.photos.getConfig() (to
+  // fetch the current watchDirs/retentionDays and write them back together -- the "read then
+  // write" pattern noted in settings.ts's header comment), which is unrelated to aiFeatures's
+  // dedup -- the first manual run without spying them got 3 calls (1 deduped aiFeatures + 1
+  // fetchRetention + 1 fetchScanInterval), which isn't dedup failing, it's the test not
+  // isolating the unrelated getConfig sources cleanly. fetchAbout never touches getConfig, so it
+  // needs no spy.
+  it('§7e-15 network-level dedup proof: PhotosSettings itself + the PhotosSidebar it mounts each call fetchAiFeatures once in the same frame, and the real getConfig fires only once', async () => {
     const store = usePhotosSettingsStore()
     vi.spyOn(store, 'fetchRetention').mockResolvedValue(undefined)
     vi.spyOn(store, 'fetchScanInterval').mockResolvedValue(undefined)
@@ -168,9 +191,10 @@ describe('PhotosSettings 容器', () => {
     expect(service.photos.getConfig).toHaveBeenCalledTimes(1)
   })
 
-  it('承接卡片的 toast 事件并在 2800ms 后消失', async () => {
-    // 先用真实定时器完成挂载(mountView 内部的 flushPromises 靠 setTimeout(0) 落地,
-    // 若先开 fake timers 会卡死——挂载稳定后才切 fake timers,只接管 toast 计时这一段)。
+  it('picks up a toast event from the card and dismisses it after 2800ms', async () => {
+    // Complete mounting with real timers first (mountView's internal flushPromises relies on
+    // setTimeout(0) to land -- switching to fake timers beforehand would hang -- only switch to
+    // fake timers once mounting has settled, to take over just the toast timing).
     const w = await mountView()
     vi.useFakeTimers()
 
@@ -186,66 +210,71 @@ describe('PhotosSettings 容器', () => {
     vi.useRealTimers()
   })
 
-  it('连续两次 toast:第二次重置计时,不被第一次的定时器提前掐掉', async () => {
+  it('two toasts in a row: the second resets the timer and is not cut short early by the first timer', async () => {
     const w = await mountView()
     vi.useFakeTimers()
 
-    await w.get('[data-test="storage-card-stub"]').trigger('click') // t=0,text=toast-from-storage
-    await vi.advanceTimersByTimeAsync(2000) // t=2000,仍在第一条的 2800ms 窗口内
+    await w.get('[data-test="storage-card-stub"]').trigger('click') // t=0, text=toast-from-storage
+    await vi.advanceTimersByTimeAsync(2000) // t=2000, still inside the first toast's 2800ms window
     expect(w.find('[data-test="settings-toast"]').exists()).toBe(true)
 
-    await w.get('[data-test="ai-card-stub"]').trigger('click') // t=2000,重置为 text=toast-from-ai
-    await vi.advanceTimersByTimeAsync(800) // t=2800(相对第一条的原计时器到点)
-    // 若 clearTimeout 没生效,第一条的旧定时器会在这一刻把 toast 提前清掉——这里必须仍可见,
-    // 且文本是第二条(证明真的重置了,不是凑巧还没到期)。
+    await w.get('[data-test="ai-card-stub"]').trigger('click') // t=2000, resets to text=toast-from-ai
+    await vi.advanceTimersByTimeAsync(800) // t=2800 (when the first toast's original timer would have fired)
+    // If clearTimeout didn't take effect, the first toast's old timer would clear it early right
+    // here -- it must still be visible, with the second toast's text (proving the reset actually
+    // happened, not that it just hasn't expired yet by coincidence).
     expect(w.find('[data-test="settings-toast"]').exists()).toBe(true)
     expect(w.get('[data-test="settings-toast"]').text()).toBe('toast-from-ai')
 
-    await vi.advanceTimersByTimeAsync(2000) // t=4800,相对第二条(t=2000 起 2800ms)到点
+    await vi.advanceTimersByTimeAsync(2000) // t=4800, when the second toast (2800ms from t=2000) is due
     expect(w.find('[data-test="settings-toast"]').exists()).toBe(false)
     vi.useRealTimers()
   })
 
-  it('?section=ai 挂载后滚到 AI 卡', async () => {
+  it('?section=ai scrolls to the AI card on mount', async () => {
     const w = await mountView('/photos/settings?section=ai')
     expect(scrollCalls).toHaveLength(1)
     expect(scrollCalls[0]).toBe(w.get('#ai').element)
   })
 
-  it('?section=storage 挂载后滚到存储卡', async () => {
+  it('?section=storage scrolls to the storage card on mount', async () => {
     const w = await mountView('/photos/settings?section=storage')
     expect(scrollCalls).toHaveLength(1)
     expect(scrollCalls[0]).toBe(w.get('#storage').element)
   })
 
-  it('?section= 缺失时不滚动', async () => {
+  it('no scroll when ?section= is missing', async () => {
     await mountView('/photos/settings')
     expect(scrollCalls).toHaveLength(0)
     expect(queryCalls).not.toContain('#storage')
     expect(queryCalls).not.toContain('#ai')
   })
 
-  // 不能只靠 scrollCalls 判定:页面里唯一存在的两个 id 就是 storage/ai,任何"非法"取值
-  // (如 Vue2 settings=1 场景的字符串 '1')天然查不到元素、scrollIntoView 天然不会被调——
-  // 不管白名单守卫在不在都一样,这条不变量单靠 scrollCalls 测不出变异(已实测验证,见
-  // task-5-report.md 变异验证记录)。真正要锁住的是"scrollTo(非法值) 有没有被调用过",
-  // 用 querySelector 的调用参数直接证明——若白名单被去掉,scrollTo('1') 会被调,进而触发
-  // 一次 `querySelector('#1')`,即便查不到元素依然会留下这条调用记录。
-  it('?section= 非法值(如 "1",Vue2 里 settings=1 只表示"打开"而非目标 id)时不滚动', async () => {
+  // Cannot rely on scrollCalls alone to judge: the only two ids that exist on the page are
+  // storage/ai, so any "illegal" value (e.g. the string '1' from Vue2's settings=1 scenario)
+  // naturally finds no element and scrollIntoView naturally never gets called -- regardless of
+  // whether the whitelist guard is present, this invariant cannot detect a mutation with
+  // scrollCalls alone (verified by an actual mutation test, see task-5-report.md's mutation-test
+  // record). What actually needs to be locked down is "was scrollTo(illegal value) ever called",
+  // proven directly by querySelector's call arguments -- if the whitelist were removed,
+  // scrollTo('1') would be called, triggering a `querySelector('#1')` call, which leaves that
+  // call record behind even though no element is found.
+  it('?section= illegal value (e.g. "1" -- in Vue2, settings=1 only meant "open", not a target id) does not scroll', async () => {
     await mountView('/photos/settings?section=1')
     expect(scrollCalls).toHaveLength(0)
     expect(queryCalls).not.toContain('#1')
   })
 
-  // 评审 Important 1(2026-08-04):vue-router 4 对同一路由组件只 query 变化不重新
-  // mount——用户已经停留在 /photos/settings(无 section)时,若 query 变成
-  // ?section=ai(手改地址栏,或未来页面内某个指向本页的链接),onMounted 不会重触发,
-  // 必须靠 watch 补上这条路径。
-  it('已停留在本页时 query 才变为 ?section=ai——watch 路径补上滚动(不靠重新 mount)', async () => {
+  // Review fix Important 1 (2026-08-04): vue-router 4 does not remount the same route component
+  // when only the query changes -- if the user is already sitting on /photos/settings (no
+  // section) and the query becomes ?section=ai (address bar edited by hand, or a future in-page
+  // link pointing at this page), onMounted will not re-fire, so a watch is needed to cover this
+  // path.
+  it('query only becomes ?section=ai after already sitting on this page -- the watch path scrolls (without a remount)', async () => {
     const { w, router } = await mountViewWithRouter('/photos/settings')
-    expect(scrollCalls).toHaveLength(0) // mounted 时没有 section,先确认起点确实没滚
+    expect(scrollCalls).toHaveLength(0) // no section at mount time -- first confirm the starting point really doesn't scroll
 
-    await router.push('/photos/settings?section=ai') // 只改 query,同一路由组件不重新 mount
+    await router.push('/photos/settings?section=ai') // only the query changes, the same route component is not remounted
     await flushPromises()
     await w.vm.$nextTick()
 
@@ -253,8 +282,9 @@ describe('PhotosSettings 容器', () => {
     expect(scrollCalls[0]).toBe(w.get('#ai').element)
   })
 
-  // 同一条路径上白名单依旧生效——不能因为补了 watch 就把非法值放过去。
-  it('已停留在本页时 query 才变为 ?section=1(非法值)——watch 路径同样不滚动', async () => {
+  // The whitelist still applies on this same path -- adding the watch must not let illegal
+  // values slip through.
+  it('query only becomes ?section=1 (illegal) after already sitting on this page -- the watch path also does not scroll', async () => {
     const { w, router } = await mountViewWithRouter('/photos/settings')
 
     await router.push('/photos/settings?section=1')
@@ -265,7 +295,7 @@ describe('PhotosSettings 容器', () => {
     expect(queryCalls).not.toContain('#1')
   })
 
-  it('页脚:version 缺失时不渲染 "· v" 片段', async () => {
+  it('footer: does not render the "· v" fragment when version is missing', async () => {
     const store = usePhotosSettingsStore()
     vi.spyOn(store, 'fetchAbout').mockImplementation(async () => {
       store.about = { version: '', deviceName: 'MyNAS', indexCoverage: 0, indexLastBuilt: '', librarySince: '' }
@@ -274,7 +304,7 @@ describe('PhotosSettings 容器', () => {
     expect(w.find('.ps-footer-app').text()).not.toMatch(/·\s*v/)
   })
 
-  it('页脚:version 存在时渲染 "· v{version}"', async () => {
+  it('footer: renders "· v{version}" when version is present', async () => {
     const store = usePhotosSettingsStore()
     vi.spyOn(store, 'fetchAbout').mockImplementation(async () => {
       store.about = { version: '2.3.0', deviceName: 'MyNAS', indexCoverage: 0, indexLastBuilt: '', librarySince: '' }
@@ -283,7 +313,7 @@ describe('PhotosSettings 容器', () => {
     expect(w.get('.ps-footer-app').text()).toContain('v2.3.0')
   })
 
-  it('页脚:librarySince 缺失时整段不渲染', async () => {
+  it('footer: the whole segment does not render when librarySince is missing', async () => {
     const store = usePhotosSettingsStore()
     vi.spyOn(store, 'fetchAbout').mockImplementation(async () => {
       store.about = { version: '1.0.0', deviceName: 'MyNAS', indexCoverage: 0, indexLastBuilt: '', librarySince: '' }
@@ -292,7 +322,7 @@ describe('PhotosSettings 容器', () => {
     expect(w.get('.ps-footer-host').text()).not.toContain('建库于')
   })
 
-  it('页脚:librarySince 存在时渲染 "· 建库于 {date}"', async () => {
+  it('footer: renders "· 建库于 {date}" (library-established-on prefix) when librarySince is present', async () => {
     const store = usePhotosSettingsStore()
     vi.spyOn(store, 'fetchAbout').mockImplementation(async () => {
       store.about = { version: '1.0.0', deviceName: 'MyNAS', indexCoverage: 0, indexLastBuilt: '', librarySince: '2026-01-15T00:00:00Z' }
@@ -301,24 +331,25 @@ describe('PhotosSettings 容器', () => {
     expect(w.get('.ps-footer-host').text()).toContain('建库于')
   })
 
-  it('页脚:运行于 {deviceName},about 缺失时兜底 NAS', async () => {
+  it('footer: "运行于 {deviceName}" (running on) falls back to NAS when about is missing', async () => {
     const w = await mountView()
     expect(w.get('.ps-footer-host').text()).toContain('运行于')
     expect(w.get('.ps-footer-host').text()).toContain('NAS')
   })
 
-  // 架构偏离守卫 1/2(见文件头 + 组件头注释四条登记)。
-  it('侧栏只挂一份(不是"AreaShell 自动生成"、也不是重复挂两份)', async () => {
+  // Architecture-deviation guard 1/2 (see the four items logged in the file header + component
+  // header comment).
+  it('the sidebar mounts exactly once (not "auto-generated by AreaShell", and not mounted twice)', async () => {
     const w = await mountView()
     expect(w.findAllComponents(PhotosSidebar)).toHaveLength(1)
   })
 
-  it('不渲染登出入口(D22)', async () => {
+  it('does not render a sign-out entry (D22)', async () => {
     const w = await mountView()
     expect(w.text()).not.toMatch(/登出|Sign out/)
   })
 
-  it('快速导航:点击锚点滚动到对应卡片', async () => {
+  it('quick nav: clicking an anchor scrolls to the corresponding card', async () => {
     const w = await mountView()
     await w.get('.ps-quicknav a[href="#ai"]').trigger('click')
     expect(scrollCalls).toHaveLength(1)
@@ -329,29 +360,34 @@ describe('PhotosSettings 容器', () => {
   })
 })
 
-// 全量收尾门(459 文件/5893 例)捕获的真实回归:.ps-toast 曾抄错成 1100,与全局 toast
-// (AppToast.vue,同为 1100)同层——AppToast.zIndex.test.ts 是仓库级守卫,但那条测试要扫
-// 全仓 459 个文件才跑,单任务范围内看不到。这里补一条局部守卫,失败更快、且不依赖全仓
-// glob,只钉本文件自己的产物。只锁"严格低于 1100"这一条硬线(docs/THEMING.md §8 唯一
-// 钉死的不变量);不额外锁 <1000/<200——那些是本处依据同页实测浮层(PhotosSidebar 的
-// 窄屏抽屉 151/遮罩 150)做出的选择,不是仓库级约定,锁死具体数值只会让下次合理调整变红。
-describe('z-index 层级(docs/THEMING.md §8)', () => {
-  it('.ps-toast 的 z-index 严格低于全局 toast(1100)——本页局部浮层不得借用全局 toast 的层级', () => {
+// A real regression caught by the full sign-off gate (459 files / 5893 cases): .ps-toast was
+// once mis-copied as 1100, the same layer as the global toast (AppToast.vue, also 1100) --
+// AppToast.zIndex.test.ts is a repo-wide guard, but that test only runs by scanning all 459
+// files in the repo, invisible within a single task's scope. This adds a local guard here that
+// fails faster and doesn't depend on a repo-wide glob, pinning only this file's own output. It
+// only locks the hard line "strictly below 1100" (the one invariant nailed down by
+// docs/THEMING.md §8); it deliberately does not additionally lock <1000/<200 -- those are
+// choices made here based on this page's own measured overlays (PhotosSidebar's narrow-screen
+// drawer at 151 / scrim at 150), not a repo-wide convention, and locking specific numbers would
+// only turn red on the next legitimate adjustment.
+describe('z-index layering (docs/THEMING.md §8)', () => {
+  it('the z-index of .ps-toast stays strictly below the global toast (1100) -- a local overlay on this page must not borrow the global toast layer', () => {
     const style = extractStyleBlock(photosSettingsRaw)
     expect(style.length).toBeGreaterThan(0)
     const block = /\.ps-toast\s*\{([^}]*)\}/.exec(style)
-    expect(block, '.ps-toast 规则块未找到').toBeTruthy()
+    expect(block, '.ps-toast rule block not found').toBeTruthy()
     const zMatch = /z-index\s*:\s*(\d+)/.exec((block as RegExpExecArray)[1])
-    expect(zMatch, '.ps-toast 规则块里没有 z-index 声明').toBeTruthy()
+    expect(zMatch, '.ps-toast rule block has no z-index declaration').toBeTruthy()
     const z = Number((zMatch as RegExpExecArray)[1])
     expect(z).toBeLessThan(1100)
   })
 })
 
-describe('路由:/photos/settings 只追加,不重排', () => {
-  it('/photos/settings 出现在源文本里最后一条既有 /photos/* 路由(/photos/search)之后', () => {
-    // ⚠️ 用 node:fs 读源文本行序断言,不用 router.getRoutes()——vue-router 4 的
-    // getRoutes() 会把动态段路由排到静态之前(P6b 已查实,global-constraints.md 记录)。
+describe('routing: /photos/settings only appends, never reorders', () => {
+  it('/photos/settings appears in the source text after the last existing /photos/* route (/photos/search)', () => {
+    // ⚠️ Asserts against source-text line order via node:fs, not router.getRoutes() -- vue-router
+    // 4's getRoutes() sorts dynamic-segment routes before static ones (confirmed in P6b,
+    // recorded in global-constraints.md).
     const src = readFileSync('src/router/index.ts', 'utf8')
     expect(src.length).toBeGreaterThan(0)
     const idxSettings = src.indexOf("'/photos/settings'")

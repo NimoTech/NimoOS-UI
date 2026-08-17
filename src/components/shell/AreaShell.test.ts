@@ -13,7 +13,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 describe('AreaShell', () => {
   beforeEach(() => { setActivePinia(createPinia()); push.mockClear() })
 
-  it('渲染 title prop、slot 内容,回主页键 push /', async () => {
+  it('Renders title prop and slot content; home button click pushes /', async () => {
     const w = mount(AreaShell, {
       props: { title: '应用' },
       global: { plugins: [i18n] },

@@ -1,6 +1,7 @@
-// Task 7 (SP7-P5 人物): ClusterActionDialog.vue —— 未命名人物三态操作弹窗。
-// 本组件只收集输入并 emit,不调用 store/toast(分工见组件头部注释),所以这里不 mock
-// @nimotech/nimoos-service,只挂 i18n(用真实 zh_cn 词条,核心行为就是插值文案本身)。
+// Task 7 (SP7-P5 People): ClusterActionDialog.vue — unlabeled person three-state action dialog.
+// This component only collects input and emits, does not call store/toast (division of labor
+// in component header comment), so we don't mock @nimotech/nimoos-service here, only inject
+// i18n (using real zh_cn entries, core behavior is text interpolation itself).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -9,7 +10,8 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import zh from '../../../i18n/zh_cn'
 
-// 本组件自己不调用 service,但渲染的 PersonAvatar 子组件会——照 PersonAvatar.test.ts 的既有 mock。
+// This component doesn't call service itself, but the rendered PersonAvatar child does —
+// follow the existing mock in PersonAvatar.test.ts.
 const svc = vi.hoisted(() => ({
   photos: {
     personFaceThumbnailUrl: vi.fn((id: string | number) => `mock://face/${id}`),
@@ -39,15 +41,16 @@ function person(overrides: Partial<Person> = {}): Person {
   }
 }
 
-// 每个组件实例的 watch(open, {immediate:true}) 在 mount 时就会往 document 挂一个 keydown
-// 监听——上一个测试若不 unmount 就留着,同一个 Escape 会被好几个陈旧实例的监听器同时接住,
-// 让 stopPropagation 调用次数断言假失败。afterEach 统一 unmount 本文件挂过的所有实例。
+// Each component instance's watch(open, {immediate:true}) attaches a keydown listener to
+// document on mount — if the previous test doesn't unmount, it persists; the same Escape is
+// then caught by multiple stale instance listeners, making stopPropagation call count
+// assertions false-positive. afterEach uniformly unmounts all instances created by this file.
 const mounted: VueWrapper[] = []
 function mountDialog(props: { open: boolean; mode: 'name' | 'merge' | 'delete'; person: Person | null; candidates: Person[] }) {
   const w = mount(ClusterActionDialog, {
     props,
     global: { plugins: [i18n] },
-    attachTo: document.body, // 焦点断言需要真实挂进 document
+    attachTo: document.body, // focus assertions need real mount into document
   })
   mounted.push(w)
   return w
@@ -60,14 +63,14 @@ afterEach(() => {
   for (const w of mounted.splice(0)) w.unmount()
 })
 
-describe('ClusterActionDialog.vue — 三态渲染', () => {
-  it('mode=name:渲染标题、副标题、label、输入框,无候选列表/危险按钮', async () => {
+describe('ClusterActionDialog.vue — three-state rendering', () => {
+  it('mode=name: renders title, subtitle, label, input field; no candidate list or danger button', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     expect(w.find('[data-test="cad-title"]').text()).toBe('为这个人命名')
     expect(w.find('[data-test="cad-subtitle"]').text()).toContain('9 张照片')
     expect(w.find('[data-test="cad-subtitle"]').text()).toContain('87%')
-    // 协调者复核修正:补上 Vue2 的 <label>(照 Vue2 :272,New-UI 键 photosPersonNameLabel)。
+    // Coordinator verification fix: add Vue2's <label> (per Vue2 :272, New-UI key photosPersonNameLabel).
     expect(w.find('[data-test="cad-name-label"]').text()).toBe('名称')
     expect(w.find('[data-test="cad-name-input"]').exists()).toBe(true)
     expect(w.find('[data-test="cad-save-name"]').exists()).toBe(true)
@@ -75,11 +78,12 @@ describe('ClusterActionDialog.vue — 三态渲染', () => {
     expect(w.find('[data-test="cad-confirm-delete"]').exists()).toBe(false)
   })
 
-  // 协调者复核修正:头部头像外圈补上 Vue2 :246-247 的 2px accent-soft 装饰环(48px 外圈
-  // border-box,PersonAvatar 本体按 44 传 size,44 + 2*2 = 48 还原同一几何。装饰环的
-  // 48px/2px 描边走 scoped CSS class,jsdom 不跑真实布局引擎测不到计算值,这里断言
-  // 结构(装饰环节点存在 + 内部头像的 size 是 44,不是 48)。
-  it('头部头像外圈装饰环存在,内部 PersonAvatar 按 44(不是 48)传 size', async () => {
+  // Coordinator verification fix: header avatar decoration ring — add Vue2's 2px accent-soft
+  // ring (48px outer border-box, PersonAvatar body passed size=44, 44 + 2*2 = 48 for same
+  // geometry). The ring's 48px/2px stroke uses a scoped CSS class; jsdom can't compute real
+  // layout values, so we assert structure instead (ring node exists + inner avatar size is
+  // 44, not 48).
+  it('header avatar decoration ring exists; inner PersonAvatar gets size=44 (not 48)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     const ring = w.get('[data-test="cad-avatar-ring"]')
@@ -89,7 +93,7 @@ describe('ClusterActionDialog.vue — 三态渲染', () => {
     expect(avatar.attributes('style')).toContain('height: 44px')
   })
 
-  it('mode=merge:渲染搜索框 + 候选列表,无主按钮(只有取消)', async () => {
+  it('mode=merge: renders search box + candidate list; no main button (only cancel)', async () => {
     const w = mountDialog({
       open: true, mode: 'merge', person: person(),
       candidates: [person({ id: 'a', name: 'Amy', count: 5 })],
@@ -103,16 +107,17 @@ describe('ClusterActionDialog.vue — 三态渲染', () => {
     expect(w.findAll('[data-test="cad-cancel"]')).toHaveLength(1)
   })
 
-  // 评审必修 1 回归:delete 模式是三句不同文案分属三个槶位(头部标题 / 警示条自己的标题行 /
-  // 警示条灰色小字正文),照 Vue2 :259-262 与 :337-343 逐一核对,不能互相顶替。
-  it('mode=delete:头部标题、警示条标题行+正文各归位,danger 确认按钮,无输入框', async () => {
+  // Review required regression 1: delete mode has three different texts in three slots (header
+  // title / warning card title row / warning card gray body), verify 1-to-1 against Vue2
+  // :259-262 and :337-343; they must not be swapped.
+  it('mode=delete: header title, warning title row + body each in place; danger confirm button; no input field', async () => {
     const w = mountDialog({ open: true, mode: 'delete', person: person(), candidates: [] })
     await w.vm.$nextTick()
-    // 头部标题(Vue2 :262 $t('Delete face cluster'))——不是警示条里的那句。
+    // Header title (Vue2 :262 $t('Delete face cluster')) — NOT the one in the warning card.
     expect(w.find('[data-test="cad-title"]').text()).toBe('删除这组人脸')
-    // 警示条自己的标题行(Vue2 :341 $t('Delete this person group?'))。
+    // Warning card's own title row (Vue2 :341 $t('Delete this person group?')).
     expect(w.find('[data-test="cad-delete-warning-title"]').text()).toBe('删除这个人物分组？')
-    // 警示条的灰色小字正文(Vue2 :342-343)。
+    // Warning card's gray small-text body (Vue2 :342-343).
     expect(w.find('[data-test="cad-delete-warning-body"]').text()).toBe(
       '照片会保留。人物分组与识别记录将被永久删除。你可以在 5 秒内撤销。',
     )
@@ -122,8 +127,8 @@ describe('ClusterActionDialog.vue — 三态渲染', () => {
   })
 })
 
-describe('ClusterActionDialog.vue — 命名', () => {
-  it('输入为空时主按钮 disabled;输入后不再 disabled', async () => {
+describe('ClusterActionDialog.vue — naming', () => {
+  it('main button disabled when input is empty; not disabled after input', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     const btn = w.get<HTMLButtonElement>('[data-test="cad-save-name"]')
@@ -132,7 +137,7 @@ describe('ClusterActionDialog.vue — 命名', () => {
     expect(btn.element.disabled).toBe(false)
   })
 
-  it('回车提交 → emit submit-name 带 trim 后的值', async () => {
+  it('Enter to submit → emit submit-name with trimmed value', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     const input = w.get('[data-test="cad-name-input"]')
@@ -141,7 +146,7 @@ describe('ClusterActionDialog.vue — 命名', () => {
     expect(w.emitted('submit-name')).toEqual([['Sara']])
   })
 
-  it('空白输入回车不 emit(trim 后为空)', async () => {
+  it('whitespace input on Enter does not emit (empty after trim)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     const input = w.get('[data-test="cad-name-input"]')
@@ -150,7 +155,7 @@ describe('ClusterActionDialog.vue — 命名', () => {
     expect(w.emitted('submit-name')).toBeUndefined()
   })
 
-  it('点保存按钮(未 disabled)同样 emit submit-name', async () => {
+  it('clicking save button (when not disabled) also emits submit-name', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-name-input"]').setValue('Lily')
@@ -158,7 +163,7 @@ describe('ClusterActionDialog.vue — 命名', () => {
     expect(w.emitted('submit-name')).toEqual([['Lily']])
   })
 
-  it('打开时输入框自动获得焦点', async () => {
+  it('input field gets focus automatically on open', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     expect(document.activeElement).toBe(w.get('[data-test="cad-name-input"]').element)
@@ -168,10 +173,10 @@ describe('ClusterActionDialog.vue — 命名', () => {
 // Task 7 (Plan D): naming with an already-existing name switches to the dupconfirm substate,
 // with three actions (Merge into existing / Name anyway / Cancel), instead of directly emitting
 // submit-name.
-describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
+describe('ClusterActionDialog.vue — naming: duplicate-name dupconfirm', () => {
   const ADA = person({ id: 42, name: 'Ada', count: 30 })
 
-  it('输入已存在姓名(大小写/空白不敏感)并保存 → 出现 dupconfirm,不 emit submit-name', async () => {
+  it('typing a name that already exists (case- and whitespace-insensitive) and saving → dupconfirm appears and submit-name is not emitted', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-name-input"]').setValue('  ada ')
@@ -183,7 +188,7 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
     expect(w.find('[data-test="cad-save-name"]').exists()).toBe(false)
   })
 
-  it('回车提交重名同样切到 dupconfirm(不只是点按钮才生效)', async () => {
+  it('submitting a duplicate with Enter also switches to dupconfirm (not only via the button)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
     await w.vm.$nextTick()
     const input = w.get('[data-test="cad-name-input"]')
@@ -192,7 +197,7 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
     expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(true)
   })
 
-  it('头部标题换成"已存在同名人物",头像/副标题不变', async () => {
+  it('the header title switches to the same-name-exists copy while the avatar and subtitle stay put', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person({ count: 9, confidence: 0.87 }), candidates: [ADA] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-name-input"]').setValue('Ada')
@@ -202,7 +207,7 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
     expect(w.find('[data-test="cad-subtitle"]').text()).toContain('87%')
   })
 
-  it('不重名的名字 → 直接 emit submit-name,不出现 dupconfirm', async () => {
+  it('a non-duplicate name → submit-name is emitted directly and no dupconfirm appears', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-name-input"]').setValue('Nobody')
@@ -211,7 +216,7 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
     expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(false)
   })
 
-  it('"Merge into existing" → emit submit-merge 带既有人物 id', async () => {
+  it('"Merge into existing" → emits submit-merge with the existing person id', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-name-input"]').setValue('Ada')
@@ -221,7 +226,7 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
     expect(w.emitted('submit-name')).toBeUndefined()
   })
 
-  it('"Name anyway" → emit submit-name 带原始输入的名字(trim 后)', async () => {
+  it('"Name anyway" → emits submit-name with the originally typed name (after trim)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-name-input"]').setValue('  ada ')
@@ -231,7 +236,7 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
     expect(w.emitted('submit-merge')).toBeUndefined()
   })
 
-  it('"Cancel" → 整个弹窗关闭(emit update:open false),不是退回普通命名态', async () => {
+  it('"Cancel" → closes the whole dialog (emits update:open false) rather than falling back to the plain naming state', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-name-input"]').setValue('Ada')
@@ -240,7 +245,7 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('重新打开弹窗时 dupconfirm 状态被清空(不会带着上一次的子状态重新出现)', async () => {
+  it('reopening the dialog clears the dupconfirm state (it never reappears carrying the previous sub-state)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-name-input"]').setValue('Ada')
@@ -255,28 +260,29 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
   })
 })
 
-describe('ClusterActionDialog.vue — 合并', () => {
-  // 7 个非自身候选:用于验证「空查询取前 6,按 count 降序、同 count 按 name 升序」
+describe('ClusterActionDialog.vue — merging', () => {
+  // 7 non-self candidates: verify "empty query takes first 6, by count descending, tie-break
+  // by name ascending"
   const SELF = person({ id: 'u1', name: '' })
   const CANDIDATES_SORT = [
-    SELF, // 必须被排除,即便 count 最高
+    SELF, // must be excluded even if count is highest
     person({ id: 'zoe', name: 'Zoe', count: 10 }),
-    person({ id: 'amy', name: 'Amy', count: 10 }), // 与 Zoe 同 count,name 升序应排前面
+    person({ id: 'amy', name: 'Amy', count: 10 }), // same count as Zoe, name ascending should rank first
     person({ id: 'bob', name: 'Bob', count: 8 }),
     person({ id: 'cara', name: 'Cara', count: 6 }),
     person({ id: 'dan', name: 'Dan', count: 5 }),
     person({ id: 'eve', name: 'Eve', count: 3 }),
-    person({ id: 'fay', name: 'Fay', count: 1 }), // 第 7 名,应被 6 条上限截掉
+    person({ id: 'fay', name: 'Fay', count: 1 }), // 7th entry, should be cut off by 6-item limit
   ]
 
-  it('空查询 → 最多 6 条,排除自身,按 count 降序、同 count 按 name 升序', async () => {
+  it('empty query → at most 6, exclude self, sort by count descending, tie-break by name ascending', async () => {
     const w = mountDialog({ open: true, mode: 'merge', person: SELF, candidates: CANDIDATES_SORT })
     await w.vm.$nextTick()
     const ids = w.findAll('[data-test="cad-candidate"]').map((n) => n.attributes('data-id'))
     expect(ids).toEqual(['amy', 'zoe', 'bob', 'cara', 'dan', 'eve'])
   })
 
-  it('搜索 "al" → 只剩名字含 al 的候选(小写 includes),最多 8 条', async () => {
+  it('search "al" → only candidates with "al" in name (lowercase includes), at most 8', async () => {
     const many = Array.from({ length: 9 }, (_, i) => person({ id: `alice${i}`, name: `Alice${i}`, count: 9 - i }))
     const noMatch = person({ id: 'frank', name: 'Frank', count: 50 })
     const w = mountDialog({ open: true, mode: 'merge', person: SELF, candidates: [...many, noMatch] })
@@ -287,7 +293,7 @@ describe('ClusterActionDialog.vue — 合并', () => {
     expect(cards.map((n) => n.attributes('data-id'))).not.toContain('frank')
   })
 
-  it('点候选 → emit submit-merge 带该 id,无独立确认按钮', async () => {
+  it('click candidate → emit submit-merge with that id; no separate confirm button', async () => {
     const w = mountDialog({
       open: true, mode: 'merge', person: SELF,
       candidates: [person({ id: 'amy', name: 'Amy', count: 5 })],
@@ -297,7 +303,7 @@ describe('ClusterActionDialog.vue — 合并', () => {
     expect(w.emitted('submit-merge')).toEqual([['amy']])
   })
 
-  it('数字 id 候选点击 → emit 原始数字 id(不做 String 转换)', async () => {
+  it('numeric id candidate click → emit original numeric id (no String conversion)', async () => {
     const w = mountDialog({
       open: true, mode: 'merge', person: SELF,
       candidates: [person({ id: 42, name: 'Alice', count: 5 })],
@@ -307,7 +313,7 @@ describe('ClusterActionDialog.vue — 合并', () => {
     expect(w.emitted('submit-merge')).toEqual([[42]])
   })
 
-  it('无匹配 → 空态文案', async () => {
+  it('no match → empty state text', async () => {
     const w = mountDialog({
       open: true, mode: 'merge', person: SELF,
       candidates: [person({ id: 'amy', name: 'Amy', count: 5 })],
@@ -318,15 +324,15 @@ describe('ClusterActionDialog.vue — 合并', () => {
     expect(w.find('[data-test="cad-empty"]').text()).toBe('没有匹配的人物')
   })
 
-  it('打开时搜索框自动获得焦点', async () => {
+  it('search field gets focus automatically on open', async () => {
     const w = mountDialog({ open: true, mode: 'merge', person: SELF, candidates: [] })
     await w.vm.$nextTick()
     expect(document.activeElement).toBe(w.get('[data-test="cad-merge-input"]').element)
   })
 })
 
-describe('ClusterActionDialog.vue — 删除', () => {
-  it('点 danger 按钮 → emit submit-delete', async () => {
+describe('ClusterActionDialog.vue — deletion', () => {
+  it('click danger button → emit submit-delete', async () => {
     const w = mountDialog({ open: true, mode: 'delete', person: person(), candidates: [] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-confirm-delete"]').trigger('click')
@@ -334,39 +340,40 @@ describe('ClusterActionDialog.vue — 删除', () => {
   })
 })
 
-describe('ClusterActionDialog.vue — 关闭交互', () => {
-  it('点遮罩(非面板本体) → emit update:open(false)', async () => {
+describe('ClusterActionDialog.vue — close interaction', () => {
+  it('click overlay (not panel itself) → emit update:open(false)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-overlay"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('点面板本体不关闭(click.self 只认遮罩自身)', async () => {
+  it('click panel itself does not close (click.self only handles overlay itself)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-panel"]').trigger('click')
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('点关闭按钮 → emit update:open(false)', async () => {
+  it('click close button → emit update:open(false)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-close"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('点取消 → emit update:open(false)', async () => {
+  it('click cancel → emit update:open(false)', async () => {
     const w = mountDialog({ open: true, mode: 'delete', person: person(), candidates: [] })
     await w.vm.$nextTick()
     await w.get('[data-test="cad-cancel"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  // document 级派发(bubbles:true)——不在面板/输入元素上 .trigger('keydown'),那测不到
-  // "焦点不在面板内也能用 Esc 关闭" 这个真实场景(P4 假绿教训:document 派发的事件默认不
-  // 冒泡,不显式 bubbles:true 会拿到假绿)。
-  it('按 Esc(document 级派发,bubbles:true) → emit update:open(false)', async () => {
+  // Document-level dispatch (bubbles:true) — can't just .trigger('keydown') on the panel or input
+  // element, that won't test the real scenario "Esc closes even when focus is outside panel"
+  // (P4 false-positive lesson: document-dispatched events don't bubble by default; without
+  // explicit bubbles:true you get a false pass).
+  it('press Esc (document-level dispatch, bubbles:true) → emit update:open(false)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -374,7 +381,7 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('Esc 分支调用了 stopPropagation(spy 断言)', async () => {
+  it('Esc branch calls stopPropagation (spy assertion)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     const evt = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
@@ -384,7 +391,7 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('非 Escape 键不触发关闭,也不调用 stopPropagation', async () => {
+  it('non-Escape key does not trigger close, does not call stopPropagation', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     const evt = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
@@ -395,7 +402,7 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('面板关闭(open===false)后 Esc 不再有任何效果(监听已摘除)', async () => {
+  it('after panel closes (open===false), Esc has no effect (listener removed)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     await w.setProps({ open: false })
@@ -405,7 +412,7 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('卸载后 document keydown 监听摘干净(比对函数引用)', async () => {
+  it('after unmount, document keydown listener is cleanly removed (compare function refs)', async () => {
     const addSpy = vi.spyOn(document, 'addEventListener')
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
@@ -438,13 +445,13 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
 // the file, as long as it doesn't re-declare background itself, that property has no competing
 // declaration from the variant rule at all, so `.cad-btn:hover`'s background still wins — the
 // scoped version's bug reappeared wearing a different face, reproduced as-is inside parity (the
-// delete-confirm button data-test="cad-confirm-delete" turned gray on hover instead of red). What
+// delete-confirm button data-test="cad-confirm-delete" lost its danger tone on hover). What
 // actually prevents this from recurring isn't "delete the local scoped block" by itself, it's
 // "every variant's hover rule must re-declare background itself" — the test group below reads the
 // parity file directly and asserts against that requirement rule-by-rule, no longer depending on
 // whether the component's local scoped block has been deleted.
-describe('ClusterActionDialog.vue — Plan D Task 4:scoped 清零后根类名不变', () => {
-  it('挂载后 [data-test="cad-overlay"] 仍然带着 cad-overlay 类(类名工程只动 PhotosPersonDetail.vue 的 pd-*,不动本组件)', async () => {
+describe('ClusterActionDialog.vue — Plan D Task 4: the root class names survive the scoped-style removal', () => {
+  it('after mounting, [data-test="cad-overlay"] still carries the cad-overlay class (the class-name rework only touched PhotosPersonDetail.vue pd-*, not this component)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     expect(w.find('[data-test="cad-overlay"]').classes()).toContain('cad-overlay')
@@ -484,13 +491,13 @@ function backgroundOf(body: string): string | null {
   return m ? m[1].trim() : null
 }
 
-describe('ClusterActionDialog.vue — Plan D Task 4 fix round 1:parity 里变体按钮 hover 背景不被 .cad-btn:hover 夺走', () => {
-  it('.cad-btn-danger:hover 必须自己重申 background(否则被基类 .cad-btn:hover 的 var(--surface-3) 顶掉,回归本轮修的那个 bug)', () => {
+describe('ClusterActionDialog.vue — Plan D Task 4 fix round 1: in parity, a variant button hover background is not stolen by .cad-btn:hover', () => {
+  it('.cad-btn-danger:hover must re-declare background itself (otherwise the base class .cad-btn:hover var(--surface-3) takes that property, regressing the bug fixed in this round)', () => {
     const baseBg = backgroundOf(parityRuleBody('.cad-btn:hover'))
     const dangerHoverBg = backgroundOf(parityRuleBody('.cad-btn-danger:hover'))
     const dangerBaseBg = backgroundOf(parityRuleBody('.cad-btn-danger'))
     expect(baseBg).toBe('var(--surface-3)')
-    expect(dangerHoverBg, '.cad-btn-danger:hover 缺少 background 声明——按 CSS 级联规则,基类 .cad-btn:hover 的 background 会在这条属性上生效').not.toBeNull()
+    expect(dangerHoverBg, '.cad-btn-danger:hover has no background declaration — by the CSS cascade the base class .cad-btn:hover background wins on that property').not.toBeNull()
     // The value must match its own resting state (Vue2 uses an inline style, so the background
     // never actually changes on hover — see the component's own fix round 1 comment); it can't
     // just be "non-null, whatever it is".
@@ -498,7 +505,7 @@ describe('ClusterActionDialog.vue — Plan D Task 4 fix round 1:parity 里变体
     expect(dangerHoverBg).not.toBe(baseBg)
   })
 
-  it('.cad-btn-primary:hover 已经正确重申 background(回归防线——本轮顺带核实过,未受影响,别在后续改动里砍掉)', () => {
+  it('.cad-btn-primary:hover already re-declares background correctly (a regression guard — verified unaffected this round, do not drop it in later changes)', () => {
     const baseBg = backgroundOf(parityRuleBody('.cad-btn:hover'))
     const primaryHoverBg = backgroundOf(parityRuleBody('.cad-btn-primary:hover'))
     expect(primaryHoverBg).not.toBeNull()

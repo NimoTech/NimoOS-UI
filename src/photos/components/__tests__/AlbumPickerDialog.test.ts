@@ -1,8 +1,9 @@
-// Task 5 (SP7-P4 相册): AlbumPickerDialog.vue —— 「加入相册」选择器。
-// 挂 Pinia + i18n(用真实 zh_cn 词条,不用手写迷你 locale——本组件的核心行为就是插值文案本身)。
-// mock 共享包 @nimotech/nimoos-service,经由真实 usePhotosAlbums()/useToast() store 端到端验证:
-// 点相册项 → 断言底层 service.photos.batchAddToAlbum 真的被调(而不是 mock 掉 store 本身),
-// 这样能测出 T2 store 与本组件的实际接线,不是纯白盒断言。
+// Task 5 (SP7-P4 albums): AlbumPickerDialog.vue — "add to album" picker.
+// Mount Pinia + i18n (use real zh_cn entries, not hand-written mini locale — this component's core
+// behavior is interpolating message itself). Mock shared package @nimotech/nimoos-service, verify end-to-end
+// via real usePhotosAlbums()/useToast() stores: click album item → assert underlying service.photos.batchAddToAlbum
+// is actually called (not mock out store itself), this way we can test actual wiring between T2 store and
+// this component, not pure white-box assertions.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -42,7 +43,7 @@ beforeEach(() => {
 })
 
 describe('AlbumPickerDialog.vue', () => {
-  it('open false→true → 拉取相册列表,渲染相册项(标题+计数)与「+ 新建相册」行', async () => {
+  it('open false→true → fetch album list, render album items (title+count) and "+ new album" row', async () => {
     const w = mountDialog({ open: false, assetIds: ['a1'] })
     expect(svc.photos.listAlbums).not.toHaveBeenCalled()
     await w.setProps({ open: true })
@@ -58,7 +59,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.text()).toContain('新建相册')
   })
 
-  it('点某相册项 → addAssetsToAlbum(该id, assetIds) 被调 → emit added + update:open(false) + toast', async () => {
+  it('Click an album item → addAssetsToAlbum(its id, assetIds) is called → emit added + update:open(false) + toast', async () => {
     const w = mountDialog({ open: true, assetIds: ['a1', 'a2'] })
     await flushPromises()
     const toast = useToast()
@@ -74,7 +75,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(toast.toasts[0]!.text).toContain('2')
   })
 
-  it('store 抛错(addAssetsToAlbum 失败)→ 面板仍 open,toast 为失败文案', async () => {
+  it('store throws (addAssetsToAlbum fails) → panel still open, toast is failure message', async () => {
     svc.photos.batchAddToAlbum.mockRejectedValueOnce(new Error('boom'))
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
@@ -89,9 +90,9 @@ describe('AlbumPickerDialog.vue', () => {
     expect(toast.toasts[0]!.text).toBe(zh.photosAlbumAddFailed)
   })
 
-  it('点「+ 新建相册」→ 出现输入框;输入名+回车 → createAlbum 然后 addAssetsToAlbum 依次被调', async () => {
+  it('Click "+ new album" → input box appears; type name+enter → createAlbum then addAssetsToAlbum called in sequence', async () => {
     svc.photos.createAlbum.mockResolvedValueOnce({ id: 99, name: 'New Trip' })
-    // createAlbum 内部会 fetchAlbums 一次(store 行为),让新相册出现在列表里
+    // createAlbum internally calls fetchAlbums once (store behavior), lets new album appear in list
     svc.photos.listAlbums
       .mockResolvedValueOnce([{ id: 1, name: 'Trip', assetCount: 3 }])
       .mockResolvedValueOnce([
@@ -108,7 +109,7 @@ describe('AlbumPickerDialog.vue', () => {
     await flushPromises()
 
     const callOrder: string[] = []
-    // 断言调用顺序:createAlbum 先于 batchAddToAlbum
+    // Assert call order: createAlbum before batchAddToAlbum
     expect(svc.photos.createAlbum).toHaveBeenCalledWith('New Trip')
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(99, ['a1'])
     const createOrder = svc.photos.createAlbum.mock.invocationCallOrder[0]!
@@ -118,7 +119,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('createAlbum 抛 409 → 显示重名提示,addAssetsToAlbum 未被调,输入内容仍在', async () => {
+  it('createAlbum throws 409 → show duplicate name hint, addAssetsToAlbum not called, input content remains', async () => {
     const err = Object.assign(new Error('conflict'), { response: { status: 409 } })
     svc.photos.createAlbum.mockRejectedValueOnce(err)
     const w = mountDialog({ open: true, assetIds: ['a1'] })
@@ -133,12 +134,12 @@ describe('AlbumPickerDialog.vue', () => {
 
     expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalled()
     expect(toast.toasts[0]!.text).toBe(zh.photosAlbumNameExists)
-    // 面板未关,输入框还在且内容保留
+    // Panel still open, input box remains with content preserved
     expect(w.emitted('update:open')).toBeUndefined()
     expect(w.get<HTMLInputElement>('[data-test="album-picker-new-input"]').element.value).toBe('Trip')
   })
 
-  it('createAlbum 抛非409错误 → 显示创建失败提示', async () => {
+  it('createAlbum throws non-409 error → show creation failed message', async () => {
     svc.photos.createAlbum.mockRejectedValueOnce(new Error('server error'))
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
@@ -154,7 +155,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('createAlbum 抛无 response 字段但 message 含 409 的错误 → 仍判定为重名(brief 的 message 兜底)', async () => {
+  it('createAlbum throws error with no response field but message contains 409 → still treat as duplicate (brief\'s message fallback)', async () => {
     svc.photos.createAlbum.mockRejectedValueOnce(new Error('request failed with status code 409'))
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
@@ -170,7 +171,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(toast.toasts[0]!.text).not.toBe(zh.photosAlbumCreateFailed)
   })
 
-  it('相册列表为空 → 渲染 photosAddToAlbumEmpty,「新建」行仍在', async () => {
+  it('Album list is empty → render photosAddToAlbumEmpty, "+ new" row still present', async () => {
     svc.photos.listAlbums.mockResolvedValue([])
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
@@ -180,7 +181,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.find('[data-test="album-picker-new"]').exists()).toBe(true)
   })
 
-  it('assetIds 为空 → 相册项 disabled,点击不触发 store;「+ 新建相册」入口同样 disabled(避免建了相册却无反馈)', async () => {
+  it('assetIds is empty → album items disabled, clicking doesn\'t trigger store; "+ new album" entry also disabled (avoid creating album with no feedback)', async () => {
     const w = mountDialog({ open: true, assetIds: [] })
     await flushPromises()
 
@@ -201,10 +202,11 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.find('[data-test="album-picker-new-input"]').exists()).toBe(false)
   })
 
-  // 焦点在真实使用中大概率不落在面板 DOM 子树内(用户从触发按钮打开面板、不点面板内部
-  // 直接按 Esc),所以必须在 document 上派发 keydown 才是真的场景——绝不在 overlay/input
-  // 元素上 .trigger('keydown'),那只测得到"元素恰好持有焦点"这个不成立的前提。
-  it('Esc 分层(document 级派发,不依赖真实焦点):输入展开时先收起输入行,再次 Esc 才关闭面板', async () => {
+  // In real usage, focus most likely doesn't land in panel DOM subtree (user opens panel from trigger
+  // button, doesn't click inside panel and press Esc directly), so dispatching keydown on document is
+  // the real scenario — never on overlay/input element .trigger('keydown'), that only tests the false
+  // premise that "element happens to hold focus".
+  it('Esc hierarchy (document-level dispatch, doesn\'t rely on real focus): when input is open, first close input row, Esc again to close panel', async () => {
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
     await w.get('[data-test="album-picker-new"]').trigger('click')
@@ -220,7 +222,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('面板关闭(open===false)后 Esc 不再有任何效果(监听已摘除)', async () => {
+  it('After panel closes (open===false), Esc has no effect (listener removed)', async () => {
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
     await w.setProps({ open: false })
@@ -231,7 +233,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('封面缺失时不调用 thumbnailUrl(渲染渐变占位而非拼 URL)', async () => {
+  it('When cover is missing, don\'t call thumbnailUrl (render gradient placeholder not construct URL)', async () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 5, name: 'NoCover', assetCount: 0 }])
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
@@ -239,7 +241,7 @@ describe('AlbumPickerDialog.vue', () => {
     expect(w.find('[data-test="album-picker-cover-empty"]').exists()).toBe(true)
   })
 
-  it('有封面时通过 service.photos.thumbnailUrl 生成图片 URL(不手拼)', async () => {
+  it('When cover exists, generate image URL via service.photos.thumbnailUrl (don\'t construct manually)', async () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 6, name: 'Cover', assetCount: 1, coverAssetId: 'asset-77' }])
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
@@ -248,18 +250,19 @@ describe('AlbumPickerDialog.vue', () => {
     expect(img.attributes('src')).toBe('mock://thumb/asset-77/small')
   })
 
-  it('点击遮罩(非面板本体)关闭整个面板', async () => {
+  it('Click overlay (not panel itself) closes entire panel', async () => {
     const w = mountDialog({ open: true, assetIds: ['a1'] })
     await flushPromises()
     await w.get('[data-test="album-picker-overlay"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  // 终审必修 2:submitCreate 绑在 @keydown.enter,`creating` 只是「输入行是否展开」的显示
-  // 标志,不是 in-flight 守卫——长按/连按回车会重复发 createAlbum。这是本期第三次出现的同类
-  // bug(T7 PhotosAlbums.vue `creating`、T10 PhotosFavorites.vue `saveAlbumSaving` 都已补过
-  // 守卫),AlbumPickerDialog 的内联新建是四个入口里唯一还没补的。
-  it('必修2回归:连按两次回车提交新建相册(第二次在第一次未 resolve 前触发)→ createAlbum 只被调一次', async () => {
+  // Final review required 2: submitCreate bound to @keydown.enter, `creating` is only a display flag for
+  // "whether input row is open", not an in-flight guard — long-press/repeated Enter sends createAlbum multiple
+  // times. This is the third occurrence of this type of bug this cycle (T7 PhotosAlbums.vue `creating`,
+  // T10 PhotosFavorites.vue `saveAlbumSaving` both already patched with guards), inline album creation in
+  // AlbumPickerDialog is the only one of four entry points not yet patched.
+  it('Required 2 regression: press Enter twice to create album (second press before first resolves) → createAlbum called only once', async () => {
     let resolveCreate: ((v: { id: number; name: string }) => void) | undefined
     svc.photos.createAlbum.mockImplementation(
       () => new Promise((resolve) => { resolveCreate = resolve }),
@@ -271,7 +274,7 @@ describe('AlbumPickerDialog.vue', () => {
     const input = w.get('[data-test="album-picker-new-input"]')
     await input.setValue('Dup Trip')
     await input.trigger('keydown', { key: 'Enter' })
-    await input.trigger('keydown', { key: 'Enter' }) // 第二次回车在第一次未 resolve 前触发
+    await input.trigger('keydown', { key: 'Enter' }) // Second Enter before first resolves
     await flushPromises()
 
     expect(svc.photos.createAlbum).toHaveBeenCalledTimes(1)
@@ -279,9 +282,9 @@ describe('AlbumPickerDialog.vue', () => {
     await flushPromises()
   })
 
-  // 终审必修 2(同一类守卫的另一半):pick() 本身也没有 in-flight 守卫,连点同一个相册项会
-  // 对同一批 assetIds 重复发 addAssetsToAlbum。
-  it('必修2回归:连点两次同一相册项(第二次在第一次未 resolve 前触发)→ addAssetsToAlbum 只被调一次', async () => {
+  // Final review required 2 (the other half of the same type of guard): pick() itself also has no in-flight
+  // guard, clicking the same album item multiple times sends addAssetsToAlbum repeatedly for same assetIds.
+  it('Required 2 regression: click same album item twice (second click before first resolves) → addAssetsToAlbum called only once', async () => {
     let resolveAdd: (() => void) | undefined
     svc.photos.batchAddToAlbum.mockImplementation(
       () => new Promise((resolve) => { resolveAdd = () => resolve(undefined) }),
@@ -291,7 +294,7 @@ describe('AlbumPickerDialog.vue', () => {
     const items = w.findAll('[data-test="album-picker-item"]')
 
     await items[0]!.trigger('click')
-    await items[0]!.trigger('click') // 第二次点击在第一次未 resolve 前触发
+    await items[0]!.trigger('click') // Second click before first resolves
     await flushPromises()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledTimes(1)

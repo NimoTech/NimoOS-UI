@@ -9,7 +9,7 @@ import { renderMarkdown } from '../../files/viewers/renderMarkdown'
 const props = defineProps<{ open: boolean; text: string }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm'): void }>()
 const { t } = useI18n()
-/** renderMarkdown 是 html:false 的 markdown-it——原始 HTML 被转义,v-html 其输出安全(§3.8-2) */
+/** renderMarkdown is markdown-it with html:false — raw HTML is escaped, v-html its output is safe (§3.8-2) */
 const html = computed(() => renderMarkdown(props.text))
 </script>
 
@@ -19,7 +19,7 @@ const html = computed(() => renderMarkdown(props.text))
       <DialogOverlay class="pit-overlay" />
       <DialogContent class="pit-content">
         <DialogTitle class="pit-title">{{ t('appsInstallTipsTitle') }}</DialogTitle>
-        <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown html:false,输出已转义 -->
+        <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown html:false, output is escaped -->
         <div class="pit-body" v-html="html"></div>
         <div class="pit-footer">
           <DialogClose class="pit-btn">{{ t('appsCancel') }}</DialogClose>
@@ -33,7 +33,7 @@ const html = computed(() => renderMarkdown(props.text))
 </template>
 
 <style scoped>
-/* scoped 可用:data-v 属性随组件模板 vnode 走,Portal 后仍带(UninstallConfirm 同款先例) */
+/* scoped is available: data-v attribute follows component template vnode, still present after Portal (UninstallConfirm has same precedent) */
 .pit-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
 .pit-content {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
@@ -43,11 +43,11 @@ const html = computed(() => renderMarkdown(props.text))
   color: var(--fg); box-shadow: var(--card-shadow-hi);
 }
 .pit-title { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
-/* overflow-wrap:anywhere:长 URL/长命令(哪怕无空格)也在弹窗内折行,不撑破容器 */
+/* overflow-wrap: anywhere: long URLs/long commands (even without spaces) wrap inside dialog, don't break container */
 .pit-body { font-size: 13.5px; line-height: 1.7; color: var(--fg); overflow-wrap: anywhere; }
 .pit-body :deep(a) { color: var(--accent); }
 .pit-body :deep(code) { background: var(--chip-bg); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
-/* 围栏代码块(整行命令):在框内折行显示完整命令,不横向溢出 */
+/* fenced code block (complete command): wraps inside frame, does not overflow horizontally */
 .pit-body :deep(pre) {
   background: var(--chip-bg); border-radius: 8px; padding: 10px 12px; margin: 8px 0;
   white-space: pre-wrap; word-break: break-all; max-width: 100%;

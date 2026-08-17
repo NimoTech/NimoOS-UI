@@ -9,21 +9,21 @@ describe('theme store', () => {
     delete document.documentElement.dataset.theme
   })
 
-  it('THEMES 与 isTheme', () => {
+  it('THEMES and isTheme', () => {
     expect(THEMES).toEqual(['blue', 'light'])
     expect(isTheme('light')).toBe(true)
     expect(isTheme('green')).toBe(false)
     expect(isTheme(null)).toBe(false)
   })
 
-  it('applyTheme: light 置属性, blue 移除属性', () => {
+  it('applyTheme: light sets the attribute, blue removes it', () => {
     applyTheme('light')
     expect(document.documentElement.dataset.theme).toBe('light')
     applyTheme('blue')
     expect(document.documentElement.dataset.theme).toBeUndefined()
   })
 
-  it('initialTheme: 读 localStorage, 非法回 blue', () => {
+  it('initialTheme: reads localStorage, falls back to blue when invalid', () => {
     expect(initialTheme()).toBe('blue')
     localStorage.setItem('theme', 'light')
     expect(initialTheme()).toBe('light')
@@ -31,7 +31,7 @@ describe('theme store', () => {
     expect(initialTheme()).toBe('blue')
   })
 
-  it('setTheme: 改 state + data-theme + localStorage', () => {
+  it('setTheme: updates state + data-theme + localStorage', () => {
     const store = useThemeStore()
     store.setTheme('light')
     expect(store.theme).toBe('light')

@@ -9,7 +9,7 @@ import { useSessionStore } from '../../stores/session'
 
 export interface DesktopAppDecl { key: string; widget?: { w: number; h: number } }
 
-/** spec §3:初始尺寸夹进有效范围(缺省 = 全局 w 2..4 / h 1..4);非法/缺省 → 2×2 再夹 */
+/** spec §3: clamp initial size to valid range (default = global w 2..4 / h 1..4); invalid/default → 2x2 then clamp */
 export function clampWidgetDecl(w?: number, h?: number, range: WidgetSize = APP_WIDGET_SIZE): [number, number] {
   const iw = !w || w <= 0 ? 2 : w
   const ih = !h || h <= 0 ? 2 : h
@@ -49,12 +49,12 @@ export const useAppsStore = defineStore('home-apps', () => {
       })
     ;(container || []).forEach((a) => {
       const key = a.name
-      if (!key || map[key]) return // 不覆盖系统应用
-      // 标题多语言键大小写不统一:应用市场装的 v2 应用来自 store 的 title 用 `en_US`(大写),
-      // 而 v1/容器走 DefaultLanguage=`en_us`(小写)。逐一容忍再回退到任意可用值,最后才用 id。
+      if (!key || map[key]) return // do not overwrite system apps
+      // Title i18n key case is inconsistent: v2 apps from the app store use `en_US` (uppercase),
+      // while v1/containers use DefaultLanguage=`en_us` (lowercase). Try each, fall back to any available, finally use id.
       const t = a.title || {}
       const title = t.zh_cn || t.en_us || t.en_US || t.zh_CN || Object.values(t)[0] || a.name
-      // desktop 应用的相对 icon 由应用自身伺服(spec §3)
+      // desktop app relative icon served by the app itself (spec §3)
       let icon = a.icon || null
       if (a.desktop && icon && icon.startsWith('/') && a.port) {
         icon = `${a.scheme || 'http'}://${a.hostname || window.location.hostname}:${a.port}${icon}`
@@ -68,7 +68,7 @@ export const useAppsStore = defineStore('home-apps', () => {
     })
     ;(links || []).forEach((l) => {
       const key = l.name
-      if (!key || map[key]) return // 系统/容器应用已占用该 key,外部链接不覆盖(容器应用胜出)
+      if (!key || map[key]) return // system/container apps already occupy this key, external links do not overwrite (container wins)
       map[key] = {
         name: l.name, cls: 'ic-app', glyph: (l.name[0] || '').toUpperCase(), icon: l.icon || null, system: false,
         app_type: l.app_type, status: l.status, hostname: l.hostname,
@@ -119,8 +119,8 @@ export const useAppsStore = defineStore('home-apps', () => {
 
   function app(key: string): AppMeta | undefined { return apps.value[key] }
 
-  /** 已停止(可启动)的容器应用:系统应用/LinkApp/无状态来源不算。
-   *  status 缺省视为运行(与 desktopDecls 同一约定,不误伤)。 */
+  /** Stopped (restartable) container apps: system apps / LinkApp / stateless sources do not count.
+   *  Default status is treated as running (same convention as desktopDecls, no false positives). */
   function isStopped(key: string): boolean {
     const a = apps.value[key]
     if (!a || a.system || a.app_type === 'LinkApp') return false
@@ -128,8 +128,8 @@ export const useAppsStore = defineStore('home-apps', () => {
   }
 
   function desktopDecls(): DesktopAppDecl[] {
-    // spec §4:停止就消失——非 running 容器不算"该上桌",由 autoPin 的宽限期清理。
-    // status 缺省(非容器来源)视为运行,不误伤。
+    // spec §4: stopped means gone — non-running containers do not count as "should be on desktop", cleaned up by autoPin grace period.
+    // default status (non-container source) is treated as running, no false positives.
     return order.value
       .filter((k) => {
         const a = apps.value[k]
@@ -142,8 +142,8 @@ export const useAppsStore = defineStore('home-apps', () => {
       })
   }
 
-  /** 已明确停止(exited/dead)的 desktop 应用——后端积极报告的停止不是抖动,可立即清理。
-   *  restarting/paused 等中间态不算,走缺席宽限期兜底。 */
+  /** Desktop apps explicitly stopped (exited/dead) — backend proactively reports stop, not a flicker, can clean up immediately.
+   *  Intermediate states like restarting/paused do not count, fall back to absence grace period. */
   function stoppedDesktopKeys(): string[] {
     return order.value.filter((k) => {
       const a = apps.value[k]
@@ -151,6 +151,6 @@ export const useAppsStore = defineStore('home-apps', () => {
     })
   }
 
-  setApps([]) // 系统应用立即可用
+  setApps([]) // system apps immediately available
   return { apps, order, kvmAvailable, terminalAvailable, setApps, loadGrid, app, isStopped, desktopDecls, stoppedDesktopKeys }
 })

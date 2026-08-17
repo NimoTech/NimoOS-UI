@@ -1,22 +1,26 @@
-// SP8-P5c Task 3(半一)—— `util/folderBrowser.ts` 三个纯函数的单测。
-// 蓝本 `NimoOS-UI` (main@7a6ee6b7) `src/components/common/folderBrowser.js:3-34`。
+// SP8-P5c Task 3 (part 1) — unit tests for `util/folderBrowser.ts` three pure functions.
+// Blueprint `NimoOS-UI` (main@7a6ee6b7) `src/components/common/folderBrowser.js:3-34`.
 //
-// 【端到端那条用例的数据来源】`folder-list-DATA.json` 的 `data.content` 那一层
-// (18 项)**逐字抄进本文件**(见下方 FIXTURE-COPY 块),不在运行时读那个目录 ——
-// 协调者裁定(见 T3 报告 §8):`.superpowers/` 被 gitignore 盖着、靠 `git add -f`
-// 才进版本库,SP7 曾整目录丢过一次;`src/` 下的测试跨界依赖它,一旦合并没带上或有人
-// 跑 `git clean -X`,就会以「找不到文件」的形式神秘挂掉。治理 §4「禁手编」的本意是
-// 「别凭想象编数据」(记忆 `newui-fixture-from-imagination-trap`),抄本 + 注明出处
-// 同样满足,且测试自包含。抄本与 fixture 原文的等价性由一次性脚本程序化校验(报告 §9)。
-// 期望值(12 个目录名与它们的 `localeCompare` 顺序)是**写死的字面量**,不是从
-// 抄本现算出来的 —— 否则断言会自我实现、失去判别力。
+// [Data source for end-to-end test case] `data.content` layer of `folder-list-DATA.json`
+// (18 items) **copied verbatim into this file** (see FIXTURE-COPY block below),
+// not reading that directory at runtime — coordinator ruling (see T3 report §8):
+// `.superpowers/` covered by gitignore, enters repo only via `git add -f`, SP7 lost
+// entire directory once; tests under `src/` cross-depend on it, once merged without it
+// or someone runs `git clean -X`, mysteriously dies with "file not found". Governance §4
+// "forbid hand-written" means "don't invent data by imagination" (memory
+// `newui-fixture-from-imagination-trap`), copy + cite source also satisfies + test
+// self-contained. Copy-blueprint original equivalence verified programmatically by
+// one-off script (report §9). Expected values (12 dir names and their `localeCompare`
+// order) are **hardcoded literals**, not computed from copy — else assertion
+// self-fulfills, losing discriminative power.
 import { describe, it, expect } from 'vitest'
 import type { FolderEntry } from '@nimotech/nimoos-service'
 import { crumbsFor, dirEntries, pickerRoots } from './folderBrowser'
 
 /**
- * `GET /v1/folder?path=/DATA` 每一项的原文形状(11 个字段,顺序与后端一致)。
- * 逐字取自 `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(2026-08-03 真机抓取)。
+ * The verbatim shape of each item from `GET /v1/folder?path=/DATA` (11 fields, in the same
+ * order as the backend). Copied verbatim from `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`
+ * (captured on a real device, 2026-08-03).
  */
 interface RawFolderItem {
   name: string
@@ -33,14 +37,17 @@ interface RawFolderItem {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIXTURE-COPY-BEGIN  ——  folder-list-DATA.json 的 data.content(18 项)
-// 取自 `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(2026-08-03 真机抓取),
-// 逐字抄入以免测试跨界依赖 gitignore 目录 —— 协调者裁定,见 T3 报告 §8。
-// 🔴 那份 fixture 是 **HTTP 原文的三层信封**
-//   `{success,message,data:{content:[…18 项…],total,index,size}}`;
-//   这里抄的是 **`data.content` 那一层**(= `unwrap()` 之后 `service.folder.getList()`
-//   给出的 `{ content }` 里的数组本身)。这个降层动作就是 K28 的落地证据。
-// 🔴 字段一个没精简、顺序一个没改;等价性由一次性脚本程序化校验(报告 §9)。
+// FIXTURE-COPY-BEGIN  ——  the data.content layer of folder-list-DATA.json (18 items)
+// Taken from `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json` (real-device capture,
+// 2026-08-03), copied verbatim so the test doesn't cross-depend on a gitignored directory —
+// coordinator ruling, see T3 report §8.
+// 🔴 That fixture is a **three-layer envelope of the raw HTTP response**:
+//   `{success,message,data:{content:[…18 items…],total,index,size}}`;
+//   what's copied here is **just the `data.content` layer** (= the array itself inside the
+//   `{ content }` that `service.folder.getList()` returns after `unwrap()`). This layer-drop
+//   is the concrete evidence of K28.
+// 🔴 Not a single field trimmed, not a single order changed; equivalence verified
+//   programmatically by a one-off script (report §9).
 // ─────────────────────────────────────────────────────────────────────────────
 const DATA_CONTENT: RawFolderItem[] = [
   {"name": ".snapshots", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T22:08:06.07507098+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/.snapshots", "date": "2026-07-30T22:08:06.07507098+08:00", "extensions": null},
@@ -64,35 +71,35 @@ const DATA_CONTENT: RawFolderItem[] = [
 ]
 // FIXTURE-COPY-END
 
-/** 造一项 `GET /v1/folder` 的条目(字段名与真 fixture 逐字一致:`is_dir` 而非 `isDir`)。 */
+/** Build one `GET /v1/folder` entry (field names match the real fixture verbatim: `is_dir`, not `isDir`). */
 function entry(name: string, isDir: boolean, path?: string): FolderEntry {
   return { name, is_dir: isDir, path: path ?? `/DATA/${name}` }
 }
 
-describe('dirEntries(content) —— 蓝本 folderBrowser.js:3-8', () => {
-  it('【N7 兜底】content 为 undefined 时返回空数组,不抛', () => {
+describe('dirEntries(content) —— blueprint folderBrowser.js:3-8', () => {
+  it('[N7 fallback] returns empty array when content is undefined, does not throw', () => {
     expect(dirEntries(undefined)).toEqual([])
   })
 
-  it('【N7 兜底】content 为 null(Go nil slice 序列化结果)时返回空数组,不抛', () => {
+  it('[N7 fallback] returns empty array when content is null (result of a Go nil slice serialization), does not throw', () => {
     expect(dirEntries(null)).toEqual([])
   })
 
-  it('content 为空数组时返回空数组', () => {
+  it('returns empty array when content is an empty array', () => {
     expect(dirEntries([])).toEqual([])
   })
 
-  it('全是文件(is_dir 全 false)时返回空数组 —— 只留目录', () => {
+  it('returns empty array when all entries are files (is_dir all false) — only directories are kept', () => {
     const out = dirEntries([entry('a.txt', false), entry('b.md', false)])
     expect(out).toEqual([])
   })
 
-  it('全是隐藏目录(name 以 . 开头)时返回空数组 —— startsWith(".") 被滤掉', () => {
+  it('returns empty array when all entries are hidden directories (name starts with .) — startsWith(".") filters them out', () => {
     const out = dirEntries([entry('.snapshots', true), entry('.system_data', true)])
     expect(out).toEqual([])
   })
 
-  it('混合输入只留「可见目录」,且每项只有 name / path 两个字段', () => {
+  it('mixed input keeps only "visible directories", and each item has only the name / path fields', () => {
     const out = dirEntries([
       entry('.hidden-dir', true),
       entry('visible-dir', true),
@@ -100,33 +107,33 @@ describe('dirEntries(content) —— 蓝本 folderBrowser.js:3-8', () => {
       entry('.hidden-file', false),
     ])
     expect(out).toEqual([{ name: 'visible-dir', path: '/DATA/visible-dir' }])
-    // 只 map 出 name / path —— is_dir 不该被带出来
+    // Only name / path are mapped out — is_dir must not be carried through
     expect(Object.keys(out[0]!).sort()).toEqual(['name', 'path'])
   })
 
-  it('name 恰好是 "." 开头的单字符 "." 也被滤掉(边界:startsWith 而非 === )', () => {
+  it('a name that is exactly the single character "." (starts with ".") is also filtered out (boundary: startsWith, not ===)', () => {
     expect(dirEntries([entry('.', true, '/DATA/.')])).toEqual([])
   })
 
-  it('name 里含 . 但不在开头的目录保留(边界另一侧)', () => {
+  it('a directory whose name contains a "." but not at the start is kept (the other side of the boundary)', () => {
     expect(dirEntries([entry('a.b', true)])).toEqual([{ name: 'a.b', path: '/DATA/a.b' }])
   })
 
-  it('排序真的生效:乱序进 → localeCompare 升序出', () => {
+  it('sorting really takes effect: unordered in → localeCompare ascending out', () => {
     const out = dirEntries([entry('zeta', true), entry('alpha', true), entry('mid', true)])
     expect(out.map((e) => e.name)).toEqual(['alpha', 'mid', 'zeta'])
   })
 
-  it('localeCompare 不是码点序:大小写混排时 lower 会插到 upper 之间', () => {
-    // 码点序会给出 ['KVM','Media','lost+found'](大写全在小写前);localeCompare 给
-    // ['KVM','lost+found','Media'] —— 这条用例专门钉死用的是 localeCompare。
+  it('localeCompare is not codepoint order: with mixed case, lowercase sorts in between uppercase entries', () => {
+    // Codepoint order would give ['KVM','Media','lost+found'] (all uppercase before lowercase);
+    // localeCompare gives ['KVM','lost+found','Media'] — this case specifically pins down that localeCompare is used.
     const out = dirEntries([entry('Media', true), entry('lost+found', true), entry('KVM', true)])
     expect(out.map((e) => e.name)).toEqual(['KVM', 'lost+found', 'Media'])
   })
 
-  it('端到端:folder-list-DATA.json 抄本的真实 18 项 → 12 个可见目录(取 data.content 那一层)', () => {
-    const content = DATA_CONTENT // ← 三层信封里的 content 那一层(抄本)
-    // 抄本没漂:18 项、其中 14 项 is_dir(含 3 个隐藏)
+  it('end-to-end: the real 18 items from the folder-list-DATA.json copy → 12 visible directories (taking the data.content layer)', () => {
+    const content = DATA_CONTENT // ← the content layer inside the three-layer envelope (the copy)
+    // The copy hasn't drifted: 18 items, 14 of which are is_dir (including 3 hidden)
     expect(content).toHaveLength(18)
     expect(content.filter((e) => e.is_dir)).toHaveLength(14)
 
@@ -141,11 +148,11 @@ describe('dirEntries(content) —— 蓝本 folderBrowser.js:3-8', () => {
       '/DATA/Gallery', '/DATA/Image', '/DATA/KVM', '/DATA/lost+found',
       '/DATA/Media', '/DATA/NIMO', '/DATA/Notes', '/DATA/todo-widget',
     ])
-    // 三个 . 开头的项被滤掉(两个隐藏目录 + 一个隐藏文件)
+    // The three items starting with . are filtered out (two hidden directories + one hidden file)
     expect(out.map((e) => e.name)).not.toContain('.snapshots')
     expect(out.map((e) => e.name)).not.toContain('.system_data')
     expect(out.map((e) => e.name)).not.toContain('.wiki.md')
-    // 排序真的改了顺序:fixture 原序里 lost+found 在 Notes 之后,输出里在 KVM 之后
+    // Sorting really did change the order: in the fixture's original order lost+found comes after Notes, in the output it comes after KVM
     const rawNames = content.map((e) => e.name)
     expect(rawNames.indexOf('lost+found')).toBeGreaterThan(rawNames.indexOf('Notes'))
     expect(out.map((e) => e.name).indexOf('lost+found')).toBeLessThan(
@@ -154,30 +161,31 @@ describe('dirEntries(content) —— 蓝本 folderBrowser.js:3-8', () => {
   })
 })
 
-describe('pickerRoots(candidates) —— 蓝本 folderBrowser.js:10-23', () => {
-  // 治理 §4.3 实测:本机 GET /v1/wiki/candidates 返回 [] → 真机走的就是兜底这条,
-  // 兜底三根不是死代码。三个 label 是硬编码英文、不进 i18n(蓝本如此)。
+describe('pickerRoots(candidates) —— blueprint folderBrowser.js:10-23', () => {
+  // Verified against governance §4.3: on the real device GET /v1/wiki/candidates returns [] →
+  // the real device does hit this fallback path, the three fallback roots are not dead code.
+  // The three labels are hardcoded English, not routed through i18n (matches the blueprint).
   const FALLBACK = [
     { path: '/DATA', label: 'System (/DATA)' },
     { path: '/media', label: '/media' },
     { path: '/mnt', label: '/mnt' },
   ]
 
-  it('【N7 兜底】candidates 为 undefined 时给出兜底三根', () => {
+  it('[N7 fallback] gives the three fallback roots when candidates is undefined', () => {
     expect(pickerRoots(undefined)).toEqual(FALLBACK)
   })
 
-  it('【N7 兜底】candidates 为 null 时给出兜底三根', () => {
+  it('[N7 fallback] gives the three fallback roots when candidates is null', () => {
     expect(pickerRoots(null)).toEqual(FALLBACK)
   })
 
-  it('candidates 为空数组(本机 wiki/candidates 实测值)时给出兜底三根,顺序照抄', () => {
+  it('gives the three fallback roots, in the same order, when candidates is an empty array (the real value observed from wiki/candidates on device)', () => {
     const out = pickerRoots([])
     expect(out).toEqual(FALLBACK)
     expect(out.map((r) => r.path)).toEqual(['/DATA', '/media', '/mnt'])
   })
 
-  it('有候选且带 label 时逐项映射成 {path, label},丢掉其余字段', () => {
+  it('when candidates exist and have a label, maps each one to {path, label}, dropping the rest of the fields', () => {
     const out = pickerRoots([
       { path: '/media/usb1', label: 'USB Stick' },
       { path: '/mnt/pool', label: 'Pool' },
@@ -189,38 +197,38 @@ describe('pickerRoots(candidates) —— 蓝本 folderBrowser.js:10-23', () => {
     expect(Object.keys(out[0]!).sort()).toEqual(['label', 'path'])
   })
 
-  it('候选缺 label 时 label 回落成 path(走 `|| c.path`)', () => {
+  it('when a candidate is missing label, label falls back to path (via `|| c.path`)', () => {
     expect(pickerRoots([{ path: '/media/usb2' }])).toEqual([
       { path: '/media/usb2', label: '/media/usb2' },
     ])
   })
 
-  it('候选的 label 是空串时也回落成 path(`||` 的假值语义,不是 `??`)', () => {
+  it('when a candidate\'s label is an empty string, it also falls back to path (the falsy semantics of `||`, not `??`)', () => {
     expect(pickerRoots([{ path: '/mnt/x', label: '' }])).toEqual([
       { path: '/mnt/x', label: '/mnt/x' },
     ])
   })
 
-  it('有候选时绝不混入兜底三根(边界另一侧)', () => {
+  it('when candidates exist, the three fallback roots are never mixed in (the other side of the boundary)', () => {
     const out = pickerRoots([{ path: '/media/usb1', label: 'USB' }])
     expect(out).toHaveLength(1)
     expect(out.map((r) => r.path)).not.toContain('/DATA')
   })
 })
 
-describe('crumbsFor(path, rootLabel) —— 蓝本 folderBrowser.js:25-34', () => {
-  it('path 为空串时只有根一项,label 用传入的 rootLabel、path 是空串', () => {
+describe('crumbsFor(path, rootLabel) —— blueprint folderBrowser.js:25-34', () => {
+  it('when path is an empty string there is only the root item, label uses the passed-in rootLabel, path is an empty string', () => {
     expect(crumbsFor('', '卷')).toEqual([{ label: '卷', path: '' }])
   })
 
-  it('单段路径:根 + 一段', () => {
+  it('single-segment path: root + one segment', () => {
     expect(crumbsFor('/DATA', 'Volumes')).toEqual([
       { label: 'Volumes', path: '' },
       { label: 'DATA', path: '/DATA' },
     ])
   })
 
-  it('多段路径:逐段累加成绝对路径', () => {
+  it('multi-segment path: segments accumulate into an absolute path one by one', () => {
     expect(crumbsFor('/DATA/Documents/Sub', 'Volumes')).toEqual([
       { label: 'Volumes', path: '' },
       { label: 'DATA', path: '/DATA' },
@@ -229,13 +237,13 @@ describe('crumbsFor(path, rootLabel) —— 蓝本 folderBrowser.js:25-34', () =
     ])
   })
 
-  it('前后多余的 / 被 filter(Boolean) 吃掉,结果与干净路径一致', () => {
+  it('extra leading/trailing / are swallowed by filter(Boolean), result matches a clean path', () => {
     expect(crumbsFor('/DATA/Documents/', 'Volumes')).toEqual(
       crumbsFor('/DATA/Documents', 'Volumes'),
     )
   })
 
-  it('连续 // 被 filter(Boolean) 吃掉,不产生空 label 的段', () => {
+  it('consecutive // are swallowed by filter(Boolean), producing no empty-label segment', () => {
     const out = crumbsFor('//DATA//Documents//', 'Volumes')
     expect(out).toEqual([
       { label: 'Volumes', path: '' },
@@ -245,7 +253,7 @@ describe('crumbsFor(path, rootLabel) —— 蓝本 folderBrowser.js:25-34', () =
     expect(out.some((c) => c.label === '')).toBe(false)
   })
 
-  it('不以 / 开头的相对路径也被补成绝对路径(蓝本 acc += "/" + seg 的直接后果)', () => {
+  it('a relative path not starting with / is also padded into an absolute path (direct consequence of the blueprint\'s acc += "/" + seg)', () => {
     expect(crumbsFor('DATA/Documents', 'Volumes')).toEqual([
       { label: 'Volumes', path: '' },
       { label: 'DATA', path: '/DATA' },
@@ -253,7 +261,7 @@ describe('crumbsFor(path, rootLabel) —— 蓝本 folderBrowser.js:25-34', () =
     ])
   })
 
-  it('rootLabel 原样透传,不做任何加工', () => {
+  it('rootLabel passes through unchanged, with no processing at all', () => {
     expect(crumbsFor('/x', '  Volumes  ')[0]).toEqual({ label: '  Volumes  ', path: '' })
   })
 })

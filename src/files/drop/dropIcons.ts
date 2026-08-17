@@ -1,6 +1,7 @@
-// 设备图标:名字 = `${model}_${online|offline}`(命名规则承 Vue2 deviceIcon computed)。
-// 图标为本仓原创绘制(2026-07-18 用户要求替换掉从 Vue2 拷来的第三方素材,并补齐 Vue2 缺失的 mobile_offline)。
-// 未知 model 兜底回退 desktop_同状态。
+// Device icons: name = `${model}_${online|offline}` (naming convention inherited from Vue2 deviceIcon computed).
+// Icons are original art for this repo (2026-07-18 user requested replacement of third-party assets
+// copied from Vue2, and added missing mobile_offline from Vue2).
+// Unknown model falls back to desktop_same state.
 const ICONS = import.meta.glob<string>('./assets/*.svg', { eager: true, query: '?url&no-inline', import: 'default' }) as Record<string, string>
 const URL_BY_NAME: Record<string, string> = {}
 for (const [path, url] of Object.entries(ICONS)) {

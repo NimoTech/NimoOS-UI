@@ -22,11 +22,11 @@ function makeDeps(over: Partial<TerminalSocketDeps> = {}) {
   return { deps, ws }
 }
 
-it('URL 含容器 id、token、cols/rows 且正确编码', () => {
+it('URL contains container id, token, cols/rows and encodes correctly', () => {
   expect(buildTerminalWsUrl('ws://h', 'abc123', 't+k', 120, 30))
     .toBe('ws://h/v1/container/abc123/terminal?token=t%2Bk&cols=120&rows=30')
 })
-it('快过期时先 refresh 再连', async () => {
+it('refresh first then connect when about to expire', async () => {
   const { deps, ws } = makeDeps({ getExpiresAt: () => 1, now: () => 10_000_000 })
   const s = new TerminalSocket(deps)
   const p = s.connect('c1', 80, 24)
@@ -35,14 +35,14 @@ it('快过期时先 refresh 再连', async () => {
   ws.onopen?.()
   await expect(p).resolves.toBeTruthy()
 })
-it('refresh 失败 → 不建 socket,resolve null,status=closed', async () => {
+it('refresh failure → don\'t build socket, resolve null, status=closed', async () => {
   const { deps } = makeDeps({ getExpiresAt: () => 1, now: () => 10_000_000, refresh: vi.fn().mockRejectedValue(new Error('x')) })
   const s = new TerminalSocket(deps)
   await expect(s.connect('c1', 80, 24)).resolves.toBeNull()
   expect(deps.makeSocket).not.toHaveBeenCalled()
   expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
 })
-it('open 前先 connecting,open 后 status=open;远端断开 → closed(不自动重连)', async () => {
+it('status=connecting before open, status=open after open; remote disconnects → closed (no auto-reconnect)', async () => {
   const { deps, ws } = makeDeps()
   const s = new TerminalSocket(deps)
   const p = s.connect('c1', 80, 24)
@@ -54,7 +54,7 @@ it('open 前先 connecting,open 后 status=open;远端断开 → closed(不自�
   expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
   expect(deps.makeSocket).toHaveBeenCalledTimes(1) // No automatic reconnect
 })
-it('close() 幂等且置 closed', async () => {
+it('close() is idempotent and sets closed', async () => {
   const { deps, ws } = makeDeps()
   const s = new TerminalSocket(deps)
   const p = s.connect('c1', 80, 24); ws.onopen?.(); await p
@@ -62,12 +62,12 @@ it('close() 幂等且置 closed', async () => {
   expect(ws.closed).toBe(true)
   expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
 })
-it('无 token → resolve null 不建连', async () => {
+it('no token → resolve null, don\'t build connection', async () => {
   const { deps } = makeDeps({ getToken: () => null })
   await expect(new TerminalSocket(deps).connect('c1', 80, 24)).resolves.toBeNull()
   expect(deps.makeSocket).not.toHaveBeenCalled()
 })
-it('close() 打在 refresh() 挂起期间 → refresh 落定后不建 socket,resolve null,status=closed(代际守卫)', async () => {
+it('close() during refresh() suspension → after refresh settles don\'t build socket, resolve null, status=closed (generation guard)', async () => {
   let resolveRefresh: (() => void) | undefined
   const refresh = vi.fn(() => new Promise<void>((resolve) => { resolveRefresh = resolve }))
   const { deps } = makeDeps({ getExpiresAt: () => 1, now: () => 10_000_000, refresh })

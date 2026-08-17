@@ -30,7 +30,7 @@ const router = createRouter({ history: createMemoryHistory(), routes: [
   { path: '/', name: 'home', component: Stub },
 ] })
 
-// toast 每条 1500ms 后自我移除,假定时器下读 store.msg 不可靠 —— 直接收集 show() 的入参。
+// Each toast self-removes after 1500ms, so reading store.msg under fake timers is unreliable — collect show()'s arguments directly instead.
 function spyToast(mod: { useToast: () => { show: (t: string, d?: number) => void } }): string[] {
   const texts: string[] = []
   const toast = mod.useToast()
@@ -42,7 +42,7 @@ describe('StorageRaid', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); vi.useFakeTimers() })
   afterEach(() => vi.useRealTimers())
 
-  it('mount 调 loadRaid,空态显示 raidNoArrays', async () => {
+  it('mount calls loadRaid, empty state shows raidNoArrays', async () => {
     await router.push('/storage/raid'); await router.isReady()
     const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
     await vi.runOnlyPendingTimersAsync()
@@ -50,7 +50,7 @@ describe('StorageRaid', () => {
     expect(w.text()).toContain(zh.raidNoArrays)
   })
 
-  it('有阵列时渲染 RaidCard', async () => {
+  it('renders RaidCard when an array exists', async () => {
     raidList.mockResolvedValue([{ id: 1, name: 'md0', level: 1, state: 'active' }])
     await router.push('/storage/raid'); await router.isReady()
     const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
@@ -59,7 +59,7 @@ describe('StorageRaid', () => {
     expect(w.text()).toContain('md0')
   })
 
-  it('点击 RaidCard select → 跳详情路由', async () => {
+  it('clicking RaidCard select -> navigates to the detail route', async () => {
     raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 1, state: 'active' }])
     await router.push('/storage/raid'); await router.isReady()
     const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
@@ -69,14 +69,14 @@ describe('StorageRaid', () => {
     expect(push).toHaveBeenCalledWith('/storage/raid/9')
   })
 
-  it('订阅热插拔事件(经 useDiskHotplug)', async () => {
+  it('subscribes to hotplug events (via useDiskHotplug)', async () => {
     await router.push('/storage/raid'); await router.isReady()
     mount(StorageRaid, { global: { plugins: [router, i18n] } })
     expect(typeof handlers['local-storage:disk:added']).toBe('function')
     expect(typeof handlers['local-storage:disk:removed']).toBe('function')
   })
 
-  it('mount 探测创建任务;有 creating 时启动 1500ms 轮询', async () => {
+  it('mount probes for a creation task; starts a 1500ms poll when one is creating', async () => {
     listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'md1', level: 1, disk_count: 2, step: 1, progress: 5 }])
     getTaskFn.mockResolvedValue({ task_id: 't2', status: 'creating', step: 2, progress: 30 })
     await router.push('/storage/raid'); await router.isReady()
@@ -86,11 +86,11 @@ describe('StorageRaid', () => {
     expect(store.creatingTask?.taskId).toBe('t2')
   })
 
-  // ── 换盘看板卡 ───────────────────────────────────────────────────────
+  // ── drive-replace dashboard card ───────────────────────────────────────────────────────
   const arrayRow = { id: 1, name: 'Main-storage', level: 5, state: 'degraded', member_disks: [{}, {}, {}] }
   const task = { arrayId: '1', arrayName: 'Main-storage', oldPath: '/dev/sda', newPath: '/dev/sdd' }
 
-  it('replaceTask 在场 → 渲染换盘看板卡', async () => {
+  it('replaceTask present -> renders the drive-replace dashboard card', async () => {
     raidList.mockResolvedValue([arrayRow])
     raidGetStatus.mockResolvedValue({
       live_state: 'clean, degraded', state: 'degraded', rebuild_pct: 42,
@@ -107,7 +107,7 @@ describe('StorageRaid', () => {
     expect(w.find('.rpc-pct').text()).toBe('42%')
   })
 
-  it('replaceTask 为空 → 不渲染看板卡', async () => {
+  it('replaceTask empty -> the dashboard card does not render', async () => {
     raidList.mockResolvedValue([arrayRow])
     await router.push('/storage/raid'); await router.isReady()
     const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
@@ -115,8 +115,8 @@ describe('StorageRaid', () => {
     expect(w.findComponent({ name: 'RaidReplacingCard' }).exists()).toBe(false)
   })
 
-  // 重建完成没有任何后端回调,只能靠轮询发现 —— 这条钉住「换完没提示」那条缺陷的修法。
-  it('轮询发现新盘已 active sync → 撤看板 + 弹完成提示', async () => {
+  // Rebuild completion has no backend callback at all — it can only be discovered by polling. This pins down the fix for the "no notification once the swap is done" defect.
+  it('polling discovers the new drive is already active sync -> dismisses the dashboard card + pops a completion toast', async () => {
     raidList.mockResolvedValue([{ ...arrayRow, state: 'active' }])
     raidGetStatus.mockResolvedValue({
       live_state: 'clean', state: 'active', rebuild_pct: -1, total_bytes: 100, used_bytes: 1, free_bytes: 99,
@@ -128,7 +128,7 @@ describe('StorageRaid', () => {
     })
     await router.push('/storage/raid'); await router.isReady()
     const store = useStorageStore()
-    // toast 1500ms 后自我移除,假定时器下读 msg 会读到空串 —— 监听 show 更可靠
+    // The toast self-removes after 1500ms, so reading msg under fake timers would read an empty string — listening to show() is more reliable
     const shown = spyToast(await import('../stores/toast'))
     store.replaceTask = { ...task }
     const w = mount(StorageRaid, { global: { plugins: [router, i18n] } })
@@ -138,9 +138,10 @@ describe('StorageRaid', () => {
     expect(shown.join('|')).toContain('阵列已恢复健康')
   })
 
-  // 阵列健康度与"这一次替换是否完成"是两件事:换上去的盘同步好了,但另一块盘也坏着,
-  // 报"已恢复健康"就是撒谎。
-  it('新盘 active sync 但另一块盘 faulty → 撤看板,但提示不声称已恢复健康', async () => {
+  // Array health and "did this particular replacement finish" are two different things: the
+  // newly swapped drive finished syncing, but another drive is also faulty — announcing
+  // "restored to healthy" would be a lie.
+  it('new drive is active sync but another drive is faulty -> dismisses the dashboard card, but the toast does not claim it is restored to healthy', async () => {
     raidList.mockResolvedValue([arrayRow])
     raidGetStatus.mockResolvedValue({
       live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1, total_bytes: 100, used_bytes: 1, free_bytes: 99,
@@ -159,7 +160,7 @@ describe('StorageRaid', () => {
     expect(shown.join('|')).toContain('仍未恢复健康')
   })
 
-  it('阵列已从列表消失(被删)→ 静默撤看板,不报完成', async () => {
+  it('the array has disappeared from the list (deleted) -> silently dismisses the dashboard card, no completion toast', async () => {
     raidList.mockResolvedValue([])
     const store = useStorageStore()
     const shown = spyToast(await import('../stores/toast'))

@@ -1,60 +1,67 @@
 #!/usr/bin/env bash
-# 往 www 根目录写一个「/ → /app/」的静态重定向页。
+# Write a static "/ → /app/" redirect page into the www root.
 #
-# 为什么需要它:本应用挂在 /app/ 下(hash 路由),www 根目录不属于它。只部署了本应用
-# 的机器上,用户输入 / 会落到一个没有 index.html 的目录。这个页面补上那一跳,并把
-# 查询串与 hash 原样带过去,所以 /?a=1#/files 这样的旧书签也能落对。
+# Why it exists: this app is mounted under /app/ (hash routing), and the www root does not
+# belong to it. On machines with only this app deployed, typing / lands in a directory with
+# no index.html. This page adds that hop, carrying the query string and hash over verbatim,
+# so old bookmarks like /?a=1#/files still land correctly.
 #
-# 🔴 覆盖守卫:www 根目录可能已经住着**另一个应用的首页**,覆盖它就把那个应用打死了。
-#    所以只在两种情况下写:① 文件不存在;② 文件是本脚本上次写的(前 5 行含 MARKER)。
-#    标记写在第 2 行(第 1 行是 doctype),所以判据是"前 5 行",不是"第一行"。
+# 🔴 Overwrite guard: the www root may already host ANOTHER app's homepage; overwriting it
+#    would kill that app. So we only write in two cases: (1) the file does not exist;
+#    (2) the file was written by this script last time (first 5 lines contain MARKER).
+#    The marker sits on line 2 (line 1 is the doctype), hence the criterion is "first 5 lines", not "the first line".
 #
-# 注:判定刻意不写成 `head -n 5 … | grep -q …` —— `set -o pipefail` 下 `grep -q`
-#    命中即退会给上游 head 发 SIGPIPE,整条流水线被判失败(本仓库栽过这个坑)。
-#    这里用变量 + case 匹配,全程不起管道。
+# Note: the check is deliberately NOT written as `head -n 5 … | grep -q …` — under
+#    `set -o pipefail`, `grep -q` exits on first match and sends SIGPIPE to the upstream
+#    head, failing the whole pipeline (this repo has hit that trap before).
+#    A variable + case match is used instead; no pipeline anywhere.
 set -euo pipefail
 
 WWW_ROOT="${1:?usage: write-root-redirect.sh <www-root>}"
 MARKER='nimoos-new-ui-redirect'
 TARGET="$WWW_ROOT/index.html"
 
-# 目标机器上常只搭了 app 子目录的权限(装机说明历史上只 chown 了那一层),
-# www 根目录本身可能是 root:root。到这里才发现会是一句裸的 `Permission denied`
-# 并直接中止整个部署脚本(rsync 早已成功,但操作者只看到"部署失败")。
-# 提前判断并给出可执行的修复命令,而不是让 mktemp/cat 自己去踩权限坑。
+# Target machines often only have permissions set up on the app subdirectory (the install
+# doc historically only chowned that layer), so the www root itself may be root:root.
+# Discovering that here would surface as a bare `Permission denied` and abort the whole
+# deploy script (rsync already succeeded, but the operator only sees "deploy failed").
+# Check upfront and print an actionable fix instead of letting mktemp/cat trip over permissions.
 if [ ! -d "$WWW_ROOT" ] || [ ! -w "$WWW_ROOT" ]; then
-	echo "error: $WWW_ROOT 不存在或当前用户不可写,无法写入重定向页。" >&2
-	echo "请先执行: sudo mkdir -p $WWW_ROOT && sudo chown $(id -un):$(id -gn) $WWW_ROOT" >&2
+	echo "error: $WWW_ROOT does not exist or is not writable by current user; cannot write redirect page." >&2
+	echo "Please first run: sudo mkdir -p $WWW_ROOT && sudo chown $(id -un):$(id -gn) $WWW_ROOT" >&2
 	exit 1
 fi
 
 if [ -e "$TARGET" ]; then
 	head5="$(head -n 5 "$TARGET")"
 	case "$head5" in
-		*"$MARKER"*) : ;;  # 本脚本上次写的,可以覆盖
+		*"$MARKER"*) : ;;  # written by this script last time; safe to overwrite
 		*)
-			echo "skip: $TARGET 已存在且非本脚本所写(根目录另有首页),不覆盖"
+			echo "skip: $TARGET already exists and was not written by this script (root directory has another homepage); not overwriting"
 			exit 0
 			;;
 	esac
 fi
 
-# 原子写:网关正在服务这个目录,`cat > 目标` 会有"已截断、内容还没写完"的窗口。
-# 先写临时文件再 mv 就位(同目录 ⇒ 同文件系统 ⇒ mv 是原子的 rename)。
+# Atomic write: the gateway is serving this directory, so `cat > target` has a window where
+# the file is truncated but not yet fully written. Write a temp file first, then mv into
+# place (same directory ⇒ same filesystem ⇒ mv is an atomic rename).
 #
-# 临时文件名不能固定(曾是 "$TARGET.tmp"):两次部署并发跑到这里,后者会把前者
-# 正在写的同名临时文件截断清零,前者随后 mv 走的就是一个 0 字节的 index.html。
-# mktemp 给每次调用分配独立文件名,消掉这个竞态。
-# 用 trap 兜底清理:cat 中途失败(如磁盘满)不能在 www 根留下 .tmp 文件——
-# 网关会把它当成普通静态文件直接服务出去。mv 成功后临时文件已不在原路径,
-# trap 里的 rm -f 是安全的空操作。
+# The temp file name must not be fixed (it used to be "$TARGET.tmp"): with two concurrent
+# deploys reaching this point, the later one truncates the same-named temp file the earlier
+# one is still writing, and the earlier one then mv's a 0-byte index.html into place.
+# mktemp assigns each invocation its own file name, eliminating that race.
+# The trap is a cleanup backstop: if cat fails midway (e.g. disk full), we must not leave a
+# .tmp file in the www root — the gateway would serve it as a regular static file. After a
+# successful mv the temp file is no longer at its original path, so the rm -f in the trap is a safe no-op.
 tmp="$(mktemp "$WWW_ROOT/.index.html.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
-chmod 644 "$tmp"  # mktemp 建出的文件默认 0600,不 chmod 网关读不到
+chmod 644 "$tmp"  # mktemp creates files as 0600 by default; without chmod the gateway cannot read it
 
-# 下面写的两行降级路径不对称:有 JS 时 script 会把查询串/hash 原样带过去;
-# <noscript> 里的 meta refresh 只能落 /app/ 首页,拿不到查询串/hash——meta
-# refresh 没有运行时变量可用,这是硬限制不是疏漏。无 JS 时书签式深链接会失效。
+# The two fallback paths written below are asymmetric: with JS, the script carries the
+# query string/hash over verbatim; the meta refresh inside <noscript> can only land on the
+# /app/ homepage and cannot get the query string/hash — meta refresh has no runtime
+# variables available, a hard limitation rather than an oversight. Without JS, bookmark-style deep links break.
 cat > "$tmp" <<EOF
 <!doctype html>
 <!-- $MARKER -->

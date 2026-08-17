@@ -1,6 +1,6 @@
-// SP7-P7a-T14: SearchSaveSmartView.vue —— 「保存为智能视图」弹层测试(D12 接线做真)。
-// 挂 Pinia + i18n,真实 usePhotosSmartViews() store,createSmartView 用 vi.spyOn 精确控制
-// 成功/失败(同 SmartViewCreateDialog.test.ts 的既定手法)。
+// SP7-P7a-T14: SearchSaveSmartView.vue — "Save as smart view" dialog test (D12 wired up).
+// Mounts Pinia + i18n, real usePhotosSmartViews() store, createSmartView controlled
+// precisely via vi.spyOn for success/failure (same pattern as SmartViewCreateDialog.test.ts).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -33,8 +33,8 @@ function mountDialog(props: Partial<Props> = {}, i18n = makeI18n()) {
   return mount(SearchSaveSmartView, { props: baseProps(props), global: { plugins: [i18n] } })
 }
 
-// fix round 1 · I1:点外部 mousedown 关闭的用例需要真实挂到 document 上,事件才能从
-// 目标节点冒泡到 document 级监听器(同 PlacesThemeMenu.test.ts 的既定手法)。
+// fix round 1 · I1: clicking outside requires real DOM attachment to document so events
+// bubble from target to document-level listener (same pattern as PlacesThemeMenu.test.ts).
 function mountDialogAttached(props: Partial<Props> = {}, i18n = makeI18n()) {
   return mount(SearchSaveSmartView, { props: baseProps(props), global: { plugins: [i18n] }, attachTo: document.body })
 }
@@ -56,13 +56,13 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('结构清点', () => {
-  it('open:false → 不渲染', () => {
+describe('Structure inventory', () => {
+  it('open:false → does not render', () => {
     const w = mountDialog({ open: false })
     expect(w.find('[data-test="ssv-root"]').exists()).toBe(false)
   })
 
-  it('open:true → 渲染 4 段(head/body 三字段+开关/foot)', () => {
+  it('open:true → renders 4 sections (head/body three fields + switch/foot)', () => {
     const w = mountDialog({ open: true })
     expect(w.find('[data-test="ssv-root"]').exists()).toBe(true)
     expect(w.find('.save-pop-icon').exists()).toBe(true)
@@ -75,8 +75,8 @@ describe('结构清点', () => {
   })
 })
 
-describe('open 变真时重置走 watch(持久挂载坑守卫)', () => {
-  it('改过 name 后关闭再打开 → name 回到 defaultName;thresh 回到 75', async () => {
+describe('Reset on open:true via watch (persistent mount guard)', () => {
+  it('after editing name, close then reopen → name reverts to defaultName; threshold reverts to 75', async () => {
     const w = mountDialog({ open: false, defaultName: 'Sunset Trips' })
     await w.setProps({ open: true })
     expect((w.find('[data-test="ssv-name-input"]').element as HTMLInputElement).value).toBe('Sunset Trips')
@@ -91,8 +91,8 @@ describe('open 变真时重置走 watch(持久挂载坑守卫)', () => {
   })
 })
 
-describe('自动聚焦', () => {
-  it('打开后名称输入框自动聚焦', async () => {
+describe('Auto-focus', () => {
+  it('name input auto-focuses on open', async () => {
     const w = mount(SearchSaveSmartView, {
       props: baseProps({ open: true }),
       global: { plugins: [makeI18n()] },
@@ -104,28 +104,28 @@ describe('自动聚焦', () => {
   })
 })
 
-describe('条件回显', () => {
-  it('conditions 非空 → N 个 .save-pop-cond', () => {
+describe('Condition display', () => {
+  it('conditions non-empty → N .save-pop-cond elements', () => {
     const w = mountDialog({ open: true, conditions: ['scene: sunset', 'place: Japan', 'people: Sara'] })
     expect(w.findAll('.save-pop-cond')).toHaveLength(3)
     expect(w.find('.save-pop-conds-empty').exists()).toBe(false)
   })
 
-  it('conditions 为空 → 提示文案', () => {
+  it('conditions empty → shows placeholder text', () => {
     const w = mountDialog({ open: true, conditions: [] })
     expect(w.findAll('.save-pop-cond')).toHaveLength(0)
     expect(w.get('.save-pop-conds-empty').text()).toBe(zh.photosSearchNoActiveFiltersSaves)
   })
 })
 
-describe('primary 禁用态', () => {
-  it('name 为空(trim 后)→ disabled', async () => {
+describe('Primary button disabled state', () => {
+  it('name empty (after trim) → disabled', async () => {
     const w = mountDialog({ open: true })
     await w.find('[data-test="ssv-name-input"]').setValue('   ')
     expect((w.find('[data-test="ssv-confirm-btn"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('store.createBusy=true → disabled(即便 name 有值)', async () => {
+  it('store.createBusy=true → disabled (even if name has value)', async () => {
     const store = usePhotosSmartViews()
     const w = mountDialog({ open: true })
     store.createBusy = true
@@ -134,8 +134,8 @@ describe('primary 禁用态', () => {
   })
 })
 
-describe('confirm 真调 store(D12)', () => {
-  it('成功:createSmartView 收到逐字段对象(conds 是拷贝非同引用),saved 事件带 id,update:open 发 false', async () => {
+describe('Confirm calls store (D12)', () => {
+  it('success: createSmartView receives field-by-field object (conds is copy, not ref), saved event carries id, update:open emits false', async () => {
     const store = usePhotosSmartViews()
     const created = fullSv({ id: 'sv-abc' })
     const spy = vi.spyOn(store, 'createSmartView').mockResolvedValue(created)
@@ -154,26 +154,32 @@ describe('confirm 真调 store(D12)', () => {
     expect(arg.live).toBe(true)
     expect(arg.includeVideos).toBe(false)
 
-    // 拷贝而非同一引用的可证伪验证(删码验证清单③已用这条实测过):不能直接
-    // `expect(arg.conds).not.toBe(conditions)` 比较——Vue 的 props 是 reactive() 包出来的
-    // Proxy,即使实现改成 `conds: props.conditions`(不展开),读到的值本来就是包着原始
-    // 数组的 Proxy、不是原始数组本身,这条引用比较对"有没有展开"这件事没有区分力(已实测:
-    // 删掉展开后这样写仍然全绿)。真正有区分力的是"调用之后原数组被就地修改,已经发出去的
-    // 这份 conds 会不会跟着变"——展开产生的是当时那一刻的快照,后续对原数组的原地 push
-    // 不会反映到快照里;不展开则 arg.conds 是原数组的活代理,原地 push 会立刻可见。
+    // Copy vs same-ref falsifiable test (cleanup checklist item ③ tested this):
+    // cannot directly use `expect(arg.conds).not.toBe(conditions)` — Vue's props are
+    // reactive() Proxies, so even if implementation became `conds: props.conditions`
+    // (no spread), the value read is already a Proxy wrapping the original array,
+    // not the array itself; this reference check has no discrimination power for
+    // "was it spread" (verified: deleting spread still passes all tests).
+    // The real discriminator is "after the call, if the original array is mutated
+    // in-place, does this emitted conds change?" — spread creates a snapshot at
+    // that moment; later in-place push to the source won't show in the snapshot;
+    // no spread means arg.conds is a live proxy to the source, in-place push is
+    // immediately visible.
     conditions.push('people: Sara')
-    expect(arg.conds).toEqual(['scene: sunset', 'place: Japan']) // 未被之后的原地修改污染
+    expect(arg.conds).toEqual(['scene: sunset', 'place: Japan']) // not polluted by later mutation
 
-    // fix 波 F1:emit 契约加了第二参 name(宿主要拼保存成功 toast 文案)——这里跟着契约走,
-    // 不是弱化断言:name.value 在 open 变真时被 watch 设成 props.defaultName('Sunset
-    // Trips'),本用例没有改过名称输入框,所以第二个参数就是这个默认名。
+    // fix wave F1: emit contract added second param name (parent composes save-success
+    // toast text) — following contract here, not weakening assertion: name.value is
+    // set by watch to props.defaultName ('Sunset Trips') when open becomes true;
+    // this test never changes the name input, so second param is that default.
     expect(w.emitted('saved')).toEqual([['sv-abc', 'Sunset Trips']])
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  // fix round 1 · M5:query 为空(或全空白)时 description 必须是 undefined,不是空字符串
-  // ——`CreateSmartViewInput.description?` 的既定语义是"空描述不传字段"(T5 同一口径)。
-  it('query 为空白字符串时 → description 是 undefined,不是空字符串(fix round 1 · M5)', async () => {
+  // fix round 1 · M5: when query is empty (or all whitespace), description must be
+  // undefined, not empty string — `CreateSmartViewInput.description?` semantics are
+  // "omit field if description is empty" (T5 same standard).
+  it('query is whitespace string → description is undefined, not empty string (fix round 1 · M5)', async () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'createSmartView').mockResolvedValue(fullSv())
     const w = mountDialog({ open: true, query: '   ' })
@@ -182,7 +188,7 @@ describe('confirm 真调 store(D12)', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ description: undefined }))
   })
 
-  it('失败:reject → toast 被调、update:open 未发出、saved 未发出、弹层不关', async () => {
+  it('failure: reject → toast called, update:open not emitted, saved not emitted, dialog stays open', async () => {
     const store = usePhotosSmartViews()
     vi.spyOn(store, 'createSmartView').mockRejectedValue(new Error('boom'))
     const toastSpy = vi.spyOn(useToast(), 'show')
@@ -195,45 +201,48 @@ describe('confirm 真调 store(D12)', () => {
     expect(toastSpy).toHaveBeenCalledWith(zh.photosAlbumCreateFailed)
     expect(w.emitted('update:open')).toBeUndefined()
     expect(w.emitted('saved')).toBeUndefined()
-    // fix round 1 · M7(评审查实):这条本身是恒真断言——`open` 是父控 prop,本组件在任何
-    // 实现下都不可能自己把 v-if 的条件改掉,测试也从未 setProps({ open: false }),所以
-    // "弹层还在"这件事跟 confirm() 有没有正确处理失败完全无关。真正钉住"失败时弹层不关"
-    // 这条行为的是上面 `emitted('update:open')).toBeUndefined()`——如果实现在失败路径也
-    // emit 了 update:open(false),那条才会变红。这行只保留作可读性锚点(明确写出"我们
-    // 期望的是弹层还渲染着"这句人话),不再当作有效的行为守卫。
+    // fix round 1 · M7 (review-verified): this is a tautological assertion itself —
+    // `open` is parent-controlled prop; component cannot possibly change the v-if
+    // condition by itself; test never setProps({ open: false }); so "dialog still
+    // there" is completely unrelated to whether confirm() handles failure correctly.
+    // What actually pins down "dialog stays open on failure" is the above
+    // `emitted('update:open')).toBeUndefined()` — if implementation also emits
+    // update:open(false) on the failure path, that would turn red. This line is kept
+    // only as a readability anchor (explicitly spelling out "we expect dialog still
+    // rendered"), not as a real behavior guard.
     expect(w.find('[data-test="ssv-root"]').exists()).toBe(true)
     errSpy.mockRestore()
   })
 })
 
-describe('开关', () => {
-  it('role=switch + aria-checked 随状态 + aria-label 存在', async () => {
+describe('Switch', () => {
+  it('role=switch + aria-checked follows state + aria-label exists', async () => {
     const w = mountDialog({ open: true })
     const sw = w.find('[data-test="ssv-switch-live"]')
     expect(sw.attributes('role')).toBe('switch')
-    expect(sw.attributes('aria-checked')).toBe('true') // 默认 live=true
+    expect(sw.attributes('aria-checked')).toBe('true') // default live=true
     expect(sw.attributes('aria-label')).toBeTruthy()
     await sw.trigger('click')
     expect(sw.attributes('aria-checked')).toBe('false')
   })
 })
 
-describe('关闭入口', () => {
-  it('点关闭按钮 → emit update:open(false)', async () => {
+describe('Close entry points', () => {
+  it('click close button → emit update:open(false)', async () => {
     const w = mountDialog({ open: true })
     await w.find('[data-test="ssv-close-btn"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('点 Cancel → emit update:open(false)', async () => {
+  it('click Cancel → emit update:open(false)', async () => {
     const w = mountDialog({ open: true })
     await w.find('[data-test="ssv-cancel-btn"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 })
 
-describe('Esc 关闭(不提交)', () => {
-  it('open:true 时按 Esc → emit update:open(false),createSmartView 未被调', async () => {
+describe('Esc close (no submit)', () => {
+  it('when open:true, press Esc → emit update:open(false), createSmartView not called', async () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'createSmartView')
     const w = mountDialog({ open: true })
@@ -243,7 +252,7 @@ describe('Esc 关闭(不提交)', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('open:false 时按 Esc → 不 emit(document 监听器只在打开时挂载)', async () => {
+  it('when open:false, press Esc → no emit (listener only mounted when open)', async () => {
     const w = mountDialog({ open: false })
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await w.vm.$nextTick()
@@ -251,12 +260,12 @@ describe('Esc 关闭(不提交)', () => {
   })
 })
 
-// fix round 1 · I1(评审查实的漏渲染,fix round 2 · N2 修正行号):Vue2 `_onDoc`(整体
-// :819-832,保存弹层那半判据在 :820-822)的 mousedown 判据——
-// "pop 与 btn 都不 contains(target) 才关"。之前只做了 Esc,这里补齐点外部关闭 + 新增
-// `ignoreEl` prop 覆盖触发按钮那一半判据。
-describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {
-  it('点弹层内部 → 不关', async () => {
+// fix round 1 · I1 (review-verified rendering gap, fix round 2 · N2 corrects line numbers):
+// Vue2 `_onDoc` (full :819-832, save dialog half-condition at :820-822) mousedown logic —
+// "close only if both pop and btn don't contain(target)". Previously only did Esc; here
+// we add outside-click close + new `ignoreEl` prop to override the trigger-button half-check.
+describe('Outside mousedown close (fix round 1 · I1)', () => {
+  it('click inside dialog → stays open', async () => {
     const w = mountDialogAttached({ open: true })
     w.get('[data-test="ssv-root"]').element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await w.vm.$nextTick()
@@ -264,7 +273,7 @@ describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {
     w.unmount()
   })
 
-  it('点弹层外 → emit update:open(false)', async () => {
+  it('click outside dialog → emit update:open(false)', async () => {
     const w = mountDialogAttached({ open: true })
     const outside = document.createElement('div')
     document.body.appendChild(outside)
@@ -275,7 +284,7 @@ describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {
     w.unmount()
   })
 
-  it('传了 ignoreEl 时点 ignoreEl 内部 → 不关(新 prop 的主守卫)', async () => {
+  it('when ignoreEl passed, click inside ignoreEl → stays open (main guard for new prop)', async () => {
     const triggerBtn = document.createElement('button')
     document.body.appendChild(triggerBtn)
     const w = mountDialogAttached({ open: true, ignoreEl: triggerBtn })
@@ -286,10 +295,10 @@ describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {
     w.unmount()
   })
 
-  it('不传 ignoreEl 时点"本该是触发按钮"的外部节点 → 仍然会关(退化行为,交接段已注明宿主必须传 ignoreEl)', async () => {
+  it('when ignoreEl not passed, click on "would-be trigger" external node → still closes (degraded behavior; handoff note requires parent to pass ignoreEl)', async () => {
     const triggerBtn = document.createElement('button')
     document.body.appendChild(triggerBtn)
-    const w = mountDialogAttached({ open: true }) // 不传 ignoreEl
+    const w = mountDialogAttached({ open: true }) // ignoreEl not passed
     triggerBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await w.vm.$nextTick()
     expect(w.emitted('update:open')).toEqual([[false]])
@@ -297,7 +306,7 @@ describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {
     w.unmount()
   })
 
-  it('open:false 时点外部 → 不 emit(监听器只在打开时挂载)', async () => {
+  it('when open:false, click outside → no emit (listener only mounted when open)', async () => {
     const w = mountDialogAttached({ open: false })
     const outside = document.createElement('div')
     document.body.appendChild(outside)
@@ -308,21 +317,22 @@ describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {
     w.unmount()
   })
 
-  it('宿主把 open 收回 false 后再点外部 → 不再触发(监听器随 watch(open) 摘除)', async () => {
+  it('after parent closes (open:false), click outside → no longer fires (listener removed by watch(open))', async () => {
     const w = mountDialogAttached({ open: true })
-    // 独立 mount 不会像真实父子组件那样自动把 emit 的 update:open 接回 props——这里
-    // 显式 setProps 模拟宿主收到 emit 后真的把 open 收回 false,监听器应随之摘除。
+    // Standalone mount doesn't auto-wire emit(update:open) back to props like real parent-child —
+    // here we explicitly setProps to simulate parent receiving emit and setting open:false,
+    // so listener should be removed too.
     await w.setProps({ open: false })
     const outside = document.createElement('div')
     document.body.appendChild(outside)
     outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await w.vm.$nextTick()
-    expect(w.emitted('update:open')).toBeUndefined() // 监听器已摘,不会再发
+    expect(w.emitted('update:open')).toBeUndefined() // listener already removed, no emit
     outside.remove()
     w.unmount()
   })
 
-  it('卸载时清掉 document 监听(mousedown 与 keydown 都摘除)', () => {
+  it('on unmount, clean up document listeners (mousedown and keydown both removed)', () => {
     const addSpy = vi.spyOn(document, 'addEventListener')
     const removeSpy = vi.spyOn(document, 'removeEventListener')
     const w = mountDialogAttached({ open: true })
@@ -333,8 +343,8 @@ describe('点外部 mousedown 关闭(fix round 1 · I1)', () => {
   })
 })
 
-describe('前景色合规:.save-pop-icon 是 accent 实底 + --on-accent', () => {
-  it('正向断言', () => {
+describe('Foreground color compliance: .save-pop-icon is accent solid + --on-accent', () => {
+  it('positive assertion', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop-icon')
     expect(rule).toBeDefined()
@@ -342,10 +352,11 @@ describe('前景色合规:.save-pop-icon 是 accent 实底 + --on-accent', () =>
     expect(rule?.body).toContain('color: var(--on-accent)')
   })
 
-  // fix round 1 · I2(评审变异实证):此前 28×28/9px 零断言——把它改成 T5 .sv-modal-icon
-  // 的 32×32/10px 之前 23 例仍然全绿。C11 专门点名"这两处尺寸独立核实,不能互相套用",
-  // 补一条反向锚定断言钉住,防止下一次复制粘贴把两者焊到一起。
-  it('.save-pop-icon 尺寸是 28×28、border-radius:9px(不是 T5 .sv-modal-icon 的 32×32/10px)', () => {
+  // fix round 1 · I2 (review mutation-tested): previously 28×28/9px had zero assertions —
+  // changing it to T5 .sv-modal-icon's 32×32/10px, 23 tests still all passed. C11 explicitly
+  // flagged "these two size locations must be verified independently, cannot reuse values";
+  // adding a reverse anchor assertion to prevent next copy-paste from welding them together.
+  it('.save-pop-icon size is 28×28, border-radius:9px (not T5 .sv-modal-icon\'s 32×32/10px)', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop-icon')
     expect(rule).toBeDefined()
@@ -355,9 +366,10 @@ describe('前景色合规:.save-pop-icon 是 accent 实底 + --on-accent', () =>
   })
 })
 
-// fix round 1 · I2(评审查实的第二处零断言):.save-pop 的定位/层级/尺寸契约此前没有任何
-// 程序化断言(plan 明文要求非颜色视觉属性要补断言)。
-describe('.save-pop 定位契约', () => {
+// fix round 1 · I2 (review-verified, second instance of zero assertion): .save-pop
+// positioning/z-index/size contract previously had no programmatic assertions
+// (plan explicitly requires non-color visual properties to have assertions).
+describe('.save-pop positioning contract', () => {
   it('width: 360px / z-index: 50 / top: calc(100% + 8px) / right: 0', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop')
@@ -369,32 +381,33 @@ describe('.save-pop 定位契约', () => {
   })
 })
 
-// fix round 1 · I2(评审查实的第三处零断言,与 T12-I1 同型):三处 sparkles/x 的 glyph `d`
-// 字符串此前没有任何断言钉住——"svg 存在"不足以抓住"复制粘贴时 path 抄错一个字符"这类
-// 缺陷(T12-I1 的教训:改一个字符、15 例照样全绿)。逐字符核对 PhotosIcon.vue:21-22(
-// sparkles)/:52(x)后钉住。
-describe('glyph d 字符串(fix round 1 · I2,同 T12-I1 教训)', () => {
-  it('两处 sparkles(head 28×28 图标块 + primary 按钮)与一处 x(关闭按钮)的 path d 逐字符正确', () => {
+// fix round 1 · I2 (review-verified, third zero-assertion instance, same pattern as T12-I1):
+// sparkles/x glyph `d` path strings had no assertions pinning them down — "svg exists" is
+// insufficient to catch "copy-paste path with one wrong character" bugs (T12-I1 lesson:
+// change one char, 15 tests still passed). After character-by-character audit against
+// PhotosIcon.vue:21-22 (sparkles)/:52 (x), pinning down here.
+describe('Glyph d strings (fix round 1 · I2, same T12-I1 lesson)', () => {
+  it('two sparkles (head 28×28 icon block + primary button) and one x (close button) path d exactly correct char-by-char', () => {
     const sparklesD = 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1'
     const xD = 'm6 6 12 12M18 6 6 18'
     const sparklesCount = searchSaveSmartViewRaw.split(sparklesD).length - 1
-    expect(sparklesCount).toBe(2) // head 图标块 + primary 按钮各一处
+    expect(sparklesCount).toBe(2) // head icon block + primary button, one each
     expect(searchSaveSmartViewRaw).toContain(xD)
-    // sparkles 的 <circle> 中心圆同样逐字核对(PhotosIcon.vue:22 的第二个几何元素)。
+    // sparkles center <circle> also char-by-char verified (PhotosIcon.vue:22 second geometric element).
     const circleCount = searchSaveSmartViewRaw.split('<circle cx="12" cy="12" r="3" />').length - 1
     expect(circleCount).toBe(2)
   })
 })
 
-describe('hover 级联(cssCascade)', () => {
-  it('.sv-btn-primary 的 hover 胜出规则含 :hover 且含 -primary', () => {
+describe('Hover cascade (cssCascade)', () => {
+  it('.sv-btn-primary hover winning rule contains :hover and -primary', () => {
     const style = extractStyleBlock(searchSaveSmartViewRaw)
     const win = winningHoverBackground(style, ['sv-btn-primary'])
     expect(win.selector).toContain(':hover')
     expect(win.selector).toContain('-primary')
   })
 
-  it('.sv-btn-ghost 的 hover 胜出规则含 :hover 且含 -ghost', () => {
+  it('.sv-btn-ghost hover winning rule contains :hover and -ghost', () => {
     const style = extractStyleBlock(searchSaveSmartViewRaw)
     const win = winningHoverBackground(style, ['sv-btn-ghost'])
     expect(win.selector).toContain(':hover')
@@ -402,8 +415,8 @@ describe('hover 级联(cssCascade)', () => {
   })
 })
 
-describe('C7:save-pop 过渡动画(Vue3 类名 -enter-from,不是 Vue2 的 -enter)', () => {
-  it('样式块含 -enter-from/-leave-active 规则,且不含 Vue2 的裸 -enter 类', () => {
+describe('C7: save-pop transition (Vue3 class -enter-from, not Vue2 -enter)', () => {
+  it('style block contains -enter-from/-leave-active rules, and lacks Vue2 bare -enter class', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const active = rules.find((r) => r.selectors.includes('.save-pop-enter-active') && r.selectors.includes('.save-pop-leave-active'))
     expect(active).toBeDefined()
@@ -416,32 +429,32 @@ describe('C7:save-pop 过渡动画(Vue3 类名 -enter-from,不是 Vue2 的 -ente
     expect(enterFrom?.body).toContain('opacity: 0')
     expect(enterFrom?.body).toContain('translateY(-4px) scale(0.97)')
 
-    // 反向断言:不应出现 Vue2 的裸 `.save-pop-enter {`(没有 -from 后缀)——这是 T6 fix
-    // round 教训过的静默失效坑。
+    // Negative assertion: should not have Vue2 bare `.save-pop-enter {` (no -from suffix) —
+    // this is a silent-failure trap learned in T6 fix round.
     expect(searchSaveSmartViewRaw).not.toMatch(/\.save-pop-enter\s*[,{]/)
   })
 
-  it('Transition 组件的 name 是 "save-pop"', () => {
+  it('Transition component name is "save-pop"', () => {
     expect(searchSaveSmartViewRaw).toContain('name="save-pop"')
   })
 })
 
-describe('.sv-switch 轨道过渡 + 拇指投影(C5 的 T8 M1 修复,别再丢一次)', () => {
-  it('.sv-switch 轨道背景色变化带 transition', () => {
+describe('.sv-switch track transition + thumb shadow (C5 T8 M1 fix, don\'t drop it again)', () => {
+  it('.sv-switch track background change has transition', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('transition: background 0.15s')
   })
 
-  it('.sv-switch::after 拇指带投影(color-mix,不是字面 rgba)', () => {
+  it('.sv-switch::after thumb has shadow (color-mix, not literal rgba)', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
     expect(rule).toBeDefined()
     expect(rule?.body).toMatch(/box-shadow:\s*0 1px 3px color-mix\(/)
   })
 
-  it('.sv-switch 尺寸是 32×18、拇指 14×14、[data-on]::after left:16px(photos-smartview.scss 那份生效值,不是 photos.scss:2817-2825 的 36×20/left:18px)', () => {
+  it('.sv-switch size is 32×18, thumb 14×14, [data-on]::after left:16px (photos-smartview.scss effective value, not photos.scss:2817-2825\'s 36×20/left:18px)', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const track = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch')
     expect(track?.body).toContain('width: 32px')
@@ -459,7 +472,7 @@ describe('.sv-switch 轨道过渡 + 拇指投影(C5 的 T8 M1 修复,别再丢�
   // states. This file's own copy used to add `background: var(--on-accent)` here (the C5 ruling
   // pinned it to SmartViewCreateDialog.vue's then-buggy value), making the knob track state
   // instead of staying constant.
-  it('.sv-switch[data-on="true"]::after 不覆盖 background(knob 两态同色,不随 data-on 变色)', () => {
+  it('.sv-switch[data-on="true"]::after does not override background (one knob colour in both states, unaffected by data-on)', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
     expect(onKnob?.body).not.toMatch(/background\s*:/)
@@ -471,7 +484,7 @@ describe('.sv-switch 轨道过渡 + 拇指投影(C5 的 T8 M1 修复,别再丢�
   // requirement ("white in both themes and both states") was still unmet. `--text-1` is no
   // longer used for the knob at all; light mode gets a paired border+shadow rule to keep a flat
   // white knob visible against its own near-white off-track.
-  it('.sv-switch::after 的 knob 背景是字面白,不是 var(--text-1)', () => {
+  it('.sv-switch::after knob background is a literal white, not var(--text-1)', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
     expect(baseKnob).toBeDefined()
@@ -479,10 +492,10 @@ describe('.sv-switch 轨道过渡 + 拇指投影(C5 的 T8 M1 修复,别再丢�
     expect(baseKnob?.body).not.toContain('var(--text-1)')
   })
 
-  it('.photos-root.is-light .sv-switch::after 给白色 knob 配浅色主题的描边 + 投影,两态通用', () => {
+  it('.photos-root.is-light .sv-switch::after gives the white knob a light-theme border + shadow, shared by both states', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
     const lightKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.photos-root.is-light .sv-switch::after')
-    expect(lightKnob, '浅色主题下 knob 专属的描边/投影覆盖规则不存在').toBeDefined()
+    expect(lightKnob, 'the light-theme knob-specific border/shadow override rule is missing').toBeDefined()
     expect(lightKnob?.body).toMatch(/border\s*:\s*1px solid var\(--line-strong\)/)
     expect(lightKnob?.body).toMatch(/box-shadow\s*:/)
     const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')

@@ -34,19 +34,20 @@ import { useToast } from '../../../stores/toast'
 import { i18n } from '../../../i18n'
 
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); localStorage.clear() })
-// destroy() 摘掉 window 上的 pagehide/visibilitychange 监听——不清会跨用例累积,dispatchEvent 就会打到历史用例的残留监听器
+// destroy() removes the pagehide/visibilitychange listeners from window — failure to clean
+// them up causes accumulation across test cases, so dispatchEvent hits historical residual listeners
 afterEach(() => { try { useDropStore().destroy() } catch { /* noop */ } })
 
 const peerInfo = (id: string) => ({ id, name: { model: 'desktop', deviceName: 'd', displayName: 'Dev-' + id }, rtcSupported: true })
 const dispatch = (msg: unknown) => (h.capturedDeps!.onMessage as (m: unknown) => void)(msg)
 
 describe('useDropStore', () => {
-  it('init 幂等:二次调用不重建连接', () => {
+  it('init is idempotent: second call does not rebuild connection', () => {
     const s = useDropStore()
     s.init(); s.init()
     expect(h.connect).toHaveBeenCalledTimes(1)
   })
-  it('peers/peer-joined/peer-left 维护列表并转发引擎;display-name 记 selfId+持久化 peerid+self 置顶', () => {
+  it('peers/peer-joined/peer-left maintain list and forward to engine; display-name record selfId+persist peerid+self pinned first', () => {
     const s = useDropStore()
     s.init()
     dispatch({ type: 'peers', peers: [peerInfo('a')] })
@@ -55,13 +56,13 @@ describe('useDropStore', () => {
     dispatch({ type: 'display-name', message: { id: 'me1', deviceName: 'nas', displayName: 'Me' } })
     expect(s.selfId).toBe('me1')
     expect(localStorage.getItem('peerid')).toBe('me1')
-    expect(s.peers[0].id).toBe('me1') // self 置顶
+    expect(s.peers[0].id).toBe('me1') // self pinned first
     dispatch({ type: 'peer-joined', peer: peerInfo('b') })
     expect(s.peers.some((p) => p.id === 'b')).toBe(true)
     dispatch({ type: 'peer-left', peerId: 'a' })
     expect(s.peers.some((p) => p.id === 'a')).toBe(false)
   })
-  it('进度 ingest:sending=files 非空;progress===1 清条目;接收计数来自 text', () => {
+  it('progress ingest: sending=files not empty; progress===1 clears entry; receive count comes from text', () => {
     const s = useDropStore()
     s.init()
     const ev = h.capturedEvents!
@@ -85,7 +86,7 @@ describe('useDropStore', () => {
     expect(s.transfers['a'].progress).toBe(40)
     expect(s.transfers['a'].raw).toBe(0.4048)
   })
-  it('接收队列:onFileReceived 入队;saveCurrent/ignoreCurrent 出队', () => {
+  it('receive queue: onFileReceived enqueues; saveCurrent/ignoreCurrent dequeues', () => {
     const s = useDropStore()
     s.init()
     const ev = h.capturedEvents!
@@ -95,13 +96,13 @@ describe('useDropStore', () => {
     s.ignoreCurrent()
     expect(s.receiveQueue[0].file.name).toBe('2.txt')
   })
-  it('sendFiles 透传管理器;返回 false 时弹不支持 toast', () => {
+  it('sendFiles passes through manager; toasts unsupported when returning false', () => {
     const s = useDropStore()
     s.init()
     s.sendFiles('a', [new File(['x'], 'x')])
     expect(h.pmSendFiles).toHaveBeenCalled()
   })
-  it('destroy 断连清态且可再 init', () => {
+  it('destroy disconnects, clears state, and can init again', () => {
     const s = useDropStore()
     s.init(); s.destroy()
     expect(h.destroy).toHaveBeenCalledOnce()
@@ -109,24 +110,24 @@ describe('useDropStore', () => {
     s.init()
     expect(h.connect).toHaveBeenCalledTimes(2)
   })
-  it('pagehide 触发非永久断开(spec §5):调 server.suspend 而非 destroy', () => {
+  it('pagehide triggers non-permanent disconnect (spec §5): calls server.suspend not destroy', () => {
     const s = useDropStore()
     s.init()
     window.dispatchEvent(new Event('pagehide'))
     expect(h.suspend).toHaveBeenCalledOnce()
     expect(h.destroy).not.toHaveBeenCalled()
   })
-  it('重连 peers 替换后保留 self 显示名(评审发现 #1)', () => {
+  it('reconnect preserves self display name after peers replacement (code review found #1)', () => {
     const s = useDropStore()
     s.init()
-    // 先收到 display-name 消息,设置 selfId='me1',displayName='Me'
+    // First receive display-name message, set selfId='me1', displayName='Me'
     dispatch({ type: 'display-name', message: { id: 'me1', deviceName: 'nas', displayName: 'Me' } })
     expect(s.selfId).toBe('me1')
     expect(s.peers[0].id).toBe('me1')
     expect(s.peers[0].name.displayName).toBe('Me')
-    // 然后收到 peers 消息,替换整个列表为仅包含 peer 'a' 的列表
+    // Then receive peers message, replace entire list with list containing only peer 'a'
     dispatch({ type: 'peers', peers: [peerInfo('a')] })
-    // self 应该保留名字并重新置顶,即使不在新 peers 列表里
+    // self should retain name and be re-pinned to the top, even if not in new peers list
     expect(s.peers[0].id).toBe('me1')
     expect(s.peers[0].name.displayName).toBe('Me')
     expect(s.peers[1].id).toBe('a')
@@ -163,11 +164,12 @@ describe('useDropStore', () => {
     ])
   })
 
-  // 2026-08-13 验收:手机刚进互传页,两台设备都弹「无法与对方建立连接」,可文件照传照收。
-  // 探针查明:服务端的设备列表里躺着一个幽灵会话(手机上一次被划掉、socket 没关,要等
-  // 90s 心跳才清),而页面一加载就会向列表里每台设备自动拨号 —— 拨幽灵必然失败,15s 后
-  // 两边各弹一次。用户从没点过那台设备,却被告知"连不上"。
-  // 判据:只有用户真的对这台设备发起过发送,拨号失败才值得打断他。
+  // 2026-08-13 acceptance: when phone just enters drop page, both devices toast "cannot connect to
+  // each other", yet files transfer and receive normally. Probe revealed: server's device list holds
+  // a ghost session (phone swiped away last time, socket not closed, waits 90s heartbeat sweep to
+  // clear), and the page auto-dials every device on list on load — dialing ghost fails, 15s later
+  // both sides toast once. User never clicked that device, yet told "cannot reach". Criterion: only
+  // when user actually initiates send to this device should dial failure deserve interrupting them.
   it('stays quiet when a device nobody tried to send to turns out unreachable', () => {
     const s = useDropStore()
     s.init()
@@ -177,7 +179,8 @@ describe('useDropStore', () => {
     ;(ev.onPeerUnreachable as (id: string) => void)('ghost')
     expect(texts()).toEqual([])
 
-    // 用户点了这台设备发送(拨号中,报 not-ready),15s 后拨不通 —— 这一次必须说话
+    // User clicked this device to send (dial in flight, reports not-ready), 15s later dial fails —
+    // this time we must notify
     h.pmSendFiles.mockReturnValueOnce('not-ready' as never)
     s.sendFiles('real', [new File(['x'], 'x')])
     ;(ev.onPeerUnreachable as (id: string) => void)('real')

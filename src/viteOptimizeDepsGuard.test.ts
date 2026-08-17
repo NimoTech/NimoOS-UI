@@ -25,11 +25,11 @@ import { describe, it, expect } from 'vitest'
 
 const CONFIG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../vite.config.ts')
 
-describe('vite optimizeDeps 守卫', () => {
-  it('共享包 @nimotech/nimoos-service 在 optimizeDeps.exclude 里', () => {
+describe('vite optimizeDeps guard', () => {
+  it('Shared package @nimotech/nimoos-service is in optimizeDeps.exclude', () => {
     const src = fs.readFileSync(CONFIG, 'utf8')
     const block = src.match(/optimizeDeps\s*:\s*\{[\s\S]*?\}/)
-    expect(block, 'vite.config.ts 里找不到 optimizeDeps 块').not.toBeNull()
+    expect(block, 'optimizeDeps block not found in vite.config.ts').not.toBeNull()
     expect(block![0]).toMatch(/exclude\s*:\s*\[[^\]]*'@nimotech\/nimoos-service'/)
   })
 })

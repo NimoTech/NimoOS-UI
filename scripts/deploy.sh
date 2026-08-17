@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# 构建 NimoOS-New-UI 并部署到 Gateway 的 /app/ 静态目录。
-# 注意:首次需确保 /var/lib/nimoos/www/app/ 存在且对 nimo 可写
+# Build NimoOS-New-UI and deploy to the Gateway's /app/ static directory.
+# Note: on first use, make sure /var/lib/nimoos/www/app/ exists and is writable by nimo
 #   sudo mkdir -p /var/lib/nimoos/www/app && sudo chown nimo:nimo /var/lib/nimoos/www /var/lib/nimoos/www/app
 set -euo pipefail
 cd "$(dirname "$0")/.."
 pnpm build
-# protect assets/*:保留旧哈希 chunk——部署前已打开的标签页仍会按旧 index.html 懒加载
-# 旧哈希文件,删掉会让"点开预览/懒路由"404 且不可自愈(表现为点击没反应,必须手动刷新)。
-# 陈旧 chunk 由下面的 find 按 mtime 清理(每次构建产物都是新 mtime,只会清到真正的旧版本)。
+# protect assets/*: keep old hashed chunks — tabs opened before the deploy still lazy-load
+# old hashed files per the old index.html; deleting them makes "open preview / lazy route" 404
+# with no self-healing (clicks appear dead until a manual refresh).
+# Stale chunks are cleaned by the find below by mtime (each build's output has a fresh mtime, so only truly old versions get removed).
 rsync -a --delete --filter='protect assets/*' dist/ /var/lib/nimoos/www/app/
 find /var/lib/nimoos/www/app/assets -type f -mtime +14 -delete 2>/dev/null || true
-# 本应用挂在 /app/ 下,根目录不属于它 —— 补一个 / → /app/ 的重定向页,
-# 让只部署了本应用的机器上,输入 / 也能落到应用里。
-# 脚本自带覆盖守卫:根目录已有别的首页时一字不动(详见脚本头部注释)。
-# 本脚本开头已 `cd "$(dirname "$0")/.."`,所以这里的相对路径就是仓库根。
+# This app is mounted under /app/; the www root does not belong to it — add a / → /app/
+# redirect page so that on machines with only this app deployed, typing / still lands in the app.
+# The script has its own overwrite guard: if the root already has another homepage, it touches nothing (see the script's header comment).
+# This script already did `cd "$(dirname "$0")/.."` at the top, so relative paths here are the repo root.
 ./scripts/write-root-redirect.sh /var/lib/nimoos/www
 echo "Deployed to /var/lib/nimoos/www/app/  →  http://<host>/app/#/"

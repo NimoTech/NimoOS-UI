@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Task 3 (壳 + 侧栏重刻): re-skinned to the Vue2 pixel baseline (NimoOS-UI
+// Task 3 (shell + sidebar re-skin): re-skinned to the Vue2 pixel baseline (NimoOS-UI
 // src/views/Photos/PhotosSidebar.vue:1-93). Structure/classes transcribed
 // verbatim (.sidebar/.sidebar-head/.nav-section/.nav-item/.nav-label/
 // .sidebar-foot/.storage-mini*, collapsed → centered brand-icon + icon-btn
@@ -86,10 +86,12 @@ function toggleTheme() {
   photosTheme.set(isLight.value ? 'dark' : 'light')
 }
 
-// P8a-T6 (§7e-15):侧栏是相册区全部页面共用组件,自己拉一次 aiFeatures 配置来决定是否
-// 隐藏 smart-views 条目。store 是单例,与任意视图各自的 onMounted 同帧挂载会并发调用
-// fetchAiFeatures() —— 并发去重收在 settings.ts 里(见该文件 fetchAiFeatures 头部注释),
-// 这里只管调用,不用关心去重细节。
+// P8a-T6 (§7e-15): the sidebar is a component shared by every page in the photos area, so it
+// pulls the aiFeatures config itself once to decide whether to hide the smart-views entry.
+// The store is a singleton, so mounting alongside any view's own onMounted in the same frame
+// will call fetchAiFeatures() concurrently -- concurrency dedup is handled in settings.ts (see
+// that file's fetchAiFeatures header comment); this component just calls it and doesn't need
+// to worry about the dedup details.
 const settings = usePhotosSettingsStore()
 onMounted(() => { void settings.fetchAiFeatures() })
 // Storage-bar data (timeline.indexStatus) is deliberately NOT fetched here — Photos.vue
@@ -98,13 +100,14 @@ onMounted(() => { void settings.fetchAiFeatures() })
 // photos-area route change; fetching here too would mean a request on every nav click instead
 // of Vue2's one-time cost. Existing behavior, unchanged by this task.
 
-// 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)——照 FilesSidebar。
+// Drawer state: note this must be destructured (a nested ref doesn't auto-unwrap in the
+// template, so drawer.isNarrow being always-truthy is a trap) -- following FilesSidebar's lead.
 const { isNarrow, open: drawerOpen, close: closeDrawer, toggle: toggleDrawer } = useSidebarDrawer()
 
-// 任何路由变化后抽屉自动收起;桌面态 close 是 no-op。
+// The drawer auto-closes after any route change; close is a no-op on desktop.
 watch(() => route.fullPath, () => closeDrawer())
 
-// ESC 关抽屉,仅在窄屏打开时监听。
+// ESC closes the drawer; only listened for while it's open on narrow screens.
 function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
 watch(drawerOpen, (o) => {
   if (o) document.addEventListener('keydown', onDrawerKeydown)
@@ -112,16 +115,18 @@ watch(drawerOpen, (o) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
-// 导航条目注册表 —— 内容/顺序不变(SP7-P7a-T4/SP15-P2b 既有登记),这里只补一个 `icon`
-// 字段(Vue2 nav1/nav2 的 icon 名)供新模板渲染 PhotosIcon;nav1 与 nav2 的切分点也照
-// Vue2(favorites/trash 归 nav2,其余归 nav1)。
+// Nav item registry -- content/order unchanged (already registered by SP7-P7a-T4/SP15-P2b);
+// this only adds an `icon` field (Vue2 nav1/nav2's icon name) for the new template to render
+// PhotosIcon; the nav1/nav2 split point also follows Vue2 (favorites/trash go to nav2,
+// everything else to nav1).
 const NAV_ALL = [
   { id: 'library', route: '/photos', labelKey: 'photosLibrary', icon: 'clock' },
   { id: 'albums', route: '/photos/albums', labelKey: 'photosAlbums', icon: 'album' },
   { id: 'people', route: '/photos/people', labelKey: 'photosPeople', icon: 'person' },
   { id: 'places', route: '/photos/places', labelKey: 'photosPlaces', icon: 'map' },
-  // SP7-P7a-T4:插在 places 之后、favorites 之前,照 Vue2 PhotosSidebar.vue:114-118 的顺序
-  // (library / albums / people / places / smart)。7 项(原 6 项),favorites/trash 下标各 +1。
+  // SP7-P7a-T4: inserted after places, before favorites, following Vue2
+  // PhotosSidebar.vue:114-118's order (library / albums / people / places / smart). 7 items
+  // total (was 6), favorites/trash indices each +1.
   // SP15-P2b (Vue2 939a7d3a:PhotosSidebar.vue:118): the page behind this entry is now a
   // Moments-only "For You" page -- the smart albums moved into Albums. Only the label
   // changes; id and route stay so the ?view=smart deep link and the hide-when-off filter
@@ -131,10 +136,12 @@ const NAV_ALL = [
   { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash', icon: 'trash' },
 ]
 
-// P8a-T6(§7e-15):Vue2 PhotosSidebar.vue:120-122 —— `ai.smartview === false` 时
-// `items.filter(i => i.id !== 'smart')`。判据必须是 `=== false`,不是 `!x`:aiFeatures.
-// smartview 的默认值与"取数失败/字段缺失"的兜底值都是 `true`,只有后端明确说关了才隐藏这一
-// 条——配置读取抖动/请求失败不该让导航条目消失,吓用户以为功能不见了。
+// P8a-T6 (§7e-15): Vue2 PhotosSidebar.vue:120-122 -- when `ai.smartview === false`,
+// `items.filter(i => i.id !== 'smart')`. The check must be `=== false`, not `!x`:
+// aiFeatures.smartview's default value and its fallback for "fetch failed/field missing" are
+// both `true`; this entry is only hidden when the backend explicitly says it's off -- a
+// config-read glitch or failed request shouldn't make a nav entry vanish and scare the user
+// into thinking the feature disappeared.
 const visibleNav = computed(() =>
   settings.aiFeatures.smartview === false
     ? NAV_ALL.filter((n) => n.id !== 'smart-views')
@@ -171,7 +178,7 @@ function countFor(id: string): number | null {
 // `user` object Vue2 read directly; this repo's equivalent.
 const displayName = computed(() => session.user?.username || '')
 
-// 存储条:usedText = totalBytes 人类可读;percent = (diskTotal-diskAvail)/diskTotal,除零守卫。
+// Storage bar: usedText = totalBytes in human-readable form; percent = (diskTotal-diskAvail)/diskTotal, guarded against division by zero.
 const hasStorageInfo = computed(() => timeline.indexStatus.diskTotal > 0)
 const usedText = computed(() => renderSize(timeline.indexStatus.totalBytes))
 const storagePercent = computed(() => {

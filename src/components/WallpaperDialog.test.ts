@@ -161,9 +161,9 @@ describe('WallpaperDialog apply / cancel', () => {
   })
 
   it('I2 round 2: picking a base preset then switching to "from NAS" does not silently confirm the previewed theme', async () => {
-    // Exact repro from the final review: open the picker, pick 白色底板
+    // Exact repro from the final review: open the picker, pick the white base preset
     // (previews the theme only, per the I2 fix above), change your mind and
-    // choose 从 NAS 选择 instead, pick an image -- no Apply click anywhere in
+    // choose from NAS instead, pick an image -- no Apply click anywhere in
     // this sequence. Verified this goes red against the code as it stood
     // right before this fix (wallpaper.ts's commit() ended with
     // `themeStore.setTheme(themeStore.theme)`): localStorage read back

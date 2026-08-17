@@ -9,7 +9,7 @@ import { useAgentStore } from './agentStore'
 describe('agentStore.resolveElicitation', () => {
   beforeEach(() => { setActivePinia(createPinia()); h.confirmAgentAction.mockClear() })
 
-  it('accept 带答案:confirmed=true,action/content 走 extra', async () => {
+  it('accept with answer: confirmed=true, action/content goes to extra', async () => {
     const s = useAgentStore()
     s.activeSessionId = 'sess-1'
     await s.resolveElicitation('c1', 'accept', { name: 'Ada' })
@@ -18,7 +18,7 @@ describe('agentStore.resolveElicitation', () => {
     )
   })
 
-  it('decline 无答案:confirmed=false,extra 里只有 action', async () => {
+  it('decline without answer: confirmed=false, extra only has action', async () => {
     const s = useAgentStore()
     s.activeSessionId = 'sess-1'
     await s.resolveElicitation('c1', 'decline')
@@ -27,14 +27,14 @@ describe('agentStore.resolveElicitation', () => {
     )
   })
 
-  it('没有活动会话时抛错,而不是静默 return', async () => {
+  it('when no active session, throw error instead of silent return', async () => {
     const s = useAgentStore()
     s.activeSessionId = null
     await expect(s.resolveElicitation('c1', 'accept')).rejects.toThrow('no active session')
     expect(h.confirmAgentAction).not.toHaveBeenCalled()
   })
 
-  it('缺 confirmId 抛错', async () => {
+  it('missing confirmId throws error', async () => {
     const s = useAgentStore()
     s.activeSessionId = 'sess-1'
     await expect(s.resolveElicitation('', 'accept')).rejects.toThrow('confirm_id missing')

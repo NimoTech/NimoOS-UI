@@ -17,8 +17,8 @@ function capture(data: unknown = []) {
 }
 const noToken = () => null
 
-describe('photos 相册', () => {
-  it('CRUD 路由与请求体正确', async () => {
+describe('photos albums', () => {
+  it('CRUD routes and request bodies are correct', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.listAlbums()
@@ -30,7 +30,7 @@ describe('photos 相册', () => {
     expect(calls[2]).toMatchObject({ method: 'get', url: '/photos/albums/3' })
     expect(calls[3]).toMatchObject({ method: 'delete', url: '/photos/albums/3' })
   })
-  it('资产增删/批量/排序/更名', async () => {
+  it('asset add/remove, batch, reorder, rename', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.addToAlbum(3, 'a1')

@@ -159,7 +159,7 @@
   <p class="foot">NimoOS · Connect Google Drive · Using your own Google Cloud credentials (BYO)</p>
 </div>
 
-<!-- ==================== 中文 ==================== -->
+<!-- ==================== Chinese ==================== -->
 <div class="wrap" id="lang-zh" hidden>
   <header>
     <p class="eyebrow">NimoOS · 连接云盘</p>
@@ -258,7 +258,7 @@
 <script>
   (function () {
     var LANGS = ["en", "zh"];
-    var LABEL = { en: "中文", zh: "EN" }; // 按钮显示"切换到的目标语言"
+    var LABEL = { en: "中文", zh: "EN" }; // Button shows the target language to switch to
     var TITLE = {
       en: "Connect Google Drive — Use Your Own Google Credentials",
       zh: "连接 Google Drive — 使用你自己的 Google 凭据"
@@ -275,7 +275,7 @@
     }
     var saved;
     try { saved = localStorage.getItem("nimoos_guide_lang"); } catch (e) {}
-    apply(saved || "en"); // 默认英文
+    apply(saved || "en"); // Default: English
     btn.addEventListener("click", function () {
       var cur = document.getElementById("lang-zh").hidden ? "en" : "zh";
       apply(cur === "en" ? "zh" : "en");

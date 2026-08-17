@@ -1,6 +1,6 @@
 import type { StdEnvelope } from './types.js'
 
-// success===200 → 返回 data;否则抛带 message + code 的错误
+// success===200 → return data; otherwise throw an error carrying message + code
 export function unwrap<T>(body: StdEnvelope<T>): T {
   if (body && body.success === 200) return body.data as T
   const err = new Error(body?.message || `request failed (${body?.success})`)

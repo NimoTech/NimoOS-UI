@@ -35,10 +35,11 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   // still arrives after a *second* loadMoreFavorites() has since started, must not be allowed
   // to clear the second call's flag out from under it in its `finally`.
   let _loadMoreSeq = 0
-  // Task 9 (P8a, P3 遗留收口): 独立失败标志——绝不与 favoritesLoaded 合并/复用。
-  // favoritesLoaded 仅成功路径置真是刻意的(见下方 fetchFavorites 注释);一次瞬时失败
-  // 必须能被视图区分出「加载失败」而不是「正在加载」或「确认为空」,这就是 loadError 存在
-  // 的唯一理由。
+  // Task 9 (P8a, P3 outstanding wrap-up): independent failure flag — never merge/reuse with
+  // favoritesLoaded. favoritesLoaded being set to true only on the success path is intentional
+  // (see fetchFavorites comment below); a transient failure must be distinguishable by the view
+  // as "load failed" rather than "loading" or "confirmed empty", which is the only reason
+  // loadError exists.
   const loadError = ref(false)
   // Non-reactive view-report throttle ledger — mirrors Vue2's non-reactive
   // `state._viewReportTs`, avoiding a render trigger on every photo view.

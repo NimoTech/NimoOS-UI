@@ -10,18 +10,18 @@ function memStorage(): Pick<Storage, 'getItem' | 'setItem'> {
 }
 
 describe('shouldReload', () => {
-  it('首次失败允许刷新并记录时间', () => {
+  it('First failure allows reload and records time', () => {
     const s = memStorage()
     expect(shouldReload(100_000, s)).toBe(true)
   })
 
-  it('10s 内连续失败不再刷新(防死循环)', () => {
+  it('Continuous failures within 10s do not reload (prevent infinite loops)', () => {
     const s = memStorage()
     expect(shouldReload(100_000, s)).toBe(true)
     expect(shouldReload(105_000, s)).toBe(false)
   })
 
-  it('超过 10s 后允许再次刷新', () => {
+  it('Allow reload again after 10s', () => {
     const s = memStorage()
     expect(shouldReload(100_000, s)).toBe(true)
     expect(shouldReload(111_000, s)).toBe(true)
@@ -29,7 +29,7 @@ describe('shouldReload', () => {
 })
 
 describe('installChunkReloadGuard', () => {
-  it('监听 vite:preloadError:吞掉错误并整页刷新', () => {
+  it('Listens to vite:preloadError: swallows error and performs full-page reload', () => {
     const listeners = new Map<string, (e: Event) => void>()
     const target = {
       addEventListener: (type: string, fn: EventListenerOrEventListenerObject) => {
@@ -47,7 +47,7 @@ describe('installChunkReloadGuard', () => {
     expect(ev.defaultPrevented).toBe(true)
   })
 
-  it('刷新被节流拒绝时不吞错误、不刷新', () => {
+  it('When reload is throttled and rejected, do not swallow error or reload', () => {
     const listeners = new Map<string, (e: Event) => void>()
     const target = {
       addEventListener: (type: string, fn: EventListenerOrEventListenerObject) => {

@@ -1,5 +1,5 @@
-// 图片翻页/过滤纯逻辑,复刻 Vue2 filebrowser/viewers/ImageViewer.vue 的
-// XIMAGES 常量 + filterImages/getCurrentImageIndex。
+// Image pagination/filtering pure logic; replicates Vue2 filebrowser/viewers/ImageViewer.vue's
+// XIMAGES constant + filterImages/getCurrentImageIndex.
 import { fileExt } from '../util/ext'
 import type { FileEntry } from '../stores/files'
 

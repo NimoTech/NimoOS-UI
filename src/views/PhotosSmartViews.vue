@@ -1,18 +1,23 @@
 <script setup lang="ts">
-// SP7-P7a-T4: PhotosSmartViews.vue —— 智能视图列表页(壳 + AI 横幅 + hero + 网格 + 新建卡)。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosSmartViewsView.vue:14-38(列表部分,
-// 详情/弹窗部分归其余任务)、内联横幅 :15-19、hero :22-30、网格 :31-38 移植;
-// 样式照 photos-smartview.scss:4-25(hero/create-btn/grid)+ :118-145(create-card)。
-// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
-// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
-// ——`collapsed` 改用共享 composable useSidebarCollapse(）。随手修复了
-// photosLayoutHeightCap.test.ts 里挂账的 EXEMPT 项:这页此前 `.photos-main` 没有任何内层
-// 滚动容器,靠 AreaShell 的 `.area-body { overflow: auto }` 兜底整页滚动——脱壳后 `.app` 网格
-// 强制 `height:100vh; overflow:hidden`(parity scss photos.scss:116-129,与视图无关的全局
-// 祖先选择器,本页无法单独豁免),不补内层滚动容器就会真裁内容(超一屏的 moment 卡片再也
-// 够不着)。这里把 `.mo-section`(本页唯一内容块)升格成 flex:1+overflow-y:auto 的滚动容器,
-// 与 PhotosAlbums.vue 的 `.albums-scroll` 同一形状——从 EXEMPT 移进等效于 CAPPED(源码里
-// 已不含 `.photos-layout` 规则字面量,自动退出该测试文件的扫描范围)。
+// SP7-P7a-T4: PhotosSmartViews.vue — the smart-view list page (shell + AI banner + hero +
+// grid + create card). Ported section by section from Vue2 NimoOS-UI
+// src/views/Photos/PhotosSmartViewsView.vue:14-38 (the list portion — the detail/dialog
+// portion belongs to other tasks), the inline banner :15-19, hero :22-30, grid :31-38.
+// Styles ported from photos-smartview.scss:4-25 (hero/create-btn/grid) + :118-145 (create-card).
+// Plan C Task 2 (shared re-shell): the shell moves from AreaShell + a `.photos-layout` flex row
+// to Photos.vue's Vue2 structure `.photos-root[themeClass] > .app[data-collapsed] >
+// PhotosSidebar + main.main` — `collapsed` now comes from the shared composable
+// useSidebarCollapse(). This also cleared the EXEMPT entry photosLayoutHeightCap.test.ts had
+// on the books: this page previously had no inner scroll container under `.photos-main` and
+// leaned on AreaShell's `.area-body { overflow: auto }` to scroll the whole page — once out of
+// that shell the `.app` grid forces `height: 100vh; overflow: hidden` (parity scss
+// photos.scss:116-129, a view-agnostic global ancestor selector this page cannot exempt on its
+// own), so without an inner scroll container the content really is clipped (moment cards past
+// the first screen become unreachable). `.mo-section` (the only content block on this page) is
+// promoted into a flex:1 + overflow-y:auto scroll container, the same shape as
+// PhotosAlbums.vue's `.albums-scroll` — moving off EXEMPT is equivalent to CAPPED here (the
+// source no longer contains the `.photos-layout` rule literal, so it drops out of that test
+// file's scan scope).
 //
 // SP15-P2b Task 5 (Vue2 939a7d3a:src/views/Photos/PhotosSmartViewsView.vue, the whole
 // 317-line file): the smart-view grid, its hero, the create tile, and the create dialog all
@@ -80,8 +85,10 @@ const settings = usePhotosSettingsStore()
 const moments = usePhotosMoments()
 const toast = useToast()
 
-// P8a-T6(§7e-10):aiFeatures.smartview 曾经是本页自己 onMounted 直读一次 /photos/config
-// 的临时实现(P8 归属前没有共享 store)。现在改读 T1 的 photosSettings store —— 语义不变:
+// P8a-T6 (§7e-10): aiFeatures.smartview used to be a stopgap implementation where this page
+// read /photos/config directly once in its own onMounted (there was no shared store before
+// P8 landed). Now switched to reading T1's photosSettings store instead — the semantics are
+// unchanged:
 // missing field / request failure is always treated as "on" (no banner/hint, does not
 // scare the user) -- this defensive semantics already lives in store.fetchAiFeatures();
 // this line only consumes it.
@@ -123,7 +130,7 @@ async function persistOrder(ids: string[]): Promise<void> {
 }
 
 // Declared below `drag` on purpose — the drag guard has to be the first thing it does, and
-// the album grid puts its own equivalent (PhotosAlbumDetail.vue:161-162, "必须在最前面")
+// the album grid puts its own equivalent (PhotosAlbumDetail.vue:161-162, "must come first")
 // immediately after its `useAlbumDragSort` call for the same reason.
 //
 // Deviation from Vue 2 (registered here, not a port miss): Vue 2's Moments band has **no**
@@ -153,8 +160,9 @@ watch(showMoments, (next) => {
 onBeforeUnmount(() => drag.destroy())
 
 onMounted(() => {
-  // 侧栏(PhotosSidebar,本页也挂载它)同帧也会调用 fetchAiFeatures() —— 并发去重收在
-  // settings.ts 里,这里不需要关心。
+  // The sidebar (PhotosSidebar, which this page also mounts) also calls fetchAiFeatures() in
+  // the same frame — the concurrency dedup is handled inside settings.ts, no need to worry
+  // about it here.
   void settings.fetchAiFeatures()
   void moments.fetchMoments()
 })

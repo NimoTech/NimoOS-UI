@@ -24,8 +24,8 @@ export function createAppstore(http: AxiosInstance) {
       return v2Data<StoreAppInfo>(res.data)
     },
 
-    /** 商店应用的 compose YAML 原文(安装的输入)。Accept yaml → 裸文本;
-     *  transformResponse 置空防 axios 把 YAML 误当 JSON 解析。 */
+    /** Raw compose YAML of a store app (the input for install). Accept yaml → bare text;
+     *  transformResponse is cleared to stop axios from mis-parsing YAML as JSON. */
     async getAppCompose(id: string): Promise<string> {
       const res = await http.get(`${BASE}/apps/${encodeURIComponent(id)}/compose`, {
         headers: { Accept: 'application/yaml' },
@@ -45,8 +45,8 @@ export function createAppstore(http: AxiosInstance) {
       return v2Data<AppStoreSource[]>(res.data) ?? []
     },
 
-    /** 注册第三方商店源。url 走 query 参数(openapi AppStoreURL),无 body;
-     *  注册是异步任务,完成经 MessageBus app-store:register-end/-error(P7 消费)。 */
+    /** Register a third-party store source. The url goes in a query param (openapi AppStoreURL), no body;
+     *  registration is an async task, completion arrives via MessageBus app-store:register-end/-error (consumed by P7). */
     async registerSource(url: string): Promise<void> {
       await http.post(`${BASE}/appstore`, undefined, { params: { url } })
     },
@@ -55,7 +55,7 @@ export function createAppstore(http: AxiosInstance) {
       await http.delete(`${BASE}/appstore/${id}`)
     },
 
-    /** GET /v2/app_management/apps/{id}/stable/{serviceName}(v2 信封)。仅商店应用有值;失败返 null。 */
+    /** GET /v2/app_management/apps/{id}/stable/{serviceName} (v2 envelope). Only store apps have a value; returns null on failure. */
     async stableTag(id: string, serviceName: string): Promise<string | null> {
       try {
         const res = await http.get(`${BASE}/apps/${encodeURIComponent(id)}/stable/${encodeURIComponent(serviceName)}`)

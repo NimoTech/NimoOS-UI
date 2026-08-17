@@ -1,25 +1,33 @@
-// SP8-P6-T4:i18n 分片不相交守卫(常驻)。
+// SP8-P6-T4: standing guard that the i18n shards stay disjoint.
 //
-// 背景与三条安全前提见 photosSlice.test.ts 顶部注释:分片靠对象展开合并
-// (`{...base, ...photos, ...ai}`),重复键会被后展开的静默覆盖 —— git 不报冲突,
-// parity.test.ts 只测「合并后」的键集,两语言若以同样方式撞车、合并结果仍然相等,
-// parity 也照过。这类错误此前完全无声。
+// Background and the three safety premises are in photosSlice.test.ts's top comment:
+// shards are combined by object spread (`{...base, ...photos, ...ai}`), so a duplicate key
+// is silently overwritten by whichever spread comes last -- git reports no conflict, and
+// parity.test.ts only checks the *merged* key set, so if both languages collide the same
+// way the merged results still match and parity passes too. This class of mistake used to
+// be completely silent.
 //
-// 本文件补 photosSlice.test.ts 没覆盖的三个缺口(该文件已经守住了「三片(base/
-// photos/ai)两两不相交」「出口是纯合并」,不在此重复):
+// This file covers the three gaps photosSlice.test.ts leaves (that file already pins
+// "the three shards (base/photos/ai) are pairwise disjoint" and "the entry point is a
+// pure merge", neither of which is repeated here):
 //
-//   ① 真实分片是 **4 片**,不是 3 片。`zh_cn.sp9.ts` / `en_us.sp9.ts` 不经过
-//      `zh_cn.ts` / `en_us.ts` 那个出口 —— 它在 `src/i18n/index.ts` 里单独并入
-//      (`{ ...zh, ...zhSp9 }`),是第二条独立的装配路径。photosSlice.test.ts 只验
-//      `zh_cn.ts` 出口(base+photos+ai),漏掉了 sp9 这一片与其余三片的撞车风险,
-//      而 sp9 是整个 SP9 期文案,体量(459 键)不小。
-//   ② ai 分片自身的前缀守卫(该分片是 T3 新建的,还没有专属守卫)。
-//   ③ 两语言分片结构对称 —— 每一片 zh 与 en 的键集须完全一致。若两语言各自以
-//      不同方式撞车,「合并后键数相等」这类聚合检查会失明(键数凑巧相等但键不同)。
+//   ① There are **4** real shards, not 3. `zh_cn.sp9.ts` / `en_us.sp9.ts` do not go
+//      through the `zh_cn.ts` / `en_us.ts` entry point -- they are merged separately in
+//      `src/i18n/index.ts` (`{ ...zh, ...zhSp9 }`), a second, independent assembly path.
+//      photosSlice.test.ts only checks the `zh_cn.ts` entry point (base+photos+ai), so it
+//      misses the risk of sp9 colliding with the other three, and sp9 is a whole sprint's
+//      worth of copy (459 keys) -- not a small shard.
+//   ② A prefix guard for the ai shard itself (that shard was added in T3 and had no
+//      guard of its own).
+//   ③ Per-shard structural symmetry between the two languages -- every shard's zh and en
+//      key sets must be identical. If the two languages each collide in a different way,
+//      an aggregate check like "the merged key counts are equal" goes blind (the counts
+//      happen to match while the keys differ).
 //
-// 「无损划分」这条刻意验证**真实装配路径**:import '../index' 拿到的 createI18n
-// 实例(index.ts 里 `messages.zh_cn` / `messages.en_us`),而不是只测 zh_cn.ts 那个
-// 不含 sp9 的出口 —— 后者会漏掉 sp9 分片撞车的可能性。
+// The "lossless partition" case deliberately exercises the **real assembly path**: the
+// createI18n instance obtained via import '../index' (`messages.zh_cn` / `messages.en_us`
+// inside index.ts), rather than only the zh_cn.ts entry point, which does not include sp9
+// and would therefore miss the possibility of an sp9 collision.
 import { describe, it, expect } from 'vitest'
 import zhBase from '../zh_cn.base'
 import zhPhotos from '../zh_cn.photos'
@@ -38,8 +46,8 @@ function overlap(a: Dict, b: Dict): string[] {
   return Object.keys(a).filter((k) => kb.has(k))
 }
 
-describe('zh 四片两两不相交(base / photos / ai / sp9)', () => {
-  it('六对组合全部不相交', () => {
+describe('zh: the four shards are pairwise disjoint (base / photos / ai / sp9)', () => {
+  it('all six pairings are disjoint', () => {
     expect(overlap(zhBase as Dict, zhPhotos as Dict), 'base × photos').toEqual([])
     expect(overlap(zhBase as Dict, zhAi as Dict), 'base × ai').toEqual([])
     expect(overlap(zhBase as Dict, zhSp9 as Dict), 'base × sp9').toEqual([])
@@ -49,8 +57,8 @@ describe('zh 四片两两不相交(base / photos / ai / sp9)', () => {
   })
 })
 
-describe('en 四片两两不相交(base / photos / ai / sp9)', () => {
-  it('六对组合全部不相交', () => {
+describe('en: the four shards are pairwise disjoint (base / photos / ai / sp9)', () => {
+  it('all six pairings are disjoint', () => {
     expect(overlap(enBase as Dict, enPhotos as Dict), 'base × photos').toEqual([])
     expect(overlap(enBase as Dict, enAi as Dict), 'base × ai').toEqual([])
     expect(overlap(enBase as Dict, enSp9 as Dict), 'base × sp9').toEqual([])
@@ -60,65 +68,74 @@ describe('en 四片两两不相交(base / photos / ai / sp9)', () => {
   })
 })
 
-describe('无损划分 · 真实装配路径(src/i18n/index.ts 的 createI18n 实例)', () => {
-  // 用真实 i18n 实例的 messages,而不是重新手写一遍 {...a, ...b, ...c, ...d} ——
-  // 否则本测试和被测代码用同一条(可能同样错的)装配公式,查不出装配路径本身写错的情况。
+describe('lossless partition · the real assembly path (src/i18n/index.ts createI18n instance)', () => {
+  // Read the real i18n instance's messages instead of hand-writing {...a, ...b, ...c, ...d}
+  // again -- otherwise this test and the code under test would share the same (possibly
+  // equally wrong) assembly formula and could never catch the assembly path itself being
+  // wrong.
   //
-  // 这条断言的判别力边界(独立评审做过变异实测,结论记在这里免得后人误读):
-  //   能抓:某个分片游离在真实装配路径之外(比如以后新增第五片却忘了在 index.ts 里并进
-  //     去),或真实 messages 里混进了这四个已知分片之外的来源。sp9×ai 定向撞车的变异
-  //     (往 zh_cn.sp9.ts 塞一个与 zh_cn.ai.ts 重名的键)会同时把这条和「两两不相交」
-  //     一起打红 —— 这也是 shardDisjoint.test.ts 存在的核心理由:同一变异下
-  //     photosSlice.test.ts 的 12 条断言全绿、完全失明(它没有 sp9 这一片)。
-  //   抓不到:某个分片内部纯删除/纯增加而不撞名的情况 —— 例如从 zh_cn.sp9.ts 删掉
-  //     一个键。这时「四片键数之和」与「真实装配后键数」两边同步减 1,等式在集合论上
-  //     恒成立(只要「四片两两不相交」这个前提没被破坏),此断言必然保持绿,不代表
-  //     文案没被误删。防"误删文案"要靠别的手段(比如 messageSyntax.test.ts 那类值域
-  //     检查,或对已知键名做存在性断言),不归本条断言管。
+  // What this assertion can and cannot discriminate (an independent review ran mutation
+  // tests; the conclusion is recorded here so nobody misreads it later):
+  //   Catches: a shard drifting outside the real assembly path (say a fifth shard is added
+  //     later and nobody merges it in index.ts), or the real messages picking up a source
+  //     beyond these four known shards. A targeted sp9×ai collision (planting a key in
+  //     zh_cn.sp9.ts that also exists in zh_cn.ai.ts) turns this red together with the
+  //     pairwise-disjoint cases -- which is the core reason shardDisjoint.test.ts exists:
+  //     under that same mutation all 12 assertions in photosSlice.test.ts stay green and
+  //     completely blind (it has no sp9 shard).
+  //   Misses: a pure deletion or pure addition inside one shard that collides with
+  //     nothing -- say removing a key from zh_cn.sp9.ts. Then "the sum of the four shards'
+  //     key counts" and "the assembled key count" both drop by 1, and the equation holds
+  //     by set theory (as long as the pairwise-disjoint premise is intact), so this stays
+  //     green without meaning that no copy was lost. Guarding against accidental copy
+  //     deletion needs other means (value-range checks like messageSyntax.test.ts, or
+  //     existence assertions on known key names); it is not this assertion's job.
   const realMessages = i18n.global.messages.value as Record<string, Dict>
 
-  it('zh_cn: base+photos+ai+sp9 键数之和 == messages.zh_cn 键数', () => {
+  it('zh_cn: base+photos+ai+sp9 key counts sum to the messages.zh_cn key count', () => {
     const sum = Object.keys(zhBase as Dict).length + Object.keys(zhPhotos as Dict).length +
       Object.keys(zhAi as Dict).length + Object.keys(zhSp9 as Dict).length
     expect(sum).toBe(Object.keys(realMessages.zh_cn).length)
   })
 
-  it('en_us: base+photos+ai+sp9 键数之和 == messages.en_us 键数', () => {
+  it('en_us: base+photos+ai+sp9 key counts sum to the messages.en_us key count', () => {
     const sum = Object.keys(enBase as Dict).length + Object.keys(enPhotos as Dict).length +
       Object.keys(enAi as Dict).length + Object.keys(enSp9 as Dict).length
     expect(sum).toBe(Object.keys(realMessages.en_us).length)
   })
 })
 
-describe('ai 分片前缀守卫', () => {
-  it('zh_cn.ai.ts 键全部以 ai 开头', () => {
+describe('ai shard prefix guard', () => {
+  it('every zh_cn.ai.ts key starts with ai', () => {
     const bad = Object.keys(zhAi as Dict).filter((k) => !k.startsWith('ai'))
-    expect(bad, `非 ai 前缀键: ${bad.join(', ')}`).toEqual([])
+    expect(bad, `keys without the ai prefix: ${bad.join(', ')}`).toEqual([])
   })
 
-  it('en_us.ai.ts 键全部以 ai 开头', () => {
+  it('every en_us.ai.ts key starts with ai', () => {
     const bad = Object.keys(enAi as Dict).filter((k) => !k.startsWith('ai'))
-    expect(bad, `非 ai 前缀键: ${bad.join(', ')}`).toEqual([])
+    expect(bad, `keys without the ai prefix: ${bad.join(', ')}`).toEqual([])
   })
 })
 
-describe('两语言分片结构对称(每一片 zh 与 en 键集完全一致)', () => {
-  // photos 这一条与 photosSlice.test.ts「两语言键集完全一致」重复 —— 保留是为了让
-  // 本文件本身就是「四片对称性」的完整清单,不必跳去另一个文件才能确认 photos 也被
-  // 覆盖到。base / ai / sp9 三条是本文件独有,此前没有任何测试守这三片的中英对称。
-  it('base 分片: zh 与 en 键集完全一致', () => {
+describe('per-shard symmetry between the two languages (each shard has identical zh and en key sets)', () => {
+  // The photos case overlaps with photosSlice.test.ts's "both languages have identical key
+  // sets" -- it is kept so that this file is a complete inventory of four-shard symmetry on
+  // its own, without having to open another file to confirm photos is covered too. The
+  // base / ai / sp9 cases are unique to this file; nothing guarded those three shards'
+  // zh/en symmetry before.
+  it('base shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhBase as Dict).sort()).toEqual(Object.keys(enBase as Dict).sort())
   })
 
-  it('photos 分片: zh 与 en 键集完全一致', () => {
+  it('photos shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhPhotos as Dict).sort()).toEqual(Object.keys(enPhotos as Dict).sort())
   })
 
-  it('ai 分片: zh 与 en 键集完全一致', () => {
+  it('ai shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhAi as Dict).sort()).toEqual(Object.keys(enAi as Dict).sort())
   })
 
-  it('sp9 分片: zh 与 en 键集完全一致', () => {
+  it('sp9 shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhSp9 as Dict).sort()).toEqual(Object.keys(enSp9 as Dict).sort())
   })
 })

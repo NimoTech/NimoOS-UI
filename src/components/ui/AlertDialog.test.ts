@@ -4,7 +4,7 @@ import { nextTick } from 'vue'
 import AlertDialog from './AlertDialog.vue'
 
 describe('ui/AlertDialog', () => {
-  it('open=true 渲染 message 与两个按钮', async () => {
+  it('renders message and two buttons when open=true', async () => {
     mount(AlertDialog, {
       props: { open: true, title: '删除', message: '确定删除 1 项?', confirmText: '删除', cancelText: '取消' },
       attachTo: document.body,

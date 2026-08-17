@@ -19,12 +19,12 @@ const body = () => new DOMWrapper(document.body)
 afterEach(() => { document.body.innerHTML = '' })
 
 describe('RenameDialog', () => {
-  it('预填当前名', async () => {
+  it('prefills with current name', async () => {
     mount(RenameDialog, { props: { open: true, name: 'old.txt' }, ...opts })
     await nextTick()
     expect((body().find('input').element as HTMLInputElement).value).toBe('old.txt')
   })
-  it('确认发出新名', async () => {
+  it('emits new name on confirmation', async () => {
     const w = mount(RenameDialog, { props: { open: true, name: 'old.txt' }, ...opts })
     await nextTick()
     await body().find('input').setValue('new.txt')

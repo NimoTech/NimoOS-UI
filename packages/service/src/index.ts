@@ -46,7 +46,7 @@ export type { SearchSource, SearchFilePath, SearchCite, SemanticHit, FileNameHit
 export type { Note, CreateNoteFields, UpdateNoteFields, NotesSettings, SettingsFields, NotesDistillSettings, DistillSettingsPatch, DistillJob, DistillJobsView } from './notes.js'
 export type { WikiRoot, WikiCandidate, WikiTreeNode, WikiChildMapEntry, WikiRecentChange, WikiNode } from './wiki.js'
 
-// 惰性域服务:initService 之后访问。
+// Lazy domain services: access only after initService.
 export const service = {
   get sys(): ReturnType<typeof createSys> {
     return createSys(getHttp() as AxiosInstance)

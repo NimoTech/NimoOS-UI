@@ -7,31 +7,32 @@ export function sha256(text) {
   return crypto.createHash('sha256').update(text).digest('hex')
 }
 
-/** 工作树必须干净。allowlist 是长期例外(那 3 个 design-export 的删除态)。 */
+/** Working tree must be clean. Allowlist is a long-term exception (the 3 design-export deletions). */
 export function checkClean(repoDir, allowlist = []) {
   const out = execFileSync('git', ['-C', repoDir, 'status', '--porcelain'], { encoding: 'utf8' })
   const dirty = out.split('\n').filter(Boolean).filter((l) => !allowlist.some((re) => re.test(l)))
   if (dirty.length) {
-    throw new Error(`${repoDir} 工作树不干净,导出中止:\n${dirty.join('\n')}`)
+    throw new Error(`${repoDir} working tree not clean; export aborted:\n${dirty.join('\n')}`)
   }
 }
 
 /**
- * manifest 里的路径数据是人写的,信不过它天然安全:解析后必须落在 baseDir 之内,
- * 否则「相对层数多打一个 `../`」这种笔误会让 applyDelete/applyReplace 真的删/读到
- * 目标树之外的文件。绝对路径一律拒绝(不允许 manifest 绕过 baseDir 直接点系统路径)。
- * 返回解析后的绝对路径,调用方直接用它做后续 I/O。
+ * Manifest path data is hand-written, can't trust it's naturally safe: after parsing
+ * must stay within baseDir, otherwise typos like one extra `../` in relative depth would let
+ * applyDelete/applyReplace actually delete/read files outside the target tree. Absolute paths always rejected
+ * (manifest not allowed to bypass baseDir and point directly at system paths). Returns resolved absolute path;
+ * caller uses it directly for subsequent I/O.
  */
 function assertSafeRelPath(baseDir, rel, context) {
   if (path.isAbsolute(rel)) {
-    throw new Error(`${context}:是绝对路径 ${JSON.stringify(rel)} —— manifest 里的路径必须是相对路径,不能直接引用文件系统绝对路径`)
+    throw new Error(`${context}: is absolute path ${JSON.stringify(rel)} — manifest paths must be relative; can't directly reference filesystem absolute paths`)
   }
   const base = path.resolve(baseDir)
   const abs = path.resolve(base, rel)
   if (abs !== base && !abs.startsWith(base + path.sep)) {
     throw new Error(
-      `${context}:路径越界,${JSON.stringify(rel)} 解析后落在 ${abs}\n` +
-      `不在 ${base} 之内 —— manifest 里这条路径数据有问题(相对层数写错?),导出脚本拒绝写到目标树之外。`,
+      `${context}: path out of bounds; ${JSON.stringify(rel)} resolves to ${abs}\n` +
+      `not within ${base} — this path in manifest is wrong (wrong relative depth?); export script refuses to write outside target tree.`,
     )
   }
   return abs
@@ -41,7 +42,7 @@ export function applyDelete(root, paths) {
   for (const rel of paths) {
     const abs = assertSafeRelPath(root, rel, `DELETE ${rel}`)
     if (!fs.existsSync(abs)) {
-      throw new Error(`DELETE 清单过期:${rel} 不存在(私有主干已删或改名,请更新 manifest.mjs)`)
+      throw new Error(`DELETE manifest stale: ${rel} doesn't exist (deleted or renamed in private main; update manifest.mjs)`)
     }
     fs.rmSync(abs, { recursive: true, force: true })
   }
@@ -49,21 +50,21 @@ export function applyDelete(root, paths) {
 
 export function applyReplace(root, entries, ossDir) {
   for (const { path: rel, from, privateSha256 } of entries) {
-    const abs = assertSafeRelPath(root, rel, `REPLACE 目标 ${rel}`)
-    const srcAbs = assertSafeRelPath(ossDir, from, `REPLACE 源 ${from}`)
-    if (!fs.existsSync(abs)) throw new Error(`REPLACE 目标不存在:${rel}`)
+    const abs = assertSafeRelPath(root, rel, `REPLACE target ${rel}`)
+    const srcAbs = assertSafeRelPath(ossDir, from, `REPLACE source ${from}`)
+    if (!fs.existsSync(abs)) throw new Error(`REPLACE target doesn't exist: ${rel}`)
     const actual = sha256(fs.readFileSync(abs, 'utf8'))
     if (actual !== privateSha256) {
       throw new Error(
-        `私有仓的 ${rel} 变了(sha256 ${actual.slice(0, 12)}… ≠ 钉住的 ${privateSha256.slice(0, 12)}…)。\n` +
-        `请复核 oss/files/${from} 是否需要同步,然后把 manifest.mjs 里的 privateSha256 更新为新值。\n` +
-        `⚠️ 禁止为了让脚本跑过而删掉哈希钉 —— 那会让这条路重新变成哑火。`,
+        `Private repo's ${rel} changed (sha256 ${actual.slice(0, 12)}… ≠ pinned ${privateSha256.slice(0, 12)}…).\n` +
+        `Review whether oss/files/${from} needs sync, then update privateSha256 in manifest.mjs to new value.\n` +
+        `⚠️ Forbidden to delete hash pin to make script pass — that makes this path a silent failure again.`,
       )
     }
     if (!fs.existsSync(srcAbs)) {
       throw new Error(
-        `REPLACE 源文件缺失:oss/files/${from}(manifest 条目 path=${rel}, from=${from})\n` +
-        `请在 oss/files/ 补上这个文件,或检查 manifest.mjs 里这条条目的 from 是否写错。`,
+        `REPLACE source file missing: oss/files/${from} (manifest entry path=${rel}, from=${from})\n` +
+        `Add this file to oss/files/, or check if the from in this manifest entry is wrong.`,
       )
     }
     fs.copyFileSync(srcAbs, abs)
@@ -72,34 +73,33 @@ export function applyReplace(root, entries, ossDir) {
 
 export function applyPatch(root, entries) {
   for (const { path: rel, find, replace } of entries) {
-    // T14(B3):find 为 undefined/null 时(manifest 条目把字段名拼错,比如写成 `finf:`
-    // 或漏写了 find)原来会直接掉进 text.split(find) 抛一个原生 TypeError
-    // ("The \"searchString\" argument must be of type string")——这条诊断跟这个项目
-    // 别处"设计过的诊断文案"风格完全对不上,拼错字段名的人得自己猜是怎么回事。
-    // 收进同一句"这是设计意图,不是故障"式的诊断里,连着原来的空串检查一起判。
+    // T14(B3): when find is undefined/null (manifest entry field name mistyped, e.g. `finf:` or missing find),
+    // used to fall straight into text.split(find) throwing native TypeError ("The \"searchString\" argument must be of type string") —
+    // this diagnostic is completely inconsistent with "designed diagnostic text" style elsewhere in project; person mistyping
+    // field name has to guess. Bundled into single "this is design intent, not failure" diagnostic, combined with existing empty-string check.
     if (typeof find !== 'string' || find === '') {
-      throw new Error(`锚点缺失或不是字符串:${rel}(find=${JSON.stringify(find)})—— manifest 里这条数据有问题:` +
-        `要么字段名拼错(比如写成了 find 之外的名字),要么 find 是空串——空串无法唯一定位任何位置`)
+      throw new Error(`Anchor missing or not string: ${rel} (find=${JSON.stringify(find)}) — problem in this manifest entry: ` +
+        `either field name misspelled (e.g. something other than find), or find is empty string — empty can't uniquely locate anything`)
     }
     const abs = assertSafeRelPath(root, rel, `PATCH ${rel}`)
-    if (!fs.existsSync(abs)) throw new Error(`PATCH 目标不存在:${rel}`)
+    if (!fs.existsSync(abs)) throw new Error(`PATCH target doesn't exist: ${rel}`)
     const text = fs.readFileSync(abs, 'utf8')
     const hits = text.split(find).length - 1
     if (hits === 0) {
       throw new Error(
-        `锚点未命中:${rel}\n找的是:${JSON.stringify(find.slice(0, 120))}\n` +
-        `这是设计意图,不是故障 —— 看一眼私有侧那几行改成什么了,更新 manifest.mjs 的锚点。`,
+        `Anchor no match: ${rel}\nLooking for: ${JSON.stringify(find.slice(0, 120))}\n` +
+        `This is design intent, not failure — check what those lines changed to on private side, update anchor in manifest.mjs.`,
       )
     }
     if (hits !== 1) {
-      throw new Error(`锚点在 ${rel} 里命中 ${hits} 次,必须恰好 1 次(否则替换会误伤):${JSON.stringify(find.slice(0, 120))}`)
+      throw new Error(`Anchor matches ${hits} times in ${rel}, must be exactly 1 (otherwise replace causes damage): ${JSON.stringify(find.slice(0, 120))}`)
     }
-    // 用函数形式的替换值,而不是 text.replace(find, replace) 的字符串重载:
-    // String.prototype.replace 的字符串重载会把 replace 里的 $&/$`/$'/$1 等
-    // 解释成特殊模式(比如 $& 会被替换成"刚匹配到的那段文本")。
-    // 这个项目的 replace 内容是 TS/Vue/CSS 代码片段,随时可能出现这些序列
-    // (哪怕今天恰好没有),一旦命中就是静默误替换 —— 这正是本项目最忌讳的"哑火"。
-    // 函数形式的返回值一律按字面量写入,不做任何模式解释。
+    // Use function form of replace value, not string overload of text.replace(find, replace):
+    // String.prototype.replace string overload interprets $&/$`/$'/$1 etc. as special patterns
+    // (e.g., $& becomes "the matched text"). This project's replace is TS/Vue/CSS code snippets,
+    // which may contain these sequences anytime (even if not today); once hit it's silent mis-replacement —
+    // exactly the "silent failure" this project abhors. Function form's return value always written as-is
+    // literal; no pattern interpretation.
     fs.writeFileSync(abs, text.replace(find, () => replace))
   }
 }

@@ -1,11 +1,11 @@
 import type { FileNameHit, SemanticHit } from '@nimotech/nimoos-service'
 import type { Reason } from './types'
 
-// spec §7.5 的派生规则表。**产 i18n key,不产文案**(见计划 Task 1 说明)。
-// 与 demo 时代写死的标签(Exact filename match / Body match ×9 / …)最大的不同:
-// 那些计数(×9 / ×3)后端根本不返回,是编的,所以标签里不再有数字。
+// Derivation rules table from spec §7.5. **Produces i18n key, not copy** (see plan Task 1 notes).
+// Largest difference from hardcoded labels in demo era (Exact filename match / Body match ×9 / …):
+// those counts (×9 / ×3) are not returned by the backend at all, they were made up, so labels no longer have numbers.
 
-/** kind 已知取值 → 标签。后端 kind 是开放字符串,认不出的一律落「语义相关」。 */
+/** kind known values → label. Backend kind is an open string; unknown ones all fall back to "semantic match". */
 const KIND_REASON: Record<string, Reason> = {
   body: { key: 'searchReasonBody', kind: 'normal' },
   transcript: { key: 'searchReasonTranscript', kind: 'normal' },
@@ -15,8 +15,8 @@ const KIND_REASON: Record<string, Reason> = {
 
 const SEMANTIC_REASON: Reason = { key: 'searchReasonSemantic', kind: 'semantic' }
 
-/** filenames 源。后端 match 是模糊相关度,所以「查询词是文件名子串」不一定成立
- *  (实测 query="how to cook" 会命中 cookies.py)→ 补充规则 A1:模糊命中给「文件名相关」。 */
+/** filenames source. Backend match is fuzzy relevance, so "query is a substring of filename" does not necessarily hold
+ *  (empirical test: query="how to cook" matches cookies.py) → supplemental rule A1: fuzzy match gives "filename match". */
 export function filenameReason(hit: FileNameHit, query: string): Reason {
   const q = query.trim().toLowerCase()
   const name = hit.name.toLowerCase()
@@ -24,10 +24,11 @@ export function filenameReason(hit: FileNameHit, query: string): Reason {
   return { key: 'searchReasonFilenameFuzzy', kind: 'semantic' }
 }
 
-/** semantic 源。已知 kind 里,只有 'normal' 档(body/transcript/ocr)承诺「摘要里能看到查询词」,
- *  所以只有这一档需要字面校验、查不到就降级成「语义相关」;'semantic' 档(caption)本来就不承诺字面
- *  对应(CLIP 图片语义匹配,摘要是图片描述而非查询词的同义转述),不需要也不应该做这个校验,否则
- *  会把「caption 命中」错误地抹平成通用「语义相关」,丢失更具体的标签。未知 kind 直接给通用标签。 */
+/** semantic source. Among known kinds, only 'normal' tier (body/transcript/ocr) promises "query term visible in preview",
+ *  so only this tier needs literal verification — if not found, degrade to "semantic match"; 'semantic' tier (caption)
+ *  does not promise literal correspondence (CLIP image semantic match, preview is image description, not a rephrase of
+ *  query), so we must not perform this verification, otherwise we'd wrongly flatten "caption hit" into generic "semantic
+ *  match" and lose the more specific label. Unknown kind directly gets the generic label. */
 export function semanticReason(hit: SemanticHit, query: string): Reason {
   const known = KIND_REASON[hit.kind]
   if (!known) return SEMANTIC_REASON
@@ -38,7 +39,7 @@ export function semanticReason(hit: SemanticHit, query: string): Reason {
   return known
 }
 
-/** images 源 = Photos 的 CLIP 语义命中,与 caption 同一语义,复用同一标签。 */
+/** images source = CLIP semantic match from Photos, same semantic as caption, reuses the same label. */
 export function imageReason(): Reason {
   return { key: 'searchReasonCaption', kind: 'semantic' }
 }

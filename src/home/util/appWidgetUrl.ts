@@ -7,7 +7,7 @@ export interface AppWidgetTarget {
 
 export interface AppWidgetUrlOpts { host: string; origin: string; theme: string; lang: string }
 
-// iframe 小组件 URL(spec §5.3):应用自己伺服 widget 页,桌面附 theme/lang/home 三参
+// iframe widget URL (spec §5.3): app self-hosts the widget page; desktop adds theme/lang/home parameters
 export function appWidgetUrl(a: AppWidgetTarget, opts: AppWidgetUrlOpts): string | null {
   const path = a.widget?.path
   if (!path || !a.port) return null

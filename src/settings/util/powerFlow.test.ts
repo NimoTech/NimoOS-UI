@@ -18,18 +18,20 @@ function harness(probeSeq: boolean[]) {
   return { c, phases, reload, probe }
 }
 
-// 评审 fix round 1(Critical + Important 1):harness() 里的探活在同一个微任务里就
-// resolve,测不出「探活正在途中、这一轮已经翻篇」这类交错场景。这里用手动 resolve
-// 的 deferred promise,让探活真的在阶段切换之间悬空,才能把 gen/settled 两道防线
-// 分别测出来。
+// Review fix round 1 (Critical + Important 1): the probe in harness() resolves within the
+// same microtask, so it can't test interleavings like "the probe is still in flight while
+// this round has already moved on". Use a manually-resolved deferred promise here so the
+// probe genuinely stays pending across phase transitions -- only then can the gen/settled
+// guards be tested separately.
 function deferredHarness() {
   const phases: PowerPhase[] = []
   const reload = vi.fn()
   const pending: Array<(v: boolean) => void> = []
   const probe = vi.fn(() => new Promise<boolean>((resolve) => { pending.push(resolve) }))
   const c = createPowerFlow({ probe, reload, onPhase: (p) => phases.push(p) })
-  // resolve 第 i 个(从 0 开始)探活调用,并把 `await deps.probe()` 之后的同步延续
-  // 跑完 —— 那段延续本身不再 await 任何东西,一次微任务 flush 就够,多留一次保险。
+  // Resolve the i-th (0-indexed) probe call, and run through the synchronous continuation
+  // after `await deps.probe()` -- that continuation itself doesn't await anything else, so
+  // one microtask flush is enough; keep an extra one for safety.
   async function resolveProbe(i: number, value: boolean) {
     pending[i](value)
     await Promise.resolve()
@@ -38,29 +40,29 @@ function deferredHarness() {
   return { c, phases, reload, probe, resolveProbe }
 }
 
-describe('probeAlive(移植纪律 #6)', () => {
-  it('200 → 活着', async () => {
+describe('probeAlive (port discipline #6)', () => {
+  it('200 -> alive', async () => {
     expect(await probeAlive(vi.fn(async () => ({ ok: true, status: 200 })) as unknown as typeof fetch)).toBe(true)
   })
-  it('401 也算活着 —— 服务器能回 401 说明它起来了', async () => {
+  it('401 counts as alive too -- the server responding 401 means it is up', async () => {
     expect(await probeAlive(vi.fn(async () => ({ ok: false, status: 401 })) as unknown as typeof fetch)).toBe(true)
   })
-  it('500 也算活着', async () => {
+  it('500 also counts as alive', async () => {
     expect(await probeAlive(vi.fn(async () => ({ ok: false, status: 500 })) as unknown as typeof fetch)).toBe(true)
   })
-  it('网络错误 → 下线', async () => {
+  it('network error -> offline', async () => {
     expect(await probeAlive(vi.fn(async () => { throw new TypeError('Failed to fetch') }) as unknown as typeof fetch)).toBe(false)
   })
 })
 
-describe('关机流(对位 Vue2 onShutdownConfirmed L1779-1811)', () => {
-  it('立刻进 shutting', () => {
+describe('shutdown flow (mirrors Vue2 onShutdownConfirmed L1779-1811)', () => {
+  it('immediately enters shutting', () => {
     const { c, phases } = harness([true])
     c.startShutdown()
     expect(phases).toEqual(['shutting'])
   })
 
-  it('连续 2 次探活失败才判定 offline(单次失败可能只是抖动)', async () => {
+  it('only declares offline after 2 consecutive probe failures (a single failure might just be a blip)', async () => {
     const { c, phases } = harness([false])
     c.startShutdown()
     await vi.advanceTimersByTimeAsync(PING_INTERVAL_MS)
@@ -69,21 +71,21 @@ describe('关机流(对位 Vue2 onShutdownConfirmed L1779-1811)', () => {
     expect(phases).toEqual(['shutting', 'offline'])
   })
 
-  it('中间探活成功会把失败计数清零', async () => {
+  it('a successful probe in between resets the failure count', async () => {
     const { c, phases } = harness([false, true, false])
     c.startShutdown()
     await vi.advanceTimersByTimeAsync(PING_INTERVAL_MS * 3)
-    expect(phases).toEqual(['shutting'])   // 失败-成功-失败 → 从未连续两次
+    expect(phases).toEqual(['shutting'])   // fail-success-fail -> never two in a row
   })
 
-  it('60 秒兜底也进 offline(机器没回应探活的极端情况)', async () => {
+  it('the 60-second fallback also enters offline (the extreme case of the machine never responding to probes)', async () => {
     const { c, phases } = harness([true])
     c.startShutdown()
     await vi.advanceTimersByTimeAsync(SHUTDOWN_FALLBACK_MS)
     expect(phases).toEqual(['shutting', 'offline'])
   })
 
-  it('判定 offline 后停止探活(不继续打已关机的机器)', async () => {
+  it('stops probing once offline is declared (does not keep hitting an already-shut-down machine)', async () => {
     const { c, probe } = harness([false])
     c.startShutdown()
     await vi.advanceTimersByTimeAsync(PING_INTERVAL_MS * 2)
@@ -93,36 +95,36 @@ describe('关机流(对位 Vue2 onShutdownConfirmed L1779-1811)', () => {
   })
 })
 
-describe('重启流(对位 Vue2 onRestartConfirmed L1816-1861)', () => {
-  it('立刻进 restarting', () => {
+describe('restart flow (mirrors Vue2 onRestartConfirmed L1816-1861)', () => {
+  it('immediately enters restarting', () => {
     const { c, phases } = harness([true])
     c.startRestart()
     expect(phases).toEqual(['restarting'])
   })
 
-  it('前 5 秒不探活(给重启命令生效的时间)', async () => {
+  it('does not probe for the first 5 seconds (giving the restart command time to take effect)', async () => {
     const { c, probe } = harness([true])
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS - 1)
     expect(probe).not.toHaveBeenCalled()
   })
 
-  it('探活失败一次即进 reconnecting(重启不像关机,下线是必经态)', async () => {
+  it('enters reconnecting after a single probe failure (unlike shutdown, offline is a mandatory intermediate state for restart)', async () => {
     const { c, phases } = harness([false])
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS)
     expect(phases).toEqual(['restarting', 'reconnecting'])
   })
 
-  it('必须先下线再上线才算重启完成(否则只是命令还没生效)', async () => {
+  it('restart is only complete after going offline then back online (otherwise the command has simply not taken effect yet)', async () => {
     const { c, phases, reload } = harness([true, true, true])
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS * 3)
-    expect(phases).toEqual(['restarting'])   // 一直在线 → 不判完成
+    expect(phases).toEqual(['restarting'])   // stayed online the whole time -> not considered complete
     expect(reload).not.toHaveBeenCalled()
   })
 
-  it('下线再上线 → done,并在 1.5 秒后 reload', async () => {
+  it('offline then online -> done, and reloads 1.5 seconds later', async () => {
     const { c, phases, reload } = harness([false, true])
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS * 2)
@@ -132,14 +134,14 @@ describe('重启流(对位 Vue2 onRestartConfirmed L1816-1861)', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
-  it('180 秒仍没回来 → fallback', async () => {
+  it('still not back after 180 seconds -> fallback', async () => {
     const { c, phases } = harness([false])
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_FALLBACK_MS)
     expect(phases[phases.length - 1]).toBe('fallback')
   })
 
-  it('fallback 后停止探活与兜底表', async () => {
+  it('stops probing and the fallback timer after fallback', async () => {
     const { c, probe, reload } = harness([false])
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_FALLBACK_MS)
@@ -149,7 +151,7 @@ describe('重启流(对位 Vue2 onRestartConfirmed L1816-1861)', () => {
     expect(reload).not.toHaveBeenCalled()
   })
 
-  it('done 之后不再有多余的相位变化(不会又滑回 reconnecting)', async () => {
+  it('no further phase changes after done (does not slide back into reconnecting)', async () => {
     const { c, phases } = harness([false, true, false, false])
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS * 6)
@@ -157,8 +159,8 @@ describe('重启流(对位 Vue2 onRestartConfirmed L1816-1861)', () => {
   })
 })
 
-describe('应用更新流(对位 Vue2 startAppUpdate L1501-1534)', () => {
-  it('进 appUpdating,5 秒后直接当作已下线开始等回来', async () => {
+describe('app update flow (mirrors Vue2 startAppUpdate L1501-1534)', () => {
+  it('enters appUpdating, and after 5 seconds treats it as offline and starts waiting for it to come back', async () => {
     const { c, phases } = harness([true])
     c.startAppUpdating()
     expect(phases).toEqual(['appUpdating'])
@@ -168,7 +170,7 @@ describe('应用更新流(对位 Vue2 startAppUpdate L1501-1534)', () => {
 })
 
 describe('reset', () => {
-  it('清掉所有定时器并回 idle', async () => {
+  it('clears all timers and returns to idle', async () => {
     const { c, phases, probe, reload } = harness([false])
     c.startRestart()
     c.reset()
@@ -179,35 +181,37 @@ describe('reset', () => {
     expect(reload).not.toHaveBeenCalled()
   })
 
-  it('reset 后可以重新开一轮', async () => {
+  it('can start a new round after reset', async () => {
     const { c, phases } = harness([false])
     c.startShutdown(); c.reset(); c.startShutdown()
     expect(phases).toEqual(['shutting', 'idle', 'shutting'])
   })
 })
 
-// 评审 fix round 1:探活是 await 出去的,真实场景里一次探活可能挂起几十秒
-// (正在重启的机器,fetch 直接悬空)。上面的用例全部在同一个微任务里 resolve,
-// 从未真正测过"探活还没回来、这一轮已经结束/翻篇"这类交错 —— 评审指出
-// 删掉两个回调里的 `if (settled) return` 全套用例照样全绿,就是因为这个盲区。
-describe('评审 fix round 1:悬空探活的过期防护(gen + settled 双重门)', () => {
-  it('1) 相位已定后,迟到的探活结果不能再推动相位(settled 门)', async () => {
+// Review fix round 1: the probe is awaited, and in real scenarios a single probe can hang
+// for tens of seconds (a machine mid-restart just leaves the fetch dangling). All the cases
+// above resolve within the same microtask, so they never actually test interleavings like
+// "the probe hasn't come back yet, and this round has already ended/moved on" -- the review
+// pointed out that removing the two `if (settled) return` guards in the callbacks still left
+// the whole suite green, precisely because of this blind spot.
+describe('review fix round 1: staleness guard for dangling probes (gen + settled double gate)', () => {
+  it('1) once the phase is settled, a late-arriving probe result must not advance the phase again (settled gate)', async () => {
     const { c, phases, resolveProbe } = deferredHarness()
     c.startRestart()
-    // 走到重启第一次真正发起探活的那一刻,让它悬空不 resolve
+    // advance to the moment the restart flow makes its first real probe call, and leave it dangling without resolving
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS)
     expect(phases).toEqual(['restarting'])
-    // 180 秒兜底到点,探活仍未回来 → fallback
+    // the 180-second fallback fires, the probe still hasn't come back -> fallback
     await vi.advanceTimersByTimeAsync(
       RESTART_FALLBACK_MS - (RESTART_PING_DELAY_MS + PING_INTERVAL_MS),
     )
     expect(phases).toEqual(['restarting', 'fallback'])
-    // 迟到的探活终于回来了(下线)—— 不能再把相位推向 reconnecting
+    // the late probe finally comes back (offline) -- must not push the phase to reconnecting again
     await resolveProbe(0, false)
     expect(phases).toEqual(['restarting', 'fallback'])
   })
 
-  it('2) reset() 之后,迟到的探活结果不能把 idle 拖回 reconnecting(Critical 回归,gen 门)', async () => {
+  it('2) after reset(), a late-arriving probe result must not drag idle back to reconnecting (Critical regression, gen gate)', async () => {
     const { c, phases, resolveProbe } = deferredHarness()
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS)
@@ -215,66 +219,69 @@ describe('评审 fix round 1:悬空探活的过期防护(gen + settled 双重门
       RESTART_FALLBACK_MS - (RESTART_PING_DELAY_MS + PING_INTERVAL_MS),
     )
     expect(phases).toEqual(['restarting', 'fallback'])
-    // 对位 Critical 描述的步骤 3:用户点关闭 → reset()
+    // mirrors step 3 in the Critical description: user clicks close -> reset()
     c.reset()
     expect(phases).toEqual(['restarting', 'fallback', 'idle'])
-    // 对位步骤 4:悬空探活终于 reject/resolve(false)
+    // mirrors step 4: the dangling probe finally rejects/resolves(false)
     await resolveProbe(0, false)
-    expect(phases).toEqual(['restarting', 'fallback', 'idle'])   // 没有多出 reconnecting
+    expect(phases).toEqual(['restarting', 'fallback', 'idle'])   // no extra reconnecting
   })
 
-  it('3) 上一轮悬空的探活不能污染下一轮的 sawOffline(核心不变式,gen 门)', async () => {
+  it('3) a dangling probe from the previous round must not contaminate sawOffline in the next round (core invariant, gen gate)', async () => {
     const { c, phases, reload, probe, resolveProbe } = deferredHarness()
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS)
-    expect(probe).toHaveBeenCalledTimes(1)   // 第一轮的探活已发出,悬空未回
+    expect(probe).toHaveBeenCalledTimes(1)   // the first round's probe has already been sent and is dangling unresolved
     expect(phases).toEqual(['restarting'])
 
-    // 用户中途取消,又立刻开了新一轮重启(同一个 flow 实例,对应"关了又点")
+    // user cancels midway, then immediately starts a new restart round (same flow instance, corresponds to "closed then clicked again")
     c.reset()
     c.startRestart()
     expect(phases).toEqual(['restarting', 'idle', 'restarting'])
 
-    // 上一轮悬空的探活现在才回来,报"下线" —— 必须被当过期结果丢弃,
-    // 不能替新一轮把 sawOffline 提前置真
+    // the previous round's dangling probe finally comes back now, reporting "offline" -- it
+    // must be discarded as a stale result, and must not prematurely set sawOffline true for
+    // the new round
     await resolveProbe(0, false)
-    expect(phases).toEqual(['restarting', 'idle', 'restarting'])   // 没有多出 reconnecting
+    expect(phases).toEqual(['restarting', 'idle', 'restarting'])   // no extra reconnecting
 
-    // 新一轮自己真正发起的第一次探活,报"活着"
+    // the new round's own first real probe call, reporting "alive"
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS)
     expect(probe).toHaveBeenCalledTimes(2)
     await resolveProbe(1, true)
-    // 新一轮从未真正见过下线,不能因为一次"活着"就直接 done —— 这正是
-    // 这个任务存在的核心原因(必须先下线再上线才算重启完成)
+    // the new round has never actually seen offline, so a single "alive" must not jump
+    // straight to done -- this is precisely the core reason this task exists (restart is
+    // only complete after going offline then back online)
     expect(phases).toEqual(['restarting', 'idle', 'restarting'])
     expect(reload).not.toHaveBeenCalled()
   })
 
-  it('4) 卸载(reset)之后不会新建 reload 定时器,即便过期探活凑出「假下线→假上线」也不会真的 reload(gen 门)', async () => {
-    // 与用例 3 同源的交错(上一轮悬空探活 + 新一轮真实探活),但走到底 ——
-    // 断言的不是相位,而是真正的副作用:reload() 有没有被调用。这是
-    // requirement 8「卸载后不留任何定时器」最终要保护的东西:哪怕相位判断
-    // 出了别的岔子,也不能真的把用户的页面刷新掉。
+  it('4) unmounting (reset) does not create a new reload timer, and even if stale probes assemble a "fake offline -> fake online" it will not actually reload (gen gate)', async () => {
+    // The same kind of interleaving as case 3 (previous round's dangling probe + new round's
+    // real probe), but carried through to the end -- what's asserted is not the phase, but the
+    // real side effect: whether reload() was called. This is what requirement 8 ("no leftover
+    // timers after unmount") ultimately protects: even if the phase logic gets something else
+    // wrong, the user's page must never actually be reloaded.
     const { c, phases, reload, probe, resolveProbe } = deferredHarness()
     c.startRestart()
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS)
-    expect(probe).toHaveBeenCalledTimes(1)   // 第一轮探活已发出,悬空未回
+    expect(probe).toHaveBeenCalledTimes(1)   // the first round's probe has already been sent and is dangling unresolved
 
-    // 对位 Critical 里的"卸载"场景:onBeforeUnmount 调 flow.reset()
+    // mirrors the "unmount" scenario in Critical: onBeforeUnmount calls flow.reset()
     c.reset()
-    // 卸载后如果又重新挂载并再次点了重启(同一个 flow 实例可以复用)
+    // if it's remounted after unmount and restart is clicked again (the same flow instance can be reused)
     c.startRestart()
     expect(phases).toEqual(['restarting', 'idle', 'restarting'])
 
-    // 上一轮悬空的探活现在才回来,报"下线"—— 过期结果,必须被丢弃
+    // the previous round's dangling probe finally comes back now, reporting "offline" -- a stale result that must be discarded
     await resolveProbe(0, false)
-    // 新一轮自己真正发起的第一次探活,报"活着"
+    // the new round's own first real probe call, reporting "alive"
     await vi.advanceTimersByTimeAsync(RESTART_PING_DELAY_MS + PING_INTERVAL_MS)
     expect(probe).toHaveBeenCalledTimes(2)
     await resolveProbe(1, true)
 
-    // 就算等了比 reload 延迟长得多的时间,新一轮也从未真正见过下线,
-    // 绝不能真的 reload
+    // even after waiting far longer than the reload delay, the new round has never actually
+    // seen offline, and must never actually reload
     await vi.advanceTimersByTimeAsync(DONE_RELOAD_DELAY_MS * 10)
     expect(phases).not.toContain('done')
     expect(reload).not.toHaveBeenCalled()

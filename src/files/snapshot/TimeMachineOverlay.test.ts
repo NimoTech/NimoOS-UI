@@ -54,55 +54,55 @@ beforeEach(() => {
   getListMock.mockResolvedValue({ content: [] })
 })
 
-describe('TimeMachineOverlay 三态', () => {
-  it('挂载即按卷拉快照列表', async () => {
+describe('TimeMachineOverlay three states', () => {
+  it('fetch snapshot list by volume on mount', async () => {
     const w = mountIt(); await flush(w)
     expect(listMock).toHaveBeenCalledWith('u-data')
   })
-  it('加载中显示骨架', async () => {
+  it('show skeleton while loading', async () => {
     listMock.mockImplementation(() => new Promise(() => {}))
     const w = mountIt(); await w.vm.$nextTick()
     expect(w.find('.tm-skeleton').exists()).toBe(true)
   })
-  it('空列表显示空态,且齿轮仍可用', async () => {
+  it('show empty state for empty list, and gear button remains usable', async () => {
     listMock.mockResolvedValue([])
     const w = mountIt(); await flush(w)
     expect(w.find('.tm-empty').exists()).toBe(true)
     expect(w.find('.tm-gear').exists()).toBe(true)
   })
-  it('请求失败按空态处理,不抛错', async () => {
+  it('treat request failure as empty state, do not throw error', async () => {
     listMock.mockRejectedValue(new Error('404'))
     const w = mountIt(); await flush(w)
     expect(w.find('.tm-empty').exists()).toBe(true)
   })
-  it('就绪后底栏显示最新一张的时刻(默认选中最新),日期分组文案走本仓库既有 i18n key(非空壳:曾错误映射成恒为"昨天")', async () => {
+  it('after ready, show the newest snapshot\'s timestamp in the bar (default selected), date grouping text uses existing i18n keys in this repo (not empty shell: was incorrectly mapped to always "yesterday")', async () => {
     const w = mountIt(); await flush(w)
     expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
   })
   // Originally in the top-left; a long path would run across into the gear and cover the deck animation — moved above the bottom-bar time (user feedback)
-  it('底栏时间上方显示当前文件夹', async () => {
+  it('show current folder above the bar timestamp', async () => {
     const w = mountIt(); await flush(w)
     expect(w.find('.tm-bar-folder').text()).toContain('/磁盘/Photos')
     expect(w.find('.tm-folder').exists()).toBe(false) // the top-left line should no longer exist
   })
-  it('就绪后渲染卡堆,最前那张是最新快照', async () => {
+  it('after ready, render card stack with the newest snapshot at the front', async () => {
     const w = mountIt(); await flush(w)
     const front = w.findAll('.tm-card').find((c) => c.classes().includes('is-front'))!
     expect(front.text()).toContain('14:30')
   })
-  it('就绪后同时渲染卡堆与刻度尺,刻度数 = 快照数', async () => {
+  it('after ready, render both card stack and ruler, tick count equals snapshot count', async () => {
     const w = mountIt(); await flush(w)
     expect(w.findAll('.tm-tick-main')).toHaveLength(3)
   })
-  it('点刻度换选中,底栏时刻跟着变', async () => {
+  it('click tick to change selection, bar timestamp updates accordingly', async () => {
     const w = mountIt(); await flush(w)
     await w.findAll('.tm-tick-main')[2].trigger('click')
     expect(w.find('.tm-bar-moment').text()).toContain('昨天')
   })
 })
 
-describe('TimeMachineOverlay 选择与进入', () => {
-  it('↑ 往更早、↓ 往更晚,两端夹紧', async () => {
+describe('TimeMachineOverlay selection and enter', () => {
+  it('↑ goes earlier, ↓ goes later, clamped at both ends', async () => {
     const w = mountIt(); await flush(w)
     expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
     document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp' })); await w.vm.$nextTick()
@@ -117,22 +117,22 @@ describe('TimeMachineOverlay 选择与进入', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }))
     expect(w.emitted('close')).toHaveLength(1)
   })
-  it('进入落在当前相对路径下,而不是快照根(对 Vue2 的改正)', async () => {
+  it('enter falls at current relative path, not snapshot root (fix for Vue2)', async () => {
     const w = mountIt(); await flush(w)
     await w.find('.tm-bar-enter').trigger('click')
     expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x/Photos')
   })
-  it('在卷根打开时进入快照根', async () => {
+  it('enter snapshot root when opened at volume root', async () => {
     const w = mountIt({ relPath: '' }); await flush(w)
     await w.find('.tm-bar-enter').trigger('click')
     expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x')
   })
-  it('Enter 键等价于点进入', async () => {
+  it('Enter key is equivalent to clicking enter', async () => {
     const w = mountIt(); await flush(w)
     document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter' }))
     expect(w.emitted('select')).toHaveLength(1)
   })
-  it('这一刻还没有这个文件夹(预览 404 → missing)时,进入落到快照根而不是拼一个不存在的子路径', async () => {
+  it('when the folder does not exist at this moment (preview 404 → missing), enter falls to snapshot root instead of patching a non-existent sub-path', async () => {
     getListMock.mockRejectedValue(Object.assign(new Error('nope'), { code: 404 }))
     const w = mountIt(); await flush(w)
     await w.find('.tm-bar-enter').trigger('click')
@@ -147,7 +147,7 @@ describe('TimeMachineOverlay 选择与进入', () => {
   // root to verify guard 2 (tag-name check) works independently — with only guard 1 left,
   // these two would fail because the target really is inside rootEl, catching the
   // "delete guard 2" mutation.
-  it('弹窗打开时 Esc 不 emit close(事件源在覆盖层外,例如叠着的设置弹窗)', async () => {
+  it('when dialog is open, Esc does not emit close (event source outside overlay, e.g., stacked settings dialog)', async () => {
     const w = mount(TimeMachineOverlay, {
       props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },
       global: { plugins: [i18n] }, attachTo: document.body,
@@ -159,7 +159,7 @@ describe('TimeMachineOverlay 选择与进入', () => {
     expect(w.emitted('close')).toBeUndefined()
     w.unmount(); outside.remove()
   })
-  it('覆盖层内部的输入框(防御性兜底)按 Enter 不 emit select', async () => {
+  it('input inside overlay (defensive fallback) does not emit select on Enter', async () => {
     const w = mount(TimeMachineOverlay, {
       props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },
       global: { plugins: [i18n] }, attachTo: document.body,
@@ -171,7 +171,7 @@ describe('TimeMachineOverlay 选择与进入', () => {
     expect(w.emitted('select')).toBeUndefined()
     w.unmount()
   })
-  it('覆盖层内部的输入框(防御性兜底)方向键不改变 selectedIndex', async () => {
+  it('arrow keys in input inside overlay (defensive fallback) do not change selectedIndex', async () => {
     const w = mount(TimeMachineOverlay, {
       props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },
       global: { plugins: [i18n] }, attachTo: document.body,
@@ -192,7 +192,7 @@ describe('TimeMachineOverlay 选择与进入', () => {
   // on the focused "cancel" button would emit close AND select). This case dispatches keydown
   // directly at the tm-bar-cancel button itself (target = button, inside rootEl, not an INPUT,
   // so both old guards pass it through) and asserts select is not emitted twice.
-  it('底栏"取消"按钮聚焦时按 Enter 不重复触发 enterSnapshot(只让按钮自己的 click 生效)', async () => {
+  it('pressing Enter when "cancel" button in bar is focused does not double-trigger enterSnapshot (only button\'s own click takes effect)', async () => {
     const w = mount(TimeMachineOverlay, {
       props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },
       global: { plugins: [i18n] }, attachTo: document.body,
@@ -203,7 +203,7 @@ describe('TimeMachineOverlay 选择与进入', () => {
     expect(w.emitted('select')).toBeUndefined()
     w.unmount()
   })
-  it('底栏"进入"按钮聚焦时按 Enter 不重复触发 enterSnapshot(只让按钮自己的 click 生效)', async () => {
+  it('pressing Enter when "enter" button in bar is focused does not double-trigger enterSnapshot (only button\'s own click takes effect)', async () => {
     const w = mount(TimeMachineOverlay, {
       props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },
       global: { plugins: [i18n] }, attachTo: document.body,
@@ -226,7 +226,7 @@ describe('TimeMachineOverlay 选择与进入', () => {
   // always 0 (the newest), so the past direction is naturally empty (nothing newer than
   // "newest"), and the visible window then exactly equals DECK_WINDOW.depth — directly
   // verifying the overlay side really uses this constant rather than its own literal.
-  it('只给卡堆窗口内的快照拉预览(depth 张),不是全部快照', async () => {
+  it('fetch preview only for snapshots in card stack window (depth count), not all snapshots', async () => {
     const many = Array.from({ length: 10 }, (_, i) => ({
       id: i, name: `202607${String(30 - i).padStart(2, '0')}T090000Z_manual_${i}`, label: '', type: 'manual',
       created_at: relDay(i, 9),
@@ -236,12 +236,12 @@ describe('TimeMachineOverlay 选择与进入', () => {
     expect(getListMock).toHaveBeenCalledTimes(DECK_WINDOW.depth)
   })
 
-  it('齿轮 emit open-settings', async () => {
+  it('gear emits open-settings', async () => {
     const w = mountIt(); await flush(w)
     await w.find('.tm-gear').trigger('click')
     expect(w.emitted('open-settings')).toHaveLength(1)
   })
-  it('卸载后键盘监听解除(不会对已销毁组件继续 emit)', async () => {
+  it('keyboard listener is removed after unmount (will not continue to emit for destroyed component)', async () => {
     const w = mountIt(); await flush(w)
     w.unmount()
     document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }))
@@ -249,8 +249,8 @@ describe('TimeMachineOverlay 选择与进入', () => {
   })
 })
 
-describe('焦点管理', () => {
-  it('打开时焦点移入覆盖层', async () => {
+describe('focus management', () => {
+  it('focus moves into overlay on open', async () => {
     const trigger = document.createElement('button')
     document.body.appendChild(trigger); trigger.focus()
     const w = mount(TimeMachineOverlay, {
@@ -260,7 +260,7 @@ describe('焦点管理', () => {
     await flush(w)
     expect(document.activeElement).toBe(w.find('.tm-overlay').element)
   })
-  it('关闭时焦点归还给打开它的元素', async () => {
+  it('focus is returned to the element that opened it on close', async () => {
     const trigger = document.createElement('button')
     document.body.appendChild(trigger); trigger.focus()
     const w = mount(TimeMachineOverlay, {
@@ -283,7 +283,7 @@ describe('焦点管理', () => {
 // DialogRoot/DialogContent/FocusScope/DismissableLayer components, not a hand-rolled stand-in),
 // wired exactly like Files.vue (@open-settings opens, v-model:open two-way binding), and
 // replay the whole sequence with real two-phase keydown→keyup events.
-describe('Critical 2(第二轮):真实 reka 弹窗的 Esc 时序', () => {
+describe('Critical 2 (round 2): Esc timing with real reka dialog', () => {
   const Harness = defineComponent({
     components: { TimeMachineOverlay, SnapshotSettingsDialog },
     setup() {
@@ -305,7 +305,7 @@ describe('Critical 2(第二轮):真实 reka 弹窗的 Esc 时序', () => {
     emits: ['overlay-close'],
   })
 
-  it('keydown Esc 关掉设置弹窗且焦点已归还覆盖层后,尾随的 keyup Esc 不会把时间机器也带着关掉', async () => {
+  it('after keydown Esc closes settings dialog and focus is returned to overlay, trailing keyup Esc does not close time machine', async () => {
     const w = mount(Harness, { global: { plugins: [i18n] }, attachTo: document.body })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
 
@@ -347,7 +347,7 @@ describe('Critical 2(第二轮):真实 reka 弹窗的 Esc 时序', () => {
   })
 
   // Control group: keep and confirm the Enter and arrow-key cases stay green (fixed last round; the keydown switch must not break them this round).
-  it('对照:方向键与 Enter 在没有叠加弹窗时仍然正常工作(keydown 切换未破坏既有行为)', async () => {
+  it('control: arrow keys and Enter still work normally without stacked dialog (keydown switch did not break existing behavior)', async () => {
     const w = mount(Harness, { global: { plugins: [i18n] }, attachTo: document.body })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
 

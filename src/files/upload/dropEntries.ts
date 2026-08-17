@@ -1,6 +1,7 @@
-// 拖拽文件夹上传:用 webkitGetAsEntry 递归读取目录,保留 relativePath(供受保护
-// 目录判断 + 批聚合)。与 Photos 的 collectFilesFromDataTransfer 不同:不按媒体
-// 类型过滤(文件管理器通用),不跳过隐藏文件。纯逻辑,无 Vue/store 依赖。
+// Drag-drop folder upload: use webkitGetAsEntry to recursively read directories, preserve
+// relativePath (for protected directory checks + batch aggregation). Unlike Photos'
+// collectFilesFromDataTransfer: no media type filtering (generic file manager), no hidden file skipping.
+// Pure logic, no Vue/store dependencies.
 
 interface FsEntry {
   isFile: boolean
@@ -46,9 +47,11 @@ async function walk(entry: FsEntry | null, out: DroppedFile[], emptyDirs: string
   }
   if (entry.isDirectory && entry.createReader) {
     const children = await readAllEntries(entry.createReader())
-    // 空目录:整条管线只有"文件"实体,目录本是文件落盘的副作用;不在这里记下相对
-    // 路径,空目录就从上传里消失(bug.txt #4)。只记叶子:父链由后端 MkdirAll 补齐。
-    // webkitdirectory 选择器按规范拿不到空目录,那个入口无法修,只有拖拽走得到这里。
+    // Empty directories: the entire pipeline only has "file" entities; directories are a side
+    // effect of files landing on disk. Do not record relative paths here—empty directories
+    // will vanish from upload (bug.txt #4). Record only leaves: parent paths are filled by
+    // backend MkdirAll. webkitdirectory selector cannot obtain empty directories per spec;
+    // that code path cannot be fixed; only drag-drop reaches here.
     if (!children.length) { emptyDirs.push(stripLead(entry.fullPath || entry.name)); return }
     for (const child of children) await walk(child, out, emptyDirs)
   }

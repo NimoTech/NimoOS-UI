@@ -1,38 +1,38 @@
-// SP8-P5a Task 9 —— 1:1 移植自 Vue2
-// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/dashboardHelpers.js`。
+// SP8-P5a Task 9 —— 1:1 ported from Vue2
+// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/dashboardHelpers.js`.
 //
-// 蓝本该文件共 4 个纯函数(`updatePeak`/`progressPercent`/`summarizeNotes`/
-// `fmtEta`),本任务全部搬入,供 T7(`loadNotesSummary` 消费 `summarizeNotes`)
-// 与 T12(`DashboardView` 消费 `progressPercent`/`fmtEta`)使用。
+// Original file has 4 pure functions (`updatePeak`/`progressPercent`/`summarizeNotes`/
+// `fmtEta`), all ported here, for T7 (`loadNotesSummary` consumes `summarizeNotes`)
+// and T12 (`DashboardView` consumes `progressPercent`/`fmtEta`).
 //
-// 【终审 Minor,2026-08-01 订正】`updatePeak` 在蓝本里本身就是死代码——
-// `git grep updatePeak main -- src/views/AI/Knowledge` 显示蓝本全仓只有
-// 这个定义处 + 它自己的 spec 引用它,`knowledgeStore.js`(loadOverview)与
-// `DashboardView.vue` 都不调用它,`backlogPeak` 全靠内联 `Math.max(...)`
-// 维护。移植后同样没有生产消费方——T6(`knowledgeStore.ts:317`)与 T12
-// (`DashboardView.vue` 头注释「发现,非缺陷」段)都各自照抄了这处内联,
-// 不改调 `updatePeak`。本函数在此保留纯粹是为了与蓝本 1:1(蓝本导出它,
-// 本仓就搬它),不是遗留了待接的钩子。
+// 【Final Review Minor, 2026-08-01 note】 `updatePeak` is already dead code in original ——
+// `git grep updatePeak main -- src/views/AI/Knowledge` shows original repo only has this
+// definition + its own test referencing it; `knowledgeStore.js` (loadOverview) and
+// `DashboardView.vue` never call it; `backlogPeak` maintained via inline `Math.max(...)`
+// only. After porting, also zero production consumers —— T6 (`knowledgeStore.ts:317`) and
+// T12 (`DashboardView.vue` header comment "found, not defect" section) each copied that
+// inline, not changed to call `updatePeak`. This function kept purely for 1:1 with original
+// (original exports it, so we port it), not a pending hook.
 
-// dashboardHelpers.js:1-5 —— Progress math for the parsing backlog (spec §4.8).
+// Original :1-5 —— Progress math for the parsing backlog (spec §4.8).
 // The percent is an honest UI-local measure: peak is the rolling max backlog
 // seen this page session (updatePeak BEFORE progressPercent each poll), so
 // the bar can recede when new files arrive — semantically correct, never
 // negative.
 
-/** dashboardHelpers.js:7-9 */
+/** Original :7-9 */
 export function updatePeak(peak: number, backlog: number): number {
   return Math.max(peak || 0, backlog || 0)
 }
 
-/** dashboardHelpers.js:11-15 */
+/** Original :11-15 */
 export function progressPercent(backlog: number, peak: number): number {
   if (!peak || peak <= 0) return 0
   const pct = Math.round((1 - backlog / peak) * 100)
   return Math.min(100, Math.max(0, pct))
 }
 
-/* dashboardHelpers.js:17-20 —— Status roll-up for the Dashboard's Notes layer
+/* Original :17-20 —— Status roll-up for the Dashboard's Notes layer
  * card. Input is the normalized notes list (service/notes.js); unknown
  * statuses only count toward the total so the distribution bar never
  * over-reports. */
@@ -50,10 +50,10 @@ export function summarizeNotes(
   return s
 }
 
-// dashboardHelpers.js:29-34 —— `'<1m'`/`'{m}m'`/`'{h}h {m}m'` 是英文缩写
-// 字面量,蓝本没有走 i18n(不是分钟/小时的中文单位,是终端式的紧凑记号),
-// 本移植照抄,不接入 i18n —— 接入会改变蓝本约定的界面文案,属未授权偏离
-// (brief 硬约束显式点名此条)。
+// Original :29-34 —— `'<1m'`/`'{m}m'`/`'{h}h {m}m'` are English abbreviation literals;
+// original doesn't use i18n (not Chinese time units, terminal-style compact notation);
+// this port copies verbatim, no i18n integration —— integration would change original's
+// UI text contract, unauthorized deviation (brief hard constraint explicitly names this).
 export function fmtEta(etaS: number | null | undefined): string {
   if (etaS == null || etaS <= 0) return ''
   if (etaS < 60) return '<1m'

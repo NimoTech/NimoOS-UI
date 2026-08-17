@@ -1,83 +1,87 @@
 <script setup lang="ts">
-// Task 10 (SP7-P5 人物): PersonHero.vue —— 人物详情页 hero 区(封面 + 头像 + 姓名/收藏 +
-// Edit 菜单 + 关系分组下拉 + 四项统计 + 两个操作钮)。逐段照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosPersonDetail.vue:3-91(模板)、:492-529(cover/heroBg/
-// heroIsFallback/firstYear/firstMonthShort)、:586-590(relationLabel)、:782-840
-// (两个菜单的开关与定位)移植;样式段照 photos-people.scss:277-460。
+// Task 10 (SP7-P5 person details): PersonHero.vue —— person detail page hero section (cover + avatar + name/favorite +
+// edit menu + relation group dropdown + four stats + two action buttons). Port each section from Vue2 NimoOS-UI
+// src/views/Photos/PhotosPersonDetail.vue:3-91 (template), :492-529 (cover/heroBg/
+// heroIsFallback/firstYear/firstMonthShort), :586-590 (relationLabel), :782-840
+// (menu toggle and positioning logic); styles from photos-people.scss:277-460.
 //
-// 纯展示 + emit,不碰 store、不发请求 —— 所有副作用在 T14 容器里(brief 明确分工)。
+// Pure presentation + emit, no store access, no requests — all side effects are in T14 container (brief defines responsibilities).
 // Task 8 (Plan D): the Ask about {name} button (Vue2 :89-92 `.btn-ai`) was previously deferred
 // to SP8 and unrendered; now added back in Vue2's own order (first in the actions row). The
 // click is a no-op — wiring the real Ask Nimo call belongs to Plan G; this task only adds the
 // copy + visuals + an empty placeholder function (see onAskNimo below).
 //
-// 实现方式偏离登记(已批准,brief 明确要求):Vue2 用 getBoundingClientRect 手算
-// fixed 坐标 + document mousedown + closest('.relation-menu') 判定两个菜单的开关/定位
-// (:598-617,782-831)。这里改成组件内 position:absolute 相对触发按钮锚定(同本仓已确立的
-// PhotosPeople.vue :352-358,412-424 的 people-pop-wrap/people-menu 先例),关闭仍走
-// document 级 mousedown + keydown(Esc),onMounted 挂 / onUnmounted 摘,成对。视觉位置
-// 保持一致(菜单出现在触发按钮正下方)。
+// Implementation deviation (approved, per brief): Vue2 uses getBoundingClientRect for manual fixed positioning +
+// document mousedown + closest('.relation-menu') to manage two menus (:598-617, 782-831).
+// Here changed to position:absolute anchored to trigger buttons within the component (same pattern as established
+// in PhotosPeople.vue :352-358, 412-424 with people-pop-wrap/people-menu), closing still uses document-level
+// mousedown + keydown(Esc), attached on onMounted / removed on onUnmounted, paired. Visual position remains consistent
+// (menu appears directly below trigger button).
 //
-// ★ 终审 Important 5 补登记 —— **Vue2 用 fixed 的理由**:它不是随手选的,而是为了绕开
-// `.detail-hero { overflow: hidden }`(photos-people.scss:277-281)。fixed 的包含块是视口,
-// 不受任何祖先 overflow 裁剪;absolute 的包含块是最近的定位祖先,祖先一裁就没了。
-// 改成 absolute 后 z-index 完全失效(裁剪发生在合成之前),而 hero 又没有滚动条可以救,
-// 菜单会被**直接切掉**:默认布局菜单底边 ≈279.5px 只差 0.5px 不裁;一旦长人名触发
-// `.hero-name-row { flex-wrap: wrap }` 换行,触发按钮下移约 46px、菜单底边到 ≈296px,
-// 最后一项「工作/Work」被切掉约一半(放大字号 / 窄视口同理)。
-// 修法(评审给了两个选项,这里选前者,理由见样式块里 .hero-clip 的注释):把
-// `overflow: hidden` 从 .person-hero 移到专门的 .hero-clip 裁剪层,菜单不再受祖先裁剪,
-// 保留 absolute 锚定这条已批准的偏离。
+// ★ Final review Important 5 deviation registration —— **Why Vue2 uses fixed**: not arbitrary, but to work around
+// `.detail-hero { overflow: hidden }` (photos-people.scss:277-281). fixed containment block is the viewport,
+// unaffected by any ancestor overflow clipping; absolute containment block is the nearest positioned ancestor,
+// and gets clipped if ancestor clips. Switching to absolute breaks z-index completely (clipping happens before compositing),
+// and hero has no scrollbar to rescue it—menu gets **directly clipped**: default layout menu bottom ≈279.5px
+// just 0.5px away from clipping; once a long name triggers `.hero-name-row { flex-wrap: wrap }` wrapping,
+// trigger button shifts down ~46px, menu bottom reaches ≈296px, last item "Work" gets clipped about halfway
+// (same for larger font / narrow viewport). Fix (review offered two options, chose the first; see .hero-clip comment
+// in style block): move `overflow: hidden` from .person-hero to dedicated .hero-clip clipping layer, menu no longer
+// affected by ancestor clipping, keep absolute anchoring this approved deviation.
 //
-// 偏离登记 10(此前未申报,终审顺带补齐):`.hero-name-row` 的 `flex-wrap: wrap` 是本仓新增 ——
-// Vue2 `.detail-hero .name`(photos-people.scss:325-331)是 `display:flex; align-items:center;
-// gap:12px`,**没有** flex-wrap,长人名会把 Edit/关系分组两个胶囊挤扁并溢出。保留 wrap
-// (属于"Vue2 的 bug 不照抄"那一类),但它改变了 hero 的实际高度,因此必须与上面那条一起看:
-// 正是 wrap 让菜单越界成为常态路径,而不是边角情况。
+// Deviation 10 registration (not previously declared, added in final review): `.hero-name-row` flex-wrap: wrap is new
+// to this repo —— Vue2 `.detail-hero .name` (photos-people.scss:325-331) is `display:flex; align-items:center;
+// gap:12px`, **no** flex-wrap, so long names compress Edit/relation-group capsules and overflow. Keep wrap
+// (part of "don't copy Vue2 bugs" category), but it changes hero's actual height, so must be viewed together with above:
+// wrap is what makes menu overflow a common path, not an edge case.
 //
-// 偏离登记 9(brief 明确要求改对,不照抄 Vue2 的 bug):Vue2 :528 把月份短名写死
-// toLocaleDateString('en', {month:'short'}) —— 这里改用 useI18n().locale 派生的 BCP-47
-// tag(照 PhotosPeople.vue:157 formatIndexedDate 的既有先例:locale.value.replace('_','-')),
-// 跟随当前语言渲染月份缩写。同时**不**照抄 Vue2 手动拼接的尾随 "."(:528 的
-// `+ '.'`)——那个句点只在英文缩写("Jan.")下是惯用排版,中文短月份格式(如"3月")
-// 本身没有这个标点习惯,强行拼接会变成"3月."这种不通顺的结果;改为完全信任
-// Intl.DateTimeFormat 按当前 locale 给出的本地化短月份,不再手动拼接标点(同 T6
-// formatIndexedDate 的既有做法:交给 Intl,不自己拼字符串)。
+// Deviation 9 registration (brief explicitly requires correction, don't copy Vue2 bug): Vue2 :528 hardcodes month
+// short names as toLocaleDateString('en', {month:'short'}) —— here changed to use BCP-47 tag derived from
+// useI18n().locale (same pattern as established in PhotosPeople.vue:157 formatIndexedDate: locale.value.replace('_', '-')),
+// renders month abbreviations following current language. Also **does not** copy Vue2's manual trailing "." concatenation
+// (:528's `+ '.'`) —— that period is only conventional typography for English abbreviations ("Jan."), Chinese short
+// month format (e.g. "3月") has no such punctuation convention, forced concatenation results in awkward "3月." —— changed
+// to completely trust Intl.DateTimeFormat to provide localized short month for current locale, no manual punctuation
+// concatenation (same approach as T6 formatIndexedDate: delegate to Intl, don't concatenate strings yourself).
 //
-// 配色红线(本任务最高危,brief 原文强调"本阶段已因为这个坑返工两次"):hero 上叠在
-// 暗化后的封面照片之上、且**没有自己不透明底色**的前景(头像环外的姓名/统计数字与
-// 标签、收藏按钮图标)钉死浅色(theme-exception),不使用任何随主题变化的
-// --fg/--fg-muted/--fg-subtle(浅色主题下这些是深色,叠在暗化照片上会出现深底深字),
-// 更不用 --on-accent(它只在 var(--accent) 饱和实底上可用,这里背景是不可控的人脸照片,
-// 不满足前提)。两个下拉菜单本体(Edit 菜单/关系菜单)是例外——它们各自有
-// var(--popup-bg) 不透明底,不再叠在照片上,菜单内文字/高亮走正常随主题 token
-// (--fg/--fg-muted/--accent-soft/--accent-text/--remove-fg),不钉死。
+// Color critical path (highest risk in this task; brief emphasized "this gap caused two reworks in this phase"): everything
+// in the hero foreground layered over darkened cover photo (back button / avatar ring and name outside it / stat numbers
+// and labels / favorite button / Edit/relation group trigger buttons / text and icons of two action buttons) all
+// **locked to light colors** (theme-exception), using no dynamic --fg/--fg-muted/--fg-subtle tokens (in light theme
+// these are dark colors, layering on darkened photos creates dark-on-dark), especially not --on-accent (only works
+// over saturated solid --accent background, here background is uncontrollable face photo, doesn't meet precondition).
+// Two dropdown menu bodies (Edit menu / relation menu) are exceptions —— each has solid var(--popup-bg) background,
+// no longer layered on photo, menu text/highlight follows normal theme tokens (--fg/--fg-muted/--accent-soft/--accent-text/--remove-fg), not locked.
 //
-// Owner acceptance Fix-1 (2026-08-14) 更正:返回按钮 `.back`、Edit/关系分组触发按钮
-// `.edit-btn`/`.relation-trigger`、以及两个操作钮 `.actions .btn`(Ask about 除外)
-// 曾被错误地划进上面这条"钉死浅色"红线——但它们其实**都带 var(--float-bg) 胶囊底色**
-// (parity 供给,backdrop-filter 磨砂玻璃),不是裸叠在照片上的文字。Vue2 真身
-// (NimoOS-UI src/views/Photos/photos-people.scss:320/327,350/360,406;
-// PhotosPersonDetail.vue:1133,1175/1183,1197)对这几个元素从未钉死颜色,一律用主题
-// token `var(--text-2)`/`var(--text-1)` 配同样主题化的 `var(--float-bg)` 胶囊底——两者
-// 同步换挡,浅色主题下自然是"深字配浅底",从不需要专门的 `is-light` 分支
-// (photos-people.scss 全文只有 4 处 is-light/data-fallback 分支,没有一处碰按钮)。
-// 本组件之前把这三处也钉成 `#fff`,配上同样主题化、浅色主题下会变近白的
-// `var(--float-bg)` 胶囊底,就是"白字配白底"——2026-08-14 机主验收反馈"亮色主题下按键
-// 和字看不清"命中的正是这个组合。修法:退回这三处为主题化 var(--text-2)/var(--text-1),
-// 让它跟随同样主题化的胶囊底一起换挡,同 Vue2。`.name-text`/`.stat .v`/`.stat .k`/
-// `.fav-toggle` 图标依旧裸叠在照片上(无胶囊底),红线钉死浅色的判断对它们仍然成立,
-// 未改动。
+// Owner acceptance Fix-1 (2026-08-14) correction: the back button `.back`, the Edit/relation
+// group triggers `.edit-btn`/`.relation-trigger`, and the two action buttons `.actions .btn`
+// (Ask about excepted) were wrongly grouped into the "pinned light" rule above — they all
+// actually carry a `var(--float-bg)` pill background (parity-supplied, a frosted
+// backdrop-filter surface), so they are not bare text over the photo. Vue2 itself (NimoOS-UI
+// src/views/Photos/photos-people.scss:320/327, 350/360, 406; PhotosPersonDetail.vue:1133,
+// 1175/1183, 1197) never pins a colour on these elements: it uses the themed tokens
+// `var(--text-2)`/`var(--text-1)` together with the equally themed `var(--float-bg)` pill, so
+// the two shift in step and the light theme naturally gets dark text on a light pill — no
+// dedicated `is-light` branch is ever needed (the whole of photos-people.scss has only four
+// is-light/data-fallback branches, none of them touching a button). This component used to pin
+// those three to `#fff` as well, on top of the same themed pill that turns near-white in the
+// light theme — light on light, which is exactly the combination behind the owner's 2026-08-14
+// acceptance report that "the buttons and text are unreadable in the light theme". The fix is
+// to put those three back on the themed var(--text-2)/var(--text-1) so they shift together
+// with the themed pill, as in Vue2. `.name-text`/`.stat .v`/`.stat .k`/the `.fav-toggle` icon
+// are still bare over the photo (no pill), so the pinned-light rule still holds for them and
+// they are unchanged.
 //
-// 暗化遮罩偏离登记(与 brief 建议公式不同,已在任务报告详细登记理由):brief 建议
-// New-UI 缺 --hero-scrim 时改用 linear-gradient(180deg, transparent, var(--bg) 95%)。
-// 但本仓浅色主题 --bg 接近纯白(#f7f5ef)——把遮罩混向 var(--bg) 会在 hero 中段(头像/
-// 姓名/统计恰好所在的垂直居中区域)洗成浅灰甚至近白,钉死的浅色文字在那一段恰恰读不清,
-// 与本任务最高优先级的"红线"目标直接矛盾。改用与主题无关的固定黑色渐变(同本仓已有的
-// PhotosAlbumDetail.vue .album-hero-bg::after 先例:那个类似的"照片 hero + 钉死浅色前景"
-// 场景就是用固定黑色渐变,不跟随 var(--bg)),两套主题下都能保证钉死的浅色文字有稳定对比度。
+// Dark scrim deviation registration (different from brief's suggested formula, detailed rationale recorded in task report):
+// brief suggested New-UI use linear-gradient(180deg, transparent, var(--bg) 95%) when lacking --hero-scrim.
+// But light theme --bg is near pure white (#f7f5ef) —— blending scrim toward var(--bg) washes the hero middle section
+// (avatar/name/stats in vertical center area) to light gray or near white, locked light text in that section becomes
+// unreadable, directly contradicting this task's highest priority "critical path" goal. Changed to fixed black gradient
+// unrelated to theme (same pattern as existing PhotosAlbumDetail.vue .album-hero-bg::after: that similar "photo hero +
+// locked light foreground" scenario also uses fixed black gradient, independent of var(--bg)), ensures locked light text
+// has stable contrast across both themes.
 //
-// 铁律:按 id 比较一律 String(a) === String(b)。
+// Rule: all id comparisons must use String(a) === String(b).
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -110,20 +114,20 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 
-// 用户验收新增:未命名人物现在有了详情页入口(列表页菜单「查看这些照片」),Vue2 里这条路
-// 走不到,所以它 :22 直接渲染 person.name、空名就是空白标题。这里补兜底文案。
-// trim 判定:后端可能存下只有空白的名字,渲染成几个空格与空白无异,一并走兜底。
+// User acceptance feedback: unnamed people now have a detail page entry (list menu "View these photos"),
+// unreachable in Vue2 so it :22 directly renders person.name, empty name becomes blank title. Added fallback copy here.
+// trim check: backend may store names that are only whitespace; rendering as spaces is same as blank, use fallback for both.
 const heroTitle = computed(() => props.person.name.trim() || t('photosPersonUnnamedTitle'))
 
-// ── 背景层(Vue2 :497-506)──────────────────────────────────────────────
-// heroAssetId 优先;否则用人脸缩略图当背景;两者都无 → 渐变兜底(isFallback)。
+// ── Background layer (Vue2 :497-506) ────────────────────────────────────
+// heroAssetId takes priority; otherwise use face thumbnail as background; if both missing → gradient fallback (isFallback).
 const heroBg = computed(() => {
   if (props.person.heroAssetId) return service.photos.thumbnailUrl(props.person.heroAssetId, 'large')
   return service.photos.personFaceThumbnailUrl(props.person.id, props.person.coverFaceId)
 })
 const isFallback = computed(() => !props.person.coverFaceId && !props.person.heroAssetId)
 
-// ── 最早出现(Vue2 :522-529,偏离登记 9 见文件头注释)────────────────────
+// ── First seen (Vue2 :522-529, deviation 9 explained in file header) ────
 function parsedFirstSeen(): Date | null {
   if (!props.person.firstSeen) return null
   const d = new Date(props.person.firstSeen)
@@ -140,7 +144,7 @@ const firstMonthShort = computed(() => {
   return new Intl.DateTimeFormat(tag, { month: 'short' }).format(d)
 })
 
-// ── 关系分组(Vue2 :586-590)────────────────────────────────────────────
+// ── Relation group (Vue2 :586-590) ────────────────────────────────────────
 const relationOptions = [
   { value: '', labelKey: 'photosPersonRelationNone' },
   { value: 'family', labelKey: 'photosPersonRelationFamily' },
@@ -154,7 +158,7 @@ const relationLabelKey = computed(() => {
   return opt ? opt.labelKey : 'photosPersonRelationNone'
 })
 
-// ── 两个菜单(Vue2 :782-840,实现方式偏离见文件头注释)───────────────────
+// ── Two menus (Vue2 :782-840, implementation deviation explained in file header) ───
 const editOpen = ref(false)
 const relationOpen = ref(false)
 const editWrapRef = ref<HTMLElement | null>(null)
@@ -187,8 +191,8 @@ function onDocMousedown(e: MouseEvent): void {
 }
 function onDocKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
-  // 两个菜单独立判断、都关——不能像早期实现那样第一个 if 命中就 return,那样如果两个菜单
-  // 同时开着,Esc 只会关掉先判断的那一个(本组件自己的测试删码验证抓到过这个真实回归)。
+  // Check both menus independently, close both —— can't use early return like early implementation because
+  // if both menus are open, Esc would only close the first one (caught as a real regression by component's own test validation).
   editOpen.value = false
   relationOpen.value = false
 }
@@ -222,9 +226,9 @@ onUnmounted(() => {
       <div v-if="!isFallback" class="scrim" data-test="hero-scrim" />
     </div>
 
-    <!-- 终审 Minor 7:文案是 t('photosPeople')(「人物」/ "People")—— 照 Vue2 :6 的 $t('People')。
-         不用 photosPersonBack(「返回人物」/ "Back to people"):那句是**人物不存在**空态里那个
-         返回按钮的文案(PhotosPersonDetail.vue 门控③),两处不是同一句。 -->
+    <!-- Final review Minor 7: copy is t('photosPeople') ("People") —— matches Vue2 :6 $t('People').
+         Not photosPersonBack ("Back to people"): that text is for the back button in **person not found** empty state
+         (PhotosPersonDetail.vue gate ③), two different contexts. -->
     <button type="button" class="back" data-test="hero-back" :aria-label="t('photosPeople')" @click="emit('back')">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
       {{ t('photosPeople') }}
@@ -239,8 +243,8 @@ onUnmounted(() => {
         <div class="name">
           <span class="name-text" data-test="hero-name">{{ heroTitle }}</span>
 
-          <!-- 终审 Minor 7:未收藏态的 title/aria 照 Vue2 :26 的 `Mark as favorite`(不是通用的
-               `Favorite`);已收藏态复用 photosUnfavorite,其中文与 Vue2 `Remove favorite` 的原译一致。 -->
+          <!-- Final review Minor 7: unfavorited state title/aria matches Vue2 :26 `Mark as favorite` (not generic
+               `Favorite`); favorited state reuses photosUnfavorite, whose text matches Vue2's original `Remove favorite` translation. -->
           <button
             type="button"
             class="fav-toggle"
@@ -263,14 +267,14 @@ onUnmounted(() => {
             <div v-if="editOpen" class="relation-menu edit-menu" data-test="hero-edit-menu">
               <button type="button" class="relation-option" data-test="hero-edit-rename" @click="pickEdit('rename')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
-                <!-- 终审 Minor 6:短动词键(照 Vue2 :38 `$t('Rename')`);photosPersonRename
-                     是改名弹窗的标题「重命名人物」,不能顶替菜单项。 -->
+                <!-- Final review Minor 6: short verb key (matches Vue2 :38 `$t('Rename')`); photosPersonRename
+                     is the rename dialog title "Rename person", cannot replace menu item. -->
                 {{ t('photosPersonMenuRename') }}
               </button>
               <button type="button" class="relation-option" data-test="hero-edit-merge" @click="pickEdit('merge')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.5L18 9l-4.1 1.5L12 15l-1.9-4.5L6 9l4.1-1.5z" /></svg>
-                <!-- 终审 Minor 6:同上,照 Vue2 :41 `$t('Merge into…')`;photosPersonMergeInto
-                     是合并弹窗的标题「合并到另一个人物」。 -->
+                <!-- Final review Minor 6: same as above, matches Vue2 :41 `$t('Merge into…')`; photosPersonMergeInto
+                     is the merge dialog title "Merge into another person". -->
                 {{ t('photosPersonMenuMergeInto') }}
               </button>
               <!-- Task 7 (Plan D): "Hide person" — per Vue2 PhotosPersonDetail.vue:43-46, only
@@ -531,9 +535,9 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.72); /* theme-exception */
 }
 .detail-hero .name .fav-toggle.is-fav {
-  /* --star-fg 两套主题都不各自定义具体值,是本仓已确立的先例(PhotosGrid.vue/
-     PersonAvatar.vue 均为 var(--star-fg, #ffd60a))——固定金色星标跨皮肤不变,
-     用 var(fallback) 形式表达,color-guard 按 token 用法放行,不算裸字面量。 */
+  /* --star-fg not separately defined in both themes, established precedent in this repo (PhotosGrid.vue/
+     PersonAvatar.vue both use var(--star-fg, #ffd60a)) —— fixed golden star unchanged across skins,
+     expressed as var(fallback) form, color-guard clears by token usage, not bare literal. */
   color: var(--star-fg, #ffd60a);
 }
 /* Fix round 2 (coordinator re-review, Important): the previous version of this rule kept a new

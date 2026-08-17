@@ -1,11 +1,15 @@
-// SP7-P7a-T6: PhotosSmartViewDetail.vue —— 智能视图详情页外壳(byId 数据源 + header +
-// 三菜单 + 删除确认 + 导出修 401 + 两段网格)。逐条对应 task-6-brief.md「必含用例」清单。
+// SP7-P7a-T6: PhotosSmartViewDetail.vue -- smart view detail page shell (byId data source +
+// header + three menus + delete confirmation + export 401 fix + two-section grid). Maps
+// item by item to task-6-brief.md's "required cases" checklist.
 //
-// 测试策略:store(usePhotosSmartViews)用真实实现,只 mock 共享包 service —— byId 的
-// "改 store 后视图自动跟着变"是 §7e-2 本期核心修复的主守卫,必须走真实 store 才有意义。
-// useLightbox 是模块级单例(同 PhotosAlbumDetail.test.ts 的既有手法),这里 spy 掉
-// openAt 本体(mockImplementation 空函数),只断言调用参数,不放真实 hydrate 链路进来
-// (那需要额外 mock getAsset/getAssetOcr/favorites,与本任务无关)。
+// Test strategy: the store (usePhotosSmartViews) uses its real implementation; only the
+// shared-package service is mocked -- byId's "the view automatically follows once the store
+// changes" is §7e-2's main guard for this cycle's core fix, and it only means anything if it
+// goes through the real store. useLightbox is a module-level singleton (same technique as
+// PhotosAlbumDetail.test.ts's existing approach); here we spy out the openAt method itself
+// (mockImplementation as an empty function), asserting only the call arguments, without
+// pulling the real hydrate chain in (that would need extra mocks for
+// getAsset/getAssetOcr/favorites, which is out of scope for this task).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -22,7 +26,7 @@ const svc = vi.hoisted(() => ({
     getSmartViewActivity: vi.fn(),
     updateSmartView: vi.fn(),
     deleteSmartView: vi.fn(),
-    createSmartView: vi.fn(), // restoreSmartView 的底层调用
+    createSmartView: vi.fn(), // the underlying call restoreSmartView makes
     duplicateSmartView: vi.fn(),
     exportSmartViewAlbum: vi.fn(),
     exportSmartViewUrl: vi.fn((id: string | number, format: string) => `/v1/photos/smart-views/${id}/export?format=${format}&token=tok`),
@@ -44,11 +48,14 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// useLightbox 是模块级单例:每次调用 useLightbox() 都会返回一个**新的对象字面量**,但其
-// `openAt` 属性指向同一个模块顶层函数——在这个新字面量上 `vi.spyOn(obj, 'openAt')` 只会
-// 影子这一个对象自身的属性,不会影响组件内部另一次 `useLightbox()` 调用拿到的另一份对象
-// (它的 `openAt` 仍指向未被拦截的真实函数)。本组件只用到 `lb.openAt` 这一个方法,直接
-// mock 整个模块最简单也最可靠——测试文件与组件内部拿到的是同一个 `mockLb.openAt`。
+// useLightbox is a module-level singleton: every call to useLightbox() returns a **new
+// object literal**, but its `openAt` property points at the same module-top-level function --
+// so `vi.spyOn(obj, 'openAt')` on this new literal only shadows that one object's own
+// property, and does not affect a different object returned by another `useLightbox()` call
+// inside the component (its `openAt` still points at the real, unintercepted function). This
+// component only ever touches the single `lb.openAt` method, so mocking the whole module
+// directly is both the simplest and most reliable approach -- the test file and the
+// component's internals end up sharing the exact same `mockLb.openAt`.
 //
 // Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>`
 // (it never did before). That component's own internals call `useLightbox()` too and read
@@ -231,9 +238,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// ── 数据源三态(§7e-2 结构规格 1)────────────────────────────────────────────
-describe('数据源三态', () => {
-  it('listLoaded 假(请求未 resolve)→ 骨架,不渲染 header', async () => {
+// ── Data-source three states (§7e-2 structural spec 1) ──────────────────────────────
+describe('data-source three states', () => {
+  it('listLoaded false (request not yet resolved) -> skeleton, no header rendered', async () => {
     let resolveFn: ((v: RawSv[]) => void) | undefined
     svc.photos.listSmartViews.mockImplementation(() => new Promise((res) => { resolveFn = res }))
     const router = makeRouter('/photos/smart-views/7')
@@ -246,14 +253,14 @@ describe('数据源三态', () => {
     await flushPromises()
   })
 
-  it('listLoaded 真 + byId 命中 → 正常渲染 header', async () => {
+  it('listLoaded true + byId hit -> header renders normally', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     expect(w.find('[data-test="sv-skeleton"]').exists()).toBe(false)
     expect(w.find('.sv-header').exists()).toBe(true)
     expect(w.find('[data-test="sv-title-view"]').text()).toBe('Sunsets')
   })
 
-  it('listLoaded 真 + byId 返 null →「找不到」空态 + 返回按钮', async () => {
+  it('listLoaded true + byId returns null -> "not found" empty state + back button', async () => {
     const { w } = await mountView('999', [makeSv({ id: 7 })])
     expect(w.find('[data-test="sv-not-found"]').exists()).toBe(true)
     expect(w.find('[data-test="sv-not-found"]').text()).toContain(zh.photosSvNotFound)
@@ -263,32 +270,33 @@ describe('数据源三态', () => {
   // SP15-P2b Task 5: smart albums now live in Albums (Tasks 3/4) -- this button's
   // destination and label both changed (label: photosSvAllSmartViews → photosAlbumBack,
   // see the deviation comment above PhotosSmartViewDetail.vue's detail-bar back button).
-  it('返回按钮 → router.push 到相册页', async () => {
+  it('back button -> router.push to the albums page', async () => {
     const { w, router } = await mountView('999', [makeSv({ id: 7 })])
     const pushSpy = vi.spyOn(router, 'push')
     await w.find('[data-test="sv-not-found-back"]').trigger('click')
     expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
   })
 
-  it('byId 用 String 归一:store 里 id 是数字 7,route.params.id = "7" → 命中', async () => {
-    const { w } = await mountView('7', [makeSv({ id: 7 })]) // makeSv 的 id 字面量就是数字
+  it('byId normalizes via String: store id is number 7, route.params.id = "7" -> hit', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })]) // makeSv's id literal is itself a number
     expect(w.find('[data-test="sv-not-found"]').exists()).toBe(false)
     expect(w.find('.sv-header').exists()).toBe(true)
   })
 })
 
-// fix round 1 · M5(结构规格 2:.sv-detail-bar 之前全无用例)────────────────────
-describe('.sv-detail-bar —— 返回入口 + 最近更新时间', () => {
-  it('evaluatedAt 非空 → photosSvLastUpdatedTime 渲染出 relTime 结果', async () => {
+// fix round 1 · M5 (structural spec 2: .sv-detail-bar had zero test cases before this) ────────────────────
+describe('.sv-detail-bar -- back entry + last-updated time', () => {
+  it('evaluatedAt non-empty -> photosSvLastUpdatedTime renders the relTime result', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, evaluatedAt: '2026-07-31T00:00:00Z' })])
     const bar = w.find('.sv-detail-bar')
-    // 用中文文案的固定前缀断言(值本身由 relTime,一个已单测过的纯函数负责,这里只钉住
-    // "确实套用了 photosSvLastUpdatedTime 这个键、不是恒定的 '—'")。
+    // Assert against the fixed prefix of the Chinese copy (the value itself comes from relTime,
+    // a pure function already unit-tested elsewhere -- this only pins down that
+    // "the photosSvLastUpdatedTime key is actually applied, not a constant '—'").
     expect(bar.text()).toContain(zh.photosSvLastUpdatedTime.split('{time}')[0].trim())
     expect(bar.find('.sv-last-updated').text()).not.toBe(zh.photosSvLastUpdatedTime.replace('{time}', '—'))
   })
 
-  it('evaluatedAt 为空 → 兜底显示 "—"(照搬 Vue2 :332 的兜底)', async () => {
+  it('evaluatedAt empty -> falls back to displaying "—" (ported from the Vue2 :332 fallback)', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, evaluatedAt: '' })])
     expect(w.find('.sv-last-updated').text()).toBe(zh.photosSvLastUpdatedTime.replace('{time}', '—'))
   })
@@ -309,10 +317,10 @@ describe('.sv-detail-bar —— 返回入口 + 最近更新时间', () => {
   })
 })
 
-// fix round 1 · M5(brief §3 明文要求的挂载点断言,原版 grep 0 命中)──────────────
+// fix round 1 · M5 (brief §3 explicitly requires this mount-point assertion; the original version had 0 grep hits) ──────────────
 // P7a-T7 originally mounted a dedicated SmartViewConditionEditor component here (chips +
 // an "Add condition" popover). Task 8 (SP15-P2c, ported from Vue2 NimoOS-UI 33b05636
-// PhotosSmartViewDetail.vue:26-30/:700-710, "用户追加需求") removes the add entry as a
+// PhotosSmartViewDetail.vue:26-30/:700-710, "user-added requirement") removes the add entry as a
 // deliberate product decision -- only removable chips survive. Once `add` was gone the
 // component was down to a bare v-for with no local state, so it no longer earned its own
 // file (see task-8-report.md for the full call) and folded back into this page. These
@@ -350,7 +358,7 @@ describe('T7/T8: condition chips (remove-only, add entry removed)', () => {
   })
 
   // SP15-P2c Task 8, coordinator review fix: re-homes the deleted
-  // SmartViewConditionEditor.test.ts's "点叉(.sv-cond-x)→同样触发remove(冒泡到整个chip)".
+  // SmartViewConditionEditor.test.ts's "clicking the X (.sv-cond-x) also triggers remove (bubbles to the whole chip)".
   // The first pass of this task's disposition table claimed this was "covered structurally"
   // by the whole-chip click test above on the strength of the DOM being unchanged -- that
   // claim was never actually exercised by a test (clicking the parent span directly never
@@ -389,13 +397,15 @@ describe('T7/T8: condition chips (remove-only, add entry removed)', () => {
   })
 })
 
-// P7a-T8:sv-side-mount 的 stub 断言("空壳,children.length===0")在这里升级成真组件
-// 断言——SmartViewSidePanel/SmartViewActivityFeed 自己的结构/交互/样式覆盖已在
-// 各自的 __tests__ 文件里,这里只钉住"宿主接线对不对":两个组件都真的挂进去了、
-// sv/busy/activity 三个 prop 来源对不对、patch emit 翻译成 store.updateSmartView(id, patch)
-// 的正确形状(不需要额外 .then(loadDetail),同 addCond/removeCond 的道理)。
-describe('T8:右栏(挂载点兑现为真组件)', () => {
-  it('sv-side-mount 下渲染 SmartViewSidePanel(3 段)+ SmartViewActivityFeed(1 段)', async () => {
+// P7a-T8: sv-side-mount's stub assertion ("empty shell, children.length===0") is upgraded here
+// into a real component assertion -- SmartViewSidePanel/SmartViewActivityFeed's own
+// structure/interaction/style coverage already lives in their own __tests__ files; this only
+// pins down "is the host wiring correct": both components are actually mounted, the sv/busy/
+// activity prop sources are correct, and the patch emit translates into the right shape for
+// store.updateSmartView(id, patch) (no extra .then(loadDetail) needed, same reasoning as
+// addCond/removeCond).
+describe('T8: right column (mount point delivers real components)', () => {
+  it('renders SmartViewSidePanel (3 sections) + SmartViewActivityFeed (1 section) under sv-side-mount', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
     const mountEl = w.find('[data-test="sv-side-mount"]')
     expect(mountEl.exists()).toBe(true)
@@ -407,7 +417,7 @@ describe('T8:右栏(挂载点兑现为真组件)', () => {
     expect(mountEl.text()).toContain(zh.photosSvActivity)
   })
 
-  it('活动流拿到 store.activity(getSmartViewActivity 的响应)', async () => {
+  it('activity feed gets store.activity (the getSmartViewActivity response)', async () => {
     svc.photos.getSmartViewActivity.mockResolvedValue([
       { id: 'a1', eventType: 'created', detail: '', assetIds: [], occurredAt: '2026-07-31T00:00:00Z' },
     ])
@@ -416,13 +426,14 @@ describe('T8:右栏(挂载点兑现为真组件)', () => {
     expect(mountEl.text()).toContain(zh.photosSvSmartViewCreated)
   })
 
-  describe('阈值 patch → store.updateSmartView(300ms debounce)', () => {
-    // fix round 1 · M5:useRealTimers 挪到 afterEach(此前写在 it 末尾,断言先失败时假
-    // 时钟会漏给同文件后续用例)。
+  describe('threshold patch -> store.updateSmartView (300ms debounce)', () => {
+    // fix round 1 · M5: useRealTimers moved into afterEach (previously written at the end of
+    // the it block, so if an assertion failed first the fake clock would leak into later tests
+    // in this file).
     beforeEach(() => { vi.useFakeTimers() })
     afterEach(() => { vi.useRealTimers() })
 
-    it('拖动阈值滑块 → 300ms 后 store.updateSmartView 收到 { threshold }', async () => {
+    it('dragging the threshold slider -> store.updateSmartView receives { threshold } after 300ms', async () => {
       svc.photos.updateSmartView.mockResolvedValue(null)
       const { w } = await mountView('7', [makeSv({ id: 7, threshold: 72 })])
       const range = w.find('[data-test="pts-range"]')
@@ -431,16 +442,16 @@ describe('T8:右栏(挂载点兑现为真组件)', () => {
       expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { threshold: 92 })
     })
 
-    // fix round 1 · I2 补充:宿主 `:busy="store.patchBusy"` 这条 prop 来源此前零用例。
-    // updateSmartView 挂起期间 store.patchBusy=true,应该转发进 SmartViewSidePanel,
-    // 反映到两个开关的 data-busy 属性上。
-    it('store.patchBusy=true 期间 → SmartViewSidePanel 的两个开关都带 data-busy="true"', async () => {
+    // fix round 1 · I2 addendum: the host's `:busy="store.patchBusy"` prop source had zero
+    // test cases before this. While updateSmartView is pending, store.patchBusy=true should be
+    // forwarded into SmartViewSidePanel and reflected on both switches' data-busy attribute.
+    it('while store.patchBusy=true -> both SmartViewSidePanel switches carry data-busy="true"', async () => {
       let resolveFn: ((v: unknown) => void) | undefined
       svc.photos.updateSmartView.mockImplementation(() => new Promise((res) => { resolveFn = res }))
       const { w } = await mountView('7', [makeSv({ id: 7, threshold: 72 })])
       const range = w.find('[data-test="pts-range"]')
       await range.setValue('92')
-      await vi.advanceTimersByTimeAsync(300) // 触发 onSidePatch → store.updateSmartView(挂起)
+      await vi.advanceTimersByTimeAsync(300) // triggers onSidePatch -> store.updateSmartView (pending)
       await flushPromises()
       expect(w.find('[data-test="sv-switch-live"]').attributes('data-busy')).toBe('true')
       expect(w.find('[data-test="sv-switch-videos"]').attributes('data-busy')).toBe('true')
@@ -450,7 +461,7 @@ describe('T8:右栏(挂载点兑现为真组件)', () => {
     })
   })
 
-  it('点「自动添加新匹配」开关 → store.updateSmartView 收到 { live: true }(sv.live=false)', async () => {
+  it('clicking the "Auto-add new matches" switch -> store.updateSmartView receives { live: true } (sv.live=false)', async () => {
     svc.photos.updateSmartView.mockResolvedValue(null)
     const { w } = await mountView('7', [makeSv({ id: 7, live: false })])
     await w.find('[data-test="sv-switch-live"]').trigger('click')
@@ -459,9 +470,9 @@ describe('T8:右栏(挂载点兑现为真组件)', () => {
   })
 })
 
-// ── onMounted 加载顺序 ───────────────────────────────────────────────────
-describe('onMounted 加载顺序', () => {
-  it('listLoaded 为假时:先 fetchSmartViews(listSmartViews)再 loadDetail(getSmartViewAssets)', async () => {
+// ── onMounted load order ───────────────────────────────────────────────────
+describe('onMounted load order', () => {
+  it('when listLoaded is false: fetchSmartViews (listSmartViews) runs before loadDetail (getSmartViewAssets)', async () => {
     const order: string[] = []
     svc.photos.listSmartViews.mockImplementation(async () => { order.push('list'); return [makeSv({ id: 7 })] })
     svc.photos.getSmartViewAssets.mockImplementation(async () => { order.push('assets'); return [] })
@@ -473,7 +484,7 @@ describe('onMounted 加载顺序', () => {
     expect(order).toContain('assets')
   })
 
-  it('listLoaded 为真时(已有另一实例预热过 store):只 loadDetail,不重新 fetchSmartViews', async () => {
+  it('when listLoaded is true (another instance already warmed the store): only loadDetail runs, fetchSmartViews is not re-called', async () => {
     const store = usePhotosSmartViews()
     svc.photos.listSmartViews.mockResolvedValue([makeSv({ id: 7 })])
     await store.fetchSmartViews()
@@ -489,7 +500,7 @@ describe('onMounted 加载顺序', () => {
 
 // ── watch route.params.id ────────────────────────────────────────────────
 describe('watch route.params.id', () => {
-  it('id 从 7 变成 8 → loadDetail("8") 被调(getSmartViewAssets 带上新 id)', async () => {
+  it('id changes from 7 to 8 -> loadDetail("8") is called (getSmartViewAssets carries the new id)', async () => {
     const { w, router } = await mountView('7', [makeSv({ id: 7 }), makeSv({ id: 8, name: 'Food' })])
     svc.photos.getSmartViewAssets.mockClear()
     await router.push('/photos/smart-views/8')
@@ -501,9 +512,9 @@ describe('watch route.params.id', () => {
   })
 })
 
-// ── 改名 ──────────────────────────────────────────────────────────────────
-describe('改名', () => {
-  it('点标题 → 出现 input 且 titleDraft 预填当前名', async () => {
+// ── rename ──────────────────────────────────────────────────────────────────
+describe('rename', () => {
+  it('clicking the title -> an input appears with titleDraft prefilled with the current name', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-title-view"]').trigger('click')
     const input = w.find('[data-test="sv-title-input"]')
@@ -511,7 +522,7 @@ describe('改名', () => {
     expect((input.element as HTMLInputElement).value).toBe('Sunsets')
   })
 
-  it('Enter 提交新名 → updateSmartView(id, {name}) 被调;store 回写后编辑态退出', async () => {
+  it('Enter submits the new name -> updateSmartView(id, {name}) is called; edit mode exits once the store writes back', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     svc.photos.updateSmartView.mockResolvedValue({ ...makeSv({ id: 7, name: '日落时分' }) })
     await w.find('[data-test="sv-title-view"]').trigger('click')
@@ -525,7 +536,7 @@ describe('改名', () => {
     expect(w.find('[data-test="sv-title-view"]').text()).toBe('日落时分')
   })
 
-  it('updateSmartView reject → 编辑态保持(input 仍在)', async () => {
+  it('updateSmartView reject -> edit mode is retained (input still present)', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     svc.photos.updateSmartView.mockRejectedValue(new Error('500'))
     await w.find('[data-test="sv-title-view"]').trigger('click')
@@ -538,7 +549,7 @@ describe('改名', () => {
     expect(useToast().msg).toBe(zh.photosSvRenameFailed)
   })
 
-  it('名字未变(trim 后相同)→ updateSmartView 未被调,且退出编辑态', async () => {
+  it('name unchanged (same after trim) -> updateSmartView is not called, and edit mode exits', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-title-view"]').trigger('click')
     const input = w.find('[data-test="sv-title-input"]')
@@ -549,7 +560,7 @@ describe('改名', () => {
     expect(w.find('[data-test="sv-title-input"]').exists()).toBe(false)
   })
 
-  it('Esc → 退出编辑态且不提交', async () => {
+  it('Esc -> exits edit mode without submitting', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-title-view"]').trigger('click')
     const input = w.find('[data-test="sv-title-input"]')
@@ -561,26 +572,28 @@ describe('改名', () => {
   })
 })
 
-// ── paused 派生量(§7e-2 主守卫)─────────────────────────────────────────────
-describe('paused 是派生量', () => {
-  it('store 里 live:false → pill 显示 photosSvPaused', async () => {
+// ── paused is a derived value (§7e-2 main guard) ─────────────────────────────────────────────
+describe('paused is a derived value', () => {
+  it('store has live:false -> pill shows photosSvPaused', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, live: false })])
     expect(w.find('[data-test="sv-live-pill"]').text()).toContain(zh.photosSvPaused)
   })
 
-  it('点 pill → updateSmartView(id, {live:true})', async () => {
+  it('clicking the pill -> updateSmartView(id, {live:true})', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, live: false })])
     svc.photos.updateSmartView.mockResolvedValue(null)
     await w.find('[data-test="sv-live-pill"]').trigger('click')
     expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { live: true })
   })
 
-  it('§7e-2 主守卫:store 更新后(不重新 mount)pill 文案自动跟着变', async () => {
+  it('§7e-2 main guard: after the store updates (no remount), the pill copy automatically follows', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, live: false })])
     expect(w.find('[data-test="sv-live-pill"]').text()).toContain(zh.photosSvPaused)
-    // 直接改 store 里那条 sv 的 live 字段,不重新 mount、不经过组件的 updateSmartView 调用——
-    // 模拟"另一路径(如轮询/其它标签页)已经把后端状态改了"。Vue2 做不到这一点(它靠 prop
-    // 对象引用 + 一整套本地同步机制),New-UI 因为 sv 是 computed(byId(id)) 现取,天然响应。
+    // Directly mutate the live field on that sv in the store, without remounting and without
+    // going through the component's updateSmartView call -- simulating "another path (e.g.
+    // polling / another tab) has already changed the backend state". Vue2 cannot do this (it
+    // relies on prop object references plus a whole local-sync mechanism); New-UI's sv is a
+    // computed(byId(id)) fetched live, so it responds naturally.
     const store = usePhotosSmartViews()
     const idx = store.smartViews.findIndex((s) => s.id === '7')
     store.smartViews[idx] = { ...store.smartViews[idx], live: true }
@@ -588,19 +601,21 @@ describe('paused 是派生量', () => {
     expect(w.find('[data-test="sv-live-pill"]').text()).toContain(zh.photosSvLive)
   })
 
-  it('pill 键盘可达:tabindex="0" 存在,keydown.enter 触发同一个 handler', async () => {
+  it('pill is keyboard-reachable: tabindex="0" is present, keydown.enter triggers the same handler', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, live: false })])
     svc.photos.updateSmartView.mockResolvedValue(null)
     const pill = w.find('[data-test="sv-live-pill"]')
     expect(pill.attributes('tabindex')).toBe('0')
-    // VTU 的 `.trigger('keydown.enter')` 修饰符简写会把 `.key` 设成小写 'enter'(只有
-    // `.code` 才是大写 'Enter'),与真实浏览器的 KeyboardEvent.key === 'Enter' 不符——这里
-    // 显式传 key 字段,拿到与真实浏览器一致的大写值,不依赖 VTU 修饰符简写的大小写行为。
+    // VTU's `.trigger('keydown.enter')` modifier shorthand sets `.key` to lowercase 'enter'
+    // (only `.code` is uppercase 'Enter'), which does not match a real browser's
+    // KeyboardEvent.key === 'Enter' -- here we pass the key field explicitly to get the
+    // uppercase value that matches a real browser, without depending on VTU's modifier
+    // shorthand casing behaviour.
     await pill.trigger('keydown', { key: 'Enter' })
     expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { live: true })
   })
 
-  it('updateSmartView reject → 更新失败 toast', async () => {
+  it('updateSmartView reject -> update-failed toast', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, live: false })])
     svc.photos.updateSmartView.mockRejectedValue(new Error('500'))
     await w.find('[data-test="sv-live-pill"]').trigger('click')
@@ -609,34 +624,34 @@ describe('paused 是派生量', () => {
   })
 })
 
-// ── 4 统计 ────────────────────────────────────────────────────────────────
-describe('header 统计四格', () => {
-  it('addedThisWeek === 0 → delta 那项不渲染', async () => {
+// ── the 4 header stats ────────────────────────────────────────────────────────────────
+describe('header stats: four tiles', () => {
+  it('addedThisWeek === 0 -> the delta item does not render', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
     expect(w.find('[data-test="sv-stat-delta"]').exists()).toBe(false)
   })
 
-  it('addedThisWeek > 0 → delta 项渲染 +n', async () => {
+  it('addedThisWeek > 0 -> the delta item renders +n', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 5 })])
     expect(w.find('[data-test="sv-stat-delta"]').text()).toContain('+5')
   })
 
-  it('median 缺(0)→ 显示 0%', async () => {
+  it('median missing (0) -> shows 0%', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, median: 0 })])
     expect(w.find('[data-test="sv-stat-median"]').text()).toContain('0%')
   })
 
-  it('formatMB 三档:0 → "0 MB"', async () => {
+  it('formatMB three tiers: 0 -> "0 MB"', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, storageBytes: 0 })])
     expect(w.find('[data-test="sv-stat-storage"]').text()).toContain('0 MB')
   })
 
-  it('formatMB 三档:1572864 → 四舍五入 "2 MB"', async () => {
+  it('formatMB three tiers: 1572864 -> rounds to "2 MB"', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, storageBytes: 1572864 })])
     expect(w.find('[data-test="sv-stat-storage"]').text()).toContain('2 MB')
   })
 
-  it('formatMB 三档:2147483648 → "2.0 GB"', async () => {
+  it('formatMB three tiers: 2147483648 -> "2.0 GB"', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, storageBytes: 2147483648 })])
     expect(w.find('[data-test="sv-stat-storage"]').text()).toContain('2.0 GB')
   })
@@ -923,23 +938,23 @@ describe('SP15-P2c Task 6: header action row', () => {
   })
 })
 
-// ── 「在搜索中细化」——T16 兑现:去 disabled,接 router.push ─────────────────
-describe('「在搜索中细化」按钮(T16 已接线)', () => {
-  it('不再 disabled,也没有 photosSvSearchPending 的 title', async () => {
+// ── "Refine in Search" -- delivered by T16: disabled removed, wired to router.push ─────────────────
+describe('"Refine in Search" button (wired up as of T16)', () => {
+  it('no longer disabled, and no photosSvSearchPending title', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     const btn = w.find('[data-test="sv-action-refine"]')
     expect(btn.attributes('disabled')).toBeUndefined()
     expect(btn.attributes('title')).toBeUndefined()
   })
 
-  it('点击 → router.push({ path: "/photos/search", query: { q: sv.name } })', async () => {
+  it('clicking -> router.push({ path: "/photos/search", query: { q: sv.name } })', async () => {
     const { w, router } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     const pushSpy = vi.spyOn(router, 'push')
     await w.find('[data-test="sv-action-refine"]').trigger('click')
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'Sunsets' } })
   })
 
-  it('photosSvSearchPending 键已从两个 locale 删除(死键随 T16 一并清理)', () => {
+  it('photosSvSearchPending key removed from both locales (dead key cleaned up along with T16)', () => {
     expect('photosSvSearchPending' in zh).toBe(false)
     expect('photosSvSearchPending' in en).toBe(false)
   })
@@ -948,7 +963,7 @@ describe('「在搜索中细化」按钮(T16 已接线)', () => {
 // ── more menu (unified into five entries as of Task 7; the Export button/menu is folded in
 //    entirely, see the "SP15-P2c Task 7" describe block below) ─────────────────────────────
 describe('more menu', () => {
-  // Re-homed (Task 7): the old "菜单出现三项(重命名/复制/删除)" case is now a strict subset
+  // Re-homed (Task 7): the old "menu shows three entries (rename/duplicate/delete)" case is now a strict subset
   // of "renders exactly five menu entries in the target order" below, which also pins the
   // order -- this one stays only because it predates Convert/ZIP and is still true unchanged.
   it('opens the more menu and shows at least three entries (rename / duplicate / delete)', async () => {
@@ -959,10 +974,10 @@ describe('more menu', () => {
     expect(w.find('[data-test="sv-more-delete"]').exists()).toBe(true)
   })
 
-  // Re-homed (Task 7): was '点导出按钮...' + 'photosSvNPhotosMbMb...', reading
+  // Re-homed (Task 7): was 'click the export button...' + 'photosSvNPhotosMbMb...', reading
   // sv-export-toggle/sv-export-zip. The export button is gone; ZIP is now the third entry of
   // the unified menu, reached through sv-more-toggle, and its data-test is sv-more-zip.
-  it('photosSvNPhotosMbMb 的 {mb} 在 count=1000 时是千分位 "3,200"', async () => {
+  it('the {mb} in photosSvNPhotosMbMb at count=1000 is thousands-separated "3,200"', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, count: 1000 })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     expect(w.find('[data-test="sv-more-zip"]').text()).toContain('3,200')
@@ -1036,7 +1051,7 @@ describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
     expect(style).toContain('position: fixed')
   })
 
-  // Re-homed (Task 7): was '点菜单外部(mousedown,bubbles:true)→ 关闭' in the export-menu
+  // Re-homed (Task 7): was 'clicking outside the menu (mousedown, bubbles: true) -> closes' in the export-menu
   // describe block, reading sv-export-toggle/sv-export-menu -- both gone. Same behaviour, new
   // trigger.
   it('still closes the menu on an outside click', async () => {
@@ -1088,14 +1103,14 @@ describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
   })
 })
 
-// ── 导出 ZIP(§7e-1 修 401)───────────────────────────────────────────────
-describe('导出 ZIP', () => {
+// ── export ZIP (§7e-1 fixes 401) ───────────────────────────────────────────────
+describe('export ZIP', () => {
   function mockFetchOk() {
     const blob = new Blob(['zipdata'])
     return vi.fn().mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(blob) })
   }
 
-  it('走 fetch 带 Authorization 头,不走 window.location.href', async () => {
+  it('goes through fetch with an Authorization header, not window.location.href', async () => {
     const fetchSpy = mockFetchOk()
     vi.stubGlobal('fetch', fetchSpy)
     const createObjectURL = vi.fn(() => 'blob://x')
@@ -1115,8 +1130,9 @@ describe('导出 ZIP', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     const [url, opts] = fetchSpy.mock.calls[0]
     expect(String(url)).toContain('/export')
-    // fix round 1 · C1(Critical):这个端点只注册了 POST(route/v1/smartviews.go:34),
-    // 默认 GET 会被 Echo 拒成 405——不带这条断言,方法写错也测不出来(评审的反向变异实测过)。
+    // fix round 1 · C1 (Critical): this endpoint only registers POST (route/v1/smartviews.go:34);
+    // a default GET would be rejected by Echo as 405 -- without this assertion, a wrong method
+    // would go undetected (verified by the reviewer's reverse mutation test).
     expect((opts as { method?: string }).method).toBe('POST')
     expect((opts as { headers: Record<string, string> }).headers.Authorization).toBe('tok-123')
     expect(hrefSpy).not.toHaveBeenCalled()
@@ -1126,7 +1142,7 @@ describe('导出 ZIP', () => {
     vi.unstubAllGlobals()
   })
 
-  it('<a download> 的 download 属性含 .zip', async () => {
+  it('the download attribute on <a download> contains .zip', async () => {
     const fetchSpy = mockFetchOk()
     vi.stubGlobal('fetch', fetchSpy)
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob://x'), revokeObjectURL: vi.fn() })
@@ -1144,7 +1160,7 @@ describe('导出 ZIP', () => {
     vi.unstubAllGlobals()
   })
 
-  it('fetch 返 401(!ok)→ toast 是 photosSvExportFailed', async () => {
+  it('fetch returns 401 (!ok) -> toast is photosSvExportFailed', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }))
     const { w } = await mountView('7', [makeSv({ id: 7 })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
@@ -1155,16 +1171,16 @@ describe('导出 ZIP', () => {
   })
 })
 
-// SP15-P2c Task 7: the '导出相册' describe block (Save as static album, exportAlbumAction/
+// SP15-P2c Task 7: the 'export album' describe block (Save as static album, exportAlbumAction/
 // sv-export-album) is deleted here, not re-homed -- the capability itself is gone. The Vue2
 // target's own history records the same deletion in the same commit range (see
 // PhotosSmartViewDetail.vue's comment on `exportAlbumAction`'s removal for the full trail);
 // this page's Convert entry already does the equivalent job (freezing the current matches
 // into a regular album), so nothing the user could do is lost.
 
-// ── 删除 ──────────────────────────────────────────────────────────────────
-describe('删除智能视图', () => {
-  it('点 more → 删除项 → 确认弹窗出现', async () => {
+// ── delete ──────────────────────────────────────────────────────────────────
+describe('delete smart view', () => {
+  it('click more -> delete item -> confirmation dialog appears', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-delete"]').trigger('click')
@@ -1173,7 +1189,7 @@ describe('删除智能视图', () => {
 
   // SP15-P2b Task 5: after deletion the user lands on Albums, not the now-Moments-only
   // smart-views route (smart albums moved to Albums in Tasks 3/4).
-  it('点确认 → deleteSmartView 被调 → router.push 到相册页 + 带撤销的 toast', async () => {
+  it('click confirm -> deleteSmartView is called -> router.push to the albums page + toast with undo', async () => {
     svc.photos.deleteSmartView.mockResolvedValue({})
     const { w, router } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     const pushSpy = vi.spyOn(router, 'push')
@@ -1189,12 +1205,13 @@ describe('删除智能视图', () => {
     expect(typeof last.action?.onClick).toBe('function')
   })
 
-  // fix 波 F3(终审必修项):撤销回调此前是 `void store.restoreSmartView(...)`——底层
-  // service.photos.createSmartView reject 时,store 的 restoreSmartView 会 throw
-  // (smartViews.ts:303-304),`void` 调用完全不接这个 throw,界面上什么反馈都没有,
-  // 变成未处理的 promise rejection。这里钉住:点撤销 → 底层调用失败 → console.error 记录
-  // + 弹出失败 toast(复用 P3 回收站的 photosTrashRestoreFailed),不抛出未处理 rejection。
-  it('撤销失败(restoreSmartView reject)→ console.error 记录 + 弹失败 toast,不抛未处理 rejection', async () => {
+  // fix wave F3 (final-review must-fix): the undo callback used to be `void store.restoreSmartView(...)` --
+  // when the underlying service.photos.createSmartView rejects, the store's restoreSmartView
+  // throws (smartViews.ts:303-304), and `void` on the call swallows that throw entirely, so the
+  // UI gives no feedback at all and it becomes an unhandled promise rejection. This pins down:
+  // click undo -> the underlying call fails -> logs via console.error + shows a failure toast
+  // (reusing the P3 trash's photosTrashRestoreFailed), without throwing an unhandled rejection.
+  it('undo failure (restoreSmartView reject) -> logs via console.error + shows a failure toast, no unhandled rejection', async () => {
     svc.photos.deleteSmartView.mockResolvedValue({})
     svc.photos.createSmartView.mockRejectedValue(new Error('500'))
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -1215,7 +1232,7 @@ describe('删除智能视图', () => {
     expect(useToast().msg).toBe(zh.photosTrashRestoreFailed)
   })
 
-  it('deleteSmartView reject → 不跳转 + toast', async () => {
+  it('deleteSmartView reject -> no navigation + toast', async () => {
     svc.photos.deleteSmartView.mockRejectedValue(new Error('500'))
     const { w, router } = await mountView('7', [makeSv({ id: 7 })])
     const pushSpy = vi.spyOn(router, 'push')
@@ -1228,12 +1245,12 @@ describe('删除智能视图', () => {
   })
 })
 
-// ── 复制 ──────────────────────────────────────────────────────────────────
+// ── duplicate ──────────────────────────────────────────────────────────────────
 // Fix-10 (owner acceptance, 2026-08-14): both cases below used to assert against the generic
 // `useToast()` -- Vue2's real duplicate confirmation is `window.PhotosToast.show(...)`, the
 // photos-private bottom-pill toast. Updated to assert against `usePhotosToast()`'s queue.
-describe('复制', () => {
-  it('duplicateSmartView 被调 + photos-private toast(sparkles 图标)', async () => {
+describe('duplicate', () => {
+  it('duplicateSmartView is called + photos-private toast (sparkles icon)', async () => {
     svc.photos.duplicateSmartView.mockResolvedValue(makeSv({ id: 9, name: 'Sunsets copy' }))
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
@@ -1245,7 +1262,7 @@ describe('复制', () => {
     expect(toasts.find((t) => t.text.includes('Sunsets'))?.icon).toBe('sparkles')
   })
 
-  it('duplicateSmartView reject → photos-private toast 失败文案(trash 图标)', async () => {
+  it('duplicateSmartView reject -> photos-private failure-copy toast (trash icon)', async () => {
     svc.photos.duplicateSmartView.mockRejectedValue(new Error('500'))
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
@@ -1406,9 +1423,9 @@ describe('convert to regular album', () => {
   })
 })
 
-// ── 两段网格 ─────────────────────────────────────────────────────────────
-describe('两段照片网格', () => {
-  it('newCount > 0 →「最近添加」段在;=== 0 → 不在', async () => {
+// ── two-section photo grid ─────────────────────────────────────────────────────────────
+describe('two-section photo grid', () => {
+  it('newCount > 0 -> the "Recently added" section is present; === 0 -> absent', async () => {
     svc.photos.getSmartViewAssets.mockResolvedValue([])
     const { w: w1 } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 2 })])
     expect(w1.find('[data-test="sv-recent-head"]').exists()).toBe(true)
@@ -1416,7 +1433,7 @@ describe('两段照片网格', () => {
     expect(w2.find('[data-test="sv-recent-head"]').exists()).toBe(false)
   })
 
-  it('tile 数等于对应数组长度(matched 3 张 / recent 2 张)', async () => {
+  it('tile count matches the corresponding array length (3 matched / 2 recent)', async () => {
     svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
       return opts?.recent ? [asset('r1'), asset('r2')] : [asset('a1'), asset('a2'), asset('a3')]
     })
@@ -1447,7 +1464,7 @@ describe('两段照片网格', () => {
     expect(call[3]).toBeUndefined()
   })
 
-  it('isNew: true 的项被点后 .new-tag 消失(就地乐观清除)', async () => {
+  it('an isNew: true item has its .new-tag disappear once clicked (optimistic in-place clear)', async () => {
     svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
       return opts?.recent ? [asset('r1', { isNew: true })] : [asset('r1', { isNew: true })]
     })
@@ -1524,9 +1541,9 @@ describe('Fix-12: the lightbox is mounted on this page and its events are wired'
   })
 })
 
-// ── 浮层 ──────────────────────────────────────────────────────────────────
-describe('浮层:菜单同开 + Esc + 点外部关闭', () => {
-  // Re-homed (Task 7): was '先开 export 再开 more,一次 Esc 两者都关'. The export menu no
+// ── overlays ──────────────────────────────────────────────────────────────────
+describe('overlays: menus open together + Esc + click-outside close', () => {
+  // Re-homed (Task 7): was 'open export then more, one Esc closes both'. The export menu no
   // longer exists as an independent overlay -- ZIP is now inside the unified more menu. The
   // invariant this test guards (multiple independent `if`s in onDocumentKeydown, never an
   // early return, so one Escape closes every open overlay) still needs two *independent*
@@ -1543,21 +1560,21 @@ describe('浮层:菜单同开 + Esc + 点外部关闭', () => {
     expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
   })
 
-  // '点菜单外部(mousedown,bubbles:true)→ 关闭' (used to read sv-export-toggle/sv-export-menu)
+  // 'click outside the menu (mousedown, bubbles: true) -> closes' (used to read sv-export-toggle/sv-export-menu)
   // is superseded by "SP15-P2c Task 7" describe block's own "still closes the menu on an
   // outside click" -- identical mechanism, same assertion, sv-more-toggle/sv-more-menu instead.
 })
 
-// ── 非颜色视觉属性:先锚定规则体、再断言属性(全文件级 toContain 恒真,不算断言)──
-describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', () => {
-  it('.sv-grid-photos-recent 保留 Vue2 :136 内联的 padding-bottom:18px(全部匹配段没有这条)', () => {
+// ── non-color visual properties: anchor the rule body first, then assert the property (a file-wide toContain is trivially true and proves nothing) ──
+describe('style: non-color visual properties 1:1 (property-by-property against Vue2 inline style)', () => {
+  it('.sv-grid-photos-recent keeps the inline padding-bottom:18px from Vue2 :136 (absent from the all-matches section)', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-grid-photos-recent')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('padding-bottom: 18px')
   })
 
-  it('.sv-more-menu 保留 Vue2 :103 内联的 min-width:220px', () => {
+  it('.sv-more-menu keeps the inline min-width:220px from Vue2 :103', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-more-menu')
     expect(rule).toBeDefined()
@@ -1567,7 +1584,7 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
   // Plan C Task 5 re-skin fix: Vue2's own inline style on this button (:180) is
   // `min-width:36px`, not 32px -- a 4px drift this task's shadowing pass caught and corrected;
   // this guard now locks the right value.
-  it('.sv-action-btn-icon 保留 Vue2 :180 内联的 padding/min-width/justify-content 三件套', () => {
+  it('.sv-action-btn-icon keeps the padding/min-width/justify-content trio inline from Vue2 :180', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-action-btn-icon')
     expect(rule).toBeDefined()
@@ -1576,15 +1593,15 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
     expect(rule?.body).toContain('justify-content: center')
   })
 
-  // fix round 1 · M2:两列布局容器(scss:161-166)。
-  it('.sv-detail-layout 是 grid-template-columns: 1fr 320px(Vue2 两列布局)', () => {
+  // fix round 1 · M2: the two-column layout container (scss:161-166).
+  it('.sv-detail-layout is grid-template-columns: 1fr 320px (Vue2 two-column layout)', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-detail-layout')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('grid-template-columns: 1fr 320px')
   })
 
-  it('≤768px 媒体查询里 .sv-detail-layout 塌成单列(grid-template-columns: 1fr)', () => {
+  it('inside the <=768px media query, .sv-detail-layout collapses to a single column (grid-template-columns: 1fr)', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
     const m = /@media \(max-width: 768px\)\s*\{([\s\S]*)\}\s*$/.exec(style)
     expect(m).not.toBeNull()
@@ -1594,9 +1611,9 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
     expect(rule?.body).toContain('grid-template-columns: 1fr')
   })
 
-  // fix round 1 · I2:两个菜单 + 删除确认弹窗的 transition,Vue3 用 `-enter-from`(不是
-  // Vue2 的 `-enter`)。
-  it('.sv-menu-enter-from / .sv-menu-leave-to 保留 Vue2 scss:454-455 的 opacity+translateY+scale', () => {
+  // fix round 1 · I2: the transition for both menus + the delete confirmation dialog -- Vue3
+  // uses `-enter-from` (not Vue2's `-enter`).
+  it('.sv-menu-enter-from / .sv-menu-leave-to keep the opacity+translateY+scale from Vue2 scss:454-455', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.includes('.sv-menu-enter-from') && r.selectors.includes('.sv-menu-leave-to'))
     expect(rule).toBeDefined()
@@ -1608,7 +1625,7 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
   // the dialog's own scrim/panel/button classes were realigned to Vue2's actual `.lb-confirm-*`
   // idiom (see the template's own comment), so the Vue3 `-enter-from` transition-name
   // translation this rule provides now carries the matching `.lb-confirm-*` name too.
-  it('.lb-confirm-enter-from / .lb-confirm-leave-to 保留 Vue2 photos.scss:705-707 的 opacity+scale', () => {
+  it('.lb-confirm-enter-from / .lb-confirm-leave-to keep the opacity+scale from Vue2 photos.scss:705-707', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.includes('.lb-confirm-enter-from') && r.selectors.includes('.lb-confirm-leave-to'))
     expect(rule).toBeDefined()
@@ -1616,8 +1633,8 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
     expect(rule?.body).toContain('scale(0.95)')
   })
 
-  // fix round 1 · I3:浅色照片上的 accent 环内侧内阴影(scss:506-513)。
-  it('.sv-grid-photos .tile.recent::after 保留 Vue2 的 inset box-shadow', () => {
+  // fix round 1 · I3: the inset shadow on the inner side of the accent ring over light photos (scss:506-513).
+  it('.sv-grid-photos .tile.recent::after keeps the inset box-shadow from Vue2', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-grid-photos .tile.recent::after')
     expect(rule).toBeDefined()
@@ -1625,8 +1642,8 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
   })
 })
 
-// fix round 1 · I2(菜单/弹窗真的套了 <Transition>,不是样式定义了但模板没用上)────
-describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是样式块躺尸)', () => {
+// fix round 1 · I2 (the menus/dialogs are actually wrapped in <Transition>, not just defined in styles but unused in the template) ────
+describe('the overlay <Transition> wrapper is actually wired up (checked against source text, not a dormant style block)', () => {
   // Re-homed (Task 7): the export menu's own <Transition name="sv-menu"> is gone along with
   // the button that opened it, leaving exactly one -- the unified more menu's. The target
   // (33b05636 :78) wraps its own merged menu in <transition name="sv-menu"> too, so the wrapper
@@ -1644,21 +1661,21 @@ describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是
   // changed. The non-greedy regex still isolates the delete dialog specifically: this page now
   // has two `<Transition name="lb-confirm">` blocks (delete + convert), and `.exec` without the
   // global flag returns only the first, non-greedy match -- i.e. the delete dialog's own block.
-  it('删除确认弹窗的 lb-confirm-scrim 出现在 <Transition name="lb-confirm"> 内', () => {
+  it('lb-confirm-scrim from the delete confirmation dialog appears inside <Transition name="lb-confirm">', () => {
     const m = /<Transition name="lb-confirm">([\s\S]*?)<\/Transition>/.exec(photosSmartViewDetailRaw)
     expect(m).not.toBeNull()
     expect(m![1]).toContain('data-test="sv-confirm-scrim"')
   })
 })
 
-// ── cssCascade:hover 归属变体 ─────────────────────────────────────────────
-describe('样式:hover 级联归属变体', () => {
+// ── cssCascade: hover attribution variant ─────────────────────────────────────────────
+describe('style: hover cascade attribution variant', () => {
   // Task 11 (c): the `.sv-action-btn-primary` cascade regression that used to open this block is
   // gone with the rule it guarded -- Task 7 folded the Export button (the class's only consumer)
   // into the unified "..." menu, so the selector this test queried no longer exists on the page.
   // The same variant, and the same regression, still live on PhotosMomentDetail.test.ts:874-880.
 
-  it('.sv-export-item / .sv-export-item-danger(删除项)hover 胜出规则含 :hover 且归属变体', () => {
+  it('.sv-export-item / .sv-export-item-danger (delete item): the winning hover rule contains :hover and belongs to the variant', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
     const win = winningHoverBackground(style, ['sv-export-item', 'sv-export-item-danger'])
     expect(win.selector).toContain(':hover')
@@ -1686,14 +1703,14 @@ describe('样式:hover 级联归属变体', () => {
   })
 })
 
-// ── 红色不含字面色值 ────────────────────────────────────────────────────
-describe('红色走 token,不写死字面量', () => {
+// ── red goes through a token, no literal color value ────────────────────────────────────────────────────
+describe('red goes through a token, not hardcoded as a literal', () => {
   // Fix-2 item 6 (owner acceptance, 2026-08-13): --remove-fg switched to --danger throughout
   // this file -- --remove-fg is a global token not shadowed on `.photos-root`, so it did not
   // follow the private photos-is-light toggle; --danger is declared directly on `.photos-root`
   // and deliberately invariant across both of its own themes by spec (see the report's sweep
   // table).
-  it('样式块含 --danger 家族,不含字面 #FF6B5C', () => {
+  it('the style block contains the --danger family, not the literal #FF6B5C', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
     expect(style).toContain('--danger')
     expect(style).not.toContain('#FF6B5C')

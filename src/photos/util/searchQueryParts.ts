@@ -1,9 +1,11 @@
-// 把搜索查询词按 understood() 抽出的关键词切段、标注需要高亮的部分,供搜索栏
-// 输入回显时给命中片段加高亮样式。Ported from Vue2 NimoOS-UI
-// src/views/Photos/PhotosSearchView.vue:416-433(`queryParts` computed)——
-// 主体切段逻辑逐字照搬,但另有两处 Vue2 没有的防御性偏离(见下方就近登记):
-// keywords.filter(Boolean) 空串守卫、exec 循环内零宽匹配的第二道防线(fix round 1 · M3)。
-// keywords 由调用方给出(= understood(...).map(t => t.v.toLowerCase()))。
+// Splits the search query into segments by the keywords extracted from understood(), and marks
+// which parts need highlighting, so the search bar's input echo can apply a highlight style to
+// matched fragments. Ported from Vue2 NimoOS-UI
+// src/views/Photos/PhotosSearchView.vue:416-433 (`queryParts` computed) —
+// the main segmentation logic is copied verbatim, but there are two defensive deviations not
+// present in Vue2 (logged inline below): the keywords.filter(Boolean) empty-string guard, and the
+// second line of defense against zero-width matches inside the exec loop (fix round 1 · M3).
+// keywords is supplied by the caller (= understood(...).map(t => t.v.toLowerCase())).
 
 export interface QueryPart {
   text: string
@@ -13,8 +15,9 @@ export interface QueryPart {
 export function queryParts(query: string, keywords: string[]): QueryPart[] {
   const q = query || ''
   if (!q) return [{ text: q, hl: false }]
-  // 新增守卫(Vue2 没防):空字符串 keyword 会造出匹配空串的正则(如 '(|tokyo)'),
-  // exec 循环里 m.index 永不推进就会死循环。过滤掉空串再拼正则。
+  // Added guard (Vue2 doesn't have this): an empty-string keyword would build a regex that
+  // matches the empty string (e.g. '(|tokyo)'), and m.index would never advance in the exec
+  // loop, causing an infinite loop. Filter out empty strings before building the regex.
   const kw = keywords.filter(Boolean)
   if (!kw.length) return [{ text: q, hl: false }]
   const escaped = kw.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
@@ -24,15 +27,18 @@ export function queryParts(query: string, keywords: string[]): QueryPart[] {
   let m: RegExpExecArray | null
   re.lastIndex = 0
   while ((m = re.exec(q)) !== null) {
-    // 第二道防线(fix round 1 · M3,Vue2 :416-433 无此分支,New-UI 新增):
-    // 上面的 keywords.filter(Boolean) 已经把空串 keyword 挡在拼正则之前,正常
-    // 路径下 m[0] 不可能是空串。但全局正则对零宽匹配不会自动推进 lastIndex,
-    // 万一日后有人误删/绕过那道守卫(例如换一种方式拼 keywords),零宽匹配会
-    // 让 lastIndex 原地不动、exec 永远吐出同一个位置——那不是"断言失败"而是
-    // "worker 直接 OOM 崩溃"(fix round 1 已实测复现),连累同文件其余用例一起
-    // 报不出结果。这里补一道兜底:遇到零宽匹配就手动把 lastIndex 前移一位并跳过
-    // 本次(不计入高亮),让上游守卫失效时,函数仍能返回、测试仍能干净变红,
-    // 而不是拖垮整个测试进程。
+    // Second line of defense (fix round 1 · M3, Vue2 :416-433 has no equivalent branch,
+    // added in New-UI): the keywords.filter(Boolean) above already keeps empty-string
+    // keywords out of the regex, so under the normal path m[0] can never be an empty
+    // string. But a global regex does not auto-advance lastIndex on a zero-width match, so
+    // if that guard is ever accidentally removed or bypassed later (e.g. keywords built a
+    // different way), a zero-width match would leave lastIndex stuck in place and exec
+    // would keep yielding the same position forever — that's not "an assertion failure",
+    // it's "the worker OOM-crashes outright" (reproduced in fix round 1), taking down the
+    // rest of this file's test cases with it. Add a fallback here: on a zero-width match,
+    // manually bump lastIndex by one and skip this iteration (don't count it as a
+    // highlight), so if the upstream guard ever fails, the function still returns and the
+    // test still fails cleanly, instead of taking down the whole test process.
     if (m[0] === '') {
       re.lastIndex++
       continue

@@ -1,12 +1,13 @@
 import { service } from '@nimotech/nimoos-service'
 
-/** 服务端自定义存储的 key。与 Vue2(SettingsPanel.vue 的 systemConfigName)和 stores/locale.ts 同一个。 */
+/** The key for server-side custom storage. Same one used by Vue2 (SettingsPanel.vue's systemConfigName) and stores/locale.ts. */
 export const SYSTEM_KEY = 'system'
 
 /**
- * Vue2 `barData`(SettingsPanel.vue L938-946)的服务端形态。
- * 索引签名不是偷懒 —— 读改写必须把不认识的字段原样带回去,
- * 否则新 UI 一次保存就把旧 UI / 将来版本写进去的字段洗掉了。
+ * The server-side shape of Vue2's `barData` (SettingsPanel.vue L938-946).
+ * The index signature isn't laziness — read-modify-write must carry unrecognised fields
+ * back through untouched, otherwise one save from the new UI would wipe out fields
+ * written by the old UI / a future version.
  */
 export interface SystemBlob {
   lang?: string
@@ -14,9 +15,10 @@ export interface SystemBlob {
   search_switch?: boolean
   recommend_switch?: boolean
   /**
-   * Vue2 有这个字段,但对应的「显示其他 Docker 容器应用」开关行恒不渲染
-   * (notImportList 永远是空数组,SET_NOTIMPORT_LIST 从没被 commit)。
-   * 本期不做那一行(债务 D15),但字段要保留,避免读改写把它丢了。
+   * Vue2 has this field, but the corresponding "show other Docker container apps" toggle
+   * row never renders (notImportList is always an empty array, SET_NOTIMPORT_LIST is
+   * never committed). Not building that row this cycle (debt D15), but the field must be
+   * kept so read-modify-write doesn't drop it.
    */
   existing_apps_switch?: boolean
   rss_switch?: boolean
@@ -25,9 +27,10 @@ export interface SystemBlob {
 }
 
 /**
- * 默认值照 Vue2 L938-946,**但故意不含 `lang`** ——
- * Vue2 默认 en_us,New-UI 默认 zh_cn,语言归 stores/locale.ts 管,
- * 这里给默认值会在读取时把用户语言错误地"纠正"掉。
+ * Defaults follow Vue2 L938-946, **but deliberately exclude `lang`** —
+ * Vue2 defaults to en_us, New-UI defaults to zh_cn, and language is owned by
+ * stores/locale.ts; giving a default here would incorrectly "correct" the user's
+ * language on read.
  */
 export const SYSTEM_DEFAULTS: Readonly<SystemBlob> = Object.freeze({
   timezone: 'America/New_York',
@@ -40,7 +43,7 @@ export const SYSTEM_DEFAULTS: Readonly<SystemBlob> = Object.freeze({
 
 function coerce(raw: unknown): Record<string, unknown> {
   let data = raw
-  // 后端会把这块当字符串存回来,不是总是对象(stores/locale.ts 早有这个兼容分支)
+  // The backend sometimes stores this block back as a string, not always an object (stores/locale.ts already has this compatibility branch)
   if (typeof data === 'string') {
     try {
       data = JSON.parse(data)
@@ -51,14 +54,15 @@ function coerce(raw: unknown): Record<string, unknown> {
   return data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
 }
 
-/** 读原始整块(不合默认值)—— 只给 patch 内部用,保证写回去的是服务端真实全量。 */
+/** Reads the raw whole block (without merging defaults) — for internal use by patch only, to guarantee what's written back is the server's true full state. */
 async function readRaw(): Promise<Record<string, unknown>> {
   return coerce(await service.users.getCustomStorage(SYSTEM_KEY))
 }
 
 /**
- * 读配置(已合并默认值)。**失败不抛** —— 设置页拿不到配置也得能显示,
- * 显示默认值 + 用户一改就写,比整页白屏好。
+ * Reads config (with defaults merged in). **Never throws on failure** — the settings
+ * page must still render even when config can't be fetched; showing defaults that get
+ * written on the user's first edit beats a blank page.
  */
 export async function readSystemConfig(): Promise<SystemBlob> {
   try {
@@ -70,15 +74,17 @@ export async function readSystemConfig(): Promise<SystemBlob> {
 }
 
 /**
- * 串行队列。Vue2 的 saveData() 是整块覆写,而本仓库有多个入口
- * (general 页 4 个控件 + stores/locale.ts 的语言)都在同一个 key 上读改写 ——
- * 不串行的话并发保存会互相覆盖(移植纪律 #3)。
- * 队列**内部**重新读一次服务端,所以不依赖调用方手里的旧快照。
+ * Serialization queue. Vue2's saveData() overwrites the whole block, and this repo has
+ * multiple call sites (4 controls on the general page + the language setting in
+ * stores/locale.ts) doing read-modify-write on the same key —
+ * without serialization, concurrent saves would clobber each other (porting rule #3).
+ * The queue re-reads the server **internally**, so it doesn't depend on a stale
+ * snapshot held by the caller.
  */
 let queue: Promise<unknown> = Promise.resolve()
 
 export async function patchSystemConfig(patch: SystemBlob): Promise<SystemBlob> {
-  // 无论上一环成功还是失败都接着排,单次失败不能卡死整条队列
+  // Keep chaining regardless of whether the previous link succeeded or failed — a single failure must not stall the whole queue
   const run = queue.then(
     () => apply(patch),
     () => apply(patch),
@@ -94,7 +100,7 @@ async function apply(patch: SystemBlob): Promise<SystemBlob> {
   return { ...SYSTEM_DEFAULTS, ...next }
 }
 
-/** 仅测试用:清空队列,避免用例间互相串。 */
+/** Test-only: clears the queue so test cases don't chain into each other. */
 export function __resetSystemConfigQueue(): void {
   queue = Promise.resolve()
 }

@@ -8,7 +8,7 @@ describe('sambaPath', () => {
       mac: 'smb://192.168.1.9/Documents',
     })
   })
-  it('shareName 取路径末段', () => {
+  it('shareName extracts the last path segment', () => {
     expect(shareName('/DATA/Documents')).toBe('Documents')
     expect(shareName('/DATA/Media/Movies/')).toBe('Movies')
     expect(shareName('Solo')).toBe('Solo')

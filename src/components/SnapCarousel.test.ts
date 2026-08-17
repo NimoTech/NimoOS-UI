@@ -8,7 +8,7 @@ import SnapCarousel from './SnapCarousel.vue'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 describe('SnapCarousel', () => {
-  it('渲染 slot 项;翻页钮按视口宽度 scrollBy', async () => {
+  it('Renders slot items; pagination buttons scroll by viewport width', async () => {
     const w = mount(SnapCarousel, {
       global: { plugins: [i18n] },
       slots: { default: '<div class="probe">a</div><div class="probe">b</div>' },
@@ -26,7 +26,7 @@ describe('SnapCarousel', () => {
     expect(viewport.scrollBy).toHaveBeenCalledWith({ left: -900, behavior: 'smooth' })
   })
 
-  it('slot 内容在挂载后异步撑大(如 img 懒加载解码完成)——viewport 自身盒子不变,ResizeObserver 不会重算,需靠 load 事件兜底重算端点态', async () => {
+  it('Slot content expands asynchronously after mount (e.g. img lazy-loading decode complete) — viewport box itself does not change, ResizeObserver will not recalculate, needs load event as fallback to recalculate endpoint state', async () => {
     const w = mount(SnapCarousel, {
       global: { plugins: [i18n] },
       slots: { default: '<img class="probe" />' },
@@ -47,7 +47,7 @@ describe('SnapCarousel', () => {
     expect(w.get('.snap-next').attributes('disabled')).toBeUndefined()
   })
 
-  it('slot 内容通过 childList 变更长大(如详情页动态插入截图)—— MutationObserver 兜底重算端点态', async () => {
+  it('Slot content grows via childList change (e.g. dynamically inserted screenshots in detail view) — MutationObserver as fallback to recalculate endpoint state', async () => {
     const w = mount(SnapCarousel, {
       global: { plugins: [i18n] },
       slots: { default: '<div class="probe">a</div>' },

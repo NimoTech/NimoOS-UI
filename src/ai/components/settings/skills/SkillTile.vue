@@ -1,29 +1,35 @@
 <!--
-  SP8-P3a Task 3 —— 1:1 移植自 Vue2 src/views/AI/Skills/SkillTile.vue(43 行)。
+  SP8-P3a Task 3 — 1:1 port from Vue2 src/views/AI/Skills/SkillTile.vue (43 lines).
 
-  【偏离 2(公共约束 §3.2)】SkillIcon.vue 不移植,统一用 AgentIcon
-  (../../icons/AgentIcon.vue)。
+  [Deviation 2 (shared constraint §3.2)] SkillIcon.vue is not ported; use AgentIcon
+  (../../icons/AgentIcon.vue) uniformly instead.
 
-  【颜色查表改动】Vue2 :18-26 的 COLORS 是字面量渐变表(color-guard 禁字面量),
-  改为 token 名查表 → var(--grad-sk-<id>),token 定义见 tokens.scss:228-234
-  (SP8-P3a Task 1 已加)。未知 id 回落 blue,行为对齐 Vue2 :40
-  `COLORS[this.color] || COLORS.blue`。
+  [Color lookup table change] Vue2 :18-26's COLORS is a literal gradient table
+  (color-guard forbids literals). Replaced with a token-name lookup →
+  var(--grad-sk-<id>); token definitions are in tokens.scss:228-234 (added by
+  SP8-P3a Task 1). Unknown ids fall back to blue, matching Vue2 :40's
+  `COLORS[this.color] || COLORS.blue` behavior.
 
-  【color="white" 处理】Vue2 :11 给 SkillIcon 传具名色 white。AgentIcon 的 color
-  prop 直接进 SVG stroke 属性(见 AgentIcon.vue:76,84),不是 CSS 字面量但仍是颜色
-  值,同样受配色约定管辖。本组件复用的 .sk-tile 规则
-  (skills-styles.scss:117)已把 `color: var(--text-on-accent)` 设到容器上 ——
-  与既有彩色方块内图标的「恒白前景」token 用法一致(McpCallCard.vue
-  `.mcc-call-tile` 等同款场景)。AgentIcon 的 color prop 默认值本就是
-  currentColor(AgentIcon.vue:76),这里显式传 currentColor 通过 CSS 继承拿到
-  --text-on-accent,不在本组件里重复书写 token。
+  [color="white" handling] Vue2 :11 passes the named color white to SkillIcon.
+  AgentIcon's color prop goes straight into the SVG stroke attribute (see
+  AgentIcon.vue:76,84) — not a CSS literal, but still a color value, so it's
+  still governed by the color convention. This component reuses the .sk-tile
+  rule (skills-styles.scss:117), which already sets
+  `color: var(--text-on-accent)` on the container — consistent with the
+  existing "always-white foreground" token usage for icons inside colored
+  tiles (same pattern as McpCallCard.vue's `.mcc-call-tile`). AgentIcon's
+  color prop already defaults to currentColor (AgentIcon.vue:76); here we pass
+  currentColor explicitly so it inherits --text-on-accent via CSS, without
+  re-declaring the token in this component.
 
-  Vue2 :28 具名导出 SKILL_COLORS(字面量渐变表),供 AddSkillModal 取色盘用。P3a
-  无消费方,改为导出 id 列表 SKILL_COLOR_IDS(不导出颜色字面量),留给 P3b 用。
-  `<script setup>` 不支持顶层 export,故用一个普通 `<script>` 块承载这一具名导出。
+  Vue2 :28 has a named export SKILL_COLORS (a literal gradient table) used by
+  AddSkillModal for its color picker. P3a has no consumer for it, so this
+  exports an id list SKILL_COLOR_IDS instead (no color literals exported),
+  left for P3b to use. `<script setup>` doesn't support top-level export, so a
+  plain `<script>` block carries this named export.
 -->
 <script lang="ts">
-// Vue2 SkillTile.vue:18-26 COLORS 的 key 顺序原样保留。
+// Preserves the key order of Vue2 SkillTile.vue:18-26's COLORS as-is.
 export const SKILL_COLOR_IDS = ['blue', 'purple', 'pink', 'orange', 'green', 'teal', 'slate'] as const
 </script>
 
@@ -36,8 +42,8 @@ const props = withDefaults(
   { color: 'blue', icon: 'sparkle', size: 30, radius: 9 },
 )
 
-// Vue2 SkillTile.vue:40 `COLORS[this.color] || COLORS.blue` 的等价实现 ——
-// 查 token 名而非字面量,未知 id 回落 blue。
+// Equivalent of Vue2 SkillTile.vue:40's `COLORS[this.color] || COLORS.blue` —
+// looks up the token name instead of a literal; unknown ids fall back to blue.
 const bg = computed(() => {
   const id = (SKILL_COLOR_IDS as readonly string[]).includes(props.color) ? props.color : 'blue'
   return `var(--grad-sk-${id})`

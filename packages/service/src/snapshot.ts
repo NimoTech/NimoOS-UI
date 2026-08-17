@@ -1,8 +1,8 @@
 import type { AxiosInstance } from 'axios'
 import { unwrap } from './unwrap.js'
 
-// 字段以 Vue2 SnapshotPanel/snapshot.js 实际消费为准(supported/enabled/mount/last_at 等),
-// 其余走索引签名——后端 route/snapshot.go 的响应未做 openapi 定义。
+// Fields follow what Vue2 SnapshotPanel/snapshot.js actually consumes (supported/enabled/mount/last_at etc.);
+// everything else goes through the index signature — the backend route/snapshot.go response has no openapi definition.
 export interface SnapshotVolume {
   mount?: string
   volume_uuid?: string
@@ -34,8 +34,8 @@ export function createSnapshot(http: AxiosInstance) {
       const res = await http.get('/v2/snapshot/policy', { params: { volume_uuid: volumeUuid } })
       return unwrap<SnapshotPolicy>(res.data)
     },
-    // ⚠️ PUT /v2/snapshot/policy 是全量替换:发部分 body 会把没带的 keep 字段清零。
-    // 所有策略写操作必须走 patchPolicy(读-改-写),严禁在别处从零拼 PUT body。
+    // ⚠️ PUT /v2/snapshot/policy is a full replace: sending a partial body zeroes out any keep fields not included.
+    // All policy writes must go through patchPolicy (read-modify-write); never assemble a PUT body from scratch elsewhere.
     async updatePolicy(policy: SnapshotPolicy): Promise<unknown> {
       const res = await http.put('/v2/snapshot/policy', policy)
       return unwrap<unknown>(res.data)
@@ -51,12 +51,12 @@ export function createSnapshot(http: AxiosInstance) {
       const res = await http.post('/v2/snapshot', data)
       return unwrap<unknown>(res.data)
     },
-    // 快照名常含用户中文(如 20260712T101502Z_manual_改版前)——路径段必须编码。
+    // Snapshot names often contain user-entered Chinese (e.g. 20260712T101502Z_manual_改版前) — path segments must be encoded.
     async remove(name: string, volumeUuid: string): Promise<unknown> {
       const res = await http.delete(`/v2/snapshot/${encodeURIComponent(name)}`, { params: { volume_uuid: volumeUuid } })
       return unwrap<unknown>(res.data)
     },
-    // POST /v2/snapshot/restore 永不覆盖,目标名由后端定;path 相对卷根(非快照目录)。
+    // POST /v2/snapshot/restore never overwrites; the target name is chosen by the backend; path is relative to the volume root (not the snapshot dir).
     async restore(data: { volume_uuid: string; snapshot: string; path: string }): Promise<unknown> {
       const res = await http.post('/v2/snapshot/restore', data)
       return unwrap<unknown>(res.data)

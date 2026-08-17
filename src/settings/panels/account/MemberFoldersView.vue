@@ -1,13 +1,16 @@
 <script setup lang="ts">
-// 成员文件夹授权 —— 对位 Vue2 AccountPanel state 5(:849-901)+ loadMemberFolders/
-// openGrantFolder/submitGrantFolder/revokeFolder(:554-609)。
+// Member folder authorization — maps to Vue2 AccountPanel state 5 (:849-901) +
+// loadMemberFolders/openGrantFolder/submitGrantFolder/revokeFolder(:554-609).
 //
-// ⛔ 授权 = 写 user_folder_permissions 表(**upsert**:同 user+path 只改 permission)
-//    + 真 setfacl 改该目录 ACL(user.go:766-774);撤销 = 删表行 + setfacl -x(:806-816)。
-// ⚠️ **NimoOS core 启动时只读打开这张表做文件区权限判定**(顶层 CLAUDE.md)——
-//    授错会影响文件的可见性。
-// ⚠️ 用户 2026-08-01 拍板本期不在真机上点(债务 D28);本机零成员,这一屏在真机上
-//    进不去(要先建成员,而建成员本身也是不点的写操作)→ 全靠单测。
+// ⛔ Granting = writes the user_folder_permissions table (**upsert**: same user+path only
+//    changes the permission) + a real setfacl on that directory's ACL (user.go:766-774);
+//    revoking = deletes the table row + setfacl -x (:806-816).
+// ⚠️ **NimoOS core opens this table read-only at startup to decide file-area permissions**
+//    (top-level CLAUDE.md) — granting the wrong thing affects file visibility.
+// ⚠️ The user decided on 2026-08-01 not to click through this on real hardware this cycle
+//    (debt D28); this device has zero members, so this screen is unreachable on real hardware
+//    (you'd first have to create a member, and creating a member is itself a write op we're
+//    not clicking through) → relies entirely on unit tests.
 import { onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type MemberInfo, type UserFolderPermission } from '@nimotech/nimoos-service'
@@ -24,7 +27,8 @@ const folders = ref<UserFolderPermission[]>([])
 const loading = ref(false)
 const loadFailed = ref(false)
 
-// 就地代际守卫(plan C8)。有第二个触发点:授权成功、撤销成功都会重新取数。
+// In-place generation guard (plan C8). Has a second trigger point: successful grants and
+// successful revokes both refetch the data.
 let alive = true
 let seq = 0
 onUnmounted(() => {
@@ -41,7 +45,8 @@ async function loadFolders() {
     loadFailed.value = false
   } catch {
     if (!alive || mySeq !== seq) return
-    // 🔧 plan C14:Vue2 这里也把失败吞成空数组 → 显示「未授权任何文件夹」而不是报错。
+    // 🔧 plan C14: Vue2 also swallows the failure here into an empty array → shows
+    // "no folders granted" instead of an error.
     folders.value = []
     loadFailed.value = true
   } finally {
@@ -50,7 +55,7 @@ async function loadFolders() {
 }
 loadFolders()
 
-// ── 授权新文件夹(内联表单,Vue2 :855-872) ────────────────────────────
+// ── Grant a new folder (inline form, Vue2 :855-872) ────────────────────────────
 const showGrant = ref(false)
 const newPath = ref('')
 const newPermission = ref<'read' | 'write'>('read')
@@ -58,7 +63,7 @@ const grantError = ref('')
 const grantBusy = ref(false)
 
 function openGrant() {
-  // Vue2 openGrantFolder(:567-572) 每次打开都重置
+  // Vue2 openGrantFolder(:567-572) resets on every open
   newPath.value = ''
   newPermission.value = 'read'
   grantError.value = ''
@@ -68,14 +73,14 @@ function openGrant() {
 async function submitGrant() {
   if (grantBusy.value) return
   grantError.value = ''
-  const p = newPath.value.trim() // Vue2 :576 / :582 都 trim
+  const p = newPath.value.trim() // Vue2 :576 / :582 both trim
   if (!p) {
     grantError.value = t('settingsAccEnterFolderPath')
     return
   }
   grantBusy.value = true
   try {
-    // ⛔ 真写权限表 + setfacl —— 见文件头
+    // ⛔ Really writes the permissions table + setfacl — see the file header
     await service.users.grantMemberFolder(props.member.id, p, newPermission.value)
     showGrant.value = false
     await loadFolders()
@@ -88,16 +93,17 @@ async function submitGrant() {
   }
 }
 
-// ── 撤销授权(二次确认) ───────────────────────────────────────────────
-// ⚠️ 目标存非响应式变量、`@update:open` 只管可见性 —— reka 的 AlertDialogAction 在同一次
-// 点击里就发 update:open(false) 且可能先跑(同 MembersSection.vue 与 UploadPanel.vue 的教训)。
+// ── Revoke access (with confirmation) ───────────────────────────────────────────────
+// ⚠️ The target is stored in a non-reactive variable, and `@update:open` only handles
+// visibility — reka's AlertDialogAction fires update:open(false) within the same click
+// and may run first (same lesson as MembersSection.vue and UploadPanel.vue).
 const revokeOpen = ref(false)
 const revokeMessage = ref('')
 let revokeTarget: UserFolderPermission | null = null
 
 function askRevoke(perm: UserFolderPermission) {
   revokeTarget = perm
-  // Vue2 用 `<b>` 加粗路径;ui/AlertDialog 的 message 是纯文本 → 不加粗(已登记的微小差异)
+  // Vue2 bolds the path with `<b>`; ui/AlertDialog's message is plain text → not bolded (a logged minor difference)
   revokeMessage.value = `${t('settingsAccRevokePrefix')}${perm.path}?`
   revokeOpen.value = true
 }
@@ -107,7 +113,7 @@ async function confirmRevoke() {
   revokeOpen.value = false
   if (!perm) return
   try {
-    // perm_id 走 query string(共享包已封,见 users.ts 的注释)
+    // perm_id goes through the query string (already wrapped by the shared package, see the comment in users.ts)
     await service.users.revokeMemberFolder(props.member.id, perm.id)
     await loadFolders()
     toast.show(t('settingsAccAccessRevoked'))
@@ -119,7 +125,7 @@ async function confirmRevoke() {
 
 <template>
   <div class="set-perm">
-    <!-- Vue2 :850-852 的三段式说明:前缀 + 成员名 + 后缀 -->
+    <!-- Vue2 :850-852's three-part copy: prefix + member name + suffix -->
     <p class="set-perm-intro" data-test="acc-perm-intro">
       {{ t('settingsAccFoldersAccessiblePrefix') }}<b>{{ member.username }}</b>{{ t('settingsAccSystemDiskBlocked') }}
     </p>
@@ -166,7 +172,7 @@ async function confirmRevoke() {
             &nbsp;{{ formatMemberDate(perm.created_at) }}
           </p>
         </div>
-        <!-- 单色符号 + aria-label,理由同 MembersSection.vue -->
+        <!-- Monochrome glyph + aria-label, same rationale as MembersSection.vue -->
         <button
           class="set-btn" type="button" :aria-label="t('settingsAccRevoke')"
           data-test="acc-perm-revoke" @click="askRevoke(perm)"
@@ -174,7 +180,7 @@ async function confirmRevoke() {
           ✕
         </button>
       </div>
-      <!-- 🔧 plan C14:失败不再伪装成「未授权任何文件夹」 -->
+      <!-- 🔧 plan C14: failure no longer masquerades as "no folders granted" -->
       <p v-if="loadFailed" class="set-danger" data-test="acc-perm-load-error">
         {{ t('settingsAccFoldersLoadFailed') }}
       </p>

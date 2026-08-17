@@ -14,17 +14,17 @@ vi.mock('@nimotech/nimoos-service', () => ({
       getUserInfo: (...a: unknown[]) => getUserInfo(...a),
       changePassword: (...a: unknown[]) => changePassword(...a),
       saveAvatar: (...a: unknown[]) => saveAvatar(...a),
-      // admin 时会挂载真实 MembersSection,它一挂载就取成员列表
+      // Mounts the real MembersSection when admin — it fetches the member list as soon as it mounts
       getMembers: async () => [],
       createMember: async () => ({}),
       deleteUser: async () => undefined,
-      // state 5 会挂载真实 MemberFoldersView,它一挂载就取授权列表
+      // State 5 mounts the real MemberFoldersView — it fetches the permission list as soon as it mounts
       getMemberFolders: async () => [],
       grantMemberFolder: async () => ({}),
       revokeMemberFolder: async () => undefined,
       avatarPath: (v: number, t: string | null) => `/v1/users/avatar?${t ? `token=${t}&` : ''}v=${v}`,
     },
-    // state 6 会挂载真实的 NasImagePicker,它一挂载就取存储列表
+    // State 6 mounts the real NasImagePicker — it fetches the storage list as soon as it mounts
     storage: { list: async () => [] },
     raid: { list: async () => [] },
     folder: { getList: async () => ({ content: [] }) },
@@ -54,7 +54,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 let mountedWrappers: Array<{ unmount: () => void }> = []
 afterEach(() => {
   for (const w of mountedWrappers) {
-    try { w.unmount() } catch { /* 已 unmount 过 */ }
+    try { w.unmount() } catch { /* already unmounted */ }
   }
   mountedWrappers = []
 })
@@ -88,21 +88,21 @@ async function pickImage(w: ReturnType<typeof mountPanel>, name = 'a.png') {
   await input.trigger('change')
 }
 
-describe('AccountPanel 宿主状态机', () => {
-  it('挂载即取当前用户,用户名渲染进 OwnerCard', async () => {
+describe('AccountPanel host state machine', () => {
+  it('mounting immediately fetches the current user; username renders into OwnerCard', async () => {
     const w = mountPanel()
     await flush()
     expect(getUserInfo).toHaveBeenCalledTimes(1)
     expect(w.find('[data-test="acc-username"]').text()).toBe('nimoos')
   })
 
-  it('state 1 没有页脚(Vue2 footer v-if="state !== 1")', async () => {
+  it('state 1 has no footer (Vue2 footer v-if="state !== 1")', async () => {
     const w = mountPanel()
     await flush()
     expect(w.find('[data-test="acc-footer"]').exists()).toBe(false)
   })
 
-  it('点更改密码 → 进 state 3,页脚出现「返回」', async () => {
+  it('clicking change password → moves to state 3, footer shows "Back"', async () => {
     const w = mountPanel()
     await flush()
     await w.find('[data-test="acc-change-password"]').trigger('click')
@@ -111,7 +111,7 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-pwd-form"]').exists()).toBe(true)
   })
 
-  it('页脚「返回」从 state 3 回到 state 1', async () => {
+  it('the footer "Back" button returns from state 3 to state 1', async () => {
     const w = mountPanel()
     await flush()
     await w.find('[data-test="acc-change-password"]').trigger('click')
@@ -120,13 +120,13 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-username"]').exists()).toBe(true)
   })
 
-  it('admin 渲染成员区', async () => {
+  it('admin renders the members section', async () => {
     const w = mountPanel()
     await flush()
     expect(w.find('[data-test="acc-members"]').exists()).toBe(true)
   })
 
-  it('非 admin 不渲染成员区(Vue2 模板 v-if="isAdmin",:665)', async () => {
+  it('non-admin does not render the members section (Vue2 template v-if="isAdmin", :665)', async () => {
     getUserInfo.mockResolvedValue({ id: 2, username: 'bob', role: 'user' })
     const w = mountPanel()
     await flush()
@@ -134,7 +134,7 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-username"]').text()).toBe('bob')
   })
 
-  it('取用户信息失败时不炸,用户名回退空、成员区不渲染', async () => {
+  it('does not blow up when fetching user info fails; username falls back to empty, members section does not render', async () => {
     getUserInfo.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
     await flush()
@@ -142,14 +142,14 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-members"]').exists()).toBe(false)
   })
 
-  it('头像 URL 带 localStorage 里的 access_token 与版本号 1', async () => {
+  it('avatar URL includes the access_token from localStorage and version number 1', async () => {
     localStorage.setItem('access_token', 'TK')
     const w = mountPanel()
     await flush()
     expect(w.find('[data-test="acc-avatar-img"]').attributes('src')).toBe('/v1/users/avatar?token=TK&v=1')
   })
 
-  it('选了本地图片 → 进 state 4(裁剪),并把 objectURL 传给裁剪器', async () => {
+  it('picking a local image → enters state 4 (cropping), and passes the objectURL to the cropper', async () => {
     const spy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:one')
     const w = mountPanel()
     await flush()
@@ -159,20 +159,20 @@ describe('AccountPanel 宿主状态机', () => {
     spy.mockRestore()
   })
 
-  it('换第二张图前会 revoke 第一张的 objectURL(plan C12:Vue2 这里会漏)', async () => {
+  it('revokes the first objectURL before switching to a second image (plan C12: Vue2 leaks this)', async () => {
     let n = 0
     const create = vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:${++n}`)
     const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const w = mountPanel()
     await flush()
     await pickImage(w)
-    await w.find('[data-test="acc-back"]').trigger('click') // 回 state 1 才能再打开菜单
+    await w.find('[data-test="acc-back"]').trigger('click') // must return to state 1 before the menu can be reopened
     await pickImage(w)
     expect(revoke).toHaveBeenCalledWith('blob:1')
     create.mockRestore(); revoke.mockRestore()
   })
 
-  it('从 state 4 返回 state 1 时就释放 objectURL(Vue2 goto(1) 的清理)', async () => {
+  it('releases the objectURL when returning from state 4 to state 1 (Vue2 goto(1) cleanup)', async () => {
     const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:back')
     const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const w = mountPanel()
@@ -183,7 +183,7 @@ describe('AccountPanel 宿主状态机', () => {
     create.mockRestore(); revoke.mockRestore()
   })
 
-  it('卸载时 revoke 未释放的 objectURL', async () => {
+  it('revokes any un-released objectURL on unmount', async () => {
     const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:z')
     const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const w = mountPanel()
@@ -194,7 +194,7 @@ describe('AccountPanel 宿主状态机', () => {
     create.mockRestore(); revoke.mockRestore()
   })
 
-  it('选了非图片文件 → 面板级 toast 提示,不进裁剪(B5:读 useToast().msg)', async () => {
+  it('picking a non-image file → shows a panel-level toast, does not enter cropping (B5: reads useToast().msg)', async () => {
     const { useToast } = await import('../../stores/toast')
     const w = mountPanel()
     await flush()
@@ -206,7 +206,7 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-cropper"]').exists()).toBe(false)
   })
 
-  it('点「从NAS选择」→ 进 state 6', async () => {
+  it('clicking "Choose from NAS" → enters state 6', async () => {
     const w = mountPanel()
     await flush()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
@@ -214,8 +214,8 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-nas-picker"]').exists()).toBe(true)
   })
 
-  it('点成员行的「设置」→ 进 state 5;返回时清掉 activeMember(Vue2 :909)', async () => {
-    // 成员区自己取数,这里让它返回一行以便点「设置」
+  it('clicking "Settings" on a member row → enters state 5; returning clears activeMember (Vue2 :909)', async () => {
+    // The members section fetches its own data; here we make it return a row so we can click "Settings"
     const w = mountPanel()
     await flush()
     w.findComponent({ name: 'MembersSection' }).vm.$emit('open-member', {
@@ -229,24 +229,24 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-username"]').exists()).toBe(true)
   })
 
-  it('state 6 浏览视图下点「返回」只回存储卡网格,不回 state 1(Vue2 :909)', async () => {
+  it('clicking "Back" in the state 6 browse view only returns to the storage card grid, not to state 1 (Vue2 :909)', async () => {
     const w = mountPanel()
     await flush()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     await w.find('[data-test="acc-nas"]').trigger('click')
     await flush()
-    // 本机零额外分区时至少有 /DATA 一张卡 → 点进去进浏览视图
+    // With zero extra partitions on this machine there is at least one /DATA card → clicking it enters the browse view
     await w.findAll('[data-test="nas-storage"]')[0].trigger('click')
     await flush()
     expect(w.find('[data-test="nas-crumbs"]').exists()).toBe(true)
     await w.find('[data-test="acc-back"]').trigger('click')
     await flush()
-    // 仍在 state 6,只是回到了卡片网格
+    // still in state 6, just back to the card grid
     expect(w.find('[data-test="acc-nas-picker"]').exists()).toBe(true)
     expect(w.find('[data-test="nas-crumbs"]').exists()).toBe(false)
   })
 
-  it('state 6 存储卡网格下点「返回」回 state 1', async () => {
+  it('clicking "Back" in the state 6 storage card grid returns to state 1', async () => {
     const w = mountPanel()
     await flush()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
@@ -258,14 +258,14 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-username"]').exists()).toBe(true)
   })
 
-  it('从 NAS 选中图片 → 进 state 4,src 是 /v1/image URL 且不产生 objectURL', async () => {
+  it('picking an image from NAS → enters state 4, src is a /v1/image URL and produces no objectURL', async () => {
     const create = vi.spyOn(URL, 'createObjectURL')
     const w = mountPanel()
     await flush()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     await w.find('[data-test="acc-nas"]').trigger('click')
     await flush()
-    // 直接用子组件的 pick 事件(真实点击路径已在 NasImagePicker.test.ts 覆盖)
+    // Use the child component's pick event directly (the real click path is covered in NasImagePicker.test.ts)
     w.findComponent({ name: 'NasImagePicker' }).vm.$emit('pick', {
       path: '/DATA/a.png',
       src: '/v1/image?path=%2FDATA%2Fa.png&type=original',
@@ -276,7 +276,7 @@ describe('AccountPanel 宿主状态机', () => {
     create.mockRestore()
   })
 
-  it('退出账户:清会话 + 跳登录页', async () => {
+  it('logging out: clears the session + navigates to the login page', async () => {
     const w = mountPanel()
     await flush()
     await w.find('[data-test="acc-logout"]').trigger('click')
@@ -284,7 +284,7 @@ describe('AccountPanel 宿主状态机', () => {
     expect(push).toHaveBeenCalledWith('/login')
   })
 
-  it('state 3 提交成功 → 回 state 1 并弹面板级成功 toast', async () => {
+  it('state 3 submits successfully → returns to state 1 and shows a panel-level success toast', async () => {
     const { useToast } = await import('../../stores/toast')
     const w = mountPanel()
     await flush()
@@ -299,7 +299,7 @@ describe('AccountPanel 宿主状态机', () => {
     expect(useToast().msg).toBe(zh.settingsAccUpdateOk)
   })
 
-  it('state 3 提交失败 → 留在 state 3(错误由表单内联显示,不弹 toast)', async () => {
+  it('state 3 submission fails → stays on state 3 (error shown inline in the form, no toast)', async () => {
     const { useToast } = await import('../../stores/toast')
     changePassword.mockImplementation(async () => { throw new Error('boom') })
     const w = mountPanel()
@@ -315,7 +315,7 @@ describe('AccountPanel 宿主状态机', () => {
     expect(useToast().msg).toBe('')
   })
 
-  it('state 3 校验不过时不发请求、不回 state 1', async () => {
+  it('state 3 does not send a request or return to state 1 when validation fails', async () => {
     const w = mountPanel()
     await flush()
     await w.find('[data-test="acc-change-password"]').trigger('click')
@@ -325,7 +325,7 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-pwd-form"]').exists()).toBe(true)
   })
 
-  it('state 1 与 state 6 没有 Submit 按钮(Vue2 :911-912 只 state 3/4 有)', async () => {
+  it('state 1 and state 6 have no Submit button (Vue2 :911-912 only state 3/4 have it)', async () => {
     const w = mountPanel()
     await flush()
     expect(w.find('[data-test="acc-submit"]').exists()).toBe(false)
@@ -335,13 +335,13 @@ describe('AccountPanel 宿主状态机', () => {
     expect(w.find('[data-test="acc-back"]').exists()).toBe(true)
   })
 
-  it('头像上传成功 → 回 state 1、头像 URL 的 v 递增(击穿缓存)', async () => {
+  it('avatar upload succeeds → returns to state 1, the avatar URL v increments (busts the cache)', async () => {
     const spy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:av')
     const w = mountPanel()
     await flush()
     expect(w.find('[data-test="acc-avatar-img"]').attributes('src')).toBe('/v1/users/avatar?v=1')
     await pickImage(w)
-    // 触发裁剪器的 change,让它拿到 canvas
+    // trigger the cropper's change event so it gets the canvas
     w.findComponent({ name: 'Cropper' }).vm.$emit('change', {
       coordinates: {}, image: {}, canvas: { toDataURL: () => 'data:image/png;base64,A' },
     })
@@ -353,7 +353,7 @@ describe('AccountPanel 宿主状态机', () => {
     spy.mockRestore()
   })
 
-  it('头像上传失败 → 留在 state 4,版本号不递增', async () => {
+  it('avatar upload fails → stays on state 4, version number does not increment', async () => {
     const spy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:av')
     saveAvatar.mockImplementation(async () => { throw new Error('nope') })
     const w = mountPanel()
@@ -370,9 +370,11 @@ describe('AccountPanel 宿主状态机', () => {
     spy.mockRestore()
   })
 
-  // ⚠️ 这里**故意没有**「取数在途时卸载不回写」的用例。本组件的 `alive` 守卫留着是对的
-  // (卸载后不该再动 ref),但它在 jsdom 下**无法被任何断言区分** —— 变异验证实测:把两处
-  // `if (!alive) return` 全删掉,16 例照样是同样的结果。原因是本组件只在挂载时取一次数、
-  // **没有第二个触发点**,卸载后写 ref 既不抛错也不产生可见效果。
-  // 处置同 P3 StoragePanel 的先例:守卫 + 注释保留,不留空转用例(plan C8 / B3)。
+  // ⚠️ This deliberately has **no** test case for "unmount while a fetch is in flight doesn't write back".
+  // Keeping this component's `alive` guard is correct (a ref should not be touched after unmount), but it
+  // **cannot be distinguished by any assertion** under jsdom — mutation testing confirmed this: deleting both
+  // `if (!alive) return` checks entirely, all 16 cases still produce the same result. The reason is this
+  // component only fetches data once, at mount time — **there's no second trigger point** — so writing to
+  // the ref after unmount neither throws nor produces any visible effect.
+  // Handled the same as the P3 StoragePanel precedent: keep the guard + comment, don't add a no-op test case just to have one (plan C8 / B3).
 })

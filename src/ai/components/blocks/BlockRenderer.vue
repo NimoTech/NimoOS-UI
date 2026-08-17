@@ -1,8 +1,8 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/blocks/BlockRenderer.vue —— 全量 BLOCK_MAP
-  (SP8-P1b Task 8:恢复 P1a 里被压成"只有 md"的降级态,补齐全部 20 个分发类型)。
-  terminal/semantic_search 指向 Task 8 建的 stub(Task 9 补真身),其余 17 个是本任务
-  1:1 移植的真实渲染器。未映射的 block.type 仍走灰色降级 chip(P1a 行为保留)。
+  1:1 ported from Vue2 src/views/AI/Agent/blocks/BlockRenderer.vue — full BLOCK_MAP
+  (SP8-P1b Task 8: restore the degraded state from P1a where only "md" remained, complete all 20 dispatch types).
+  terminal/semantic_search point to stubs created in Task 8 (Task 9 adds the real implementations), the remaining 17 are genuinely ported
+  from this task. Unmapped block.type still uses gray degradation chip (P1a behavior retained).
 -->
 <script setup lang="ts">
 import { computed, type Component } from 'vue'

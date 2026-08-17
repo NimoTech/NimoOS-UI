@@ -31,7 +31,7 @@ onMounted(async () => {
 <template>
   <ViewerShell :title="props.item.name" downloadable @close="emit('close')" @download="emit('download', props.item)">
     <div class="md-scroll">
-      <!-- 只读渲染:renderMarkdown 已 html:false 过滤内嵌 HTML,v-html 安全 -->
+      <!-- Read-only rendering: renderMarkdown filters embedded HTML with html:false, so v-html is safe -->
       <article class="md-body" v-html="html"></article>
     </div>
   </ViewerShell>

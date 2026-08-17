@@ -1,48 +1,51 @@
-// SP8-P5e Task 3 —— 1:1 移植自 Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/searchAggregate.js`(79 行,逐字节相同,
-// 已由 P5c §4.4 的比对流程复核过 —— 仅注释中→英,无功能差异)。
+// SP8-P5e Task 3 — 1:1 port from Vue2
+// `NimoOS-UI`(main@7a6ee6b7) `src/views/AI/Knowledge/searchAggregate.js`(79 lines,
+// byte-identical, verified by P5c §4.4 comparison process — comment Chinese→English only,
+// zero functional change).
 //
-// 落点 = `util/` 而不是 `services/`:蓝本文件头注释原文
+// Location = `util/` not `services/`: blueprint file header comment original text
 // "Kept framework-free so it is unit-testable without mounting a component."
-// 与 `notesViewHelpers.ts` / `indexedFilesView.ts` 同族(纯函数,`services/` 放
-// `openInApp.ts` 那种副作用函数)。
+// Same family as `notesViewHelpers.ts` / `indexedFilesView.ts` (pure functions;
+// `services/` holds side-effect functions like `openInApp.ts`).
 //
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K48 —— highlight / fmtMtime / relLevel / relLabel 从两份复制粘贴的蓝本拷贝
-// (`SearchView.vue:317-345` 与 `FileDetailDrawer.vue:199-217`)去重抽进本文件,
-// 两个组件(T5/T6-T7)都从这里 import,不在各自文件里各写一份。
-// 等价性已由 T0 程序化证明(`p5e-fixtures/scripts/k48-equiv.mjs`,`p5e-task-0-report.md`
-// §9 DoD-9):534 次比对(highlight 16×29=464 组 + relLevel/relLabel 27 输入×2 +
-// fmtMtime 16 输入),**0 处不等价**。A 侧用 `if` 链、B 侧用三元,数值同一
-// (A 用 `0.50`、B 用 `0.5`)——纯写法差异,已去重零行为变化。
-// `relLabel` 不在组件 setup 上下文里 → 用 `i18n.global.t(...)`,不许 `useI18n()`
-// (会抛)。先例 `notesViewHelpers.ts` 的 `relativeTime`。
+// 🔴 K48 — highlight / fmtMtime / relLevel / relLabel deduplicated from two
+// copy-pasted blueprint copies (`SearchView.vue:317-345` and `FileDetailDrawer.vue:199-217`)
+// into this file, imported by both components (T5/T6-T7), not written separately in each.
+// Equivalence programmatically proven by T0 (`p5e-fixtures/scripts/k48-equiv.mjs`,
+// `p5e-task-0-report.md` §9 DoD-9): 534 comparisons (highlight 16×29=464 + relLevel/relLabel
+// 27 inputs×2 + fmtMtime 16 inputs), **0 non-equivalent**. Side A uses `if` chain, B uses
+// ternary, numeric values identical (A uses `0.50`, B uses `0.5`) — pure syntax difference,
+// deduplicated zero behavior change. `relLabel` not in component setup context → use
+// `i18n.global.t(...)`, not `useI18n()` (throws). Precedent: `notesViewHelpers.ts`
+// `relativeTime`.
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// 🔴 K49 —— 本期唯一的 XSS 面:`highlight()` 供三处 `v-html`
-// (`SearchView.vue` 的 `.k-rcard-snippet` / `.k-chunk-item-preview`,
-// `FileDetailDrawer.vue` 的 `.k-chunk-content`)消费。它必须先转义
-// `& < > "` 再插入 `<mark>`——本文件的实现严格保留这个顺序,删掉 `esc` 那一步
-// 会让 `<script>`/`onerror=` 之类的原文直接进 DOM。见本文件 K49 相关测试组的
-// RED 探针(报告里贴两段输出 + `md5sum` 还原确认)。
+// 🔴 K49 — only XSS surface this period: `highlight()` consumed by three `v-html`
+// sites (`SearchView.vue` `.k-rcard-snippet` / `.k-chunk-item-preview`,
+// `FileDetailDrawer.vue` `.k-chunk-content`). Must escape `& < > "` first,
+// then insert `<mark>` — this file's implementation strictly preserves order;
+// removing `esc` step lets `<script>`/`onerror=` etc go straight to DOM.
+// See K49-related test group RED probes in this file (report shows both outputs +
+// `md5sum` restore confirmation).
 //
-// 🔴 K41(零 any)—— 共享包 `service.ai.searchText` / `searchChunk`
-// (`@nimotech/nimoos-service` `src/ai.ts:579,584`)都返回 `Promise<unknown>`。
-// 本文件不改包,而是在这里声明后端原始 snake_case 的窄类型
+// 🔴 K41 (zero any) — shared package `service.ai.searchText` / `searchChunk`
+// (`@nimotech/nimoos-service` `src/ai.ts:579,584`) both return `Promise<unknown>`.
+// This file doesn't modify package, instead declares backend raw snake_case narrow types
 // (`SearchTextResponseRaw` / `FileGroupRaw` / `ChunkHitRaw` / `CiteRaw` /
-// `PreviewRaw` / `PathRaw`),字段依据逐个引 `NimoOS-Search/service/search.go`:
-//   - `Cite`(`:46-53`):`chunk_no` 是 `int`(恒存在,`0` 合法)、`page` 是
-//     `*int` 且无 `omitempty`(恒存在,空值是 `null`)。
-//   - `SearchResponse`(`:68-73`)与分组组装(`:263-290`):`files` 带
-//     `omitempty`(可能整键缺失),`hits` 恒存在。
-//   - `preview.text`(`:55-58`,`:339-347`):`*string` 且无 `omitempty`
-//     (恒存在,空串会被 `stringOrNilFromAny` 变成 `null`)。
-// 消费侧(T6/T7 的 `SearchView.vue`)在拿到 `store.runSearch(...)` 的
-// `unknown` 结果后,一次性 `as SearchTextResponseRaw` 收窄再传进
-// `toFileResults`——这是类型层动作,零运行时行为,与 K41 在 P5d 的落法同源。
+// `PreviewRaw` / `PathRaw`), field basis from `NimoOS-Search/service/search.go`:
+//   - `Cite` (`:46-53`): `chunk_no` is `int` (always exists, `0` valid), `page` is
+//     `*int` no `omitempty` (always exists, null value is `null`).
+//   - `SearchResponse` (`:68-73`) and group assembly (`:263-290`): `files` has
+//     `omitempty` (entire key may missing), `hits` always exists.
+//   - `preview.text` (`:55-58`, `:339-347`): `*string` no `omitempty`
+//     (always exists, empty string becomes `null` via `stringOrNilFromAny`).
+// Consumer side (T6/T7 `SearchView.vue`) after getting `store.runSearch(...)` `unknown`
+// result, one-time `as SearchTextResponseRaw` narrow then pass to `toFileResults` —
+// type-layer action, zero runtime behavior, same approach as K41 in P5d.
 import { i18n } from '../../../i18n'
 
-// ─── K41:后端原始响应体的窄类型(snake_case,字段依据见上方文件头注释) ───
+// ─── K41: narrow types for the backend's raw response body (snake_case, field basis in the file header comment above) ───
 
 export interface CiteRaw {
   chunk_no: number
@@ -90,17 +93,20 @@ export interface SearchTextResponseRaw {
   warnings?: string[]
 }
 
-// ─── 蓝本 :5-17 —— kindFromMime / basename / dirname ───
+// ─── Blueprint :5-17 — kindFromMime / basename / dirname ───
 
 /**
- * 蓝本 :5-12。逐字照抄分支顺序,不许「顺手」调整。
- * `includes('pdf')` 排在最前 → 广义子串匹配会把 `text/markdown+docling/pdf` 这类
- * docling 变体也判成 `pdf`(而不是 `md`)—— 这是真实行为,已有用例钉住(见测试文件)。
- * 🔴 **订正**:`=== 'text/markdown'` 是精确相等,与任何 `includes()` 子串分支结构上互斥
- * (`'text/markdown'` 本身不含 `'pdf'`/`'docx'`/`'plain'` 等子串)——调换它与 `includes('pdf')`
- * 的相对顺序**不会**改变任何输入的结果。真正顺序敏感的是**两个 `includes()` 子串分支之间**
- * (例如 `includes('pdf')` 与 `includes('plain')` 同时命中时,先到先得),测试文件里有
- * 独立探针钉住这一点,并登记了对上游 brief 措辞的订正。
+ * Blueprint :5-12. Branch order copied verbatim, no "convenient" reordering allowed.
+ * `includes('pdf')` comes first → the broad substring match also classifies docling variants
+ * like `text/markdown+docling/pdf` as `pdf` (instead of `md`) — this is real behavior, already
+ * pinned by an existing test case (see the test file).
+ * 🔴 **Correction**: `=== 'text/markdown'` is an exact equality check, structurally mutually
+ * exclusive with any `includes()` substring branch (`'text/markdown'` itself contains no
+ * `'pdf'`/`'docx'`/`'plain'` substring) — swapping its relative order with `includes('pdf')`
+ * **doesn't** change the result for any input. What's actually order-sensitive is **between the
+ * two `includes()` substring branches** (e.g. when `includes('pdf')` and `includes('plain')`
+ * both match, first one wins) — the test file has an independent probe pinning this, and
+ * registers a correction to the upstream brief's wording.
  */
 export function kindFromMime(mime: string | null | undefined): string {
   if (!mime) return 'doc'
@@ -112,15 +118,15 @@ export function kindFromMime(mime: string | null | undefined): string {
   return 'doc'
 }
 
-/** 蓝本 :14-17。 */
+/** Blueprint :14-17. */
 export function basename(p: string | null | undefined): string {
   if (!p) return ''
   return p.split('/').filter(Boolean).pop() || p
 }
 
 /**
- * 蓝本 :19-23。🔴 `dirname('/a/b.md')` = `'/a/'`(带尾斜杠),
- * `dirname('b.md')` = `'/'`(无路径段时仍返回单个斜杠)。
+ * Blueprint :19-23. 🔴 `dirname('/a/b.md')` = `'/a/'` (with trailing slash),
+ * `dirname('b.md')` = `'/'` (still returns a single slash when there's no path segment).
  */
 export function dirname(p: string | null | undefined): string {
   if (!p) return ''
@@ -129,7 +135,7 @@ export function dirname(p: string | null | undefined): string {
   return '/' + parts.join('/') + (parts.length ? '/' : '')
 }
 
-// ─── 蓝本 :25-36 —— chunkVM(私有,蓝本自己也不导出) ───
+// ─── Blueprint :25-36 — chunkVM (private, the blueprint itself doesn't export it either) ───
 
 export interface ChunkVM {
   id: string
@@ -141,10 +147,11 @@ export interface ChunkVM {
 }
 
 /**
- * 蓝本 :25-36。🔴 `cite` 缺失时兜底 `{}`;`chunk_no` 用 `typeof … === 'number'`
- * 判断(非数字/缺失都兜 `0`);`page` 用 `!= null` 判断(**`0` 是合法页号,
- * 必须原样保留**,不能被当假值兜掉);`id` 拼法 `${fileId}:${kind}:${chunkNo}`
- * 逐字——它是 `FileDetailDrawer` 里 `activeId` 的比对键(T5 消费)。
+ * Blueprint :25-36. 🔴 `cite` falls back to `{}` when missing; `chunk_no` is checked with
+ * `typeof … === 'number'` (non-numeric/missing both fall back to `0`); `page` is checked with
+ * `!= null` (**`0` is a valid page number and must be preserved as-is**, must not be treated
+ * as falsy and defaulted away); the `id` format `${fileId}:${kind}:${chunkNo}` is verbatim —
+ * it's the comparison key for `activeId` in `FileDetailDrawer` (consumed by T5).
  */
 function chunkVM(fileId: string, c: ChunkHitRaw): ChunkVM {
   const cite: Partial<CiteRaw> = c.cite || {}
@@ -160,7 +167,7 @@ function chunkVM(fileId: string, c: ChunkHitRaw): ChunkVM {
   }
 }
 
-// ─── 蓝本 :38-49 —— fileVM(私有) ───
+// ─── Blueprint :38-49 — fileVM (private) ───
 
 export interface FileVM {
   id: string
@@ -175,8 +182,9 @@ export interface FileVM {
 }
 
 /**
- * 蓝本 :38-49。`name` 落空时兜 `i18n.t('(Untitled)')`——本仓对应键
- * `aiKbSrUntitled`(T1 已落地,zh_cn.ts/en_us.ts 均有,见 §7)。
+ * Blueprint :38-49. When `name` comes out empty, fall back to `i18n.t('(Untitled)')` — the
+ * corresponding key in this repo is `aiKbSrUntitled` (already landed by T1, present in both
+ * zh_cn.ts/en_us.ts, see §7).
  */
 function fileVM(group: FileGroupRaw): FileVM {
   const fullPath = (group.paths && group.paths[0] && group.paths[0].path) || ''
@@ -194,13 +202,13 @@ function fileVM(group: FileGroupRaw): FileVM {
   }
 }
 
-// ─── 蓝本 :51-62 —— groupHits(私有) ───
+// ─── Blueprint :51-62 — groupHits (private) ───
 
 /**
- * 蓝本 :51-62(注释原文 "Group flat chunk hits by file_id, preserving the
- * response's score order.")。🔴 **保序**:`order` 数组只记录 `file_id`
- * 首次出现的顺序,不对 `score` 重新排序;`score` 取**第一个**命中该
- * `file_id` 的 chunk 的 `score`(N45 三件事之一)。
+ * Blueprint :51-62 (original comment "Group flat chunk hits by file_id, preserving the
+ * response's score order."). 🔴 **Order preservation**: the `order` array only records the
+ * order `file_id` first appears in, it doesn't re-sort by `score`; `score` takes the `score`
+ * of the **first** chunk that hits that `file_id` (one of N45's three things).
  */
 function groupHits(hits: ChunkHitRaw[]): FileGroupRaw[] {
   const order: string[] = []
@@ -215,12 +223,12 @@ function groupHits(hits: ChunkHitRaw[]): FileGroupRaw[] {
   return order.map((id) => byId[id])
 }
 
-// ─── 蓝本 :64-72 —— toFileResults ───
+// ─── Blueprint :64-72 — toFileResults ───
 
 /**
- * 蓝本 :64-72。🔴 N45:`resp.files` 存在且非空则优先使用,否则兜底
- * `groupHits(resp.hits || [])`——两条分支都要有独立用例(`files` 缺席 vs
- * `files` 存在但为空数组 vs `hits` 兜底)。
+ * Blueprint :64-72. 🔴 N45: if `resp.files` exists and is non-empty, prefer it, otherwise fall
+ * back to `groupHits(resp.hits || [])` — both branches need their own independent test cases
+ * (`files` missing vs `files` present but an empty array vs the `hits` fallback).
  */
 export function toFileResults(resp: SearchTextResponseRaw | null | undefined): FileVM[] {
   if (!resp) return []
@@ -228,14 +236,14 @@ export function toFileResults(resp: SearchTextResponseRaw | null | undefined): F
   return groups.map(fileVM)
 }
 
-// ─── 蓝本 :74-76 —— chunkCount ───
+// ─── Blueprint :74-76 — chunkCount ───
 
-/** 蓝本 :74-76。 */
+/** Blueprint :74-76. */
 export function chunkCount(results: FileVM[]): number {
   return results.reduce((s, r) => s + r.chunks.length, 0)
 }
 
-// ─── K48 —— highlight / fmtMtime / relLevel / relLabel(见文件头 K48 说明) ───
+// ─── K48 — highlight / fmtMtime / relLevel / relLabel (see the K48 note in the file header) ───
 
 const HTML_ESCAPE_MAP: Record<string, string> = {
   '&': '&amp;',
@@ -245,12 +253,12 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
 }
 
 /**
- * 蓝本 `SearchView.vue:333-343` / `FileDetailDrawer.vue:205-215`(两份逐字相同,
- * K48 已去重,等价性见文件头证明)。
- * 🔴 K49:**先 escape `& < > "`,再把匹配到的词包进 `<mark>`**——顺序不可颠倒。
- * 空 query(trim 后为空、或全是空白)原样返回 escape 后的文本;正则元字符会先
- * 被 `\\$&` 转义再拼进 `RegExp`,不会抛异常(`.`/`*`/`+`/`?`/`^`/`$`/`{}`/`()`/
- * `|`/`[]`/`\` 全部转义)。
+ * Blueprint `SearchView.vue:333-343` / `FileDetailDrawer.vue:205-215` (the two copies were
+ * verbatim identical, deduplicated by K48, see the proof of equivalence in the file header).
+ * 🔴 K49: **escape `& < > "` first, then wrap matched terms in `<mark>`** — the order can't be
+ * reversed. An empty query (empty after trim, or all whitespace) returns the escaped text as-is;
+ * regex metacharacters are escaped with `\\$&` before being spliced into `RegExp`, so it won't
+ * throw (`.`/`*`/`+`/`?`/`^`/`$`/`{}`/`()`/`|`/`[]`/`\` are all escaped).
  */
 export function highlight(text: string | null | undefined, query: string | null | undefined): string {
   if (!text) return ''
@@ -266,12 +274,14 @@ export function highlight(text: string | null | undefined, query: string | null 
 }
 
 /**
- * 蓝本 `SearchView.vue:344-347` / `FileDetailDrawer.vue:201-204`(逐字相同)。
- * 🔴 `mtimeMs` 是**毫秒**(蓝本字段名 `mtime_ms`,`new Date(ms)` 直接消费)——
- * 与 P5d 的 `relativeTime(unixSec)` 是**秒**完全相反,喂错单位会静默产出 1970 年。
- * 🔴 输出是手工 `getFullYear/getMonth/getDate` 拼串,不是 `toLocaleDateString`
- * ——`getMonth()` 是**本地时区** getter,同一毫秒在不同 TZ 下日期可能差一天,
- * 测试侧必须用「同式比对」而不是裸钉死字符串(见 `searchAggregate.test.ts`)。
+ * Blueprint `SearchView.vue:344-347` / `FileDetailDrawer.vue:201-204` (verbatim identical).
+ * 🔴 `mtimeMs` is in **milliseconds** (blueprint field name `mtime_ms`, consumed directly by
+ * `new Date(ms)`) — the exact opposite of P5d's `relativeTime(unixSec)`, which is in **seconds**;
+ * feeding the wrong unit silently produces the year 1970.
+ * 🔴 The output is manually concatenated from `getFullYear/getMonth/getDate`, not
+ * `toLocaleDateString` — `getMonth()` is a **local-timezone** getter, so the same millisecond
+ * can produce a date that's off by a day under different TZs; the test side must use "same-
+ * formula comparison" rather than a bare hard-coded string (see `searchAggregate.test.ts`).
  */
 export function fmtMtime(ms: number | null | undefined): string {
   if (!ms) return '—'
@@ -282,9 +292,9 @@ export function fmtMtime(ms: number | null | undefined): string {
 export type RelLevel = 'high' | 'mid' | 'low'
 
 /**
- * 蓝本 `SearchView.vue:317-321`(if 链)/ `FileDetailDrawer.vue:199`(三元)——
- * K48 等价性证明已确认两种写法数值同一(`0.50` 与 `0.5`)。三档:
- * `>= 0.65` high,`>= 0.50` mid,其余 low。
+ * Blueprint `SearchView.vue:317-321` (if chain) / `FileDetailDrawer.vue:199` (ternary) —
+ * K48's equivalence proof already confirmed the two forms use the same numeric values
+ * (`0.50` vs `0.5`). Three tiers: `>= 0.65` high, `>= 0.50` mid, otherwise low.
  */
 export function relLevel(s: number): RelLevel {
   if (s >= 0.65) return 'high'
@@ -293,11 +303,11 @@ export function relLevel(s: number): RelLevel {
 }
 
 /**
- * 蓝本 `SearchView.vue:322-326` / `FileDetailDrawer.vue:200`(逐字/等价拷贝,
- * K48 去重)。🔴 三个键是 T1 已落地的 `aiKbSrRelHigh` / `aiKbSrRelMid` /
- * `aiKbSrRelLow`(zh_cn.ts:1946-1948、en_us.ts:1925-1927)——不是通用的
- * `High`/`Mid`/`Low`,选错键会在 `SearchView`/`FileDetailDrawer` 两处同时
- * 静默错。不在组件 setup 上下文 → 用 `i18n.global.t`,不用 `useI18n()`。
+ * Blueprint `SearchView.vue:322-326` / `FileDetailDrawer.vue:200` (verbatim/equivalent copy,
+ * deduplicated by K48). 🔴 The three keys are `aiKbSrRelHigh` / `aiKbSrRelMid` / `aiKbSrRelLow`,
+ * already landed by T1 (zh_cn.ts:1946-1948, en_us.ts:1925-1927) — not the generic `High`/
+ * `Mid`/`Low`; picking the wrong key would silently break both `SearchView`/`FileDetailDrawer`
+ * at once. Not inside a component setup context → use `i18n.global.t`, not `useI18n()`.
  */
 export function relLabel(s: number): string {
   if (s >= 0.65) return i18n.global.t('aiKbSrRelHigh')

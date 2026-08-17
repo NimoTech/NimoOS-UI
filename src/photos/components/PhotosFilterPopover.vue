@@ -1,51 +1,55 @@
 <script setup lang="ts">
-// SP7-P7a-T12: PhotosFilterPopover.vue —— 列表型筛选弹层基元(D14 两个基元之一)。
-// 结构对应 Vue2 PhotosSearchView.vue:124-147 的 list popover。与 PhotosFilterBar.vue:25-63
-// 逐字比对(完整结论详见 task-12-report.md,fix round 1 · M9 已改正措辞——此前写"唯一
-// 实质差异",不准确):真实数值差异有两处——① 滚动容器 max-height:搜索侧 280px、
-// FilterBar 侧 260px,以搜索侧为准,本组件写死 280(260 的差异登记交给 P7b/T16 决定要不
-// 要开 prop);② `.fpop` 内联宽度:搜索侧 260、FilterBar 侧 240——这一处已经由本组件的
-// `width` prop 吸收(brief 接口段本就给了这两个数),不构成功能差异,只是不该被"唯一"
-// 这个词盖过去。其余表面不同(空态文案来源两条硬编码 vs 单一来源、type 专属的 $t(it)
-// 转换 vs 直传、cancelPop 参数)在 New-UI 接口层已经用 emptyHint / labelFor 两个 prop
-// 统一抹平,不属于结构差异。
+// SP7-P7a-T12: PhotosFilterPopover.vue — list-style filter popover primitive (one of D14's two primitives).
+// Structurally matches Vue2 PhotosSearchView.vue:124-147's list popover. Compared line-for-line against
+// PhotosFilterBar.vue:25-63 (full conclusion in task-12-report.md — fix round 1 · M9 corrected the wording; it
+// previously said "the only substantive difference", which wasn't accurate): there are actually two real value
+// differences — ① the scroll container's max-height: 280px on the search side, 260px on the FilterBar side, this
+// component follows the search side and hardcodes 280 (the 260 discrepancy is logged as "hand off to P7b/T16" to
+// decide whether to add a prop); ② the `.fpop` inline width: 260 on the search side, 240 on the FilterBar side — this
+// one is already absorbed by this component's `width` prop (the brief's interface section already gave both numbers),
+// so it isn't a functional difference, it just shouldn't be overshadowed by that word "only". The remaining surface
+// differences (two hardcoded strings for the empty-state copy vs. a single source, the type-specific $t(it) conversion
+// vs. passing it straight through, the cancelPop argument) are already flattened at New-UI's interface layer with the
+// emptyHint / labelFor props, and aren't structural differences.
 //
-// props.selected 不许就地改——toggle() 一律 emit 新数组(照搬 Vue2 toggleDraftItem
-// :741-747 的不可变写法,immer 式 `{ ...draft, [key]: ... }`,这里数组版是
-// filter/展开字面量),测试钉住"传入数组的引用内容不被 push/splice"。
+// props.selected must never be mutated in place — toggle() always emits a new array (porting Vue2 toggleDraftItem's
+// (:741-747) immutable style, immer-style `{ ...draft, [key]: ... }`, here it's the array version of the same
+// filter/spread-literal idea), a test pins down that "the reference content of the passed-in array is not push/spliced".
 //
-// search 每次弹层打开清空的等价性登记:Vue2 togglePop()(:783-793)里显式
-// `this.popSearch = ''`;本组件的 search 是内部 ref,不接受 host 传入。host 通过 v-if
-// 每次重新挂载本组件,组件内部 ref 天然回到初始值 ''——与 Vue2 显式清空语义等价,host 不
-// 需要、也不应该自己维护 search 状态(否则会有两份 truth)。
+// Equivalence log for clearing search on every popover open: Vue2's togglePop() (:783-793) explicitly does
+// `this.popSearch = ''`; this component's search is an internal ref, and doesn't accept a host-supplied value. The
+// host remounts this component fresh via v-if each time, so the internal ref naturally returns to its initial value
+// '' — equivalent semantics to Vue2's explicit clear, and the host doesn't need to, and shouldn't, maintain its own
+// search state (otherwise there'd be two sources of truth).
 //
-// 不做 portal/Teleport、不做点外部关闭/Esc(P6a 明确裁定 + brief Step 4)——这两件事由
-// 宿主(T16)在容器 ref 层面统一处理;本组件只在根节点 @click.stop 防止弹层内部点击冒泡到
-// 宿主的"点外部判定"逻辑里(结构参照 Vue2 `<div v-if="..." @click.stop>` 外层 + `.fpop`
-// 内层两级)。
+// No portal/Teleport, no close-on-outside-click/Esc (P6a's explicit ruling + brief Step 4) — both of those are
+// handled by the host (T16) at the container-ref level; this component only does @click.stop on its root node to keep
+// clicks inside the popover from bubbling up into the host's "click outside" detection logic (structure mirrors
+// Vue2's `<div v-if="..." @click.stop>` outer + `.fpop` inner two levels).
 //
-// Plan B Task 5(2026-08-12):当年这里的 max-height 差异(搜索侧 280 / FilterBar 侧 260,
-// 见上方模块注释①)被登记成"交给 P7b/T16 决定要不要开 prop"、一直没有接通,组件一直写死
-// 280。这里接通——新增 maxHeight prop(默认 280,不影响既有消费方的既有行为),照抄 width
-// prop 已有的"inline style 覆写"模式(:style 而不是写死的 CSS 声明),FilterBar 侧显式传
-// 260 命中 Vue2 数值。
+// Plan B Task 5 (2026-08-12): the max-height discrepancy back then (280 on search / 260 on FilterBar, see module
+// comment ① above) was logged as "hand off to P7b/T16 to decide whether to add a prop" and was never wired up — the
+// component kept hardcoding 280. Wired up here — added a maxHeight prop (default 280, doesn't change existing
+// consumers' existing behavior), following the same "inline-style override" pattern the width prop already uses
+// (:style rather than a hardcoded CSS declaration), with the FilterBar side explicitly passing 260 to hit Vue2's value.
 //
-// 机主验收回退(2026-08-13,推翻 Task 5 机主拍板的"第四处视觉例外"——EXIF 胶囊/弹层维持
-// New-UI 玻璃质感):玻璃在亮色主题下不可见,裁决是撤回玻璃、回退 Vue2 原始不透明面板样式
-// ——纯样式改动,组件保持 Vue3 代码不变。下方样式块因此拆成两半:
-// ①`.fpop`/`.fpop-title`/`.fpop-search`(+:focus)/`.fpop-quick`(+:hover)/`.btn`/
-// `.btn-primary`(+:hover)—— vue2-parity/photos.scss 对这些 class 名字段本就有逐字对应的
-// 裸选择器(:2662-2704,以及 `.btn`/`.btn-primary` 走全局 `.photos-root .btn` 家族
-// :262-273),这半批整段删除,交给 parity/全局规则接管。
-// ②`.fpop-list`/`.fpop-item`(+:hover/[data-active]/子级图标)/`.fpop-item-icon`/
-// `.fpop-empty`/`.fpop-foot`(+组合选择器)—— parity scss 里没有这几个 class(已 grep
-// 确认 `.fpop-item`/`.fpop-list`/`.fpop-empty`/`.fpop-foot` 全文件零命中):Vue2 原始列表
-// 弹层(PhotosSearchView.vue:129-140)这部分是行内 style + `.nav-item`/`.nav-icon`
-// 两个别处复用的类,并没有抽出 `.fpop-item` 这一级专属 class——是 New-UI 当年为复用而
-// 自建的抽象,parity 天然不覆盖,继续留在这里,只是把颜色 token 从本仓通用玻璃语义
-// (--fg-muted/--fg/--fg-faint/--chip-bg-hi/--accent-text)改回 Vue2 photos.scss 原文
-// 对应位置实际使用的 --text-2/--text-1/--text-3/--surface-3/--accent-hi(数值随
-// .photos-root 本地定义走,dark/is-light 两套都有)。
+// Owner's acceptance rollback (2026-08-13, overturning Task 5's owner-approved "fourth visual exception" — EXIF
+// pill/popover keeping New-UI's glassmorphism look): glass is invisible under the light theme, the ruling was to
+// revert the glass and fall back to Vue2's original opaque panel styling — a pure styling change, the component's
+// Vue3 code is unchanged. The style block below is therefore split in two:
+// ① `.fpop`/`.fpop-title`/`.fpop-search` (+:focus)/`.fpop-quick` (+:hover)/`.btn`/
+// `.btn-primary` (+:hover) — vue2-parity/photos.scss already has line-for-line matching bare selectors for these
+// class names (:2662-2704, and `.btn`/`.btn-primary` go through the global `.photos-root .btn` family :262-273) —
+// this whole half is deleted, handed off to the parity/global rules.
+// ② `.fpop-list`/`.fpop-item` (+:hover/[data-active]/child icon)/`.fpop-item-icon`/
+// `.fpop-empty`/`.fpop-foot` (+combinator selectors) — parity scss has none of these classes (confirmed via grep:
+// `.fpop-item`/`.fpop-list`/`.fpop-empty`/`.fpop-foot` all get zero hits in the whole file): Vue2's original list
+// popover (PhotosSearchView.vue:129-140) uses inline style + the `.nav-item`/`.nav-icon` classes (reused elsewhere) at
+// this level, and never extracted a `.fpop-item`-level class of its own — this is an abstraction New-UI built for
+// reuse at the time, which parity naturally doesn't cover; kept here, just switching the color tokens from this
+// repo's generic glassmorphism semantics (--fg-muted/--fg/--fg-faint/--chip-bg-hi/--accent-text) back to Vue2
+// photos.scss's actual values at the corresponding spot: --text-2/--text-1/--text-3/--surface-3/--accent-hi (values
+// follow .photos-root's local definitions, present for both dark/is-light).
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -78,8 +82,9 @@ const { t } = useI18n()
 
 const search = ref('')
 
-// 照搬 Vue2 filteredPopItems(:778-782):search 为空 → 原样返回 items;否则大小写不敏感
-// 的包含匹配。不 trim——Vue2 原样没有 trim,不擅自加(那是行为变更,不是移植)。
+// Ported from Vue2 filteredPopItems (:778-782): empty search → return items as-is; otherwise a case-insensitive
+// substring match. No trim — Vue2's original doesn't trim either, and this doesn't add it on its own initiative
+// (that would be a behavior change, not a port).
 const filtered = computed(() => {
   if (!search.value) return props.items
   const q = search.value.toLowerCase()
@@ -90,10 +95,11 @@ function isSel(it: string): boolean {
   return props.selected.includes(it)
 }
 
-// 照搬 Vue2 toggleDraftItem(:741-747)的语义,用统一的 selected: string[] 表达单选/多选:
-// multiple → 数组增删,返回新数组(不原地改 props.selected);!multiple → 已选置空数组、
-// 未选置单元素数组(对应 Vue2 单值分支 `v === it ? null : it` 的 null/it 二态,这里用
-// []/[it] 表达同一语义,以便宿主统一按数组消费)。
+// Ports the semantics of Vue2 toggleDraftItem (:741-747), expressing single/multi-select through a unified
+// selected: string[]: multiple → array add/remove, returns a new array (never mutates props.selected in place);
+// !multiple → set to an empty array when already selected, a single-element array when not (corresponds to Vue2's
+// single-value branch `v === it ? null : it`'s null/it two-state logic, here []/[it] expresses the same semantics so
+// the host can consume it uniformly as an array).
 function toggle(it: string): void {
   if (props.multiple) {
     const next = isSel(it) ? props.selected.filter((x) => x !== it) : [...props.selected, it]
@@ -136,19 +142,20 @@ function toggle(it: string): void {
 </template>
 
 <style scoped>
-/* 2026-08-13 回退(见上方 script 模块注释):.fpop/.fpop-title/.fpop-search(+:focus)/
-   .fpop-quick(+:hover)/.btn/.btn-primary(+:hover) 这一批 Vue2 原生 class 名字段,在
-   vue2-parity/photos.scss 里已有逐字对应的规则——.fpop 系列在 :2662-2704,.btn 系列走
-   全局 `.photos-root .btn`/`.photos-root .btn-primary`(+:hover)家族(:262-273,该家族
-   app-wide 生效,覆盖所有挂在 .photos-root 下的按钮,不需要本组件自带一份)。删除这半批
-   scoped 重复,交给 parity/全局规则接管,不再靠 scoped 编译出的 [data-v-xxxx] 属性抢
-   优先级。@keyframes pop-in 同理删除——parity scss 已有同名关键帧(:881),动画名是
-   全局命名空间,不受 scoped 影响。 */
+/* 2026-08-13 rollback (see module comment above the script): the batch of Vue2-native class names —
+   .fpop/.fpop-title/.fpop-search (+:focus)/.fpop-quick (+:hover)/.btn/.btn-primary (+:hover) — already has
+   line-for-line matching rules in vue2-parity/photos.scss (the .fpop family is at :2662-2704, and the .btn family
+   goes through the global `.photos-root .btn`/`.photos-root .btn-primary` (+:hover) family, :262-273, which applies
+   app-wide, covering every button mounted under .photos-root, so this component doesn't need its own copy). This
+   half of the scoped rules is deleted, handed off to the parity/global rules, no longer relying on the
+   scoped-compiled [data-v-xxxx] attribute to win specificity. @keyframes pop-in is deleted for the same reason —
+   parity scss already has a keyframes block of the same name (:881), and animation names live in a global
+   namespace, unaffected by scoping. */
 
-/* max-height 由 maxHeight prop 驱动的行内 style 给出(见上方模块注释,Plan B Task 5 接通
-   了当年 P7a 登记的 280/260 差异),这里只留结构性声明。parity scss 没有 .fpop-list 这个
-   class(Vue2 原文这里是行内 style,没有抽类——见下方 .fpop-item 系列的同一登记),
-   New-UI 专属,继续留在这里。 */
+/* max-height is driven by the maxHeight prop's inline style (see the module comment above — Plan B Task 5 wired up
+   the 280/260 discrepancy logged back in P7a), only the structural declaration is left here. parity scss has no
+   .fpop-list class (Vue2's original uses inline style here, and never extracted a class — see the same log on the
+   .fpop-item family below), it's New-UI-specific, and stays here. */
 .fpop-list {
   display: flex;
   flex-direction: column;
@@ -156,14 +163,15 @@ function toggle(it: string): void {
   overflow-y: auto;
 }
 
-/* .fpop-item(+:hover/[data-active]/子级图标)与 .fpop-item-icon:parity scss 全文件零
-   命中(已 grep 确认)——Vue2 原始列表弹层(PhotosSearchView.vue:129-137)这一级是
-   `.nav-item`/`.nav-icon`(别处复用的通用类)+ 行内 style,没有抽出 `.fpop-item` 这个
-   专属 class;是 New-UI 当年为可复用组件自建的抽象,parity 天然不覆盖。结构/尺寸原样
-   保留,只把颜色 token 从本仓通用玻璃语义改回 Vue2 photos.scss `.nav-item`/`.nav-icon`
-   对应位置(:171-172/1192 一带)实际使用的值:--fg-muted→--text-2、--fg→--text-1、
-   --fg-faint→--text-3、--chip-bg-hi→--surface-3、--accent-text→--accent-hi(--accent-soft
-   本就是 .photos-root 本地 token,数值已经是 Vue2 原文,不必改名)。 */
+/* .fpop-item (+:hover/[data-active]/child icon) and .fpop-item-icon: zero hits in parity scss across the whole file
+   (confirmed via grep) — Vue2's original list popover (PhotosSearchView.vue:129-137) uses `.nav-item`/`.nav-icon`
+   (generic classes reused elsewhere) + inline style at this level, and never extracted a `.fpop-item`-specific
+   class; this is an abstraction New-UI built at the time for a reusable component, which parity naturally doesn't
+   cover. Structure/sizing kept as-is, only switching the color tokens back from this repo's generic glassmorphism
+   semantics to the values Vue2 photos.scss's `.nav-item`/`.nav-icon` actually use at the corresponding spot
+   (around :171-172/1192): --fg-muted→--text-2, --fg→--text-1, --fg-faint→--text-3, --chip-bg-hi→--surface-3,
+   --accent-text→--accent-hi (--accent-soft is already a .photos-root-local token, its value is already Vue2's
+   original, no rename needed). */
 .fpop-item {
   display: flex;
   align-items: center;
@@ -184,12 +192,13 @@ function toggle(it: string): void {
   background: var(--accent-soft);
   color: var(--text-1);
 }
-/* hover 硬约束(B4 补的第三处,brief 原文只点名了 .fchip 与 .btn-primary,漏了这条):
-   .fpop-item[data-active="true"] 未 hover 时与 .fpop-item:hover 同为 (0,2,0),scoped SFC 里
-   正是"优先级相等靠源码顺序苟活"的第二种危险形态。变体自带 :hover(值=未 hover 时的既有
-   态,即选中态在 hover 下保持——这是显式化 Vue2 里"active 规则写在 hover 规则之后、
-   tie 靠源码顺序赢"这条隐含语义,不再依赖顺序)。这条 hover-lock 逻辑与颜色映射无关,
-   2026-08-13 回退未改动其结构,只跟随上面同一次 token 改名。 */
+/* hover specificity hard constraint (the third instance B4 added — the brief text only named .fchip and
+   .btn-primary, missing this one): .fpop-item[data-active="true"] un-hovered and .fpop-item:hover are both (0,2,0),
+   the second occurrence in a scoped SFC of exactly this "equal specificity surviving only on source order" danger
+   shape. The variant carries its own :hover (value = the un-hovered state, i.e. the selected state stays put under
+   hover — this makes explicit the implicit semantics of Vue2's "active rule written after the hover rule, tie won
+   by source order", no longer depending on order). This hover-lock logic is unrelated to the color mapping — the
+   2026-08-13 rollback didn't touch its structure, it only followed the same token rename above. */
 .fpop-item[data-active='true']:hover {
   background: var(--accent-soft);
   color: var(--text-1);
@@ -205,8 +214,8 @@ function toggle(it: string): void {
   justify-content: center;
 }
 
-/* .fpop-empty/.fpop-foot(+组合选择器)同上一条登记——parity 里也没有这两个 class(Vue2
-   原文是行内 style,:138/:142),继续留在这里,只改 .fpop-empty 的文字色 token。 */
+/* .fpop-empty/.fpop-foot (+combinator selectors), same log as above — parity has neither of these classes either
+   (Vue2's original uses inline style, :138/:142), kept here, only the .fpop-empty text color token changed. */
 .fpop-empty {
   padding: 18px 8px;
   text-align: center;

@@ -12,7 +12,7 @@ beforeEach(() => {
 })
 
 describe('useDeviceArch', () => {
-  it('reads cached localStorage arch without fetching (Vue2 同 key)', () => {
+  it('reads cached localStorage arch without fetching (Vue2 same key)', () => {
     localStorage.setItem('arch', 'arm64')
     const { arch } = useDeviceArch()
     expect(arch.value).toBe('arm64')
@@ -28,10 +28,10 @@ describe('useDeviceArch', () => {
     expect(sysMock.hardwareInfo).toHaveBeenCalledTimes(1)
   })
 
-  it('isCompatible: 未声明/未知一律宽容,声明了才判 includes(Vue2 unuseable 同语义)', async () => {
+  it('isCompatible: undeclared/unknown always permit, judge includes only when declared (Vue2 unuseable same semantics)', async () => {
     sysMock.hardwareInfo.mockResolvedValue({ arch: 'amd64' })
     const { arch, isCompatible } = useDeviceArch()
-    expect(isCompatible(['arm64'])).toBe(true) // arch 未知(未返回)→ 宽容
+    expect(isCompatible(['arm64'])).toBe(true) // arch unknown (not returned) → permit
     await vi.waitFor(() => expect(arch.value).toBe('amd64'))
     expect(isCompatible(undefined)).toBe(true)
     expect(isCompatible([])).toBe(true)
@@ -39,13 +39,13 @@ describe('useDeviceArch', () => {
     expect(isCompatible(['arm64'])).toBe(false)
   })
 
-  it('archLabel: arm 显示为 armv7(Vue2 archTitle 对齐)', () => {
+  it('archLabel: arm displays as armv7 (Vue2 archTitle aligned)', () => {
     localStorage.setItem('arch', 'arm')
     const { archLabel } = useDeviceArch()
     expect(archLabel.value).toBe('armv7')
   })
 
-  it('fetch 失败静默(console.warn),arch 留空=全宽容', async () => {
+  it('fetch fails silently (console.warn), arch empty = fully permit', async () => {
     sysMock.hardwareInfo.mockRejectedValue(new Error('down'))
     const { arch, isCompatible } = useDeviceArch()
     await Promise.resolve(); await Promise.resolve()

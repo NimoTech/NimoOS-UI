@@ -1,45 +1,53 @@
 <script setup lang="ts">
-// SP7-P7a-T14: SearchPeoplePopover.vue —— 搜索栏「人物」筛选弹层。
-// 结构对应 Vue2 PhotosSearchView.vue:93-122(模板)、:435-447(realPeopleList)、
-// :545-549(filteredPeopleList)。样式对应 photos.scss:2689-2694(.face-* 6 条,已逐条核对)
-// + 复用既有 .fpop/.fpop-search/.fpop-foot 外壳(与 T12/T13 同款,数值照抄 photos.scss)。
+// SP7-P7a-T14: SearchPeoplePopover.vue — search bar "people" filter popover.
+// Structure corresponds to Vue2 PhotosSearchView.vue:93-122 (template), :435-447 (realPeopleList),
+// :545-549 (filteredPeopleList). Styles correspond to photos.scss:2689-2694 (.face-* 6 rules,
+// verified line-by-line) + reuses existing .fpop/.fpop-search/.fpop-foot shell (same as T12/T13,
+// values copied from photos.scss).
 //
-// 死代码不迁(控制器裁定,C4/A-2):Vue2 人物弹层每格头像有两个三元表达式——无封面时
-// 显示首字母、否则显示一个占位问号字符;姓名区同理,已命名显示姓名、否则显示一个
-// "未命名"文案键。Vue2 的 realPeopleList(:438)已 `.filter(p => p.name && p.name.trim())`
-// 过滤掉未命名的人,「已命名」这个条件对搜索弹层的候选集恒真——这两个占位分支是死代码。
-// New-UI 的 PersonOption(searchUnderstood.ts:11-16)只含"已命名"的人,连 named 字段都不
-// 存在——没有对应状态可迁,本文件因此不出现那个问号字符字面量,也不引用那个"未命名"
-// i18n 键的标识符(测试用反向断言钉住这两点,注释里也不重复写出以免自己撞上那条断言)。
-// 那个 i18n 键本身**不删**:T9 的 54 键表是按 Vue2 真实 $t() 用法生成的,该键确实被 Vue2
-// 用到(只是落在死分支上),表本身没错,因此不删键、不改 T9 的键数(控制器裁定,见
-// task-14-report.md「C4」)。
+// Dead code not ported (controller decision, C4/A-2): Vue2 people popover each cell avatar has
+// two ternary expressions — when no cover, show first letter, else show a placeholder question mark
+// character; name area same logic, when named show name, else show an "unnamed" message key. Vue2's
+// realPeopleList (:438) already `.filter(p => p.name && p.name.trim())` filters unnamed people;
+// "already named" is always true for the search popover candidate set — these two placeholder
+// branches are dead code. New-UI's PersonOption (searchUnderstood.ts:11-16) only contains named
+// people, doesn't even have a named field — no corresponding state to port; this file therefore
+// does not contain that question mark literal, nor references that "unnamed" i18n key identifier
+// (test uses reverse assertion to pin both; not repeating in comment to avoid hitting that assertion).
+// That i18n key itself **not deleted**: T9's 54-key table was generated from Vue2's actual $t()
+// usage; that key truly is used by Vue2 (just on dead branch), table itself is correct; therefore
+// do not delete key, do not change T9 key count (controller decision, see task-14-report.md "C4").
 //
-// PersonAvatar 复用决定（C10，报告里有完整理由）：本仓已有的 PersonAvatar.vue（P5 建）
-// 三级兜底逻辑与这里需要的"有封面显示图 / 无封面显示首字母"语义高度重合，但它的
-// showImg 只看 personId!==null && !failed，不看有没有封面——直接传 p.id 会让"无封面"
-// 的人也尝试发起一次图片请求（等 onerror 才退回首字母），不满足 brief 要求的"无 img
-// 同步存在"断言。这里用 `personId = p.coverFaceId ? p.id : null` 复用 personId 本身当
-// "要不要尝试加载真图"的开关——personId 为 null 时 PersonAvatar 直接走首字母分支，
-// 不发任何图片请求，与 Vue2 的 `v-if="p.coverFaceId"` 语义等价，且不需要改动
-// PersonAvatar.vue 一行代码。
+// PersonAvatar reuse decision (C10, full rationale in report): this repo's existing PersonAvatar.vue
+// (built in P5) has three-level fallback logic that highly overlaps with the needed "if cover show
+// image / if no cover show first letter" semantics, but its showImg only checks
+// personId!==null && !failed, doesn't check for actual cover — passing p.id directly would let
+// "no cover" people still attempt an image request (waiting for onerror to fall back to first letter),
+// not satisfying brief's required "no img attempt if not present" assertion. Here we use
+// `personId = p.coverFaceId ? p.id : null` to reuse personId itself as the switch for "should try
+// loading real image" — when personId is null, PersonAvatar goes straight to first-letter branch,
+// makes no image request; semantically equivalent to Vue2's `v-if="p.coverFaceId"`, and needs no
+// modification to PersonAvatar.vue.
 //
-// 偏离登记(fix round 1 · M2,此前漏登记的一处;fix round 2 · N4 修正渐变方向):
-// PersonAvatar 首字母兜底态的底色走的是 `--avatar-fallback` token,而 Vue2
-// `PhotosSearchView.vue:101-102` 这里的兜底底色是一个写死的双色渐变(135 度角,起点是
-// 浅紫色调、终点是粉色调,不属于本仓 accent 家族的任何一档)——两者色值不同,是本
-// 组件复用 PersonAvatar 时继承的既有偏离(P5 时期定的公共兜底色,不在本任务范围内改)。
+// Deviation log (fix round 1 · M2, one previously unrecorded; fix round 2 · N4 corrects gradient
+// direction): PersonAvatar's first-letter fallback background uses `--avatar-fallback` token, while
+// Vue2 `PhotosSearchView.vue:101-102` here uses a hard-coded two-color gradient (135 degree angle,
+// starting light-purple tone, ending pink tone, not part of this repo's accent family) — color
+// values differ; this is an inherited deviation from PersonAvatar reuse (the common fallback color
+// was set in P5, outside this task's scope to change).
 //
-// 偏离登记(fix round 1 · M8,加性改动):PersonAvatar 把 `alt` 设成 `name || ''`(见该
-// 组件 :103),而 Vue2 这里的 `<img>` 是字面 `alt=""`(:103 同段)。由于 New-UI 的
-// PersonOption 恒有非空姓名,复用 PersonAvatar 会让每张头像图片带上人名作为 alt 文本,
-// 比 Vue2 的空 alt 更利于屏幕阅读器,是复用公共组件带来的加性可用性改进,不是本任务
-// 刻意新写的行为——按纪律仍在此登记。
+// Deviation log (fix round 1 · M8, additive change): PersonAvatar sets `alt` to `name || ''`
+// (component :103), while Vue2's `<img>` here is literal `alt=""` (:103 same line). Since New-UI's
+// PersonOption always has non-empty name, reusing PersonAvatar makes each avatar image carry the
+// person's name as alt text, better for screen readers than Vue2's empty alt; additive accessibility
+// improvement from reusing shared component, not deliberately new behavior from this task — still
+// recorded per discipline.
 //
-// PersonOption 的顺序契约(fix round 1 · M9,交接下游):Vue2 realPeopleList(:435-447)
-// 以 `.sort((a,b) => b.c - a.c)` 按人脸计数降序结尾,弹层网格渲染顺序依赖这个排序。本组件
-// 只透传 `people` prop、不自己排序——T16 组装 `people` 数组时必须保持这个降序,否则弹层
-// 顺序会与 Vue2 不一致(详见 task-14-report.md 交接段)。
+// PersonOption order contract (fix round 1 · M9, hand-off to downstream): Vue2's realPeopleList
+// (:435-447) ends with `.sort((a,b) => b.c - a.c)` descending by face count; popover grid render
+// order depends on this sort. This component only passes through `people` prop, does not sort itself
+// — when T16 assembles the `people` array it must maintain this descending order, otherwise popover
+// order will not match Vue2 (see task-14-report.md hand-off section).
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PersonOption } from '../util/searchUnderstood'
@@ -58,14 +66,14 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 
-// BCP-47 转换(本仓既定写法,照 SmartViewCard.vue:38 等既有先例):locale 是 'zh_cn'/'en_us'
-// 下划线形式,裸传 toLocaleString 会抛 RangeError。
+// BCP-47 conversion (established pattern in this repo, follows SmartViewCard.vue:38 precedent):
+// locale is 'zh_cn'/'en_us' with underscore; passing directly to toLocaleString throws RangeError.
 const localeTag = computed(() => locale.value.replace('_', '-'))
 
 const search = ref('')
 
-// 照搬 Vue2 filteredPeopleList(:545-549):search 为空 → 原样返回 people;否则按
-// name.toLowerCase().includes(...) 大小写不敏感过滤,不 trim(Vue2 原样没有 trim)。
+// Copy Vue2 filteredPeopleList (:545-549): empty search → return people as-is; else filter by
+// name.toLowerCase().includes(...) case-insensitive, no trim (Vue2 as-is has no trim).
 const filtered = computed(() => {
   if (!search.value) return props.people
   const q = search.value.toLowerCase()
@@ -76,14 +84,15 @@ function isSel(name: string): boolean {
   return props.selected.includes(name)
 }
 
-// selected 存人名(照搬 Vue2 isDraftSelected('people', p.n) 的按名比对)。不原地改
-// props.selected——emit 新数组(照 PhotosFilterPopover.vue 的既定不可变写法)。
+// selected stores person names (copies Vue2 isDraftSelected('people', p.n)'s name-based comparison).
+// Do not modify props.selected in place — emit new array (follows PhotosFilterPopover.vue's
+// established immutable pattern).
 function toggle(name: string): void {
   const next = isSel(name) ? props.selected.filter((x) => x !== name) : [...props.selected, name]
   emit('update:selected', next)
 }
 
-// 照搬 Vue2 Apply 按钮文案(:118):selected 非空时追加 ` (n)`。
+// Copy Vue2 Apply button text (:118): append ` (n)` when selected is not empty.
 const applyLabel = computed(() => {
   const base = t('photosSearchApply')
   return props.selected.length > 0 ? `${base} (${props.selected.length})` : base
@@ -92,11 +101,13 @@ const applyLabel = computed(() => {
 
 <template>
   <div @click.stop>
-    <!-- 2026-08-13 回退追记(Fix-3 item 7):`.fpop` 的形状/尺寸/位置/焦点环全部让 parity scss
-         (vue2-parity/photos.scss:2690-2726)的裸 `.fpop` 规则生效,不再本地重复声明——parity
-         的默认宽度是列表/日期两个弹层共用的 320px,本弹层唯一的偏离是 Vue2 `:94` 那处内联
-         `style="width:300px"`,同样用内联 style 覆盖(不新增一条只改一个属性的 scoped 规则,
-         照 PhotosFilterPopover.vue 的 width prop 已有先例——那里用 :style 覆盖,不是 CSS 类)。 -->
+    <!-- 2026-08-13 rollback addendum (Fix-3 item 7): `.fpop`'s shape, size, position and focus
+         ring all come from the bare `.fpop` rule in the parity scss
+         (vue2-parity/photos.scss:2690-2726) and are no longer restated locally — parity's default
+         width is the 320px shared by the list and date popovers, and this popover's only deviation
+         is Vue2 `:94`'s inline `style="width:300px"`, which is likewise overridden with an inline
+         style (rather than adding a scoped rule that changes one property; PhotosFilterPopover.vue's
+         width prop already set the precedent, overriding via :style rather than a CSS class). -->
     <div class="fpop" style="width: 300px">
       <input
         v-model="search" class="fpop-search" data-test="people-search"
@@ -131,20 +142,25 @@ const applyLabel = computed(() => {
 </template>
 
 <style scoped>
-/* 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Fix-3 item 7 追加执行——本组件此前漏了这一轮
-   回退,brief 明确点名"align their chrome to parity like the FilterChip/Popover treatment"):
+/* 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+   this component was missed in that round, and the brief names it explicitly: "align their
+   chrome to parity like the FilterChip/Popover treatment"): the whole colour rule set
    .fpop/.fpop-search(+:focus)/.face-pop-grid/.face-cell/.face-cell-name/.face-cell-count/
-   .fpop-quick(+:hover)/.btn/.btn-primary(+:hover)这一整套颜色规则已从本组件的 scoped style
-   里整体删除,交给 vue2-parity/photos.scss 的裸选择器接管(:2690-2726,.btn 系列走全局
-   `.photos-root .btn`/`.photos-root .btn-primary` 家族 :290-301)——本组件不再自带一份颜色
-   映射到本仓通用玻璃语义(--popup-bg/--card-border/--card-shadow-hi/--chip-bg/--fg-muted/
-   --fg-subtle/--accent-text 等)的重复,那些 token 均未被 `.photos-root` 本地重定义,会落到
-   theme.css 的全局蓝紫玻璃值。`@keyframes pop-in` 同理删除——parity scss 已有同名关键帧。
-   留在这里的只剩 parity 没有覆盖的两处:`.face-pop-empty`(Vue2 :110-112 是内联 style,不是
-   class,parity 天然没有这个选择器)与 `.face-cell :deep(.person-avatar-ring)`(+[data-on] 变体
-   ,C10 裁定的 New-UI 专属选中环写法,PersonAvatar 组件内部结构,parity 无对应)、
-   `.fpop-foot`(+子选择器,Vue2 这里 margin-top 是 14px,与 List/Date 两个弹层的 12px 不同,
-   parity 本就没有 `.fpop-foot` 这个类,不存在"移交"的问题)。 */
+   .fpop-quick(+:hover)/.btn/.btn-primary(+:hover) has been removed wholesale from this
+   component's scoped style and handed to the bare selectors in vue2-parity/photos.scss
+   (:2690-2726; the .btn family goes through the global `.photos-root .btn` /
+   `.photos-root .btn-primary` rules at :290-301) — this component no longer carries its own
+   duplicate mapping onto the repo-wide glass semantics (--popup-bg/--card-border/
+   --card-shadow-hi/--chip-bg/--fg-muted/--fg-subtle/--accent-text and friends), none of which
+   `.photos-root` redefines locally, so they fell through to theme.css's global accent-toned
+   glass values. `@keyframes pop-in` goes for the same reason — the parity scss already has a
+   keyframe of that name. What stays here is only what parity does not cover:
+   `.face-pop-empty` (Vue2 :110-112 is an inline style, not a class, so parity has no such
+   selector), `.face-cell :deep(.person-avatar-ring)` (+ its [data-on] variant, the
+   New-UI-only selection-ring treatment ruled in C10, reaching into PersonAvatar's own
+   structure, with no parity counterpart), and `.fpop-foot` (+ its child selectors; Vue2's
+   margin-top here is 14px, unlike the 12px of the List/Date popovers, and parity never had a
+   `.fpop-foot` class at all, so there is nothing to hand over). */
 .face-pop-empty {
   padding: 24px 8px;
   text-align: center;
@@ -152,26 +168,31 @@ const applyLabel = computed(() => {
   font-size: 12px;
 }
 
-/* photos.scss:2691-2692 的选中环:C10 裁定用 :deep 挂在 PersonAvatar 的圆环元素上，不
-   自绘头像。基础态统一定 2px 宽(而非 PersonAvatar 默认的 1px card-border)以便选中态只切
-   颜色不跳变宽度；选中态换成 accent 描边 + 光晕(0.20 阿尔法)。
-   Fix-3 item 7 token 修正:此前这里的光晕走的是本仓 theme.css 里一个全局定义的蓝色调 token
-   (`.photos-root` 未本地重定义),与本页其余 accent 家族(parity 本地定义、紫色调)不是
-   同一色系,是与本任务其余处同类的"全局 token 漏进 parity 页面"问题——已改用下方
-   theme-exception 标记的字面量(Vue2 逐字数值),不新增 token。 */
+/* photos.scss:2691-2692's selection ring: C10 ruled that this hangs off PersonAvatar's ring
+   element via :deep rather than drawing the avatar itself. The base state pins the width at
+   2px (instead of PersonAvatar's default 1px card-border) so selecting only swaps the colour
+   without a width jump; the selected state switches to an accent stroke plus glow (0.20 alpha).
+   Fix-3 item 7 token correction: the glow used to reference a token defined globally in this
+   repo's theme.css (never redefined locally on `.photos-root`), which belongs to a different
+   hue family than the rest of this page's accent family (defined locally by parity) — the same
+   "global token leaking into a parity page" problem as elsewhere in this task. It now uses the
+   literal marked theme-exception below (Vue2's own value, character for character), rather
+   than introducing a new token. */
 .face-cell :deep(.person-avatar-ring) {
   border-width: 2px;
 }
 .face-cell[data-on="true"] :deep(.person-avatar-ring) {
   border-color: var(--accent);
-  /* theme-exception: Vue2 逐字光晕值(accent 紫色系、0.20 阿尔法),与 parity 转录里
-     .fchip[data-on] 边框那条同色系字面量同一处理方式,不新增 token。 */
+  /* theme-exception: Vue2's own glow value character for character (the accent hue at 0.20
+     alpha), handled the same way as the same-family literal on parity's transcribed
+     .fchip[data-on] border — no new token introduced. */
   box-shadow: 0 0 0 2px rgba(110,91,255,0.20);
 }
 
-/* Vue2 :113 这里的脚部 margin-top 是 14px,与 SearchDatePopover.vue(Vue2 日期弹层 :84)/
-   PhotosFilterPopover.vue(Vue2 列表弹层 :142)的 12px 不同——三条脚部规则各自独立声明,
-   parity 本身没有 `.fpop-foot` 这个类,不合并复用。 */
+/* Vue2 :113's footer margin-top here is 14px, unlike the 12px in SearchDatePopover.vue (Vue2
+   date popover :84) / PhotosFilterPopover.vue (Vue2 list popover :142) — the three footer
+   rules are each declared independently; parity has no `.fpop-foot` class of its own, so
+   there is no merging or reuse to do. */
 .fpop-foot {
   display: flex;
   gap: 8px;

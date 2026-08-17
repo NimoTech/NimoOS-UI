@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ActionsRow.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/ActionsRow.vue -->
 <script setup lang="ts">
 import AgentIcon from '../icons/AgentIcon.vue'
 

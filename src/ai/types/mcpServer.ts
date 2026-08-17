@@ -1,80 +1,87 @@
-// SP8-P4 Task 2 —— 逐字照后端 DTO/契约的 json tag。字段顺序与命名与后端一一对应,
-// 不新增/不省略字段。端点前缀是 `/v1/ai`("v2" 只是 handler 代码世代/包名,不是
-// URL 版本号——P3b 终审 M4 踩过这个坑,详见 types/skill.ts 文件头)。
-// 全部端点**无信封裸返回**,共享包 `@nimotech/nimoos-service` 已 `return res.data`
-// 剥过 axios 层,消费端**不许再剥一层**(公共约束 §4 单层取数;设计 §3 命中 4 处)。
+// SP8-P4 Task 2 — align JSON tags byte-for-byte with backend DTO/contract. Field order and
+// naming correspond one-to-one with the backend; no new fields, no omissions. Endpoint prefix
+// is `/v1/ai` ("v2" is just the handler code generation/package name, not a URL version — P3b
+// final review M4 hit this pitfall; see the top of types/skill.ts for details).
+// All endpoints return bare (no envelope). The shared package `@nimotech/nimoos-service` already
+// strips the axios layer with `return res.data`; consumers must not strip another layer (public
+// constraint §4 single-layer fetch; design §3 hit 4 places).
 //
-// ⚠️ 评审注记:`mcpparse.go` 的 http/stdio 分支实际行号是 `:39` / `:86`(本文件
-// 逐处引用时按实际行号写,不沿用设计文档 §2.1 抄的 `:38,80`——回源核实后二者相差
-// 1/6 行,已在 T2 报告里申报)。
+// ⚠️ Review note: the actual line numbers for the http/stdio branches in `mcpparse.go` are `:39` /
+// `:86` (this file cites actual line numbers throughout, not `:38,80` copied from design doc §2.1
+// — verified against source and found a 1/6 line difference, reported in T2 report).
 
-/** 对齐后端 `mcp.go` `validateAndClean`(`:274-287`)接受的三个传输方式。
- *  注意 `McpServer.transport` / `McpParsed.transport` 本身在后端是裸 `string`
- *  (未做枚举收紧),这里只用 `McpTransport` 给前端下拉框一个受限的字面量集合。 */
+/** Align with the three transport types accepted by backend `mcp.go` `validateAndClean` (`:274-287`).
+ *  Note: `McpServer.transport` / `McpParsed.transport` are bare `string` on the backend (no enum
+ *  tightening), so we use `McpTransport` here to give the frontend dropdown a restricted set of
+ *  literals. */
 export type McpTransport = 'http' | 'sse' | 'stdio'
 
-/** 对齐后端 `mcpDTO`(`mcp.go:41-51`)。`GET /mcp/servers` 200 裸数组返回这个
- *  形状(`mcp.go:96`);`POST .../parse` 不返回这个形状(见 `McpParsed`)。 */
+/** Align with backend `mcpDTO` (`mcp.go:41-51`). `GET /mcp/servers` returns bare array of this
+ *  shape on 200 (`mcp.go:96`); `POST .../parse` does not return this shape (see `McpParsed`). */
 export interface McpServer {
-  /** Go `int64`(`mcp.go:42`),JSON 序列化成 number,不是 string。 */
+  /** Go `int64` (`mcp.go:42`), JSON-serialized as number, not string. */
   id: number
   name: string
-  /** 裸 string,不是 `McpTransport`——后端不做枚举校验,`validateAndClean`
-   *  (`mcp.go:273-289`)才在保存时把非法值挡在 400。 */
+  /** Bare string, not `McpTransport` — the backend does not validate enums; `validateAndClean`
+   *  (`mcp.go:273-289`) only blocks invalid values at 400 on save. */
   transport: string
   url: string
   command: string
-  /** 后端 `toMcpDTO`(`mcp.go:53-64`,nil 兜底在 `:54-58`)保证非 nil,但消费端
-   *  仍应写 `(s.args || [])` 兜底——Go 的 nil slice 会序列化成 JSON `null`,这类
-   *  防御在调用处必须保留,不许因为「后端保证过」就删掉。 */
+  /** Backend `toMcpDTO` (`mcp.go:53-64`, nil fallback at `:54-58`) guarantees non-nil, but
+   *  consumers should still write `(s.args || [])` as a fallback — Go's nil slice serializes
+   *  to JSON `null`, so this defensive check must be kept at the call site and not deleted just
+   *  because "the backend guarantees it". */
   args: string[]
   enabled: boolean
-  /** 只是布尔位,不是密文本身——密文(headers/env 明文)永不下发(`mcp.go:62`)。 */
+  /** Just a boolean flag, not the secret itself — secrets (headers/env plaintext) are never
+   *  sent down (`mcp.go:62`). */
   has_headers: boolean
   has_env: boolean
 }
 
-/** 对齐后端 `mcpparse.Parsed`(`mcpparse.go:13-20`),`POST /mcp/servers/parse`
- *  200 裸对象返回(`mcp.go:137`)。**不落库**,只用于「快速粘贴」预填表单。 */
+/** Align with backend `mcpparse.Parsed` (`mcpparse.go:13-20`); `POST /mcp/servers/parse`
+ *  returns bare object on 200 (`mcp.go:137`). **Not persisted**, used only for "quick paste"
+ *  pre-filling the form. */
 export interface McpParsed {
-  /** 后端**只会产出 `"http"` 或 `"stdio"`,永不产出 `"sse"`**
-   *  (`mcpparse.go:39` 的 http 分支、`:86` 的 stdio 分支)——不是缺陷,SSE 由用户
-   *  在表单里手选(N5,承设计 §6)。 */
+  /** Backend **only produces `"http"` or `"stdio"`, never `"sse"`**
+   *  (http branch at `mcpparse.go:39`, stdio branch at `:86`) — not a defect, SSE is
+   *  user-selected in the form (N5, per design §6). */
   transport: string
   command: string
-  /** 非 nil(`mcpparse.go:79-82` 显式兜底成 `[]string{}`)。 */
+  /** Non-nil (`mcpparse.go:79-82` explicitly defaults to `[]string{}`). */
   args: string[]
-  /** 非 nil map(`mcpparse.go:69` 初始化为 `map[string]string{}`)。 */
+  /** Non-nil map (`mcpparse.go:69` initialized to `map[string]string{}`). */
   env: Record<string, string>
   url: string
   suggested_name: string
 }
 
-/** 对齐 Python agent `test_server` 返回(`agent/mcp_client/client.py:432-461`),
- *  Go 侧 `mcp.go:355`(修复轮 M3:此前误打成 `mc.go:355`,少打一个 `p`)用
- *  `c.JSONBlob` 原样透传,`POST .../:id/test` 200 裸对象。
- *  成功态只用 `ok/tool_count/tools`;失败态字段视 `error_key` 而定。 */
+/** Align with Python agent `test_server` return (`agent/mcp_client/client.py:432-461`);
+ *  Go side `mcp.go:355` (fix round M3: previously mistyped as `mc.go:355`, missing one `p`)
+ *  passes it through as-is with `c.JSONBlob`; `POST .../:id/test` returns bare object on 200.
+ *  Success state uses only `ok/tool_count/tools`; failure state fields depend on `error_key`. */
 export interface McpTestResult {
   ok: boolean
   tool_count?: number
   tools?: string[]
-  /** 后端拼好的英文串(如 `"Connection failed: ..."`)——**本仓不上界面**,
-   *  一律走 `error_key` 映射成 i18n 键(设计 §5.3 / D8)。 */
+  /** English string assembled by backend (e.g., `"Connection failed: ..."`) — **not surfaced
+   *  in this repo's UI**; always maps `error_key` to an i18n key (design §5.3 / D8). */
   error?: string
-  /** 只有 4 个值:`probe_timeout`(`client.py:437`)· `connect_failed`
-   *  (`:448`)· `list_timeout`(`:453`)· `list_failed`(`:456`)。 */
+  /** Only four values: `probe_timeout` (`client.py:437`) · `connect_failed`
+   *  (`:448`) · `list_timeout` (`:453`) · `list_failed` (`:456`). */
   error_key?: string
-  /** 原始异常 `str(e)`,仅 `connect_failed` / `list_failed` 带
-   *  (`client.py:448,456`)。 */
+  /** Original exception `str(e)`, carried only by `connect_failed` / `list_failed`
+   *  (`client.py:448,456`). */
   detail?: string
 }
 
-/** 本仓表单提交的 payload 形状,对齐后端 `mcpRequest`(`mcp.go:29-39`)里
- *  会被 `applyReq`(`:230-269`)消费的字段——不含 `command_line`(那是快速粘贴
- *  专用字段,解析走 `McpParsed`,不进保存 payload)。
- *  `POST /mcp/servers` 成功返回 **201 `{"id": <int64>}`**(`mcp.go:121`)——
- *  不是完整 `McpServer` 对象,消费端不能指望拿回全量字段。
- *  `PUT /mcp/servers/:id` 成功返回 **204 无内容**(`mcp.go:172`)——不许读返回值。 */
+/** Shape of form submission payload in this repo, aligned with backend `mcpRequest` (`mcp.go:29-39`)
+ *  fields consumed by `applyReq` (`:230-269`) — excludes `command_line` (that's a quick-paste-only
+ *  field, parsed through `McpParsed`, not into the save payload).
+ *  `POST /mcp/servers` returns **201 `{"id": <int64>}`** on success (`mcp.go:121`) —
+ *  not a complete `McpServer` object; consumers cannot expect to get all fields back.
+ *  `PUT /mcp/servers/:id` returns **204 no content** on success (`mcp.go:172`) — do not read
+ *  the return value. */
 export interface McpServerFormPayload {
   name: string
   transport: string
@@ -82,16 +89,17 @@ export interface McpServerFormPayload {
   url?: string
   command?: string
   args?: string[]
-  /** 编辑态省略该字段表示「保持不变」,后端 `applyReq` 只覆盖请求里出现的字段
-   *  (`mcp.go:247-253`)——对应 N3(编辑态无法清空已有 headers/env,照抄)。 */
+  /** Omitting this field in edit mode means "keep unchanged"; backend `applyReq` only
+   *  overwrites fields present in the request (`mcp.go:247-253`) — corresponds to N3 (edit mode
+   *  cannot clear existing headers/env, as copied). */
   headers?: Record<string, string>
   env?: Record<string, string>
 }
 
-/** 本期新造的视图类型(Vue2 无对应物)。`util/mcpErrorKey.ts`(T3)把
- *  `McpTestResult` / HTTP 错误映射成这个形状,详情组件(T6/T7)只消费这个类型,
- *  不直接碰 `McpTestResult`——保证界面永远拿到的是 i18n 键而不是后端原文
- *  (公共约束「界面永不回显后端原文」)。 */
+/** View type newly created this sprint (no Vue2 equivalent). `util/mcpErrorKey.ts` (T3) maps
+ *  `McpTestResult` / HTTP errors to this shape; detail components (T6/T7) consume only this type,
+ *  never touching `McpTestResult` directly — ensuring the UI always gets i18n keys, never raw
+ *  backend text (public constraint: "UI never echoes raw backend text"). */
 export type McpTestView =
   | {
       ok: true; toolCount: number; tools: string[]

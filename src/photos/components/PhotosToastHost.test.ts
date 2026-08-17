@@ -29,14 +29,14 @@ describe('PhotosToastHost', () => {
     vi.useRealTimers()
   })
 
-  it('渲染队列里的 toast 文案', async () => {
+  it('renders the toast text from the queue', async () => {
     await mountHost()
     usePhotosToast().show({ text: 'Moved to Trash' })
     await nextTick()
     expect(body().text()).toContain('Moved to Trash')
   })
 
-  it('Teleport 之后的宿主带 photos-root 类', async () => {
+  it('the teleport host carries the photos-root class', async () => {
     await mountHost()
     usePhotosToast().show({ text: 'Favorited' })
     await nextTick()
@@ -44,7 +44,7 @@ describe('PhotosToastHost', () => {
     expect(host.exists()).toBe(true)
   })
 
-  it('主题为 light 时宿主同时带 is-light 类(themeClass 跟随 usePhotosTheme)', async () => {
+  it('when theme is light, the host also carries the is-light class (themeClass follows usePhotosTheme)', async () => {
     usePhotosTheme().set('light')
     await mountHost()
     usePhotosToast().show({ text: 'Favorited' })
@@ -53,7 +53,7 @@ describe('PhotosToastHost', () => {
     expect(host.classes()).toContain('is-light')
   })
 
-  it('点击 Undo 按钮触发 action.onClick,并把该 toast 从视图移除', async () => {
+  it('clicking the Undo button fires action.onClick and removes that toast from view', async () => {
     const onClick = vi.fn()
     await mountHost()
     usePhotosToast().show({ text: 'Moved to Trash', action: { label: 'Undo', onClick } })
@@ -66,7 +66,7 @@ describe('PhotosToastHost', () => {
     expect(body().text()).not.toContain('Moved to Trash')
   })
 
-  it('icon:"trash" 在文案前渲染出 trash 图标', async () => {
+  it('icon:"trash" renders a trash icon before the text', async () => {
     await mountHost()
     usePhotosToast().show({ text: 'Moved to Trash', icon: 'trash' })
     await nextTick()
@@ -75,21 +75,21 @@ describe('PhotosToastHost', () => {
     expect(icon.attributes('data-icon')).toBe('trash')
   })
 
-  it('未知 icon 名称不渲染任何图标节点', async () => {
+  it('an unknown icon name renders no icon node at all', async () => {
     await mountHost()
     usePhotosToast().show({ text: 'Something', icon: 'not-a-real-icon' })
     await nextTick()
     expect(body().find('[data-role="photos-toast-icon"]').exists()).toBe(false)
   })
 
-  it('不带 icon 时不渲染图标节点', async () => {
+  it('without an icon, no icon node is rendered', async () => {
     await mountHost()
     usePhotosToast().show({ text: 'No icon here' })
     await nextTick()
     expect(body().find('[data-role="photos-toast-icon"]').exists()).toBe(false)
   })
 
-  it('多条 toast 按入队顺序渲染', async () => {
+  it('multiple toasts render in enqueue order', async () => {
     await mountHost()
     usePhotosToast().show({ text: 'First' })
     usePhotosToast().show({ text: 'Second' })

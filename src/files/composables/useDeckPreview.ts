@@ -3,26 +3,30 @@ import { service } from '@nimotech/nimoos-service'
 import { snapshotBrowsePath } from '../util/snapshotPath'
 import type { FileEntry } from '../stores/files'
 
-// 卡片放大到 3/4 屏后,正面那张就是一整块可以滚轮上下翻的文件区网格 —— 能翻就得给够,
-// 只给一屏的量等于翻两下就到底。上限提到 200:再多的目录留给"进入此快照"去逐页看,
-// 卡片只是预览,不做无限列表(没有虚拟滚动,几千个 DOM 节点会拖垮翻卡动画)。
-// 超出的条数由卡片末尾的 "+N" 交代,total 始终是真实条目数。
-// 注:每格的缩略图走 FileThumb 的 IntersectionObserver 懒加载,而 IntersectionObserver
-// 会把"被带滚动条的祖先裁掉"算作不可见 —— 所以卡片里没滚到的那些格子不会发缩略图请求。
+// When the card expands to 3/4 screen, the front card becomes a scrollable file grid.
+// Must provide enough items to scroll through — showing only one screen worth means
+// two scrolls reaches the bottom. Cap at 200: larger directories are left for
+// "enter snapshot" to browse page-by-page; the card is a preview only, not an
+// infinite list (no virtual scrolling — thousands of DOM nodes would stall the card animation).
+// Excess count is communicated by "+N" at the card's end; total is always the true entry count.
+// Note: each cell's thumbnail uses FileThumb's IntersectionObserver lazy loading. The observer
+// treats "ancestors with scrollbars trimming off the element" as invisible — so cells not
+// scrolled into view in the card will not trigger thumbnail requests.
 const MAX_TILES = 200
 const HIDDEN = new Set(['lost+found'])
 
 export interface DeckPreview {
   status: 'loading' | 'ready' | 'missing' | 'failed'
-  /** 已按文件区默认规则排好序、最多 MAX_TILES 条的真实条目(卡片直接喂给 FileThumb) */
+  /** Sorted by file grid's default rules, at most MAX_TILES real entries (fed directly to FileThumb) */
   entries: FileEntry[]
   total: number
 }
 
-// 与 stores/files.ts 的 sortedEntries 默认档一致:文件夹在前,再按名字不分大小写升序。
-// 卡片是"进去之后会看到什么"的预览,顺序两边对不上会让人以为进错了目录。
-// 这里刻意不读用户在文件区选的排序偏好:卡片不带排序控件,跟着一个看不见的开关变
-// 反而更难解释;固定成默认档,与首次打开文件区看到的顺序一致。
+// Matches the default sort in stores/files.ts: folders first, then by name case-insensitive ascending.
+// The card previews "what you'll see after entering" — mismatched sort order would make
+// users think they entered the wrong directory. Deliberately ignores the user's sort
+// preference in the file grid: the card has no sort controls, and following a hidden toggle
+// would be confusing. Fixed to the default sort, matching what the file grid shows on first open.
 function sortLikeFiles(entries: FileEntry[]): FileEntry[] {
   return [...entries].sort((a, b) => {
     if (!!a.is_dir !== !!b.is_dir) return a.is_dir ? -1 : 1
@@ -31,17 +35,19 @@ function sortLikeFiles(entries: FileEntry[]): FileEntry[] {
   })
 }
 
-// 从抛出来的错误里取 HTTP 状态,与 files/util/snapshotRestore.ts 的 statusOf 同一套判法:
-// 共享包 unwrap() 抛的是 Error & {code}(信封 success 字段),网络层 4xx 由 axios 抛出时
-// 状态在 response.status —— 两种都要认。
+// Extracts HTTP status from thrown errors. Same logic as statusOf in files/util/snapshotRestore.ts:
+// the shared package's unwrap() throws Error & {code} (from envelope success field);
+// axios throws network 4xx with status in response.status — must handle both cases.
 function statusOf(e: unknown): number | undefined {
   const withCode = e as { code?: number; response?: { status?: number } } | undefined
   return withCode?.code ?? withCode?.response?.status
 }
 
-// 卡片上的"那一刻这个文件夹长什么样":快照内容就是普通只读目录,所以直接用文件区现成的
-// 列目录接口读 <快照根>/<当前相对路径>。只给**当前可见的**几张卡拉(卡堆窗口是 5+2 张),
-// 结果按快照名缓存 —— 来回拨刻度不会重复打请求;换卷或换目录时缓存整体作废重拉。
+// "What this folder looked like at that moment" on the card: snapshot content is a plain
+// read-only directory, so use the file grid's existing list API to read <snapshot root>/<current relative path>.
+// Only fetch for **currently visible** cards (the card deck window shows 5+2 cards);
+// results are cached by snapshot name — scrolling back and forth won't repeat requests;
+// when switching volumes or directories the cache is completely invalidated and re-fetched.
 export function useDeckPreview(opts: {
   mountPoint: () => string
   relPath: () => string
@@ -49,15 +55,18 @@ export function useDeckPreview(opts: {
 }): { previews: Ref<Record<string, DeckPreview>> } {
   const previews = ref<Record<string, DeckPreview>>({})
   let cacheKey = ''
-  // 过期响应守卫(T9 评审 Important):换目录/换卷时下面的 watch 会清空 previews 并立刻为
-  // 仍可见的快照重新发起请求,但**上一个目录那次已经在途的请求没人拦** —— 如果它后于新
-  // 请求落地,会把上一个文件夹的内容静默写进当前目录的卡片里,且没有任何报错/提示,拨
-  // 刻度也不会修复它(下一次名字相同就被 `!previews.value[name]` 当成"已经拉过"跳过重拉)。
-  // 每次真正换目录/换卷都把 epoch 往前拨一格;每次 fetchOne 认领自己发起时的那一代,
-  // 写 previews 前确认自己这一代还没被顶掉,顶掉了就整段丢弃 —— 同 snapshotBrowse.ts 的
-  // epoch 守卫、storage/stores/snapshot.ts 的 volumeRequestUuid 同一套语义。
+  // Stale response guard (T9 review Important): when switching directories/volumes, the
+  // watch below clears previews and immediately re-fetches for visible snapshots. But
+  // **requests from the old directory that are already in flight are not blocked** — if
+  // they land after the new request, they silently write old folder content into the
+  // current directory's card, with no error/warning. Scrolling won't fix it (the next
+  // time with the same name it's treated as "already fetched" by !previews.value[name] and skipped).
+  // Increment epoch each time the directory/volume actually changes. Each fetchOne claims
+  // the epoch from when it started; before writing previews it confirms its epoch hasn't
+  // been superseded. If superseded, the entire result is discarded — same semantics as
+  // the epoch guard in snapshotBrowse.ts and volumeRequestUuid in storage/stores/snapshot.ts.
   let epoch = 0
-  // 组件卸载后还挂着的请求落地时也不该再写 previews(同一个守卫顺带盖住,Minor)。
+  // Requests still pending after component unmount also shouldn't write previews (same guard covers it, Minor).
   let disposed = false
   onScopeDispose(() => { disposed = true })
 
@@ -68,14 +77,15 @@ export function useDeckPreview(opts: {
     previews.value = { ...previews.value, [name]: { status: 'loading', entries: [], total: 0 } }
     try {
       const data = await service.folder.getList(dir)
-      if (disposed || myEpoch !== epoch) return // 过期响应/已卸载:整段丢弃,不写 state
+      if (disposed || myEpoch !== epoch) return // stale response/unmounted: discard entire result, don't write state
       const content = ((data as { content?: FileEntry[] })?.content ?? [])
         .filter((e) => !e.name.startsWith('.') && !HIDDEN.has(e.name))
       const entries = sortLikeFiles(content).slice(0, MAX_TILES)
       previews.value = { ...previews.value, [name]: { status: 'ready', entries, total: content.length } }
     } catch (e) {
       if (disposed || myEpoch !== epoch) return
-      // 404 = 那时候还没有这个文件夹(卡片要说人话);其它一律 failed,静默退回纯文字卡。
+      // 404 = folder didn't exist at that time (card should speak plain English);
+      // everything else is failed, silently fall back to text-only card.
       const status = statusOf(e)
       previews.value = {
         ...previews.value,
@@ -88,7 +98,8 @@ export function useDeckPreview(opts: {
     () => [opts.mountPoint(), opts.relPath(), opts.visibleNames().join('|')].join('::'),
     () => {
       const key = `${opts.mountPoint()}::${opts.relPath()}`
-      // 换了卷或换了目录,之前缓存的目录内容全部作废,并顶掉任何还在途的旧请求
+      // Switching volumes or directories invalidates all cached directory content and
+      // supersedes any in-flight old requests
       if (key !== cacheKey) { cacheKey = key; previews.value = {}; epoch += 1 }
       if (!opts.mountPoint()) return
       for (const name of opts.visibleNames()) {

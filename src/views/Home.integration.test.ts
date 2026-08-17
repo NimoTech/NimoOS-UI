@@ -37,8 +37,8 @@ import Home from './Home.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// SP9-P8:Home 挂的 SearchDialog 用 useRoute()/useRouter() 消费深链 ?q=,
-// 所以挂载必须带 router 插件(最小 memory 路由表,不引真实 src/router)。
+// SP9-P8: the SearchDialog mounted by Home consumes the deep link ?q= via useRoute()/useRouter(),
+// so mounting must include the router plugin (a minimal memory route table, not the real src/router).
 function makeRouter() {
   return createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
 }
@@ -54,7 +54,7 @@ describe('Home integration', () => {
     const w = mountHome()
     await w.vm.$nextTick()
     expect(w.find('.topbar').exists()).toBe(true)
-    expect(w.findAll('[data-id]').length).toBeGreaterThan(0) // DEFAULT 项渲染
+    expect(w.findAll('[data-id]').length).toBeGreaterThan(0) // DEFAULT items rendered
   })
 
   // SP11 review round 1, Critical finding: DesktopContextMenu must not put any
@@ -73,22 +73,22 @@ describe('Home integration', () => {
     expect(grid.parentElement).toBe(screen)
   })
 
-  it('appgrid 加载后触发 autoPin,30s 轮询与 focus 各再触发', async () => {
+  it('triggers autoPin after the appgrid loads, and again on both the 30s poll and focus', async () => {
     vi.useFakeTimers()
     const w = mountHome()
     const layout = useLayoutStore()
     const spy = vi.spyOn(layout, 'autoPin')
     await flushPromises()
-    expect(spy).toHaveBeenCalled() // 首次 loadGrid 后
+    expect(spy).toHaveBeenCalled() // after the initial loadGrid
     const n = spy.mock.calls.length
 
     vi.advanceTimersByTime(30_000)
     await flushPromises()
-    expect(spy.mock.calls.length).toBeGreaterThan(n) // 轮询
+    expect(spy.mock.calls.length).toBeGreaterThan(n) // polling
 
     window.dispatchEvent(new Event('focus'))
     await flushPromises()
-    expect(spy.mock.calls.length).toBeGreaterThan(n + 1) // 聚焦
+    expect(spy.mock.calls.length).toBeGreaterThan(n + 1) // focus
 
     w.unmount()
     vi.useRealTimers()

@@ -1,99 +1,120 @@
 <!--
-  SP8-P3a Task 6 —— 1:1 移植自 Vue2 src/views/AI/Skills/SkillsSection.vue(226 行,
-  只读半)。左列(头部只有刷新按钮 + 搜索框 + 分组列表)+ 右侧 SkillDetail。
+  SP8-P3a Task 6 — 1:1 ported from Vue2 src/views/AI/Skills/SkillsSection.vue (226 lines,
+  read-only half). Left column (header only refresh button + search box + grouped list) + right SkillDetail.
 
-  【偏离清单(均按公共约束 §2 三件套申报)】
+  【Divergence list (all reported per public constraint §2 three-item kit)】
 
-  1(公共约束 §3 偏离 1 / brief §6.2)—— `reload()` 不再多剥一层 `.data`。
-  Vue2 :133-134 写的是 `const resp = await ai.listSkills(); this.skills = resp.data
-  || []`,那是把 axios 响应层的 `.data` 当成后端 payload 剥。共享包
-  `service.ai.listSkills()`(NimoOS-Service/dist/ai.d.ts:75)已经在内部 `return
-  res.data` 剥过一次 axios 层,而后端 `NimoOS-AI/route/v2/skills.go:37` 是
-  `c.JSON(200, out)` 裸数组——再取一次 `.data` 在裸数组上恒为 `undefined`,
-  `this.skills` 就恒为 `[]`(空数组兜底掩盖了真正取到 undefined 这件事),列表
-  永远空。这与 SP8-P2a 验收时修的 `loadAvailableModels`(提交 a942196)是同一个
-  缺陷模具:核心字段名≠核心信封层数。此处直接 `await service.ai.listSkills()`
-  当数组用,不再有第二层 `.data`。
+  1 (public constraint §3 divergence 1 / brief §6.2) — `reload()` no longer peels off `.data` again.
+  Vue2 :133-134 wrote `const resp = await ai.listSkills(); this.skills = resp.data || []`,
+  that's peeling off axios response layer's `.data` as backend payload. Shared package
+  `service.ai.listSkills()` (NimoOS-Service/dist/ai.d.ts:75) already internally `return res.data`
+  peeled axios layer once, while backend `NimoOS-AI/route/v2/skills.go:37` is `c.JSON(200, out)`
+  bare array — peeling off `.data` again on bare array is always `undefined`, `this.skills` always
+  `[]` (bare array fallback masks actually getting undefined), list forever empty. Same defect mold
+  as SP8-P2a acceptance fixed `loadAvailableModels` (commit a942196): core field name ≠ core envelope
+  layers. Here directly `await service.ai.listSkills()` use as array, no second `.data` layer anymore.
 
-  2(公共约束 §3 偏离 3)—— `.sk-toast`(Vue2 :72-77,`showToast()`)不移植,改用
-  全局 `useToast().show()`。Vue2 加载失败时(`:139-140`)走 `console.error` +
-  `showToast('Could not load skills')`,且它的 `.sk-toast` 模板(:73-74)**无条件**
-  渲染绿色 check 图标,连失败提示也顶着一个"成功"勾——这是 Vue2 自己的缺陷,不照抄
-  (brief §6.2 明确点名)。本仓失败改走 `toast.show(t('aiSkLoadFailed'), 3000,
-  'danger')`,`danger` tier 天然不会带勾。`Vue2 :139` 的 `console.error` 同样不照抄
-  ——本仓三个兄弟分区(BlacklistSection/ExecutionSection/MemorySection)都没有这个
-  惯例,静默吞错 + toast 提示已经足够。
+  2 (public constraint §3 divergence 3) — `.sk-toast` (Vue2 :72-77, `showToast()`) not ported,
+  changed to global `useToast().show()`. Vue2 on load fail (:139-140) goes `console.error` +
+  `showToast('Could not load skills')`, and its `.sk-toast` template (:73-74) **unconditionally**
+  renders green check icon, even error message wears success check — this is Vue2's own defect,
+  not copying (brief §6.2 explicitly names). This repo changed fail to `toast.show(t('aiSkLoadFailed'),
+  3000, 'danger')`, `danger` tier naturally won't wear check. Vue2 :139's `console.error` also not copied
+  — this repo's three sibling sections (BlacklistSection/ExecutionSection/MemorySection) have no
+  this convention, silently swallowing error + toast shown already enough.
 
-  3(公共约束 §3 偏离 2)—— `SkillIcon.vue` 不移植,统一用 `../../icons/AgentIcon.vue`
-  (Task 4/5 已同款处理)。
+  3 (public constraint §3 divergence 2) — `SkillIcon.vue` not ported, unified to use
+  `../../icons/AgentIcon.vue` (Task 4/5 already same treatment).
 
-  4(brief §6.1)—— 左列头部只有刷新按钮。Vue2 :9-11 的 `+` 添加按钮(`adding = true`
-  打开 `AddSkillModal`)属于 P3b(写操作半),Task 8 已接线,见下方新注释段。
+  4 (brief §6.1) — left column header only refresh button. Vue2 :9-11's `+` add button (`adding = true`
+  opens `AddSkillModal`) belongs to P3b (write operations half), Task 8 wired, see new comment section below.
 
-  【颜色】Vue2 :15 `SkillIcon name="search" ... color="var(--text-tertiary)"` 显式传色
-  (`.sk-col-search` 容器本身没有给图标定 color 的 CSS 规则,不显式传就会退回
-  `currentColor`,视觉上会比 Vue2 深,故按原样显式传 token)。`.icon-btn` 按钮本身
-  在 settings-styles.scss:350 已定义 `color: var(--text-secondary)`,刷新/清空按钮
-  内的图标走 currentColor 自然继承,不需要再显式传色。
+  [Color] Vue2 :15's `SkillIcon name="search" ... color="var(--text-tertiary)"`
+  explicitly passes a color (the `.sk-col-search` container itself has no CSS rule
+  setting the icon's color, so without an explicit pass it would fall back to
+  `currentColor`, which would look darker than Vue2 — hence the token is passed
+  explicitly, as-is). The `.icon-btn` button itself already defines
+  `color: var(--text-secondary)` in settings-styles.scss:350, so the icons inside the
+  refresh/clear buttons naturally inherit via currentColor and don't need an explicit
+  color pass.
 
-  Vue2 :17-24 那个内联 `style="width: 18px; height: 18px"` 与 :27-29 的
-  `style="display: grid; place-items: center; padding: 28px 0"` 都是尺寸/布局,不是
-  颜色,原样照抄不违反 color-guard(brief §6.1 点名)。
+  Vue2 :17-24's inline `style="width: 18px; height: 18px"` and :27-29's
+  `style="display: grid; place-items: center; padding: 28px 0"` are both size/layout, not
+  color — copying them as-is doesn't violate the color guard (brief §6.1 names this).
 
-  零 <style> 块:用到的每个 class(sk-col*/sk-list/sk-col-empty/sk-spinner/icon-btn/
-  sk-col-actions/set-split/sk-add-btn)均已存在于 settings-styles.scss(sk-col-actions/
-  set-split/icon-btn)与 skills-styles.scss(Task 1/8,其余)。
+  Zero <style> blocks: every class used (sk-col*/sk-list/sk-col-empty/sk-spinner/icon-btn/
+  sk-col-actions/set-split/sk-add-btn) already exists in settings-styles.scss
+  (sk-col-actions/set-split/icon-btn) and skills-styles.scss (Task 1/8, the rest).
 
   ============================================================================
-  SP8-P3b Task 8 —— `+` 按钮 + 四个写操作接线(对齐 Vue2 :6-11 顺序、:147-214 四个
-  方法体)。
+  SP8-P3b Task 8 — the `+` button plus the four write-operation wire-ups (matching Vue2's
+  :6-11 order and the four method bodies at :147-214).
 
-  【单层取数,公共约束 §4 / brief §10.2】三处全部单层取数,不再像 Vue2 那样多剥一层
-  `.data`——理由与本文件已有的 `reload()`(偏离 1,上方旧注释段)完全同构:
+  [Single-layer unwrap, public constraint §4 / brief §10.2] All three spots use a
+  single-layer unwrap, no longer peeling off an extra `.data` layer the way Vue2 does — the
+  reasoning is exactly the same shape as this file's existing `reload()` (divergence 1,
+  the earlier comment block above):
     - Vue2 :150-151 `const resp = await ai.updateSkill(...); const updated = resp.data`
-      → 后端 `route/v2/skills.go:131`(PATCH)走 `h.Get(c)` 返回 **200 裸 skill**,
-      共享包已剥过一层 axios,再剥一次恒 `undefined`,`if (idx !== -1 && updated)`
-      永假——开关点了列表项不更新(用户体感:开关"点了但没反应",要刷新才能看到)。
-    - Vue2 :188 `const sk = resp.data` → 后端 `:105`(POST)**201 裸 skill**,同一缺陷,
-      新建成功后 `sk && sk.id` 永假,列表不会追加、也不会选中新技能。
-    - DELETE(`:143`)**204 无内容**,Vue2 没有读它的返回值(`:166` 只 `await
-      ai.deleteSkill(id)`,本仓同样不读),此处没有偏离,只是一并记录三个端点的
-      真实形状。
+      → backend `route/v2/skills.go:131` (PATCH) goes through `h.Get(c)`, returning a
+      **200 bare skill**. The shared package already peeled off one axios layer, so
+      peeling again is always `undefined`, and `if (idx !== -1 && updated)` is always
+      false — clicking the toggle on a list item doesn't update it (user-visible symptom:
+      the toggle "clicks but does nothing" until you refresh).
+    - Vue2 :188 `const sk = resp.data` → backend `:105` (POST) is **201 bare skill**, the
+      same defect — after a successful create, `sk && sk.id` is always false, so the list
+      neither appends nor selects the new skill.
+    - DELETE (`:143`) is **204 with no body**; Vue2 never reads its return value (`:166`
+      is just `await ai.deleteSkill(id)`, and this repo likewise doesn't read it) — no
+      divergence here, this just records the real shape of all three endpoints together.
 
-  【删除后选中项落位,对齐 Vue2 :168-170,brief §10.2 明确点名的条件】只有当删的是
-  **当前选中项**才把 `activeId` 落到剩余第一项;删别的项时 `activeId` 不动。
+  [Selected-item placement after delete, matching Vue2 :168-170, the condition brief §10.2
+  explicitly names] `activeId` only falls back to the first remaining item when the
+  deleted item **was the currently selected one**; deleting a different item leaves
+  `activeId` untouched.
 
-  【onTest 乐观本地值,申报,对齐 Vue2 :204-214,brief §10.2】`onTest()` 就地把当前
-  选中项(`activeId` 对应项,由 `TestPanel` 经 `SkillDetail` 转发的 `test` 事件只在
-  沙箱**真正成功完成**时才触发——见 `TestPanel.vue` 头注释偏离 D5、`SkillDetail.vue`
-  `emit('test')` 转发处注释)`last_used` 改成 `'Just now'`、`calls` 自增 1。这是**乐观
-  本地值,不落库**:后端 `service/skills.go:352 RecordRun` 全仓零调用点(grep 确认,
-  见任务报告),`reload()`/切换技能/刷新页面都会让这两个字段打回后端原值,乐观更新
-  即刻消失。这不是本任务要修的缺陷——公共约束 §3 偏离 4 已把它列为已登记的既有事实
-  (「测试次数只在成功完成时 +1」的另一半:后端从不真正记录),此处只是原样保留
-  Vue2 的这个本地体感,不新增行为。
+  [onTest's optimistic local value, declared, matching Vue2 :204-214, brief §10.2]
+  `onTest()` updates the currently selected item in place (the item matching `activeId` —
+  the `test` event forwarded by `TestPanel` through `SkillDetail` only fires when the
+  sandbox **genuinely completes successfully**; see the divergence D5 note in
+  `TestPanel.vue`'s header comment and the comment at `SkillDetail.vue`'s
+  `emit('test')` forwarding site), setting `last_used` to `'Just now'` and incrementing
+  `calls` by 1. This is an **optimistic local value that is never persisted**: the backend
+  `service/skills.go:352 RecordRun` has zero call sites anywhere in the repo (confirmed by
+  grep, see the task report), and `reload()` / switching skills / refreshing the page will
+  all reset these two fields back to the backend's real values, making the optimistic
+  update vanish instantly. This isn't a defect this task is meant to fix — public
+  constraint §3 divergence 4 already lists it as a registered existing fact (the other
+  half of "the test count only increments on successful completion": the backend never
+  actually records it) — this just preserves Vue2's local-feel behavior as-is, adding
+  nothing new.
 
-  【console.error 不照抄,申报,对齐 Vue2 :139,156,178,196】四个方法(reload 已在
-  上方旧偏离 2 里申报过;onToggle/onDelete/onCreate 三处同款)全部不写
-  `console.error`——本仓三个兄弟分区(BlacklistSection/ExecutionSection/
-  MemorySection)与本文件 P3a 已有的 `reload()` 都没有这个惯例,失败态统一交给
-  toast/行内错误呈现,静默吞错已经足够。
+  [console.error not copied, declared, matching Vue2 :139,156,178,196] None of the four
+  methods (reload was already declared in divergence 2 above; onToggle/onDelete/onCreate
+  follow the same pattern) write `console.error` — none of this repo's three sibling
+  sections (BlacklistSection/ExecutionSection/MemorySection) nor this file's existing
+  P3a `reload()` follow that convention; failure states are handed off uniformly to
+  toast/inline error display, and silently swallowing the error is enough.
 
-  【`+` 按钮不传具名色,对齐公共约束 §3 偏离 8 / brief §10.1】Vue2 :10
-  `SkillIcon name="plus" ... color="white"` 不照抄——`AgentIcon` 不传 `color`,走
-  `currentColor`,由 `.sk-add-btn { color: var(--text-on-accent) }`
-  (skills-styles.scss:193,已确认这条规则里有 `color`)供色。
+  [`+` button doesn't pass a named color, matching public constraint §3 divergence 8 /
+  brief §10.1] Vue2 :10's `SkillIcon name="plus" ... color="white"` is not copied —
+  `AgentIcon` gets no `color` prop, falls back to `currentColor`, colored by
+  `.sk-add-btn { color: var(--text-on-accent) }` (skills-styles.scss:193, confirmed this
+  rule has a `color`).
 
-  【弹窗接线写法,brief §10.3 要求 grep 先例后二选一并说明】`AddSkillModal` 用
-  `v-model:open="adding"`(即 `:open="adding"` + `@update:open="adding = $event"`)
-  常挂,不套 Vue2 :65-70 的 `v-if="adding"`——理由:`AddSkillModal.vue` 本身已经在
-  `watch(() => props.open, ...)` 里对 `!v` 分支做 `resetForm()`(见该文件头注释「非
-  拍板偏离但需要说明的实现细节」),它是按「组件常驻、`open` 驱动可见性」这个前提
-  设计的;这也是 `ChannelsSection.vue:427`(`SkModal :open="showAdd"`)与
-  `SkillDetail.vue`(`SkModal :open="tryModalOpen"`)两处既有先例的统一写法,本文件
-  跟随先例,不引入第三种模式。关闭时(`adding` 变 `false`)额外清空 `createError`——
-  `AddSkillModal` 只复位它自己的字段,`serverError` 的来源(`createError`)住在本组件,
-  不清的话下次打开弹窗会看到上一次的报错残留。
+  [Dialog wiring style — brief §10.3 requires grepping for precedent first, then picking
+  one of two options and explaining] `AddSkillModal` uses `v-model:open="adding"` (i.e.
+  `:open="adding"` plus `@update:open="adding = $event"`) always-mounted, rather than
+  Vue2 :65-70's `v-if="adding"` — reason: `AddSkillModal.vue` itself already does
+  `resetForm()` in the `!v` branch of `watch(() => props.open, ...)` (see that file's
+  header comment, "implementation detail that isn't a ruled-on divergence but needs
+  explaining"); it's designed on the premise "component stays mounted, `open` drives
+  visibility". This is also the same style already used as precedent in
+  `ChannelsSection.vue:427` (`SkModal :open="showAdd"`) and `SkillDetail.vue`
+  (`SkModal :open="tryModalOpen"`); this file follows that precedent rather than
+  introducing a third pattern. On close (`adding` becoming `false`), `createError` is also
+  cleared — `AddSkillModal` only resets its own fields, while `serverError`'s source
+  (`createError`) lives in this component; without clearing it, the next time the dialog
+  opens it would show a leftover error from the previous attempt.
   ============================================================================
 -->
 <script setup lang="ts">
@@ -116,18 +137,19 @@ const loading = ref(true)
 const activeId = ref<string | null>(null)
 const query = ref('')
 
-// Task 8 新增状态,逐字照 brief §1。
+// Task 8's new state, matching brief §1 verbatim.
 const adding = ref(false)
 const saving = ref(false)
 const busy = ref<Record<string, boolean>>({})
 const createError = ref('')
 
-// 弹窗关闭时清掉行内错误(见文件头注释「弹窗接线写法」末段)。
+// Clear the inline error when the dialog closes (see the end of the "Dialog wiring style"
+// section in the file header comment).
 watch(adding, (v) => {
   if (!v) createError.value = ''
 })
 
-// 四个 computed,对齐 Vue2 SkillsSection.vue:105-118。
+// Four computeds, matching Vue2's SkillsSection.vue:105-118.
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
   if (!q) return skills.value
@@ -149,16 +171,18 @@ function setActive(id: string) {
 async function reload() {
   loading.value = true
   try {
-    // 单层取数(偏离 1,见文件头注释)——不再多剥一层 `.data`。
+    // Single-layer unwrap (divergence 1, see file header comment) — no extra `.data` peel.
     const list = (await service.ai.listSkills()) as Skill[]
     skills.value = Array.isArray(list) ? list : []
-    // 选中态保持逻辑,对齐 Vue2 :135-137:当前选中项还在新列表里就不动,否则落到
-    // 第一项(空列表落 null)。
+    // Selection-retention logic, matching Vue2 :135-137: leave it alone if the currently
+    // selected item is still in the new list, otherwise fall back to the first item
+    // (falls to null on an empty list).
     if (!activeId.value || !skills.value.find((s) => s.id === activeId.value)) {
       activeId.value = skills.value[0]?.id ?? null
     }
   } catch {
-    // 偏离 2(见文件头注释):Vue2 `console.error` 不照抄,失败走全局 danger toast。
+    // Divergence 2 (see file header comment): Vue2's `console.error` is not copied,
+    // failure goes through the global danger toast.
     toast.show(t('aiSkLoadFailed'), 3000, 'danger')
   } finally {
     loading.value = false
@@ -167,14 +191,19 @@ async function reload() {
 
 onMounted(() => reload())
 
-// 对齐 Vue2 `onToggle`(:147-161)。单层取数(见文件头注释「单层取数」第一条)。
+// Matches Vue2's `onToggle` (:147-161). Single-layer unwrap (see the "Single-layer
+// unwrap" item 1 in the file header comment).
 //
-// 【P3b 终审 M5 修复】此前 `idx !== -1 && updated` 为假(后端返回意外形状,如空体)
-// 时列表不更新,却照样走 `try` 分支底部弹成功 toast——今天 PATCH 恒返 200 裸
-// skill 不会触发,但一旦触发,列表原地不动 + 一条"已启用/已暂停"的假成功提示,叠加
-// `SkillDetail.vue` D4 的 `watch(enabled)`(等的正是这个 `updated` 落到 props 上)会
-// 让 D4 弹窗永远等不到 `enabled` 真的变化、卡在打开状态,用户毫无线索。改成:只有
-// 真的替换了列表项才算成功;否则走失败分支(与请求异常同一条 danger toast)。
+// [P3b final-review fix M5] Previously, when `idx !== -1 && updated` was false (the
+// backend returned an unexpected shape, e.g. an empty body), the list wouldn't update but
+// would still fall through to the bottom of the `try` branch and pop a success toast —
+// today PATCH always returns a 200 bare skill so this never triggers, but if it ever did,
+// the list would stay put plus show a fake "enabled/paused" success message, and combined
+// with `SkillDetail.vue`'s D4 `watch(enabled)` (which is waiting exactly for this
+// `updated` to land in props) D4's dialog would never see `enabled` actually change and
+// get stuck open, leaving the user with no clue. Changed to: only count it as success if
+// the list item was genuinely replaced; otherwise go through the failure branch (the same
+// danger toast as a request exception).
 async function onToggle(id: string, enabled: boolean) {
   busy.value = { ...busy.value, [id]: true }
   try {
@@ -195,8 +224,10 @@ async function onToggle(id: string, enabled: boolean) {
   }
 }
 
-// 对齐 Vue2 `onDelete`(:162-183)。DELETE 是 204 无内容,不读返回值(见文件头注释
-// 「单层取数」第三条)。选中项落位条件见文件头注释「删除后选中项落位」。
+// Matches Vue2's `onDelete` (:162-183). DELETE is 204 with no body, so the return value
+// isn't read (see item 3 in the "Single-layer unwrap" section of the file header
+// comment). The selected-item placement condition is in the file header comment's
+// "Selected-item placement after delete" section.
 async function onDelete(id: string) {
   const s = skills.value.find((x) => x.id === id)
   busy.value = { ...busy.value, [id]: true }
@@ -217,16 +248,20 @@ async function onDelete(id: string) {
   }
 }
 
-// 对齐 Vue2 `onCreate`(:184-203)。201 裸 skill(见文件头注释「单层取数」第二条)。
-// 失败时**不关弹窗**(用户可改后重试),错误走行内 `createError`,不是 toast
-// (brief §10.2/公共约束 §3 偏离 5:HTTP 层失败不回显后端 body,改本地化文案)。
+// Matches Vue2's `onCreate` (:184-203). 201 bare skill (see item 2 in the "Single-layer
+// unwrap" section of the file header comment). On failure, **the dialog stays open**
+// (so the user can edit and retry); the error goes to the inline `createError`, not a
+// toast (brief §10.2 / public constraint §3 divergence 5: HTTP-layer failures never echo
+// the backend body, use localized copy instead).
 async function onCreate(payload: SkillFormPayload) {
   saving.value = true
   createError.value = ''
   try {
-    // `service.ai.createSkill` 的形参类型是 `Record<string, unknown>`(共享包签名,
-    // 见 NimoOS-Service/src/ai.ts:337)——`SkillFormPayload` 是具名 interface,不带隐式
-    // 索引签名,TS 判定不兼容(TS2345),故转型一次;字段值本身未做任何改动。
+    // `service.ai.createSkill`'s parameter type is `Record<string, unknown>` (shared
+    // package signature, see NimoOS-Service/src/ai.ts:337) — `SkillFormPayload` is a
+    // named interface without an implicit index signature, so TS considers them
+    // incompatible (TS2345), hence the one-off cast; the field values themselves are
+    // untouched.
     const sk = (await service.ai.createSkill(payload as unknown as Record<string, unknown>)) as Skill | undefined
     if (sk?.id) {
       skills.value.push(sk)
@@ -241,9 +276,10 @@ async function onCreate(payload: SkillFormPayload) {
   }
 }
 
-// 对齐 Vue2 `onTest`(:204-214)。乐观本地值,不落库——见文件头注释「onTest 乐观
-// 本地值」申报段:后端 RecordRun 全仓零调用点,reload()/切换技能/刷新页面都会让
-// 这两个字段打回原值。
+// Matches Vue2's `onTest` (:204-214). Optimistic local value, never persisted — see the
+// "onTest's optimistic local value" declaration in the file header comment: the backend
+// RecordRun has zero call sites anywhere in the repo, and reload() / switching skills /
+// refreshing the page will all reset these two fields back to the original values.
 function onTest() {
   const idx = skills.value.findIndex((s) => s.id === activeId.value)
   if (idx === -1) return
@@ -264,7 +300,7 @@ function onTest() {
           <button class="icon-btn" :title="t('aiCfgRefresh')" @click="reload">
             <AgentIcon name="refresh" :size="15" />
           </button>
-          <!-- 对齐 Vue2 :9-11。不传具名 color——见文件头注释「+ 按钮不传具名色」。 -->
+          <!-- Matches Vue2 :9-11. No named color passed — see "+ button doesn't pass a named color" in the file header comment. -->
           <button class="sk-add-btn" :title="t('aiSkAddSkill')" @click="adding = true">
             <AgentIcon name="plus" :size="15" />
           </button>

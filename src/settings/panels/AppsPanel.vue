@@ -1,12 +1,12 @@
 <script setup lang="ts">
-// 设置 · 应用。对位 Vue2 SettingsPanel.vue apps 分支(模板 L587-665)+
-// loadAppsData()(:1910-1971)+ pruneDocker()(:1973)+ clearLocalUploads()(:2010)。
+// Settings · Apps. Maps to Vue2 SettingsPanel.vue's apps branch (template L587-665) +
+// loadAppsData() (:1910-1971) + pruneDocker() (:1973) + clearLocalUploads() (:2010).
 //
-// 三块:① 「App 数据存储位置」four rows (app_data / images / database / photos_data;
+// Three sections: ① "App data storage location" four rows (app_data / images / database / photos_data;
 //         from Task 2's buildAppPathRows, photos_data is the fourth row Task 3 added,
 //         matching Vue 2 #103)
-//      ② Docker 缓存清理(二次确认 + service.container.prune())
-//      ③ 清理本地待上传缓存 —— 政策三「做样子」,见下方专门注释。
+//      ② Docker cache cleanup (double confirmation + service.container.prune())
+//      ③ Clear local pending-upload cache — policy 3 "for show", see the dedicated comment below.
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type SystemPaths } from '@nimotech/nimoos-service'
@@ -31,22 +31,26 @@ const ROW_LABEL_KEY: Record<AppPathKey, string> = {
   photos_data: 'settingsAppsPhotosData',
 }
 
-// ── 取数(App 数据存储位置四行) ──────────────────────────────────────────
+// ── Fetching data (the four "App data storage location" rows) ──────────────────────────────────────────
 const paths = ref<SystemPaths | null>(null)
 const volumes = ref<StorageVolume[]>([])
 const rows = computed(() => buildAppPathRows(paths.value, volumes.value))
 
-// 评审 Important #3:取数在途时不能渲染四行 0 值——尤其是「用户数据库」那行,pathText()
-// 无条件拼四目录后缀,取数未落定时会显示成缺前缀的假路径(如
-// "/Documents & Downloads & Gallery & Media")。加载态收敛条件选「两个接口都落定」,
-// 不是「路径那条落定即可」:因为 pathText() 依赖 displayNames(由 volumes 算出),
-// paths 先落定而 volumes 还没落定时,虚拟路径转换会失败、同样会短暂显示一段不对的裸路径——
-// 那和 brief 描述的"假路径"是同一类错误读数,只等 paths 不够。
+// Review Important #3: must not render the four rows with 0 values while the fetch is still in flight
+// — especially the "user database" row, where pathText() unconditionally appends the four-directory
+// suffix, so before the fetch settles it would show a fake path missing its prefix (e.g.
+// "/Documents & Downloads & Gallery & Media"). The loading-state condition is chosen as "both endpoints
+// have settled", not "the path one alone settling is enough": because pathText() depends on
+// displayNames (computed from volumes), if paths settles first while volumes hasn't yet, the virtual
+// path conversion fails and briefly shows the same kind of wrong bare path — that's the same class of
+// bad reading the brief describes as a "fake path"; waiting on paths alone isn't sufficient.
 const loading = ref(true)
 
-// 就地守卫(不抽公共 helper,同 StoragePanel.vue/SystemStatusPanel.vue 先例):防止两个
-// 并发请求中任意一个落定时组件已卸载、仍去回写已卸载组件的 ref。本面板没有用户可编辑的
-// 控件,守卫纯粹是防御性的(取数在途时用户切走这个 tab)。
+// Inline guard (not extracted into a shared helper, following the same precedent as
+// StoragePanel.vue/SystemStatusPanel.vue): prevents writing back to an unmounted component's ref when
+// either of the two concurrent requests settles after the component has unmounted. This panel has no
+// user-editable controls, so the guard is purely defensive (the user switches away from this tab while
+// the fetch is in flight).
 let alive = true
 onUnmounted(() => { alive = false })
 
@@ -73,20 +77,23 @@ async function loadVolumes() {
 }
 
 onMounted(() => {
-  // 并发发起,互不等待——两个接口独立取数、独立回退,任一失败不影响另一个;
-  // 加载态在两个都落定(不论成功失败)后才收敛。
+  // Fired concurrently, without waiting on each other — the two endpoints fetch and fall back
+  // independently, and either failing doesn't affect the other; the loading state only settles once
+  // both have settled (regardless of success or failure).
   void Promise.allSettled([loadPaths(), loadVolumes()]).then(() => {
     if (!alive) return
     loading.value = false
   })
 })
 
-// displayNames:根挂载点 "/" 显示为 /DATA(与 home/stores/folders.ts:loadDisks 同一口径 ——
-// 后端 GET /v1/storage 里系统盘的 mount_point 就是裸 "/",但 /v1/sys/paths 返回的路径
-// (如 /DATA/AppData)是相对于 /DATA 这个虚拟根写的;toVirtualPath 是纯前缀匹配,必须让
-// displayNames 的 key 与路径前缀真实对齐,所以这里不能照抄「原样用 v.mountPoint 当 key」
-// 的字面写法——那样对根盘会拿 "/" 去匹配 "/DATA/AppData",匹配不上,虚拟路径就转不出来)。
-// 非根挂载点原样使用真实 mountPoint,不做任何改写。
+// displayNames: the root mount point "/" displays as /DATA (same convention as
+// home/stores/folders.ts:loadDisks — in the backend GET /v1/storage response the system disk's
+// mount_point is the bare "/", but the paths returned by /v1/sys/paths (e.g. /DATA/AppData) are written
+// relative to the virtual root /DATA; toVirtualPath is a pure prefix match, so displayNames' keys must
+// genuinely line up with the path prefixes — which means this can't just copy the literal "use
+// v.mountPoint as-is for the key" approach: that would try to match "/" against "/DATA/AppData" for the
+// root disk, fail to match, and the virtual path conversion would never come out).
+// Non-root mount points use the real mountPoint as-is, with no rewriting.
 const displayNames = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {}
   for (const v of volumes.value) {
@@ -103,14 +110,15 @@ function sizeText(row: AppPathRowData): string {
 
 function pathText(row: AppPathRowData): string {
   const virtual = toVirtualPath(row.path, displayNames.value)
-  // Vue2 模板 SettingsPanel.vue:627 对用户数据库那行写死追加这四个目录名,界面 1:1 照留
-  // (不是这里发明的;这四个目录本身就是 database 路径下的真实子目录,只是后端 /sys/paths
-  // 不单独列出来,Vue2 选择直接拼字符串展示给用户)。
+  // Vue2 template SettingsPanel.vue:627 hardcodes appending these four directory names to the user
+  // database row; kept 1:1 in the UI (not invented here; these four directories are genuinely real
+  // subdirectories under the database path, it's just that the backend /sys/paths doesn't list them
+  // individually, and Vue2 chose to concatenate the string directly for display).
   if (row.key === 'database') return `${virtual}/Documents & Downloads & Gallery & Media`
   return virtual
 }
 
-// ── 更改存储位置弹窗 ──────────────────────────────────────────────────────
+// ── Change storage location dialog ──────────────────────────────────────────────────────
 const dialogOpen = ref(false)
 const dialogType = ref<AppPathKey>('app_data')
 const dialogRow = computed(() => rows.value.find((r) => r.key === dialogType.value))
@@ -121,14 +129,15 @@ function openDialog(key: AppPathKey) {
 }
 
 function onDialogFinish() {
-  // 迁移完成:重新取一次路径(该行的 path/size 已经变了),不用重新拉分区列表。
+  // Migration finished: re-fetch the paths once (that row's path/size has changed), no need to re-fetch the volume list.
   void loadPaths()
 }
 
-// ── Docker 缓存清理 ───────────────────────────────────────────────────────
-// ⛔ POST /v1/container/prune 会删掉**全部已停止的容器**(后端是 ContainersPrune 空过滤器,
-//    NimoOS-AppManagement/service/container.go:902)+ 悬空镜像。开发机上从没真跑过 —— 用户
-//    2026-08-01 拍板不点(本机会误删桌面小组件容器 nimoos-demo-widget / todo-widget)。债务 D23。
+// ── Docker cache cleanup ───────────────────────────────────────────────────────
+// ⛔ POST /v1/container/prune deletes **all stopped containers** (backend is ContainersPrune with an
+//    empty filter, NimoOS-AppManagement/service/container.go:902) + dangling images. Never actually run
+//    on the dev machine — the user decided on 2026-08-01 not to click it (on this machine it would
+//    wrongly delete the desktop widget containers nimoos-demo-widget / todo-widget). Debt D23.
 const pruneConfirmOpen = ref(false)
 const pruning = ref(false)
 
@@ -142,7 +151,7 @@ async function confirmPrune() {
   pruning.value = true
   try {
     await service.container.prune()
-    // 面板级提示,不是弹窗内报错——toast 在这里是对的(弹窗已经关闭,不会被遮罩压住糊掉)。
+    // A panel-level toast, not an error inside a dialog — a toast is correct here (the dialog has already closed, so it won't be smothered under the overlay).
     toast.show(t('settingsAppsDockerCleanDone'))
   } catch (e) {
     toast.show(t('settingsAppsDockerCleanFailed'))
@@ -152,9 +161,12 @@ async function confirmPrune() {
   }
 }
 
-// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用、标注待相册区迁移完成后启用。
-//    数据源是**相册**的 IndexedDB 上传队列(Vue2 @/views/Photos/upload/idb.js),SP7 尚未迁。
-//    ⚠️ 别拿 src/files/upload/idb.ts 顶 —— 那是 SP4 文件区的独立 TUS 队列,两套东西。债务 D13。
+// "Clear local pending-upload cache" = policy 3 "for show": UI is 1:1, button disabled, labeled as
+//    enabled once the Photos area migration is done.
+//    The data source is the **Photos** area's IndexedDB upload queue (Vue2 @/views/Photos/upload/idb.js),
+//    not yet migrated as of SP7.
+//    ⚠️ Don't substitute src/files/upload/idb.ts for it — that's SP4's separate TUS queue for the files
+//    area, two different things. Debt D13.
 </script>
 
 <template>

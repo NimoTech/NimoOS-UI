@@ -44,7 +44,7 @@ describe('AppSettingsPage', () => {
   it('port conflict -> dialog first; confirm closes it, banner stays, no navigation', async () => {
     svc.compose.getYaml.mockResolvedValue(Y)
     svc.compose.applySettings.mockRejectedValueOnce({ response: { status: 400, data: { message: 'there are ports in use', data: { ports_in_use: { TCP: ['80'] } } } } })
-    // attachTo:reka Dialog 经 Portal 渲染到 body,原生 click 需要真 DOM(PreInstallTips.test 先例)
+    // attachTo: reka Dialog is rendered to body via Portal; native click needs real DOM (see PreInstallTips.test precedent)
     const w = mount(AppSettingsPage, {
       global: { plugins: [i18n, pinia], stubs: { AreaShell: { template: '<div><slot /></div>' }, AppsSidebar: true } },
       attachTo: document.body,
@@ -52,12 +52,12 @@ describe('AppSettingsPage', () => {
     await flushPromises()
     await w.find('[data-test="settings-save"]').trigger('click')
     await flushPromises()
-    // 弹窗先出(保存钮在长表单底部,顶部红条在视野外——验收补丁根因)
+    // Dialog appears first (save button is at bottom of long form, top banner is out of view — root cause of acceptance patch)
     expect(document.body.querySelector('[data-test="settings-conflict-dlg"]')).not.toBeNull()
     expect(document.body.textContent).toContain('80/tcp')
     ;(document.body.querySelector('[data-test="settings-conflict-ok"]') as HTMLButtonElement).click()
     await flushPromises()
-    // 确认后弹窗关、顶部红条保留、端口行冲突标红保留、不跳页
+    // After confirmation: dialog closes, top banner stays, port row stays red/conflicted, no navigation
     expect(document.body.querySelector('[data-test="settings-conflict-dlg"]')).toBeNull()
     expect(w.find('[data-test="settings-conflict"]').exists()).toBe(true)
     expect(w.find('[data-test="port-row"].conflict').exists()).toBe(true)
@@ -66,7 +66,7 @@ describe('AppSettingsPage', () => {
   })
 })
 
-describe('AppSettingsPage — YAML tab (P6 验收补丁②)', () => {
+describe('AppSettingsPage — YAML tab (P6 acceptance patch②)', () => {
   it('form → yaml: editor appears and carries form edits made before switching', async () => {
     svc.compose.getYaml.mockResolvedValue(Y)
     const w = mk()
@@ -91,7 +91,7 @@ describe('AppSettingsPage — YAML tab (P6 验收补丁②)', () => {
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: 'services:\n  demo:\n  bad indent\n- broken: [' } })
     await w.find('[data-test="settings-tab-form"]').trigger('click')
     await flushPromises()
-    expect(w.find('[data-test="settings-yaml-panel"]').exists()).toBe(true) // 未切走,仍在 yaml tab
+    expect(w.find('[data-test="settings-yaml-panel"]').exists()).toBe(true) // Did not switch, still on yaml tab
     expect(w.find('[data-test="yaml-parse-error"]').exists()).toBe(true)
     expect(w.find('[data-test="yaml-parse-error"]').text()).toContain(zh.appsSettingsYamlParseError)
   })

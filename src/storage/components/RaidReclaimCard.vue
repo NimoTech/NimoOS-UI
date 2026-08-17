@@ -3,19 +3,25 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RaidReattachableMember } from '@nimotech/nimoos-service'
 
-// 「收回成员盘」横幅卡:阵列 degraded 且 status.reattachable_members 非空时,由父视图
-// (StorageRaidDetail)挂在成员列表/换盘入口**之前** —— 收回是把阵列自己的盘拉回来
-// (mdadm --re-add 位图增量同步),便宜且正确;换盘要清空一块盘 + 全量重建。所以这张卡
-// 走主色调(accent 主按钮),与换盘入口的警示红(--remove-fg)在视觉上明确区分。
+// "Reclaim member drive" banner card: when the array is degraded and
+// status.reattachable_members is non-empty, the parent view (StorageRaidDetail) mounts this
+// **before** the member list / replace-drive entry point — reclaiming pulls the array's own
+// drive back in (mdadm --re-add's bitmap incremental resync), which is cheap and correct;
+// replacing a drive requires wiping one drive and a full rebuild. So this card uses the accent
+// color (a primary accent button), visually distinct from the replace entry's warning red
+// (--remove-fg).
 //
-// role / last_update / serial 来自成员超块(mdadm 原样字符串)—— 只经 {{ }} 插值渲染,
-// 不拼 HTML(不可信外部字符串,红线)。
+// role / last_update / serial come from the member superblock (raw mdadm strings) — rendered
+// only via {{ }} interpolation, never concatenated as HTML (untrusted external strings, a hard
+// line we don't cross).
 const props = defineProps<{ members: RaidReattachableMember[]; busy?: boolean }>()
 defineEmits<{ (e: 'reclaim'): void }>()
 const { t } = useI18n()
 
-// 展示身份首选 serial:拔插后设备字母可能被复用,path 只对在位盘可信(同 raidReplace.ts
-// 的事故教训);盘没有序列号(serial 为 '')时才退回 path。
+// Prefers serial for displaying identity: device letters can get reused after unplugging/
+// replugging, so path is only trustworthy for a drive that's currently present (the same
+// lesson learned the hard way in raidReplace.ts); falls back to path only when the drive has
+// no serial number (serial is '').
 const serials = computed(() => props.members.map((m) => m.serial || m.path).join(', '))
 </script>
 
@@ -50,7 +56,8 @@ const serials = computed(() => props.members.map((m) => m.serial || m.path).join
 .rrc-id { font-family: var(--num-font); font-weight: 600; color: var(--fg); }
 .rrc-path { font-family: monospace; color: var(--fg-muted); }
 .rrc-meta { color: var(--fg-muted); }
-/* 主按钮:accent 实底 —— 与成员行「更换硬盘」的警示红描边按钮在视觉层级上拉开 */
+/* Primary button: solid accent fill — visually distinguished from the member row's "replace
+   drive" danger-toned outlined button */
 .rrc-btn {
   flex: none; border: none; border-radius: 999px; padding: 7px 16px;
   background: var(--accent); color: var(--on-accent);

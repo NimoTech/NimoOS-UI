@@ -1,18 +1,19 @@
-// SP8-P2a Task 9 —— 移植自 Vue2 src/views/AI/Settings/sections/ModelsSection.vue
-// (222 行)。brief Step 3 的 21 条用例清单,逐条落地(部分拆成多个 it() 便于
-// 精确定位失败点,数量只增不减)。
+// SP8-P2a Task 9 — ported from Vue2 src/views/AI/Settings/sections/ModelsSection.vue
+// (222 lines). Implements the brief Step 3 list of 21 test cases one by one (some split
+// into multiple it() blocks to pinpoint failures precisely; the count only grows, never shrinks).
 //
-// 真 store(setActivePinia + useSettingsStore()),不 mock @nimotech/nimoos-service
-// ——组件从不直接调 service,只调 store 的 action,故 spy store 方法即可隔离
-// 网络层,同 settingsStore.test.ts 的既定写法。
+// Real store (setActivePinia + useSettingsStore()), not mocking @nimotech/nimoos-service
+// — the component never calls service directly, only store actions, so spying on store
+// methods is enough to isolate the network layer, same convention as settingsStore.test.ts.
 //
-// 真 i18n(zh_cn 完整 locale,不手写子集)——P1c-2 记账过手写子集会让拼错的键名
-// 抓不到。
+// Real i18n (full zh_cn locale, not a hand-written subset) — P1c-2 recorded that a hand-written
+// subset lets misspelled keys slip through undetected.
 //
-// AlertDialog 走真实挂载 + attachTo document.body(不 mock reka-ui)——同
-// AgentSidebar.test.ts:60-91 的既定手法:reka 的 AlertDialogAction 点击时先
-// update:open(false) 再派发 confirm,deleteDlg 把 open 与待删 name 打包在同一个
-// ref、v-model:open 只改 .open,故 confirm 处理器仍能读到正确的 name。
+// AlertDialog is mounted for real + attachTo document.body (not mocking reka-ui) — same
+// approach as AgentSidebar.test.ts:60-91: reka's AlertDialogAction click first fires
+// update:open(false) then dispatches confirm; deleteDlg packs open and the pending delete
+// name into the same ref, and v-model:open only touches .open, so the confirm handler can
+// still read the correct name.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -30,7 +31,7 @@ function mountSection() {
   return mount(ModelsSection, { global: { plugins: [i18n] }, attachTo: document.body })
 }
 
-/** ImportJob 类型要求全字段;测试只关心的字段用 overrides 覆盖,其余给最小合法默认值。 */
+/** ImportJob type requires all fields; tests override only the fields they care about via overrides, the rest get minimal valid defaults. */
 function makeJob(overrides: Partial<ImportJob>): ImportJob {
   return {
     repo: 'qwen/Qwen2.5',
@@ -53,15 +54,15 @@ describe('ModelsSection', () => {
     setActivePinia(createPinia())
   })
 
-  // ── 1. 已装模型:空态 / 加载中 / 有数据 ──
+  // ── 1. Installed models: empty state / loading / has data ──
 
-  it('1. installedModels 为空 → 渲染空态文案,不渲染 .set-table', () => {
+  it('1. installedModels empty → renders empty-state copy, does not render .set-table', () => {
     const w = mountSection()
     expect(w.text()).toContain('暂无已安装模型')
     expect(w.find('.set-table').exists()).toBe(false)
   })
 
-  it('2. modelsLoading → 渲染「加载中…」', () => {
+  it('2. modelsLoading → renders "loading…"', () => {
     const store = useSettingsStore()
     store.modelsLoading = true
     const w = mountSection()
@@ -69,7 +70,7 @@ describe('ModelsSection', () => {
     expect(w.find('.set-table').exists()).toBe(false)
   })
 
-  it('3. 有模型 → 表格行数正确,体积列走 formatModelSize', () => {
+  it('3. has models → correct row count, size column uses formatModelSize', () => {
     const store = useSettingsStore()
     store.installedModels = [
       { name: 'llama3:8b', size_bytes: 4.7 * 1024 ** 3 },
@@ -84,14 +85,14 @@ describe('ModelsSection', () => {
     expect(rows[1].findAll('td')[1].text()).toBe('500 MB')
   })
 
-  it('4. 卡头计数等于 installedModels.length', () => {
+  it('4. card-head count equals installedModels.length', () => {
     const store = useSettingsStore()
     store.installedModels = [{ name: 'a' }, { name: 'b' }, { name: 'c' }]
     const w = mountSection()
     expect(w.find('.set-cardhead .ct').text()).toBe('3')
   })
 
-  it('5. 刷新按钮调 store.loadModels', async () => {
+  it('5. refresh button calls store.loadModels', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'loadModels').mockResolvedValue()
     const w = mountSection()
@@ -99,9 +100,9 @@ describe('ModelsSection', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  // ── 6-8. 删除模型:确认框 → deleteModel → toast ──
+  // ── 6-8. Delete model: confirm dialog → deleteModel → toast ──
 
-  it('6. 删除按钮先弹确认框(AlertDialog open 变 true),此时还没调 deleteModel', async () => {
+  it('6. delete button first pops the confirm dialog (AlertDialog open turns true), deleteModel is not called yet at this point', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'deleteModel').mockResolvedValue()
     store.installedModels = [{ name: 'llama3:8b' }]
@@ -113,7 +114,7 @@ describe('ModelsSection', () => {
     w.unmount()
   })
 
-  it('7. 确认后才调 store.deleteModel(name) 并弹成功 toast', async () => {
+  it('7. store.deleteModel(name) is only called after confirming, and pops a success toast', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'deleteModel').mockResolvedValue()
     const toast = useToast()
@@ -133,7 +134,7 @@ describe('ModelsSection', () => {
     w.unmount()
   })
 
-  it('8. deleteModel reject → 弹 danger 档 toast', async () => {
+  it('8. deleteModel reject → pops a danger-tier toast', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'deleteModel').mockRejectedValue(new Error('boom'))
     const toast = useToast()
@@ -151,14 +152,14 @@ describe('ModelsSection', () => {
     w.unmount()
   })
 
-  // ── 9-11. 从 Ollama 拉取 ──
+  // ── 9-11. Pulling from Ollama ──
 
-  it('9. 拉取:输入为空时按钮 disabled', () => {
+  it('9. pull: button is disabled when input is empty', () => {
     const w = mountSection()
     expect(w.find('.set-addbtn:not(.ghost)').attributes('disabled')).toBeDefined()
   })
 
-  it('10. 拉取:有输入 → 点击调 store.pullModel,成功弹 toast', async () => {
+  it('10. pull: has input → click calls store.pullModel, pops a success toast', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'pullModel').mockResolvedValue()
     const toast = useToast()
@@ -173,7 +174,7 @@ describe('ModelsSection', () => {
     expect(toast.toasts[0].text).toBe('已发起拉取 llama3:8b')
   })
 
-  it('11. 拉取:回车等同点击', async () => {
+  it('11. pull: Enter is equivalent to clicking', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'pullModel').mockResolvedValue()
     store.pullModelInput = 'llama3:8b'
@@ -182,7 +183,7 @@ describe('ModelsSection', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('12. pullingModels 非空 → 渲染在途提示;为空 → 不渲染(对照组)', () => {
+  it('12. pullingModels non-empty → renders in-progress hint; empty → does not render (control case)', () => {
     const empty = mountSection()
     expect(empty.find('.set-actions .hint').exists()).toBe(false)
 
@@ -192,14 +193,14 @@ describe('ModelsSection', () => {
     expect(w.find('.set-actions .hint').text()).toContain('llama3:8b')
   })
 
-  // ── 13-17. HuggingFace 导入 ──
+  // ── 13-17. HuggingFace import ──
 
-  it('13a. HF 搜索:空 query 时按钮 disabled', () => {
+  it('13a. HF search: button is disabled when query is empty', () => {
     const w = mountSection()
     expect(w.find('.set-addbtn.ghost').attributes('disabled')).toBeDefined()
   })
 
-  it('13b. HF 搜索:有 query 时点击调 store.searchHF', async () => {
+  it('13b. HF search: click calls store.searchHF when there is a query', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'searchHF').mockResolvedValue()
     store.hfQuery = 'qwen gguf'
@@ -210,14 +211,14 @@ describe('ModelsSection', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('14. HF 搜索中 → 渲染「搜索中…」', () => {
+  it('14. HF searching → renders "searching…"', () => {
     const store = useSettingsStore()
     store.hfSearchLoading = true
     const w = mountSection()
     expect(w.text()).toContain('搜索中…')
   })
 
-  it('15. HF 结果列表渲染,点某项调 store.selectHFRepo(id),选中项 data-active="true"', async () => {
+  it('15. HF result list renders; clicking an item calls store.selectHFRepo(id); selected item gets data-active="true"', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'selectHFRepo')
     store.hfResults = [
@@ -234,7 +235,7 @@ describe('ModelsSection', () => {
     expect(spy).toHaveBeenCalledWith('qwen/Qwen2.5')
   })
 
-  it('16. 选中 repo 后渲染文件区;点「加载文件」调 store.loadHFFiles', async () => {
+  it('16. after selecting a repo the file area renders; clicking "load files" calls store.loadHFFiles', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'loadHFFiles').mockResolvedValue()
     const none = mountSection()
@@ -247,7 +248,7 @@ describe('ModelsSection', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('17. 文件列表每项的导入按钮调 store.importHF(file)', async () => {
+  it('17. the import button on each file-list item calls store.importHF(file)', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'importHF').mockResolvedValue()
     store.hfSelectedRepo = 'qwen/Qwen2.5'
@@ -259,9 +260,9 @@ describe('ModelsSection', () => {
     expect(spy).toHaveBeenCalledWith('b.gguf')
   })
 
-  // ── 18. 下载进度横幅四态(四条独立用例) ──
+  // ── 18. Download-progress banner, four states (four independent cases) ──
 
-  it('18a. downloading → 标题「正在导入」、有「勿关机」警告、取消按钮文案「取消」', () => {
+  it('18a. downloading → title "importing", has the "do not power off" warning, cancel button reads "cancel"', () => {
     const store = useSettingsStore()
     store.hfImportJobs = { 'model.gguf': makeJob({ status: 'downloading' }) }
     const w = mountSection()
@@ -271,7 +272,7 @@ describe('ModelsSection', () => {
     expect(banner.find('.dl-cancel-btn').text()).toBe('取消')
   })
 
-  it('18b. creating model → 标题「正在注册模型…」、仍有警告', () => {
+  it('18b. creating model → title "registering model…", still has the warning', () => {
     const store = useSettingsStore()
     store.hfImportJobs = { 'model.gguf': makeJob({ status: 'creating model' }) }
     const w = mountSection()
@@ -281,7 +282,7 @@ describe('ModelsSection', () => {
     expect(banner.find('.dl-cancel-btn').text()).toBe('取消')
   })
 
-  it('18c. success → 标题「导入完成」、无取消按钮、无警告', () => {
+  it('18c. success → title "import complete", no cancel button, no warning', () => {
     const store = useSettingsStore()
     store.hfImportJobs = { 'model.gguf': makeJob({ status: 'success', completed: 100, total: 100 }) }
     const w = mountSection()
@@ -291,7 +292,7 @@ describe('ModelsSection', () => {
     expect(banner.find('.dl-warn').exists()).toBe(false)
   })
 
-  it('18d. error → 标题「导入失败」、按钮文案「关闭」、渲染错误文本、无统计行', () => {
+  it('18d. error → title "import failed", button reads "close", renders the error text, no stats row', () => {
     const store = useSettingsStore()
     store.hfImportJobs = { 'model.gguf': makeJob({ status: 'error', error: 'disk full' }) }
     const w = mountSection()
@@ -299,33 +300,34 @@ describe('ModelsSection', () => {
     expect(banner.find('.dl-banner-title').text()).toContain('导入失败')
     expect(banner.find('.dl-cancel-btn').text()).toBe('关闭')
     expect(banner.find('.dl-stats').text()).toBe('disk full')
-    // error 态无百分比/速度/ETA 统计行(那些字段全部套在 v-if="status !== 'error'" 里)。
+    // error state has no percent/speed/ETA stats row (those fields all sit inside v-if="status !== 'error'").
     expect(banner.find('.dl-stats b').exists()).toBe(false)
   })
 
-  // ── 19. 进度条宽度:total===0 防除零(对照组,Step 7 有专门 RED 验证) ──
+  // ── 19. Progress-bar width: total===0 divide-by-zero guard (control case, Step 7 has a dedicated RED check) ──
 
-  it('19a. total > 0 → 进度条宽度按百分比(一位小数)', () => {
+  it('19a. total > 0 → progress-bar width follows the percentage (one decimal place)', () => {
     const store = useSettingsStore()
-    // 特意选不能整除的一组数字(1/3 → 33.3%),而不是 30/120 → 25.0%:jsdom(与真
-    // 实浏览器 CSSOM 序列化规则一致)会把整数值的百分比字符串 "25.0%" 规整成
-    // "25%",尾随的 .0 读不回来,导致这条断言测不出 toFixed(1) 与 toFixed(0)
-    // 的区别。33.3% 不是整数,序列化后原样保留,能真正验证一位小数逻辑。
+    // Deliberately pick numbers that don't divide evenly (1/3 → 33.3%), instead of 30/120 → 25.0%:
+    // jsdom (matching real-browser CSSOM serialization rules) normalizes an integer-valued
+    // percentage string "25.0%" down to "25%", the trailing .0 doesn't round-trip, so that
+    // assertion couldn't tell toFixed(1) apart from toFixed(0). 33.3% is not an integer, so
+    // serialization keeps it as-is, and it genuinely exercises the one-decimal-place logic.
     store.hfImportJobs = { 'model.gguf': makeJob({ completed: 1, total: 3 }) }
     const w = mountSection()
     expect((w.find('.dl-prog-fill').element as HTMLElement).style.width).toBe('33.3%')
   })
 
-  it('19b. total === 0 → 进度条宽度是 0%,不是 NaN%(对照组)', () => {
+  it('19b. total === 0 → progress-bar width is 0%, not NaN% (control case)', () => {
     const store = useSettingsStore()
     store.hfImportJobs = { 'model.gguf': makeJob({ completed: 0, total: 0 }) }
     const w = mountSection()
     expect((w.find('.dl-prog-fill').element as HTMLElement).style.width).toBe('0%')
   })
 
-  // ── 20. speed / eta 各自独立的渲染开关(两条对照) ──
+  // ── 20. speed / eta each have their own independent render toggle (two control cases) ──
 
-  it('20a. speed > 0 才渲染速度行;speed === 0 不渲染', () => {
+  it('20a. speed > 0 renders the speed row; speed === 0 does not', () => {
     const store = useSettingsStore()
     store.hfImportJobs = { 'model.gguf': makeJob({ speed: 3.2 }) }
     const withSpeed = mountSection()
@@ -336,7 +338,7 @@ describe('ModelsSection', () => {
     expect(noSpeed.find('.dl-stats').text()).not.toContain('MB/s')
   })
 
-  it('20b. etaSecs 非 null 才渲染 ETA;null 不渲染', () => {
+  it('20b. etaSecs renders ETA only when non-null; null does not render it', () => {
     const store = useSettingsStore()
     store.hfImportJobs = { 'model.gguf': makeJob({ etaSecs: 90 }) }
     const withEta = mountSection()
@@ -347,9 +349,9 @@ describe('ModelsSection', () => {
     expect(noEta.find('.dl-stats').text()).not.toContain('约')
   })
 
-  // ── 21. 取消/关闭按钮的分流(两条,证明 error 走 dismiss、其余走 cancel) ──
+  // ── 21. Cancel/close button branching (two cases proving error goes through dismiss, the rest through cancel) ──
 
-  it('21a. error 态点「关闭」调 store.dismissImportJob(filename)', async () => {
+  it('21a. error state clicking "close" calls store.dismissImportJob(filename)', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'dismissImportJob')
     store.hfImportJobs = { 'model.gguf': makeJob({ status: 'error', error: 'x' }) }
@@ -358,7 +360,7 @@ describe('ModelsSection', () => {
     expect(spy).toHaveBeenCalledWith('model.gguf')
   })
 
-  it('21b. downloading 态点「取消」调 store.cancelImportJob(filename)', async () => {
+  it('21b. downloading state clicking "cancel" calls store.cancelImportJob(filename)', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'cancelImportJob').mockResolvedValue()
     store.hfImportJobs = { 'model.gguf': makeJob({ status: 'downloading' }) }

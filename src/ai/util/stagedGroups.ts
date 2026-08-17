@@ -1,9 +1,9 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/tabs/ResourcesTab.vue:136-232(groupedStagedChanges
-// computed + badgeFor/formatPath/formatSize/kindIcon/relativeTime 方法)。SP8-P1c2 Task 12。
+// 1:1 ported from Vue2 src/views/AI/Agent/tabs/ResourcesTab.vue:136-232(groupedStagedChanges
+// computed + badgeFor/formatPath/formatSize/kindIcon/relativeTime methods). SP8-P1c2 Task 12.
 //
-// relativeTime 返回 i18n 键名 + 参数,不返回译文 —— 与 attachmentMeta.ts 的
-// docErrorKey()/systemTiles.ts 的 subKey 同款"返回键名而非译文"约定;真正的
-// zh_cn/en_us 文案由 ResourcesTab.vue 消费时 t() 渲染。
+// relativeTime returns i18n key name + params, not translation — same "return key name not translation"
+// convention as docErrorKey() in attachmentMeta.ts / subKey in systemTiles.ts; the actual
+// zh_cn/en_us text is rendered by t() when consumed by ResourcesTab.vue.
 import type { StagedGroup, StagedItem } from '../stores/agentStore'
 
 export interface StagedBatch {
@@ -18,13 +18,13 @@ export interface GroupedStagedGroup extends StagedGroup {
 }
 
 /**
- * Vue2:164-189 groupedStagedChanges。关键不变量(逐字港,不是我方新增):
- *   - 用 `batch_id != null` 判定"已分批" —— batch_id === 0 是合法值,必须落进
- *     batchMap,不能因为 `0` falsy 就误落进 looseItems(用 !==null && !==undefined
- *     显式判断,不用 `!=`/truthy 简写)。
- *   - `Map` 保插入顺序:batches 数组按 batch_id 第一次出现的顺序排列。
- *   - `delete_file`/`delete_dir` 都计入 summary.delete(Vue2 既有正确逻辑,
- *     不是要修的 bug —— 对应 Vue2 侧曾修过的回归 "C1")。
+ * Vue2:164-189 groupedStagedChanges. Key invariants (verbatim port, not new):
+ *   - Use `batch_id != null` to check "already batched" — batch_id === 0 is a valid value, must be
+ *     added to batchMap, cannot be mistakenly dropped into looseItems because `0` is falsy (use
+ *     explicit !==null && !==undefined check, not `!=`/truthy shorthand).
+ *   - `Map` preserves insertion order: batches array is sorted by the order batch_id first appears.
+ *   - Both `delete_file` and `delete_dir` count toward summary.delete (Vue2's existing correct logic,
+ *     not a bug to fix — corresponds to a regression "C1" that was fixed on Vue2 side).
  */
 export function groupStagedChanges(groups: StagedGroup[]): GroupedStagedGroup[] {
   return groups.map((g) => {
@@ -57,18 +57,18 @@ const BADGE_FOR: Record<string, 'MOD' | 'DEL' | 'MKD' | 'REN'> = {
   mkdir: 'MKD', rename: 'REN',
 }
 
-/** Vue2:195-197 badgeFor —— 未知 op 兜底 'MOD'。 */
+/** Vue2:195-197 badgeFor — unknown op defaults to 'MOD'. */
 export function badgeFor(op: string): 'MOD' | 'DEL' | 'MKD' | 'REN' {
   return BADGE_FOR[op] || 'MOD'
 }
 
-/** Vue2:198-203 formatPath —— rename 且有 dst_path 时画箭头,否则原样返回 path。 */
+/** Vue2:198-203 formatPath — draw arrow when rename with dst_path, otherwise return path as-is. */
 export function formatStagedPath(it: StagedItem): string {
   if (it.op === 'rename' && it.dst_path) return `${it.path} → ${it.dst_path}`
   return it.path
 }
 
-/** Vue2:204-209 formatSize —— 无值(undefined/null,不含 0)→ '—';B/KB/MB 三档。 */
+/** Vue2:204-209 formatSize — no value (undefined/null, not including 0) → '—'; three tiers: B/KB/MB. */
 export function formatStagedSize(n?: number): string {
   if (!n && n !== 0) return '—'
   const size = n as number
@@ -77,7 +77,7 @@ export function formatStagedSize(n?: number): string {
   return `${(size / 1024 / 1024).toFixed(1)} MB`
 }
 
-/** Vue2:223-229 relativeTime —— 入参是**秒**(unix seconds,非毫秒)。 */
+/** Vue2:223-229 relativeTime — parameter is in **seconds** (unix seconds, not milliseconds). */
 export function relativeTime(unixSec: number): { key: string; params?: Record<string, unknown> } {
   const d = Date.now() / 1000 - unixSec
   if (d < 60) return { key: 'aiResJustNow' }
@@ -90,15 +90,16 @@ const KIND_ICON: Record<string, string> = {
   image: '🖼️', video: '🎬', audio: '🎵', text: '📄', binary: '📦',
 }
 
-/** Vue2:210-218 kindIcon —— 未知/缺失 kind 兜底 📎。 */
+/** Vue2:210-218 kindIcon — unknown/missing kind defaults to 📎. */
 export function attachmentKindIcon(kind?: string): string {
   return (kind && KIND_ICON[kind]) || '📎'
 }
 
 /**
- * 英文单复数后缀 helper —— Vue2 用内联三元(`file{{ n === 1 ? '' : 's' }}`)拼
- * "N file(s)"/"N turn(s)"。这只是英文语法需要的后缀,中文文案不使用该参数
- * (数字前不加单复数标记),放进 i18n params 里传给未使用它的 zh_cn 消息无害。
+ * English singular/plural suffix helper — Vue2 uses inline ternary (`file{{ n === 1 ? '' : 's' }}`) to
+ * construct "N file(s)"/"N turn(s)". This is just a suffix needed by English grammar; Chinese text
+ * does not use this parameter (no singular/plural marker before the number), so passing it in i18n
+ * params to zh_cn messages that don't use it is harmless.
  */
 export function pluralWord(n: number): '' | 's' {
   return n === 1 ? '' : 's'

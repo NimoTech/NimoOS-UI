@@ -3,14 +3,15 @@ import { setActivePinia, createPinia } from 'pinia'
 import { nextTick } from 'vue'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import PhotoLightbox from '../PhotoLightbox.vue'
-// 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到,且 jsdom 不算级联)——
-// 同 P6b-T7 已落地的「先锚定规则体、再断言属性」体例。
+// Style assertions read component source (scoped <style> declarations are unavailable in jsdom,
+// and jsdom does not compute cascade) — same pattern as the "anchor rule body first, then assert
+// properties" approach landed in P6b-T7.
 import LIGHTBOX_SRC from '../PhotoLightbox.vue?raw'
 import { useLightbox } from '../useLightbox'
 import { usePhotosFavorites } from '../../stores/favorites'
 import type { Photo } from '../../util/assetToPhoto'
 
-// service mock —— bare shapes(URL 生成器 token 化 + 单例开态时调的水合/收藏三件套)
+// service mock — bare shapes (URL generator tokenized + hydration/favorites trinity called at singleton open state)
 const favorite = vi.fn(() => Promise.resolve())
 const unfavorite = vi.fn(() => Promise.resolve())
 const listFavoriteIds = vi.fn<() => Promise<Array<string | number>>>(() => Promise.resolve([]))
@@ -21,7 +22,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
       thumbnailUrl: (id: string | number, size = 'small') => `/v1/photos/assets/${id}/thumbnail?size=${size}&token=t`,
       liveUrl: (id: string | number) => `/v1/photos/assets/${id}/live?token=t`,
       recordView: () => Promise.resolve(),
-      // reject → hydrateDetail 保留 list-item 占位,detail 恒等于测试 Photo(标题稳定)
+      // reject → hydrateDetail preserves list-item placeholder, detail is always equal to test Photo (stable title)
       getAsset: () => Promise.reject(new Error('no hydrate in test')),
       getAssetOcr: () => Promise.resolve({ lines: [] }),
       listFavoriteIds: () => listFavoriteIds(),
@@ -31,7 +32,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   },
 }))
 
-// jsdom 无媒体栈:video.play/pause 打桩
+// jsdom has no media stack — stub video.play/pause
 ;(HTMLMediaElement.prototype as unknown as { play: () => Promise<void> }).play = vi.fn(() => Promise.resolve())
 ;(HTMLMediaElement.prototype as unknown as { pause: () => void }).pause = vi.fn()
 
@@ -59,9 +60,10 @@ function mountLb(): VueWrapper {
     global: {
       stubs: {
         PhotoImageViewer: { name: 'PhotoImageViewer', template: '<div class="stub-viewer" />' },
-        // Task 9 起 PhotoLightbox 真挂了 T7/T8 —— 本文件只测灯箱壳(开合/翻页/收藏/删除/
-        // chrome 自隐等),详情栏/缩略图条各自的行为在 PhotoInfoPanel.test.ts / PhotoFilmstrip.test.ts
-        // 覆盖。stub 保留 visible 门控 + class="lb-info",维持既有「详情开关」断言不变。
+        // Task 9 onwards, PhotoLightbox actually hung out T7/T8 — this file only tests the lightbox
+        // shell (open/close/pagination/favorites/delete/chrome auto-hide, etc.); behavior of the detail
+        // panel and filmstrip are covered in PhotoInfoPanel.test.ts / PhotoFilmstrip.test.ts respectively.
+        // Stub preserves visible gate-control + class="lb-info", keeping existing "info toggle" assertions unchanged.
         PhotoInfoPanel: {
           name: 'PhotoInfoPanel',
           props: ['photo', 'visible'],
@@ -78,12 +80,15 @@ function mountLb(): VueWrapper {
   return wrapper
 }
 
-// 只建一次 pinia(而非每个 beforeEach 重建):useLightbox 的 isFav computed 是模块级单例,
-// 其 `current.value && fav.isFav(...)` 短路结构导致——当 current 引用值在两次求值间恰好复用
-// 同一对象(本文件 IMG_A/B/C 是跨用例共享的模块级常量)时,Vue 判定“无变化”而跳过重新求值,
-// isFav 会一直挂在上一个(已随 createPinia() 报废的)store 实例的 favIds 上,永远收不到新
-// store 的翻转通知。保留同一个 pinia/store,改为每个用例用 store 自身的 __resetForTest()
-// 清空状态——语义上等价于重构前「同一个模块级 favIds ref,每次用例重置 .value」的做法。
+// Create pinia only once (not rebuild in each beforeEach): useLightbox's isFav computed is a
+// module-level singleton. Its `current.value && fav.isFav(...)` short-circuit structure means
+// when the current reference value is reused across two evaluation windows (IMG_A/B/C in this file
+// are module-level constants shared across tests), Vue judges "no change" and skips re-evaluation,
+// causing isFav to hang indefinitely on the previous store instance's favIds (which is now defunct
+// from createPinia()) and never receive notification of state flips in the new store. We keep the
+// same pinia/store, and instead reset state in each test with store's own __resetForTest() —
+// semantically equivalent to the pre-refactoring approach of "same module-level favIds ref, reset
+// .value before each test".
 setActivePinia(createPinia())
 const lb = useLightbox()
 
@@ -102,13 +107,13 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('PhotoLightbox 开合 + 标题/计数', () => {
-  it('open=false 不渲染遮罩', () => {
+describe('PhotoLightbox open/close + title/count', () => {
+  it('open=false does not render overlay', () => {
     const w = mountLb()
     expect(w.find('.lightbox').exists()).toBe(false)
   })
 
-  it('openAt 后渲染遮罩 + 标题 + 计数 1 / 3', async () => {
+  it('after openAt, renders overlay + title + count 1 / 3', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -118,8 +123,8 @@ describe('PhotoLightbox 开合 + 标题/计数', () => {
   })
 })
 
-describe('PhotoLightbox 舞台分发', () => {
-  it('视频项渲染原生 <video> 且 src=originalUrl,不渲染静图查看器', async () => {
+describe('PhotoLightbox stage dispatch', () => {
+  it('video item renders native <video> with src=originalUrl, does not render image viewer', async () => {
     const w = mountLb()
     lb.openAt(makePhoto({ id: 'v1', title: 'Clip', isVideo: true, mimeType: 'video/mp4' }), [])
     await nextTick()
@@ -129,7 +134,7 @@ describe('PhotoLightbox 舞台分发', () => {
     expect(w.findComponent({ name: 'PhotoImageViewer' }).exists()).toBe(false)
   })
 
-  it('图片项渲染 PhotoImageViewer(stub),不渲染 <video>', async () => {
+  it('image item renders PhotoImageViewer (stub), does not render <video>', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -138,8 +143,8 @@ describe('PhotoLightbox 舞台分发', () => {
   })
 })
 
-describe('PhotoLightbox 关闭', () => {
-  it('点关闭钮关灯箱(open→false)', async () => {
+describe('PhotoLightbox close', () => {
+  it('click close button closes lightbox (open→false)', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -147,7 +152,7 @@ describe('PhotoLightbox 关闭', () => {
     expect(lb.open.value).toBe(false)
   })
 
-  it('ESC 关灯箱', async () => {
+  it('ESC closes lightbox', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -156,7 +161,7 @@ describe('PhotoLightbox 关闭', () => {
     expect(lb.open.value).toBe(false)
   })
 
-  it('删除确认开时 ESC 只关模态不关灯箱', async () => {
+  it('when delete confirmation is open, ESC only closes modal, not lightbox', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -170,8 +175,8 @@ describe('PhotoLightbox 关闭', () => {
   })
 })
 
-describe('PhotoLightbox 翻页', () => {
-  it('首张 prev 禁用、点 next 前进到 2 / 3', async () => {
+describe('PhotoLightbox pagination', () => {
+  it('first page: prev disabled, click next advances to 2 / 3', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -181,14 +186,14 @@ describe('PhotoLightbox 翻页', () => {
     expect(w.text()).toContain('2 / 3')
   })
 
-  it('末张 next 禁用', async () => {
+  it('last page: next disabled', async () => {
     const w = mountLb()
     lb.openAt(IMG_C, THREE)
     await nextTick()
     expect((w.find('.lb-nav-next').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('ArrowRight 前进、ArrowLeft 后退', async () => {
+  it('ArrowRight advances, ArrowLeft goes back', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -201,8 +206,8 @@ describe('PhotoLightbox 翻页', () => {
   })
 })
 
-describe('PhotoLightbox 收藏', () => {
-  it('点收藏钮调 favorite 并 emit toggle-fav,星变实心', async () => {
+describe('PhotoLightbox favorites', () => {
+  it('click favorite button calls favorite and emits toggle-fav, star becomes solid', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -213,7 +218,7 @@ describe('PhotoLightbox 收藏', () => {
     expect(w.find('.lb-fav').classes()).toContain('is-fav')
   })
 
-  it('已收藏项(listFavoriteIds 返回其 id)星为实心', async () => {
+  it('favorited item (listFavoriteIds returns its id) has solid star', async () => {
     listFavoriteIds.mockResolvedValue(['a'])
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
@@ -222,7 +227,7 @@ describe('PhotoLightbox 收藏', () => {
     expect(w.find('.lb-fav').classes()).toContain('is-fav')
   })
 
-  it('f 键切换收藏', async () => {
+  it('f key toggles favorite', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -232,8 +237,8 @@ describe('PhotoLightbox 收藏', () => {
   })
 })
 
-describe('PhotoLightbox 下载', () => {
-  it('下载链接 href=originalUrl,带 download 属性', async () => {
+describe('PhotoLightbox download', () => {
+  it('download link has href=originalUrl with download attribute', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -243,8 +248,8 @@ describe('PhotoLightbox 下载', () => {
   })
 })
 
-describe('PhotoLightbox 详情开关', () => {
-  it('点详情钮 toggle showInfo(挂载 Task 7 面板占位)', async () => {
+describe('PhotoLightbox info toggle', () => {
+  it('click info button toggles showInfo (mounts Task 7 panel placeholder)', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -258,8 +263,8 @@ describe('PhotoLightbox 详情开关', () => {
   })
 })
 
-describe('PhotoLightbox 删除确认', () => {
-  it('点垃圾桶开模态,确认 emit delete 携 current.id 并关灯箱', async () => {
+describe('PhotoLightbox delete confirmation', () => {
+  it('click trash button opens modal, confirm emits delete with current.id and closes lightbox', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -272,7 +277,7 @@ describe('PhotoLightbox 删除确认', () => {
     expect(lb.open.value).toBe(false)
   })
 
-  it('取消只关模态', async () => {
+  it('cancel only closes modal', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -286,10 +291,11 @@ describe('PhotoLightbox 删除确认', () => {
   })
 })
 
-describe('PhotoLightbox chrome 自隐', () => {
-  // 用户 2026-07-31 验收要求改了自隐的范围:顶栏是不透明流内 chrome、**恒显不自隐**
-  // (它一收起舞台就变高、图片会跳);只有叠在照片上的翻页箭头仍然 5s 自隐。
-  it('鼠标不动 5s 后只有箭头收起、顶栏留着,mousemove 复现箭头', async () => {
+describe('PhotoLightbox chrome auto-hide', () => {
+  // User acceptance requirement on 2026-07-31 changed the auto-hide scope: the top bar is
+  // opaque in-flow chrome and **always visible, never auto-hides** (if it hides, the stage becomes
+  // taller and the image jumps). Only pagination arrows overlaid on the photo still auto-hide after 5s.
+  it('after 5s without mouse movement, only arrows hide; top bar stays, mousemove restores arrows', async () => {
     vi.useFakeTimers()
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
@@ -298,7 +304,8 @@ describe('PhotoLightbox chrome 自隐', () => {
     expect(w.find('.lb-nav-next').exists()).toBe(true)
     vi.advanceTimersByTime(5000)
     await nextTick()
-    // 顶栏不再受 isMoving 管辖 —— 删掉模板里那个 v-if 的守卫就靠这一条
+    // Top bar is no longer subject to isMoving control — this assertion relies on deleting the v-if
+    // guard from the template
     expect(w.find('.lb-top').exists()).toBe(true)
     expect(w.find('.lb-nav-next').exists()).toBe(false)
     await w.find('.lightbox').trigger('mousemove')
@@ -306,37 +313,39 @@ describe('PhotoLightbox chrome 自隐', () => {
   })
 })
 
-describe('PhotoLightbox 顶栏是不透明流内 chrome(用户 2026-07-31 验收要求)', () => {
-  // 样式断言:先锚定 .lb-top 规则体再断言属性(全文件级 toContain 是恒真的)。
+describe('PhotoLightbox top bar is opaque in-flow chrome (user acceptance requirement 2026-07-31)', () => {
+  // Style assertion: anchor the .lb-top rule body first, then assert properties (file-level toContain
+  // is always true).
   const topRule = (): string => {
     const m = /\.lb-top\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
     expect(m).not.toBeNull()
     return m![1]
   }
 
-  it('实底 --popup-bg,不是渐变、不是绝对定位', () => {
+  it('solid --popup-bg background, not gradient, not absolute positioned', () => {
     const body = topRule()
     expect(body).toMatch(/background:\s*var\(--popup-bg\)/)
     expect(body).not.toMatch(/position:\s*absolute/)
     expect(body).not.toMatch(/linear-gradient/)
   })
 
-  it('是 flex 流内项并与舞台之间有分隔线(图片因此夹在上下两栏之间)', () => {
+  it('is flex in-flow item with separator line to stage (image thus sandwiched between two bars)', () => {
     const body = topRule()
     expect(body).toMatch(/flex:\s*0\s+0\s+auto/)
     expect(body).toMatch(/border-bottom:\s*1px solid var\(--card-border\)/)
   })
 
-  it('详情栏上边距不再为顶栏让位(64px → 16px,否则比同排舞台下沉一截)', () => {
+  it('detail panel top margin no longer yields space to top bar (64px → 16px, else sinks below stage)', () => {
     const m = /:deep\(\.info-panel\)\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
     expect(m).not.toBeNull()
     expect(m![1]).toMatch(/margin:\s*16px 16px 16px 0/)
   })
 })
 
-describe('PhotoLightbox 视频起播位续播', () => {
-  // 关键回归:组件持久挂载,openAt 先于 loadedmetadata 把 open 由假变真,
-  // 锚点须在 open 变真时捕获(而非 onMounted 时,那一刻灯箱未开、current 为空)。
+describe('PhotoLightbox video start position resume', () => {
+  // Critical regression: component is persistently mounted; openAt sets open to true before loadedmetadata.
+  // The anchor must be captured when open becomes true (not at onMounted, when lightbox is usually closed
+  // and current is empty).
   function trackCurrentTime(el: HTMLVideoElement, durationS: number): () => number {
     Object.defineProperty(el, 'duration', { value: durationS, configurable: true })
     let ct = 0
@@ -348,7 +357,7 @@ describe('PhotoLightbox 视频起播位续播', () => {
     return () => ct
   }
 
-  it('悬停位打开视频,loadedmetadata 后真的 seek 到 16s(startMs 16000)', async () => {
+  it('open video at hover position, after loadedmetadata actually seeks to 16s (startMs 16000)', async () => {
     const VID_A = makePhoto({ id: 'vA', title: 'ClipA', isVideo: true, mimeType: 'video/mp4' })
     const w = mountLb()
     lb.openAt(VID_A, [VID_A], 16000)
@@ -360,7 +369,7 @@ describe('PhotoLightbox 视频起播位续播', () => {
     expect(readCt()).toBe(16) // 16000ms / 1000 = 16s
   })
 
-  it('翻页到另一视频不再 seek(startApplied 一次性守卫)', async () => {
+  it('pagination to another video does not seek again (startApplied one-time guard)', async () => {
     const VID_A = makePhoto({ id: 'vA', title: 'ClipA', isVideo: true, mimeType: 'video/mp4' })
     const VID_B = makePhoto({ id: 'vB', title: 'ClipB', isVideo: true, mimeType: 'video/mp4' })
     const w = mountLb()
@@ -369,7 +378,7 @@ describe('PhotoLightbox 视频起播位续播', () => {
     const readA = trackCurrentTime(w.find('video').element as HTMLVideoElement, 60)
     await w.find('video').trigger('loadedmetadata')
     expect(readA()).toBe(16)
-    // 翻页到第二个视频:元素按 id 重建,新视频不应被 seek 到 16s
+    // Pagination to second video: element rebuilds by id, new video should not be seeked to 16s
     lb.next()
     await nextTick()
     const readB = trackCurrentTime(w.find('video').element as HTMLVideoElement, 60)
@@ -378,40 +387,41 @@ describe('PhotoLightbox 视频起播位续播', () => {
   })
 })
 
-describe('PhotoLightbox 持久挂载:onMounted 时灯箱未开', () => {
-  // 回归(评审 finding #1):父级只挂载一次、内部靠 v-if="lb.open.value" 自门控,onMounted 时
-  // 灯箱通常还关着 —— 若 isMoving 的 5s 自隐计时只在 onMounted arm 一次,组件常年挂着、这个计时
-  // 早就过期,真正 openAt 打开时顶栏 + 翻页箭头会因 isMoving=false 而全部不可见,看起来像没渲染。
-  it('mount 时灯箱已关、且早于任何 openAt 的 5s 计时已过期 —— openAt 后工具栏 + 翻页箭头必须可见', async () => {
+describe('PhotoLightbox persistent mount: lightbox closed at onMounted', () => {
+  // Regression (review finding #1): parent mounts only once, internal v-if="lb.open.value" self-gates,
+  // lightbox is usually closed at onMounted — if isMoving 5s auto-hide timer is armed only once at
+  // onMounted, the component stays mounted year-round, and this timer expires long before actual openAt.
+  // When truly opened, top bar + pagination arrows are all invisible (isMoving=false) and look unrendered.
+  it('lightbox closed at mount, 5s timer expired before any openAt — after openAt toolbar + arrows must be visible', async () => {
     vi.useFakeTimers()
-    const w = mountLb() // 挂载时 lb.open.value === false(beforeEach 已 __resetForTest)
+    const w = mountLb() // At mount, lb.open.value === false (beforeEach already called __resetForTest)
     expect(w.find('.lightbox').exists()).toBe(false)
-    // 早于任何 open 就把 onMounted 里 arm 的计时熬过期
+    // Before any open, let the timer armed at onMounted expire
     vi.advanceTimersByTime(5000)
     lb.openAt(IMG_A, THREE)
     await nextTick()
     expect(w.find('.lightbox').exists()).toBe(true)
-    expect(w.find('.lb-top').exists()).toBe(true) // 顶栏工具栏(收藏/下载/详情/删除等)
-    expect(w.find('.lb-nav-next').exists()).toBe(true) // 翻页箭头
+    expect(w.find('.lb-top').exists()).toBe(true) // Top bar toolbar (favorites/download/info/delete, etc.)
+    expect(w.find('.lb-nav-next').exists()).toBe(true) // Pagination arrows
   })
 
-  it('open 时 showInfo 复位为 false,即便上一次打开曾切到 true', async () => {
+  it('when open, showInfo resets to false, even if previously toggled to true', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
     await w.find('.lb-info-toggle').trigger('click')
     await nextTick()
-    expect(w.find('.lb-info').exists()).toBe(true) // 上一次打开切开了详情栏
+    expect(w.find('.lb-info').exists()).toBe(true) // Previous open toggled info panel open
     lb.close()
     await nextTick()
     lb.openAt(IMG_B, THREE)
     await nextTick()
-    expect(w.find('.lb-info').exists()).toBe(false) // 重开应默认收起
+    expect(w.find('.lb-info').exists()).toBe(false) // Reopen should default to closed
   })
 })
 
-describe('PhotoLightbox 加入相册(Task 9)', () => {
-  it('顶栏在收藏按钮与下载按钮之间渲染「加入相册」按钮', async () => {
+describe('PhotoLightbox add to album (Task 9)', () => {
+  it('top bar renders "add to album" button between favorite and download buttons', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -424,7 +434,7 @@ describe('PhotoLightbox 加入相册(Task 9)', () => {
     expect(addIdx).toBeLessThan(dlIdx)
   })
 
-  it('点「加入相册」emit add-to-album(current.id),灯箱保持打开', async () => {
+  it('click "add to album" emits add-to-album (current.id), lightbox stays open', async () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
@@ -436,8 +446,8 @@ describe('PhotoLightbox 加入相册(Task 9)', () => {
   })
 })
 
-describe('PhotoLightbox 实况照片', () => {
-  it('实况项渲染实况徽标;按住播 <video src=liveUrl>,松开消失', async () => {
+describe('PhotoLightbox live photos', () => {
+  it('live photo renders live badge; hold down to play <video src=liveUrl>, release to hide', async () => {
     const w = mountLb()
     lb.openAt(makePhoto({ id: 'lp', title: 'Live', isLivePhoto: true, livePhotoVideoId: 'lpv' }), [])
     await nextTick()

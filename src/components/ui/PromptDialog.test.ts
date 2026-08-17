@@ -31,7 +31,7 @@ afterEach(() => {
 })
 
 describe('PromptDialog', () => {
-  it('打开时渲染标题、说明与输入框', async () => {
+  it('renders title, message, and input field when opened', async () => {
     mount(PromptDialog, { props: base, attachTo: document.body })
     // See the declaration at the top of this file: even with open already true at mount,
     // the content still takes one tick before reka-ui's Teleport moves it into document.body.
@@ -41,7 +41,7 @@ describe('PromptDialog', () => {
     expect(q('input')).not.toBeNull()
   })
 
-  it('确认时把输入框当前值原样带出(不 trim —— trim 交调用方)', async () => {
+  it('passes input value as-is on confirm (no trim—trim is left to the caller)', async () => {
     const w = mount(PromptDialog, { props: base, attachTo: document.body })
     await nextTick()
     const input = q('input') as HTMLInputElement
@@ -53,7 +53,7 @@ describe('PromptDialog', () => {
     expect(w.emitted('confirm')).toEqual([['  gpt-4o  ']])
   })
 
-  it('回车等同于确认', async () => {
+  it('pressing Enter is equivalent to confirming', async () => {
     const w = mount(PromptDialog, { props: base, attachTo: document.body })
     await nextTick()
     const input = q('input') as HTMLInputElement
@@ -65,7 +65,7 @@ describe('PromptDialog', () => {
     expect(w.emitted('confirm')).toEqual([['claude']])
   })
 
-  it('重新打开会清掉上次的输入(组件常驻,不清会残留)', async () => {
+  it('clears previous input when reopening (component persists, not clearing leaves residue)', async () => {
     const w = mount(PromptDialog, { props: { ...base, open: false }, attachTo: document.body })
     await w.setProps({ open: true })
     const input = q('input') as HTMLInputElement
@@ -77,13 +77,13 @@ describe('PromptDialog', () => {
     expect((q('input') as HTMLInputElement).value).toBe('')
   })
 
-  it('initialValue 作为打开时的预填值', async () => {
+  it('initialValue serves as the pre-filled value when opened', async () => {
     const w = mount(PromptDialog, { props: { ...base, open: false, initialValue: 'gpt-4o' }, attachTo: document.body })
     await w.setProps({ open: true })
     expect((q('input') as HTMLInputElement).value).toBe('gpt-4o')
   })
 
-  it('取消不 emit confirm', async () => {
+  it('cancel does not emit confirm', async () => {
     const w = mount(PromptDialog, { props: base, attachTo: document.body })
     await nextTick()
     ;(q('[data-testid="prompt-cancel"]') as HTMLElement).click()

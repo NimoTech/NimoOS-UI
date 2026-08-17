@@ -5,7 +5,8 @@ import { useRouter } from 'vue-router'
 import lottie from 'lottie-web'
 import { useAuth } from '../composables/useAuth'
 import { useValidation } from '../composables/useValidation'
-import { useLocaleStore, type Locale } from '../stores/locale'
+import { useLocaleStore } from '../stores/locale'
+import { initialLocale, type Locale } from '../i18n/locale'
 import doneData from '../assets/done.json'
 
 const { t } = useI18n()
@@ -13,7 +14,9 @@ const router = useRouter()
 const { registerAndLogin } = useAuth()
 const { required, minLen, sameAs } = useValidation()
 const localeStore = useLocaleStore()
-const chosenLang = ref<Locale>(((localStorage.getItem('lang') as Locale) ?? 'zh_cn'))
+// Same source of truth as i18n/index.ts, so the pre-selected chip always matches the
+// language the page is actually rendering in.
+const chosenLang = ref<Locale>(initialLocale())
 function pickLang(l: Locale) {
   chosenLang.value = l
   localeStore.setLocale(l)
@@ -54,7 +57,7 @@ async function create() {
   }
 }
 
-// step 3 挂载后播放完成动画,结束跳首页
+// Once step 3 is mounted, play the completion animation and navigate to the home page when it ends
 let anim: ReturnType<typeof lottie.loadAnimation> | null = null
 watch([step, doneEl], ([s, el]) => {
   if (s === 3 && el) {

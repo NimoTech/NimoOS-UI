@@ -1,7 +1,7 @@
-// SP8-P5a Task 6 —— 单测取自任务 brief `.superpowers/sdd/p5a-task-6-brief.md`
-// Step 2 骨架(逐字照用,含注释里标注的判别意图)。覆盖 knowledgeStore 的
-// Parser 组:loadOverview / Jobs 五个 action / Allowlist 四个 / setControl /
-// IndexedFiles 五个 action(含轮询)/ toast(P4 偏离)/ fmtAgo。
+// SP8-P5a Task 6 — unit tests taken from the task brief `.superpowers/sdd/p5a-task-6-brief.md`
+// Step 2 skeleton (used verbatim, including the discriminating intent noted in its comments).
+// Covers knowledgeStore's Parser group: loadOverview / Jobs' five actions / Allowlist's four /
+// setControl / IndexedFiles' five actions (including polling) / toast (P4 deviation) / fmtAgo.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
@@ -20,7 +20,7 @@ vi.mock('../../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) 
 
 import { useKnowledgeStore, fmtAgo, DISTILL_JOBS_LIMIT } from './knowledgeStore'
 
-// 后端实测形状(设计 §6.1)——**裸 body,不带 { data: … } 外壳**
+// Backend shape verified on the real device (design §6.1) — **a bare body, no { data: … } envelope**
 const STATS = { queue_depth: { pending: 338, running: 1, failed: 0, done: 9 },
   indexed_files: 8, total_vectors_text: 5592, total_vectors_visual: 0,
   last_cursor_ms: 1784775953391 }
@@ -29,18 +29,18 @@ const STATE = { paused: true, concurrency: 2, device: 'auto', ocr_enabled: false
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
 describe('loadOverview', () => {
-  it('单层取数写入 stats/controlState,并算出 lastSyncFmt 与 backlogPeak', async () => {
+  it('a single fetch writes stats/controlState, and computes lastSyncFmt and backlogPeak', async () => {
     ai.parserStats.mockResolvedValue(STATS); ai.parserState.mockResolvedValue(STATE)
     const s = useKnowledgeStore()
     await s.loadOverview()
-    expect(s.stats).toEqual(STATS)              // ← mock 是裸 body:若实现多剥一层 .data 这里必红
+    expect(s.stats).toEqual(STATS)              // ← the mock is a bare body: if the implementation strips an extra .data layer this must go red
     expect(s.controlState).toEqual(STATE)
     expect(s.unreachable).toBe(false)
     expect(s.overviewLoaded).toBe(true)
     expect(s.backlogPeak).toBe(339)             // 338 + 1
   })
 
-  it('backlogPeak 是滚动最大值,不会回落', async () => {
+  it('backlogPeak is a rolling maximum, it never drops back down', async () => {
     ai.parserState.mockResolvedValue(STATE)
     const s = useKnowledgeStore()
     ai.parserStats.mockResolvedValue({ ...STATS, queue_depth: { pending: 100, running: 0, failed: 0, done: 0 } })
@@ -51,20 +51,20 @@ describe('loadOverview', () => {
     expect(s.backlogPeak).toBe(100)
   })
 
-  it('任一请求失败 → unreachable=true,且不动既有 stats', async () => {
+  it('either request failing → unreachable=true, and does not touch the existing stats', async () => {
     ai.parserStats.mockResolvedValue(STATS); ai.parserState.mockResolvedValue(STATE)
     const s = useKnowledgeStore()
     await s.loadOverview()
     ai.parserStats.mockRejectedValue(new Error('boom'))
     await s.loadOverview()
     expect(s.unreachable).toBe(true)
-    expect(s.stats).toEqual(STATS)          // 保留上一次的值
-    expect(s.overviewLoaded).toBe(true)     // 已加载过就不回退
+    expect(s.stats).toEqual(STATS)          // keeps the previous value
+    expect(s.overviewLoaded).toBe(true)     // doesn't revert once already loaded
   })
 })
 
-describe('Jobs 组', () => {
-  it('loadAllJobs 三个桶各发一次请求并按状态归位', async () => {
+describe('Jobs group', () => {
+  it('loadAllJobs sends one request per bucket for all three buckets, and sorts them by status', async () => {
     ai.parserJobs.mockImplementation(async (p: { status: string }) => ({ jobs: [{ id: 1, path: '/' + p.status }] }))
     const s = useKnowledgeStore()
     await s.loadAllJobs()
@@ -74,38 +74,41 @@ describe('Jobs 组', () => {
     expect(s.jobs.failed[0].path).toBe('/failed')
   })
 
-  it('loadJobs 对缺 jobs 键的响应兜底成空数组(N7)', async () => {
+  it('loadJobs falls back to an empty array for a response missing the jobs key (N7)', async () => {
     ai.parserJobs.mockResolvedValue({})
     const s = useKnowledgeStore()
     expect(await s.loadJobs('pending')).toEqual([])
   })
 
-  it('retryFailed / cancelJob / clearFailed 都在动作后重载三桶', async () => {
+  it('retryFailed / cancelJob / clearFailed all reload the three buckets after their action', async () => {
     ai.parserJobs.mockResolvedValue({ jobs: [] })
-    // 🔴 P5c 交接项 #2(P5b 授权外,由 P5c 治理 §8.2 第 2 条派活):`parserDeleteJob`
-    // 的 mock 由 `{}` 改成 `''` —— `DELETE /v1/parser/jobs/{id}` 是 **HTTP 204 空体**
-    // (`NimoOS-Parser/parser/routes/jobs.py:42-50` 的 `status_code=204` + `return None`),
-    // 包里是 `return res.data`(`ai.ts:637-640`),而 **axios 1.18.1 对空体给的 `res.data`
-    // 是 `''`(空字符串)**(`axios.cjs:2118` 的守卫 `if (data && utils.isString(data) && …)`,
-    // 空串 falsy → 跳过 JSON 解析原样返回)。`{}`/`{ok:true}`/`undefined` 都是把幻觉编码
-    // 进断言。`cancelJob` 不消费返回值(`knowledgeStore.ts:370-373`)→ **零行为差异**。
-    // ⚠️ `parserRetryJobs` 的 `{}` 不动:它是 `{"retried":0}` 那类真 JSON,不在本次授权内。
+    // 🔴 P5c handoff item #2 (outside P5b's mandate, assigned by P5c governance §8.2 item 2):
+    // `parserDeleteJob`'s mock changes from `{}` to `''` — `DELETE /v1/parser/jobs/{id}` is
+    // **HTTP 204 with an empty body** (`NimoOS-Parser/parser/routes/jobs.py:42-50`'s
+    // `status_code=204` + `return None`); the package does `return res.data` (`ai.ts:637-640`),
+    // and **axios 1.18.1's `res.data` for an empty body is `''`** (empty string) (the guard
+    // `if (data && utils.isString(data) && …)` in `axios.cjs:2118` — an empty string is falsy →
+    // skips JSON parsing and returns it as-is). `{}`/`{ok:true}`/`undefined` would all be
+    // encoding a hallucination into the assertion. `cancelJob` doesn't consume the return value
+    // (`knowledgeStore.ts:370-373`) → **zero behavioral difference**.
+    // ⚠️ `parserRetryJobs`'s `{}` is left alone: it's real JSON like `{"retried":0}`, not covered
+    // by this authorization.
     ai.parserRetryJobs.mockResolvedValue({}); ai.parserDeleteJob.mockResolvedValue('')
     ai.parserClearFailedJobs.mockResolvedValue({ cleared: 3 })
     const s = useKnowledgeStore()
     await s.retryFailed(['f1'])
     expect(ai.parserRetryJobs).toHaveBeenCalledWith({ file_ids: ['f1'] })
     await s.retryFailed()
-    expect(ai.parserRetryJobs).toHaveBeenLastCalledWith({ file_ids: null })   // 蓝本默认 null
+    expect(ai.parserRetryJobs).toHaveBeenLastCalledWith({ file_ids: null })   // reference defaults to null
     await s.cancelJob(7)
     expect(ai.parserDeleteJob).toHaveBeenCalledWith(7)
     expect(await s.clearFailed()).toEqual({ cleared: 3 })
-    expect(ai.parserJobs).toHaveBeenCalledTimes(12)   // 4 个动作 × 3 桶
+    expect(ai.parserJobs).toHaveBeenCalledTimes(12)   // 4 actions × 3 buckets
   })
 })
 
-describe('Allowlist 组', () => {
-  it('N1:enabled 的 0/1 被归一化成布尔', async () => {
+describe('Allowlist group', () => {
+  it("N1: enabled's 0/1 is normalized to a boolean", async () => {
     ai.parserAllowlistExtensions.mockResolvedValue({ extensions: [
       { ext: '.md', enabled: 1, source: 'default' }, { ext: '.png', enabled: 0, source: 'default' }] })
     ai.parserAllowlistFolders.mockResolvedValue({ rules: [{ id: 1, path_glob: '/a/*' }] })
@@ -116,14 +119,14 @@ describe('Allowlist 组', () => {
     expect(s.folderRules).toHaveLength(1)
   })
 
-  it('缺键响应兜底成空数组', async () => {
+  it('missing-key response falls back to an empty array', async () => {
     ai.parserAllowlistExtensions.mockResolvedValue({}); ai.parserAllowlistFolders.mockResolvedValue({})
     const s = useKnowledgeStore()
     await s.loadAllowlist()
     expect(s.extensions).toEqual([]); expect(s.folderRules).toEqual([])
   })
 
-  it('toggle / add / delete 都在动作后重载白名单', async () => {
+  it('toggle / add / delete all reload the allowlist after their action', async () => {
     ai.parserAllowlistExtensions.mockResolvedValue({ extensions: [] })
     ai.parserAllowlistFolders.mockResolvedValue({ rules: [] })
     ai.patchParserAllowlistExtensions.mockResolvedValue({})
@@ -140,26 +143,29 @@ describe('Allowlist 组', () => {
 })
 
 describe('setControl', () => {
-  it('把 action 与附加字段合并进 body,并重载 overview', async () => {
+  it('merges action and extra fields into the body, and reloads overview', async () => {
     ai.parserControl.mockResolvedValue({}); ai.parserStats.mockResolvedValue(STATS)
     ai.parserState.mockResolvedValue(STATE)
     const s = useKnowledgeStore()
     await s.setControl('pause')
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'pause' })
-    // 🔴 P5c 第三轮(P5b 授权外,协调者本轮扩权这两行;与交接项 #2 同族 =「把后端不认的
-    // 形状编码进断言」)。原文载荷是 `{ concurrency: 4 }` —— 那个键**后端根本不读**:
-    // `NimoOS-AI route/v2/parser_proxy.go:80-85` 的 `controlReq` 只有 `N *int json:"n,omitempty"`,
-    // `:103-105` 的 `set_concurrency` 分支在 `req.N == nil` 时直接 400 `"n required"`。
-    // 真实调用点传的也是 `n`(蓝本 `SettingsView.vue:292` = `setControl('set_concurrency', { n })`)。
-    // 断言语义不变(仍是「`extra` 被原样展开进 body」),只是载荷换成真实契约键。
+    // 🔴 P5c third round (outside P5b's mandate, the coordinator expanded scope for these two
+    // lines this round; same family as handoff item #2 = "encoding a shape the backend doesn't
+    // recognize into the assertion"). The original payload was `{ concurrency: 4 }` — **the
+    // backend never reads that key at all**: `NimoOS-AI route/v2/parser_proxy.go:80-85`'s
+    // `controlReq` only has `N *int json:"n,omitempty"`, and `:103-105`'s `set_concurrency`
+    // branch returns a flat 400 `"n required"` when `req.N == nil`. The real call site also
+    // passes `n` (reference `SettingsView.vue:292` = `setControl('set_concurrency', { n })`).
+    // The assertion's meaning is unchanged (still "`extra` is spread as-is into the body"),
+    // just with the payload swapped for the real contract key.
     await s.setControl('set_concurrency', { n: 4 })
     expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_concurrency', n: 4 })
     expect(ai.parserStats).toHaveBeenCalledTimes(2)
   })
 })
 
-describe('IndexedFiles 组', () => {
-  it('loadIndexedFiles 走 buildListParams,写 files/total,收尾 loading=false', async () => {
+describe('IndexedFiles group', () => {
+  it('loadIndexedFiles goes through buildListParams, writes files/total, and finishes with loading=false', async () => {
     ai.parserFiles.mockResolvedValue({ total: 8, files: [{ file_id: 'a', status: 'ok' }] })
     const s = useKnowledgeStore()
     await s.loadIndexedFiles()
@@ -169,7 +175,7 @@ describe('IndexedFiles 组', () => {
     expect(s.indexedFiles.error).toBe(null)
   })
 
-  it('失败时写 error 且 loading 归位', async () => {
+  it('on failure, writes error and resets loading', async () => {
     ai.parserFiles.mockRejectedValue(new Error('nope'))
     const s = useKnowledgeStore()
     await s.loadIndexedFiles()
@@ -177,7 +183,7 @@ describe('IndexedFiles 组', () => {
     expect(s.indexedFiles.loading).toBe(false)
   })
 
-  it('startIndexedPolling:无 indexing 行时不起定时器;有则 30 s 后重载并在完工后自停', async () => {
+  it('startIndexedPolling: does not start a timer when there are no indexing rows; when there are, reloads after 30s and stops itself once done', async () => {
     vi.useFakeTimers()
     ai.parserFiles.mockResolvedValue({ total: 1, files: [{ file_id: 'a', status: 'ok' }] })
     const s = useKnowledgeStore()
@@ -185,7 +191,7 @@ describe('IndexedFiles 组', () => {
     s.startIndexedPolling()
     vi.advanceTimersByTime(30000)
     await flushPromises()
-    expect(ai.parserFiles).toHaveBeenCalledTimes(1)      // 没起来
+    expect(ai.parserFiles).toHaveBeenCalledTimes(1)      // never started
 
     ai.parserFiles.mockResolvedValue({ total: 1, files: [{ file_id: 'a', status: 'indexing' }] })
     await s.loadIndexedFiles()
@@ -193,14 +199,14 @@ describe('IndexedFiles 组', () => {
     ai.parserFiles.mockResolvedValue({ total: 1, files: [{ file_id: 'a', status: 'ok' }] })
     vi.advanceTimersByTime(30000)
     await flushPromises()
-    expect(ai.parserFiles).toHaveBeenCalledTimes(3)      // 轮询拉了一次
+    expect(ai.parserFiles).toHaveBeenCalledTimes(3)      // polling fetched once
     vi.advanceTimersByTime(60000)
     await flushPromises()
-    expect(ai.parserFiles).toHaveBeenCalledTimes(3)      // 完工后自停
+    expect(ai.parserFiles).toHaveBeenCalledTimes(3)      // stops itself once done
     vi.useRealTimers()
   })
 
-  it('startIndexedPolling 重复调用不叠定时器', async () => {
+  it('startIndexedPolling repeated calls do not stack timers', async () => {
     vi.useFakeTimers()
     ai.parserFiles.mockResolvedValue({ total: 1, files: [{ file_id: 'a', status: 'indexing' }] })
     const s = useKnowledgeStore()
@@ -208,14 +214,14 @@ describe('IndexedFiles 组', () => {
     s.startIndexedPolling(); s.startIndexedPolling(); s.startIndexedPolling()
     vi.advanceTimersByTime(30000)
     await flushPromises()
-    expect(ai.parserFiles).toHaveBeenCalledTimes(2)      // 只多了一次
+    expect(ai.parserFiles).toHaveBeenCalledTimes(2)      // only one extra call
     s.stopIndexedPolling()
     vi.useRealTimers()
   })
 })
 
-describe('toast(偏离 P4)', () => {
-  it('转调全局 useToast().show,时长照蓝本 2400ms', () => {
+describe('toast (deviates from P4)', () => {
+  it('forwards to the global useToast().show, duration follows the reference at 2400ms', () => {
     const s = useKnowledgeStore()
     s.toast('已刷新')
     expect(toastShow).toHaveBeenCalledWith('已刷新', 2400)
@@ -223,7 +229,7 @@ describe('toast(偏离 P4)', () => {
 })
 
 describe('fmtAgo', () => {
-  it('分钟/小时/天三档 + 0 值', () => {
+  it('minute/hour/day tiers + zero value', () => {
     const now = 1_800_000_000_000
     vi.spyOn(Date, 'now').mockReturnValue(now)
     expect(fmtAgo(0)).toBe('—')
@@ -235,29 +241,30 @@ describe('fmtAgo', () => {
   })
 })
 
-// 评审 R2(Important)—— 上面那条用例只在每档「中段」各取一个样本点,阈值本身
-// (`m<1`/`m<60`/`h<24`,knowledgeStore.ts:184-188)改错了也不会报红(探针实测:
-// 把 `h<24` 改成 `h<48` 后原用例 16/16 仍全绿)。治理文件 §9「A/B 二选一分支两侧
-// 都要有对照用例」——下面把「刚刚/分钟」「分钟/小时」「小时/天」三个切换点各自的
-// 两侧都钉住。
-describe('fmtAgo 边界(评审 R2 —— 每个切换点两侧各一条)', () => {
+// Review R2 (Important) — the test case above only samples one point from the "middle" of
+// each tier, so getting the threshold itself wrong (`m<1`/`m<60`/`h<24`, knowledgeStore.ts:184-188)
+// still wouldn't go red (verified with a probe: changing `h<24` to `h<48` still left the
+// original case 16/16 green). Governance doc §9 "either side of an A/B branch both need a
+// control case" — the following pins down both sides of each of the three transition points:
+// "just now/minute", "minute/hour", "hour/day".
+describe('fmtAgo boundaries (review R2 — one case per side of each transition point)', () => {
   const now = 1_800_000_000_000
 
-  it('“刚刚”/分钟 边界:59_999ms(m=0)→ 刚刚;60_000ms(m=1)→ 1 分钟前', () => {
+  it('"just now"/minute boundary: 59_999ms (m=0) → just now; 60_000ms (m=1) → 1 minute ago', () => {
     vi.spyOn(Date, 'now').mockReturnValue(now)
     expect(fmtAgo(now - 59_999)).toBe('刚刚')
     expect(fmtAgo(now - 60_000)).toBe('1 分钟前')
     vi.restoreAllMocks()
   })
 
-  it('分钟/小时 边界:59 分钟(m=59)→ 59 分钟前;60 分钟(m=60,=1 小时)→ 1 小时前', () => {
+  it('minute/hour boundary: 59 minutes (m=59) → 59 minutes ago; 60 minutes (m=60, =1 hour) → 1 hour ago', () => {
     vi.spyOn(Date, 'now').mockReturnValue(now)
     expect(fmtAgo(now - 59 * 60_000)).toBe('59 分钟前')
     expect(fmtAgo(now - 60 * 60_000)).toBe('1 小时前')
     vi.restoreAllMocks()
   })
 
-  it('小时/天 边界:23 小时(h=23)→ 23 小时前;24 小时(h=24,=1 天)→ 1 天前', () => {
+  it('hour/day boundary: 23 hours (h=23) → 23 hours ago; 24 hours (h=24, =1 day) → 1 day ago', () => {
     vi.spyOn(Date, 'now').mockReturnValue(now)
     expect(fmtAgo(now - 23 * 3_600_000)).toBe('23 小时前')
     expect(fmtAgo(now - 24 * 3_600_000)).toBe('1 天前')
@@ -265,8 +272,8 @@ describe('fmtAgo 边界(评审 R2 —— 每个切换点两侧各一条)', () =>
   })
 })
 
-describe('DISTILL_JOBS_LIMIT(评审 R1)', () => {
-  it('与蓝本 knowledgeStore.js:11 同源,值为 500', () => {
+describe('DISTILL_JOBS_LIMIT (review R1)', () => {
+  it('matches the reference knowledgeStore.js:11, value is 500', () => {
     expect(DISTILL_JOBS_LIMIT).toBe(500)
   })
 })

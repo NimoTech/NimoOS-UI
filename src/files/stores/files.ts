@@ -38,8 +38,8 @@ export const useFilesStore = defineStore('files', () => {
   // Empty string = no error. See load() for why this had to exist.
   const error = ref('')
 
-  // displayNames = disks 派生的 map 叠加 mountNames(网络挂载的 host 名)。
-  // 单独抽出以便 loadRoots() 重建磁盘 map 时不丢失 setMountNames 写入的网络挂载名。
+  // displayNames = disks-derived map overlaid with mountNames (host names from network mounts).
+  // Separated to prevent losing network mount names written by setMountNames when loadRoots() rebuilds the disk map.
   function rebuildDisplayNames() {
     const map: DisplayNames = {}
     for (const d of disks.value) map[d.path] = d.name
@@ -53,8 +53,8 @@ export const useFilesStore = defineStore('files', () => {
     rebuildDisplayNames()
   }
 
-  // 由 mountsStore.loadMounts() 调用,注册网络挂载 /mnt/<host> → host 的显示名映射,
-  // 使 toVirtualPath/toRealPath 对网络挂载路径同样生效(不泄漏 /mnt/* 到 URL/面包屑/剪贴板)。
+  // Called by mountsStore.loadMounts() to register display name mapping for network mounts /mnt/<host> → host,
+  // so that toVirtualPath/toRealPath also work on network mount paths (do not leak /mnt/* to URL/breadcrumb/clipboard).
   function setMountNames(names: DisplayNames) {
     mountNames.value = names
     rebuildDisplayNames()

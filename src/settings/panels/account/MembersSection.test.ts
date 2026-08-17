@@ -24,7 +24,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0))
 
 const ALICE = { id: 3, username: 'alice', role: 'user', folder_count: 2, created_at: '2026-07-01T10:20:30Z' }
 
-// ⚠️ 花括号、不要链式返回 mock(会被当 teardown 回调 → Unknown Error,本期栽过)
+// ⚠️ Use braces, do not chain-return the mock (it gets treated as a teardown callback → Unknown Error, we got burned by this before)
 beforeEach(() => {
   setActivePinia(createPinia())
   getMembers.mockReset()
@@ -35,11 +35,11 @@ beforeEach(() => {
   deleteUser.mockResolvedValue(undefined)
 })
 
-// AlertDialog 经 reka Portal teleport → attachTo body 并查 document,且必须显式清理(B4)
+// AlertDialog goes through reka Portal teleport → attachTo body and query document, and must be explicitly cleaned up (B4)
 let mountedWrappers: Array<{ unmount: () => void }> = []
 afterEach(() => {
   for (const w of mountedWrappers) {
-    try { w.unmount() } catch { /* 已 unmount 过 */ }
+    try { w.unmount() } catch { /* already unmounted */ }
   }
   mountedWrappers = []
   document.body.innerHTML = ''
@@ -58,15 +58,15 @@ async function openAddAndFill(w: ReturnType<typeof mountSection>, u: string, p: 
   await w.find('[data-test="acc-member-confirm"]').setValue(c)
 }
 
-describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
-  it('标题「成员」+ 右侧「添加」按钮', async () => {
+describe('MembersSection —— maps to the lower half of Vue2 state 1 (:664-712)', () => {
+  it('title "Members" + an "Add" button on the right', async () => {
     const w = mountSection()
     await flush()
     expect(w.find('.set-mem-title').text()).toBe(zh.settingsAccMembers)
     expect(w.find('[data-test="acc-member-add"]').text()).toContain(zh.settingsAccAdd)
   })
 
-  it('挂载即取成员列表;本机真实形态是空数组 → 显示「暂无成员」', async () => {
+  it('fetches the member list on mount; the real shape on this machine is an empty array → shows "no members"', async () => {
     const w = mountSection()
     await flush()
     expect(getMembers).toHaveBeenCalledTimes(1)
@@ -74,25 +74,25 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(w.findAll('[data-test="acc-member-row"]')).toHaveLength(0)
   })
 
-  it('有成员时渲染用户名 + 「N 个文件夹 · 创建于: <时间>」', async () => {
+  it('when members exist, renders the username + "N folders · created at: <time>"', async () => {
     getMembers.mockResolvedValue([ALICE])
     const w = mountSection()
     await flush()
     const row = w.find('[data-test="acc-member-row"]')
     expect(row.find('.set-mem-name').text()).toBe('alice')
-    // 时间用同一个纯函数算,别在断言里手写日期串(时区会咬人)
+    // The time is computed by the same pure function; don't hand-write a date string in the assertion (timezones will bite you)
     expect(row.find('.set-mem-meta').text()).toContain(`2 ${zh.settingsAccFoldersUnit}`)
     expect(row.find('.set-mem-meta').text()).toContain(formatMemberDate(ALICE.created_at))
   })
 
-  it('不按 role 过滤 —— 其它管理员也照样列出(后端 user.go:694-697 只隐藏调用者本人)', async () => {
+  it('does not filter by role —— other admins are listed too (backend user.go:694-697 only hides the caller themselves)', async () => {
     getMembers.mockResolvedValue([ALICE, { ...ALICE, id: 4, username: 'root2', role: 'admin' }])
     const w = mountSection()
     await flush()
     expect(w.findAll('[data-test="acc-member-row"]')).toHaveLength(2)
   })
 
-  it('取列表失败 → 显示错误行,而不是伪装成「暂无成员」(plan C14)', async () => {
+  it('fetching the list fails → shows an error row instead of disguising it as "no members" (plan C14)', async () => {
     getMembers.mockImplementation(async () => { throw new Error('boom') })
     const w = mountSection()
     await flush()
@@ -100,7 +100,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(w.find('[data-test="acc-members-empty"]').exists()).toBe(false)
   })
 
-  it('点「添加」展开内联表单,空态提示随之消失(Vue2 v-if 的 && !showAddMember)', async () => {
+  it('clicking "Add" expands the inline form, and the empty-state hint disappears with it (Vue2 v-if\'s && !showAddMember)', async () => {
     const w = mountSection()
     await flush()
     expect(w.find('[data-test="acc-member-form"]').exists()).toBe(false)
@@ -109,7 +109,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(w.find('[data-test="acc-members-empty"]').exists()).toBe(false)
   })
 
-  it('三个输入框都包在 .set-net-field 里(C7)', async () => {
+  it('all three inputs are wrapped in .set-net-field (C7)', async () => {
     const w = mountSection()
     await flush()
     await w.find('[data-test="acc-member-add"]').trigger('click')
@@ -118,7 +118,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     }
   })
 
-  it('校验:空字段 → 报错且不发请求', async () => {
+  it('validation: empty field → errors and does not send a request', async () => {
     const w = mountSection()
     await flush()
     await openAddAndFill(w, '', 'pw1234', 'pw1234')
@@ -128,7 +128,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(createMember).not.toHaveBeenCalled()
   })
 
-  it('校验:密码短于 6 位 → 报错且不发请求', async () => {
+  it('validation: password shorter than 6 characters → errors and does not send a request', async () => {
     const w = mountSection()
     await flush()
     await openAddAndFill(w, 'bob', 'pw123', 'pw123')
@@ -138,7 +138,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(createMember).not.toHaveBeenCalled()
   })
 
-  it('校验:两次密码不一致 → 报错且不发请求', async () => {
+  it('validation: the two passwords do not match → errors and does not send a request', async () => {
     const w = mountSection()
     await flush()
     await openAddAndFill(w, 'bob', 'pw1234', 'pw4321')
@@ -148,7 +148,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(createMember).not.toHaveBeenCalled()
   })
 
-  it('添加成功 → 关表单 + 重新取列表 + 面板级 toast(B5 读 useToast().msg)', async () => {
+  it('add succeeds → closes the form + refetches the list + panel-level toast (B5 reads useToast().msg)', async () => {
     const { useToast } = await import('../../../stores/toast')
     const w = mountSection()
     await flush()
@@ -161,7 +161,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(useToast().msg).toBe(zh.settingsAccMemberAdded)
   })
 
-  it('添加失败 → 内联报错优先后端 message,表单保持打开、输入不清空', async () => {
+  it('add fails → inline error prefers the backend message, form stays open, inputs are not cleared', async () => {
     createMember.mockImplementation(async () => {
       throw Object.assign(new Error('req'), { response: { data: { message: '用户名已存在' } } })
     })
@@ -175,7 +175,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect((w.find('[data-test="acc-member-username"]').element as HTMLInputElement).value).toBe('bob')
   })
 
-  it('提交在途时按钮 disabled(B6:断属性)', async () => {
+  it('the button is disabled while submitting (B6: assert the attribute)', async () => {
     let resolve!: () => void
     createMember.mockReturnValue(new Promise((r) => { resolve = r as () => void }))
     const w = mountSection()
@@ -188,7 +188,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     await flush()
   })
 
-  it('点「取消」关表单;再打开时三个输入已清空(Vue2 openAddMember 每次重置)', async () => {
+  it('clicking "Cancel" closes the form; the three inputs are already cleared when reopened (Vue2 openAddMember resets every time)', async () => {
     const w = mountSection()
     await flush()
     await openAddAndFill(w, 'bob', 'pw1234', 'pw1234')
@@ -199,7 +199,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect((w.find('[data-test="acc-member-password"]').element as HTMLInputElement).value).toBe('')
   })
 
-  it('点删除弹确认框,文案含成员名,确认键是 .ui-btn.danger(B4:查 document)', async () => {
+  it('clicking delete pops the confirmation dialog, copy contains the member name, confirm button is .ui-btn.danger (B4: query document)', async () => {
     getMembers.mockResolvedValue([ALICE])
     const w = mountSection()
     await flush()
@@ -210,7 +210,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(document.querySelector('.ui-btn.danger')).not.toBeNull()
   })
 
-  it('⛔ 不点确认时 deleteUser 一次都不会被调用', async () => {
+  it('⛔ deleteUser is never called if confirm is not clicked', async () => {
     getMembers.mockResolvedValue([ALICE])
     const w = mountSection()
     await flush()
@@ -219,7 +219,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(deleteUser).not.toHaveBeenCalled()
   })
 
-  it('点确认后按 id 删除 + 重新取列表 + toast', async () => {
+  it('clicking confirm deletes by id + refetches the list + toast', async () => {
     const { useToast } = await import('../../../stores/toast')
     getMembers.mockResolvedValue([ALICE])
     const w = mountSection()
@@ -233,7 +233,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(useToast().msg).toBe(zh.settingsAccDeleted)
   })
 
-  it('删除失败 → 面板级 toast 提示失败(这是面板级操作,用 toast 是对的)', async () => {
+  it('delete fails → panel-level toast reports the failure (this is a panel-level action, a toast is the right call)', async () => {
     const { useToast } = await import('../../../stores/toast')
     getMembers.mockResolvedValue([ALICE])
     deleteUser.mockImplementation(async () => { throw new Error('nope') })
@@ -246,7 +246,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(useToast().msg).toBe(zh.settingsAccDeleteFailed)
   })
 
-  it('点某行的「设置」按钮 → emit open-member 带该成员', async () => {
+  it('clicking a row\'s "settings" button → emits open-member with that member', async () => {
     getMembers.mockResolvedValue([ALICE])
     const w = mountSection()
     await flush()
@@ -254,19 +254,19 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     expect(w.emitted('open-member')).toEqual([[ALICE]])
   })
 
-  it('取列表在途时卸载不回写(就地代际守卫;本组件有第二个触发点,守卫非空转)', async () => {
+  it('unmounting while the list fetch is in flight does not write back (in-place generation guard; this component has a second trigger point, so the guard is not a no-op)', async () => {
     let resolve!: (v: unknown) => void
     getMembers.mockReturnValue(new Promise((r) => { resolve = r }))
     const w = mountSection()
     w.unmount()
     resolve([ALICE])
     await flush()
-    // 卸载后不该抛,也不该有渲染更新
+    // Should not throw after unmount, and should not trigger a render update
     expect(getMembers).toHaveBeenCalledTimes(1)
   })
 
-  it('添加后重新取数在途时,前一次的旧结果不许覆盖新结果(代际守卫的真实路径)', async () => {
-    // 第一次取数卡住,添加成功触发第二次取数并立刻返回;第一次后落定不许覆盖
+  it('while a refetch triggered by add is in flight, the previous stale result must not overwrite the new one (the real path for the generation guard)', async () => {
+    // The first fetch is stuck; add succeeding triggers a second fetch that returns immediately; the first must not be allowed to overwrite once it settles
     let resolveFirst!: (v: unknown) => void
     getMembers
       .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r }))
@@ -275,7 +275,7 @@ describe('MembersSection —— 对位 Vue2 state 1 下半(:664-712)', () => {
     await openAddAndFill(w, 'bob', 'pw1234', 'pw1234')
     await w.find('[data-test="acc-member-submit"]').trigger('click')
     await flush()
-    resolveFirst([]) // 旧结果:空列表
+    resolveFirst([]) // stale result: an empty list
     await flush()
     expect(w.findAll('[data-test="acc-member-row"]')).toHaveLength(1)
   })

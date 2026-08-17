@@ -11,7 +11,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
 
 const item = { name: 'a.pdf', path: '/DATA/a.pdf', is_dir: false } as FileEntry
 
-// 在组件 setup 内实例化 composable,拿到其 API + wrapper(便于卸载)
+// Instantiate composable inside component setup, get its API + wrapper (convenient for unmounting)
 function makeViewer() {
   let api!: ReturnType<typeof useOfficeBytes>
   const Host = defineComponent({ setup() { api = useOfficeBytes(item); return () => h('div') } })
@@ -30,7 +30,7 @@ describe('useOfficeBytes', () => {
     await nextTick(); await nextTick()
     expect(getBytesMock).toHaveBeenCalledWith('/DATA/a.pdf')
     expect(api.buffer.value).toBe(buf)
-    expect(api.state.value).toBe('loading')   // 字节到位仍 loading
+    expect(api.state.value).toBe('loading')   // bytes arrived, still loading
     api.onRendered()
     expect(api.state.value).toBe('ready')
   })
@@ -66,10 +66,10 @@ describe('useOfficeBytes', () => {
     let resolve!: (b: ArrayBuffer) => void
     getBytesMock.mockReturnValue(new Promise<ArrayBuffer>((r) => { resolve = r }))
     const { api, wrapper } = makeViewer()
-    wrapper.unmount()                 // 在 getBytes resolve 前卸载
+    wrapper.unmount()                 // unmount before getBytes resolves
     resolve(new ArrayBuffer(4))
     await nextTick(); await nextTick()
     expect(api.buffer.value).toBeNull()
-    expect(api.state.value).toBe('loading')  // 卸载后不再翻状态
+    expect(api.state.value).toBe('loading')  // no state flip after unmount
   })
 })

@@ -16,24 +16,24 @@ const mountViewer = async (props: Partial<{ assetId: string | number; mimeType: 
   const w = mount(PhotoImageViewer, {
     props: { assetId: 'a1', mimeType: 'image/jpeg', ocrLines: [], ...props },
   })
-  await nextTick() // 工具栏 v-if="isMoving" 在 onMounted 置 true,等一帧渲染
+  await nextTick() // Toolbar v-if="isMoving" set to true at onMounted, wait one frame to render
   return w
 }
 
-describe('PhotoImageViewer src 计算(HEIC/TIFF/RAW 回退大图缩略图)', () => {
-  it('浏览器可原生解码的 mimeType 用 originalUrl', async () => {
+describe('PhotoImageViewer src calculation (HEIC/TIFF/RAW fallback to large thumbnail)', () => {
+  it('browser-natively-decodable mimeType uses originalUrl', async () => {
     const w = await mountViewer({ assetId: 'a1', mimeType: 'image/jpeg' })
     expect(w.get('img.img-el').attributes('src')).toBe('/v1/photos/assets/a1/original?token=t')
   })
 
-  it('HEIC 等浏览器不可原生解码 mimeType 回退 thumbnailUrl(id, "large")', async () => {
+  it('HEIC and other browser-non-decodable mimeType fallback to thumbnailUrl(id, "large")', async () => {
     const w = await mountViewer({ assetId: 'a2', mimeType: 'image/heic' })
     expect(w.get('img.img-el').attributes('src')).toBe('/v1/photos/assets/a2/thumbnail?size=large&token=t')
   })
 })
 
-describe('PhotoImageViewer 缩放(wheel + defineExpose)', () => {
-  it('wheel 向上(deltaY<0)放大,向下(deltaY>0)缩小', async () => {
+describe('PhotoImageViewer zoom (wheel + defineExpose)', () => {
+  it('wheel up (deltaY<0) zooms in, wheel down (deltaY>0) zooms out', async () => {
     const w = await mountViewer()
     await w.get('.img-stage').trigger('wheel', { deltaY: -100 })
     expect(w.get('img.img-el').attributes('style')).toContain('scale(1.1')
@@ -41,7 +41,7 @@ describe('PhotoImageViewer 缩放(wheel + defineExpose)', () => {
     expect(w.get('img.img-el').attributes('style')).toContain('scale(1)')
   })
 
-  it('defineExpose 的 zoomIn/rotate/resetTransform 可被父组件驱动', async () => {
+  it('defineExpose zoomIn/rotate/resetTransform can be driven by parent component', async () => {
     const w = await mountViewer()
     await (w.vm as any).zoomIn()
     expect(w.get('img.img-el').attributes('style')).toContain('scale(1.1)')
@@ -53,27 +53,27 @@ describe('PhotoImageViewer 缩放(wheel + defineExpose)', () => {
   })
 })
 
-describe('PhotoImageViewer 工具栏按钮 click 生效', () => {
-  it('放大改 scale、旋转改 rotate', async () => {
+describe('PhotoImageViewer toolbar button click works', () => {
+  it('zoom changes scale, rotate changes rotate', async () => {
     const w = await mountViewer()
     const items = w.findAll('.img-toolbar .tb-item')
-    await items[0]!.trigger('click') // 放大
+    await items[0]!.trigger('click') // zoom
     expect(w.get('img.img-el').attributes('style')).toContain('scale(1.1)')
-    await items[2]!.trigger('click') // 旋转
+    await items[2]!.trigger('click') // rotate
     expect(w.get('img.img-el').attributes('style')).toContain('rotate(90deg)')
   })
 })
 
-describe('PhotoImageViewer 指针拖拽守卫(pointer capture 不吞工具栏按钮 click)', () => {
-  it('工具栏上按下指针不得进入舞台拖拽', async () => {
+describe('PhotoImageViewer pointer drag guard (pointer capture does not swallow toolbar button click)', () => {
+  it('pointer pressed on toolbar must not enter stage drag', async () => {
     const w = await mountViewer()
-    const btn = w.findAll('.img-toolbar .tb-item')[0]! // 放大键
+    const btn = w.findAll('.img-toolbar .tb-item')[0]! // zoom button
     await btn.trigger('pointerdown', { clientX: 10, clientY: 10 })
     await w.get('.img-stage').trigger('pointermove', { clientX: 60, clientY: 80 })
     expect(w.get('img.img-el').attributes('style')).toContain('translate(0px, 0px)')
   })
 
-  it('舞台空白处拖拽可平移图片', async () => {
+  it('drag on blank stage pans image', async () => {
     const w = await mountViewer()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
@@ -81,7 +81,7 @@ describe('PhotoImageViewer 指针拖拽守卫(pointer capture 不吞工具栏按
     expect(w.get('img.img-el').attributes('style')).toContain('translate(20px, 30px)')
   })
 
-  it('鼠标已无按键(buttons=0)的 pointermove 不再平移(pointerup 丢失自愈)', async () => {
+  it('pointermove with no buttons (buttons=0) no longer pans (pointerup loss self-heals)', async () => {
     const w = await mountViewer()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
@@ -89,7 +89,7 @@ describe('PhotoImageViewer 指针拖拽守卫(pointer capture 不吞工具栏按
     expect(w.get('img.img-el').attributes('style')).toContain('translate(0px, 0px)')
   })
 
-  it('舞台内原生 dragstart 都被阻止(不出幽灵图)', async () => {
+  it('native dragstart on stage must be prevented (no ghost image)', async () => {
     const w = await mountViewer()
     const ev = new Event('dragstart', { bubbles: true, cancelable: true })
     w.get('img.img-el').element.dispatchEvent(ev)
@@ -97,7 +97,7 @@ describe('PhotoImageViewer 指针拖拽守卫(pointer capture 不吞工具栏按
   })
 })
 
-describe('PhotoImageViewer 拖拽边界(clampPan)', () => {
+describe('PhotoImageViewer drag boundary (clampPan)', () => {
   const mountWithLayout = async () => {
     const w = await mountViewer()
     const img = w.get('img.img-el').element as HTMLImageElement
@@ -109,16 +109,16 @@ describe('PhotoImageViewer 拖拽边界(clampPan)', () => {
     return w
   }
 
-  it('向右下暴力拖拽被夹在边界', async () => {
+  it('drag forcefully to right-down, clamped at boundary', async () => {
     const w = await mountWithLayout()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 100, clientY: 100 })
     await stage.trigger('pointermove', { clientX: 5100, clientY: 5100 })
-    // maxTx = (1000+800)/2 - 48 = 852;maxTy = (700+600)/2 - 48 = 602
+    // maxTx = (1000+800)/2 - 48 = 852; maxTy = (700+600)/2 - 48 = 602
     expect(w.get('img.img-el').attributes('style')).toContain('translate(852px, 602px)')
   })
 
-  it('向左上暴力拖拽同样被夹住(负方向)', async () => {
+  it('drag forcefully to left-up, also clamped (negative direction)', async () => {
     const w = await mountWithLayout()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 5100, clientY: 5100 })
@@ -127,7 +127,7 @@ describe('PhotoImageViewer 拖拽边界(clampPan)', () => {
   })
 })
 
-describe('PhotoImageViewer 停手落盘(150ms 后倍数烙进布局尺寸)', () => {
+describe('PhotoImageViewer release to settle (settle multiplier into layout size after 150ms)', () => {
   const mountWithSize = async () => {
     vi.useFakeTimers()
     const w = await mountViewer()
@@ -137,10 +137,10 @@ describe('PhotoImageViewer 停手落盘(150ms 后倍数烙进布局尺寸)', () 
     return w
   }
 
-  it('停手 150ms 后落盘:scale 归 1,倍数写进 width/height', async () => {
+  it('release and settle after 150ms: scale back to 1, multiplier written to width/height', async () => {
     const w = await mountWithSize()
     try {
-      await (w.vm as any).zoomIn() // 有效倍数 1.1
+      await (w.vm as any).zoomIn() // effective multiplier 1.1
       vi.advanceTimersByTime(150)
       await nextTick()
       const style = w.get('img.img-el').attributes('style')!
@@ -151,17 +151,17 @@ describe('PhotoImageViewer 停手落盘(150ms 后倍数烙进布局尺寸)', () 
     } finally { vi.useRealTimers() }
   })
 
-  it('连续缩放期间不落盘(防抖),停手后才落', async () => {
+  it('no settle during continuous zoom (debounce), settle only after release', async () => {
     const w = await mountWithSize()
     try {
       await (w.vm as any).zoomIn()
       vi.advanceTimersByTime(100)
-      await (w.vm as any).zoomIn() // 重置防抖计时
+      await (w.vm as any).zoomIn() // reset debounce timer
       vi.advanceTimersByTime(100)
       await nextTick()
       let style = w.get('img.img-el').attributes('style')!
-      expect(style).not.toContain('width:') // 尚未落盘
-      vi.advanceTimersByTime(50) // 距最后一次操作满 150ms
+      expect(style).not.toContain('width:') // not yet settled
+      vi.advanceTimersByTime(50) // 150ms elapsed since last operation
       await nextTick()
       style = w.get('img.img-el').attributes('style')!
       expect(style).toContain('scale(1)')
@@ -169,7 +169,7 @@ describe('PhotoImageViewer 停手落盘(150ms 后倍数烙进布局尺寸)', () 
     } finally { vi.useRealTimers() }
   })
 
-  it('复位清除落盘尺寸,回到 CSS 自适应', async () => {
+  it('reset clears settled dimensions, back to CSS auto-fit', async () => {
     const w = await mountWithSize()
     try {
       await (w.vm as any).zoomIn()
@@ -185,8 +185,8 @@ describe('PhotoImageViewer 停手落盘(150ms 后倍数烙进布局尺寸)', () 
   })
 })
 
-describe('PhotoImageViewer 换图复位变换', () => {
-  it('assetId 变化时复位缩放/旋转/平移', async () => {
+describe('PhotoImageViewer image change resets transform', () => {
+  it('when assetId changes, reset zoom/rotate/pan', async () => {
     const w = await mountViewer({ assetId: 'a1' })
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
@@ -197,7 +197,7 @@ describe('PhotoImageViewer 换图复位变换', () => {
   })
 })
 
-describe('PhotoImageViewer OCR 覆盖层(随变换同容器,不叠加 offsetLeft/Top)', () => {
+describe('PhotoImageViewer OCR overlay (transforms with container, does not stack offsetLeft/Top)', () => {
   const mountWithOcr = async (ocrLines: Array<{ box: number[] }>) => {
     const w = await mountViewer({ ocrLines })
     const img = w.get('img.img-el').element as HTMLImageElement
@@ -209,7 +209,7 @@ describe('PhotoImageViewer OCR 覆盖层(随变换同容器,不叠加 offsetLeft
     return w
   }
 
-  it('ocrLines 非空:overlay 内出现对应 .ocr-hit,矩形与 mapOcrBoxesToRects 一致', async () => {
+  it('ocrLines non-empty: overlay has corresponding .ocr-hit, rect matches mapOcrBoxesToRects', async () => {
     const w = await mountWithOcr([{ box: [0, 0, 1, 0, 1, 1, 0, 1] }])
     const hits = w.findAll('.ocr-overlay .ocr-hit')
     expect(hits.length).toBe(1)
@@ -220,18 +220,18 @@ describe('PhotoImageViewer OCR 覆盖层(随变换同容器,不叠加 offsetLeft
     expect(style).toContain('height: 100px')
   })
 
-  it('ocrLines 为空:不渲染任何 .ocr-hit', async () => {
+  it('ocrLines empty: no .ocr-hit rendered', async () => {
     const w = await mountWithOcr([])
     expect(w.findAll('.ocr-overlay .ocr-hit').length).toBe(0)
   })
 
-  it('ocrLines 缺省(未传 prop):不渲染任何 .ocr-hit', async () => {
+  it('ocrLines omitted (prop not passed): no .ocr-hit rendered', async () => {
     const w = mount(PhotoImageViewer, { props: { assetId: 'a1', mimeType: 'image/jpeg' } })
     await nextTick()
     expect(w.findAll('.ocr-overlay .ocr-hit').length).toBe(0)
   })
 
-  it('.ocr-overlay 与 <img> 同处 .img-wrap 内,且随缩放同步变换(不是舞台的旁支兄弟)', async () => {
+  it('.ocr-overlay and <img> both in .img-wrap, overlay syncs transform (not a sibling of stage)', async () => {
     const w = await mountWithOcr([{ box: [0, 0, 1, 0, 1, 1, 0, 1] }])
     const wrap = w.get('.img-wrap').element
     expect(wrap.contains(w.get('img.img-el').element)).toBe(true)
@@ -240,6 +240,6 @@ describe('PhotoImageViewer OCR 覆盖层(随变换同容器,不叠加 offsetLeft
     const imgStyle = w.get('img.img-el').attributes('style')!
     const overlayStyle = w.get('.ocr-overlay').attributes('style')!
     expect(imgStyle).toContain('scale(1.1)')
-    expect(overlayStyle).toContain('scale(1.1)') // 覆盖层随图片同步缩放/平移
+    expect(overlayStyle).toContain('scale(1.1)') // overlay scales/pans in sync with image
   })
 })

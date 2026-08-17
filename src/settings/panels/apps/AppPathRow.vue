@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// 设置 · 应用 —— 「App 数据存储位置」里的一行。对位 Vue2 SettingsPanel.vue:596-633。
-// 形态:左侧标题 + 两个 chip(用量/容量 · 路径),右侧一个"更改存储位置"按钮。
-// sizeText/pathText 由父组件(AppsPanel.vue)算好传入 —— 这个组件本身不碰 renderSize/
-// toVirtualPath,保持纯展示,避免每行各自重算一遍。
+// Settings · Apps -- one row inside "App data storage location". Mirrors Vue2 SettingsPanel.vue:596-633.
+// Shape: title on the left + two chips (usage/capacity · path), a "Change storage location" button on the right.
+// sizeText/pathText are computed by the parent (AppsPanel.vue) and passed in -- this component itself doesn't touch renderSize/
+// toVirtualPath, staying purely presentational so each row doesn't recompute it separately.
 import { useI18n } from 'vue-i18n'
 import '../../styles/settings.css'
 

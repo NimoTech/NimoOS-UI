@@ -4,7 +4,7 @@ import { triggerIframeDownload } from './iframeDownload'
 describe('triggerIframeDownload', () => {
   beforeEach(() => { document.body.innerHTML = '' })
 
-  it('首次调用创建一个隐藏 iframe 并设 src', () => {
+  it('first call creates a hidden iframe and sets src', () => {
     triggerIframeDownload('/v3/file?token=t&path=%2FDATA%2Fa.txt')
     const frames = document.body.querySelectorAll('iframe')
     expect(frames).toHaveLength(1)
@@ -13,7 +13,7 @@ describe('triggerIframeDownload', () => {
     expect(f.src).toContain('/v3/file?token=t&path=%2FDATA%2Fa.txt')
   })
 
-  it('二次调用复用同一 iframe,只更新 src(不新增)', () => {
+  it('second call reuses the same iframe, only updates src (does not create a new one)', () => {
     triggerIframeDownload('/v3/file?token=t&path=%2FDATA%2Fa.txt')
     triggerIframeDownload('/v1/batch?token=t&files=%2FDATA%2FDocs')
     const frames = document.body.querySelectorAll('iframe')
@@ -21,7 +21,7 @@ describe('triggerIframeDownload', () => {
     expect((frames[0] as HTMLIFrameElement).src).toContain('/v1/batch?token=t&files=%2FDATA%2FDocs')
   })
 
-  it('iframe 被移出 DOM 后再次调用 → 重新创建一个新 iframe(不复用已脱离 DOM 的旧引用)', () => {
+  it('after iframe is removed from DOM and called again → creates a new iframe (does not reuse the detached reference)', () => {
     triggerIframeDownload('/v3/file?token=t&path=%2FDATA%2Fa.txt')
     document.body.innerHTML = ''
     triggerIframeDownload('/v1/batch?token=t&files=%2FDATA%2FDocs')

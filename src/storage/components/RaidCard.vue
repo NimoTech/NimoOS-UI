@@ -21,29 +21,36 @@ const members = computed<RaidMemberDisk[]>(() => props.status?.members || [])
 const total = computed(() => Number(props.status?.total_bytes) || 0)
 const used = computed(() => Number(props.status?.used_bytes) || 0)
 const pct = computed(() => raidUsagePercent(used.value, total.value))
-// 分母取「数据库登记的成员盘数」,不是活体成员条数 —— 逐字对齐 Vue2 RaidCard.vue
-// totalDisks L119(`this.raid.member_disks?.length || 0`)。
+// The denominator takes "the member disk count registered in the database", not the live
+// member entry count — matching Vue2 RaidCard.vue totalDisks L119
+// (`this.raid.member_disks?.length || 0`) verbatim.
 //
-// 原先反过来优先用 members.length,平时两者相等所以看不出差别;阵列降级时
-// mdadm --detail 会同时列出"空出来的槽位"和"被踢掉的故障盘"两条,活体条数比
-// 阵列实际盘位多 1,3 盘阵列坏 1 块会显示成「在线磁盘 2/4」(2026-07-28 实盘验收发现)。
+// It used to prefer members.length instead, and the two are normally equal so the difference
+// went unnoticed; when an array degrades, mdadm --detail lists both an "emptied-out slot" and a
+// "kicked-out faulty disk" as separate entries, so the live entry count runs 1 higher than the
+// array's actual disk slots — a 3-disk array with 1 bad disk would show "2/4 disks online"
+// (found during real-device acceptance on 2026-07-28).
 //
-// 与 Vue2 的有意偏离:member_disks 缺失时 Vue2 得 0(显示 "2/0"),这里回退到
-// 活体条数,至少给出一个有意义的分母。
+// Deliberate deviation from Vue2: when member_disks is missing, Vue2 gets 0 (shows "2/0"); here
+// it falls back to the live entry count instead, to give at least a meaningful denominator.
 const totalDisks = computed(() => props.array.member_disks?.length || members.value.length)
 const activeDisks = computed(() => countActiveDisks(members.value, totalDisks.value))
 const rebuildPct = computed(() => Math.round((Number(props.status?.rebuild_pct) || 0) * 10) / 10)
-// 一个方块 = 一个阵列盘位,所以按槽位过滤(见 raidView.ts slotMembers):降级时
-// mdadm 会多报一条"被踢出槽位的故障盘",不过滤就会出现 4 个方块却写 2/3。
+// One square = one array disk slot, so filtering is done by slot (see raidView.ts slotMembers):
+// when degraded, mdadm reports an extra "faulty disk kicked out of its slot" entry; without
+// filtering it, you'd end up with 4 squares but a 2/3 label.
 const squares = computed(() => slotMembers(members.value).map((m) => ({ ...memberSquare(m.state), path: m.path })))
-// 可收回的成员盘(degraded 且盘已插回时后端才下发)。列表卡只做提示 —— 一键收回的
-// 动作入口在详情页(RaidReclaimCard),与换盘入口摆在一起且视觉分级。展示身份首选
-// serial:拔插后设备字母可能被复用,path 不当身份(raidReplace.ts 同一事故教训)。
+// Reclaimable member disks (the backend only sends these when degraded and the disk has been
+// plugged back in). The list card only shows a hint — the one-click reclaim action entry point
+// lives on the detail page (RaidReclaimCard), placed alongside the disk-replacement entry point
+// with visual hierarchy. Identity display prefers serial: after unplug/replug the device letter
+// may be reused, so path is not trusted as identity (the same incident lesson as raidReplace.ts).
 const reattachSerials = computed(() =>
   (props.status?.reattachable_members || []).map((m) => m.serial || m.path).join(', '),
 )
-// 重建剩余时间:优先 rebuild_eta_seconds(增量同步时内核的 rebuild_finish 会膨胀到
-// 几周),老后端回退原始串;每 5 秒在时长/完成时刻之间交替(useRaidEta)。
+// Rebuild time remaining: prefers rebuild_eta_seconds (during incremental resync the kernel's
+// rebuild_finish balloons to several weeks); falls back to the raw string for legacy backends;
+// alternates every 5 seconds between duration and completion time (useRaidEta).
 const { etaText } = useRaidEta(() => props.status)
 </script>
 
@@ -91,6 +98,6 @@ const { etaText } = useRaidEta(() => props.status)
 .rc-fill.warn { background: var(--dem-fg); }
 .rc-fill.danger { background: var(--remove-fg); }
 .rc-rebuild { margin: 8px 0 0; font-size: 12px; color: var(--accent); }
-/* 收回提示走主色(可修复的好消息),与降级徽章的警示红区分 */
+/* Reclaim hint uses the accent color (good, fixable news), distinct from the degraded badge's warning tone */
 .rc-reattach { margin: 8px 0 0; font-size: 12px; color: var(--accent-text); }
 </style>

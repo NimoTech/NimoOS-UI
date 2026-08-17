@@ -22,7 +22,7 @@
 //     with the per-tile checkbox restyled as a native `.tile-check`/`.tile-check-box`
 //     <input> (Files-region pattern) and the favorite star as a single always-shown
 //     top-right toggle button.
-//  6. Task 6 (网格重刻): re-skinned wholesale to Vue2 pixel/DOM parity, superseding #5 —
+//  6. Task 6 (grid rewrite): re-skinned wholesale to Vue2 pixel/DOM parity, superseding #5 —
 //     column/tile/scrubber/month-head CSS now comes ONLY from
 //     src/photos/styles/vue2-parity/photos.scss (ported verbatim from NimoOS-UI's
 //     photos.scss; this component's own style block shrinks to the handful of rules
@@ -47,10 +47,11 @@ import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 import PhotosIcon from './PhotosIcon.vue'
 
-// P6b-T9(偏离登记 14):地点照片页(D10 跳库最小面,只浏览不接多选/批操作)是第 3 个
-// 消费方,但它不需要复选框——之前两个消费方(Photos.vue/PhotosFavorites.vue)都要选择态,
-// 硬编码渲染 `.tile-checkbox` 从未有过"不要它"的场景。加 `selectable`(默认 true)门控,
-// 默认值保证既有两个消费方零行为变化,不必逐一改它们的调用点。
+// P6b-T9 (deviation log 14): the Places photo view (D10 minimal cross-store surface, browse-only,
+// no multi-select/batch ops) is the 3rd consumer, but it doesn't need the checkbox — the previous two
+// consumers (Photos.vue/PhotosFavorites.vue) both need selection state, so the hardcoded `.tile-checkbox`
+// render never had a "don't want it" case before. Add a `selectable` (default true) gate; the default
+// guarantees zero behavior change for the existing two consumers, so their call sites don't need updating one by one.
 const props = withDefaults(defineProps<{
   months: Month[]
   tab?: string
@@ -75,9 +76,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 收藏是全局横切态(与 open/toggle-select 的视图级 emit 分工不同)——grid 直接消费
-// store,不新增 emit。星标显隐/is-fav 判定一律走 fav.isFav(id) 值比较,不用对象引用
-// (P1 铁律:时间线静默刷新在同一 keyed 节点上重建 Photo 对象,引用比较会误判)。
+// Favorites is global cross-cutting state (unlike the view-level emit split for open/toggle-select) —
+// the grid consumes the store directly, no new emit. Star visibility/is-fav checks always go through
+// fav.isFav(id) value comparison, never object identity (P1 iron rule: the timeline's silent refresh
+// rebuilds the Photo object on the same keyed node, so identity comparison would misfire).
 const fav = usePhotosFavorites()
 
 // ─── DOM refs ────────────────────────────────────────────────────────────
@@ -345,9 +347,10 @@ function toggleSelect(id: string | number) { emit('toggle-select', id) }
 function onTileClick(p: Photo) {
   if (selecting.value) { toggleSelect(p.id); return }
   let startMs = 0
-  // 按稳定 id 比较,不用对象引用(P1 铁律):时间线 5s 静默刷新会在同一 keyed 节点上
-  // 重建 Photo 对象(不触发 mouseleave),hoveredVideo 仍指向旧对象而 p 已是新对象,
-  // `=== p` 会误判为未悬停 → startMs 归 0 → 灯箱视频从头播(而非悬停位续播)。
+  // Compare by stable id, not object identity (P1 iron rule): the timeline's 5s silent refresh
+  // rebuilds the Photo object on the same keyed node (without triggering mouseleave), so hoveredVideo
+  // still points at the old object while p is already the new one — `=== p` would misfire as
+  // "not hovered" → startMs resets to 0 → the lightbox video restarts from the beginning instead of resuming from the hover position.
   if (p.isVideo && hoveredVideo.value?.id === p.id && previewVisible.value) {
     // ref_for -> array at runtime; normalize like Vue2's
     // `[].concat(this.$refs.hoverPreview || [])[0]`.
@@ -498,7 +501,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- Task 6 (网格重刻): root is now `.content` — Vue2 PhotosGrid.vue's own root
+  <!-- Task 6 (grid rewrite): root is now `.content` — Vue2 PhotosGrid.vue's own root
        element (photos.scss:307's two-column grid `1fr 66px`), not a New-UI-only
        wrapper. `.photos-wrap` and `.scrubber` are its two grid-column children,
        siblings, not the old flex-column + absolutely-positioned overlay. -->
@@ -618,7 +621,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Task 6 (网格重刻): the column/tile/scrubber/month-head visual contract that
+/* Task 6 (grid rewrite): the column/tile/scrubber/month-head visual contract that
    used to live in this file now comes from ONE source of truth —
    src/photos/styles/vue2-parity/photos.scss (ported verbatim from NimoOS-UI's
    photos.scss, imported globally by every view that mounts this component
@@ -647,11 +650,12 @@ onBeforeUnmount(() => {
    resolves against it correctly. */
 .content { height: 100%; }
 
-/* Vue2 契约(photos.scss:103 `.photos-root, .photos-root * { scrollbar-width:
-   none; ... }` + :314 `.photos-wrap::-webkit-scrollbar { width: 0 }`)已经在
-   parity scss 里全局盖到 `.photos-wrap` 头上了(`.photos-root *` 覆盖任何后代)。
-   这两行字面重复只是因为 photosLayoutHeightCap.test.ts 独立锁着"本文件源码字符
-   串必须包含它们"这条既有契约(与本任务无关的另一张闸)——保留不删,纯冗余无害。 */
+/* The Vue2 contract (photos.scss:103 `.photos-root, .photos-root * { scrollbar-width:
+   none; ... }` + :314 `.photos-wrap::-webkit-scrollbar { width: 0 }`) is already
+   globally covered onto `.photos-wrap` in the parity scss (`.photos-root *` covers any descendant).
+   These two lines are a literal duplicate only because photosLayoutHeightCap.test.ts independently
+   locks in the pre-existing contract that "this file's source must contain them" (an unrelated
+   gate to this task) — keep them, don't delete; pure harmless redundancy. */
 .photos-wrap { scrollbar-width: none; }
 .photos-wrap::-webkit-scrollbar { display: none; }
 </style>

@@ -1,27 +1,31 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentTopbar.vue(230 行),1a 裁剪版:
-  ModelPicker、ThinkingBar、右侧面板 toggle、AI 改名按钮全部整段省略,原位置
-  留 `<!-- 1c: ... -->` 注释标记待 1c 回填。标题输入 500ms 防抖 + blur 立即
-  flush 的语义逐字保留(DEBOUNCE_MS、onInput/onBlur/flushSave)。
+  1:1 ported from Vue2 src/views/AI/Agent/shell/AgentTopbar.vue (230 lines), 1a trimmed
+  version: ModelPicker, ThinkingBar, the right-panel toggle, and the AI-rename button are
+  all omitted wholesale, with a `<!-- 1c: ... -->` comment marker left in their original
+  spot for 1c to backfill. The 500ms-debounce + flush-immediately-on-blur semantics for
+  the title input are preserved verbatim (DEBOUNCE_MS, onInput/onBlur/flushSave).
 
-  SP8-P1c2 Task 2 —— 右侧面板 toggle 按钮已回填(Vue2 shell/AgentTopbar.vue:
-  43-45,1:1):新增 prop `rightCollapsed`(对齐 Vue2 :73,默认 false)+ emit
-  `toggle-right`。ModelPicker、ThinkingBar、AI 改名按钮仍留给后续任务。
+  SP8-P1c2 Task 2 — the right-panel toggle button has been backfilled (Vue2
+  shell/AgentTopbar.vue:43-45, 1:1): added prop `rightCollapsed` (matches Vue2 :73,
+  defaults to false) + emit `toggle-right`. ModelPicker, ThinkingBar, and the AI-rename
+  button are still left for later tasks.
 
-  SP8-P1c2 Task 8 —— ThinkingBar 第二行已挂载(Vue2 shell/AgentTopbar.vue:47-54,
-  1:1):新增 prop `thinking`(形状对齐 store 的 ThinkingState 子集），拆开传给
-  ThinkingBar 四个 prop；ThinkingBar 的 `update:enabled`/`update:level` 在此处
-  重映射成 `thinking-enabled`/`thinking-level` 往上抛给 AgentPage（Vue2 同名两行
-  `@update:enabled="$emit('thinking-enabled', ...)"` / `@update:level="..."`）。
+  SP8-P1c2 Task 8 — ThinkingBar's second row is now mounted (Vue2
+  shell/AgentTopbar.vue:47-54, 1:1): added prop `thinking` (shape matches a subset of the
+  store's ThinkingState), split apart and passed as ThinkingBar's four props; ThinkingBar's
+  `update:enabled`/`update:level` are remapped here to `thinking-enabled`/`thinking-level`
+  and forwarded up to AgentPage (same as Vue2's two matching lines
+  `@update:enabled="$emit('thinking-enabled', ...)"` / `@update:level="..."`).
 
-  SP8-P1c2 Task 9 —— ModelPicker 挂载 + AI 改名按钮回填(Vue2 shell/AgentTopbar.vue
-  逐字):新增 prop `availableModels`/`selectedModel`(直传 ModelPicker)、
-  `regeneratingTitleFor`(与 sessionId 一起推导 isAnyRegenerating/
-  isExplicitRegenerating,Vue2 :93-100);新增 emit `select-model`(ModelPicker
-  的 `select`)、`open-settings`(ModelPicker 的空态"去设置"按钮,与顶栏本身未来
-  可能有的设置入口共用同一上抛事件名)、`regenerate-title`(sparkle 按钮点击)。
-  标题输入框在 `isExplicitRegenerating` 时禁用(Vue2 :17);sparkle 按钮在
-  `isAnyRegenerating || isFocused` 时禁用(Vue2 :24)。
+  SP8-P1c2 Task 9 — ModelPicker mounted + AI-rename button backfilled (verbatim from
+  Vue2 shell/AgentTopbar.vue): added props `availableModels`/`selectedModel` (passed
+  straight through to ModelPicker), `regeneratingTitleFor` (used together with sessionId
+  to derive isAnyRegenerating/isExplicitRegenerating, Vue2 :93-100); added emits
+  `select-model` (ModelPicker's `select`), `open-settings` (ModelPicker's empty-state
+  "go to settings" button, sharing the same emitted event name as any settings entry point
+  the topbar itself may gain in the future), `regenerate-title` (sparkle button click).
+  The title input is disabled while `isExplicitRegenerating` (Vue2 :17); the sparkle
+  button is disabled while `isAnyRegenerating || isFocused` (Vue2 :24).
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -39,21 +43,25 @@ const props = withDefaults(
     sessionId?: string
     storedTitle?: string
     theme?: 'light' | 'dark'
-    // Vue2 shell/AgentTopbar.vue:73 —— 默认展开(false),用于按钮 data-active。
+    // Vue2 shell/AgentTopbar.vue:73 — defaults to expanded (false), used for the
+    // button's data-active.
     rightCollapsed?: boolean
-    // Vue2 shell/AgentTopbar.vue:76-84 —— 默认值逐字对齐(与 store 的
-    // ThinkingState 兜底一致：enabled=true, level='medium', supportsThinking=false)。
+    // Vue2 shell/AgentTopbar.vue:76-84 — defaults match verbatim (consistent with
+    // the store's ThinkingState fallback: enabled=true, level='medium', supportsThinking=false).
     thinking?: {
       enabled: boolean
-      // F2 修复(review)—— 与 ThinkingBar 的 level prop 同款收窄,复用
-      // agentStore.ts 导出的 ThinkingLevel(store 自身的 ThinkingState.level
-      // 维持 string 不收窄,见那里的注释——那层收窄会牵连共享服务包的返回类型)。
+      // F2 fix (review) — narrowed the same way as ThinkingBar's level prop, reusing
+      // the ThinkingLevel exported from agentStore.ts (the store's own
+      // ThinkingState.level stays a plain string, not narrowed — see the comment
+      // there: narrowing that layer would ripple into the shared service package's
+      // return type).
       level: ThinkingLevel
       supportsThinking: boolean
       providerType: string
     }
-    // Vue2 shell/AgentTopbar.vue:74-75,71 —— ModelPicker 直传 + regenerate-title
-    // 禁用矩阵所需的当前重生成状态。
+    // Vue2 shell/AgentTopbar.vue:74-75,71 — the current regenerating state needed
+    // for passing straight through to ModelPicker and for the regenerate-title
+    // disable matrix.
     availableModels?: AgentModel[]
     selectedModel?: string | null
     regeneratingTitleFor?: { id: string | number; background: boolean } | null
@@ -184,7 +192,7 @@ function goHome() {
   if (window.history.length > 1 && router.currentRoute.value.path !== '/') {
     router.push('/').catch(() => { window.location.href = '/app/' })
   } else {
-    // strangler 语境下 '/' 是旧 Vue2 应用,新应用的落点是 '/app/'
+    // In the strangler-fig context, '/' is the old Vue2 app; the new app's entry point is '/app/'
     window.location.href = '/app/'
   }
 }
@@ -231,7 +239,7 @@ function goHome() {
       <button class="icon-btn" @click="emit('toggle-theme')">
         <AgentIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="16" />
       </button>
-      <!-- Vue2 shell/AgentTopbar.vue:43-45 —— 1:1 端口(无 title,Vue2 亦无)。 -->
+      <!-- Vue2 shell/AgentTopbar.vue:43-45 — ported 1:1 (no title, Vue2 has none either). -->
       <button class="icon-btn" :data-active="!rightCollapsed" @click="emit('toggle-right')">
         <AgentIcon name="panel" :size="16" />
       </button>

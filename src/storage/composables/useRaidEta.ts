@@ -3,15 +3,20 @@ import { useI18n } from 'vue-i18n'
 import type { RaidStatus } from '@nimotech/nimoos-service'
 import { etaDurationParts, etaCompletionParts } from '../util/raidEta'
 
-// 重建 ETA 展示(移植 Vue2 etaDisplayMixin,commit 028837e8):每 5 秒在「剩余约 X」
-// 与「预计今天/明天/某日 HH:mm 完成」之间交替。
+// Rebuild ETA display (ported from the Vue2 etaDisplayMixin, commit 028837e8): every
+// 5 seconds it alternates between "about X remaining" and "expected to finish
+// today/tomorrow/on a given date at HH:mm".
 //
-// 优先后端的 rebuild_eta_seconds(按重建位置推进速率估算 —— 位图增量同步时诚实;
-// 内核的 rebuild_finish 只按已拷贝字节算,增量时会膨胀到几周),只有老后端不带该
-// 字段时才回退内核原始字符串(带「预计完成」标签,与回退前的展示一致)。
-// eta === -1(没有重建/样本还不够)→「正在估算剩余时间…」。
+// Prefers the backend's rebuild_eta_seconds (estimated from the rebuild position's
+// advance rate — honest during bitmap incremental sync; the kernel's rebuild_finish
+// only counts bytes already copied, which balloons to weeks during incremental sync),
+// and only falls back to the raw kernel string (with the "expected to finish" label,
+// matching the pre-fallback display) when an old backend does not send that field.
+// eta === -1 (no rebuild in progress / not enough samples yet) → "estimating remaining
+// time…".
 //
-// 返回的 etaText 是自足的整句 —— 为空(既无 eta 也无 legacy 串)时调用方不渲染。
+// The returned etaText is a self-contained sentence — the caller renders nothing when
+// it is empty (neither an eta nor a legacy string).
 export function useRaidEta(status: () => RaidStatus | null | undefined) {
   const { t } = useI18n()
   const flip = ref(false)
@@ -32,7 +37,7 @@ export function useRaidEta(status: () => RaidStatus | null | undefined) {
     const s = status()
     const eta = s?.rebuild_eta_seconds
     if (eta == null) {
-      // 老后端:没有 rebuild_eta_seconds 字段 → 回退内核原样串(带标签,自足)
+      // Old backend: no rebuild_eta_seconds field → fall back to the kernel's raw string (with label, self-contained)
       const legacy = typeof s?.rebuild_finish === 'string' ? s.rebuild_finish : ''
       return legacy ? `${t('raidRebuildFinish')} ${legacy}` : ''
     }

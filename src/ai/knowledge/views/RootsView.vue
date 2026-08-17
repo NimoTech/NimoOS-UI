@@ -1,162 +1,162 @@
 <!--
-  SP8-P5f Task 5 —— 「索引目录」页(rail 第 7 项,路由 `/ai/knowledge/roots`),
-  1:1 移植自 Vue2 蓝本 `NimoOS-UI` @ `7a6ee6b7`
-  `src/views/AI/Knowledge/RootsView.vue`(289 行,`git -C ../../NimoOS-UI show 7a6ee6b7:` 读取
-  —— 治理 §0.4:那个仓的工作树是别的分支,不可信)。
+  SP8-P5f Task 5 — "Knowledge Roots" page (rail item 7, route `/ai/knowledge/roots`),
+  1:1 ported from Vue2 reference `NimoOS-UI` @ `7a6ee6b7`
+  `src/views/AI/Knowledge/RootsView.vue` (289 lines, fetch via `git -C ../../NimoOS-UI show 7a6ee6b7:`
+  — governance §0.4: that repo's working tree is on another branch, unreliable).
 
-  结构对照(蓝本行区间 → 本文件):
-    :2-4     `.k-view` → `.k-scroll` → `.k-scroll-inner` 三层壳(逐层照抄)
-    :5-40    区头(标题 / 副标题 / 右上「添加索引目录」)+ 空态 `.kr-empty` / 列表 `.k-set-card` 两侧
-    :43-91   「添加索引目录」弹窗(**K57:转 reka 原语 + portal 到 `.knowledge-app`**)
-    :93-120  「删除索引目录?」确认弹窗(同上)
-    :131-141 `data()` 的七项页面级瞬态 → 组件本地 `ref`
-    :142-148 `computed`(roots / canSubmit / browserRoots)
+  Structure mapping (reference line ranges → this file):
+    :2-4     `.k-view` → `.k-scroll` → `.k-scroll-inner` three-layer shell (copy each layer)
+    :5-40    header (title / subtitle / top-right "Add Knowledge Root") + empty state `.kr-empty` / list `.k-set-card` sides
+    :43-91   "Add Knowledge Root" dialog (**K57: convert to reka primitives + portal to `.knowledge-app`**)
+    :93-120  "Delete Knowledge Root?" confirmation dialog (same as above)
+    :131-141 seven page-level ephemeral states from `data()` → local component `ref`
+    :142-148 `computed` (roots / canSubmit / browserRoots)
     :149-151 `created()` → `onMounted()`
-    :152-219 `methods` → 普通函数
+    :152-219 `methods` → plain functions
 
-  ─────────────────────────────────────────────────────────────────────────────
-  【零 style 块 —— K44 / K53 / 治理 §3】本页蓝本自带 `<style lang="scss" scoped>`
-    (`:223-289`,66 行 / 9 个 `kr-*` 类:`.kr-empty` `.kr-path` `.kr-badge` `.kr-label`
-    `.kr-input` `.kr-adv-row` `.kr-error` `.kr-check` `.kr-hint`),已由 **T2** 整块搬进
-    `src/ai/styles/knowledge.scss`(嵌在 `.knowledge-app` 下,K9)并过评审 ⇒ **本文件
-    一个 style 块都没有**。`knowledge.scss` 由 `KnowledgeLayout.vue` 侧 import,
-    本文件不再 import 样式(先例:`QueueView.vue` / `SettingsView.vue` / `AllowlistView.vue`)。
-    守卫:`knowledgeStyles.test.ts` 的 K44 参数化断言(T2b 布,裁定 R20 C-1)——
-    它**先剥注释、再行首锚定**,所以上面这句话本身不会把它撞红(裁定 **R19** 的直接后果)。
-    另外本文件必须在 `knowledgeStyles.test.ts` 的 `KNOWLEDGE_VUE_FILES` 清单里登记
-    (集合相等防漂移;不登记 = 那条断言报红,**那是正确行为,不许去改断言**)。
+  ────────────────────────────────────────────────────────────────────────────
+  【Zero style block — K44 / K53 / governance §3】this file's reference has `<style lang="scss" scoped>`
+    (`:223-289`, 66 lines / 9 `kr-*` classes: `.kr-empty` `.kr-path` `.kr-badge` `.kr-label`
+    `.kr-input` `.kr-adv-row` `.kr-error` `.kr-check` `.kr-hint`), already moved wholesale by **T2** to
+    `src/ai/styles/knowledge.scss` (nested under `.knowledge-app`, K9) and reviewed ⇒ **this file
+    has no style blocks**. `knowledge.scss` imported by `KnowledgeLayout.vue` side,
+    this file no longer imports styles (precedent: `QueueView.vue` / `SettingsView.vue` / `AllowlistView.vue`).
+    Guard: K44 parameterized assertion in `knowledgeStyles.test.ts` (T2b layout, decision R20 C-1) ——
+    it **strips comments first, then anchors to line start**, so the sentence above won't trip it (direct consequence of decision **R19**).
+    Also this file must be registered in `KNOWLEDGE_VUE_FILES` list in `knowledgeStyles.test.ts`
+    (set equality prevents drift; unregistered = that assertion goes red, **that is correct behavior, do not change the assertion**).
 
-  【K54 —— 两处 `var(--x, <字面量>)` 兜底已在 scss 侧去掉】蓝本 `:243` 的
-    `var(--bg-tertiary, …)` → `var(--bg-chip)`、`:254` 的 `var(--border, …)` → `var(--line)`
-    (附录 B §B.2,取值定死)。**那两处在 scss 里,本文件不涉及**;此处登记以免下一刀漏掉。
-    ⚠️ 裁定 **R8**:`--bg-tertiary` 在两侧都零声明 ⇒ 兜底一直在生效 ⇒ `.kr-badge`
-    换 token 是**可见变化,不是等价替换**(验收清单已写明要顺带看一眼那个小徽标)。
+  【K54 — two `var(--x, <literal>)` fallbacks removed on scss side】reference `:243`
+    `var(--bg-tertiary, …)` → `var(--bg-chip)`, `:254` `var(--border, …)` → `var(--line)`
+    (appendix B §B.2, fixed values). **those two are in scss, this file does not touch them**; recorded here to avoid missing in next round.
+    ⚠️ Decision **R8**: `--bg-tertiary` has zero declaration on both sides ⇒ fallback always active ⇒ `.kr-badge`
+    token swap is **visible change, not equivalent substitution** (acceptance checklist notes to glance at that small badge).
 
-  【K1 —— store 降层,逐处】蓝本 `this.store.state.wikiRoots`(`:143`)/
-    `this.store.state.wikiRootsLoading`(`:13`)/ `this.store.state.wikiCandidates`(`:146`),
-    本仓 `knowledgeStore` 是 Pinia setup store,**`state` 那一层整个消失**
-    → `store.wikiRoots` / `store.wikiRootsLoading` / `store.wikiCandidates`。
-    降层点共 **3 处**(computed 2 + 模板 1)—— 漏一处那一块整个空白且不报错。
+  【K1 — store layer reduction, each place】reference `this.store.state.wikiRoots` (`:143`) /
+    `this.store.state.wikiRootsLoading` (`:13`) / `this.store.state.wikiCandidates` (`:146`),
+    this repo's `knowledgeStore` is Pinia setup store, **the `state` layer disappears entirely**
+    → `store.wikiRoots` / `store.wikiRootsLoading` / `store.wikiCandidates`.
+    Layer reduction points total **3** (computed 2 + template 1) — miss one and that section goes blank with no error.
 
-  【K57 —— 两个弹窗转 reka 原语】蓝本 `:44` / `:94` 都是裸 `.k-modal-bg` +
-    遮罩 `@click="adding = false"` / `@click="deleting = null"` + 内层 `@click.stop`。
-    本仓改 `DialogRoot` / `DialogPortal to=".knowledge-app" defer` /
+  【K57 — two dialogs convert to reka primitives】reference `:44` / `:94` both bare `.k-modal-bg` +
+    overlay `@click="adding = false"` / `@click="deleting = null"` + inner `@click.stop`.
+    this repo changes to `DialogRoot` / `DialogPortal to=".knowledge-app" defer` /
     `DialogOverlay class="k-modal-bg"` / `DialogContent class="k-modal"`,
-    结构照既有先例 `SettingsView.vue`(K29 落地)与同期 `AllowlistView.vue`(T4)**抄同一份**,
-    **不自创第二套**。三处映射:
-      · 遮罩点击关闭 / 点弹窗内不关闭 → `DialogContent` 的 `pointerDownOutside`(等价),
-        🔴 **不再写 `@click.stop`**;
-      · 新增弹窗的三条关闭路径(× / 取消 / 点遮罩)都只把 `adding` 置 false ⇒
-        `@update:open` 直接写 `adding = $event`(同 `AllowlistView`);
-        删除弹窗的 state 是**对象**(`deleting`)而不是布尔 ⇒ 需要一个具名回调
-        `onDeletingOpen`,把「关闭」翻译成 `deleting = null`。
-        🔴 **蓝本关闭时并不重置 `purgeFiles`**(只有 `confirmDelete` 才重置,`:218`)
-        ⇒ 本仓照抄,`onDeletingOpen` 里**不**碰 `purgeFiles`。
-      · reka 的 a11y 要求一个 `DialogTitle`。**两个弹窗蓝本 `:47` / `:97` 本来就有
-        `.k-modal-title`** → 用 `<DialogTitle as-child>` 直接套在那个 div 上,DOM 结构与蓝本
-        逐字一致(不多一个隐藏节点),**不需要 `VisuallyHidden`** —— 同 `SettingsView` 的选择。
-    ⚠️ `DialogPortal to=".knowledge-app"` **只认第一个同名宿主**(P5b 交接项 #3)。
-      本页在生产里挂在 `KnowledgeLayout.vue` 之下,而 `.knowledge-app` 这个 class 全仓
-      **只有 `KnowledgeLayout.vue` 一处**在渲染 ⇒ 同一时刻页面上有且只有一个宿主,
-      `to` 指哪个不存在歧义。测试里自己在 body 备一个宿主(`RootsView.test.ts` 的 `withHost()`)。
-    ⚠️ **两个弹窗同时最多只开一个**(`adding` 与 `deleting` 互不触发),两个 Portal 指向
-      同一个宿主也不冲突 —— 关着的那个 `DialogContent` 根本不渲染内容。
+    structure follows existing precedent `SettingsView.vue` (K29 landed) and contemporaneous `AllowlistView.vue` (T4) **copy same one**,
+    **do not create a second variant**. Three mappings:
+      · overlay click closes / click inside dialog doesn't close → `DialogContent`'s `pointerDownOutside` (equivalent),
+        🔴 **no longer write `@click.stop`**;
+      · new dialog's three close paths (× / cancel / click overlay) all just set `adding` to false ⇒
+        `@update:open` write `adding = $event` directly (same as `AllowlistView`);
+        delete dialog's state is **object** (`deleting`) not boolean ⇒ needs named callback
+        `onDeletingOpen`, translates "close" to `deleting = null`.
+        🔴 **reference does not reset `purgeFiles` on close** (only `confirmDelete` resets, `:218`)
+        ⇒ this repo copies it, `onDeletingOpen` **does not** touch `purgeFiles`.
+      · reka's a11y requires a `DialogTitle`. **reference's two dialogs `:47` / `:97` already have
+        `.k-modal-title`** → wrap with `<DialogTitle as-child>` directly on that div, DOM structure matches reference
+        verbatim (no extra hidden node), **no need for `VisuallyHidden`** — same choice as `SettingsView`.
+    ⚠️ `DialogPortal to=".knowledge-app"` **only recognizes the first same-name host** (P5b handoff item #3).
+      this page in production sits under `KnowledgeLayout.vue`, and `.knowledge-app` class in whole repo
+      **only rendered in one place: `KnowledgeLayout.vue`** ⇒ at any moment page has exactly one host,
+      no ambiguity in `to` target. Tests create their own host in body (`RootsView.test.ts`'s `withHost()`).
+    ⚠️ **at most one dialog open at a time** (`adding` and `deleting` don't trigger each other), two Portals pointing to
+      same host no conflict — closed `DialogContent` doesn't render content.
 
-  【K58 / K59 —— 错误提示的两条落法】
-    · **K59(弹窗内联)**:蓝本 `:77-81` 的 `.kr-error` 本来就是**弹窗内的行内块**,
-      **不是 toast** ⇒ 这一半是照抄。🔴 顺带兑现记忆 `newui-dialog-error-not-toast`:
-      toast 是 `z-index: 60`、弹窗遮罩 1000 还带 blur,**弹窗内的错误一律内联**,
-      写成 toast 会被遮罩压住 + 糊掉。
-      偏离的是另一半:蓝本 `:202` 直接把 `e.response.data.message` 回显进 `addError`
-      (K5/K58 明令禁止回显后端 body)⇒ 本仓非 409 分支改走固定 i18n 键。
-    · **K58(形态 A)**:`p5f-task-0-report.md` §12 认定的既定做法 ——
-      **catch 里丢掉 `e.message`,只弹一个固定 i18n 键,且「无第二句可拼故不留 `': '` 前缀」**
-      (先例 `QueueView.vue:212-217` / `IndexedFilesView.vue:592-593` / `NoteEditPane.vue:461`)。
-      蓝本四处 `$t('Operation failed') + ': ' + (e.message || e)`(`:171` `:180` `:216`)与
-      `addError = e.response.data.message`(`:202`)全部落成固定键 `aiKbOpFailed`。
-      **不自造第二套映射。**
-      🔴 **两个例外照抄(形态 B 的同族,第二句是蓝本固有的固定文案,不是后端 body)**:
-      `toggle()` 的 404 专属文案(N51)与 `submit()` 的 409 只读文案(N50)。
-      落地判据是**排除式断言**(见测试文件 K58 那一组:让 store action reject 一个带可识别
-      文本的错误,断言 toast 文本与整页 DOM 都**不含**那段文本)。
-      ⚠️ 那个探针文本**故意不出现在本文件里**(治理 §9:否定式断言撞注释 = 假报红)。
+  【K58 / K59 — two error display patterns】
+    · **K59 (inline in dialog)**: reference `:77-81` `.kr-error` is **already inline block inside dialog**,
+      **not a toast** ⇒ this half is copy. 🔴 meanwhile fulfills memory `newui-dialog-error-not-toast`:
+      toast is `z-index: 60`, dialog overlay 1000 plus blur, **errors inside dialog always inline**,
+      rendering as toast gets overlaid + blurred.
+      the divergence is the other half: reference `:202` directly echoes `e.response.data.message` to `addError`
+      (K5/K58 explicitly forbid echoing backend body) ⇒ this repo non-409 branch uses fixed i18n key instead.
+    · **K58 (form A)**: established practice per `p5f-task-0-report.md` §12 ——
+      **in catch discard `e.message`, show only fixed i18n key, and "no second sentence to compose, so no `': '` prefix"**
+      (precedent `QueueView.vue:212-217` / `IndexedFilesView.vue:592-593` / `NoteEditPane.vue:461`).
+      reference four places `$t('Operation failed') + ': ' + (e.message || e)` (`:171` `:180` `:216`) and
+      `addError = e.response.data.message` (`:202`) all become fixed key `aiKbOpFailed`.
+      **do not create a second mapping.**
+      🔴 **two exceptions copy as-is (form B sibling, second sentence is reference's fixed text, not backend body)**:
+      `toggle()`'s 404-specific message (N51) and `submit()`'s 409 read-only message (N50).
+      implementation criterion is **exclusion assertion** (see test file K58 group: have store action reject error with identifiable
+      text, assert toast text and entire page DOM both **lack** that text).
+      ⚠️ that probe text **intentionally does not appear in this file** (governance §9: negation assertion hits comment = false positive).
 
-  【K27 同族 —— toast 一律走 `store.toast(...)`】裁定 **R27** / 勘误 **E-62**:
-    `knowledgeStore.ts` 里 `toast()` 内部是 `useToast().show(msg, 2400)`,而**全局 `show()`
-    默认只有 1500ms** ⇒ 直调 `useToast()` 会丢掉蓝本自己的 2400ms。既有 7 页全走
-    `store.toast()`,本页照同一份 —— 共 **7 处** = toggle 2(成功 + catch)+ rescan 2 +
-    confirmDelete 2 + submit 成功 1。🔴 **submit 的失败路径按 K59 走弹窗内联,不弹 toast**
-    ⇒ 它是本页唯一「有 catch 但不 toast」的分支,别照着别处的模具顺手补一个。
+  【K27 sibling — all toasts go through `store.toast(...)`】decision **R27** / errata **E-62**:
+    inside `knowledgeStore.ts` `toast()` is `useToast().show(msg, 2400)`, and **global `show()`
+    defaults to only 1500ms** ⇒ direct `useToast()` call loses reference's own 2400ms. existing 7 pages all use
+    `store.toast()`, this page follows the same pattern — total **7 places** = toggle 2 (success + catch) + rescan 2 +
+    confirmDelete 2 + submit success 1. 🔴 **submit's failure path per K59 uses inline dialog, not toast**
+    ⇒ it's this page's only "has catch but no toast" branch, don't thoughtlessly add one following other patterns.
 
-  ═══════════════════ 照抄申报(§3.5 的 N 条目)═══════════════════
+  ═══════════════════ quoted declarations (§3.5's N entries) ═══════════════════
 
-  【N46 —— 🔴 本期最容易搞错的一点】Wiki 的 `WikiRoot` / `CreateArgs` **Go 结构体无 json tag**
-    ⇒ HTTP 响应是 **PascalCase**、POST body 必须用 **Go 字段名**(Go 解码器大小写不敏感
-    但**下划线不匹配**,`watch_mode` 会被**静默丢弃**、真机无报错)。
-    🔴 **双向归一化已在共享包里**(`NimoOS-Service/src/wiki.ts:85` `normalizeRoot` /
-    `:136` `createRootBody`)⇒ **store 出口一律 camelCase**(T0 实测定案,
-    `p5f-task-0-report.md` §4.4),本页只消费 `r.id` / `r.path` / `r.enabled` /
-    `r.watchMode` / `r.scanIntervalS` / `r.lastScanAt`,**不许在页面里再归一化一次**。
-    🔴 **发 body 一律经共享包的 `createRootBody`,本仓不重写**(D3 已进包)。
+  【N46 — 🔴 easiest mistake this round】Wiki's `WikiRoot` / `CreateArgs` **Go structs have no json tag**
+    ⇒ HTTP response is **PascalCase**, POST body must use **Go field names** (Go decoder case-insensitive
+    but **underscore doesn't match**, `watch_mode` gets **silently discarded**, no error on real device).
+    🔴 **bidirectional normalization already in shared package** (`NimoOS-Service/src/wiki.ts:85` `normalizeRoot` /
+    `:136` `createRootBody`) ⇒ **store exports all camelCase** (T0 real-world decision, established in
+    `p5f-task-0-report.md` §4.4), this page only consumes `r.id` / `r.path` / `r.enabled` /
+    `r.watchMode` / `r.scanIntervalS` / `r.lastScanAt`, **must not normalize again in page**.
+    🔴 **body always via shared package `createRootBody`, do not rewrite** (D3 already in package).
 
-  【N49 —— Go nil slice 兜底】`pickerRoots(...)` 自己带 `(candidates || [])`
-    (`util/folderBrowser.ts:75`),本页把 `store.wikiCandidates` 原样递进去即可。
+  【N49 — Go nil slice fallback】`pickerRoots(...)` carries `(candidates || [])`
+    (`util/folderBrowser.ts:75`), this page just passes `store.wikiCandidates` as-is.
 
-  【N50 —— 409 → 镜像模式重试,照抄】蓝本 `:196-206`。
-    ⚠️ `storage_mode=mirror` **后端从未实现**(记忆 + `NimoOS-Wiki/OVERVIEW.md`,勘误 **E-64**)
-    ⇒ **界面照抄,不许删按钮**;验收清单已写明「镜像模式后端未实现,点了不会生效」。
-    ⚠️ §9.17:本机 `/v1/wiki/roots` 是**超时**不是 409 ⇒ 这条分支**真机不可达**,只在单测里验。
+  【N50 — 409 → mirror mode retry, copy】reference `:196-206`.
+    ⚠️ `storage_mode=mirror` **backend never implemented** (memory + `NimoOS-Wiki/OVERVIEW.md`, errata **E-64**)
+    ⇒ **copy UI as-is, do not delete button**; acceptance checklist notes "mirror mode backend unimplemented, clicking has no effect".
+    ⚠️ §9.17: this machine `/v1/wiki/roots` is **timeout** not 409 ⇒ **unreachable on real device**, only verified in unit tests.
 
-  【N51 —— `toggle()` 的 404 专属文案,照抄】蓝本 `:168-170`。这是蓝本对**本期正在发生的
-    后端落后**的专门提示。
+  【N51 — `toggle()`'s 404-specific message, copy】reference `:168-170`. this is reference's
+    dedicated message for **backend lag currently happening this round**.
 
-  ═══════════════════ 🔴🔴 `toggle()` 的 toast 方向:**不是蓝本 bug**(裁定 R9)═══════════════════
+  ═══════════════════ 🔴🔴 `toggle()` toast direction: **not a reference bug** (decision R9) ═══════════════════
 
-  蓝本 `:163-173`:
+  Reference `:163-173`:
       await this.store.actions.setRootEnabled(r.id, !r.enabled)
       this.store.actions.toast(r.enabled ? $t('Root enabled') : $t('Root disabled'))
-  乍看「调的是 `!r.enabled`、读的却是 `r.enabled`」= 文案反了。**逐步推演后并不反**:
-    ① `!r.enabled` 在**调用发生前**求值 —— 它就是**目标态**(旧值取反);
-    ② `setRootEnabled`(`knowledgeStore.ts:736-747`)是**乐观更新**:
-       `root.enabled = enabled` 写在 `await` **之前**,即请求还没发出去就已就地改好;
-    ③ `v-for="r in roots"` 里的 `r` 与 store 里 `wikiRoots.value.find(...)` 拿到的
-       **是同一个对象引用**(store 只改字段,没有替换数组元素)⇒ `r.enabled` 与 `root.enabled`
-       是同一格内存;
-    ④ 所以 `await` 落地后读到的 `r.enabled` **已经是新值** ⇒ 文案方向正确;
-    ⑤ 失败路径:`setRootEnabled` 先回滚 `root.enabled = prev` 再 `throw` ⇒ 走 catch,
-       **那行成功 toast 根本不执行**。
-  ⇒ 按裁定 **R9**「论证为什么不是 bug」的那一支:**逐字照抄,不改逻辑。**
+  looks like "calls with `!r.enabled` but reads `r.enabled`" = message reversed. **step-by-step reasoning shows not reversed**:
+    ① `!r.enabled` evaluates **before call happens** — it is the **target state** (negate old value);
+    ② `setRootEnabled` (`knowledgeStore.ts:736-747`) is **optimistic update**:
+       `root.enabled = enabled` written **before** `await`, request hasn't even sent but already updated in place;
+    ③ `r` in `v-for="r in roots"` and `wikiRoots.value.find(...)` from store are
+       **same object reference** (store only mutates field, doesn't replace array element) ⇒ `r.enabled` and `root.enabled`
+       are the same memory location;
+    ④ so `r.enabled` read after `await` lands **is already new value** ⇒ message direction correct;
+    ⑤ failure path: `setRootEnabled` rolls back `root.enabled = prev` then `throw` ⇒ enter catch,
+       **success toast never executes**.
+  ⇒ per decision **R9** "prove why not a bug" branch: **copy verbatim, do not change logic.**
 
-  🔴 **但这条正确性完全挂在「store 就地改的是同一个对象」这个不变量上**,而本仓 store 是
-    Pinia `ref<WikiRoot[]>` —— 将来 `loadRoots` 若改成整体替换数组、或 `setRootEnabled` 改成
-    `wikiRoots.value = wikiRoots.value.map(...)`,**这里会静默变错**(界面开关照翻,只有 toast
-    文案反过来,三门也不会响)。⇒ 测试里配了守卫用例(见 `RootsView.test.ts` 的
-    「R9 不变量」一组):「成功后 toast 文案是**新**状态」两侧 +「失败时**不弹**成功 toast」。
-    🔴 **判据订正(申报裁定 R18)**:裁定 R9 给的判据「把 `root.enabled = enabled` 挪到
-    `await` 之后」**实测不报红**(60/60 仍全绿)—— 那行挪到 `await` 之后仍在
-    `setRootEnabled` **函数内部**,而调用方是在该函数返回之后才恢复的,赋值早已完成。
-    **实测成立的判据 = 把就地改换成整体替换数组**
+  🔴 **but this correctness entirely depends on "store in-place update is same object" invariant**, and this repo's store is
+    Pinia `ref<WikiRoot[]>` — if future `loadRoots` becomes full array replacement, or `setRootEnabled` becomes
+    `wikiRoots.value = wikiRoots.value.map(...)`, **this silently becomes wrong** (UI toggle still flips, only toast
+    message reverses, three guards won't fire). ⇒ test has guard cases (see `RootsView.test.ts`
+    "R9 invariant" group): "after success, toast message is **new** state" both sides + "on failure **no success toast**".
+    🔴 **criterion revision (declared decision R18)**: decision R9's criterion "move `root.enabled = enabled` after
+    `await`" **real-world test shows no red** (60/60 still all green) — moving after `await` still inside
+    `setRootEnabled` **function**, caller resumes after function returns, assignment already done.
+    **real-world valid criterion = replace in-place update with full array replacement**
     (`wikiRoots.value = wikiRoots.value.map((r) => (r.id === id ? { ...r, enabled } : r))`)
-    → **3 条报红**。理由与落地证据见 `RootsView.test.ts` 的「R9 不变量」注释与 T5 报告 §7。
+    → **3 go red**. reasoning and evidence in `RootsView.test.ts` "R9 invariant" comment and T5 report §7.
 
-  ═══════════════════ Vue2 → Vue3 强制改写(治理 §2,不算偏离)═══════════════════
-    | 蓝本(Options API) | 本文件 | 依据 |
+  ═══════════════════ Vue2 → Vue3 forced rewrites (governance §2, not counted as divergence) ═══════════════════
+    | Reference (Options API) | This file | Rationale |
     |---|---|---|
-    | `data()` 对象 | `ref()` | `<script setup>` 无 `this` |
-    | `computed: { roots/canSubmit/browserRoots }` | `computed()` | 同上 |
-    | `created()` | `onMounted()` | 蓝本那一发 `loadRoots()` 同样**不阻塞首屏**(它没 await) |
-    | `methods: { … }` | 普通函数 | 同上 |
-    | `this.$refs.fb` | `ref<InstanceType<typeof FolderBrowser>>` | `FolderBrowser.vue:97` 有 `defineExpose({ reset })` |
-    | `this.$nextTick` | `nextTick` | 同上 |
-    | `this.$t` | `useI18n().t` | 本仓既定 |
-    | `this.store.actions.x()` | `store.x()` | Pinia setup store 无 `actions` 那一层 |
-    | `methods: { fmtAgo }` | 直接 `import { fmtAgo }` | 蓝本把它挂进 methods 只为模板可见 |
+    | `data()` object | `ref()` | `<script setup>` has no `this` |
+    | `computed: { roots/canSubmit/browserRoots }` | `computed()` | same |
+    | `created()` | `onMounted()` | reference's `loadRoots()` similarly **doesn't block first paint** (no await) |
+    | `methods: { … }` | plain functions | same |
+    | `this.$refs.fb` | `ref<InstanceType<typeof FolderBrowser>>` | `FolderBrowser.vue:97` has `defineExpose({ reset })` |
+    | `this.$nextTick` | `nextTick` | same |
+    | `this.$t` | `useI18n().t` | established in this repo |
+    | `this.store.actions.x()` | `store.x()` | Pinia setup store has no `actions` layer |
+    | `methods: { fmtAgo }` | direct `import { fmtAgo }` | reference hangs it on methods only for template visibility |
 
-  🔴 **零 `any`**(承 K41):`WikiRoot` 类型直接从共享包 import;HTTP 状态码的取法收在
-    本文件的 `httpStatus(e: unknown)` 里,用类型收窄而不是 `as any`。
-  🔴 `confirmDelete()` 里多出的 `if (!r) return` 是 **TS 的 null 收窄要求**
-    (蓝本 `deleting` 无类型,本仓是 `WikiRoot | null`)—— **不可达分支**:
-    该函数只能从「只在 `deleting` 非空时才渲染」的弹窗里点到。
+  🔴 **zero `any`** (inheriting K41): `WikiRoot` type imported directly from shared package; HTTP status code lookup
+    collected in this file's `httpStatus(e: unknown)` function, using type narrowing not `as any`.
+  🔴 extra `if (!r) return` in `confirmDelete()` is **TS null narrowing requirement**
+    (reference `deleting` untyped, this repo is `WikiRoot | null`) — **unreachable branch**:
+    function only callable from button inside dialog that only renders when `deleting` non-null.
 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
@@ -178,9 +178,9 @@ import { useKnowledgeStore, fmtAgo } from '../stores/knowledgeStore'
 const { t } = useI18n()
 const store = useKnowledgeStore()
 
-/** 蓝本 `:139` 的 `form` 四字段。`hours` 是**小时**(送进 `createRootBody` 的
- *  `scanIntervalH`,包内 `* 3600` 换成秒);`watchMode` 是 `'auto' | 'scan_only'`
- *  两个后端枚举串,**照抄不改**。 */
+/** Four fields of reference `:139`'s `form`. `hours` is **hours** (passed as `scanIntervalH` to `createRootBody`,
+ *  multiplied by 3600 inside package to convert to seconds); `watchMode` is `'auto' | 'scan_only'`
+ *  two backend enum strings, **copy as-is, do not change**. */
 interface RootForm {
   path: string
   watchMode: string
@@ -188,50 +188,50 @@ interface RootForm {
   advOpen: boolean
 }
 
-/** 蓝本 `:135-140` 的初值 —— `openAdd()`(`:154`)每次重置回**这一份**,逐字同值。 */
+/** Initial values from reference `:135-140` — `openAdd()` (`:154`) resets to **this exact copy** each time, identical value. */
 function emptyForm(): RootForm {
   return { path: '', watchMode: 'auto', hours: 6, advOpen: false }
 }
 
-/* ── 蓝本 data()(`:132-140`)的七项页面级瞬态,一律组件本地 ref,不塞 store(治理 §5.1)── */
+/* ── seven page-level ephemeral states from reference data() (`:132-140`), all local component ref, not stored (governance §5.1) ── */
 
-/** 蓝本 `:134` —— 「添加索引目录」弹窗开关。 */
+/** Reference `:134` — "Add Knowledge Root" dialog toggle. */
 const adding = ref(false)
-/** 蓝本 `:135` —— 删除确认弹窗的目标行(null = 不开)。 */
+/** Reference `:135` — target row for delete confirmation dialog (null = closed). */
 const deleting = ref<WikiRoot | null>(null)
-/** 蓝本 `:136` —— 删除时是否连 `.wiki.md` 一起清掉。 */
+/** Reference `:136` — whether to also purge `.wiki.md` on delete. */
 const purgeFiles = ref(false)
-/** 蓝本 `:137` —— 提交门(治理 §5.2:蓝本自带,照抄)。 */
+/** Reference `:137` — submit gate (governance §5.2: reference has it, copy). */
 const submitting = ref(false)
-/** 蓝本 `:138` —— K59:弹窗**内联**错误文案(不是 toast)。 */
+/** Reference `:138` — K59: error message **inline in dialog** (not a toast). */
 const addError = ref('')
-/** 蓝本 `:139` —— 409 时才为 true,决定「以镜像模式添加」按钮出不出(N50)。 */
+/** Reference `:139` — true only on 409, controls whether "Add as Mirror" button appears (N50). */
 const mirrorOffer = ref(false)
-/** 蓝本 `:140`。 */
+/** Reference `:140`. */
 const form = ref<RootForm>(emptyForm())
 
-/** 蓝本 `:53` 的 `ref="fb"` —— Vue3 里靠 `defineExpose({ reset })` 拿到实例方法。 */
+/** Reference `:53`'s `ref="fb"` — Vue3 gets instance method via `defineExpose({ reset })`. */
 const fb = ref<InstanceType<typeof FolderBrowser> | null>(null)
 
-/** 蓝本 `:143`(K1 降层:`store.state.wikiRoots` → `store.wikiRoots`)。 */
+/** Reference `:143` (K1 layer reduction: `store.state.wikiRoots` → `store.wikiRoots`). */
 const roots = computed<WikiRoot[]>(() => store.wikiRoots)
 
-/** 蓝本 `:144` —— 只认绝对路径。`submit()` 里也再守一次(治理 §5.2)。 */
+/** Reference `:144` — only accepts absolute paths. `submit()` guards again (governance §5.2). */
 const canSubmit = computed<boolean>(() => form.value.path.startsWith('/'))
 
-/** 蓝本 `:145-147`(K1 降层 + N49:`pickerRoots` 自带 `(candidates || [])` 兜底)。 */
+/** Reference `:145-147` (K1 layer reduction + N49: `pickerRoots` carries `(candidates || [])` fallback). */
 const browserRoots = computed(() => pickerRoots(store.wikiCandidates))
 
-/** 蓝本 `:149-151` 的 `created()`。蓝本没有 await、也没有 catch —— 照抄
- *  (`loadRoots` 自己带 catch + toast,`knowledgeStore.ts:661-663`)。 */
+/** Reference `:149-151`'s `created()`. reference has no await or catch — copy as-is
+ *  (`loadRoots` carries its own catch + toast, `knowledgeStore.ts:661-663`). */
 onMounted(() => {
   store.loadRoots()
 })
 
 /**
- * 从 axios 错误里取 HTTP 状态码。**零 `any`**(承 K41):用 `in` 收窄,不做断言式转型。
- * 蓝本写的是 `e && e.response && e.response.status === 404`(`:168`)/
- * `e && e.response && e.response.status`(`:195`)—— 语义逐字相同,只是收进一个函数。
+ * Extract HTTP status code from axios error. **zero `any`** (inheriting K41): use `in` to narrow, not assertion cast.
+ * Reference writes `e && e.response && e.response.status === 404` (`:168`) /
+ * `e && e.response && e.response.status` (`:195`) — semantically identical, just collected into a function.
  */
 function httpStatus(e: unknown): number | undefined {
   if (e && typeof e === 'object' && 'response' in e) {
@@ -242,12 +242,12 @@ function httpStatus(e: unknown): number | undefined {
 }
 
 /**
- * 蓝本 `:153-160` —— 打开新增弹窗:重置表单 / 清错误 / 开弹窗 / 拉候选 /
- * **`$nextTick` 里把 `FolderBrowser` 归位**。
- * 🔴 那一发 `reset()` 不能省:弹窗关掉时 `FolderBrowser` 内部的 `current` / `entries`
- * 还停在上次浏览到的目录,不重置的话下次打开会看见上一次的中间态。
- * 🔴 `nextTick` 也不能省:`adding = true` 这一刻 `DialogContent` 还没渲染,
- * `fb.value` 仍是 null。
+ * Reference `:153-160` — open add dialog: reset form / clear error / open dialog / pull candidates /
+ * **reset `FolderBrowser` inside `nextTick`**.
+ * 🔴 that `reset()` call is essential: when dialog closes, `FolderBrowser`'s internal `current` / `entries`
+ * still sit on the directory from last browse; skipping reset means next open shows previous state.
+ * 🔴 `nextTick` also essential: at moment `adding = true` executes, `DialogContent` not yet rendered,
+ * `fb.value` still null.
  */
 function openAdd(): void {
   form.value = emptyForm()
@@ -260,17 +260,17 @@ function openAdd(): void {
   })
 }
 
-/** 蓝本 `:161-163` —— 空路径不回填(点根层面包屑时 `FolderBrowser` 本来就不 emit)。 */
+/** Reference `:161-163` — do not fill empty path (clicking root breadcrumb, `FolderBrowser` doesn't emit anyway). */
 function onBrowsePick(path: string): void {
   if (path) form.value.path = path
 }
 
 /**
- * 蓝本 `:164-174` —— 🔴 **裁定 R9:文案方向不是 bug**,完整推演见文件头。
- * 一句话:`setRootEnabled` 在 `await` **之前**就把 `root.enabled` 就地改成新值,
- * 而 `r` 与 store 里那个 `root` 是**同一个对象** ⇒ 这里读到的已是新状态。
- * 失败路径回滚并 `throw` ⇒ 走 catch,成功 toast 不执行。
- * N51:404 是**专属文案**(后端落后的专门提示),照抄;其余错走 K58 形态 A。
+ * Reference `:164-174` — 🔴 **decision R9: message direction not a bug**, full reasoning in file header.
+ * in a nutshell: `setRootEnabled` updates `root.enabled` in-place **before** `await`,
+ * and `r` and store's `root` are **same object** ⇒ read here is already new state.
+ * failure path rolls back and `throw` ⇒ enters catch, success toast never executes.
+ * N51: 404 is **dedicated message** (specific hint for backend lag), copy; others use K58 form A.
  */
 async function toggle(r: WikiRoot): Promise<void> {
   try {
@@ -281,7 +281,7 @@ async function toggle(r: WikiRoot): Promise<void> {
   }
 }
 
-/** 蓝本 `:175-182`。K58 形态 A:失败只弹固定键,不回显后端 body。 */
+/** Reference `:175-182`. K58 form A: on failure show only fixed key, don't echo backend body. */
 async function rescan(r: WikiRoot): Promise<void> {
   try {
     await store.rescanRoot(r.id)
@@ -292,13 +292,13 @@ async function rescan(r: WikiRoot): Promise<void> {
 }
 
 /**
- * 蓝本 `:183-208`。
- * · `submitting` 门是蓝本自带的(治理 §5.2),照抄 —— 重复点击不发第二发。
- * · **K59**:错误一律写进 `addError`(弹窗内联),**不弹 toast**。
- * · **N50**:409 → 只读文案 + 「以镜像模式添加」按钮(该按钮再调 `submit(true)`)。
- * · **K58**:非 409 分支蓝本回显 `e.response.data.message`,本仓改固定键。
- * · **N46**:body 一律经共享包 `createRootBody`,三个入参 `watchMode` / `scanIntervalH` /
- *   `mirror` 必须真的传到位 —— 传丢了后端会**静默忽略**,真机无报错。
+ * Reference `:183-208`.
+ * · `submitting` gate is reference's own (governance §5.2), copy — repeated clicks don't send second request.
+ * · **K59**: errors always go to `addError` (inline in dialog), **no toast**.
+ * · **N50**: 409 → read-only message + "Add as Mirror" button (that button calls `submit(true)`).
+ * · **K58**: non-409 branch reference echoes `e.response.data.message`, this repo uses fixed key.
+ * · **N46**: body always via shared package `createRootBody`, three params `watchMode` / `scanIntervalH` /
+ *   `mirror` must be actually passed — lost params backend **silently ignores**, no error on device.
  */
 async function submit(mirror: boolean): Promise<void> {
   if (!canSubmit.value || submitting.value) return
@@ -329,12 +329,12 @@ async function submit(mirror: boolean): Promise<void> {
 }
 
 /**
- * 蓝本 `:209-219` —— 成功/失败**都**关弹窗并把 `purgeFiles` 归位
- * (那两行在 try/catch **之外**,照抄)。
+ * Reference `:209-219` — success/failure both close dialog and reset `purgeFiles`
+ * (those two lines outside try/catch, copy as-is).
  */
 async function confirmDelete(): Promise<void> {
   const r = deleting.value
-  // TS null 收窄(蓝本无此行);不可达 —— 本函数只能从 `deleting` 非空时渲染的弹窗里点到。
+  // TS null narrowing (reference has no such line); unreachable — function only callable from button inside dialog that only renders when `deleting` non-null.
   if (!r) return
   try {
     await store.deleteRoot(r.id, purgeFiles.value)
@@ -346,9 +346,9 @@ async function confirmDelete(): Promise<void> {
   purgeFiles.value = false
 }
 
-/** K57 —— 删除弹窗的 state 是对象不是布尔,`@update:open` 需要一个翻译层。
- *  🔴 蓝本三条关闭路径(× / 取消 / 点遮罩)**都只把 `deleting` 置 null**,
- *  **不重置 `purgeFiles`**(只有 `confirmDelete` 才重置,`:218`)—— 照抄。 */
+/** K57 — delete dialog's state is object not boolean, `@update:open` needs a translation layer.
+ *  🔴 reference's three close paths (× / cancel / click overlay) **all just set `deleting` to null**,
+ *  **do not reset `purgeFiles`** (only `confirmDelete` resets, `:218`) — copy as-is. */
 function onDeletingOpen(open: boolean): void {
   if (!open) deleting.value = null
 }
@@ -359,7 +359,7 @@ function onDeletingOpen(open: boolean): void {
     <div class="k-scroll">
       <div class="k-scroll-inner">
         <div class="k-section">
-          <!-- 区头(蓝本 :6-11)-->
+          <!-- Section header (reference :6-11) -->
           <div class="k-section-head">
             <div class="k-section-title">{{ t('aiKbNavRoots') }}</div>
             <div class="k-section-hint">{{ t('aiKbRtSubtitle') }}</div>
@@ -368,16 +368,16 @@ function onDeletingOpen(open: boolean): void {
             </button>
           </div>
           <div class="k-section-body">
-            <!-- 空态(蓝本 :13-19)—— 🔴 §9.17:本机 `/v1/wiki/roots` 超时 ⇒ 这是唯一可达态。 -->
+            <!-- Empty state (reference :13-19) — 🔴 §9.17: this machine `/v1/wiki/roots` times out ⇒ this is the only reachable state. -->
             <div v-if="!roots.length && !store.wikiRootsLoading" class="kr-empty">
-              <!-- 蓝本 :15 的 `color="var(--text-tertiary)"` 已经是 token,照抄(附录 B §B.5)。 -->
+              <!-- Reference :15's `color="var(--text-tertiary)"` is already a token, copy (appendix B §B.5). -->
               <KIcon name="folder" :size="28" color="var(--text-tertiary)" />
               <div>{{ t('aiKbRtEmpty') }}</div>
               <button class="k-btn primary" @click="openAdd">
                 <KIcon name="plus" :size="12" /> {{ t('aiKbRtAddRoot') }}
               </button>
             </div>
-            <!-- 列表(蓝本 :20-40)-->
+            <!-- List (reference :20-40) -->
             <div v-else class="k-set-card" style="margin: 12px 16px">
               <div v-for="r in roots" :key="r.id" class="k-set-row">
                 <div class="k-set-row-info">
@@ -412,8 +412,8 @@ function onDeletingOpen(open: boolean): void {
       </div>
     </div>
 
-    <!-- Add modal(蓝本 :43-91)—— K57:reka Dialog 原语,portal 到知识库容器。
-         蓝本的「点遮罩关闭 / 点弹窗内不关闭」由 DialogContent 的 pointerDownOutside 等价表达。 -->
+    <!-- Add modal (reference :43-91) — K57: reka Dialog primitives, portal to knowledge container.
+         reference's "overlay click closes / click inside doesn't close" expressed equivalently by DialogContent's pointerDownOutside. -->
     <DialogRoot :open="adding" @update:open="adding = $event">
       <DialogPortal to=".knowledge-app" defer>
         <DialogOverlay class="k-modal-bg">
@@ -483,11 +483,11 @@ function onDeletingOpen(open: boolean): void {
                 </div>
               </template>
 
-              <!-- K59 —— 错误内联在弹窗里(不是 toast:toast z-index 60,会被遮罩 1000 压住)。 -->
+              <!-- K59 — error inline in dialog (not a toast: toast z-index 60, overlay 1000 would cover it). -->
               <div v-if="addError" class="kr-error">
                 <KIcon name="danger" :size="12" />
                 <span>{{ addError }}</span>
-                <!-- N50:mirror 后端未实现,但界面 1:1 照抄,不许删这个按钮。 -->
+                <!-- N50: mirror backend unimplemented, but UI copies 1:1, do not delete this button. -->
                 <button v-if="mirrorOffer" class="k-btn outline" @click="submit(true)">
                   {{ t('aiKbRtAddMirror') }}
                 </button>
@@ -508,7 +508,7 @@ function onDeletingOpen(open: boolean): void {
       </DialogPortal>
     </DialogRoot>
 
-    <!-- Delete confirm modal(蓝本 :93-120)-->
+    <!-- Delete confirm modal (reference :93-120) -->
     <DialogRoot :open="!!deleting" @update:open="onDeletingOpen">
       <DialogPortal to=".knowledge-app" defer>
         <DialogOverlay class="k-modal-bg">

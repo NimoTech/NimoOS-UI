@@ -1,36 +1,40 @@
 <script setup lang="ts">
-// P6b-T6: PlaceVisitHistory.vue —— 地点详情面板的"到访记录"时间线段。逐段照 Vue2
-// NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1204-1245(模板)移植;样式照
-// photos-places.scss:599-618(时间线本体)+ :835-851(`.visit-save-btn`,在文件另一处,
-// 已回源核对行号——brief 给的 scss 行号只覆盖到 :618,`.visit-save-btn` 需要单独定位)。
+// P6b-T6: PlaceVisitHistory.vue — place details panel's "visit history" timeline segment. Ported
+// segment-by-segment from Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1204-1245 (template);
+// styling per photos-places.scss:599-618 (timeline body) + :835-851 (`.visit-save-btn`, in another
+// part of file, verified line numbers via source — brief's scss range only covers :618,
+// `.visit-save-btn` positioned separately).
 //
-// 分工:纯展示 + emit,不碰 store、不发请求——PlaceDetailPanel 原样透传 save-trip /
-// open-photo 给容器(未来任务接住后调用 store 方法)。
+// Division of labor: pure display + emit, no store access, no requests — PlaceDetailPanel passes
+// save-trip / open-photo unchanged to container (future tasks will catch and call store methods).
 //
-// props/emits 形状由 brief 钉死:
+// props/emits shape is nailed by brief:
 //   props: { visits: PlaceVisit[], trips: number }
 //   emits: (e:'save-trip', visit:PlaceVisit) / (e:'open-photo', assetId:string, list:string[])
-// D9(本期三条范围决策之一):open-photo 第二参永远是"那一条 visit 自己的 thumbs 数组"，
-// 不是别条的、不是单张、不是整库。
+// D9 (one of three scope decisions this period): open-photo's second param is always "that
+// specific visit's own thumbs array", never another visit's, never a single photo, never the whole
+// library.
 //
-// token 映射(Vue2 → New-UI,同 PlaceDetailPanel.vue/PlaceInsights.vue 文件头既定表):
-// --text-1/2/3 → --fg/--fg-muted/--fg-subtle;--surface-2 → --chip-bg;--line → --card-border。
-// 三处"本次旅行"绿色(.visit-dot[data-current]/.visit-pill/.visit-card.is-current .visit-body)
-// 一律用 P6a 已建的 --place-current-trip,半透明层走 color-mix(in srgb, var(--place-current-trip)
-// N%, transparent)(本仓既定技法,先例 PhotosPlaces.vue:480),不新增 alpha token、不写字面
-// rgba。.visit-save-btn 是 accent 色(不是绿色),Vue2 用 rgba(var(--accent-rgb), α) 精确复刻，
-// 本仓无 --accent-rgb/--accent-hi token(已 grep 确认,同 PlaceSpotDialog.vue/PersonHero.vue
-// 等先例)——改用语义最接近的既有三档 token:--accent-soft(0.14 ≈ Vue2 0.15)/
-// --accent-soft-bd(0.36 ≈ Vue2 0.35)/--accent-soft-2(0.24 ≈ Vue2 0.25 的 hover 深一档)/
-// --accent-text(替代不存在的 --accent-hi)。
+// Token mapping (Vue2 → New-UI, same table at head of PlaceDetailPanel.vue/PlaceInsights.vue):
+// --text-1/2/3 → --fg/--fg-muted/--fg-subtle; --surface-2 → --chip-bg; --line → --card-border.
+// Three places of "current trip" green (.visit-dot[data-current]/.visit-pill/.visit-card.is-current
+// .visit-body) uniformly use P6a's established --place-current-trip; transparency layers use
+// color-mix(in srgb, var(--place-current-trip) N%, transparent) (this repo's standard practice,
+// precedent PhotosPlaces.vue:480), no new alpha tokens, no literal rgba. .visit-save-btn is
+// accent color (not green); Vue2 uses rgba(var(--accent-rgb), α) precisely replicated, this repo
+// lacks --accent-rgb/--accent-hi tokens (grep verified, same as PlaceSpotDialog.vue/PersonHero.vue
+// precedents) — using semantically closest existing three-tier tokens: --accent-soft (0.14 ≈ Vue2
+// 0.15) / --accent-soft-bd (0.36 ≈ Vue2 0.35) / --accent-soft-2 (0.24 ≈ Vue2 0.25 hover darker
+// tier) / --accent-text (replaces nonexistent --accent-hi).
 //
-// Vue scoped CSS 不跨组件边界(T5 PlaceInsights.vue 文件头已有说明并给出先例):本组件是
-// 独立 SFC,`.detail-section h4` 这类壳样式在 PlaceDetailPanel.vue 里已有一份，但够不着
-// 这里的 <h4>,故自带一份等价声明。
+// Vue scoped CSS doesn't cross component boundaries (T5 PlaceInsights.vue head has explanation and
+// precedent): this is standalone SFC, shell styles like `.detail-section h4` already exist in
+// PlaceDetailPanel.vue but don't reach this <h4>, so this brings its own equivalent declaration.
 //
-// 偏离登记 15(brief §4 原文要求"照搬并登记"):`.visit-thumbs img:hover { transform:
-// scale(1.05) }` 照搬 Vue2,父格 `.visit-thumbs` 未设 overflow:hidden，hover 放大会溢出
-// 压邻格——Vue2 原状如此，本任务不修，同类偏离已在别处登记过（brief 明确点名"同类偏离 15"）。
+// Deviation logging 15 (brief §4 original requires "copy and log"): `.visit-thumbs img:hover
+// { transform: scale(1.05) }` copied from Vue2, parent `.visit-thumbs` lacks overflow:hidden, hover
+// scale overflows and crushes adjacent cell — Vue2's state as-is, not changing this task, same-type
+// deviations logged elsewhere (brief explicitly names "same-type deviation 15").
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -56,12 +60,13 @@ function thumbUrl(assetId: string): string {
 </script>
 
 <template>
-  <!-- brief 结构规格 1:恒渲染,无 v-if。 -->
+  <!-- Brief structure spec 1: always render, no v-if. -->
   <div class="detail-section">
     <h4>
       {{ t('photosPlacesVisitHistory') }}
-      <!-- Vue2 :1207 的裸内联 style(font-variant-numeric,非颜色属性)照搬；静态文本，
-           不可点，不叠 .is-clickable(T4 留下的约定：这个 .more 是次数展示，不是入口)。 -->
+      <!-- Vue2 :1207's bare inline style (font-variant-numeric, non-color property) copied verbatim;
+           static text, not clickable, no .is-clickable overlay (T4's convention: this .more is count
+           display, not an entry point). -->
       <span class="more" style="font-variant-numeric: tabular-nums">
         {{ trips }} {{ t(tripsUnitKey) }}
       </span>
@@ -107,8 +112,9 @@ function thumbUrl(assetId: string): string {
 </template>
 
 <style scoped>
-/* Vue scoped CSS 不跨组件边界(同 PlaceInsights.vue 文件头说明 + 先例):自带一份等价的
-   段落标题壳样式,不依赖 PlaceDetailPanel.vue 里已有的同名规则。 */
+/* Vue scoped CSS doesn't cross component boundaries (same as PlaceInsights.vue head explanation
+   + precedent): brings its own equivalent paragraph heading shell styles, doesn't rely on the
+   same-name rule already in PlaceDetailPanel.vue. */
 .detail-section h4 {
   font-size: 11px; font-weight: 600;
   letter-spacing: 0.06em; text-transform: uppercase;
@@ -117,8 +123,9 @@ function thumbUrl(assetId: string): string {
   line-height: 1.4;
   display: flex; align-items: baseline; justify-content: space-between;
 }
-/* 本段的 .more 是静态次数展示,不可点,不加 cursor:pointer(同 T4 spots 段 / T5 文件头
-   关于共享基类 vs is-clickable 修饰类的既定约定——这里干脆不共享基类,自成一份)。 */
+/* This section's .more is static count display, not clickable, no cursor:pointer (same as T4
+   spots segment / T5 head convention on shared base class vs is-clickable modifier — here simply
+   no shared base, self-contained). */
 .detail-section h4 .more {
   font-size: 11px; color: var(--accent); font-weight: 500;
   text-transform: none; letter-spacing: 0;
@@ -128,7 +135,8 @@ function thumbUrl(assetId: string): string {
 .visit-card { display: flex; gap: 10px; }
 .visit-rail { width: 14px; flex-shrink: 0; position: relative; display: flex; justify-content: center; padding-top: 6px; }
 .visit-rail::before { content: ""; position: absolute; top: 14px; bottom: -12px; left: 50%; width: 1px; background: var(--card-border); transform: translateX(-0.5px); }
-/* 照搬 Vue2 :603 —— 否则最后一条到访记录的竖线会拖一截悬空线(brief 明确点名的坑)。 */
+/* Copied from Vue2 :603 — otherwise the last visit record's vertical line drags a hanging tail
+   (brief explicitly called-out pitfall). */
 .visit-card:last-child .visit-rail::before { display: none; }
 .visit-dot { width: 8px; height: 8px; border-radius: 99px; background: var(--fg-subtle); position: relative; z-index: 1; }
 .visit-dot[data-current="true"] {
@@ -153,9 +161,9 @@ function thumbUrl(assetId: string): string {
 @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .visit-stats { font-size: 11px; color: var(--fg-subtle); margin-bottom: 8px; }
 .visit-stats b { color: var(--fg-muted); font-weight: 600; }
-/* .visit-save-btn(Vue2 photos-places.scss:835-851,不在 brief 给的 :599-618 范围内——
-   已单独定位回源核对)。--accent-rgb/--accent-hi 本仓不存在,改用既有三档 accent-soft
-   token(文件头已登记映射关系)。 */
+/* .visit-save-btn (Vue2 photos-places.scss:835-851, outside brief's :599-618 range — located and
+   verified separately via source). --accent-rgb/--accent-hi don't exist here, using existing
+   three-tier accent-soft tokens instead (file head already logged mapping). */
 .visit-save-btn {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; margin-left: 6px;
@@ -170,6 +178,7 @@ function thumbUrl(assetId: string): string {
 .visit-save-btn:hover { background: var(--accent-soft-2); }
 .visit-thumbs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
 .visit-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; }
-/* 偏离登记 15(见文件头):父格无 overflow:hidden,放大会溢出压邻格,Vue2 原状照搬。 */
+/* Deviation logging 15 (see file head): parent lacks overflow:hidden, scaling overflows and
+   crushes adjacent cell, Vue2's state copied verbatim. */
 .visit-thumbs img:hover { transform: scale(1.05); }
 </style>

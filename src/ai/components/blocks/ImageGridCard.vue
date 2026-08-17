@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ImageGridCard.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/ImageGridCard.vue -->
 <script setup lang="ts">
 import { computed } from 'vue'
 import AgentIcon from '../icons/AgentIcon.vue'
@@ -10,10 +10,10 @@ interface GridImage {
   caption?: string
 }
 
-// 装饰性占位马赛克色板——按每张图的 seed 取色,生成式、与浅/深主题无关的占位色
-// (没有真实缩略图时使用),不接入 token 体系。登记在案的例外:见 src/ai/styles/
-// tokens.scss 文件头「例外清单」一节 + docs/THEMING.md §6(与 VideoCard.vue 的
-// PAL、`.ic-*` 品牌图标渐变同属一类)。
+// Decorative placeholder mosaic palette — applies color per image based on seed, generative,
+// independent of light/dark theme (used when no real thumbnails), not part of token system.
+// Registered exception: see src/ai/styles/ tokens.scss header "Exception list" section +
+// docs/THEMING.md §6 (same category as VideoCard.vue PAL and `.ic-*` brand icon gradients).
 const PALETTES = [
   ['#FF9A8B', '#FF6A88', '#FF99AC'], ['#A1C4FD', '#C2E9FB'],
   ['#FBC2EB', '#A6C1EE'], ['#84FAB0', '#8FD3F4'],

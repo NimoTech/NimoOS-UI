@@ -1,35 +1,36 @@
 <script setup lang="ts">
-// Task 7 (SP7-P5 人物): ClusterActionDialog.vue —— 未命名人物三态操作弹窗(命名 / 合并 /
-// 删除)。逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:237-361(模板)与
-// :624-643(openXxxDialog 的 nextTick focus)移植;photos-people.scss 本身不含弹窗样式
-// (Vue2 弹窗全靠内联 style),这里改成本仓惯例的 scoped 样式块 + theme token。
-// (注:注释里刻意不写字面的 style 开标签 —— color-guard.test.ts 的样式块提取正则是
-//  非贪婪匹配,注释里的假开标签会让它从这里一路吃到文件末尾的真闭标签,把整个 script +
-//  template 都当成样式块扫描。详见该测试文件的 no-fake-style-tag 用例。)
+// Task 7 (SP7-P5 people): ClusterActionDialog.vue — unnamed person tri-state action dialog (name / merge /
+// delete). Migrate segment by segment from Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:237-361 (template) and
+// :624-643 (nextTick focus in openXxxDialog); photos-people.scss itself contains no modal styles
+// (Vue2 modals rely entirely on inline style), here converted to this repo's convention of scoped style blocks + theme tokens.
+// (Note: deliberately not writing literal style opening tag in the comment — color-guard.test.ts's style-block extraction regex uses
+//  non-greedy matching, and a fake opening tag in the comment would make it consume all the way to the real closing tag at the end of the file, scanning the entire script +
+//  template as a style block. See the no-fake-style-tag test case in that test file.)
 //
-// 分工(照 brief 明确、同 P4 AlbumPickerDialog 的先例但反过来):本组件**只收集输入并
-// emit**,不调用任何 store 或 toast —— 三条提交路径(renamePerson / mergePersonInto /
-// purgePersonWithUndo)的真实调用、重入守卫、toast 全部在宿主 PhotosPeople.vue。
+// Division of responsibility (per brief, following the precedent of P4 AlbumPickerDialog but reversed): this component
+// **only collects input and emits**; it does not call any store or toast — the actual calls, re-entrance guards, and toast
+// for all three submission paths (renamePerson / mergePersonInto / purgePersonWithUndo) are entirely in the host PhotosPeople.vue.
 //
-// 协调者复核修正(评审后 3 条改回 Vue2 字面写法,本期纪律"界面严格 1:1,只有 bug/竞态/
-// 吞错才改"——brief 的结构清单是快照,Vue2 源码才是权威,清单没提不等于可以砍):
-//  1) mode='name' 的 <label> 补上,键 photosPersonNameLabel(协调者已核 zh_CN.json:49
-//     "Name": "名称" 并批准新增,en/zh 两个 locale 都加在段末,未重排既有键)。
-//  2) 头部头像外圈的 2px solid var(--accent-soft) 装饰描边补上(Vue2 :246-247 的
-//     border-box 48px 容器,内容区实际是 44px——这里用外层 .cad-avatar-ring 还原同一
-//     几何,PersonAvatar 本身按 44 传 size)。
-//  3) 删除确认按钮改回 Vue2 的实底红填充(:351-357):渐变走 --remove-fg/--remove-bg
-//     两个既有 token(同 PhotosTrash.vue:446 `.trash-btn-cta.danger` 的既定惯例,不是
-//     新发明),前景钉死白色 + theme-exception(理由见该处样式注释,不用 --on-accent——
-//     它只在背景确为 var(--accent) 饱和实底时才可读,这里背景是危险红渐变,不满足前提)。
+// Review coordinator corrections (post-review, 3 items reverted to Vue2 literal implementation; this period's discipline is
+// "UI must be exactly 1:1, only bug/race/silent failure changes apply" — the brief's structure checklist is a snapshot,
+// Vue2 source code is the authority, absence from the checklist does not mean deletion is permitted):
+//  1) Add <label> for mode='name', key photosPersonNameLabel (coordinator verified zh_CN.json:49
+//     "Name": "名称" and approved new additions; both en and zh locales added at segment end, no reordering of existing keys).
+//  2) Add decorative 2px solid var(--accent-soft) border ring around avatar in header (Vue2 :246-247's
+//     border-box 48px container, actual content area is 44px — use outer .cad-avatar-ring here to replicate the same
+//     geometry, PersonAvatar itself takes size 44).
+//  3) Delete confirmation button reverted to Vue2's solid red fill (:351-357): use gradient with --remove-fg/--remove-bg
+//     two existing tokens (same established convention as PhotosTrash.vue:446 `.trash-btn-cta.danger`, not a new invention),
+//     foreground pinned to white + theme-exception (reason in that style comment, do not use --on-accent —
+//     it is only readable when the background is definitely the saturated solid var(--accent) color, here background is a danger red gradient, condition not met).
 //
-// 评审必修 1(第二轮):delete 模式实际是**三句不同文案**分属三个槶位,逐字核对
-// Vue2 :259-262(头部标题)与 :337-343(警示条自己的标题行 + 灰色小字正文)才发现之前
-// 把警示条的标题行("删除这个人物分组？")错放进了头部标题槶位,导致头部真正该显示的
-// "Delete face cluster" 整句消失、警示条自己的标题行也丢了。新增头部专用键
-// photosPersonDeleteClusterTitle(en 逐字 'Delete face cluster';zh 不照抄 zh_CN.json
-// 的"删除面部集群"——"集群"触犯本期术语红线,改"删除这组人脸"),警示条恢复
-// "标题行 + <br/> + 灰色小字正文" 的两行结构,三句各自归位。
+// Review mandatory 1 (second round): delete mode actually has **three different captions** belonging to three slots; cross-checked
+// Vue2 :259-262 (header title) against :337-343 (warning box's own title line + gray small text body) and discovered the previous version
+// had incorrectly placed the warning box's title line ("Delete this person cluster?") in the header title slot, causing the header's actual
+// "Delete face cluster" line to disappear and the warning box's own title line to be lost. Added header-specific key
+// photosPersonDeleteClusterTitle (en is verbatim 'Delete face cluster'; zh does not copy zh_CN.json's
+// "删除面部集群" — "cluster" violates this period's terminology red line, changed to "delete this group of faces"), warning box restored to
+// "title line + <br/> + gray small text body" two-line structure, all three captions now in their correct slots.
 //
 // Plan D Task 4 (scoped zeroed out): this component's class names are unchanged (Task 1 already
 // landed them in parity under the current .cad-* names — Vue2's entire dialog is built from
@@ -78,7 +79,7 @@ const mergeInputRef = ref<HTMLInputElement | null>(null)
 const dupConfirm = ref<{ name: string; existing: Person } | null>(null)
 const dupConfirmRef = ref<HTMLElement | null>(null)
 
-// 铁律:按 id 比较一律 String() 归一。
+// Iron rule: always normalize all id comparisons to String().
 function sameId(a: string | number, b: string | number): boolean {
   return String(a) === String(b)
 }
@@ -86,8 +87,8 @@ function sameId(a: string | number, b: string | number): boolean {
 const titleKey = computed(() => {
   if (props.mode === 'name') return 'photosPersonNameTitle'
   if (props.mode === 'merge') return 'photosPersonMergeTitle'
-  // 评审必修 1:delete 模式的头部标题槶位对应 Vue2 :262 $t('Delete face cluster'),
-  // 与警示条内部自己的标题行(photosPersonDeleteTitle,:341)是两句不同文案,不能共用键。
+  // Review mandatory 1: delete mode's header title slot corresponds to Vue2 :262 $t('Delete face cluster'),
+  // and is different from the warning box's own internal title line (photosPersonDeleteTitle, :341); they are two different captions and cannot share a key.
   return 'photosPersonDeleteClusterTitle'
 })
 
@@ -108,17 +109,17 @@ const subtitleText = computed(() => {
   if (!props.person) return ''
   const n = props.person.count
   const pct = mergeConfidencePct(props.person.confidence)
-  // 未新增合并键:Vue2 是一整句 "{n} photos · confidence {pct}%",本仓 locale 没有对应的
-  // 单一合体键,拼接两个已有键(photosPeoplePhotosCount / photosPersonMergeSuggestConfidence)
-  // 用 " · " 连接,与 PhotosPeople.vue 里横幅副行同款拼接惯例(:t + .sep)一致。
+  // No new merge key added: Vue2 has a single sentence "{n} photos · confidence {pct}%", this repo's locale doesn't have a
+  // corresponding single combined key, so concatenate two existing keys (photosPeoplePhotosCount / photosPersonMergeSuggestConfidence)
+  // joined by " · ", consistent with the same concatenation convention in PhotosPeople.vue's banner secondary line (:t + .sep).
   return `${t('photosPeoplePhotosCount', { n })} · ${t('photosPersonMergeSuggestConfidence', { n: pct })}`
 })
 
 const canSaveName = computed(() => nameInput.value.trim().length > 0)
 
-// 候选:排除自身 → 按 count 降序、同 count 按 name 升序(偏离登记 12,brief 明确)→
-// 空查询取前 6、有查询(小写 includes)取前 8。排序 → 过滤 → 截断,过滤放在弹窗内部
-// (它持有 query,brief 定案)。
+// Candidates: exclude self → sort by count descending, same count by name ascending (deviates from registration 12, per brief) →
+// empty query takes first 6, query present (case-insensitive includes) takes first 8. Sort → filter → truncate; filtering placed inside
+// the dialog (it holds the query, per brief decision).
 const sortedCandidates = computed(() => {
   const selfId = props.person?.id ?? null
   const pool = props.candidates.filter((p) => selfId === null || !sameId(p.id, selfId))
@@ -137,8 +138,8 @@ function close(): void {
   emit('update:open', false)
 }
 
-// Esc 一律 document 级监听,watch(open) 挂/摘;分支内 stopPropagation(本仓浮层规范,
-// 照 AlbumPickerDialog.vue:70-100 的先例)。点遮罩 @click.self 关闭。
+// Esc always listened at document level, watch(open) attaches/detaches; stopPropagation in branch (this repo's overlay convention,
+// following AlbumPickerDialog.vue:70-100 precedent). Click overlay via @click.self to close.
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   e.stopPropagation()
@@ -153,8 +154,8 @@ watch(
       mergeQuery.value = ''
       dupConfirm.value = null
       document.addEventListener('keydown', onDocumentKeydown)
-      // 照 Vue2 openNameDialog/openMergeDialog :624-637 的 $nextTick + focus(+select,brief
-      // 明确要求;输入框此刻为空,select() 是无操作但保留以照 brief 字面描述)。
+      // Follow Vue2 openNameDialog/openMergeDialog :624-637 $nextTick + focus (+select per brief
+      // requirement; input is empty now, select() is a no-op but kept to match brief literal description).
       void nextTick(() => {
         if (props.mode === 'name') {
           nameInputRef.value?.focus()
@@ -248,9 +249,9 @@ function submitDelete(): void {
               :disabled="!canSaveName"
               @click="submitName"
             >
-              <!-- 终审 Minor 1:Vue2 PhotosPeopleView.vue:293 钮内有 check 图标(size 13),
-                   原实现漏了。同文件同一排的删除键(:235)与 MergeReviewDialog 的 accept 都有,
-                   三兄弟只有它是纯文字 —— 内部不自洽。 -->
+              <!-- Final review Minor 1: Vue2 PhotosPeopleView.vue:293 button has check icon inside (size 13),
+                   original implementation missed it. Delete button on same row (:235) and MergeReviewDialog's accept both have it,
+                   only this one of the three is plain text — internally inconsistent. -->
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
               {{ t('photosPersonSaveName') }}
             </button>
@@ -296,9 +297,9 @@ function submitDelete(): void {
               <span class="cad-candidate-name">{{ p.name }}</span>
               <span class="cad-candidate-count">{{ t('photosPeoplePhotosCount', { n: p.count.toLocaleString() }) }}</span>
             </span>
-            <!-- 终审 Minor 2:Vue2 :322 行尾有 chevR(size 12,--text-3 → 本仓 --fg-muted),
-                 原实现漏了。点这一行**直接执行合并**且不可撤销,少了这个"还有下一步"的箭头之后
-                 整行只剩 hover 背景一个提示。 -->
+            <!-- Final review Minor 2: Vue2 :322 line end has chevR (size 12, --text-3 → this repo's --fg-muted),
+                 original implementation missed it. Clicking this row **directly executes merge** with no undo; without this
+                 "there's a next step" chevron the entire row is left with only hover background as a hint. -->
             <svg class="cad-candidate-chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
           </button>
           <div v-if="filteredCandidates.length === 0" class="cad-empty" data-test="cad-empty">
@@ -311,10 +312,10 @@ function submitDelete(): void {
       </template>
 
       <template v-else>
-        <!-- 评审必修 1:警示条恢复 Vue2 :337-343 的两行结构 —— 第一行是警示条自己的标题
-             (photosPersonDeleteTitle,"删除这个人物分组？"),<br/> 换行后才是灰色小字正文
-             (photosPersonDeleteBody)。这两句和头部标题(titleKey)是三句不同文案,分属
-             三个不同的槶位,不能互相顶替。 -->
+        <!-- Review mandatory 1: warning box restored to Vue2 :337-343 two-line structure — first line is warning box's own title
+             (photosPersonDeleteTitle, "Delete this person cluster?"), <br/> after line break comes gray small text body
+             (photosPersonDeleteBody). These two captions and the header title (titleKey) are three different captions belonging to
+             three different slots, cannot be substituted for each other. -->
         <div class="cad-warning" data-test="cad-delete-warning">
           <span data-test="cad-delete-warning-title">{{ t('photosPersonDeleteTitle') }}</span><br>
           <span class="cad-warning-body" data-test="cad-delete-warning-body">{{ t('photosPersonDeleteBody') }}</span>

@@ -38,7 +38,7 @@ describe('SourcesPage', () => {
     svc.appstore.listSources.mockResolvedValue([OFFICIAL, THIRD])
   })
 
-  it('渲染源列表:官方源带徽章无移除按钮,第三方源有移除按钮', async () => {
+  it('render source list: official source has badge and no remove button, third-party source has remove button', async () => {
     const w = mountPage()
     await flushPromises()
     const items = w.findAll('.src-item')
@@ -50,7 +50,7 @@ describe('SourcesPage', () => {
     expect(items[1].text()).toContain('WisdomSky')
   })
 
-  it('非 http(s) 输入:添加按钮禁用', async () => {
+  it('non-http(s) input: add button is disabled', async () => {
     const w = mountPage()
     await flushPromises()
     await w.find('.src-input').setValue('ftp://x/y.zip')
@@ -59,7 +59,7 @@ describe('SourcesPage', () => {
     expect((w.find('.src-add-btn').element as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('提交调 store.register(trim 后),输入清空;同步错误就地展示', async () => {
+  it('submit calls store.register(trimmed), input clears; sync errors show inline', async () => {
     const w = mountPage()
     await flushPromises()
     svc.appstore.registerSource.mockResolvedValueOnce(undefined)
@@ -84,7 +84,7 @@ describe('SourcesPage', () => {
     expect(w2.find('.src-form-error').text()).toContain('already exists')
   })
 
-  it('移除:确认弹窗 confirm 后调 store.unregister(id)', async () => {
+  it('remove: after confirmation dialog, calls store.unregister(id)', async () => {
     const w = mountPage()
     await flushPromises()
     svc.appstore.unregisterSource.mockResolvedValueOnce(undefined)

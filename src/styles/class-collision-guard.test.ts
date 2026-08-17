@@ -197,17 +197,21 @@ const nonPhotosHits: TemplateClassHit[] = nonPhotosVueFiles.flatMap(({ rel, text
   extractTemplateClassHits(rel, text),
 )
 
-describe('跨区类名冲突守卫(photos vue2-parity 裸类名 vs 非 photos 模板零交集)', () => {
-  it('至少扫描到了预期的几处来源(守卫不能悄悄扫空)', () => {
+describe('cross-area class-name collision guard (photos vue2-parity bare class names vs non-photos templates, zero intersection)', () => {
+  it('scanned at least the expected number of sources (the guard must not silently scan nothing)', () => {
     expect(parityFiles.length).toBeGreaterThan(0)
-    // 下限而非仅 >0:当前实测 505 条(387 条单类裸选择器 + 118 条组合符链的
-    // leftmost anchor),留出余量钉在 300 —— 防止提取逻辑将来被误改到"批量漏扫"
-    // 却仍能通过(比如正则改错导致只剩个别文件被扫到,>0 依然为真但已形同虚设)。
+    // A floor rather than just >0: currently 505 hits in practice (387
+    // single-class bare selectors + 118 leftmost anchors of combinator
+    // chains); pinned to 300 with headroom — this guards against the
+    // extraction logic being mis-edited into "bulk under-scanning" in the
+    // future while still passing (e.g. a broken regex leaving only a handful
+    // of files scanned, where >0 would still hold true but the check would
+    // already be toothless).
     expect(parityHits.length).toBeGreaterThanOrEqual(300)
     expect(nonPhotosVueFiles.length).toBeGreaterThan(0)
   })
 
-  it('parity 裸顶层类名与非 photos 模板类名零交集', () => {
+  it('parity bare top-level class names have zero intersection with non-photos template class names', () => {
     const parityByClass = new Map<string, Set<string>>()
     for (const hit of parityHits) {
       const set = parityByClass.get(hit.cls) ?? new Set<string>()
@@ -228,14 +232,14 @@ describe('跨区类名冲突守卫(photos vue2-parity 裸类名 vs 非 photos �
       if (!useSites) continue
       offenders.push(
         `  .${cls}\n` +
-          `    parity 定义处:\n${[...defSites].map((s) => `      - ${s}`).join('\n')}\n` +
-          `    非 photos 使用处:\n${[...useSites].map((s) => `      - ${s}`).join('\n')}`,
+          `    defined in parity at:\n${[...defSites].map((s) => `      - ${s}`).join('\n')}\n` +
+          `    used outside photos at:\n${[...useSites].map((s) => `      - ${s}`).join('\n')}`,
       )
     }
 
     expect(
       offenders,
-      `\n发现 photos vue2-parity 裸顶层类名与非 photos 模板类名冲突(全局非 scoped 样式会串到无关区域):\n${offenders.join(
+      `\nFound photos vue2-parity bare top-level class names colliding with non-photos template class names (global non-scoped styles will bleed into unrelated areas):\n${offenders.join(
         '\n',
       )}`,
     ).toEqual([])

@@ -38,7 +38,7 @@ describe('AppToast', () => {
   // Task 9 (SP7-P3 recycle-bin view): show()'s optional third argument `action` renders as a
   // clickable inline button (e.g. "Undo"); clicking fires the callback and removes that toast
   // from the stack immediately (without waiting for the auto-dismiss timer).
-  it('show 带 action 时渲染可点按钮,点击触发回调并立即移除该 toast', async () => {
+  it('When show() has an action, renders a clickable button, clicking triggers the callback and immediately removes that toast', async () => {
     const t = useToast()
     const w = mount(AppToast)
     const onClick = vi.fn()
@@ -95,17 +95,17 @@ describe('AppToast', () => {
 // notes in aiTheme.test.ts). Leaving the AI area must restore everything exactly — the user
 // explicitly required "zero impact on the desktop", so "no extra class / data-theme outside the
 // AI area" must be pinned as well.
-describe('AppToast —— AI 区 toast 作用域', () => {
+describe('AppToast — AI area toast scoping', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('不在 AI 区:不带 ai-toast-scope、不带 data-theme(桌面零影响)', () => {
+  it('Not in AI area: no ai-toast-scope, no data-theme (zero impact on desktop)', () => {
     const w = mount(AppToast)
     const root = w.find('.toast-stack')
     expect(root.classes()).not.toContain('ai-toast-scope')
     expect(root.attributes('data-theme')).toBeUndefined()
   })
 
-  it('AI 区在前台:带 ai-toast-scope,且 data-theme 跟随 AI 主题', async () => {
+  it('AI area in foreground: has ai-toast-scope, data-theme follows AI theme', async () => {
     const ai = useAiTheme()
     ai.enterAiSurface()
     const w = mount(AppToast)
@@ -114,7 +114,7 @@ describe('AppToast —— AI 区 toast 作用域', () => {
     expect(root.attributes('data-theme')).toBe(ai.theme)
   })
 
-  it('AI 区内切换明暗:data-theme 跟着变(弹窗/提示不用关掉重开)', async () => {
+  it('Toggling light/dark inside AI area: data-theme changes (dialogs/toasts do not need to be closed and reopened)', async () => {
     const ai = useAiTheme()
     ai.enterAiSurface()
     const w = mount(AppToast)
@@ -126,7 +126,7 @@ describe('AppToast —— AI 区 toast 作用域', () => {
     expect(after).toBe(ai.theme)
   })
 
-  it('离开 AI 区后恢复:class 与 data-theme 都撤掉', async () => {
+  it('After leaving AI area, restore: both class and data-theme are removed', async () => {
     const ai = useAiTheme()
     ai.enterAiSurface()
     const w = mount(AppToast)
@@ -146,11 +146,11 @@ describe('AppToast —— AI 区 toast 作用域', () => {
 // while any dialog is open — this is unrelated to colors, a pure stacking issue; jsdom cannot
 // measure computed stacking, so we pin it with a source-text guard.
 // The toast has `pointer-events: none`, so being on top never blocks clicks.
-describe('AppToast —— 层级必须高于全仓最高的浮层', () => {
-  it('.toast-stack 的 z-index 高于 10000(弹窗遮罩 1100 / 灯箱 10000)', () => {
+describe('AppToast — stacking must be above the highest floating layer in the repo', () => {
+  it('.toast-stack z-index is above 10000 (dialog scrim 1100 / lightbox 10000)', () => {
     const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), './AppToast.vue'), 'utf8')
     const m = /\.toast-stack\s*\{[^}]*z-index:\s*(\d+)/.exec(src)
-    expect(m, '找不到 .toast-stack 的 z-index 声明').not.toBeNull()
+    expect(m, 'Cannot find .toast-stack z-index declaration').not.toBeNull()
     expect(Number(m![1])).toBeGreaterThan(10000)
   })
 })

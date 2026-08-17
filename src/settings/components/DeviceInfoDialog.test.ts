@@ -36,7 +36,7 @@ beforeEach(() => { calls.hardware = 0; calls.base = 0 })
 afterEach(() => { document.body.innerHTML = '' })
 
 describe('DeviceInfoDialog', () => {
-  it('打开时拉硬件与基础信息,渲染 5 行', async () => {
+  it('fetches hardware and base info on open, renders 5 rows', async () => {
     mountIt()
     await flushPromises()
     expect(calls.hardware).toBe(1)
@@ -45,13 +45,13 @@ describe('DeviceInfoDialog', () => {
     expect(labels).toEqual(['Platform', 'DC', 'CPU', 'RAM', 'GPU'])
   })
 
-  it('platform 用 hardware_id 回退(本机 hardware_name 是空串)', async () => {
+  it('platform falls back to hardware_id (this device has an empty hardware_name)', async () => {
     mountIt()
     await flushPromises()
     expect(body().text()).toContain('nimoos-standard-v1')
   })
 
-  it('CPU 行渲染型号 + 核数/频率/线程', async () => {
+  it('CPU row renders model + core count / frequency / threads', async () => {
     mountIt()
     await flushPromises()
     const cpu = body().findAll('.dev-row')[2].text()
@@ -61,19 +61,19 @@ describe('DeviceInfoDialog', () => {
     expect(cpu).toContain('12')
   })
 
-  it('GPU 列表逐条渲染', async () => {
+  it('renders each GPU list entry', async () => {
     mountIt()
     await flushPromises()
     expect(body().findAll('.dev-gpu')).toHaveLength(1)
   })
 
-  it('open=false 时不发请求(别在设置页一进来就打硬件接口)', async () => {
+  it('sends no request when open=false (do not hit the hardware API the moment the settings page loads)', async () => {
     mountIt(false)
     await flushPromises()
     expect(calls.hardware).toBe(0)
   })
 
-  it('cpu_model 为空时渲染「检测中」占位(纯函数返回空串,占位是模板的活)', async () => {
+  it('renders the "Detecting" placeholder when cpu_model is empty (the pure function returns an empty string, the placeholder is the template\'s job)', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'hardwareInfo').mockResolvedValueOnce({ ...hw, cpu_model: '' })
     mountIt()
@@ -81,7 +81,7 @@ describe('DeviceInfoDialog', () => {
     expect(body().findAll('.dev-row')[2].text()).toContain('检测中')
   })
 
-  it('接口失败不抛,渲染占位 ---', async () => {
+  it('does not throw when the API fails, renders the --- placeholder', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'hardwareInfo').mockRejectedValueOnce(new Error('boom'))
     vi.spyOn(svc.service.sys, 'getBaseInfo').mockRejectedValueOnce(new Error('boom'))
@@ -94,7 +94,7 @@ describe('DeviceInfoDialog', () => {
   // the value the other already fetched. These two cases are regression guards
   // against Promise.allSettled → Promise.all — with all, the aggregate promise
   // rejects, the assignment line is skipped, and the successful API's data is lost.
-  it('hardwareInfo 失败但 getBaseInfo 成功时,DC 仍然显示出来', async () => {
+  it('when hardwareInfo fails but getBaseInfo succeeds, DC still renders', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'hardwareInfo').mockRejectedValueOnce(new Error('boom'))
     mountIt()
@@ -103,7 +103,7 @@ describe('DeviceInfoDialog', () => {
     expect(body().text()).toContain('2389ab5a67ce8f1d541d5c5048afd5cd')
   })
 
-  it('getBaseInfo 失败但 hardwareInfo 成功时,CPU 型号仍然显示出来', async () => {
+  it('when getBaseInfo fails but hardwareInfo succeeds, the CPU model still renders', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'getBaseInfo').mockRejectedValueOnce(new Error('boom'))
     mountIt()

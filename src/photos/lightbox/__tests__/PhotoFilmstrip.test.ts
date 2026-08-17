@@ -24,9 +24,9 @@ function mountFilmstrip(list: Photo[], index: number) {
   return mount(PhotoFilmstrip, { props: { list, index } })
 }
 
-// jsdom 没有真实布局引擎——手动铺设每张缩略图的 offsetLeft/clientWidth 和条带
-// 自身的 clientWidth/scrollLeft/scrollTo,让 centerActiveThumb / findCenterThumbIndex
-// 的几何计算可测(同 PhotoImageViewer.test.ts 的 Object.defineProperty 手法)。
+// jsdom has no real layout engine — manually set each thumbnail's offsetLeft/clientWidth and strip's own
+// clientWidth/scrollLeft/scrollTo, making geometric calculations in centerActiveThumb / findCenterThumbIndex testable
+// (same Object.defineProperty technique as PhotoImageViewer.test.ts).
 function stubGeometry(w: VueWrapper, thumbWidth = 100, stripWidth = 300) {
   const strip = w.get('.lb-strip').element as HTMLElement
   Object.defineProperty(strip, 'clientWidth', { value: stripWidth, configurable: true })
@@ -56,22 +56,22 @@ function fireWheel(strip: HTMLElement, deltaY: number, deltaX = 0): WheelEvent {
   return e
 }
 
-describe('PhotoFilmstrip 渲染', () => {
-  it('渲染 N 个缩略图,当前 index 项有 active class', () => {
+describe('PhotoFilmstrip rendering', () => {
+  it('render N thumbnails, current index item has active class', () => {
     const w = mountFilmstrip(makeList(5), 2)
     const thumbs = w.findAll('.lb-thumb')
     expect(thumbs.length).toBe(5)
     thumbs.forEach((t, i) => { expect(t.classes('active')).toBe(i === 2) })
   })
 
-  it('缩略图 src 来自 service.photos.thumbnailUrl(id, "small"), loading=lazy', () => {
+  it('thumbnail src from service.photos.thumbnailUrl(id, "small"), loading=lazy', () => {
     const w = mountFilmstrip(makeList(2), 0)
     const imgs = w.findAll('.lb-thumb img')
     expect(imgs[0]!.attributes('src')).toBe('/v1/photos/assets/p0/thumbnail?size=small&token=t')
     expect(imgs[0]!.attributes('loading')).toBe('lazy')
   })
 
-  it('视频项显示角标(时长),图片项不显示', () => {
+  it('video item shows badge (duration), image item does not', () => {
     const list = [makePhoto('v0', true, '1:23'), makePhoto('p1', false)]
     const w = mountFilmstrip(list, 0)
     const thumbs = w.findAll('.lb-thumb')
@@ -81,29 +81,29 @@ describe('PhotoFilmstrip 渲染', () => {
   })
 })
 
-describe('PhotoFilmstrip 点击翻页(绝对 index)', () => {
-  it('点第 k 个缩略图 emit select(k)——绝对下标,非相对 delta', async () => {
+describe('PhotoFilmstrip click pagination (absolute index)', () => {
+  it('click k-th thumbnail emit select(k) — absolute index, not relative delta', async () => {
     const w = mountFilmstrip(makeList(4), 0)
     await w.findAll('.lb-thumb')[3]!.trigger('click')
     expect(w.emitted('select')).toEqual([[3]])
   })
 })
 
-describe('PhotoFilmstrip 滚轮 → 横向滚动 + 停手 140ms 后居中项 emit select', () => {
+describe('PhotoFilmstrip wheel → horizontal scroll + center item emit select after 140ms release', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
-  it('滚轮累加 scrollLeft,settle 140ms 后 emit select(居中项索引)', async () => {
+  it('wheel accumulates scrollLeft, settle 140ms later emit select (center item index)', async () => {
     const w = mountFilmstrip(makeList(6), 0)
-    await nextTick() // 等 onMounted 挂上 wheel 监听
+    await nextTick() // wait for onMounted to attach wheel listener
     const { strip, setScrollLeft } = stubGeometry(w, 100, 300)
     setScrollLeft(100)
-    fireWheel(strip, 10) // scrollLeft: 100 -> 110;中心 260,最近的是 index2(中心250)
+    fireWheel(strip, 10) // scrollLeft: 100 -> 110; center 260, closest is index2(center 250)
     vi.advanceTimersByTime(140)
     expect(w.emitted('select')).toEqual([[2]])
   })
 
-  it('wheel 触发 preventDefault({passive:false} 生效)', async () => {
+  it('wheel triggers preventDefault({passive:false} effective)', async () => {
     const w = mountFilmstrip(makeList(3), 0)
     await nextTick()
     const { strip } = stubGeometry(w, 100, 300)
@@ -111,7 +111,7 @@ describe('PhotoFilmstrip 滚轮 → 横向滚动 + 停手 140ms 后居中项 emi
     expect(e.defaultPrevented).toBe(true)
   })
 
-  it('deltaY 为 0 但 deltaX 非 0 时按 deltaX 滚动', async () => {
+  it('deltaY is 0 but deltaX non-zero: scroll by deltaX', async () => {
     const w = mountFilmstrip(makeList(6), 0)
     await nextTick()
     const { strip } = stubGeometry(w, 100, 300)
@@ -120,7 +120,7 @@ describe('PhotoFilmstrip 滚轮 → 横向滚动 + 停手 140ms 后居中项 emi
     expect(strip.scrollLeft).toBe(before + 50)
   })
 
-  it('deltaY 与 deltaX 都为 0 时不处理(不 preventDefault,不排横向滚动)', async () => {
+  it('deltaY and deltaX both zero: no handling (no preventDefault, allow horizontal scroll)', async () => {
     const w = mountFilmstrip(makeList(3), 0)
     await nextTick()
     const { strip } = stubGeometry(w, 100, 300)
@@ -128,34 +128,34 @@ describe('PhotoFilmstrip 滚轮 → 横向滚动 + 停手 140ms 后居中项 emi
     expect(e.defaultPrevented).toBe(false)
   })
 
-  it('居中项索引与当前 index 相同时不重复 emit select', async () => {
+  it('center item index same as current index: does not emit select again', async () => {
     const w = mountFilmstrip(makeList(6), 1)
     await nextTick()
     const { strip, setScrollLeft } = stubGeometry(w, 100, 300)
-    // index=1 缩略图中心=150;scrollLeft=0 时条带中心=0+150=150 → 居中项就是 index1
+    // index=1 thumbnail center=150; scrollLeft=0 strip center=0+150=150 → center item is index1
     setScrollLeft(0)
     fireWheel(strip, 0.0001)
     vi.advanceTimersByTime(140)
     expect(w.emitted('select')).toBeUndefined()
   })
 
-  it('140ms 内又发生滚轮:计时器重置,只在最后一次停手后 emit 一次', async () => {
+  it('wheel event within 140ms: timer resets, emit once only after final release', async () => {
     const w = mountFilmstrip(makeList(6), 0)
     await nextTick()
     const { strip, setScrollLeft } = stubGeometry(w, 100, 300)
     setScrollLeft(0)
-    fireWheel(strip, 200) // scrollLeft -> 200,中心 350 -> 最近 index3(中心350)
+    fireWheel(strip, 200) // scrollLeft -> 200, center 350 -> closest index3(center 350)
     vi.advanceTimersByTime(100)
-    fireWheel(strip, 100) // scrollLeft -> 300,中心 450 -> 最近 index4(中心450);计时器重置
+    fireWheel(strip, 100) // scrollLeft -> 300, center 450 -> closest index4(center 450); timer resets
     vi.advanceTimersByTime(100)
-    expect(w.emitted('select')).toBeUndefined() // 第一次计时器已被打断,尚未到 140ms
+    expect(w.emitted('select')).toBeUndefined() // first timer interrupted, not yet 140ms
     vi.advanceTimersByTime(40)
     expect(w.emitted('select')).toEqual([[4]])
   })
 })
 
-describe('PhotoFilmstrip index 变化时把该缩略图居中(centerActiveThumb 移植)', () => {
-  it('props.index 变化后调用 strip.scrollTo 把该缩略图居中', async () => {
+describe('PhotoFilmstrip center thumbnail on index change (centerActiveThumb ported)', () => {
+  it('after props.index changes, call strip.scrollTo to center that thumbnail', async () => {
     const w = mountFilmstrip(makeList(5), 0)
     await nextTick()
     const { strip } = stubGeometry(w, 100, 300)

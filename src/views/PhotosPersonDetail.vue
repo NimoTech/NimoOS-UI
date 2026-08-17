@@ -1,91 +1,128 @@
 <script setup lang="ts">
-// Task 14 (SP7-P5 人物): 人物详情视图容器 —— 本期最大的一件。逐段对照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosPersonDetail.vue(1561 行)移植:四态门控(骨架 / 加载失败+重试 /
-// 人物不存在 / 正常)+ PersonHero(T10)+
-// 三个 tab(时间线自绘共现横条 + PersonAssetGrid T11 / PersonPlacesTab T12 /
-// PersonRelationsTab T13)+ 选择态浮动条 + **七个自绘弹窗**(改名 / 建相册 /
-// 「暂无可用照片」提示 / 移出确认 / 删除确认 / 背景选择 / 合并到他人 —— brief 的清单列了
-// 六个,第三个是 Vue2 promptDialog 的 info 模式 :845-851,补齐见偏离登记 B)+
-// PhotoLightbox(P2)接线。
+// Task 14 (SP7-P5 People): person detail view container — the largest single item this
+// sprint. Ported line-by-line against Vue2 NimoOS-UI
+// src/views/Photos/PhotosPersonDetail.vue (1561 lines): four-state gating (skeleton /
+// load failed + retry / person not found / normal) + PersonHero (T10) +
+// three tabs (self-drawn co-occurrence strip on the timeline + PersonAssetGrid T11 /
+// PersonPlacesTab T12 / PersonRelationsTab T13) + selection-mode floating bar +
+// **seven self-drawn dialogs** (rename / create album / "no photos available" notice /
+// remove confirm / delete confirm / hero picker / merge into another person — the brief's
+// list names six; the third is Vue2's promptDialog info mode :845-851, added back per
+// disclosure B) + PhotoLightbox (P2) wiring.
 //
-// 本文件只做编排:数据在 usePersonDetail(T9),写入在 usePhotosPeople(T2)/
-// usePhotosAlbums(P4),展示在 T10-T13。九条动作的调用/成功/失败三段都在这里。
+// This file only orchestrates: data lives in usePersonDetail (T9), writes go through
+// usePhotosPeople (T2) / usePhotosAlbums (P4), display is T10-T13. The call/success/failure
+// three-part flow for all nine actions lives here.
 //
-// ── 铁律逐条落实 ────────────────────────────────────────────────────────────
-//  1) route.params.id 恒为字符串:personId = computed(() => String(route.params.id)),
-//     **所有**下游调用(load / renamePerson / setPersonRelation / setPersonFavorite /
+// ── Hard rules, item by item ──────────────────────────────────────────────
+//  1) route.params.id is always a string: personId = computed(() => String(route.params.id)),
+//     **all** downstream calls (load / renamePerson / setPersonRelation / setPersonFavorite /
 //     setPersonCover / setPersonHero / mergePersonInto / purgePersonWithUndo /
-//     detachAssetsFromPerson)一律传这个归一值,不猜后端 id 的真实类型。
-//  2) hash 路由同组件不重建:watch(() => route.params.id) 重新 load + 清 selectedIds +
-//     tab 复位 + 关掉所有弹窗(照 PhotosAlbumDetail.vue:323-334 的前例)。
-//  3) 首次 load 在 <script setup> 顶层同步发起,不放 onMounted(照 PhotosAlbumDetail.vue
-//     :302-309:loading 标志在 await 之前同步置位,放 onMounted 会晚一帧、首帧闪空态)。
-//  4) 一切按 id 比较用 String() 值比较,不用引用相等。
+//     detachAssetsFromPerson) always pass this normalized value — never guess the backend
+//     id's real type.
+//  2) Hash routing doesn't remount the same component: watch(() => route.params.id) reloads
+//     + clears selectedIds + resets the tab + closes every dialog (following the precedent in
+//     PhotosAlbumDetail.vue:323-334).
+//  3) The first load is kicked off synchronously at the top level of <script setup>, not in
+//     onMounted (following PhotosAlbumDetail.vue:302-309: the loading flag is set
+//     synchronously before the await; putting it in onMounted would be a frame late and flash
+//     an empty state on the first frame).
+//  4) All id comparisons use String() value comparison, never reference equality.
 //
-// ── 与 Vue2 的有意偏离(全部登记,brief 明确要求或本期"移植纪律"要求)────────────
-//  A) Vue2 的 hero/tab 内容是同一个巨型组件;这里拆成 T10-T13 四个子组件,容器只接 emit。
-//  B) Vue2 用一个 promptDialog 对象承载 rename/album/detach/info 四种模式;这里拆成四个
-//     独立的开关 + 各自的状态(照 P3/P4 惯例每个弹窗自绘,不抽公共外壳;CSS 类共享)。
-//     Vue2 的第四种模式 info(:845-851「没有照片可加入相册」)brief 的六个弹窗清单里没有,
-//     但它是 Vue2 真实存在的界面元素 —— 补齐为第七个弹窗,不砍(报告已登记)。
-//  C) 收藏/关系分组:Vue2 fire-and-forget 且不回滚(:764-768,:951-955)。这里乐观 patch +
-//     失败精确回滚 + toast(偏离登记 3 / 4,store 层已 rethrow)。
-//  D) 改名失败:Vue2 只 console.error 且照样关弹窗(:915-918),用户看不到失败也丢了输入。
-//     这里 toast + **不关弹窗**(便于改)。
-//  E) 移出失败:Vue2 只 console.error(:943)。这里补 toast(偏离登记 1)。
-//  F) 建相册:Vue2 成功后 $emit('album-created') 但**没有任何人监听**,用户零反馈(:923)。
-//     这里 toast;409 用相册区已有的重名文案(偏离登记 1)。
-//  G) 建相册默认名:Vue2 :855 用 `this.person.id.slice(0, 8)` —— 后端 id 是数字时
-//     Number.prototype 没有 slice,直接抛 TypeError。这里 String(id).slice(0, 8)。
-//  H) 合并失败:照 Vue2 停在当前页 + finally 关弹窗(已知瑕疵,brief 明确不修)。
-//  I) 背景弹窗的四条 toast(:681,683,694,696):brief 说合成两条,回源核对后发现两个入口
-//     的文案语义确实不同(「重置回关键照片」vs「改成选中的这张」)—— 协调者裁定 3 拍板
-//     **不合并**,补 photosPersonHeroResetToast / photosPersonHeroResetFailed 两键,
-//     按 assetId === null 分流(见 saveHero)。
-//  J) 合并候选池:Vue2 用 allPeople(含未命名)(:517);brief 定为 people.named 排除自身。
-//     照 brief。连带结果:候选名字恒非空(namedOf 保证 name.trim() !== ''),Vue2 :406/410
-//     的 `p.name || $t('Unnamed')` 兜底在这里不可达,不渲染(不是漏渲染)。
-//  K) route watch 加 `params.id === undefined` 短路:删除/合并成功后 router.push 到
-//     /photos/people(无 :id),Vue2 那边是父组件卸载子组件所以 watch 压根不会响;这里
-//     组件常驻,不短路会白发一次 load('undefined')(PhotosAlbumDetail.vue:323 有同款缺口,
-//     那边记账,这里直接堵掉)。
-//  L) 共现横条头像尺寸 72px:brief 写的是 56,回 Vue2 源核对
-//     photos-people.scss:701-703 `.coappear-card .ring { width:72px; height:72px }`,
-//     以源为准(同 T13 的 36px 教训)。
-//  M) 门控从三态扩到四态(协调者裁定 4):Vue2 加载失败只 console.error(:746),视图无法
-//     区分「加载失败」与「没有这个人」,两者都是一片空白。T9 的 failed 标志正是为此而加 ——
-//     这里 failed 单独一支:photosPersonLoadFailed + 重试钮(P4 遗留过一条同类账:详情页
-//     加载失败 → 永久骨架、无错误态无重试,本期不再留)。
+// ── Deliberate deviations from Vue2 (all logged; either the brief requires them or this
+//    sprint's "porting discipline" does) ─────────────────────────────────
+//  A) In Vue2, hero/tab content is one giant component; here it's split into four
+//     subcomponents T10-T13, and the container just wires up emits.
+//  B) Vue2 uses a single promptDialog object to carry four modes: rename/album/detach/info;
+//     here it's split into four independent switches + their own state (following the P3/P4
+//     convention of each dialog drawing itself rather than sharing a common shell; CSS
+//     classes are shared). Vue2's fourth mode, info (:845-851, "no photos available to add to
+//     an album"), isn't on the brief's six-dialog list, but it's a real UI element that exists
+//     in Vue2 — added back as the seventh dialog rather than dropped (logged in the report).
+//  C) Favorite / relation grouping: Vue2 is fire-and-forget with no rollback (:764-768,
+//     :951-955). Here it's an optimistic patch + precise rollback on failure + toast
+//     (disclosures 3/4; the store layer already rethrows).
+//  D) Rename failure: Vue2 only console.errors and closes the dialog anyway (:915-918), so
+//     the user sees no failure and loses their input. Here: toast + **dialog stays open**
+//     (so it's easy to fix).
+//  E) Detach failure: Vue2 only console.errors (:943). Here a toast is added (disclosure 1).
+//  F) Create album: Vue2 emits $emit('album-created') on success but **nobody listens to
+//     it**, so the user gets zero feedback (:923). Here: toast; 409 reuses the existing
+//     duplicate-name copy from the albums area (disclosure 1).
+//  G) Create-album default name: Vue2 :855 uses `this.person.id.slice(0, 8)` — when the
+//     backend id is a number, Number.prototype has no slice, so it throws a TypeError
+//     outright. Here: String(id).slice(0, 8).
+//  H) Merge failure: stays on the current page + closes the dialog in finally, following
+//     Vue2 (a known flaw the brief explicitly says not to fix).
+//  I) The hero dialog's four toasts (:681, 683, 694, 696): the brief said to merge them into
+//     two, but checking back against the source found the two entry points' copy genuinely
+//     differs in meaning ("reset back to the key photo" vs "change to this selected one") —
+//     the coordinator's ruling 3 decided **not to merge them**, adding two keys instead,
+//     photosPersonHeroResetToast / photosPersonHeroResetFailed, branching on
+//     assetId === null (see saveHero).
+//  J) Merge candidate pool: Vue2 uses allPeople (including unnamed) (:517); the brief
+//     specifies people.named excluding self. Followed the brief. Side effect: candidate
+//     names are always non-empty (namedOf guarantees name.trim() !== ''), so Vue2's
+//     :406/410 fallback `p.name || $t('Unnamed')` is unreachable here and doesn't render
+//     (not a missing render).
+//  K) Added a `params.id === undefined` short-circuit to the route watch: after a successful
+//     delete/merge, router.push goes to /photos/people (no :id); in Vue2 the parent
+//     component unmounts the child so the watch never fires at all; here the component stays
+//     mounted, so without the short-circuit it would fire a wasted load('undefined')
+//     (PhotosAlbumDetail.vue:323 has the same gap, logged there; plugged directly here).
+//  L) Co-occurrence strip avatar size 72px: the brief says 56; checked back against the Vue2
+//     source, photos-people.scss:701-703 `.coappear-card .ring { width:72px; height:72px }`
+//     — went with the source (same lesson as T13's 36px).
+//  M) Gating expanded from three states to four (coordinator's ruling 4): Vue2 only
+//     console.errors on load failure (:746); the view can't tell "load failed" apart from
+//     "this person doesn't exist" — both are a blank screen. T9's failed flag was added
+//     specifically for this — here failed gets its own branch:
+//     photosPersonLoadFailed + a retry button (P4 left a similar item on record: the detail
+//     page's load-failure path had a permanent skeleton with no error state and no retry;
+//     not repeating that this sprint).
 //
-// ── 身份守卫(终审 Important 3;与 in-flight 重入守卫是两件不同的事)────────────
-//  in-flight 守卫(favBusy/renaming/…)防的是「同一个人物上连点两次」;身份守卫防的是
-//  「请求在途期间用户换人了,晚到的响应把 A 的数据写到 B 上」。T9 的 seq 只保护 load()
-//  自己的回写(过期响应丢弃),容器方向此前完全没有对应机制。
+// ── Identity guard (final review Important 3; a different thing from the in-flight
+//    reentry guard) ──────────────────────────────────────────────────────
+//  The in-flight guard (favBusy/renaming/…) protects against "double-clicking the same
+//  person's action twice." The identity guard protects against "the user switched to a
+//  different person while a request was in flight, and the late response writes A's data
+//  onto B." T9's seq only protects load()'s own write-back (stale responses get discarded);
+//  the container side previously had no equivalent mechanism at all.
 //
-//  确定复现路径:人物 A 页 → 改名「张三」→ PATCH 在途 → **按浏览器后退键**(hash 路由,
-//  不必点穿遮罩)→ route watch(见文件末尾)加载 B → B 就绪 → A 的 PATCH 才 resolve →
-//  无守卫时 patchPerson({name:'张三'}) 命中的是 **B**:B 的 hero 姓名/顶栏/建相册默认名
-//  全变成「张三」,刷新才恢复。收藏/关系分组的**失败回滚**同理会把 A 的旧值写到 B 上,
-//  并在 B 的页面上弹属于 A 的失败 toast。
+//  Confirmed repro path: person A's page → rename to "Zhang San" → PATCH in flight →
+//  **press the browser back button** (hash routing, no need to click through the overlay)
+//  → the route watch (see end of file) loads B → B is ready → *then* A's PATCH resolves →
+//  without a guard, patchPerson({name:'Zhang San'}) lands on **B**: B's hero name / header /
+//  create-album default name all become "Zhang San," and only a refresh fixes it. The
+//  **rollback-on-failure** path for favorite/relation grouping has the same problem: it
+//  writes A's old value onto B, and pops A's failure toast on B's page.
 //
-//  机制:每条动作在发请求**之前**同步抓一份 `const myId = personId.value`,后续所有
-//  写回一律走 `detail.patchPerson(patch, myId)`(第二参必填,类型强制)/ `detail.isCurrent(myId)`。
-//  patchPerson 返回 false ⇒「已经切人了」⇒ 连 toast 一起放弃。id 比较在 composable 内部
-//  统一走 String() 归一(铁律 4)。
+//  Mechanism: every action synchronously grabs `const myId = personId.value`
+//  **before** sending its request; every write-back afterward goes through
+//  `detail.patchPerson(patch, myId)` (second argument required, enforced by the type) /
+//  `detail.isCurrent(myId)`. If patchPerson returns false ⇒ "already switched to someone
+//  else" ⇒ the toast is dropped too. Id comparisons are normalized via String() uniformly
+//  inside the composable (hard rule 4).
 //
-// ── Esc 分层(P4 终审同款,七个弹窗全覆盖)────────────────────────────────────
-//  本页挂着 PhotoLightbox,它在 **window** 上挂 keydown(PhotoLightbox.vue:144)。弹窗的
-//  Esc 一律 **document** 级 + watch(anyDialogOpen) 挂/摘,分支内**必须** e.stopPropagation()
-//  —— 原生 keydown 冒泡顺序是 document 先于 window,不挡住就一次 Esc 关两层。
-//  逐字参考 AlbumPickerDialog.vue:70-100。没有弹窗打开时监听整个摘掉,Esc 照常关灯箱。
+// ── Esc layering (same as P4's final review, covering all seven dialogs) ───────────
+//  This page hosts a PhotoLightbox, which attaches its keydown listener on **window**
+//  (PhotoLightbox.vue:144). Dialogs' Esc handling is always attached/detached at the
+//  **document** level via watch(anyDialogOpen), and the branch **must** call
+//  e.stopPropagation() — native keydown bubbling order runs document before window, so
+//  without blocking it, one Esc press closes both layers.
+//  Copied verbatim from AlbumPickerDialog.vue:70-100. When no dialog is open the listener is
+//  removed entirely, so Esc still closes the lightbox as normal.
 //
-// ── 配色 ────────────────────────────────────────────────────────────────────
-//  面板底一律 var(--popup-bg)(不是 --card-bg:深色主题下近透明会看穿 —— P2 血泪)。
-//  用到的每个 token 都已在 theme.css 两套主题块里确认存在;--line / --accent-hi /
-//  --surface-* / --text-* / --ink 在本仓不存在,分别代以 --divider/--card-border /
-//  --accent-text / --card,--panel-bg,--chip-bg / --fg,--fg-muted,--fg-subtle。
-//  不使用 --on-accent,除了「主按钮」这一处 —— 它的底色是 var(--accent) 饱和实底,
-//  正是 --on-accent 唯一合法的前提场景。
+// ── Colors ─────────────────────────────────────────────────────────────────
+//  Panel background is always var(--popup-bg) (not --card-bg: it's nearly transparent in
+//  the dark theme and you can see through it — a P2 lesson learned the hard way). Every
+//  token used here has been confirmed to exist in both theme blocks in theme.css;
+//  --line / --accent-hi / --surface-* / --text-* / --ink don't exist in this repo, so they're
+//  replaced respectively with --divider/--card-border / --accent-text /
+//  --card, --panel-bg, --chip-bg / --fg, --fg-muted, --fg-subtle.
+//  --on-accent is not used anywhere except the "primary button" — its background is
+//  var(--accent) as a saturated solid fill, exactly the one legitimate precondition for
+//  --on-accent.
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -129,16 +166,17 @@ const toast = useToast()
 const lb = useLightbox()
 const detail = usePersonDetail()
 
-// 铁律 1:唯一的归一点。
+// Hard rule 1: the single normalization point.
 const personId = computed(() => String(route.params.id))
 
-// ── 本地状态 ────────────────────────────────────────────────────────────────
+// ── Local state ─────────────────────────────────────────────────────────────
 const tab = ref<Tab>('timeline')
-// 隐式选择态(照 Vue2 :488-489):有任意一张被选中就是选择态,没有独立的"进入选择模式"按钮。
+// Implicit selection mode (following Vue2 :488-489): selecting any single item counts as
+// selection mode — there's no separate "enter selection mode" button.
 const selectedIds = ref<Array<string | number>>([])
 const selectionMode = computed(() => selectedIds.value.length > 0)
 
-// 弹窗 1:改名
+// Dialog 1: rename
 const renameOpen = ref(false)
 const renameInput = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
@@ -150,28 +188,32 @@ const renameInputRef = ref<HTMLInputElement | null>(null)
 const dupConfirmOpen = ref(false)
 const dupConfirmName = ref('')
 const dupConfirmExisting = ref<Person | null>(null)
-// 弹窗 2:建相册(+ 弹窗 7:没有照片可用的提示,照 Vue2 promptDialog 的 info 模式)
+// Dialog 2: create album (+ dialog 7: no-photos-available notice, following Vue2's
+// promptDialog info mode)
 const albumOpen = ref(false)
 const albumInput = ref('')
 const albumIds = ref<Array<string | number>>([])
 const albumInputRef = ref<HTMLInputElement | null>(null)
 const noPhotosOpen = ref(false)
-// 弹窗 3:移出确认
+// Dialog 3: detach confirm
 const detachOpen = ref(false)
 const detachIds = ref<Array<string | number>>([])
-// 弹窗 4:删除人物确认
+// Dialog 4: delete person confirm
 const deleteOpen = ref(false)
-// 弹窗 5:背景选择(宽弹窗)
+// Dialog 5: hero picker (wide dialog)
 const heroOpen = ref(false)
 const heroSelectedId = ref<string | number | null>(null)
-// 弹窗 6:合并到他人
+// Dialog 6: merge into another person
 const mergeOpen = ref(false)
 const mergeQuery = ref('')
 const mergeTarget = ref<Person | null>(null)
 
-// in-flight 重入守卫。**只给真的有防护价值的路径加**(判断依据逐条写在各自的函数注释里):
-// 删除人物 / 移出资产两条是纯同步提交路径(弹窗在 await 之前就已关闭),守卫会是装饰性的,
-// 刻意不加(T7/T8 的教训:装饰性 ref 只会让人误以为那里有保护)。
+// In-flight reentry guards. **Only added on paths that actually earn their protective
+// value** (the rationale for each is written in that function's own comment): delete
+// person / detach assets are both purely synchronous submit paths (the dialog closes
+// before the await), so a guard there would be purely decorative — deliberately omitted
+// (the T7/T8 lesson: a decorative ref only fools people into thinking there's protection
+// there).
 const favBusy = ref(false)
 const relationBusy = ref(false)
 const renaming = ref(false)
@@ -180,18 +222,23 @@ const heroSaving = ref(false)
 const merging = ref(false)
 const albumSaving = ref(false)
 
-// 灯箱「加入相册」→ 复用 T5 的选择面板(它自带 document 级 Esc + stopPropagation)。
+// Lightbox "add to album" → reuses T5's picker panel (which already carries its own
+// document-level Esc + stopPropagation).
 const albumPickerOpen = ref(false)
 const albumPickerIds = ref<Array<string | number>>([])
 
-// ── 派生数据 ────────────────────────────────────────────────────────────────
-// Vue2 :530-532 —— 共现横条按 count 降序(不改动 detail.relations 本身)。
+// ── Derived data ──────────────────────────────────────────────────────────
+// Vue2 :530-532 — the co-occurrence strip sorts by count descending (without mutating
+// detail.relations itself).
 const sortedRelations = computed(() => [...detail.relations.value].sort((a, b) => b.count - a.count))
-// 地点 tab 自己算分组;关系 tab 要的 PlaceGroup[] 由容器算好传下去(T13 契约)。
+// The places tab computes its own grouping; the relations tab's PlaceGroup[] is computed by
+// the container and passed down (T13 contract).
 const placeGroups = computed(() => groupPlaces(detail.places.value, t('photosPersonUnknownPlace')))
-// 未裁剪的全量照片:灯箱翻页集(照 Vue2 :878)与背景选择网格(照 :510-512)共用。
+// Uncropped full photo set: shared by the lightbox's paging set (following Vue2 :878) and
+// the hero picker grid (following :510-512).
 const allPhotos = computed<Photo[]>(() => detail.flatPhotos())
-// Vue2 :165-166,:241,:887 共用的兜底:名字为空时用"这个人"。
+// Shared fallback from Vue2 :165-166, :241, :887: falls back to "this person" when the name
+// is empty.
 const displayName = computed(() => detail.person.value?.name || t('photosPersonThisPerson'))
 
 // Plan D Task 3 (re-skin): PhotosTopbar's detail-state copy, matched verbatim against Vue2's
@@ -202,9 +249,10 @@ const displayName = computed(() => detail.person.value?.name || t('photosPersonT
 // T2/PhotosPeople.vue's topbarSub).
 const topbarTitle = computed(() => detail.person.value?.name || t('photosPersonUnnamedTitle'))
 
-// 合并候选(偏离登记 J):named 排除自身 → count 降序、同 count 按 name 升序(排序同 T7
-// ClusterActionDialog.vue:85-92)→ 搜索过滤 → **不截断**(照 Vue2 详情页 :515-520;
-// T7 那个弹窗才有 6/8 的截断)。
+// Merge candidates (disclosure J): named, excluding self → sort by count descending, then
+// by name ascending on tied count (same sort as T7 ClusterActionDialog.vue:85-92) → search
+// filter → **not truncated** (following the Vue2 detail page :515-520; only the T7 dialog
+// has the 6/8 truncation).
 const mergeCandidates = computed(() => {
   const pool = people.named.filter((p) => String(p.id) !== personId.value)
   const sorted = [...pool].sort((a, b) => (b.count !== a.count ? b.count - a.count : a.name.localeCompare(b.name)))
@@ -212,7 +260,7 @@ const mergeCandidates = computed(() => {
   return q ? sorted.filter((p) => p.name.toLowerCase().includes(q)) : sorted
 })
 
-// ── 弹窗开关 ────────────────────────────────────────────────────────────────
+// ── Dialog switches ─────────────────────────────────────────────────────────
 function closeAllDialogs(): void {
   renameOpen.value = false
   dupConfirmOpen.value = false
@@ -233,7 +281,8 @@ function closeAllDialogs(): void {
 function openRename(): void {
   renameInput.value = detail.person.value?.name ?? ''
   renameOpen.value = true
-  // 照 Vue2 :780 的 $nextTick(focusDialogInput):focus + select,方便直接改名。
+  // Following Vue2 :780's $nextTick(focusDialogInput): focus + select, so you can rename
+  // directly.
   void nextTick(() => {
     renameInputRef.value?.focus()
     renameInputRef.value?.select()
@@ -241,7 +290,8 @@ function openRename(): void {
 }
 function closeRename(): void { renameOpen.value = false }
 
-// 照 Vue2 onMakeAlbum :841-867 —— 没有照片时弹 info 提示,不进创建流程。
+// Following Vue2 onMakeAlbum :841-867 — pops the info notice instead of entering the create
+// flow when there are no photos.
 function openMakeAlbum(): void {
   const p = detail.person.value
   if (!p) return
@@ -251,7 +301,7 @@ function openMakeAlbum(): void {
     return
   }
   albumIds.value = ids
-  // 偏离登记 G:String(p.id) 再 slice —— 数字 id 也不炸。
+  // Disclosure G: String(p.id) then slice — doesn't blow up on a numeric id either.
   albumInput.value = p.name.trim() ? p.name : t('photosPersonAlbumNameFallback', { id: String(p.id).slice(0, 8) })
   albumOpen.value = true
   void nextTick(() => {
@@ -261,7 +311,7 @@ function openMakeAlbum(): void {
 }
 function closeAlbum(): void { albumOpen.value = false }
 
-// 照 Vue2 openDetachDialog :884-897(空数组直接不开)。
+// Following Vue2 openDetachDialog :884-897 (an empty array simply doesn't open it).
 function openDetach(ids: Array<string | number>): void {
   if (!detail.person.value || !ids.length) return
   detachIds.value = [...ids]
@@ -275,15 +325,20 @@ function closeDetach(): void {
 function openDelete(): void { deleteOpen.value = true }
 function closeDelete(): void { deleteOpen.value = false }
 
-// 照 Vue2 onOpenHeroDialog :665-672 —— 打开时预选当前 heroAssetId。
-// 评审 Minor 7:原来用 `?? null` 只挡 null/undefined,但「无 hero」发给后端的值是**空串**
-// (people.ts:194 `heroAssetId: assetId ?? ''`)。若后端原样回吐 `''`,`?? null` 会让
-// heroSelectedId 变成 `''` —— 网格里没有任何瓦片高亮(没有 id 为空串的照片),而保存钮的
-// disabled 条件 `heroSelectedId === null` 却是 false,于是「看不出选了谁但保存钮可点」,
-// 点下去把空串再发一遍还 toast「背景已更新」。这里改成真值判断(照 Vue2 :667 的
-// `person.heroAssetId ? … : null`),但**显式只排除 null/undefined/''**,不用 `||` ——
-// 后者会把数字 id `0` 也当成"没有 hero"(与 people.ts:186-192 已登记的同一条推理一致:
-// falsy 的 id 可能是合法 id,不该被静默清空)。
+// Following Vue2 onOpenHeroDialog :665-672 — preselects the current heroAssetId when
+// opened.
+// Review Minor 7: the original used `?? null`, which only blocks null/undefined, but the
+// value sent to the backend for "no hero" is an **empty string**
+// (people.ts:194 `heroAssetId: assetId ?? ''`). If the backend echoes back `''` verbatim,
+// `?? null` would set heroSelectedId to `''` — no tile in the grid highlights (there's no
+// photo whose id is an empty string), yet the save button's disabled condition
+// `heroSelectedId === null` is still false, so "you can't tell what's selected but the save
+// button is clickable" — clicking it re-sends the empty string and still toasts "hero
+// updated." Changed here to a truthiness check (following Vue2 :667's
+// `person.heroAssetId ? … : null`), but **explicitly excluding only null/undefined/''**,
+// not using `||` — the latter would also treat the numeric id `0` as "no hero" (same
+// reasoning already logged at people.ts:186-192: a falsy id can be a legitimate id and
+// shouldn't be silently cleared).
 function openHeroPicker(): void {
   const h = detail.person.value?.heroAssetId
   heroSelectedId.value = (h === null || h === undefined || h === '') ? null : h
@@ -294,7 +349,7 @@ function closeHeroPicker(): void {
   heroSelectedId.value = null
 }
 
-// 照 Vue2 openMergeDialog :701-711。
+// Following Vue2 openMergeDialog :701-711.
 function openMerge(): void {
   if (!people.peopleLoaded) void people.fetchPeople()
   mergeQuery.value = ''
@@ -307,23 +362,26 @@ function closeMerge(): void {
   mergeTarget.value = null
 }
 
-// ── 九条动作 ────────────────────────────────────────────────────────────────
+// ── The nine actions ──────────────────────────────────────────────────────
 
-// 1) 收藏切换(Vue2 :764-768 + 偏离登记 3)。
-// 守卫判断:hero 上的星标按钮在请求在途期间**一直可点**,连点会打出两次相反的 PATCH,
-// 后到的响应决定最终值 —— 真实竞态,守卫有防护价值。
+// 1) Toggle favorite (Vue2 :764-768 + disclosure 3).
+// Guard rationale: the star button on the hero stays clickable **the whole time a request
+// is in flight**, so double-clicking fires two opposite PATCHes and the later response
+// wins — a real race, so the guard earns its value.
 async function onToggleFav(): Promise<void> {
   const p = detail.person.value
   if (!p || favBusy.value) return
   favBusy.value = true
   const next = !p.favorite
-  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
+  const myId = personId.value                    // Identity guard, see the "Identity guard" section
   detail.patchPerson({ favorite: next }, myId)
   try {
     await people.setPersonFavorite(myId, next)
   } catch {
-    // patchPerson 返回 false = 请求在途期间已经切到别人页了:回滚与 toast 都属于上一位人物,
-    // 一起放弃(否则把 A 的旧值写进 B、还在 B 的页面上弹 A 的失败提示)。
+    // patchPerson returning false = we already switched to another person's page while the
+    // request was in flight: the rollback and the toast both belong to the previous person,
+    // so drop both together (otherwise A's old value gets written into B, and A's failure
+    // notice pops on B's page).
     if (!detail.patchPerson({ favorite: !next }, myId)) return
     toast.show(t('photosPersonFavFailed'))
   } finally {
@@ -331,14 +389,15 @@ async function onToggleFav(): Promise<void> {
   }
 }
 
-// 2) 关系分组(Vue2 :951-955 + 偏离登记 4)。
-// 守卫判断:选完一项菜单会关,但用户可以立刻再打开菜单选另一项 —— 与收藏同款竞态,守卫有效。
+// 2) Relation grouping (Vue2 :951-955 + disclosure 4).
+// Guard rationale: the menu closes after picking an item, but the user can immediately
+// reopen it and pick another — the same race as favorites, so the guard is effective.
 async function onPickRelation(relation: string): Promise<void> {
   const p = detail.person.value
   if (!p || relationBusy.value) return
   relationBusy.value = true
   const prev = p.relation
-  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
+  const myId = personId.value                    // Identity guard, see the "Identity guard" section
   detail.patchPerson({ relation }, myId)
   try {
     await people.setPersonRelation(myId, relation)
@@ -353,20 +412,23 @@ async function onPickRelation(relation: string): Promise<void> {
 // 3) Rename (Vue2 :910-918 + deviation D). applyRename is the actual submit — shared by both the
 // naming path and dupNameAnyway (mirroring how Vue2's confirmDialog rename branch :1031 and
 // nameAnywayDupConfirm :1009 share one applyRename helper function).
-// 守卫判断:失败路径**不关弹窗**(这是有意的),所以确认按钮在请求在途期间仍在 DOM 上且可点
-// —— 连点会发两次 PATCH,守卫有防护价值。
+// Guard rationale: the failure path **doesn't close the dialog** (deliberate), so the
+// confirm button is still in the DOM and clickable while the request is in flight —
+// double-clicking would fire two PATCHes, so the guard earns its value.
 async function applyRename(name: string): Promise<void> {
   if (renaming.value) return
   renaming.value = true
-  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
+  const myId = personId.value                    // Identity guard, see the "Identity guard" section
   try {
     await people.renamePerson(myId, name)
-    // 已经切到别人页了:名字属于上一位人物,不写、也不动弹窗(弹窗早被 closeAllDialogs 关了)。
+    // Already switched to another person's page: the name belongs to the previous person,
+    // so don't write it and don't touch the dialog (closeAllDialogs already closed it long
+    // ago).
     if (!detail.patchPerson({ name }, myId)) return
     closeRename()
   } catch {
     if (!detail.isCurrent(myId)) return
-    toast.show(t('photosPersonRenamedFailed'))    // 弹窗保持打开
+    toast.show(t('photosPersonRenamedFailed'))    // Dialog stays open
   } finally {
     renaming.value = false
   }
@@ -422,47 +484,59 @@ async function dupMergeIntoExisting(): Promise<void> {
   await confirmMerge()
 }
 
-// 4) 设为关键照片(Vue2 onSetKeyPhoto :642-662)。
-// 守卫判断:成功后才退出选择态(await 之后),在途期间浮动条与按钮都还在 —— 守卫有防护价值。
+// 4) Set key photo (Vue2 onSetKeyPhoto :642-662).
+// Guard rationale: selection mode only exits on success (after the await), so the floating
+// bar and its buttons are still there while the request is in flight — the guard earns its
+// value.
 async function onSetKeyPhoto(): Promise<void> {
   if (selectedIds.value.length !== 1 || !detail.person.value || keyPhotoBusy.value) return
   const assetId = selectedIds.value[0]
   keyPhotoBusy.value = true
-  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
+  const myId = personId.value                    // Identity guard, see the "Identity guard" section
   try {
     const coverFaceId = await people.setPersonCover(myId, assetId)
-    // 头像/hero 背景的 URL 都把 coverFaceId 当 ?v= 用,patch 后自动 cache-bust(Vue2 :648-652)。
-    // 评审必修 1:**必须**区分 undefined(后端响应里没带这个字段 → 保持本地原值)与
-    // 显式 null(后端要求清空封面 → 写 null)。无条件 patch 的话,后端返回 `200 {}` 时
-    // 本地 coverFaceId 会被抹成 null,PersonHero.vue:76 的 isFallback 立刻为真 ——
-    // hero 大图退成渐变、200px 头像退成首字母,刷新才恢复。Vue2 :648-652 是从 store 列表
-    // 读值,字段缺席时读到的就是原值,同样不会退化。
-    // 身份守卫:patch 本身是有条件的(见上),所以这里用 isCurrent 单独把 toast/清选择态
-    // 一起挡在门外 —— 属于上一位人物的成功提示不该弹在新页面上。
+    // Both the avatar URL and the hero background URL use coverFaceId as ?v=, so the patch
+    // auto cache-busts them (Vue2 :648-652).
+    // Review Must-fix 1: it's **essential** to distinguish undefined (the backend response
+    // didn't include this field → keep the local value as-is) from an explicit null (the
+    // backend wants the cover cleared → write null). An unconditional patch would mean that
+    // when the backend returns `200 {}`, the local coverFaceId gets wiped to null,
+    // PersonHero.vue:76's isFallback immediately becomes true — the big hero image falls
+    // back to a gradient and the 200px avatar falls back to an initial, and only a refresh
+    // recovers. Vue2 :648-652 reads the value from the store list instead, where a missing
+    // field just reads back the original value, so it doesn't degrade either.
+    // Identity guard: the patch itself is already conditional (see above), so isCurrent is
+    // used separately here to gate the toast/clearing selection together — a success notice
+    // belonging to the previous person shouldn't pop on the new page.
     if (!detail.isCurrent(myId)) return
     if (coverFaceId !== undefined) detail.patchPerson({ coverFaceId }, myId)
     toast.show(t('photosPersonKeyPhotoToast'))
     selectedIds.value = []
   } catch (e) {
     if (!detail.isCurrent(myId)) return
-    // 404 是后端专门表达"这张照片里没有这个人的脸",必须与其它失败分成两句(Vue2 :656-657)。
+    // 404 specifically means "this person's face isn't in this photo," and it must be split
+    // into its own copy separate from other failures (Vue2 :656-657).
     toast.show(isNotFound(e) ? t('photosPersonKeyPhotoNoFace') : t('photosPersonKeyPhotoFailed'))
   } finally {
     keyPhotoBusy.value = false
   }
 }
 
-// 5) 保存背景(Vue2 onUseKeyPhoto :675-685 / onSaveHero :688-698,偏离登记 I)。
-// 守卫判断:成功才关弹窗(await 之后),在途期间两个按钮都还可点 —— 守卫有防护价值。
-// 两个入口共用一个 heroSaving:它们互不调用(不会像 T5 submitCreate→pick 那样被自己的守卫误伤)。
-// 文案分流(协调者裁定 3):两个入口在 Vue2 里各有一对**语义不同**的文案 ——「重置回关键
-// 照片」与「改成选中的这张」,不合并。assetId === null 恰好就是「使用关键照片」这条入口
-// (onSaveHero 只在 heroSelectedId 非 null 时才调用),用它做分流不需要额外参数。
+// 5) Save hero (Vue2 onUseKeyPhoto :675-685 / onSaveHero :688-698, disclosure I).
+// Guard rationale: the dialog only closes on success (after the await), so both buttons
+// stay clickable while the request is in flight — the guard earns its value.
+// Both entry points share a single heroSaving: they never call each other (so this doesn't
+// get bitten by its own guard the way T5's submitCreate→pick did).
+// Copy branching (coordinator's ruling 3): in Vue2 the two entry points each have a pair of
+// **semantically different** strings — "reset back to the key photo" vs "change to this
+// selected one" — not merged. assetId === null happens to be exactly the "use key photo"
+// entry point (onSaveHero only ever calls this when heroSelectedId is non-null), so using
+// it to branch needs no extra parameter.
 async function saveHero(assetId: string | number | null): Promise<void> {
   if (!detail.person.value || heroSaving.value) return
   heroSaving.value = true
   const isReset = assetId === null
-  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
+  const myId = personId.value                    // Identity guard, see the "Identity guard" section
   try {
     await people.setPersonHero(myId, assetId)
     if (!detail.patchPerson({ heroAssetId: assetId }, myId)) return
@@ -481,38 +555,48 @@ function onSaveHero(): void {
   void saveHero(heroSelectedId.value)
 }
 
-// 6) 合并到他人(Vue2 confirmMerge :715-727)。
-// 守卫判断:弹窗在 finally 才关(await 之后),在途期间确认按钮可点 —— 守卫有防护价值。
+// 6) Merge into another person (Vue2 confirmMerge :715-727).
+// Guard rationale: the dialog only closes in finally (after the await), and the confirm
+// button is clickable while the request is in flight — the guard earns its value.
 async function confirmMerge(): Promise<void> {
   const target = mergeTarget.value
   if (!target || !detail.person.value || merging.value) return
   merging.value = true
   try {
     await people.mergePersonInto(personId.value, target.id)
-    // P8a-T10:与 PhotosPeople.vue 的合并 toast 同一兜底,目标未命名时不渲染成「已合并到「」」。
-    // 注:mergeCandidates(:184-188)只取 people.named,name.trim() 恒非空(偏离登记 J);
-    // target 又是候选点击时捕获的对象引用,confirm 前的任何 store 写(patchPerson/fetchPeople)
-    // 都是整体替换而非原地改,不会回写到这个引用上——按当前接线这条兜底分支不可达,纯防御性
-    // 补齐(与另外两处保持一致,防未来候选池放开到含未命名时悄悄回归空书名号)。
+    // P8a-T10: the same fallback as PhotosPeople.vue's merge toast, so an unnamed target
+    // doesn't render as 'merged into ""'.
+    // Note: mergeCandidates (:184-188) only draws from people.named, so name.trim() is
+    // always non-empty (disclosure J); and target is the object reference captured when the
+    // candidate was clicked — any store write before confirm (patchPerson/fetchPeople)
+    // replaces the whole object rather than mutating it in place, so it never writes back
+    // onto this reference. Given the current wiring, this fallback branch is unreachable —
+    // pure defensive completeness (kept consistent with the other two spots, in case the
+    // candidate pool is ever opened up to include unnamed people and the empty quotes
+    // silently come back).
     toast.show(t('photosPersonMergedToast', { name: target.name || t('photosPersonMergeAsSame') }))
-    void router.push('/photos/people')            // Vue2 是 $emit('back')
+    void router.push('/photos/people')            // Vue2 uses $emit('back')
   } catch {
-    toast.show(t('photosPersonMergeFailed'))      // 偏离登记 H:停在当前页(照 Vue2)
+    toast.show(t('photosPersonMergeFailed'))      // Disclosure H: stays on the current page (following Vue2)
   } finally {
     merging.value = false
-    closeMerge()                                  // 成功失败都关(照 Vue2 :726)
+    closeMerge()                                  // Closes on both success and failure (following Vue2 :726)
   }
 }
 
-// 7) 删除人物(Vue2 confirmDeletePerson :959-972)。
-// 守卫判断:**不需要**独立守卫。purgePersonWithUndo 是同步函数(T2 store:217,返回 undo 闭包
-// 而不是 promise),整条路径没有 await —— 关弹窗发生在同一个同步块内,确认按钮在第二次点击
-// 到来之前就已从 DOM 上消失,加 ref 只是装饰。真实防护机制 = 同步关闭弹窗(有测试钉住)。
+// 7) Delete person (Vue2 confirmDeletePerson :959-972).
+// Guard rationale: **no** independent guard needed. purgePersonWithUndo is a synchronous
+// function (T2 store:217, returns an undo closure rather than a promise) — the whole path
+// has no await, so the dialog closes within the same synchronous block, and the confirm
+// button is already gone from the DOM before a second click could arrive; adding a ref
+// would be purely decorative. The real protection mechanism = synchronously closing the
+// dialog (pinned down by a test).
 function confirmDeletePerson(): void {
   const p = detail.person.value
   if (!p) return
-  // 终审 Important 4:引号风格与列表页统一为 ASCII 双引号 —— Vue2 两处
-  // (PhotosPersonDetail.vue:962 / PhotosPeopleView.vue:665)都是 `"${name}"`,已回源核对。
+  // Final review Important 4: quote style unified with the list page to ASCII double
+  // quotes — both Vue2 spots (PhotosPersonDetail.vue:962 / PhotosPeopleView.vue:665) use
+  // `"${name}"`, checked back against the source.
   const label = p.name.trim() ? `"${p.name.trim()}"` : t('photosPersonUnnamedLabel')
   const undo = people.purgePersonWithUndo(personId.value)
   closeDelete()
@@ -523,15 +607,18 @@ function confirmDeletePerson(): void {
   })
 }
 
-// 8) 移出资产(Vue2 confirmDialog 的 detach 分支 :928-946 + 偏离登记 E)。
-// 守卫判断:**不需要**独立守卫。乐观更新 + 关弹窗 + 退出选择态全部在发请求**之前**同步完成,
-// 确认按钮在第二次点击到来之前就已不在 DOM 上。真实防护机制 = 同步关闭弹窗(有测试钉住)。
+// 8) Detach assets (Vue2 confirmDialog's detach branch :928-946 + disclosure E).
+// Guard rationale: **no** independent guard needed. The optimistic update + closing the
+// dialog + exiting selection mode all complete synchronously **before** the request is
+// sent, so the confirm button is already off the DOM before a second click could arrive.
+// The real protection mechanism = synchronously closing the dialog (pinned down by a
+// test).
 async function confirmDetach(): Promise<void> {
   const p = detail.person.value
   const ids = [...detachIds.value]
   if (!p || !ids.length) return
-  const myId = personId.value                     // 身份守卫,见"身份守卫"小节
-  detail.removePhotosLocally(ids)                 // 先乐观(同步,在 await 之前,不会串页)
+  const myId = personId.value                     // Identity guard, see the "Identity guard" section
+  detail.removePhotosLocally(ids)                 // Optimistic first (synchronous, before the await, so it can't cross pages)
   selectedIds.value = []
   closeDetach()
   try {
@@ -540,15 +627,19 @@ async function confirmDetach(): Promise<void> {
     console.error('[person-detail] detach', e)
     if (detail.isCurrent(myId)) toast.show(t('photosPersonDetachFailed'))
   } finally {
-    // 无论成败都重新对账(照 Vue2 :941 与 :945 两个分支都 loadPerson)。身份守卫:已经切到
-    // 别人页时不再对账 —— 那会把刚加载好的 B 清空重拉一次(可见闪烁 + 一次多余请求)。
+    // Reconciles regardless of success or failure (following Vue2 :941 and :945, both
+    // branches call loadPerson). Identity guard: skip reconciling once we've already
+    // switched to another person's page — that would clear and re-fetch B, which just
+    // finished loading (visible flicker + one wasted request).
     if (detail.isCurrent(myId)) void detail.load(myId)
   }
 }
 
-// 9) 建相册(Vue2 confirmDialog 的 album 分支 :919-927 + 偏离登记 F)。
-// 守卫判断:成功才关弹窗(await 之后),在途期间确认按钮可点,且 createAlbum 有持久副作用
-// (连点真会建出两个同名相册,第二个还会 409)—— 守卫有防护价值。
+// 9) Create album (Vue2 confirmDialog's album branch :919-927 + disclosure F).
+// Guard rationale: the dialog only closes on success (after the await), the confirm button
+// is clickable while the request is in flight, and createAlbum has a persistent side
+// effect (double-clicking really would create two albums with the same name, and the
+// second one would also get a 409) — the guard earns its value.
 async function confirmCreateAlbum(): Promise<void> {
   const name = albumInput.value.trim()
   if (!name || albumSaving.value) return
@@ -582,9 +673,9 @@ async function onHidePerson(): Promise<void> {
   }
 }
 
-// ── 网格 / 灯箱 / 导航接线 ──────────────────────────────────────────────────
-// T11 已在组件内部做了 selectionMode 分支(选择态 → toggle-select,否则 → open),
-// 这里只接住两个 emit。
+// ── Grid / lightbox / navigation wiring ─────────────────────────────────────
+// T11 already branches on selectionMode internally (selection mode → toggle-select,
+// otherwise → open); this just wires up the two emits.
 function toggleSelect(id: string | number): void {
   const i = selectedIds.value.findIndex((x) => String(x) === String(id))
   if (i >= 0) selectedIds.value.splice(i, 1)
@@ -592,13 +683,15 @@ function toggleSelect(id: string | number): void {
 }
 function exitSelectionMode(): void { selectedIds.value = [] }
 
-// 照 Vue2 :878 —— 翻页集是**未裁剪的全量**(网格每月只渲 16 张,灯箱能翻到全部)。
+// Following Vue2 :878 — the paging set is the **uncropped full set** (the grid only renders
+// 16 per month, but the lightbox can page through all of them).
 function onTileClick(p: Photo): void {
   lb.openAt(p, allPhotos.value, 0)
 }
 
 async function onLightboxDelete(assetId: string | number): Promise<void> {
-  // 照 PhotosAlbumDetail.vue:275-283:读 deleteAssets 的真实成功计数,4000ms 时长(P3 定的)。
+  // Following PhotosAlbumDetail.vue:275-283: reads deleteAssets' real success count,
+  // 4000ms duration (set by P3).
   const n = await timeline.deleteAssets([String(assetId)])
   toast.show(t('photosDeletedToast', { count: n }), 4000)
   void detail.load(personId.value)
@@ -608,19 +701,25 @@ function openAlbumPicker(ids: Array<string | number>): void {
   albumPickerOpen.value = true
 }
 
-// 具名函数(照 PhotosAlbumDetail.vue:215-217):模板里内联 router.push 会把 promise 挂在事件
-// 处理器上不管,导航被取消/重复时 reject 没人接住。
+// Named function (following PhotosAlbumDetail.vue:215-217): an inline router.push in the
+// template leaves its promise dangling on the event handler unhandled, so a rejection from
+// a cancelled/duplicate navigation has nothing to catch it.
 function goToPeopleList(): void { void router.push('/photos/people') }
 
-// 加载失败态的重试(协调者裁定 4)。
-// 评审 Minor 3(自我修正):原实现在这里加了 `if (detail.loading.value) return` 短路、模板上
-// 又加了 `:disabled="detail.loading.value"` —— 两层**都不可达**:门控分支②的前提本就是
-// `!loading`,按钮只在 loading 为 false 时才存在,所以 `:disabled` 恒为 false;而
-// `detail.load()` 在 await 之前就同步置 loading=true,门控当帧把这个按钮整个卸载掉,
-// 第二次点击根本无处可点。两层拿掉后测试仍全绿 —— 这正是 T7/T8 定过性的「装饰性守卫」,
-// 按本期纪律删掉,不留下让人误以为此处有保护的代码。
-// **真实防护机制 = 门控切换把按钮卸载**(有测试钉住:点一次后按钮已不在 DOM、骨架出现、
-// getPerson 调用次数只 +1)。
+// Retry for the load-failed state (coordinator's ruling 4).
+// Review Minor 3 (self-correction): the original implementation added an
+// `if (detail.loading.value) return` short-circuit here, plus `:disabled="detail.loading.value"`
+// in the template — **both layers are unreachable**: gating branch ② already has `!loading`
+// as its precondition, so the button only exists while loading is false, meaning
+// `:disabled` is always false; and `detail.load()` synchronously sets loading=true before
+// the await, so gating unmounts this button entirely on that same frame — there's nowhere
+// for a second click to land. Tests stayed all green after removing both layers — exactly
+// the "decorative guard" pattern T7/T8 already ruled on; removed per this sprint's
+// discipline, so as not to leave code that fools people into thinking there's protection
+// here.
+// **The real protection mechanism = gating unmounts the button** (pinned down by a test:
+// after one click the button is no longer in the DOM, the skeleton appears, and getPerson's
+// call count only goes up by 1).
 function retryLoad(): void {
   void detail.load(personId.value)
 }
@@ -628,14 +727,15 @@ function goToPerson(id: string | number): void {
   void router.push('/photos/people/' + encodeURIComponent(String(id)))
 }
 
-// ── Esc(文件头"Esc 分层"说明)────────────────────────────────────────────────
+// ── Esc (see the file header's "Esc layering" section) ──────────────────────
 const anyDialogOpen = computed(() =>
   renameOpen.value || dupConfirmOpen.value || albumOpen.value || noPhotosOpen.value || detachOpen.value
   || deleteOpen.value || heroOpen.value || mergeOpen.value)
 
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
-  // 必须挡住,否则同一次 Esc 冒泡到 window 会把灯箱一起关掉(P4 终审抓到过)。
+  // Must be blocked here, otherwise the same Esc press bubbles up to window and closes the
+  // lightbox too (caught by P4's final review).
   e.stopPropagation()
   if (renameOpen.value) { closeRename(); return }
   if (dupConfirmOpen.value) { closeDupConfirm(); return }
@@ -653,10 +753,11 @@ watch(anyDialogOpen, (open) => {
 })
 onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKeydown))
 
-// ── 生命周期 / watch ────────────────────────────────────────────────────────
-// 铁律 3:首次 load 在 setup 阶段同步发起(不放 onMounted)。
+// ── Lifecycle / watch ────────────────────────────────────────────────────────
+// Hard rule 3: the first load is kicked off synchronously during setup (not in onMounted).
 void detail.load(personId.value)
-// 合并弹窗的候选列表需要人物全量列表;这里只在还没加载过时补一次。
+// The merge dialog's candidate list needs the full people list; only fetch it here if it
+// hasn't been loaded yet.
 if (!people.peopleLoaded) void people.fetchPeople()
 // Task 7 (Plan D): fills the deep-link gap Vue2's own mounted() :650-657 comment calls out — a
 // deep link like /photos?person=xyz can open the detail page directly without ever going through
@@ -666,9 +767,9 @@ if (!people.peopleLoaded) void people.fetchPeople()
 // as the fetchPeople line above, not Vue2's unconditional re-fetch on every mount).
 if (!people.hiddenPeopleLoaded) void people.fetchHiddenPeople()
 
-// 铁律 2:hash 路由同组件不重建。
+// Hard rule 2: hash routing doesn't remount the same component.
 watch(() => route.params.id, (raw) => {
-  if (raw === undefined) return                   // 偏离登记 K:已离开本路由,别白发一次 load
+  if (raw === undefined) return                   // Disclosure K: already left this route, don't fire a wasted load
   selectedIds.value = []
   tab.value = 'timeline'
   closeAllDialogs()
@@ -703,7 +804,7 @@ watch(() => route.params.id, (raw) => {
           @toggle-collapse="onToggleCollapse"
         />
        <div class="photos-main">
-        <!-- 门控 ①:还在加载且还没有数据 → 骨架 -->
+        <!-- Gating ①: still loading and no data yet → skeleton -->
         <div v-if="detail.loading.value && !detail.person.value" class="person-skeleton" data-test="person-skeleton">
           <div class="person-skeleton-hero" />
           <div class="person-skeleton-tabs" />
@@ -712,9 +813,10 @@ watch(() => route.params.id, (raw) => {
           </div>
         </div>
 
-        <!-- 门控 ②:加载失败(≠「没有这个人」)→ 错误文案 + 重试。协调者裁定 4:T9 的
-             failed 标志就是为了让视图能区分这两种"person 为 null";Vue2 只 console.error,
-             两者在界面上完全一样。
+        <!-- Gating ②: load failed (≠ "this person doesn't exist") → error copy + retry.
+             Coordinator's ruling 4: T9's failed flag exists specifically so the view can tell
+             these two "person is null" cases apart; Vue2 only console.errors, and the two look
+             identical on screen.
              Final review I1: re-anchored onto parity's own `.person-detail-fallback` /
              `.fallback-body` / `.t` / `.d` / `.btn` selectors (photos-people.scss:1297-1308,
              transcribed from Vue2's own fallback branch, PhotosPersonDetail.vue:461-476) instead
@@ -726,8 +828,9 @@ watch(() => route.params.id, (raw) => {
             <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
                  patch added it alongside this title. -->
             <div class="d">{{ t('photosPersonLoadFailedHint') }}</div>
-            <!-- 评审 Minor 3:原来这里有 :disabled="detail.loading.value" —— 门控前提本就是
-                 !loading,该绑定恒为 false,已删(理由见 retryLoad 注释)。 -->
+            <!-- Review Minor 3: this used to have :disabled="detail.loading.value" — the
+                 gating precondition is already !loading, so that binding was always false;
+                 removed (rationale in the retryLoad comment). -->
             <button
               type="button" class="btn" data-test="person-retry"
               @click="retryLoad"
@@ -735,8 +838,9 @@ watch(() => route.params.id, (raw) => {
           </div>
         </div>
 
-        <!-- 门控 ③:加载完了确实没有这个人。Final review I1: same re-anchor as the failed gate
-             above — see that gate's comment for the parity/Vue2 citations. -->
+        <!-- Gating ③: finished loading and this person really doesn't exist. Final review I1:
+             same re-anchor as the failed gate above — see that gate's comment for the
+             parity/Vue2 citations. -->
         <div v-else-if="!detail.person.value" class="person-detail-fallback" data-test="person-not-found">
           <div class="fallback-body">
             <div class="t">{{ t('photosPersonNotFound') }}</div>
@@ -749,7 +853,7 @@ watch(() => route.params.id, (raw) => {
           </div>
         </div>
 
-        <!-- 门控 ④:正常内容 -->
+        <!-- Gating ④: normal content -->
         <template v-else>
           <PersonHero
             :person="detail.person.value"
@@ -767,7 +871,7 @@ watch(() => route.params.id, (raw) => {
             @open-hero-picker="openHeroPicker"
           />
 
-          <!-- Tabs(Vue2 :95-105)-->
+          <!-- Tabs (Vue2 :95-105) -->
           <div class="detail-tabs">
             <button
               type="button" class="detail-tab" data-test="person-tab-timeline"
@@ -793,7 +897,7 @@ watch(() => route.params.id, (raw) => {
           </div>
 
           <div class="detail-body scroll">
-            <!-- 时间线 tab:共现横条(Vue2 :108-130)+ 按月资产网格(T11)-->
+            <!-- Timeline tab: co-occurrence strip (Vue2 :108-130) + monthly asset grid (T11) -->
             <template v-if="tab === 'timeline'">
               <div class="detail-section">
                 <div class="detail-section-title">
@@ -807,7 +911,8 @@ watch(() => route.params.id, (raw) => {
                     :data-person-id="String(r.personId)"
                     @click="goToPerson(r.personId)"
                   >
-                    <!-- 尺寸 72px:回 Vue2 photos-people.scss:701-703 核对得(偏离登记 L)-->
+                    <!-- Size 72px: confirmed by checking back against Vue2
+                         photos-people.scss:701-703 (disclosure L) -->
                     <PersonAvatar :person-id="r.personId" :name="r.name" :ver="r.coverFaceId" :size="72" />
                     <div class="name-row">
                       <!-- Task 6 (Plan D, PR 137 gap-close): Vue2 PR 137 patch (PhotosPersonDetail.vue,
@@ -871,7 +976,8 @@ watch(() => route.params.id, (raw) => {
       type="button" class="selection-btn selection-btn-danger" data-test="person-remove-from"
       @click="openDetach(selectedIds)"
     >
-      <!-- 评审必修 2:Vue2 :240 这个钮内有 x 图标(size 13),原实现漏了 -->
+      <!-- Review Must-fix 2: in Vue2 :240 this button has an x icon (size 13), the
+           original implementation left it out -->
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
       {{ t('photosPersonRemoveFrom', { name: displayName }) }}
     </button>
@@ -880,7 +986,7 @@ watch(() => route.params.id, (raw) => {
     </button>
   </div>
 
-  <!-- ── 弹窗 1:改名(Vue2 :268-285 的 rename 模式)── -->
+  <!-- ── Dialog 1: rename (Vue2 :268-285's rename mode) ── -->
   <div v-if="renameOpen" class="person-dialog-scrim" data-test="person-rename-dialog" @click.self="closeRename">
     <div class="person-dialog">
       <div class="person-dialog-head">
@@ -938,7 +1044,7 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
-  <!-- ── 弹窗 2:建相册(Vue2 :268-285 的 album 模式)── -->
+  <!-- ── Dialog 2: create album (Vue2 :268-285's album mode) ── -->
   <div v-if="albumOpen" class="person-dialog-scrim" data-test="person-album-dialog" @click.self="closeAlbum">
     <div class="person-dialog">
       <div class="person-dialog-head">
@@ -967,7 +1073,8 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
-  <!-- ── 弹窗 7(Vue2 promptDialog 的 info 模式 :845-851;brief 六个清单外的补齐)── -->
+  <!-- ── Dialog 7 (Vue2 promptDialog's info mode :845-851; added back beyond the brief's
+       six-dialog list) ── -->
   <div v-if="noPhotosOpen" class="person-dialog-scrim" data-test="person-no-photos-dialog" @click.self="noPhotosOpen = false">
     <div class="person-dialog">
       <div class="person-dialog-head">
@@ -987,7 +1094,7 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
-  <!-- ── 弹窗 3:移出确认(Vue2 :268-285 的 detach 模式)── -->
+  <!-- ── Dialog 3: detach confirm (Vue2 :268-285's detach mode) ── -->
   <div v-if="detachOpen" class="person-dialog-scrim" data-test="person-detach-dialog" @click.self="closeDetach">
     <div class="person-dialog">
       <div class="person-dialog-head">
@@ -1019,7 +1126,7 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
-  <!-- ── 弹窗 4:删除人物确认(Vue2 :290-323)── -->
+  <!-- ── Dialog 4: delete person confirm (Vue2 :290-323) ── -->
   <div v-if="deleteOpen" class="person-dialog-scrim" data-test="person-delete-dialog" @click.self="closeDelete">
     <div class="person-dialog">
       <div class="person-dialog-head">
@@ -1028,15 +1135,17 @@ watch(() => route.params.id, (raw) => {
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
         <div class="person-dialog-titles">
-          <!-- 评审 Minor 4:原来错用了 photosPersonDeleteTitle(= "删除这个人物分组?",
-               T7 警示条专用的另一句,ClusterActionDialog.vue:66 注释已声明不可共用)。
-               Vue2 :304 是 "Delete person?",另开专属键。 -->
+          <!-- Review Minor 4: this was mistakenly using photosPersonDeleteTitle
+               (= "Delete this person group?", a different string dedicated to T7's warning
+               strip — ClusterActionDialog.vue:66's comment already declares it off-limits
+               for reuse). Vue2 :304 is "Delete person?", so a dedicated key was added. -->
           <div class="person-dialog-title">{{ t('photosPersonDeletePersonTitle') }}</div>
         </div>
         <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeDelete">×</button>
       </div>
-      <!-- 评审 Minor 6:Vue2 :310-312 是两档灰 —— 正文(--text-2)+ 更淡的
-           "You can undo within 5 seconds."(--text-3)。原实现合成了单色一条。 -->
+      <!-- Review Minor 6: Vue2 :310-312 uses two dimming tiers — body text (--text-2) +
+           the dimmer "You can undo within 5 seconds." (--text-3). The original
+           implementation merged these into a single color. -->
       <div class="person-dialog-body">
         {{ t('photosPersonDeleteKeptBody') }}
         <span class="person-dialog-body-dim">{{ t('photosPersonDeleteUndoHint') }}</span>
@@ -1047,7 +1156,8 @@ watch(() => route.params.id, (raw) => {
           type="button" class="person-dialog-btn person-dialog-btn-danger" data-test="person-delete-confirm"
           @click="confirmDeletePerson"
         >
-          <!-- 评审必修 2:Vue2 :319 钮内有 trash 图标(size 11),原实现漏了 -->
+          <!-- Review Must-fix 2: in Vue2 :319 this button has a trash icon (size 11), the
+               original implementation left it out -->
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
           {{ t('photosPersonDelete') }}
         </button>
@@ -1055,7 +1165,7 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
-  <!-- ── 弹窗 5:背景选择(宽弹窗,Vue2 :325-371)── -->
+  <!-- ── Dialog 5: hero picker (wide dialog, Vue2 :325-371) ── -->
   <div v-if="heroOpen" class="person-dialog-scrim" data-test="person-hero-dialog" @click.self="closeHeroPicker">
     <div class="person-dialog person-dialog-wide">
       <div class="person-dialog-head">
@@ -1078,8 +1188,9 @@ watch(() => route.params.id, (raw) => {
           @click="heroSelectedId = p.id"
         >
           <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="">
-          <!-- 评审必修 2:Vue2 :352 角标是 play 图标 + 时长;同期 T11
-               PersonAssetGrid.vue:118 的同一视觉元素已经渲染了 ▶,这里按同一手法补齐。 -->
+          <!-- Review Must-fix 2: in Vue2 :352 the badge is a play icon + duration; T11's
+               PersonAssetGrid.vue:118 already renders this same visual element with ▶ this
+               sprint, so it's added back here the same way. -->
           <span v-if="p.isVideo" class="tile-vid">
             <span class="vid-play">▶</span> {{ p.duration }}
           </span>
@@ -1103,7 +1214,7 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
-  <!-- ── 弹窗 6:合并到他人(Vue2 :374-432)── -->
+  <!-- ── Dialog 6: merge into another person (Vue2 :374-432) ── -->
   <div v-if="mergeOpen" class="person-dialog-scrim" data-test="person-merge-dialog" @click.self="closeMerge">
     <div class="person-dialog">
       <div class="person-dialog-head">
@@ -1151,8 +1262,10 @@ watch(() => route.params.id, (raw) => {
           type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-merge-confirm"
           :disabled="mergeTarget === null" @click="confirmMerge"
         >
-          <!-- 评审必修 2:Vue2 :427 选中目标后钮内有 sparkles 图标(size 13),未选中时不渲染
-               (`v-if="mergeConfirmTarget"`),原实现漏了整个图标。 -->
+          <!-- Review Must-fix 2: in Vue2 :427 this button has a sparkles icon (size 13)
+               once a target is selected, and doesn't render it while unselected
+               (`v-if="mergeConfirmTarget"`); the original implementation left the whole
+               icon out. -->
           <svg v-if="mergeTarget !== null" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.5L18 9l-4.1 1.5L12 15l-1.9-4.5L6 9l4.1-1.5z" /></svg>
           {{ mergeTarget
             ? t('photosPersonMergeConfirm', { name: mergeTarget.name })

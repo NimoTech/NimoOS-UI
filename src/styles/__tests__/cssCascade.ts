@@ -1,20 +1,27 @@
-// 测试辅助(非测试文件,vitest 只收 *.test.ts):解析 CSS 原文并按 CSS 优先级判定
-// "某个元素在 :hover 态下真正生效的 background 是哪一条声明"。
+// Test helper (not a test file — vitest only picks up *.test.ts): parses raw CSS and decides,
+// by CSS specificity, "which declaration actually wins for a given element's background under
+// :hover".
 //
-// 为什么需要:jsdom 既不做级联样式计算,也无法进入真实 hover 态,mount 之后
-// getComputedStyle 读不出 hover 结果。而这个坑反复出现——基类的 `.x:hover` 带伪类,
-// 优先级 (0,2,0);变体 `.x-primary` / `.x-danger` 只有一个类,(0,1,0)。CSS 优先级
-// 高者胜、与书写顺序无关,于是指针一进按钮,变体的实底/渐变背景就被基类的 hover 背景
-// 整块替换,而文字色仍由变体提供 → 白底白字,按钮和文案一起消失。
+// Why this is needed: jsdom neither computes the cascade nor can enter a real hover state, so
+// getComputedStyle after mount cannot read the hover outcome. This pitfall keeps recurring — the
+// base class's `.x:hover` carries a pseudo-class, giving specificity (0,2,0); a variant like
+// `.x-primary` / `.x-danger` has only one class, (0,1,0). CSS specificity wins regardless of
+// source order, so the moment the pointer enters the button, the variant's solid/gradient
+// background gets fully replaced by the base class's hover background, while the text color
+// still comes from the variant → the background and text collapse to the same pale tone and
+// both the button and its label disappear.
 //
-// ⚠️ 本仓另有一份同源实现,长期只服务它自己所在的那个区(31 个引用方)。这里**刻意
-// 再放一份**而不是跨区 import,原因是硬性的:那个区不在开源产物树里,跨区引用会让
-// 产物树的 `vue-tsc --noEmit` 直接失败(实测:`Cannot find module`),同时"引用它"
-// 这件事本身也会被开源泄漏守卫拦下。合并成一份需要改那 31 个 import,已登记为独立
-// 交接票(SP16 交接票 3),不在本期做。
+// ⚠️ This repo has another copy of the same implementation elsewhere, long serving only the area
+// it lives in (31 call sites). A copy is **deliberately** kept here instead of importing across
+// areas, for a hard reason: that area is not in the open-source export tree, so a cross-area
+// import would make the export tree's `vue-tsc --noEmit` fail outright (verified: `Cannot find
+// module`), and the act of referencing it would also get flagged by the open-source leak guard.
+// Merging into one copy would require changing those 31 imports, which is tracked as its own
+// handoff ticket (SP16 handoff ticket 3) and is out of scope for this round.
 //
-// 只搬了本处用到的那几个函数——原实现里的 ownBackground / extractStyleBlock 没有搬,
-// 需要时再补,不为了"对齐"而搬用不上的代码。
+// Only the handful of functions actually used here were ported — ownBackground / extractStyleBlock
+// from the original implementation were not, and can be added later if needed; no point porting
+// unused code just to "stay in sync".
 
 export interface CssRule { selectors: string[]; body: string }
 
@@ -32,17 +39,19 @@ const BG_DECL = /(?:^|;)\s*background(?:-color|-image)?\s*:\s*([^;]+)/
 
 export interface HoverBgRule { selector: string; specificity: number; value: string; order: number }
 
-// 数类、伪类与属性选择器(属性选择器与类选择器同权重)。这些规则里没有 id、也没有元素
-// 标签参与,足以在 `.x:hover` (2) 与 `.x-danger` (1) / `.x-danger:hover` (2) 之间判胜负。
+// Counts classes, pseudo-classes, and attribute selectors (attribute selectors carry the same
+// weight as class selectors). None of these rules involve an id or an element tag, so this is
+// enough to decide the winner between `.x:hover` (2) and `.x-danger` (1) / `.x-danger:hover` (2).
 function classSpecificity(selector: string): number {
   return (selector.match(/\.[\w-]+|:[\w-]+(?:\([^)]*\))?|\[[^\]]*\]/g) ?? []).length
 }
 
 /**
- * 收集所有"作用于 class=classes 这颗元素、且处于 :hover 态"并声明了 background 的规则。
- * 按单个复合选择器(无后代/组合子)做保守匹配:选择器里出现的每一个 .class 都必须在
- * classes 内,伪类只允许 :hover 或 :not(...)(:not 里的类必须不在 classes 内,否则该
- * 规则不命中这颗元素)。
+ * Collects every rule that "applies to the element carrying class=classes, while it is in
+ * :hover state" and declares a background. Matching is conservative and limited to a single
+ * compound selector (no descendant/combinator): every .class appearing in the selector must be
+ * in classes, and the only pseudo-classes allowed are :hover or :not(...) (the class inside :not
+ * must not be in classes, otherwise the rule does not match this element).
  */
 export function hoverBackgroundRules(styleText: string, classes: string[]): HoverBgRule[] {
   const out: HoverBgRule[] = []
@@ -56,12 +65,14 @@ export function hoverBackgroundRules(styleText: string, classes: string[]): Hove
       const pseudoHits = bare.match(/:[\w-]+(?:\([^)]*\))?/g) ?? []
       if (classHits.length === 0) continue
       if (!classHits.every((c) => classes.includes(c.slice(1)))) continue
-      // 必须先确认选择器里确实出现了 `:hover`:`pseudoHits.every(...)` 在空数组上恒真,
-      // 靠"没有出现不允许的伪类"这种反向判定会把纯类选择器误收进 hover 候选里。
+      // Must first confirm the selector actually contains `:hover`: `pseudoHits.every(...)` is
+      // vacuously true on an empty array, so relying only on the inverse check — "no disallowed
+      // pseudo-class showed up" — would wrongly sweep plain class selectors into the hover
+      // candidates.
       if (!bare.includes(':hover')) continue
       if (!pseudoHits.every((p) => p === ':hover')) continue
-      // :not(.x) 里点到本元素带的类 → 这条规则被排除;:not(:disabled) 等状态伪类按
-      // "非禁用"这一主路径当作命中。
+      // :not(.x) naming a class this element carries → the rule is excluded; state pseudo-classes
+      // like :not(:disabled) are treated as a match along the "not disabled" main path.
       if (nots.some((n) => n.startsWith('.') && classes.includes(n.slice(1)))) continue
       const m = BG_DECL.exec(rule.body)
       if (!m) continue
@@ -71,10 +82,10 @@ export function hoverBackgroundRules(styleText: string, classes: string[]): Hove
   return out
 }
 
-/** 优先级最高者胜;同级取后写的那条(CSS 级联规则)。 */
+/** Highest specificity wins; ties go to whichever was written last (CSS cascade rule). */
 export function winningHoverBackground(styleText: string, classes: string[]): HoverBgRule {
   const rules = hoverBackgroundRules(styleText, classes)
-  if (rules.length === 0) throw new Error(`没有任何 background 规则命中 .${classes.join('.')}`)
+  if (rules.length === 0) throw new Error(`no background rule matched .${classes.join('.')}`)
   return rules.reduce((best, r) =>
     r.specificity > best.specificity || (r.specificity === best.specificity && r.order > best.order) ? r : best,
   )

@@ -51,14 +51,14 @@ describe('useAlbumDragSort', () => {
     return el
   }
 
-  it('enabled()===false 时 refresh() 不创建实例', () => {
+  it('does not create instance when enabled()===false', () => {
     const container = ref<HTMLElement | null>(makeContainer())
     const s = useAlbumDragSort({ container, enabled: () => false, onOrder: vi.fn() })
     s.refresh()
     expect(mockCreate).not.toHaveBeenCalled()
   })
 
-  it('enabled()===true 且容器存在时创建一次,options 精确等于五项(不多不少)', () => {
+  it('creates once when enabled()===true and container exists; options exactly five items (no more, no less)', () => {
     const container = ref<HTMLElement | null>(makeContainer())
     const s = useAlbumDragSort({ container, enabled: () => true, onOrder: vi.fn() })
     s.refresh()
@@ -78,7 +78,7 @@ describe('useAlbumDragSort', () => {
     expect(typeof opts.onEnd).toBe('function')
   })
 
-  it('连续两次 refresh():前一个实例的 destroy() 恰好被调用一次(不泄漏)', () => {
+  it('refresh() twice in a row: previous instance destroy() called exactly once (no leak)', () => {
     const container = ref<HTMLElement | null>(makeContainer())
     const s = useAlbumDragSort({ container, enabled: () => true, onOrder: vi.fn() })
     s.refresh()
@@ -89,14 +89,14 @@ describe('useAlbumDragSort', () => {
     expect(destroyMocks[1]).not.toHaveBeenCalled()
   })
 
-  it('container.value===null 时 refresh() 不抛错、不创建', () => {
+  it('refresh() does not throw and does not create when container.value===null', () => {
     const container = ref<HTMLElement | null>(null)
     const s = useAlbumDragSort({ container, enabled: () => true, onOrder: vi.fn() })
     expect(() => s.refresh()).not.toThrow()
     expect(mockCreate).not.toHaveBeenCalled()
   })
 
-  it('destroy() 幂等:连调两次不抛,且底层 destroy 只调一次', () => {
+  it('destroy() is idempotent: calling twice does not throw, and underlying destroy called only once', () => {
     const container = ref<HTMLElement | null>(makeContainer())
     const s = useAlbumDragSort({ container, enabled: () => true, onOrder: vi.fn() })
     s.refresh()
@@ -107,7 +107,7 @@ describe('useAlbumDragSort', () => {
     expect(destroyMocks[0]).toHaveBeenCalledTimes(1)
   })
 
-  it('onStart 置 isDragging()=true;onEnd 从 DOM 读序调 onOrder(过滤 null/非-.tile)', () => {
+  it('onStart sets isDragging()=true; onEnd reads order from DOM and calls onOrder (filtering null/non-.tile)', () => {
     const container = ref<HTMLElement | null>(makeContainer())
     const onOrder = vi.fn()
     const s = useAlbumDragSort({ container, enabled: () => true, onOrder })
@@ -124,7 +124,7 @@ describe('useAlbumDragSort', () => {
     expect(onOrder).toHaveBeenCalledWith(['b', 'c', 'a'])
   })
 
-  it('守卫时序回归:onEnd 后、nextTick 之前 isDragging() 仍为 true;nextTick 后才变 false', async () => {
+  it('guard timing regression: isDragging() still true after onEnd and before nextTick; false only after nextTick', async () => {
     const container = ref<HTMLElement | null>(makeContainer())
     const onOrder = vi.fn()
     const s = useAlbumDragSort({ container, enabled: () => true, onOrder })

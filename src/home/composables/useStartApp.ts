@@ -4,7 +4,7 @@ import { useAppsStore, type AppMeta } from '../stores/apps'
 import { useToast } from '../../stores/toast'
 import { i18n } from '../../i18n'
 
-/** 容器应用的网页地址;没有可打开的页面时返回 null */
+/** The web address of a container app; returns null when there is no page to open */
 export function appUrl(a: AppMeta): string | null {
   if (!a.port && !a.index) return null
   const scheme = a.scheme || 'http'
@@ -17,14 +17,14 @@ export interface StartState { key: string; phase: 'confirm' | 'starting' }
 export interface ConfirmOpts {
   pollMs?: number
   timeoutMs?: number
-  /** 注入以便测试;默认当前页跳转 */
+  /** Inject for testing; defaults to navigating current page */
   navigate?: (url: string) => void
 }
 
-// 模块级单例:弹窗状态由所有调用方共享(同 useDock/useAddPanel 模式),
-// 视图是 Home.vue 里的 StartAppDialog。
+// Module-level singleton: dialog state is shared among all callers (same pattern as useDock/useAddPanel),
+// view is StartAppDialog in Home.vue.
 const state = ref<StartState | null>(null)
-// 启动态中用户收起弹窗 → 启动继续但完成后不再自动跳转(spec §2.5)
+// When user dismisses dialog during startup → startup continues but doesn't auto-navigate on completion (spec §2.5)
 let navigateOnSuccess = true
 
 /** Reset singleton state — call in test beforeEach */
@@ -39,11 +39,11 @@ export function useStartApp() {
   const t = i18n.global.t
 
   function prompt(key: string) {
-    if (state.value) return // 已有确认框/启动流程,不叠加
+    if (state.value) return // already has confirmation/startup flow, no stacking
     state.value = { key, phase: 'confirm' }
   }
 
-  /** 关闭弹窗(取消按钮 / Esc / 点遮罩)。启动态下只是"收起",流程继续。 */
+  /** Close dialog (cancel button / Esc / click overlay). During startup it's just "collapse", flow continues. */
   function dismiss() {
     if (!state.value) return
     if (state.value.phase === 'starting') navigateOnSuccess = false

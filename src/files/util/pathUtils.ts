@@ -33,9 +33,9 @@ export function routeParamToVirtualPath(param: string | string[] | undefined): s
   return '/' + joined.replace(/^\/+/, '')
 }
 
-// 旧格式深链归一(Vue2 utils/pathUtils.js resolveInputPath 同款):输入可能是真实路径
-// (/DATA/x、/mnt/smb-y/z)也可能是虚拟路径(/NimoOS-HD/x)。先 toRealPath(虚拟→真实,
-// 真实无虚拟前缀可匹配、原样透过)再 toVirtualPath 规范化,两边幂等。
+// Normalize old-format deep links (same as Vue2 utils/pathUtils.js resolveInputPath): input can be either a real path
+// (/DATA/x, /mnt/smb-y/z) or a virtual path (/NimoOS-HD/x). First call toRealPath (virtual→real,
+// real paths without matching virtual prefix pass through as-is) then toVirtualPath to normalize; both transformations are idempotent.
 export function resolveInputPath(input: string, displayNames: DisplayNames): { realPath: string; virtualPath: string } {
   if (!input) return { realPath: '/', virtualPath: '/' }
   const realPath = toRealPath(input, displayNames)

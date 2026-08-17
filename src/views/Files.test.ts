@@ -25,7 +25,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
     batch: { task: vi.fn().mockResolvedValue(undefined) },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
-    // Files.vue 的挂载区 socket 刷新在 onMounted 里调用 mounts.loadMounts();mock 之以避免无关的控制台告警。
+    // Files.vue's mount-area socket refresh calls mounts.loadMounts() inside onMounted; mock it to avoid unrelated console warnings.
     samba: { listConnections: vi.fn().mockResolvedValue([]) },
     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
     snapshot: {
@@ -180,7 +180,7 @@ describe('Files.vue browse pipe', () => {
     expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
 
-  it('工具栏有新建文件夹/新建文件按钮', async () => {
+  it('toolbar has new-folder/new-file buttons', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -265,10 +265,12 @@ describe('Files.vue browse pipe', () => {
     expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
   })
 
-  // 2026-08-13 契约变更(机主要求):右键不再把行收进选区(旧行为 selectOnly 会点亮行
-  // 选中态并拉出顶部 SelectionToolbar)。菜单目标改由 ctxEntry + contextTargets 决定,
-  // 这里守的是:右键设好 ctxEntry 后,同一事件冒泡到容器的空白区 handler 不得把它清掉。
-  it('右键行只设 ctxEntry 不碰选区;冒泡到容器不应清掉 ctxEntry', async () => {
+  // 2026-08-13 contract change (owner requested): right-click no longer pulls the row into
+  // the selection (the old behaviour, selectOnly, would light up the row's selected state
+  // and pop up the top SelectionToolbar). The menu target is now decided by ctxEntry +
+  // contextTargets. This guards: after right-click sets ctxEntry on a row, the same event
+  // bubbling up to the container's blank-area handler must not clear it.
+  it('right-click on a row only sets ctxEntry and does not touch the selection; bubbling to the container must not clear ctxEntry', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -286,7 +288,7 @@ describe('Files.vue browse pipe', () => {
   })
 })
 
-describe('快照只读横幅', () => {
+describe('snapshot read-only banner', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     ;(globalThis as any).IntersectionObserver = class {
@@ -297,7 +299,7 @@ describe('快照只读横幅', () => {
     }
   })
 
-  it('普通目录不显示横幅', async () => {
+  it('a normal directory does not show the banner', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -307,7 +309,7 @@ describe('快照只读横幅', () => {
     expect(w.find('.snap-banner').exists()).toBe(false)
   })
 
-  it('进入快照路径后显示横幅', async () => {
+  it('shows the banner after entering a snapshot path', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -317,9 +319,10 @@ describe('快照只读横幅', () => {
     expect(w.find('.snap-banner').exists()).toBe(true)
   })
 
-  // 评审修复(Important):拖拽遮罩先诱导"松手就能上传",而快照态下投放本就会被
-  // commitSelectedFiles 的 guard 拦住并 toast——遮罩不该在只读快照里出现。
-  it('快照态下拖拽进入不显示"上传到…"遮罩', async () => {
+  // Review fix (Important): the drag-drop overlay suggests "drop it here to upload", but a
+  // drop in snapshot mode is already blocked by commitSelectedFiles' guard and toasted --
+  // the overlay shouldn't appear on a read-only snapshot at all.
+  it('does not show the "upload to..." overlay when dragging into a snapshot', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -330,7 +333,7 @@ describe('快照只读横幅', () => {
     expect(w.find('.files-drop-mask').exists()).toBe(false)
   })
 
-  it('普通目录下拖拽进入仍显示"上传到…"遮罩(对照组,防止遮罩被误删)', async () => {
+  it('still shows the "upload to..." overlay when dragging into a normal directory (control group, guards against the overlay being deleted by mistake)', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -341,9 +344,11 @@ describe('快照只读横幅', () => {
     expect(w.find('.files-drop-mask').exists()).toBe(true)
   })
 
-  // 评审修复(Critical 1):`.snapshots` 容器目录本身(面包屑上点 ".snapshots" 那一段,
-  // 没有具体快照名)—— 之前 isSnapshotView 判不出锁,写入工具条 + 时间机器 chip 全部冒出来。
-  it('.snapshots 容器目录本身:写入工具条与时间机器入口都不出现', async () => {
+  // Review fix (Critical 1): the `.snapshots` container directory itself (clicking the
+  // ".snapshots" segment on the breadcrumb, with no specific snapshot name) -- previously
+  // isSnapshotView couldn't detect the lock, so the write toolbar + Time Machine chip both
+  // popped up.
+  it('the `.snapshots` container directory itself: neither the write toolbar nor the Time Machine entry appears', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -352,27 +357,34 @@ describe('快照只读横幅', () => {
     await flushPromises()
     expect(w.find('.files-actions').exists()).toBe(false)
     expect(w.find('.tb-time-machine').exists()).toBe(false)
-    // 加分项:锁生效了也该有横幅告诉用户为什么,不是"锁了但没人告诉你"
+    // Bonus: once the lock kicks in there should be a banner telling the user why, not
+    // "locked but nobody told you"
     expect(w.find('.snap-banner').exists()).toBe(true)
     expect(w.find('.snap-banner').text()).toContain('请选择一个快照')
   })
 
-  // 评审复核(Minor,第二轮):`.snapshots` 容器目录下(browseInfo 为 null,因为没有具体
-  // 快照名可解析)选中一个条目(恰好是某个具体快照目录),SnapshotSelectionToolbar 的
-  // "恢复" 按钮点了只会拿到 performSnapshotRestore 的"路径无效,无法恢复"——这个按钮在
-  // 这个场景下天生就是坏的,不该出现。加 `&& !!browse.browseInfo` 后这个专用工具条不再
-  // 冒出来。
+  // Review re-check (Minor, second round): under the `.snapshots` container directory
+  // (browseInfo is null, since there's no specific snapshot name to resolve) with an entry
+  // selected (one that happens to be a specific snapshot directory), clicking
+  // SnapshotSelectionToolbar's "Restore" button just gets performSnapshotRestore's "invalid
+  // path, cannot restore" -- this button is inherently broken in this scenario and shouldn't
+  // appear. Adding `&& !!browse.browseInfo` stops this dedicated toolbar from popping up.
   //
-  // 复核追加(阻塞级回归):只挡掉 SnapshotSelectionToolbar 不够——它一挡,`v-else-if` 的
-  // 普通 SelectionToolbar(复制/剪切/下载/共享/删除)会顶上来。复核实测这条口子是真的能
-  // 写穿:剪切走的是 move(=删源,是写不是读),`useFileOps.paste()` 的 blockedInSnapshot()
-  // 查的是**粘贴目的地**的 isSnapshotView,粘贴到普通目录时该检查形同虚设;`sel-share`
-  // (共享到局域网)在 Files.vue 的 onShare 里完全没有 guard,能把快照目录直接开成局域网
-  // 共享。这与 SnapshotSelectionToolbar.vue:10-12 的注释("剪切/复制/删除/共享在只读快照
-  // 上要么无意义要么会失败,留着只会诱导用户点")、FileContextMenu.vue 的
-  // showCopy/showCut/showDelete/showShare 全部 `&& !inSnapshot` 正面冲突。修法:
-  // `v-else-if` 补上 `!browse.isSnapshotView`,容器目录下两个工具条都不出现。
-  it('.snapshots 容器目录下选中条目:两个工具条(专用恢复条 + 普通复制/剪切/共享/删除条)都不出现', async () => {
+  // Re-check addendum (blocking-level regression): blocking SnapshotSelectionToolbar alone
+  // isn't enough -- once it's blocked, the `v-else-if`'s regular SelectionToolbar
+  // (copy/cut/download/share/delete) takes its place. Re-check testing confirmed this gap is
+  // genuinely exploitable: cut goes through move (= deletes the source, a write not a read);
+  // `useFileOps.paste()`'s blockedInSnapshot() checks the **paste destination**'s
+  // isSnapshotView, so the check is effectively void when pasting into a normal directory;
+  // `sel-share` (share to the LAN) has no guard at all in Files.vue's onShare, and can turn a
+  // snapshot directory directly into a LAN share. This directly conflicts with
+  // SnapshotSelectionToolbar.vue:10-12's comment ("cut/copy/delete/share are either
+  // meaningless or will fail on a read-only snapshot, leaving them in only invites the user
+  // to click") and FileContextMenu.vue's
+  // showCopy/showCut/showDelete/showShare, all of which have `&& !inSnapshot`. Fix: add
+  // `!browse.isSnapshotView` to the `v-else-if` so neither toolbar appears under the
+  // container directory.
+  it('an entry selected under the `.snapshots` container directory: neither toolbar (dedicated restore bar + regular copy/cut/share/delete bar) appears', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -386,14 +398,16 @@ describe('快照只读横幅', () => {
     expect(files.selectedCount).toBe(1)
     expect(w.find('.snap-sel').exists()).toBe(false)
     expect(w.find('.snap-sel-restore').exists()).toBe(false)
-    // 两个工具条共享 .selection-toolbar 这个基类名,不存在即两个都没渲染
-    // (普通 SelectionToolbar 没有 .snap-sel 修饰类,单独判它不够,这里判基类)。
+    // Both toolbars share the base class name .selection-toolbar, so its absence means
+    // neither rendered (the regular SelectionToolbar has no .snap-sel modifier class, so
+    // checking it alone isn't enough -- check the base class here instead).
     expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
 
-  // 对照组(防止把恢复功能的主入口之一一起挡掉):真正的快照路径(有具体快照名,
-  // browseInfo 非空)下选中条目,SnapshotSelectionToolbar 必须仍然正常出现。
-  it('普通快照路径(有具体快照名)下选中条目:SnapshotSelectionToolbar 仍正常出现', async () => {
+  // Control group (guards against blocking one of the main entry points to the restore
+  // feature along with it): with an entry selected under an actual snapshot path (a specific
+  // snapshot name, browseInfo non-null), SnapshotSelectionToolbar must still appear normally.
+  it('an entry selected under a regular snapshot path (with a specific snapshot name): SnapshotSelectionToolbar still appears normally', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -467,7 +481,7 @@ describe('快照只读横幅', () => {
   })
 })
 
-describe('时间机器入口', () => {
+describe('Time Machine entry point', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     ;(globalThis as any).IntersectionObserver = class {
@@ -476,16 +490,18 @@ describe('时间机器入口', () => {
       observe() { this.cb([{ isIntersecting: true }]) }
       disconnect() {}
     }
-    // T11 起本描述块新增一条会经 reka-ui Portal 把 .ui-dialog-content Teleport 到真实
-    // document.body 的用例(齿轮弹窗)——attachTo: document.body 挂载的实例不会在测试间
-    // 自动 unmount,清空 body 防止上一条用例的残留节点污染下一条的 querySelector
-    // (同 SnapshotSettingsDialog.test.ts / RaidDeleteDialog.test.ts 的处理方式)。
+    // Starting at T11, this describe block gains a case (the gear dialog) that goes through
+    // reka-ui's Portal to teleport .ui-dialog-content onto the real document.body -- an
+    // instance mounted with attachTo: document.body doesn't auto-unmount between tests, so
+    // clear body to stop the previous case's leftover node from polluting the next case's
+    // querySelector (same handling as SnapshotSettingsDialog.test.ts / RaidDeleteDialog.test.ts).
     document.body.innerHTML = ''
   })
 
-  // 挂载在给定的真实路径上:disk 'NimoOS-HD' ↔ 挂载点 '/DATA'(与本文件其余用例同一约定),
-  // real path 的 '/DATA' 前缀换成虚拟段 'NimoOS-HD' 即是路由参数。listVolumes mock(见文件顶部)
-  // 返回 supported:true 的 /DATA,canShowEntry 因而在非快照路径上应为真。
+  // Mounts on the given real path: disk 'NimoOS-HD' <-> mount point '/DATA' (same convention
+  // as the rest of this file's cases); swapping the real path's '/DATA' prefix for the
+  // virtual segment 'NimoOS-HD' gives the route param. The listVolumes mock (see top of file)
+  // returns /DATA with supported:true, so canShowEntry should be true on non-snapshot paths.
   async function mountFiles(realPath: string) {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
@@ -497,20 +513,20 @@ describe('时间机器入口', () => {
     return w
   }
 
-  it('supported 卷上出现入口 chip', async () => {
+  it('entry chip appears on a supported volume', async () => {
     const w = await mountFiles('/DATA/Photos')
     expect(w.find('.tb-time-machine').exists()).toBe(true)
   })
-  it('已经在快照里时不出现入口 chip', async () => {
+  it('entry chip does not appear when already inside a snapshot', async () => {
     const w = await mountFiles('/DATA/.snapshots/snap1')
     expect(w.find('.tb-time-machine').exists()).toBe(false)
   })
-  it('点入口打开覆盖层', async () => {
+  it('clicking the entry opens the overlay', async () => {
     const w = await mountFiles('/DATA/Photos')
     await w.find('.tb-time-machine').trigger('click')
     expect(w.find('.tm-overlay').exists()).toBe(true)
   })
-  it('点齿轮打开设置弹窗,时间机器仍在', async () => {
+  it('clicking the gear opens the settings dialog; Time Machine stays open', async () => {
     const w = await mountFiles('/DATA/Photos')
     await w.find('.tb-time-machine').trigger('click')
     await w.find('.tm-gear').trigger('click')
@@ -520,8 +536,8 @@ describe('时间机器入口', () => {
   })
 })
 
-// SP12-T9:目录加载失败以前被吞成"空文件夹",与真的空目录一模一样。
-describe('Files.vue 目录加载失败', () => {
+// SP12-T9: a directory load failure used to be swallowed into an "empty folder", indistinguishable from a real empty directory.
+describe('Files.vue directory load failure', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     ;(globalThis as any).IntersectionObserver = class {
@@ -542,7 +558,7 @@ describe('Files.vue 目录加载失败', () => {
     return w
   }
 
-  it('显示错误条与后端原文,点重试重新加载', async () => {
+  it('shows the error bar with the raw backend message; clicking retry reloads', async () => {
     const w = await mountAt('/DATA')
     const files = useFilesStore()
     files.error = 'open /DATA/x: permission denied'
@@ -555,10 +571,10 @@ describe('Files.vue 目录加载失败', () => {
     expect(spy).toHaveBeenCalled()
   })
 
-  it('磁盘列表加载失败时落到 /DATA,而不是停在空白页', async () => {
+  it('falls back to /DATA when the disk list fails to load, instead of getting stuck on a blank page', async () => {
     localStorage.removeItem('nimoos:location-default')
     const folders = useFoldersStore()
-    // 磁盘列表整体失败的样子:disks 保持空
+    // What a total disk-list failure looks like: disks stays empty
     folders.loadDisks = vi.fn(async () => { folders.disks = [] as any })
     const router = makeRouter()
     router.push('/files'); await router.isReady()
@@ -568,10 +584,12 @@ describe('Files.vue 目录加载失败', () => {
     expect(useFilesStore().currentPath).toBe('/DATA')
   })
 
-  // SP12-T11:网格虚拟化后,量 DOM 只能量到可视那几行。
-  // 断言落在结果上,不在内部调用上:jsdom 不做布局,量 DOM 拿到的全是 0×0 矩形,
-  // 一个都框不中;走几何这条路才有真实矩形(列宽/行高有兜底常量),因而能选中。
-  it('网格视图的框选矩形取自组件几何,而不是量 DOM', async () => {
+  // SP12-T11: after grid virtualization, measuring the DOM can only measure the visible rows.
+  // The assertion lands on the result, not the internal call: jsdom doesn't do layout, so
+  // measuring the DOM only ever gets 0x0 rects and selects nothing; going through geometry
+  // instead gives real rects (column width/row height have fallback constants), so it can
+  // actually select.
+  it('the grid view marquee-selection rect comes from component geometry, not from measuring the DOM', async () => {
     const files = useFilesStore()
     files.setView('grid')
     const w = await mountAt('/DATA')
@@ -579,13 +597,13 @@ describe('Files.vue 目录加载失败', () => {
     expect(files.sortedEntries.length).toBeGreaterThan(0)
     const wrap = w.find('.files-listwrap')
     await wrap.trigger('mousedown', { clientX: 0, clientY: 0, button: 0 })
-    // 移动监听装在 window 上(见 Files.vue onMarqueeDown),必须往 window 派发
+    // The move listener is attached on window (see Files.vue onMarqueeDown), so it must be dispatched on window
     window.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300, bubbles: true }))
     await w.vm.$nextTick()
     expect(files.selectedCount).toBeGreaterThan(0)
   })
 
-  it('列表视图仍走量 DOM 那条路(未虚拟化)', async () => {
+  it('list view still goes through the measure-the-DOM path (not virtualized)', async () => {
     const files = useFilesStore()
     files.setView('list')
     const w = await mountAt('/DATA')
@@ -594,13 +612,14 @@ describe('Files.vue 目录加载失败', () => {
     await wrap.trigger('mousedown', { clientX: 0, clientY: 0, button: 0 })
     window.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300, bubbles: true }))
     await w.vm.$nextTick()
-    // 判别式:量 DOM 在 jsdom 下拿到的是 0×0 矩形,一个都框不中。上面那条网格
-    // 用例选中了 >0 个,两条一起钉住「分流真的按视图走」,而不是两边都跑同一条路。
+    // Discriminator: measuring the DOM under jsdom gets 0x0 rects and selects nothing. The
+    // grid case above selected >0, so together the two pin down that the branching really
+    // does follow the view, rather than both sides running the same path.
     expect(files.selectedCount).toBe(0)
     files.setView('grid')
   })
 
-  it('加载在途时不显示错误条', async () => {
+  it('does not show the error bar while a load is in flight', async () => {
     const w = await mountAt('/DATA')
     const files = useFilesStore()
     files.error = 'boom'

@@ -1,11 +1,11 @@
 import type { Extension } from '@codemirror/state'
 
-// 复刻 Vue2 CodeEditor.vue:224-227
+// Replicates Vue2 CodeEditor.vue:224-227
 export function coerceContent(raw: unknown): string {
   return raw !== null && typeof raw === 'object' ? JSON.stringify(raw, null, 2) : String(raw)
 }
 
-// ext → CM6 语言扩展(动态 import,懒加载);无匹配 → null(纯文本)
+// ext → CM6 language extension (dynamic import, lazy-loaded); no match → null (plain text)
 export async function langFor(ext: string): Promise<Extension | null> {
   const e = ext.toLowerCase()
   const js = ['js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'json', 'vue']

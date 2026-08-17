@@ -1,29 +1,32 @@
 <script setup lang="ts">
-// Task 9(SP7-P6a 地点·地图主视图):PlacesFilterMenu.vue —— 地图工具栏「Filters」胶囊按钮 +
-// 下拉弹层(时间范围/最少照片数/大洲/只看当前行程 四段过滤 + chip 徽标计数 + 重置/完成)。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:830-906(模板,chip 与弹层
-// 同在一个 position:relative 容器里)、:152-186(视觉过滤态派生 anyExtraFilter/
-// extraFilterCount,已在 T2 落到 placesMap.ts 的 extraFilterCount 纯函数,这里直接消费)、
-// :329-336(document mousedown 开关判定)、:441-449(toggleRegion/clearFilters)移植;样式段
-// 照 photos-places.scss:199-231(chip 部分)与 :854-963(弹层部分)。
+// Task 9 (SP7-P6a places / map main view): PlacesFilterMenu.vue — map toolbar "Filters" pill
+// button + dropdown panel (time range / minimum photos / continent / current trip only — four
+// filter sections + chip badge count + reset/done). Ported section-by-section from Vue2
+// NimoOS-UI src/views/Photos/PhotosPlacesView.vue:830-906 (template, chip and panel in same
+// position:relative container), :152-186 (visual filter state derivation anyExtraFilter /
+// extraFilterCount, already landed in T2 as extraFilterCount pure function in placesMap.ts,
+// consumed here), :329-336 (document mousedown toggle check), :441-449 (toggleRegion /
+// clearFilters); styles from photos-places.scss:199-231 (chip part) and :854-963 (panel part).
 //
-// props.filter 不许就地改——一律 emit update:filter 传整体替换后的新对象(brief 铁律,有
-// 测试钉"其余字段与传入一致")。
+// props.filter must not be mutated in-place — always emit update:filter with the entire
+// replaced new object (brief iron rule, test pin: "other fields consistent with input").
 //
-// 浮层规范(P4 血泪 + 本仓已确立的 ClusterActionDialog.vue 先例):Esc 走 document 级
-// keydown,watch(open) 挂/摘,不用 stopImmediatePropagation(那会连累同 document 上的其它
-// 弹层监听器收不到事件——ClusterActionDialog 用的是普通 stopPropagation,对同一节点上的
-// 其它监听器无影响,本组件干脆不调用,更安全)。另加 document mousedown 判定点击是否在
-// 容器 ref 外——Vue2 原文件也是这个模式(:329-336),只是 Vue2 没有 Esc 监听,这条是
-// New-UI 侧新增的浮层规范。`onDocKeydown` 内部只有一条早退(非 Escape 键跳过)——本组件
-// 自己只管一个 open 状态,没有"另一个分支"可早退;P5-T10 的早退 bug 是两个弹层共享一个
-// 判定函数时漏检第二个分支,那个场景要等 T11 把本组件与主题弹层一起装进容器才会出现,
-// 集成断言归 T11,本任务只记账(见任务报告)。
+// Floating panel spec (P4 hard-won + established ClusterActionDialog.vue precedent in this
+// repo): Esc on document-level keydown, watch(open) attaches/removes, not
+// stopImmediatePropagation (that would drag down other panel listeners on the same document —
+// ClusterActionDialog uses plain stopPropagation, affects only other listeners on same node,
+// this component doesn't call it at all for safety). Plus document mousedown check whether
+// click is outside container ref — Vue2 source also does this (:329-336), just without Esc
+// listener; Esc is new in New-UI floating panel spec. `onDocKeydown` has only one early exit
+// (skip non-Escape keys) — this component manages one open state, no "other branch" to early
+// exit; P5-T10's early-exit bug was two panels sharing one check function missing the second
+// branch, scenario won't appear until T11 installs this component and theme panel in a
+// container together, integration assertion belongs to T11, this task only logs (see task report).
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { extraFilterCount, regionLabelKey, type PlacesFilter, type RegionCount } from '../util/placesMap'
 
-// Vue2 :865(回源核对无出入)。
+// Vue2 :865 (verified against source, no differences).
 const MIN_COUNT_STEPS = [0, 10, 50, 100, 200] as const
 
 const props = defineProps<{
@@ -40,12 +43,14 @@ const { t } = useI18n()
 
 const rootRef = ref<HTMLElement | null>(null)
 
-// ── chip 徽标/激活态(Vue2 :176-186,已在 T2 落到 extraFilterCount 纯函数)────────
+// ── chip badge / active state (Vue2 :176-186, already landed in T2 as extraFilterCount
+//    pure function) ────────────────────────────────────────────────────────────────
 const extraCount = computed(() => extraFilterCount(props.filter))
 const badgeCount = computed(() => extraCount.value + (props.filter.timeFilter !== 'all' ? 1 : 0))
 const chipActive = computed(() => extraCount.value > 0 || props.filter.timeFilter !== 'all')
 
-// 偏离登记 3(T2 既定,brief 复述):大洲名走 regionLabelKey 有键则译、无键回落后端 label。
+// Deviation logging 3 (T2 decided, brief restatement): continent names go through
+// regionLabelKey; if key exists translate, otherwise fall back to backend label.
 function regionLabel(r: RegionCount): string {
   const key = regionLabelKey(r.id)
   return key ? t(key) : r.label
@@ -55,17 +60,21 @@ function toggleOpen(): void {
   emit('update:open', !props.open)
 }
 
-// Vue2 :849/:854 —— 只填一头时整条时间过滤退回"全部时间",两头都填才是 'custom'。
+// Vue2 :849/:854 — when only one endpoint filled, time filter reverts to "all time", only
+// both filled is 'custom'.
 //
-// 偏离登记(真机验收反馈,Vue2 缺陷,按铁律改正确 + 登记,不照抄):Vue2 这两个
-// `<input type="date">` 互不约束,用户可以选出"结束早于起始"的倒置区间——filterPlaces
-// 对倒置区间会筛出零结果,用户看到空地图却不知道为什么(两个输入看起来都填好了)。本仓
-// 一是给模板里的两个 input 加原生 `:max`/`:min` 相互约束(原生日期选择器直接不让选到
-// 非法值,用户实际就是用选择器点的);二是这里把 `timeFilter` 的判据从"两头都填"收紧为
-// "两头都填且 customEnd >= customStart"(用户仍可能手打出非法值,原生约束防不住键盘
-// 输入)——非法区间按"区间还没填好"处理,归到既有的 `timeFilter = 'all'` 分支,不新增
-// 第三种语义。日期串是定长 'YYYY-MM-DD' 格式,字符串字典序比较即等价于日期先后比较,
-// 不需要 `new Date()` 解析。「>=」不是「>」——两端同一天是合法的单日区间。
+// Deviation logging (real device feedback, Vue2 defect, correct per iron rule + log, not
+// copying): Vue2's two `<input type="date">` have no cross-constraint, user can select an
+// inverted interval "end before start" — filterPlaces returns zero results for inverted
+// interval, user sees empty map with no clue why (both inputs look filled). This repo: first,
+// add native `:max`/:min` cross-constraints to both template inputs (native date picker won't
+// let user select invalid values, user's clicking in picker), second, tighten `timeFilter`
+// criterion from "both filled" to "both filled AND customEnd >= customStart" (user could still
+// hand-type invalid values, native constraints can't stop keyboard input) — invalid intervals
+// treated as "interval not done yet", fall into existing `timeFilter = 'all'` branch, no new
+// semantic added. Date strings are fixed-length 'YYYY-MM-DD' format, string lexical comparison
+// equals date order comparison, no `new Date()` parsing needed. ">=" not ">" — both ends on
+// same day is a legal single-day interval.
 function setStart(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   const end = props.filter.customEnd
@@ -75,7 +84,7 @@ function setStart(e: Event): void {
     timeFilter: (value && end && end >= value) ? 'custom' : 'all',
   })
 }
-// 同上 setStart 的登记,逻辑对调 customStart/customEnd。
+// Same deviation logging as setStart above, logic swaps customStart/customEnd.
 function setEnd(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   const start = props.filter.customStart
@@ -91,14 +100,15 @@ function setMinCount(v: number): void {
 function setRegion(id: string | null): void {
   emit('update:filter', { ...props.filter, regionFilter: id })
 }
-// Vue2 :441 toggleRegion —— 再点一次清空,不是单向赋值。
+// Vue2 :441 toggleRegion — click again to clear, not one-way assignment.
 function toggleRegion(id: string): void {
   emit('update:filter', { ...props.filter, regionFilter: props.filter.regionFilter === id ? null : id })
 }
 function toggleRecentOnly(): void {
   emit('update:filter', { ...props.filter, recentOnly: !props.filter.recentOnly })
 }
-// Vue2 :442-449 clearFilters —— 六个字段全回默认,不是从当前 filter 局部改。
+// Vue2 :442-449 clearFilters — all six fields back to default, not partial change from
+// current filter.
 function resetFilters(): void {
   emit('update:filter', {
     timeFilter: 'all',
@@ -109,12 +119,13 @@ function resetFilters(): void {
     recentOnly: false,
   })
 }
-// 完成只关弹层,不带 filter(brief 消歧义 3)。
+// Done closes panel only, no filter change (brief disambiguation 3).
 function done(): void {
   emit('update:open', false)
 }
 
-// ── 浮层规范:open 为真时挂 document 级 mousedown/keydown,watch(open) 挂/摘 ─────────
+// ── Floating panel spec: when open is true, attach document-level mousedown/keydown,
+//    watch(open) attaches/removes ────────────────────────────────────────────────
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
   if (rootRef.value && !rootRef.value.contains(target)) emit('update:open', false)
@@ -235,23 +246,24 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* token 映射(既定,同 PlacesRail.vue:179-180 先例):--text-1/2/3 → --fg/--fg-muted/
-   --fg-subtle;--line → --card-border;--accent-hi → --accent-text(本仓无 --accent-hi,
-   MergeReviewDialog.vue:249-252/PersonHero.vue:488-491/PersonRelationsTab.vue:249-251/
-   PlacesRail.vue:329 既有先例)。
+/* token mapping (established, follows PlacesRail.vue:179-180 precedent): --text-1/2/3 →
+   --fg/--fg-muted/--fg-subtle; --line → --card-border; --accent-hi → --accent-text (this
+   repo has no --accent-hi, established precedent in MergeReviewDialog.vue:249-252 /
+   PersonHero.vue:488-491 / PersonRelationsTab.vue:249-251 / PlacesRail.vue:329).
 
-   偏离登记(面板底色,本任务新决定,与 brief 给的通用 "--surface-2 → --chip-bg" 映射
-   不同,理由见任务报告):Vue2 `.map-filter-pop` 用 `--surface-2`(完全不透明的纯灰色,
-   见 photos.scss 定义)当**整块弹层自身**的底色——这与 PlacesRail.vue 里 `--surface-2 →
-   --chip-bg`
-   的既有映射服务的是不同场景:那里 `--chip-bg` 是叠在**已经不透明**的侧栏(`--panel-bg`)
-   之上的小元素填充(搜索框/hover 底),本身半透明也没问题;这里 `.map-filter-pop` 直接
-   悬浮在繁忙的地图画布上,如果用半透明的 `--chip-bg` 渐变,面板会透出地图、内容基本不可读。
-   本仓已有专门服务"不透明浮动菜单/面板"这个场景的组合 token ——
-   `--popup-bg`(不透明底)+ `--card-shadow-hi`(配套阴影),ContextMenu.vue/Dialog.vue/
-   AlertDialog.vue/ClusterActionDialog.vue/AlbumPickerDialog.vue/PersonHero.vue 的两个下拉
-   菜单全部用这一对(结构与本组件完全同构:触发按钮下方的绝对定位下拉面板)。改用它们,
-   不新增 token。 */
+   Deviation logging (panel background, this task new decision, differs from brief's generic
+   "--surface-2 → --chip-bg" mapping, rationale in task report): Vue2 `.map-filter-pop` uses
+   `--surface-2` (fully opaque solid gray, see photos.scss definition) as **the entire panel
+   itself** background — different scenario from existing `--surface-2 → --chip-bg` mapping in
+   PlacesRail.vue: there `--chip-bg` layers on top of **already-opaque** sidebar (`--panel-bg`)
+   as small element fills (search box / hover background), semi-transparent works fine; here
+   `.map-filter-pop` floats directly over busy map canvas, using semi-transparent `--chip-bg`
+   gradient would show map through panel, content unreadable. This repo already has a token
+   pair dedicated to "opaque floating menu/panel" scenario — `--popup-bg` (opaque background)
+   + `--card-shadow-hi` (matching shadow), used by both dropdowns in ContextMenu.vue / Dialog.vue
+   / AlertDialog.vue / ClusterActionDialog.vue / AlbumPickerDialog.vue / PersonHero.vue
+   (structure identical to this component: absolute-positioned dropdown below trigger button).
+   Switch to them, no new token. */
 .pfm-anchor { position: relative; }
 
 .map-chip {
@@ -265,12 +277,13 @@ onUnmounted(() => {
 }
 .map-chip:hover { color: var(--fg); }
 .map-chip.is-active {
-  /* Vue2 用 rgba 函数包 accent 通道、0.18 透明度 —— 本仓 --accent 随主题变化、没有
-     对应的 RGB 通道 token;改用 color-mix 直接对 var(--accent) 取同一个精确 alpha,
-     不近似、不新增 token。评审纠正:先例不是 --album-cover-fallback(那个是混两个
-     不透明色做渐变端点,技法不同);同技法(color-mix 对 transparent 取 alpha)的
-     既有先例见 PhotosSidebar.vue:99(.side-item.active)、theme.css 的
-     file-flash-kf 关键帧、PersonRelationsTab.vue:263-266、PhotoInfoPanel.vue:189/201。 */
+  /* Vue2 uses rgba wrapping accent channel with 0.18 opacity — this repo's --accent varies
+     by theme, no corresponding RGB channel token; use color-mix instead to get exact alpha
+     on var(--accent) directly, no approximation, no new token. Review correction: precedent
+     not --album-cover-fallback (that mixes two opaques as gradient endpoints, different
+     technique); same technique (color-mix on transparent for alpha) precedent in
+     PhotosSidebar.vue:99 (.side-item.active), theme.css file-flash-kf keyframes,
+     PersonRelationsTab.vue:263-266, PhotoInfoPanel.vue:189/201. */
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent-text);
 }
@@ -282,24 +295,28 @@ onUnmounted(() => {
   top: calc(100% + 6px);
   left: 0;
   min-width: 280px;
-  /* 评审 Important 复核结论(驳回改法,维持现状——原文摘录):
-     ①这里刻意用本仓既定的弹层 chrome 约定(--popup-bg / --card-shadow-hi),不复刻
-     Vue2 的纯灰实底(见 photos.scss --surface-2 定义)+ 单层 box-shadow。
-     ②依据是区级 spec D3 ——"照 New-UI 设计语言重塑(AreaShell/token/组件体系,同
-     SP4/SP5 前例);布局结构与信息层级照 Vue2,不搬 4498 行 photos.scss"。弹层的底色与
-     投影属于"组件体系 / surface treatment",归 New-UI 一侧;本组件已把布局结构与信息
-     层级(六段一个不漏)照 Vue2 做了,这里不再额外照抄 Vue2 的具体颜色实现。
-     ③与 T5/T6/T8 那几处新增精确 token 的区别:那些是**内容色**(图钉色/选中城市行/
-     滑杆轨道底),本仓对它们没有既定约定,所以要么精确复刻 Vue2 的 alpha、要么新增
-     token;而**弹层 chrome 在本仓已有既定约定**——ContextMenu.vue/Dialog.vue/
-     AlertDialog.vue/ClusterActionDialog.vue/AlbumPickerDialog.vue/PersonHero.vue 的
-     两个下拉菜单全部用 --popup-bg + --card-shadow-hi 这一对,复用它正是 D3 要求的
-     一致性,不是"就近偷懒"。
-     ④真机验收看点:--card-shadow-hi 深色主题下含一层 inset 白色上缘高光(见
-     theme.css:175 起的定义),Vue2 那个纯扁平菜单没有这层高光。若用户验收不认可这个
-     视觉差异,改法是新增 --filter-pop-bg / --filter-pop-shadow 两个 token,精确复刻
-     Vue2 那个纯灰实底与单层黑色投影(0.6 透明度,见 photos-places.scss:864 定义,两套
-     主题各给值)。 */
+  /* Review Important finding (rejected change, maintain as-is — original text excerpt):
+     ① Here intentionally use this repo's established floating panel chrome convention
+     (--popup-bg / --card-shadow-hi), don't replicate Vue2's solid gray (see photos.scss
+     --surface-2 definition) + single box-shadow.
+     ② Basis is area-level spec D3 — "reshape per New-UI design language (AreaShell/token/
+     component system, same as SP4/SP5 precedent); layout structure and information hierarchy
+     per Vue2, don't port 4498 lines of photos.scss". Panel background and shadow are "component
+     system / surface treatment", New-UI side; this component already did layout structure and
+     information hierarchy (all six sections) per Vue2, here don't additionally copy Vue2's
+     specific color implementation.
+     ③ Differs from T5/T6/T8 several new precise tokens: those are **content colors** (pin
+     color / selected city row / slider track background), repo has no established convention
+     for them, so either precisely replicate Vue2's alpha or add token; but **panel chrome
+     already has established convention here** — both dropdowns in ContextMenu.vue / Dialog.vue
+     / AlertDialog.vue / ClusterActionDialog.vue / AlbumPickerDialog.vue / PersonHero.vue use
+     --popup-bg + --card-shadow-hi pair, reusing it is exactly D3's required consistency, not
+     "lazy nearby copying".
+     ④ Real device acceptance checkpoint: --card-shadow-hi in dark theme has an inset white
+     top-edge highlight (see definition starting at theme.css:175), Vue2's flat menu has none.
+     If user acceptance doesn't approve this visual difference, remediation is add --filter-pop-bg
+     / --filter-pop-shadow two tokens, precisely replicate Vue2's solid gray + single black
+     shadow (0.6 opacity, see photos-places.scss:864 definition, give values in both themes). */
   background: var(--popup-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
@@ -326,11 +343,12 @@ onUnmounted(() => {
   border-radius: 6px;
   color: var(--fg);
   font: inherit; font-size: 11.5px;
-  /* 评审 I1:Vue2 photos-places.scss:882 写死深色 color-scheme,逼原生日期控件(日历图标、
-     未填占位文字)按深色配色渲染。本仓根节点已按主题分设 color-scheme(theme.css 的
-     :root 与 light 覆盖块),刻意不照抄这一行——照抄会在浅色主题下让白色图标/占位文字
-     铺在这里的浅底(--chip-bg)上洗白到不可读,让根节点的值级联下来才是两套主题都可读的
-     正确行为。 */
+  /* Review I1: Vue2 photos-places.scss:882 hardcodes dark color-scheme, forcing native date
+     control (calendar icon, unfilled placeholder text) to render in dark colors. This repo's
+     root already has theme-split color-scheme (theme.css :root and light override blocks),
+     intentionally not copying this line — copying would bleach white icons/placeholder on
+     light background (--chip-bg) in light theme to unreadable, letting root value cascade down
+     is correct behavior readable in both themes. */
   outline: none;
   cursor: pointer;
   font-variant-numeric: tabular-nums;
@@ -350,12 +368,14 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
-/* Vue2 没有给这些按钮 :hover(本仓桌面交互惯例新增,brief"hover 级联铁律"要求的对象)。 */
+/* Vue2 has no :hover for these buttons (new in this repo's desktop interaction convention,
+   required object of brief's "hover cascade iron rule"). */
 .map-filter-pop .mfp-count-row button:hover { background: var(--chip-bg-hi); color: var(--fg); }
 .map-filter-pop .mfp-count-row button.is-active {
   background: var(--accent); color: var(--on-accent);
 }
-/* 变体自带 :hover,优先级 (0,3,1) 高于基类 hover 的 (0,2,1),指针进入时不会被基类夺走底色。 */
+/* Variant has its own :hover, specificity (0,3,1) higher than base class hover (0,2,1),
+   pointer won't get base class background stolen. */
 .map-filter-pop .mfp-count-row button.is-active:hover {
   background: var(--accent); color: var(--on-accent);
 }
@@ -402,9 +422,10 @@ onUnmounted(() => {
   border-color: var(--accent);
   background: var(--accent);
 }
-/* 变体自带 :hover(挂在 .is-on 上,而不是让基类 .mfp-checkbox:hover 通过后代选择器影响
-   .mfp-tick——两者选择器结构不同不会互相覆盖,但显式写一条同值规则钉死,不依赖"基类
-   hover 恰好没有声明同名属性"这个偶然事实)。 */
+/* Variant has its own :hover (on .is-on, not letting base class .mfp-checkbox:hover affect
+   .mfp-tick via descendant selector — different selector structures won't override each other,
+   but explicitly write identical-value rule to nail it down, not depending on the accidental
+   fact that "base class hover happens to not declare same-name property"). */
 .map-filter-pop .mfp-checkbox.is-on:hover .mfp-tick {
   border-color: var(--accent);
   background: var(--accent);

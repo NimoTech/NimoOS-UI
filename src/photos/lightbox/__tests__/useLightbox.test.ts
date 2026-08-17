@@ -17,7 +17,7 @@ import { useLightbox } from '../useLightbox'
 import { usePhotosFavorites } from '../../stores/favorites'
 const P = (id: string, extra: Record<string, unknown> = {}) => ({ id, isVideo: false, ...extra }) as any
 
-describe('useLightbox 开合/翻页', () => {
+describe('useLightbox open/close/pagination', () => {
   let back: any, push: any
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -27,7 +27,7 @@ describe('useLightbox 开合/翻页', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  it('openAt 打开、定位当前项、pushState 一次、委托 store.recordView(节流)', () => {
+  it('openAt opens, positions current item, pushState once, delegates to store.recordView (throttled)', () => {
     const fav = usePhotosFavorites()
     const spy = vi.spyOn(fav, 'recordView')
     const lb = useLightbox()
@@ -38,43 +38,43 @@ describe('useLightbox 开合/翻页', () => {
     expect(push).toHaveBeenCalledTimes(1)
     expect(spy).toHaveBeenCalledWith('b')
   })
-  it('list 为空退化为单项', () => {
+  it('empty list degrades to single item', () => {
     const lb = useLightbox(); lb.openAt(P('x'), [])
     expect(lb.list.value.map((p) => p.id)).toEqual(['x'])
   })
-  it('prev/next 边界钳制,不再 pushState', () => {
+  it('prev/next boundary clamping, does not pushState', () => {
     const lb = useLightbox(); lb.openAt(P('a'), [P('a'), P('b')])
     push.mockClear()
-    lb.prev(); expect(lb.index.value).toBe(0) // 已在头,不动
+    lb.prev(); expect(lb.index.value).toBe(0) // already at head, no move
     lb.next(); expect(lb.index.value).toBe(1)
-    lb.next(); expect(lb.index.value).toBe(1) // 已在尾
+    lb.next(); expect(lb.index.value).toBe(1) // already at tail
     expect(push).not.toHaveBeenCalled()
   })
-  it('close 复位并 history.back 一次', () => {
+  it('close resets and history.back once', () => {
     const lb = useLightbox(); lb.openAt(P('a'), [P('a')])
     lb.close()
     expect(lb.open.value).toBe(false)
     expect(back).toHaveBeenCalledTimes(1)
   })
-  it('popstate(返回键)只关灯箱,不调 history.back', () => {
+  it('popstate (back button) only closes lightbox, does not call history.back', () => {
     const lb = useLightbox(); lb.openAt(P('a'), [P('a')])
     back.mockClear()
     window.dispatchEvent(new PopStateEvent('popstate'))
     expect(lb.open.value).toBe(false)
     expect(back).not.toHaveBeenCalled()
   })
-  it('视频 startMs 仅在 isVideo && >0 时保留', () => {
+  it('video startMs only retained when isVideo && >0', () => {
     const lb = useLightbox()
     lb.openAt(P('v', { isVideo: true }), [], 4200); expect(lb.startMs.value).toBe(4200)
     lb.__resetForTest(); lb.openAt(P('p'), [], 4200); expect(lb.startMs.value).toBe(0)
   })
-  it('query trim 存入 searchQuery', () => {
+  it('query trim stored in searchQuery', () => {
     const lb = useLightbox(); lb.openAt(P('a'), [], 0, '  hello  ')
     expect(lb.searchQuery.value).toBe('hello')
   })
 
-  describe('goTo 跳转', () => {
-    it('范围内跳转成功:goTo(2) 三项列表 → index=2,current 是第三项', () => {
+  describe('goTo jump', () => {
+    it('in-range jump succeeds: goTo(2) with three-item list → index=2, current is third item', () => {
       const lb = useLightbox()
       lb.openAt(P('a'), [P('a'), P('b'), P('c')])
       push.mockClear()
@@ -83,7 +83,7 @@ describe('useLightbox 开合/翻页', () => {
       expect(lb.current.value?.id).toBe('c')
       expect(push).not.toHaveBeenCalled()
     })
-    it('越界下 goTo(-1) → index 不变', () => {
+    it('out-of-bounds below goTo(-1) → index unchanged', () => {
       const lb = useLightbox()
       lb.openAt(P('a'), [P('a'), P('b')])
       push.mockClear()
@@ -91,18 +91,18 @@ describe('useLightbox 开合/翻页', () => {
       expect(lb.index.value).toBe(0)
       expect(push).not.toHaveBeenCalled()
     })
-    it('越界上 goTo(99) → index 不变', () => {
+    it('out-of-bounds above goTo(99) → index unchanged', () => {
       const lb = useLightbox()
       lb.openAt(P('a'), [P('a'), P('b'), P('c')])
       push.mockClear()
       lb.goTo(99)
-      expect(lb.index.value).toBe(0) // 仍在 openAt 后的位置
+      expect(lb.index.value).toBe(0) // still at position after openAt
       expect(push).not.toHaveBeenCalled()
     })
   })
 })
 
-describe('useLightbox 水合+收藏', () => {
+describe('useLightbox hydration + favorites', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     useLightbox().__resetForTest()
@@ -116,7 +116,7 @@ describe('useLightbox 水合+收藏', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  it('openAt 后 detail 先等于当前项、getAsset 到达后合并', async () => {
+  it('after openAt, detail initially equals current item, merges after getAsset arrives', async () => {
     vi.mocked(service.photos.getAsset).mockResolvedValue({ id: 'b', make: 'Nikon' } as any)
     const lb = useLightbox()
     lb.openAt(P('b'), [P('a'), P('b'), P('c')])
@@ -128,7 +128,7 @@ describe('useLightbox 水合+收藏', () => {
     expect(lb.detail.value?.camera).toBe('Nikon')
   })
 
-  it('翻页时过期 getAsset 结果被 seq 守卫丢弃(先解析旧的、当前已是新项 → detail 不被旧值覆盖)', async () => {
+  it('stale getAsset results dropped by seq guard on pagination (resolve stale first, current is new item → detail not overwritten by stale)', async () => {
     let resolveFirst: (v: any) => void = () => {}
     let resolveSecond: (v: any) => void = () => {}
     const firstPromise = new Promise((res) => { resolveFirst = res })
@@ -156,7 +156,7 @@ describe('useLightbox 水合+收藏', () => {
     expect(lb.detail.value?.camera).toBe('Sony')
   })
 
-  it('searchQuery 为空不发 getAssetOcr;非空且非视频才发', async () => {
+  it('empty searchQuery does not call getAssetOcr; non-empty and non-video calls it', async () => {
     const lb = useLightbox()
     lb.openAt(P('a'), [P('a')])
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
@@ -177,7 +177,7 @@ describe('useLightbox 水合+收藏', () => {
     expect(service.photos.getAssetOcr).not.toHaveBeenCalled()
   })
 
-  it('reconcileFav 播种 favIds、isFav 反映当前项', async () => {
+  it('reconcileFav seeds favIds, isFav reflects current item', async () => {
     vi.mocked(service.photos.listFavoriteIds).mockResolvedValue(['a', 42])
     const lb = useLightbox()
     lb.openAt(P('a'), [P('a'), P(String(42))])
@@ -187,7 +187,7 @@ describe('useLightbox 水合+收藏', () => {
     expect(lb.isFav.value).toBe(true)
   })
 
-  it('toggleFav 委托 store.toggle', async () => {
+  it('toggleFav delegates to store.toggle', async () => {
     const fav = usePhotosFavorites()
     const spy = vi.spyOn(fav, 'toggle').mockResolvedValue()
     const lb = useLightbox()
@@ -197,7 +197,7 @@ describe('useLightbox 水合+收藏', () => {
     expect(spy).toHaveBeenCalledWith('a')
   })
 
-  it('toggleFav 乐观翻转并调 favorite/unfavorite;失败回滚', async () => {
+  it('toggleFav optimistically flips and calls favorite/unfavorite; rolls back on failure', async () => {
     vi.mocked(service.photos.listFavoriteIds).mockResolvedValue(['a'])
     const lb = useLightbox()
     lb.openAt(P('a'), [P('a')])
@@ -219,11 +219,11 @@ describe('useLightbox 水合+收藏', () => {
     expect(lb.isFav.value).toBe(true)
   })
 
-  it('seq 守卫同 id 重访竞态覆盖(隔离 seq 机制):openAt a → next b → prev a(同 id!)→ 解析新的 a 再旧的 a,detail 反映新的', async () => {
-    // 目标: 用同一个 id 的两个 getAsset 调用来隔离 seq 守卫。
-    // 场景: openAt(a) [call 0, pending] → next() [call 1, pending] → prev() [call 2, pending, same id 'a']
-    // 然后先解析 call 2(新的) → detail 应为 'NEW',再解析 call 0(旧的) → detail 仍应为 'NEW'
-    // (不能用 id 检查来区别,因为两个都是 id='a',必须靠 seq 机制丢弃 call 0)
+  it('seq guard isolates same-id re-visit race (seq isolation mechanism): openAt a → next b → prev a(same id!) → resolve new a then stale a, detail reflects new', async () => {
+    // Goal: use two getAsset calls with same id to isolate seq guard.
+    // Scenario: openAt(a) [call 0, pending] → next() [call 1, pending] → prev() [call 2, pending, same id 'a']
+    // then resolve call 2(new) first → detail should be 'NEW', then resolve call 0(stale) → detail should still be 'NEW'
+    // (cannot use id check to distinguish, since both have id='a'; must rely on seq mechanism to drop call 0)
 
     const deferreds: Array<{ resolve: (v: any) => void; reject: (e: any) => void }> = []
     let callCount = 0
@@ -240,28 +240,28 @@ describe('useLightbox 水合+收藏', () => {
     })
 
     const lb = useLightbox()
-    // call 0: openAt 触发 hydrateDetail,开始 getAsset('a'),保持 pending
+    // call 0: openAt triggers hydrateDetail, starts getAsset('a'), remains pending
     lb.openAt(P('a'), [P('a'), P('b'), P('c')])
-    // call 1: next 触发 hydrateDetail,开始 getAsset('b')
+    // call 1: next triggers hydrateDetail, starts getAsset('b')
     lb.next()
-    // call 2: prev 触发 hydrateDetail,开始 getAsset('a') —— 同一个 id 的第二次调用!
+    // call 2: prev triggers hydrateDetail, starts getAsset('a') — second call with same id!
     lb.prev()
 
     expect(lb.current.value?.id).toBe('a')
 
-    // 先解析 call 2(最新) 的结果,带 status='NEW'(status 字段在 assetToPhoto 中被保留)
+    // resolve call 2(newest) first with status='NEW' (status field preserved in assetToPhoto)
     deferreds[2].resolve({ id: 'a', status: 'NEW' } as any)
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
     expect(lb.detail.value?.id).toBe('a')
     expect(lb.detail.value?.status).toBe('NEW')
 
-    // 再解析 call 0(最旧) 的结果,带 status='STALE'
-    // 如果 seq 检查工作,这个结果应该被丢弃;detail 应仍为 'NEW'
+    // then resolve call 0(oldest) with status='STALE'
+    // if seq check works, this result should be dropped; detail should still be 'NEW'
     deferreds[0].resolve({ id: 'a', status: 'STALE' } as any)
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
 
-    // 关键断言: detail 仍然是 NEW,不会被 STALE 覆盖
-    // (id 检查无法区别,因为两个都是 id='a';只有 seq 检查能丢弃 call 0)
+    // critical assertion: detail still is NEW, will not be overwritten by STALE
+    // (id check cannot distinguish, since both have id='a'; only seq check can drop call 0)
     expect(lb.detail.value?.id).toBe('a')
     expect(lb.detail.value?.status).toBe('NEW')
   })

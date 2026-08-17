@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Task 8: 时间线集成——fills the content area left as a placeholder by T5,
+// Task 8: Timeline integration -- fills the content area left as a placeholder by T5,
 // wires the socket task-progress feed, task-done toast coalescing and batch
 // delete. Ports Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's socket
 // block (:74-91) and mounted-time coalescer wiring (:315-335), simplified per
@@ -8,42 +8,54 @@
 //    (photosTaskCompletedToast) instead of Vue2's per-type messages.
 //  - no 5s pre-removal delay before announcing — a status:'done' transition
 //    observed at ingest time goes straight into the coalescer.
-// Task 9: 灯箱集成(P2 收官)——tile `open` 不再是空 handler:构造当前 tab 过滤后的
-// 翻页集(与用户网格所见一致,grid 自己 emit 的 list 恒为 undefined)交给
-// useLightbox().openAt;PhotoLightbox 挂在模板末尾,delete 事件落到 store.deleteAssets +
-// 4000ms toast(灯箱已在 confirm 时自行 close,这里不重复关)。
-// Task 9(SP7-P4 相册)追加:选择工具栏批量「加入相册」与灯箱单张「加入相册」统一接
-// AlbumPickerDialog(T5)—— pickerOpen/pickerIds + openAlbumPicker(ids),@added 清空
-// selection(照 Vue2 pickAlbum:587-595)。
-// SP7-P7b-T4:EXIF 筛选条接线——照 Vue2 PhotosTimeline.vue:142-175 的 gridMonths。
-// FilterBar 挂进 PhotosToolbar 的 after-tabs 槽位(T3);exifFilter 态 + gridMonths
-// 派生 + filteredCount/onOpenTile 改用 gridMonths,三处同源(网格数据源、顶栏计数、
-// 灯箱翻页集)。
+// Task 9: Lightbox integration (P2 wrap-up) -- tile `open` is no longer an empty handler: builds
+// the current tab-filtered browsing set (matching what the user sees on the grid; the grid's own
+// emitted list is always undefined) and hands it to useLightbox().openAt; PhotoLightbox is
+// mounted at the end of the template, and the delete event lands on store.deleteAssets + a
+// 4000ms toast (the lightbox already closes itself on confirm, so this doesn't close it again).
+// Task 9 (SP7-P4 albums) addition: the selection toolbar's batch "Add to album" and the
+// lightbox's single-photo "Add to album" both wire uniformly into AlbumPickerDialog (T5) --
+// pickerOpen/pickerIds + openAlbumPicker(ids), @added clears the selection (matching Vue2
+// pickAlbum:587-595).
+// SP7-P7b-T4: EXIF filter bar wiring -- matches Vue2 PhotosTimeline.vue:142-175's gridMonths.
+// FilterBar is mounted into PhotosToolbar's after-tabs slot (T3); the exifFilter state +
+// gridMonths derived value + filteredCount/onOpenTile switch to using gridMonths, all three
+// sharing the same source (the grid's data source, the top bar's count, the lightbox's
+// browsing set).
 //
-// Task 3(壳 + 侧栏重刻):根结构改为 Vue2 的 `.photos-root[themeClass] > .app[data-collapsed]
-// [data-selecting] > PhotosSidebar + main.main`(NimoOS-UI PhotosTimeline.vue:943-956),
-// 取代旧的 AreaShell + `.photos-layout` flex-row 外壳。内容槽位(当时是 PhotosSearchBar 起到
-// PhotosGrid 止)原样保留在 `.photos-main` 里,只是外面多套了一层 `.app`/`main.main` 网格壳。
+// Task 3 (shell + sidebar re-carve): the root structure changes to Vue2's
+// `.photos-root[themeClass] > .app[data-collapsed][data-selecting] > PhotosSidebar + main.main`
+// (NimoOS-UI PhotosTimeline.vue:943-956), replacing the old AreaShell + `.photos-layout`
+// flex-row shell. The content slot (at the time running from PhotosSearchBar through
+// PhotosGrid) stays as-is inside `.photos-main`, just wrapped in one more layer of
+// `.app`/`main.main` grid shell.
 //
-// Task 4(顶栏重刻,D13):`main.main` 下新增 `<PhotosTopbar>` 作为 `.photos-main` 的**同级
-// 前一个兄弟**(照 Vue2 PhotosTimeline.vue:956-971 的 `<main class="main"><PhotosTopbar/>
-// <PhotosSearchView v-if=.../>...</main>` 结构——topbar 是 main 的直接子节点,不嵌进内容槽位
-// 容器里)。原先内联在这里的 `<PhotosSearchBar>` 一行与紧随其后的 `.photos-summary` 计数行
-// 一并移入 PhotosTopbar.vue 内部(标题块 `.topbar-title`+`.topbar-sub`,副行=恒全库计数;
-// 搜索框=`.topbar` 内居中的 `.search`)。`collapsed` 的持久化 ref/toggle 语义不变,只是现在
-// 有了真正的点击入口(T3 报告"Concerns"第 4 条留的坑——Vue2 自己的折叠按钮就在顶栏,不在
-// AreaShell 的汉堡菜单里,补在这里正是 Vue2 的原始位置)。
-// PhotosSearchBar.vue 组件本身没删——grep 确认它仍被 `PhotosSearch.vue`(搜索结果页自己的
-// 顶部搜索框)复用,只是本文件不再引用它。
+// Task 4 (top bar re-carve, D13): adds `<PhotosTopbar>` under `main.main` as `.photos-main`'s
+// **preceding sibling** (matching Vue2 PhotosTimeline.vue:956-971's
+// `<main class="main"><PhotosTopbar/><PhotosSearchView v-if=.../>...</main>` structure -- the
+// topbar is a direct child of main, not nested inside the content slot's container). The
+// `<PhotosSearchBar>` line and the `.photos-summary` count line that used to be inlined right
+// after it here both move into PhotosTopbar.vue (title block `.topbar-title`+`.topbar-sub`, the
+// sub line = always the full-library count; the search box = the centred `.search` inside
+// `.topbar`). `collapsed`'s persisted ref/toggle semantics are unchanged, it just now has a
+// real click entry point (the gap left open by T3's report "Concerns" item 4 -- Vue2's own
+// collapse button lives right in the top bar, not in AreaShell's hamburger menu; filling it in
+// here is exactly Vue2's original location).
+// PhotosSearchBar.vue itself is not deleted -- grepping confirms it's still reused by
+// `PhotosSearch.vue` (the search results page's own top search box), this file just no longer
+// references it.
 //
-// AreaShell 去留判定(brief Step 4):读过 AreaShell.vue —— 桌面态(≥769px)`.area-bar`
-// 确实 `display:none`(D13 注释属实),但 `.area-body` 仍带 `padding:20px` 且
-// `overflow:auto`,`.area-shell` 还包一层 `height:100vh` 的 flex 列容器。这不是"零可见
-// chrome":Vue2 pixel baseline 里侧栏是贴边到视口左沿的(`.app` 网格本身就是 100vh 无内边距),
-// AreaShell 的 20px padding + 多一层 flex 包裹会把整个 `.app` 网格向内推、且与 `.app` 自带的
-// `height:100vh` 叠加造成双重滚动容器。故 Photos.vue 从本任务起脱离 AreaShell,直接以
-// `.photos-root` 为根——与 AI Agent 区(src/ai/views/AgentPage.vue)同款自定义整页壳的现有
-// 先例一致(AgentPage.vue 同样是从不借 AreaShell 的独立视口壳)。
+// AreaShell keep-or-drop verdict (brief Step 4): read through AreaShell.vue -- on desktop
+// (≥769px) `.area-bar` really is `display:none` (the D13 comment checks out), but `.area-body`
+// still carries `padding:20px` and `overflow:auto`, and `.area-shell` wraps another
+// `height:100vh` flex-column container around that. This is not "zero visible chrome": in the
+// Vue2 pixel baseline the sidebar sits flush against the viewport's left edge (the `.app` grid
+// itself is 100vh with no padding), and AreaShell's 20px padding plus the extra flex wrapper
+// would push the whole `.app` grid inward, stacking with `.app`'s own `height:100vh` to create a
+// double scroll container. So from this task on, Photos.vue drops AreaShell and roots directly
+// on `.photos-root` -- matching the existing precedent set by the AI Agent area
+// (src/ai/views/AgentPage.vue), a same-shape custom full-page shell that likewise never
+// borrows AreaShell.
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -108,19 +120,24 @@ const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 // the port (SP7-P1 review finding), sanctioned fix.
 const tab = ref('photo')
 
-// Task 7(P8a)+ P8b:深链分发器,composable 内部自行 onMounted + watch,这里只挂一次。
-// ?tab 是唯一需要宿主页面配合的键(tab 是本页的展示过滤、不是导航目的地,没有对应路由
-// 可跳),所以把 tab 的写入口通过 hooks 交给它;其余键全靠 router 自己落地。
-// 挂载点放在 `const tab` 之后而不是 setup 开头:闭包虽然只在 onMounted/watch 里才执行、
-// 不会真的撞上 TDZ,但"引用一个还没声明的绑定"是没必要的隐患,顺序上避开更省心。
+// Task 7 (P8a) + P8b: the deep-link dispatcher -- the composable handles its own onMounted +
+// watch internally, this only mounts it once. `?tab` is the only key that needs the host
+// page's cooperation (tab is this page's own display filter, not a navigation destination, so
+// there's no matching route to jump to), so its write entry point is handed over via hooks;
+// every other key lands entirely through the router on its own.
+// The mount call sits after `const tab` rather than at the top of setup: the closure only
+// actually runs inside onMounted/watch and would never really hit a TDZ, but "referencing a
+// binding that isn't declared yet" is an unnecessary hazard, and it's cheaper to just avoid the
+// ordering question altogether.
 usePhotosDeepLinks({ setTab: (v) => { tab.value = v } })
 
 const density = ref('comfortable')
 const selected = ref<Array<string | number>>([])
 
-// P7b-T4:EXIF 筛选态。照 Vue2 PhotosTimeline.vue:116 的 activeFilters,但只保留三个
-// facet 键——Vue2 那个对象上还挂着 placeKey/spotKey 两个 spot 跳转用的键,New-UI 的
-// 城市/spot 跳转走独立路由页(D6),那两个键在本仓无对应物。
+// P7b-T4: EXIF filter state. Matches Vue2 PhotosTimeline.vue:116's activeFilters, but keeps
+// only three facet keys -- Vue2's object also carries placeKey/spotKey, two keys used for spot
+// navigation; New-UI's city/spot navigation goes through a separate route page (D6), so those
+// two keys have no counterpart in this repo.
 const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
 
 // SP15-P3-T8: is an EXIF filter actually narrowing anything right now? Only
@@ -148,19 +165,24 @@ const gridMonths = computed(() =>
 // Grid does tab-filtering internally; mirror the same predicate here (hoisted
 // to photos/util/tabFilter.ts, Fix 3) to feed the toolbar's item count (Vue2
 // passed the filtered count, PhotosGrid.vue filteredMonths logic ported at task-7).
-// D20(用户 2026-08-03 拍板):计数跟着 EXIF 筛选一起减,与用户所见一致。
-// (Vue2 传的是 allPhotos.length,既不跟标签页也不跟筛选;New-UI 在 P1 已把它改成跟标签页
-// 走的 sanctioned 偏离,这里把 EXIF 叠进同一个 computed,方向一致。)
+// D20 (owner ruling, 2026-08-03): the count shrinks along with the EXIF filter too, matching
+// what the user sees.
+// (Vue2 passes allPhotos.length, which follows neither the tab nor the filter; New-UI already
+// changed it in P1 to follow the tab, a sanctioned deviation -- this folds EXIF into the same
+// computed, keeping the same direction.)
 const filteredCount = computed(() =>
   gridMonths.value.reduce((sum, m) => sum + m.photos.filter((p) => matchesTab(p, tab.value)).length, 0),
 )
 
-// T16 接线(结构规格 22):搜索框恒显示(对应 Vue2 `show-search = isLibraryView`,
-// New-UI 没有"库视图/其余视图"这个多态壳,时间线页本身就只有这一种形态,故无 v-if
-// 条件)。提交→跳转 /photos/search。空串早已在 PhotosTopbar.submitSearch 里被挡下
-// （trim 后为空直接 return,不 emit search-submit——ledger 六-2,owner 裁决),这个
-// handler 根本收不到空串;下面的 `q ? { q } : {}` 只是防御性写法(万一将来有别的调用
-// 方式传空串进来也不会拼出 `?q=` 这个空查询参数),不代表"空提交仍会跳转"。
+// T16 wiring (structure spec 22): the search box always shows (corresponding to Vue2's
+// `show-search = isLibraryView` -- New-UI has no "library view / everything else" polymorphic
+// shell, the timeline page itself only ever has this one shape, so there's no v-if condition).
+// Submit → navigate to /photos/search. An empty string is already blocked inside
+// PhotosTopbar.submitSearch (an empty string after trim returns immediately without emitting
+// search-submit -- ledger 六-2, owner's ruling), so this handler never receives an empty
+// string at all; the `q ? { q } : {}` below is purely defensive (in case some other call path
+// passes an empty string in the future, it still won't produce the empty `?q=` query param),
+// not a sign that "an empty submit still navigates".
 function onSearchSubmit(q: string) {
   router.push({ path: '/photos/search', query: q ? { q } : {} })
 }
@@ -172,15 +194,17 @@ function toggleSelect(id: string | number) {
 }
 function cancelSelection() { selected.value = [] }
 
-// Task 9: 「加入相册」入口(选择工具栏批量 / 灯箱单张)—— 统一走 AlbumPickerDialog(T5)。
+// Task 9: the "Add to album" entry point (selection toolbar batch / lightbox single) -- unified through AlbumPickerDialog (T5).
 const pickerOpen = ref(false)
 const pickerIds = ref<Array<string | number>>([])
 function openAlbumPicker(ids: Array<string | number>) {
   pickerIds.value = ids
   pickerOpen.value = true
 }
-// 照 Vue2 pickAlbum:587-595 结尾 this.selected = [] —— 加完清空选择态(不管是从工具栏批量
-// 还是灯箱单张触发,批量场景才有 selected 非空,单张场景这里恒为空数组,赋值是安全的空操作)。
+// Matches Vue2 pickAlbum:587-595's ending `this.selected = []` -- clears the selection state
+// once the add completes (whether triggered from the toolbar's batch action or the lightbox's
+// single photo -- only the batch case ever has a non-empty selected; the single-photo case
+// always has an empty array here, so the assignment is a safe no-op).
 function onAlbumAdded() {
   selected.value = []
 }
@@ -208,16 +232,20 @@ async function onBatchDelete(ids: Array<string | number>) {
 }
 
 function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
-  // grid 自己不知道当前 tab(它内部过滤是为展示,不为翻页集),此处用同一个 matchesTab
-  // 谓词重建"用户所见"的翻页集 —— 与 PhotosToolbar 的 filteredCount 用同一份数据源同一谓词。
-  // P7b-T4:翻页集必须与用户在网格里看到的范围一致:先 EXIF 筛(gridMonths)再按标签页筛,
-  // 用与 filteredCount 完全相同的两道谓词——否则灯箱能翻到被筛掉的照片。
+  // The grid itself doesn't know the current tab (its internal filtering is for display, not
+  // for the browsing set) -- rebuild the "what the user sees" browsing set here using the same
+  // matchesTab predicate, sharing the same data source and predicate as PhotosToolbar's
+  // filteredCount.
+  // P7b-T4: the browsing set must match exactly what the user sees in the grid: EXIF-filter
+  // first (gridMonths), then tab-filter, using the exact same two predicates as filteredCount --
+  // otherwise the lightbox could page into a photo that was filtered out.
   const filtered = gridMonths.value.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
   lb.openAt(photo, filtered, startMs)
 }
 
 async function onLightboxDelete(id: string | number) {
-  // 灯箱已在用户确认删除时自行 close(见 PhotoLightbox.vue doDelete),这里不再重复关闭。
+  // The lightbox already closes itself when the user confirms delete (see PhotoLightbox.vue's
+  // doDelete), so this doesn't close it again.
   const snapshot = [String(id)]
   await store.deleteAssets(snapshot)
   // Same toast/Undo shape as onBatchDelete — Vue2's lightbox delete reuses
@@ -256,12 +284,14 @@ const doneCoalescer = createTaskDoneCoalescer<TaskBusPayload>({
 // Ingest-time done-transition detection: capture whether this task was
 // already 'done' before the store merges the new event in, so a task that
 // stays 'done' across repeated events (or re-ingests) is only announced once.
-// P8a-T10 修:原先用 `store.tasks.find(...).status === 'done'` 判断"是否已经宣布过"——
-// fetchIndexStatus 的 idle 对账(timeline.ts:118-120)会把 done 的 index 任务从
-// store.tasks 里摘掉,若之后又收到一条迟到的重复 done 事件,find 返回 undefined,
-// 旧判断误判成"没宣布过"从而二次 toast。改用一个不依赖任务是否还在列表里的 id 集合:
-// 一旦某个 id 被宣布过就记住,直到它以 running 状态"复活"(同 id 复用于新一轮任务)才
-// 允许再宣布一次——与 store 侧 5s 过期计时器的"running 取消计时器"同一条重置信号。
+// P8a-T10 fix: this used to check `store.tasks.find(...).status === 'done'` to decide "has this
+// already been announced" -- fetchIndexStatus's idle reconciliation (timeline.ts:118-120) drops
+// a done index task out of store.tasks, so if a late duplicate done event arrives afterward,
+// find returns undefined and the old check mistakenly reads it as "not announced yet", firing a
+// second toast. Switched to an id set that doesn't depend on whether the task is still in the
+// list: once an id has been announced, remember it, and only allow announcing it again once it
+// "comes back to life" in a running state (the same id reused for a new round of the task) --
+// the same reset signal as the store side's 5s expiry timer's "running cancels the timer".
 const announcedTaskIds = new Set<string | number>()
 
 function onTaskProgress(_props: unknown, raw: unknown) {
@@ -292,9 +322,11 @@ onMounted(() => {
   store.fetchTimeline()
   store.startIndexPoll()
   store.fetchTasks()
-  // Task 10: 时间线首屏收藏态 reconcile —— 若用户本次会话未开过灯箱/收藏视图,
-  // per-tile 星标(PhotosGrid)会因 favorites store 的 favIds 尚未拉取而全部
-  // 呈描边(误报未收藏)。此处强制一次 reconcile 让时间线一进来星标即准。
+  // Task 10: reconcile favourite state on the timeline's first screen -- if the user hasn't
+  // opened the lightbox or the favourites view this session, the per-tile star (PhotosGrid)
+  // will all render as outline-only because the favorites store's favIds hasn't been fetched
+  // yet (a false "not favourited" report). Force one reconcile here so the stars are correct
+  // the moment the timeline loads.
   usePhotosFavorites().reconcileFavIds()
   unsubs.push(bus.on('nimoos.photos.task.progress', onTaskProgress))
   unsubs.push(bus.on('connect', onSocketConnect))
@@ -325,14 +357,16 @@ onUnmounted(() => {
               @update:tab="tab = $event" @update:density="density = $event"
             >
               <template #after-tabs>
-                <!-- facet 源取 allPhotos 而不是 gridMonths —— 否则筛掉某个年份后,该年份
-                     就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths 而非
-                     gridMonths)。
-                     Whole-branch review fix (minor 11):此前这句写的是「恒取全库」,在分桶
-                     模式下不成立 —— allPhotos 展平的是 `months`,而分桶模式下未加载的月份
-                     photos 恒为空数组,所以 facet 列表只覆盖**已加载的桶**,会随用户滚动
-                     变长。行为本身是已登记的限制(spec §5.1,真正的修法是后端筛选),这里
-                     只是把注释改成实情。 -->
+                <!-- The facet source is allPhotos, not gridMonths -- otherwise once a year gets
+                     filtered out, that year disappears from the dropdown and can never be picked
+                     again (Vue2's facet source is likewise displayMonths, not gridMonths).
+                     Whole-branch review fix (minor 11): this comment used to say "always takes
+                     the whole library" -- that doesn't hold in bucket mode -- allPhotos flattens
+                     `months`, and in bucket mode an unloaded month's photos is always an empty
+                     array, so the facet list only covers the **already-loaded buckets**, and
+                     grows as the user scrolls. The behaviour itself is a registered limitation
+                     (spec §5.1, the real fix is backend-side filtering); this just corrects the
+                     comment to match reality. -->
                 <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
               </template>
             </PhotosToolbar>
@@ -425,10 +459,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Task 3 起,外层高度封顶不再由这里的 `.photos-layout` 规则负责(该规则已删除,类名不再
-   出现在本文件源码里——photosLayoutHeightCap.test.ts 的 CAPPED 名单已同步移除 Photos.vue,
-   见该文件注释)。封顶现在由 Vue2 结构的 `.app` 网格自己扛(parity scss photos.scss:116-128
-   `height: 100vh; overflow: hidden`)。 */
+/* From Task 3 on, the outer height cap is no longer this file's own `.photos-layout` rule's
+   job (that rule is deleted, and the class name no longer appears anywhere in this file's
+   source -- photosLayoutHeightCap.test.ts's CAPPED list has Photos.vue removed to match, see
+   that file's own comment). The cap is now carried by Vue2's `.app` grid structure itself
+   (parity scss photos.scss:116-128 `height: 100vh; overflow: hidden`). */
 /* New-UI mobile enhancement (Vue2 has no responsive drawer here — PhotosSidebar.vue's own
    file-header comment registers this deviation): once the sidebar switches into is-drawer
    mode (position:fixed, taken out of grid flow) at ≤768px, collapse `.app`'s sidebar column

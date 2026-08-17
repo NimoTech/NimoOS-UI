@@ -32,26 +32,26 @@ describe('pathUtils', () => {
   })
 })
 
-describe('resolveInputPath(旧格式深链归一,Vue2 同款)', () => {
+describe('resolveInputPath (normalize old deep-link format, same as Vue2)', () => {
   const dn = { '/DATA': 'NimoOS-HD', '/mnt/smb-nas': 'nas' }
 
-  it('真实路径 → 归一为虚拟', () => {
+  it('real path → normalize to virtual', () => {
     expect(resolveInputPath('/DATA/Documents', dn)).toEqual({ realPath: '/DATA/Documents', virtualPath: '/NimoOS-HD/Documents' })
   })
 
-  it('虚拟路径输入 → 原样规范化', () => {
+  it('virtual path input → normalized as-is', () => {
     expect(resolveInputPath('/NimoOS-HD/Documents', dn)).toEqual({ realPath: '/DATA/Documents', virtualPath: '/NimoOS-HD/Documents' })
   })
 
-  it('挂载根本身(真实=挂载点)', () => {
+  it('mount root itself (real = mount point)', () => {
     expect(resolveInputPath('/mnt/smb-nas', dn)).toEqual({ realPath: '/mnt/smb-nas', virtualPath: '/nas' })
   })
 
-  it('未知前缀(不在 displayNames)原样透过', () => {
+  it('unknown prefix (not in displayNames) pass through as-is', () => {
     expect(resolveInputPath('/unknown/x', dn)).toEqual({ realPath: '/unknown/x', virtualPath: '/unknown/x' })
   })
 
-  it('空输入 → 根', () => {
+  it('empty input → root', () => {
     expect(resolveInputPath('', dn)).toEqual({ realPath: '/', virtualPath: '/' })
   })
 })

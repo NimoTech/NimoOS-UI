@@ -29,7 +29,7 @@ describe('appstore store', () => {
     svc.getApp.mockReset()
   })
 
-  it('loadCatalog:并行拉分类+目录;分类滤 count>0;ALL 不传参', async () => {
+  it('loadCatalog: parallel fetch category and catalog; filter categories with count>0; ALL passes no params', async () => {
     const s = useAppstoreStore()
     await s.loadCatalog()
     expect(svc.listApps).toHaveBeenCalledWith({})
@@ -41,7 +41,7 @@ describe('appstore store', () => {
     expect(s.isInstalled('nextcloud')).toBe(false)
   })
 
-  it('loadCatalog 带分类/作者 → 转参;分类已有缓存不重拉', async () => {
+  it('loadCatalog with category/author → pass params; categories cached, no refetch', async () => {
     const s = useAppstoreStore()
     await s.loadCatalog()
     await s.loadCatalog('Media', 'official')
@@ -49,7 +49,7 @@ describe('appstore store', () => {
     expect(svc.categories).toHaveBeenCalledTimes(1)
   })
 
-  it('loadCatalog 失败置 error;retry 重放上次参数', async () => {
+  it('loadCatalog fails sets error; retry replays last params', async () => {
     const s = useAppstoreStore()
     svc.listApps.mockRejectedValueOnce(new Error('boom'))
     await s.loadCatalog('Media', ALL)
@@ -61,7 +61,7 @@ describe('appstore store', () => {
     expect(s.error).toBe(false)
   })
 
-  it('loadCatalog 乱序响应守卫:先发请求晚回,不应覆盖后发请求写入的更新状态(含 loading)', async () => {
+  it('loadCatalog out-of-order response guard: earlier request returns later, must not overwrite newer request\'s state (including loading)', async () => {
     const s = useAppstoreStore()
     let resolve1: (v: unknown) => void = () => {}
     let resolve2: (v: unknown) => void = () => {}
@@ -85,7 +85,7 @@ describe('appstore store', () => {
     expect(s.loading).toBe(false)
   })
 
-  it('categories() 失败不应连累 listApps 已成功的目录——仅 chip 栏降级,error 仍为 false', async () => {
+  it('categories() failure must not affect listApps\' successful catalog — only chip bar degrades, error still false', async () => {
     const s = useAppstoreStore()
     svc.categories.mockRejectedValueOnce(new Error('boom'))
     await s.loadCatalog()
@@ -94,7 +94,7 @@ describe('appstore store', () => {
     expect(s.categories).toEqual([])
   })
 
-  it('loadFeatured:recommend=true;失败静默置空不抛', async () => {
+  it('loadFeatured: recommend=true; failure silently clears, no throw', async () => {
     const s = useAppstoreStore()
     await s.loadFeatured()
     expect(svc.listApps).toHaveBeenCalledWith({ recommend: true })
@@ -104,7 +104,7 @@ describe('appstore store', () => {
     expect(s.featured).toEqual({})
   })
 
-  it('loadDetail:成功填 detail;undefined(应用不存在)与异常都置 detailError', async () => {
+  it('loadDetail: success fills detail; undefined (app missing) and error both set detailError', async () => {
     const s = useAppstoreStore()
     svc.getApp.mockResolvedValueOnce({ title: { en_us: 'Jellyfin' } })
     await s.loadDetail('jellyfin')
@@ -122,7 +122,7 @@ describe('appstore store', () => {
     expect(s.detailLoading).toBe(false)
   })
 
-  it('invalidate 清 categories 缓存:下次 loadCatalog 重拉分类', async () => {
+  it('invalidate clears categories cache: next loadCatalog refetches categories', async () => {
     const s = useAppstoreStore()
     svc.categories.mockResolvedValue([{ name: 'Media', count: 2 }])
     svc.listApps.mockResolvedValue({ installed: [], list: {} })
@@ -137,7 +137,7 @@ describe('appstore store', () => {
     expect(svc.categories).toHaveBeenCalledTimes(2) // cache invalidated, refetched
   })
 
-  it('invalidate 孤儿化在途 loadCatalog:陈旧响应落地不应复活 catalogLoaded/categories', async () => {
+  it('invalidate orphans in-flight loadCatalog: stale response landing must not revive catalogLoaded/categories', async () => {
     const s = useAppstoreStore()
     await s.loadCatalog() // run once first so list/installed get a baseline value
     const prevList = s.list

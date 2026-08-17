@@ -37,7 +37,7 @@ describe('sources store', () => {
   })
   afterEach(() => vi.useRealTimers())
 
-  it('load 成功写 sources/loaded;失败置 error', async () => {
+  it('load succeeds writes sources/loaded; fails sets error', async () => {
     const store = useSourcesStore()
     svc.appstore.listSources.mockResolvedValueOnce([SRC, THIRD])
     await store.load()
@@ -50,7 +50,7 @@ describe('sources store', () => {
     expect(store.error).toBe(true)
   })
 
-  it('register 受理:registeringUrl 置目标,service 收到 trim 后 URL', async () => {
+  it('register accepted: registeringUrl set to target, service receives trimmed URL', async () => {
     const store = useSourcesStore()
     svc.appstore.registerSource.mockResolvedValueOnce(undefined)
     await store.register('  https://example.com/store.zip  ')
@@ -58,7 +58,7 @@ describe('sources store', () => {
     expect(store.registeringUrl).toBe('https://example.com/store.zip')
   })
 
-  it('register 同步 409:抛后端 message,registeringUrl 复位', async () => {
+  it('register sync 409: throw backend message, registeringUrl resets', async () => {
     const store = useSourcesStore()
     svc.appstore.registerSource.mockRejectedValueOnce({
       response: { data: { message: 'appstore source already exists' } },
@@ -67,7 +67,7 @@ describe('sources store', () => {
     expect(store.registeringUrl).toBeNull()
   })
 
-  it('register-end 事件收敛:清 pending + 重拉列表 + invalidate + toast', async () => {
+  it('register-end event converges: clear pending + refetch list + invalidate + toast', async () => {
     const store = useSourcesStore()
     const appstore = useAppstoreStore()
     const inv = vi.spyOn(appstore, 'invalidate')
@@ -86,7 +86,7 @@ describe('sources store', () => {
     expect(svc.appstore.listSources).toHaveBeenCalled()
   })
 
-  it('register-error 事件:清 pending + toast 带后端 message,不重拉', async () => {
+  it('register-error event: clear pending + toast with backend message, no refetch', async () => {
     const store = useSourcesStore()
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
@@ -99,7 +99,7 @@ describe('sources store', () => {
     expect(svc.appstore.listSources).not.toHaveBeenCalled()
   })
 
-  it('并发守卫:注册在途时再次 register() 直接拒绝,不二次调用 service,不清在途 URL', async () => {
+  it('concurrent guard: while registration in flight, re-calling register() directly rejects, no second service call, in-flight URL not cleared', async () => {
     const store = useSourcesStore()
     svc.appstore.registerSource.mockResolvedValueOnce(undefined)
     await store.register('https://a.example.com/store.zip')
@@ -110,7 +110,7 @@ describe('sources store', () => {
     expect(store.registeringUrl).toBe('https://a.example.com/store.zip')
   })
 
-  it('事件丢失兜底:15s 轮询 listSources 看到新 URL 即收敛(大小写不敏感)', async () => {
+  it('event loss fallback: 15s polling listSources, converge once new URL is seen (case-insensitive)', async () => {
     const store = useSourcesStore()
     const appstore = useAppstoreStore()
     const inv = vi.spyOn(appstore, 'invalidate')
@@ -134,7 +134,7 @@ describe('sources store', () => {
     expect(svc.appstore.listSources.mock.calls.length).toBe(callsAfterConverge)
   })
 
-  it('unregister 成功:重拉 + invalidate;失败:toast 后端 message', async () => {
+  it('unregister succeeds: refetch + invalidate; fails: toast backend message', async () => {
     const store = useSourcesStore()
     const appstore = useAppstoreStore()
     const inv = vi.spyOn(appstore, 'invalidate')
@@ -154,7 +154,7 @@ describe('sources store', () => {
     expect(show).toHaveBeenCalledWith(expect.stringContaining('cannot unregister the last app store'), expect.any(Number))
   })
 
-  it('注册中状态落盘:register 写 localStorage,收敛后清除', async () => {
+  it('registration in-flight state persists: register writes to localStorage, clears after convergence', async () => {
     const store = useSourcesStore()
     svc.appstore.registerSource.mockResolvedValueOnce(undefined)
     await store.register('https://example.com/store.zip')
@@ -168,7 +168,7 @@ describe('sources store', () => {
     expect(localStorage.getItem('nimoos:sources-registering')).toBeNull()
   })
 
-  it('刷新恢复:新 store 实例从落盘恢复 pending 并重新武装轮询收敛', async () => {
+  it('refresh recovery: new store instance recovers pending from persistent storage and re-arms polling to converge', async () => {
     localStorage.setItem(
       'nimoos:sources-registering',
       JSON.stringify({ url: 'https://Example.com/Store.zip', at: Date.now() }),
@@ -183,7 +183,7 @@ describe('sources store', () => {
     expect(localStorage.getItem('nimoos:sources-registering')).toBeNull()
   })
 
-  it('刷新恢复:落盘超过 10 分钟 TTL 视为陈旧丢弃', () => {
+  it('refresh recovery: persisted data over 10 minute TTL considered stale and discarded', () => {
     localStorage.setItem(
       'nimoos:sources-registering',
       JSON.stringify({ url: 'https://example.com/store.zip', at: Date.now() - 11 * 60_000 }),

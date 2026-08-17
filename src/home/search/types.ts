@@ -1,60 +1,60 @@
-// Search 区视图层共享类型。**纯类型,零逻辑、零 Vue、零 i18n 依赖** ——
-// reasons / buildSearchView / degrade 三个纯函数模块与组件共用这一份。
+// Shared types for Search area view layer. **Pure types, zero logic, zero Vue, zero i18n dependency** —
+// three pure-function modules (reasons / buildSearchView / degrade) and components share this.
 
-/** 排序理由标签的语义色。沿用现有 .rz-* 样式;spec §7.5 删掉了 demote 档
- *  (后端没有任何降权信号,demo 里那个「Likely a person name · demoted」是编的)。 */
+/** Semantic color for sorting reason tags. Reuses existing .rz-* styles; spec §7.5 removed the demote tier
+ *  (backend has no demotion signal; that "Likely a person name · demoted" in the demo is made up). */
 export type ReasonKind = 'primary' | 'normal' | 'semantic'
 
-/** key = i18n 键名,**不是文案** —— 渲染时 t(key)。 */
+/** key = i18n key name, **not the text** — renders as t(key). */
 export interface Reason { key: string; kind: ReasonKind }
 
 export type ResultCategory = 'Documents' | 'Images' | 'Audio' | 'Videos'
 
-/** 来源徽标三选一(spec §7.6:替换掉无法从后端诚实得出的准确率百分比)。 */
+/** Source badge one of three (spec §7.6: replacing accuracy percentages we can't honestly obtain from backend). */
 export type SourceBadge = 'semantic' | 'filename' | 'ocr'
 
-/** 一行结果。同一真实路径命中多源时合成一行(spec §7.3)。 */
+/** One result row. When the same real path hits multiple sources, merge into one row (spec §7.3). */
 export interface ResultRow {
-  /** 归并键 = 真实路径 */
+  /** Merge key = real path */
   realPath: string
   name: string
   category: ResultCategory
-  /** 图片 / 视频 → 走缩略图渲染(相册卡 / 媒体行) */
+  /** Image / video → use thumbnail rendering (gallery card / media row) */
   isMedia: boolean
-  /** filenames 源可能返回目录项(is_dir=true);目录不能预览,点击直接进文件夹 */
+  /** filenames source may return directory item (is_dir=true); directories cannot be previewed, click goes directly to folder */
   isDir: boolean
   reasons: Reason[]
   badge: SourceBadge
-  /** 摘要文本:semantic 源的 `preview.text`,或 images 源的 `caption`;filenames 源为空串 */
+  /** Snippet text: `preview.text` from semantic source, or `caption` from images source; empty string from filenames source */
   snippet: string
-  /** 排名层(1–5,见 spec §7.4 + 本计划补充规则 A2);不展示,仅排序用 */
+  /** Ranking layer (1–5, see spec §7.4 + plan supplementary rule A2); not displayed, used for sorting only */
   layer: number
-  /** 层内排序分。**跨层不可比**(filenames.match 无上界 / semantic.score 是向量相似度) */
+  /** Within-layer sort score. **Not comparable across layers** (filenames.match has no upper bound / semantic.score is vector similarity) */
   score: number
-  /** images 源给的缩略图 URL。**本期不消费**(见 Task 5 注释),留着是为了不丢后端数据 */
+  /** Thumbnail URL from images source. **Not consumed this round** (see Task 5 comment), kept to not lose backend data */
   thumbnailUrl?: string
 }
 
 export interface SearchTab { key: string; count: number }
 
 export interface SearchView {
-  /** 已排序的全部行(层 → 层内分数 → 后端原序) */
+  /** All rows already sorted (layer → within-layer score → backend original order) */
   rows: ResultRow[]
-  /** 非媒体行,保持 rows 的相对顺序 */
+  /** Non-media rows, preserving rows' relative order */
   docRows: ResultRow[]
-  /** 媒体行(Images / Videos),保持 rows 的相对顺序 */
+  /** Media rows (Images / Videos), preserving rows' relative order */
   mediaRows: ResultRow[]
-  /** [全部结果, ...按命中数降序的分类];分类计数为 0 的不出现 */
+  /** [all results, ...categories sorted by hit count descending]; categories with count 0 do not appear */
   tabs: SearchTab[]
   total: number
 }
 
-/** 降级 / 空态的**状态码**,文案在组件里映射(spec §7.8)。 */
+/** Status code for degradation / empty state; text is mapped in component (spec §7.8). */
 export interface DegradeState {
-  /** 未参与本次搜索的源(已剥掉 _unavailable 后缀,notes 已过滤)。非空 → 结果区顶部挂提示条 */
+  /** Sources not participating in this search (already stripped _unavailable suffix, notes already filtered). Non-empty → show notice bar at top of results */
   unavailableSources: string[]
-  /** 认不出的 warning,原样透传给界面,不静默丢弃 */
+  /** Unrecognized warning, pass through to UI as-is, do not silently discard */
   unknownWarnings: string[]
-  /** 空态种类;'none' = 有结果,不显示空态 */
+  /** Empty state type; 'none' = has results, do not show empty state */
   empty: 'none' | 'no_roots' | 'backend_not_ready' | 'no_match'
 }

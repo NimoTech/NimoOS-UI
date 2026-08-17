@@ -12,14 +12,15 @@ const ROOTS = [
   { path: '/mnt', label: '/mnt' },
 ]
 
-// B4:Dialog 经 reka DialogPortal teleport → 必须 attachTo body 并查 document。
-// ⚠️ 同 P3 AppPathDialog.test.ts:49-87 的教训:attachTo body 的 mount 不显式 unmount 时,
-// Portal 内容会残留在 document 里,下一个用例的 querySelector 会取到**上一次**的节点
-// (本文件第一版就栽了三条:根按钮数成了 18 = 6 次 mount × 3)。
+// B4: the Dialog teleports via reka's DialogPortal → must attachTo body and query document.
+// ⚠️ Same lesson as P3 AppPathDialog.test.ts:49-87: when a mount with attachTo body isn't
+// explicitly unmounted, the Portal content leaks into document, and the next test case's
+// querySelector picks up the **previous** node (the first version of this file tripped
+// over exactly this: the root button count came out to 18 = 6 mounts × 3).
 let mountedWrappers: Array<{ unmount: () => void }> = []
 afterEach(() => {
   for (const w of mountedWrappers) {
-    try { w.unmount() } catch { /* 测试自己已 unmount 过 */ }
+    try { w.unmount() } catch { /* test already unmounted it */ }
   }
   mountedWrappers = []
   document.body.innerHTML = ''
@@ -36,25 +37,25 @@ function mountDialog(open = true) {
 }
 
 describe('FolderPickerDialog', () => {
-  it('关闭时不渲染任何内容', () => {
+  it('renders nothing while closed', () => {
     mountDialog(false)
     expect(document.querySelector('[data-test="fp-picker-body"]')).toBeNull()
   })
 
-  it('打开时列出三个内置根(本期候选恒空 → pickerRoots 的回退形态)', async () => {
+  it('lists the three built-in roots when open (this sprint\'s candidates are always empty → pickerRoots\' fallback shape)', async () => {
     const w = mountDialog()
     await w.vm.$nextTick()
     const labels = [...document.querySelectorAll('[data-test="fp-picker-root"]')].map((n) => n.textContent?.trim())
     expect(labels).toEqual(['System (/DATA)', '/media', '/mnt'])
   })
 
-  it('标题透传', async () => {
+  it('passes the title through', async () => {
     const w = mountDialog()
     await w.vm.$nextTick()
     expect(document.querySelector('.ui-dialog-title')?.textContent).toBe(zh.settingsFpAddFolder)
   })
 
-  it('手输框存在,且带 .set-net-field 容器(C7:否则吃到 .set-input 的 92px)', async () => {
+  it('the manual-entry field exists and is wrapped in a .set-net-field container (C7: otherwise it inherits .set-input\'s 92px)', async () => {
     const w = mountDialog()
     await w.vm.$nextTick()
     const field = document.querySelector('[data-test="fp-picker-field"]')
@@ -63,7 +64,7 @@ describe('FolderPickerDialog', () => {
     expect(field?.querySelector('input')).not.toBeNull()
   })
 
-  it('本期「添加」按钮恒 disabled —— 政策三写操作禁用(B6:断属性,不 trigger)', async () => {
+  it('the "Add" button is always disabled this sprint — writes are disabled under policy 3 (B6: check the attribute, don\'t trigger it)', async () => {
     const w = mountDialog()
     await w.vm.$nextTick()
     const add = document.querySelector('[data-test="fp-picker-add"]') as HTMLButtonElement
@@ -71,7 +72,7 @@ describe('FolderPickerDialog', () => {
     expect(add.disabled).toBe(true)
   })
 
-  it('即便输入了合法绝对路径,「添加」仍然 disabled', async () => {
+  it('"Add" stays disabled even when a valid absolute path is entered', async () => {
     const w = mountDialog()
     await w.vm.$nextTick()
     const input = document.querySelector('[data-test="fp-picker-field"] input') as HTMLInputElement
@@ -81,7 +82,7 @@ describe('FolderPickerDialog', () => {
     expect((document.querySelector('[data-test="fp-picker-add"]') as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('根按钮也是 disabled —— 本期不发列目录请求', async () => {
+  it('the root buttons are disabled too — no list-directory request is sent this sprint', async () => {
     const w = mountDialog()
     await w.vm.$nextTick()
     const roots = [...document.querySelectorAll('[data-test="fp-picker-root"]')] as HTMLButtonElement[]
@@ -89,7 +90,7 @@ describe('FolderPickerDialog', () => {
     expect(roots.every((b) => b.disabled)).toBe(true)
   })
 
-  it('取消按钮把 open 置回 false', async () => {
+  it('the cancel button sets open back to false', async () => {
     const w = mountDialog()
     await w.vm.$nextTick()
     ;(document.querySelector('[data-test="fp-picker-cancel"]') as HTMLButtonElement).click()
@@ -97,7 +98,7 @@ describe('FolderPickerDialog', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('重新打开会清掉上次输入的路径(Vue2 openAdd 每次重置 newPath)', async () => {
+  it('reopening clears the previously entered path (Vue2 openAdd resets newPath every time)', async () => {
     const w = mountDialog(false)
     await w.setProps({ open: true })
     await w.vm.$nextTick()

@@ -23,7 +23,7 @@ import {
   TEXT_DOCKERFILE,
 } from './fileCategories'
 
-// 扩展名 → 图标名(逐字移植自 Vue2 mixins/mixin.js typeMap;分类数组单一真源见 ./fileCategories)
+// Extension → icon name (ported verbatim from Vue2 mixins/mixin.js typeMap; single source of truth for category arrays is ./fileCategories)
 const TYPE_MAP: Record<string, string[]> = {
   'image-x-generic': IMAGE_X_GENERIC,
   'video-x-generic': VIDEO_X_GENERIC,
@@ -48,13 +48,13 @@ const TYPE_MAP: Record<string, string[]> = {
   'text-dockerfile': TEXT_DOCKERFILE,
 }
 
-// 反向索引:ext → iconName(一次构建)
+// Reverse index: ext → iconName (built once)
 const EXT_TO_ICON: Record<string, string> = {}
 for (const [icon, exts] of Object.entries(TYPE_MAP)) {
   for (const e of exts) EXT_TO_ICON[e] = icon
 }
 
-// 图片扩展集(供 isImage 复用,来源同 typeMap 的 image-x-generic)
+// Image extension set (for isImage reuse; source same as typeMap's image-x-generic)
 export const IMAGE_EXTS: ReadonlySet<string> = new Set(TYPE_MAP['image-x-generic'])
 
 const FOLDER_BY_NAME: Record<string, string> = {
@@ -78,7 +78,7 @@ export function iconNameFor(entry: { name: string; is_dir: boolean; type?: strin
   return EXT_TO_ICON[fileExt(entry.name)] || 'unknown'
 }
 
-// Vite: eager-glob 所有图标为 URL
+// Vite: eager-glob all icons to URLs
 const ICONS = import.meta.glob('../assets/icons/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
 const URL_BY_NAME: Record<string, string> = {}
 for (const [path, url] of Object.entries(ICONS)) {

@@ -1,12 +1,15 @@
-// Task 9 (SP7-P3): PhotosTrash.vue —— 挂 Pinia + i18n + router stub,mock 共享包
-// trash 方法(参照 trash.test.ts 的 mock 形状)+ thumbnailUrl。覆盖 brief 的 7 条测试要点:
-// 空态门控+hero 按钮 disabled、分桶渲染+缩略图走生成器+倒计时角标、勾选圈选择+bulk bar 出现、
-// 恢复选中不走确认直接执行+成功 toast 带 Undo、点 Undo 调 undoRestore、清空最近删除走二次确认、
-// ESC 关确认模态。
+// Task 9 (SP7-P3): PhotosTrash.vue — mounts Pinia + i18n + a router stub, mocks the shared
+// package's trash methods (following trash.test.ts's mock shape) + thumbnailUrl. Covers the
+// brief's 7 test points: empty-state gating + hero button disabled, bucketed rendering +
+// thumbnails via the generator + countdown badge, tapping the select circle + bulk bar appearing,
+// restore-selected skips confirmation and executes directly + success toast with Undo, clicking
+// Undo calls undoRestore, empty-trash goes through a second confirmation, ESC closes the confirm
+// modal.
 //
-// Undo 用真实 AppToast.vue 同挂载(而非仅 spy 回调)——两者共享同一个 Pinia toast store 实例,
-// 这样「点 Undo」测的是端到端接线(PhotosTrash 传给 toast.show 的 action 真的被 AppToast 渲染
-// 成按钮、点击后真的调用),不是纯粹的白盒断言。
+// Undo is mounted alongside the real AppToast.vue (not just a spied callback) — the two share the
+// same Pinia toast store instance, so "click Undo" tests the end-to-end wiring (the action
+// PhotosTrash hands to toast.show is genuinely rendered by AppToast as a button, and clicking it
+// genuinely invokes it), not a purely white-box assertion.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -44,7 +47,7 @@ function makeRouter() {
   })
 }
 
-// 挂 PhotosTrash + AppToast 于同一棵树,共享同一个 Pinia toast store 实例——见文件头注释。
+// Mount PhotosTrash + AppToast in the same tree, sharing the same Pinia toast store instance — see the file header comment.
 async function mountView() {
   const router = makeRouter()
   router.push('/photos/trash')
@@ -58,9 +61,9 @@ async function mountView() {
   return w
 }
 
-// 固定系统时间,使 trashAssetToPhoto 算出的 daysLeft 可预测(retentionDays=30):
-// - 'a' 于 2026-06-30 删除,距今(2026-07-27)27 天 → daysLeft=3 → urgent 桶(1–7)
-// - 'b' 于 2026-07-26 删除,距今 1 天 → daysLeft=29 → fresh 桶(22–Infinity)
+// Pin system time so the daysLeft computed by trashAssetToPhoto is predictable (retentionDays=30):
+// - 'a' was deleted on 2026-06-30, 27 days ago from today (2026-07-27) -> daysLeft=3 -> urgent bucket (1-7)
+// - 'b' was deleted on 2026-07-26, 1 day ago -> daysLeft=29 -> fresh bucket (22-Infinity)
 function asset(id: string, deletedAt: string, opts: Partial<{ mimeType: string; fileSize: number; originalName: string; originalPath: string }> = {}) {
   return {
     id,
@@ -91,18 +94,18 @@ afterEach(() => {
 })
 
 describe('PhotosTrash.vue', () => {
-  it('loaded 且空 → 渲染空态,hero 按钮 disabled', async () => {
+  it('loaded and empty -> renders the empty state, hero buttons disabled', async () => {
     const w = await mountView()
     const trash = usePhotosTrash()
     expect(trash.loaded).toBe(true)
     expect(w.find('[data-test="trash-empty"]').exists()).toBe(true)
     expect(w.text()).toContain('最近删除是空的')
-    expect(w.text()).toContain('30') // retentionDays 插值进 hint
+    expect(w.text()).toContain('30') // retentionDays interpolated into the hint
     expect(w.find('[data-test="trash-restore-all"]').attributes('disabled')).toBeDefined()
     expect(w.find('[data-test="trash-empty-btn"]').attributes('disabled')).toBeDefined()
   })
 
-  it('有项 → 渲染分桶(按 daysLeft),瓦片 img src = thumbnailUrl(id,\'small\'),倒计时角标含 {days}', async () => {
+  it('has items -> renders buckets (by daysLeft), tile img src = thumbnailUrl(id, \'small\'), countdown badge contains {days}', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z'), asset('b', '2026-07-26T00:00:00Z')])
     const w = await mountView()
 
@@ -120,7 +123,7 @@ describe('PhotosTrash.vue', () => {
     expect(countdowns.some((t) => t.includes('29'))).toBe(true)
   })
 
-  it('点勾选圈 → 该项进 selected,bulk bar 出现', async () => {
+  it('clicking the select circle -> the item enters selected, bulk bar appears', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
 
@@ -134,7 +137,7 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-tile').attributes('data-selected')).toBe('true')
   })
 
-  it('点「恢复选中」→ 不开确认,直接 trash.restore(ids) + 恢复 toast 带 Undo;点 Undo → trash.undoRestore(ids)', async () => {
+  it('clicking "Restore selected" -> skips confirmation, calls trash.restore(ids) directly + a restored toast with Undo; clicking Undo -> trash.undoRestore(ids)', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
     const trash = usePhotosTrash()
@@ -148,10 +151,10 @@ describe('PhotosTrash.vue', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    // 恢复选中 Vue2 无二次确认,直接执行——本视图同样不应弹确认模态。
+    // Vue2's restore-selected has no second confirmation, it executes directly — this view should likewise not pop the confirm modal.
     expect(w.find('.trash-modal-scrim').exists()).toBe(false)
     expect(restoreSpy).toHaveBeenCalledWith(['a'])
-    expect(w.find('.trash-bulk-bar').exists()).toBe(false) // 选择已清空
+    expect(w.find('.trash-bulk-bar').exists()).toBe(false) // selection has been cleared
 
     const undoBtn = w.get('.toast-action')
     expect(undoBtn.text()).toBe('撤销')
@@ -161,7 +164,7 @@ describe('PhotosTrash.vue', () => {
     expect(undoSpy).toHaveBeenCalledWith(['a'])
   })
 
-  it('点「清空最近删除」→ 开确认模态 → 确认 → trash.empty() 被调', async () => {
+  it('clicking "Empty trash" -> opens the confirm modal -> confirm -> trash.empty() is called', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
     const trash = usePhotosTrash()
@@ -179,7 +182,7 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-modal-scrim').exists()).toBe(false)
   })
 
-  it('ESC 关确认模态', async () => {
+  it('ESC closes the confirm modal', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
 
@@ -192,7 +195,7 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-modal-scrim').exists()).toBe(false)
   })
 
-  it('永久删除选中 → 走确认模态(danger)→ 确认 → trash.purge(ids)', async () => {
+  it('permanently deleting the selection -> goes through the confirm modal (danger) -> confirm -> trash.purge(ids)', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
     const trash = usePhotosTrash()
@@ -211,7 +214,7 @@ describe('PhotosTrash.vue', () => {
     expect(purgeSpy).toHaveBeenCalledWith(['a'])
   })
 
-  it('取消选择(bulk bar「取消」)→ selected 清空,bulk bar 消失', async () => {
+  it('canceling selection (bulk bar "Cancel") -> selected is cleared, bulk bar disappears', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
 
@@ -224,7 +227,7 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-bulk-bar').exists()).toBe(false)
   })
 
-  it('点瓦片(非勾选圈)也切换选择,不触发任何灯箱/导航', async () => {
+  it('clicking a tile (not the select circle) also toggles selection, without triggering any lightbox/navigation', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
 

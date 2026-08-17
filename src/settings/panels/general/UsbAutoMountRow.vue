@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// 对位 Vue2 SettingsPanel.vue L211-217(行)+ getUsbStatus L1442 / usbAutoMount L1449。
-// 移植纪律:Vue2 的 usbAutoMount() 是 fire-and-forget(不 await、不看结果),
-// 下发失败时开关停在新位置、界面在骗人。这里改成失败弹回。
-// 树莓派警告:Vue2 用 hardwareInfo().drive_model 是否含 "raspberry" 判断
-// (LocalStorage 服务在树莓派上会静默强制关掉 USB 自动挂载,见顶层 CLAUDE.md)。
+// Corresponds to Vue2 SettingsPanel.vue L211-217 (lines) + getUsbStatus L1442 / usbAutoMount L1449.
+// Porting discipline: Vue2's usbAutoMount() is fire-and-forget (no await, no result check) —
+// when the request fails, the switch stays in its new position and the UI lies. Changed here to snap back on failure.
+// Raspberry Pi warning: Vue2 checks whether hardwareInfo().drive_model contains "raspberry"
+// (the LocalStorage service silently force-disables USB auto-mount on Raspberry Pi — see top-level CLAUDE.md).
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -20,9 +20,9 @@ const busy = ref(false)
 const isRpi = ref(false)
 const warn = ref('')
 
-// 交错防护(同 DiskStandbyRow.vue / WebUiPortRow.vue 的理由):真实网络延迟下,
-// 用户可能在 onMounted 的两个读取都返回前就已经点了开关 —— 读取回调不能把
-// 显示值冲回服务端的旧快照。就地布尔标志,不抽公共 helper(本仓库此前评审裁定过早抽象)。
+// Race guard (same rationale as DiskStandbyRow.vue / WebUiPortRow.vue): under real network latency,
+// the user may click the switch before either of onMounted's two reads returns — the read
+// callback must not overwrite the displayed value with the server's stale snapshot. An inline boolean flag, not extracted into a shared helper (a prior review in this repo ruled that premature abstraction).
 let touched = false
 
 onMounted(async () => {
@@ -49,15 +49,15 @@ async function onToggle(next: boolean) {
   if (busy.value) return
   touched = true
   const prev = on.value
-  on.value = next            // 乐观翻转
+  on.value = next            // optimistic flip
   busy.value = true
   warn.value = ''
   try {
     await service.sys.toggleUsbAutoMount({ state: next ? 'on' : 'off' })
-    // 警告只针对「开启」方向
+    // The warning only applies to the "on" direction
     if (next && isRpi.value) warn.value = t('settingsUsbRpiWarn')
   } catch (e) {
-    on.value = prev          // 失败弹回(Vue2 不弹,界面会骗人)
+    on.value = prev          // snap back on failure (Vue2 does not; its UI lies)
     toast.show(t('settingsSaveFailed'))
     console.warn('[settings] toggleUsbAutoMount failed', e)
   } finally {

@@ -7,7 +7,7 @@ const props = defineProps<{ open: boolean; name: string; busy?: boolean }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm'): void }>()
 const { t } = useI18n()
 const confirmText = ref('')
-// 开/关都清空:防止残留输入让下一次打开误判为已确认
+// Clear on both open and close: prevents leftover input from being mistaken for confirmation the next time the dialog opens
 watch(
   () => props.open,
   () => {

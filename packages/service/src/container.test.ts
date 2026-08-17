@@ -5,18 +5,18 @@ import { createContainer } from './container.js'
 const http = (data: unknown) => ({ get: async () => ({ data }) }) as unknown as AxiosInstance
 
 describe('container.getNetworks', () => {
-  it('v1 标准信封解包', async () => {
+  it('unwraps the v1 standard envelope', async () => {
     const c = createContainer(http({ success: 200, message: 'ok', data: [{ driver: 'bridge', id: 'x', name: 'bridge' }] }))
     expect(await c.getNetworks()).toEqual([{ driver: 'bridge', id: 'x', name: 'bridge' }])
   })
-  it('data 非数组退化空数组', async () => {
+  it('falls back to an empty array when data is not an array', async () => {
     const c = createContainer(http({ success: 200, message: 'ok', data: null }))
     expect(await c.getNetworks()).toEqual([])
   })
 })
 
 describe('container.prune', () => {
-  it('prune 打 POST /v1/container/prune 并剥标准信封', async () => {
+  it('prune sends POST /v1/container/prune and strips the standard envelope', async () => {
     const post = vi.fn().mockResolvedValue({
       data: {
         success: 200,
@@ -34,13 +34,13 @@ describe('container.prune', () => {
     expect(r.images?.ImagesDeleted).toHaveLength(1)
   })
 
-  it('prune 的 data 缺字段时退化成 null,不抛', async () => {
+  it('prune falls back to null (not a throw) when data fields are missing', async () => {
     const post = vi.fn().mockResolvedValue({ data: { success: 200, message: 'ok', data: {} } })
     const c = createContainer({ post } as never)
     await expect(c.prune()).resolves.toEqual({ containers: null, images: null })
   })
 
-  it('prune 遇到非 200 信封抛出后端 message', async () => {
+  it('prune throws the backend message on a non-200 envelope', async () => {
     const post = vi.fn().mockResolvedValue({ data: { success: 50001, message: 'docker daemon unreachable', data: null } })
     const c = createContainer({ post } as never)
     await expect(c.prune()).rejects.toThrow('docker daemon unreachable')

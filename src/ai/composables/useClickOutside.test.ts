@@ -3,11 +3,11 @@ import { defineComponent, h, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useClickOutside } from './useClickOutside'
 
-// Vue2 shell/ModelPicker.vue:52-63 —— a locally-registered `click-outside`
+// Vue2 shell/ModelPicker.vue:52-63 — a locally-registered `click-outside`
 // directive with `bind`/`unbind` hooks. Those hook names don't exist on Vue 3
-// components, so this is ported as a composable (onMounted/onUnmounted using
-// the equivalent semantics: attach a document `mousedown` listener while
-// mounted, detach it on unmount).
+// components, so ported as a composable (onMounted/onUnmounted using
+// equivalent semantics: attach document `mousedown` listener while mounted,
+// detach on unmount).
 function makeHost(handler: () => void) {
   return defineComponent({
     setup() {
@@ -19,7 +19,7 @@ function makeHost(handler: () => void) {
 }
 
 describe('useClickOutside', () => {
-  it('外部 mousedown 触发 handler;元素内部的 mousedown 不触发', async () => {
+  it('external mousedown triggers handler; mousedown inside element does not', async () => {
     const handler = vi.fn()
     const w = mount(makeHost(handler), { attachTo: document.body })
 
@@ -32,7 +32,7 @@ describe('useClickOutside', () => {
     w.unmount()
   })
 
-  it('卸载后 document 上的监听器被移除,不再触发 handler', () => {
+  it('after unmount, listener on document is removed, no longer triggers handler', () => {
     const handler = vi.fn()
     const w = mount(makeHost(handler), { attachTo: document.body })
     w.unmount()

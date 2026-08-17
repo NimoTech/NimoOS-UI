@@ -19,11 +19,15 @@ export interface SseOutcome {
 }
 
 /**
- * 通用 SSE fetch:裸 fetch 吃不到 axios 拦截器的 401 单飞刷新,这里补同一语义。
- * 401 → await refreshAccessToken() → 用新 token 整条重发一次(SSE 不能续流;
- * 401 时后端未开始处理,重发安全)。Authorization 为裸 token(后端约定,无 Bearer)。
- * 204 → {ok:true,noContent:true}(attach 类端点的"无内容"语义,由调用方解释)。
- * AbortError 向外抛,由调用方自理;其余网络错也向外抛(与 fetch 一致)。
+ * Generic SSE fetch: a bare fetch doesn't get axios interceptor's single-flight
+ * 401 refresh, so this fills in the same semantics.
+ * 401 → await refreshAccessToken() → resend the whole request once with the new
+ * token (SSE can't resume a stream; at 401 the backend hasn't started processing
+ * yet, so resending is safe). Authorization is a bare token (backend convention, no Bearer).
+ * 204 → {ok:true,noContent:true} (the "no content" semantics for attach-type
+ * endpoints, interpreted by the caller).
+ * AbortError propagates out for the caller to handle; other network errors also
+ * propagate out (consistent with fetch).
  */
 export async function sseRequest(path: string, opts: SseOptions): Promise<SseOutcome> {
   const { method = 'GET', body, headers, signal, onEvent } = opts
@@ -78,7 +82,7 @@ export async function sseRequest(path: string, opts: SseOptions): Promise<SseOut
         try {
           onEvent(JSON.parse(payload))
         } catch {
-          // malformed JSON — skip(与 Vue2 consumeSSE 行为一致)
+          // malformed JSON — skip (consistent with Vue2 consumeSSE behavior)
         }
       }
     }

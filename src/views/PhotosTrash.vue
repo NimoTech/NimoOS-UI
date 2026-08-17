@@ -1,15 +1,19 @@
 <script setup lang="ts">
-// Task 9 (SP7-P3): 回收站视图——自绘分桶网格(不复用 PhotosGrid:回收站数据是精简 TrashPhoto,
-// 且带倒计时角标这一网格没有的独有 UI)。壳照 Photos.vue/PhotosFavorites.vue 的
-// AreaShell/photos-layout/photos-main 复制(见 task-9-brief.md)。路由注册留给 T10。
+// Task 9 (SP7-P3): Trash view — its own hand-rolled bucketed grid (doesn't reuse PhotosGrid: trash
+// data is the slimmed-down TrashPhoto, and the countdown badge is unique UI the grid doesn't have).
+// The shell copies Photos.vue/PhotosFavorites.vue's AreaShell/photos-layout/photos-main (see
+// task-9-brief.md). Route registration is left for T10.
 //
-// P3 铁律:点瓦片(含空白处)= 切换选择,不开灯箱——回收站是"待恢复/待永久删除"的精简对象,
-// 灯箱的收藏★/删除🗑按钮语义在这里不成立(删除=永久删除?恢复?不明确),故整块跳过灯箱
-// 接线,记入台账(见 task-9-report.md)。
+// P3 hard rule: clicking a tile (including blank areas) = toggle selection, does NOT open the
+// lightbox — trash items are slimmed-down objects "pending restore / pending permanent deletion",
+// and the lightbox's favorite-star/delete-trash button semantics don't hold here (does delete mean
+// permanent deletion? or restore? ambiguous), so lightbox wiring is skipped entirely for this view,
+// tracked in the ledger (see task-9-report.md).
 //
-// 选择态 selected 用 Set<string|number>,按 id 值比较(不用对象引用)——Vue3 的 ref() 对
-// Set/Map 有专门的响应式劫持(collection handlers),直接 .add()/.delete() 即可触发视图更新,
-// 不需要 Vue2 "new Set() 整个替换" 的 workaround。
+// The selected state uses Set<string|number>, compared by id value (not object reference) — Vue3's
+// ref() has dedicated reactivity hooks for Set/Map (collection handlers), so calling
+// .add()/.delete() directly triggers view updates; there's no need for the Vue2 workaround of
+// "replace the whole new Set()".
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -26,9 +30,10 @@ const { themeClass } = usePhotosTheme()
 const trash = usePhotosTrash()
 const toast = useToast()
 
-// 分桶常量,照 Vue2 PhotosTrashView.vue:126-131(4 桶,min/max/tone)。tone 只是语义标签,
-// 具体颜色在样式块里映射到既有 token(urgent→--remove-fg 危险红,warn→--dem-fg 警示琥珀,
-// normal→--accent 常规蓝),不新增 token。
+// Bucket constants, following Vue2 PhotosTrashView.vue:126-131 (4 buckets, min/max/tone). tone is
+// just a semantic label — the actual color is mapped to an existing token in the style block
+// (urgent -> --remove-fg danger tone, warn -> --dem-fg warning tone, normal -> --accent regular
+// accent tone), no new token is introduced.
 type BucketTone = 'urgent' | 'warn' | 'normal'
 interface BucketDef { id: string; titleKey: string; descKey: string; min: number; max: number; tone: BucketTone }
 
@@ -46,7 +51,8 @@ const selected = ref<Set<string | number>>(new Set())
 interface ConfirmState { title: string; body: string; ctaLabel: string; danger: boolean; onConfirm: () => void | Promise<void> }
 const confirm = ref<ConfirmState | null>(null)
 
-// 不进 reactive state(与 Vue2 this._undoIds 同理:纯粹的"待撤销 id 列表"暂存,无需驱动渲染)。
+// Not put into reactive state (same reasoning as Vue2's this._undoIds: it's purely a "pending undo
+// id list" stash, no need to drive rendering).
 let undoIds: Array<string | number> | null = null
 
 const isEmpty = computed(() => trash.loaded && trash.items.length === 0)
@@ -131,7 +137,8 @@ async function loadRemainingTrashForBulkAction(): Promise<void> {
 // race each other.
 const preparingBulkAction = ref(false)
 
-// 恢复选中:Vue2 无二次确认,直接执行(restoreSelected :190)——本视图同样跳过 confirm。
+// Restore selected: Vue2 has no second confirmation, executes directly (restoreSelected :190) —
+// this view likewise skips the confirm step.
 async function restoreSelected() {
   const ids = [...selected.value]
   if (!ids.length) return
@@ -410,8 +417,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
    flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
 .sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
 
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
+/* height (not min-height): this screen is capped, only the inner scroll container scrolls — a
+   same-source fix; for the rationale and Vue2 origin see the comment on the same rule in
+   src/views/Photos.vue. */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
@@ -430,15 +438,16 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-hero-sub [data-test="trash-loaded-hint"] { color: var(--fg-muted); }
 .trash-hero-actions { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
 .trash-hero-actions .bar-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
-/* .trash-btn-danger 复用 .bar-btn 玻璃胶囊形态,仅改前景色为既有危险色 token(浅色主题=深红,
-   深色=浅红,随主题自动翻转——与 ContextMenu.vue .ui-ctx-item.danger 同一约定)。 */
+/* .trash-btn-danger reuses .bar-btn's glass pill shape, only overriding the foreground color with
+   the existing danger-tone token (deeper in the light theme, lighter in the dark theme, flips
+   automatically with the theme — same convention as ContextMenu.vue .ui-ctx-item.danger). */
 .trash-hero-actions .trash-btn-danger { color: var(--remove-fg, #ff8a8a); }
 .trash-hero-actions .trash-btn-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 16%, transparent);
 }
 
-/* ── Bulk selection bar(同 PhotosSelectionToolbar/SelectionToolbar 的 .sel-btn 语言,
-     多一个"恢复"出口,故不直接复用组件而是内联) ── */
+/* ── Bulk selection bar (same .sel-btn language as PhotosSelectionToolbar/SelectionToolbar, with
+     one extra "restore" action, so it's inlined here instead of reusing the component directly) ── */
 .trash-bulk-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 12px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 13px; }
 .bulk-count { flex: 0 0 auto; }
 .bulk-spacer { flex: 1 1 auto; }
@@ -473,9 +482,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-bucket:first-child { margin-top: 0; }
 .trash-bucket-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); }
 .trash-bucket-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
-/* 三档倒计时严重度沿用既有语义 token,不新增 token(brief 明确允许复用):
-   urgent=危险红(--remove-fg,已用于删除/危险按钮全库一致)、warn=警示琥珀(--dem-fg,已用于
-   SearchDialog "降权" 语义与 UploadPanel 警告态)、normal=常规强调蓝(--accent)。 */
+/* The three countdown-severity tiers reuse existing semantic tokens, no new token added (the brief
+   explicitly allows reuse): urgent = danger tone (--remove-fg, already used consistently across
+   the codebase for delete/danger buttons), warn = warning tone (--dem-fg, already used for
+   SearchDialog's "demote" semantics and UploadPanel's warning state), normal = regular accent tone
+   (--accent). */
 .trash-bucket-dot[data-tone="urgent"] { background: var(--remove-fg); }
 .trash-bucket-dot[data-tone="warn"] { background: var(--dem-fg); }
 .trash-bucket-title { font-size: 13.5px; font-weight: 600; color: var(--fg); }
@@ -486,15 +497,16 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
 .trash-tile img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0.82; }
 .trash-tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
-/* theme-exception: 缩略图上的固定黑色渐变遮罩(衬托下方 meta 文字可读性),同 .lib-tile-overlay/
-   PhotosGrid.vue .tile-fav 惯例——媒体内容颜色不可控,遮罩必须恒为黑,不随主题翻转。 */
+/* theme-exception: a fixed dark gradient overlay on the thumbnail (props up legibility of the meta
+   text below it), same convention as .lib-tile-overlay/PhotosGrid.vue .tile-fav — media content
+   color isn't controllable, so the overlay must always stay dark and never flip with the theme. */
 .trash-tile-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.5) 100%); opacity: 0; transition: opacity 0.15s; pointer-events: none; }
 .trash-tile:hover .trash-tile-overlay { opacity: 1; }
 
 .trash-tile-countdown {
   position: absolute; left: 6px; bottom: 6px; z-index: 2;
   display: flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
-  background: var(--overlay-bg); color: #fff; /* theme-exception: 叠在缩略图上的固定深底徽标,同 .tile-vid 惯例,皮肤无关需恒定对比度 */
+  background: var(--overlay-bg); color: #fff; /* theme-exception: a fixed dark-backed badge overlaid on the thumbnail, same convention as .tile-vid, skin-independent, needs constant contrast */
   font-size: 10.5px; font-weight: 500; font-variant-numeric: tabular-nums;
 }
 .trash-tile-countdown[data-urgent="true"] { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 78%, black); }
@@ -503,7 +515,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-tile-select {
   position: absolute; top: 6px; right: 6px; z-index: 3;
   width: 22px; height: 22px; border-radius: 50%;
-  background: var(--overlay-bg); border: 1.5px solid rgba(255, 255, 255, 0.7); /* theme-exception: 缩略图上的固定描边,同 .tile-fav 惯例,需在任意图片底色上保持可见 */
+  background: var(--overlay-bg); border: 1.5px solid rgba(255, 255, 255, 0.7); /* theme-exception: a fixed stroke on the thumbnail, same convention as .tile-fav, needs to stay visible against any photo background */
   display: inline-flex; align-items: center; justify-content: center; color: transparent; cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
@@ -512,8 +524,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-tile-meta {
   position: absolute; left: 8px; right: 8px; bottom: 30px; z-index: 2;
   opacity: 0; transition: opacity 0.15s; pointer-events: none;
-  font-size: 10.5px; color: rgba(255,255,255,0.92); /* theme-exception: 叠在缩略图上的字幕文字,同 .lib-tile-place/.tile-vid 惯例,需在任意图片底色上保持可读 */
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* theme-exception: 同上,配套阴影保证可读性,固定黑色不随主题翻转 */
+  font-size: 10.5px; color: rgba(255,255,255,0.92); /* theme-exception: caption text overlaid on the thumbnail, same convention as .lib-tile-place/.tile-vid, needs to stay legible against any photo background */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* theme-exception: same as above, a matching shadow to guarantee legibility, fixed dark tint that never flips with the theme */
 }
 .trash-tile:hover .trash-tile-meta { opacity: 1; }
 
@@ -531,7 +543,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-btn-ghost:hover { background: var(--chip-bg-hi); }
 .trash-btn-cta {
   flex: 1.3; height: 38px; padding: 0 18px; border-radius: 9px; border: 0;
-  color: #fff; /* theme-exception: 渐变胶囊按钮文字,背景恒为彩色渐变(--grad-a/--grad-b 或危险红渐变),两套主题下白字对比度都稳定——同 SearchDialog.vue .btn-primary/MediaViewer.vue .np-play 惯例 */
+  color: #fff; /* theme-exception: gradient pill button text — background is always a colored gradient (--grad-a/--grad-b or a danger-tone gradient), so the button's light-colored text keeps stable contrast in both themes — same convention as SearchDialog.vue .btn-primary/MediaViewer.vue .np-play */
   font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
@@ -546,7 +558,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-modal-enter-from, .trash-modal-leave-to { opacity: 0; }
 .trash-modal-enter-from .trash-modal, .trash-modal-leave-to .trash-modal { transform: translateY(8px) scale(0.97); opacity: 0; }
 
-/* ≤768px:侧栏已收抽屉,布局单列 */
+/* ≤768px: sidebar has collapsed to a drawer, layout goes single-column */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
   .trash-hero { padding: 4px 0 12px; }

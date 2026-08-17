@@ -23,8 +23,8 @@ function iconFor(d: CloudDriver): string { return driverIconUrl(d.icon, origin) 
   <DropdownMenuRoot>
     <DropdownMenuTrigger class="add-mount-btn" :aria-label="t('filesMountAdd')">＋</DropdownMenuTrigger>
     <DropdownMenuPortal>
-      <!-- 复用右键文件菜单的非 scoped 样式(ui/ContextMenu.vue):Portal 传送到 body 的内容
-           拿不到 scoped 属性,自定义 scoped 背景会失效显透明;非 scoped 的 ui-ctx-* 可靠生效。 -->
+      <!-- Reuse non-scoped styles from right-click file menu (ui/ContextMenu.vue): content sent to body via Portal
+           cannot access scoped attributes; custom scoped backgrounds lose effect and show transparent; non-scoped ui-ctx-* works reliably. -->
       <DropdownMenuContent class="ui-ctx-content" :side-offset="4" align="start">
         <DropdownMenuItem class="ui-ctx-item" @select="emit('connect-network')">
           {{ t('filesMountConnectNetwork') }}
@@ -47,12 +47,12 @@ function iconFor(d: CloudDriver): string { return driverIconUrl(d.icon, origin) 
 </template>
 
 <style scoped>
-/* inline-flex 居中:裸 button 里全角＋按基线排、视觉偏下偏右(真机反馈),flex 双轴归中 */
+/* inline-flex centering: in a bare button, fullwidth ＋ + baseline alignment appeared visually low and right (real device feedback), flex centers on both axes */
 .add-mount-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 24px; height: 24px; border: none; border-radius: 8px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 16px; line-height: 1; cursor: pointer; }
 .add-mount-btn:hover { background: var(--chip-bg-hi); }
 </style>
 
 <style>
-/* 驱动图标在 Portal 传送的菜单内容里(同 ui-ctx-* 一样),用非 scoped 才可靠生效。 */
+/* Driver icon is in menu content sent via Portal (like ui-ctx-* above); non-scoped works reliably to take effect. */
 .add-mount-driver-icon { width: 16px; height: 16px; object-fit: contain; }
 </style>

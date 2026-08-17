@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as pdfjsLib from 'pdfjs-dist'
-// Vite:?url 拿到 worker 资源地址,交给 pdfjs 的 GlobalWorkerOptions。
+// Vite: ?url gets worker resource URL, pass to pdfjs GlobalWorkerOptions.
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import ViewerShell from './ViewerShell.vue'
 import { service } from '@nimotech/nimoos-service'
@@ -24,38 +24,38 @@ const isConvert = fileExt(props.item.name) !== 'pdf'
 const state = ref<'loading' | 'ready' | 'error'>('loading')
 const errorDetail = ref('')
 const total = ref(0)
-const zoom = ref(1)                        // 相对「适应宽度」的倍数
-const currentPage = ref(1)                 // 随滚动更新的当前页
-const pageInput = ref(1)                   // 页码输入框(手动跳页)
-const pagesEl = ref<HTMLElement | null>(null)   // 竖排所有页 canvas 的滚动容器
+const zoom = ref(1)                        // Multiplier relative to "fit width"
+const currentPage = ref(1)                 // Current page (updates as user scrolls)
+const pageInput = ref(1)                   // Page number input box (manual page jump)
+const pagesEl = ref<HTMLElement | null>(null)   // Scroll container for all pages' canvases in vertical layout
 
-// 异步加载/渲染期间可能已被卸载(用户快速关闭)——卸载后放弃后续操作,销毁文档。
+// Component may be unmounted during async load/render (user closes quickly) — abandon operations after unmount, destroy document.
 let disposed = false
 let inputFocused = false
 let loadingTask: PDFDocumentLoadingTask | null = null
 let pdfDoc: PDFDocumentProxy | null = null
 let renderTasks: RenderTask[] = []
 let pageCanvases: HTMLCanvasElement[] = []
-// 渲染代次:缩放会重渲全部页,旧的一轮在每个 await 后自行退出,避免两轮并发写同一批 canvas。
+// Render generation: zoom redraws all pages, old round self-exits after each await to avoid concurrent writes to same canvases.
 let renderGen = 0
 
 function isCancelled(e: unknown): boolean {
   return e instanceof Error && e.name === 'RenderingCancelledException'
 }
 function cancelTasks(): void {
-  for (const tk of renderTasks) { try { tk.cancel() } catch { /* 已结束 */ } }
+  for (const tk of renderTasks) { try { tk.cancel() } catch { /* already finished */ } }
   renderTasks = []
 }
 
 onMounted(async () => {
   try {
-    // 原生 .pdf → 直接取;旧版 Office → 后端 LibreOffice 转 PDF 后取(getPreviewBytes)。
+    // Native .pdf → fetch directly; legacy Office → backend LibreOffice converts to PDF then fetch (getPreviewBytes).
     const buf = isConvert
       ? await service.file.getPreviewBytes(props.item.path)
       : await service.file.getBytes(props.item.path)
     if (disposed) return
-    // cMapUrl/standardFontDataUrl 指向构建时拷入的 pdfjs 资源(base=/app/),
-    // 保证 CJK 等非拉丁编码 + 未嵌入字体的 PDF 不显方框/乱码。
+    // cMapUrl/standardFontDataUrl point to pdfjs resources copied at build time (base=/app/),
+    // ensures CJK and other non-Latin encoded + non-embedded-font PDFs don't show boxes/garbled text.
     loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(buf),
       cMapUrl: `${import.meta.env.BASE_URL}cmaps/`,
@@ -66,7 +66,7 @@ onMounted(async () => {
     if (disposed) return
     total.value = pdfDoc.numPages
     state.value = 'ready'
-    await nextTick()                                           // 等滚动容器挂载(v-show ready 后)
+    await nextTick()                                           // Wait for scroll container to mount (after v-show ready)
     await renderAll()
   } catch {
     if (disposed) return
@@ -77,7 +77,7 @@ onMounted(async () => {
   }
 })
 
-// 竖排渲染全部页;缩放变化时整体重渲(re-render 比 CSS 缩放清晰)。
+// Render all pages vertically; redraw all on zoom change (re-render clearer than CSS scale).
 async function renderAll(): Promise<void> {
   const el = pagesEl.value
   if (!pdfDoc || !el) return
@@ -106,7 +106,7 @@ async function renderAll(): Promise<void> {
       renderTasks.push(task)
       await task.promise
     } catch (e) {
-      if (isCancelled(e)) return              // 被新一轮缩放/卸载取消 → 预期
+      if (isCancelled(e)) return              // Cancelled by new zoom/unmount round → expected
       if (disposed || gen !== renderGen) return
       errorDetail.value = t('filesViewerPdfRenderFailed')
       state.value = 'error'
@@ -115,7 +115,7 @@ async function renderAll(): Promise<void> {
   }
 }
 
-// 随滚动更新当前页(取滚动位置略下方所落的页)。输入框聚焦时不覆盖用户输入。
+// Update current page as user scrolls (find page at position slightly below scroll). Don't override user input when input focused.
 function onScroll(): void {
   const el = pagesEl.value
   if (!el || pageCanvases.length === 0) return
@@ -147,7 +147,7 @@ function zoomOut(): void { if (zoom.value > ZOOM_MIN) { zoom.value = Math.max(ZO
 onBeforeUnmount(() => {
   disposed = true
   cancelTasks()
-  // loadingTask.destroy() 会同时销毁文档与 worker;释放资源。
+  // loadingTask.destroy() destroys both document and worker; frees resources.
   if (loadingTask) { void loadingTask.destroy(); loadingTask = null; pdfDoc = null }
 })
 </script>
@@ -195,7 +195,7 @@ onBeforeUnmount(() => {
 }
 .pdf-scroll :deep(.pdf-page-canvas) {
   max-width: 100%; height: auto;
-  box-shadow: var(--card-shadow-hi); background: #fff; /* theme-exception: PDF canvas white background for document readability */
+  box-shadow: var(--card-shadow-hi); background: #fff; /* theme-exception: PDF canvas always white for document readability regardless of theme */
 }
 .pdf-tools { display: flex; align-items: center; gap: 10px; }
 .pdf-btn {

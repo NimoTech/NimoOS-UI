@@ -49,7 +49,7 @@ describe('usePersonDetail', () => {
     vi.restoreAllMocks()
   })
 
-  it('load 成功后 person/relations/places/months 各就位;getPersonAssets 收到 (id,300,0)', async () => {
+  it('After load succeeds: person/relations/places/months all in place; getPersonAssets receives (id,300,0)', async () => {
     ;(service.photos.getPerson as any).mockResolvedValue({
       person: { id: '7', name: 'Alice' },
       relations: [{ personId: '9', name: 'Bob', count: 3 }],
@@ -73,7 +73,7 @@ describe('usePersonDetail', () => {
     expect(service.photos.getPersonAssets).toHaveBeenCalledWith('7', 300, 0)
   })
 
-  it('seq 竞态守卫:先 load(a) 后 load(b),a 的响应后到也不覆盖 b(用可控 deferred promise 构造)', async () => {
+  it('Seq race guard: load(a) then load(b), even if a responds late does not overwrite b (using controllable deferred promise)', async () => {
     const deferredA = makeDeferred<any>()
     const deferredB = makeDeferred<any>()
     ;(service.photos.getPerson as any).mockImplementation((id: string) =>
@@ -87,12 +87,12 @@ describe('usePersonDetail', () => {
     const pa = load('a')
     const pb = load('b')
 
-    // b(后发)先 resolve
+    // b (sent later) resolves first
     deferredB.resolve({ person: { id: 'b', name: 'B' }, relations: [] })
     await flush()
     await pb
 
-    // a(先发但慢)现在才 resolve —— 必须被丢弃
+    // a (sent first but slow) resolves now — must be discarded
     deferredA.resolve({ person: { id: 'a', name: 'A' }, relations: [] })
     await flush()
     await pa
@@ -100,11 +100,11 @@ describe('usePersonDetail', () => {
     expect(person.value?.id).toBe('b')
   })
 
-  it('seq 竞态守卫检查点②:a 的 getPerson 先顺利通过检查点①(写入 a 的 person/relations),但 a 的 Promise.all(places+assets) 比 b 全程更慢返回 → places/months 仍是 b 的,不被 a 的旧数据覆盖', async () => {
-    // 与上一条不同:上一条只用 deferred 控制 getPerson,a 在检查点①就被拦下,从没走到过
-    // 检查点②(Promise.all 之后那处)。这一条专门让 a 先*通过*检查点①、把 person/relations
-    // 写成 a 的,再让它在 Promise.all([personPlaces, getPersonAssets]) 上卡住比 b 更慢返回,
-    // 只有检查点②能拦住这次覆盖。
+  it('Seq race guard checkpoint ②: a getPerson passes checkpoint ① first (writes a person/relations), but a Promise.all(places+assets) returns slower than b entirely → places/months still b, not overwritten by a stale data', async () => {
+    // Different from previous: previous used deferred to control only getPerson, a was blocked at checkpoint ①,
+    // never reached checkpoint ② (after Promise.all). This one specifically lets a *pass* checkpoint ①,
+    // write person/relations to a, then gets stuck on Promise.all([personPlaces, getPersonAssets]) returning slower than b,
+    // only checkpoint ② can stop this overwrite.
     const deferredAPlaces = makeDeferred<any>()
     const deferredAAssets = makeDeferred<any>()
 
@@ -123,16 +123,16 @@ describe('usePersonDetail', () => {
     const { person, places, months, load } = usePersonDetail()
 
     const pa = load('a')
-    await flush() // 让 a 走过检查点①(person/relations 写成 a 的),随后卡在 Promise.all 上
-    expect(person.value?.id).toBe('a') // 确认 a 真的先通过了检查点①,不是被提前拦下
+    await flush() // let a pass checkpoint ① (write person/relations to a), then get stuck on Promise.all
+    expect(person.value?.id).toBe('a') // confirm a really passed checkpoint ① first, not blocked early
 
     const pb = load('b')
-    await pb // b 全程立即 resolve,完整跑完:person/places/months 全变成 b 的
+    await pb // b resolves immediately throughout, complete run: person/places/months all become b
 
     expect(person.value?.id).toBe('b')
     expect(places.value).toEqual([{ placeName: 'B-place' }])
 
-    // a 的 places/assets 现在才姗姗来迟地 resolve —— 必须被检查点②拦下,不能覆盖 b 的数据
+    // a places/assets now resolve tardily — must be stopped by checkpoint ②, cannot overwrite b data
     deferredAPlaces.resolve([{ placeName: 'A-place-STALE' }])
     deferredAAssets.resolve([{ id: 'a1', takenAt: '2026-01-01T00:00:00Z' }])
     await flush()
@@ -142,7 +142,7 @@ describe('usePersonDetail', () => {
     expect(months.value.map((m) => m.key)).toEqual(['2026-05'])
   })
 
-  it('getPerson 抛错 → failed=true、loading=false、console.error 被调,四个数据 ref 保持空', async () => {
+  it('getPerson throws → failed=true, loading=false, console.error called, four data refs stay empty', async () => {
     const err = new Error('boom')
     ;(service.photos.getPerson as any).mockRejectedValue(err)
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -159,7 +159,7 @@ describe('usePersonDetail', () => {
     expect(months.value).toEqual([])
   })
 
-  it('relations/places/assets 返回 null(Go nil slice)→ 空数组不炸', async () => {
+  it('relations/places/assets return null (Go nil slice) → empty array does not crash', async () => {
     ;(service.photos.getPerson as any).mockResolvedValue({ person: { id: '7' }, relations: null })
     ;(service.photos.personPlaces as any).mockResolvedValue(null)
     ;(service.photos.getPersonAssets as any).mockResolvedValue(null)
@@ -174,7 +174,7 @@ describe('usePersonDetail', () => {
   })
 
   describe('groupPersonAssets', () => {
-    it('按 takenAt 前 7 位分桶;月份键降序;缺失 takenAt 进 unknown 桶且排在最后;title 走 monthKeyLabel', () => {
+    it('Bucket by first 7 chars of takenAt; month keys descending; missing takenAt goes to unknown bucket and sorts last; title uses monthKeyLabel', () => {
       const photos = [
         P('1', { takenAt: '2026-01-15T00:00:00Z' }),
         P('2', { takenAt: '2026-03-02T00:00:00Z' }),
@@ -190,7 +190,7 @@ describe('usePersonDetail', () => {
   })
 
   describe('patchPerson', () => {
-    it('person 已加载时局部合并补丁', async () => {
+    it('When person is loaded: partial merge patch', async () => {
       ;(service.photos.getPerson as any).mockResolvedValue({ person: { id: '7', name: 'Alice' }, relations: [] })
       ;(service.photos.personPlaces as any).mockResolvedValue([])
       ;(service.photos.getPersonAssets as any).mockResolvedValue([])
@@ -199,21 +199,21 @@ describe('usePersonDetail', () => {
       await load('7')
 
       expect(patchPerson({ name: 'Alice2', favorite: true }, '7')).toBe(true)
-      expect(person.value?.id).toBe('7') // 未被补丁字段覆盖的字段保持原值
+      expect(person.value?.id).toBe('7') // fields not covered by patch fields keep original values
       expect(person.value?.name).toBe('Alice2')
       expect(person.value?.favorite).toBe(true)
     })
 
-    it('person 为 null 时(尚未 load 或加载失败)是空操作,不炸', () => {
+    it('When person is null (not yet loaded or load failed): no-op, does not crash', () => {
       const { person, patchPerson } = usePersonDetail()
       expect(person.value).toBeNull()
-      // 一次 load 都没跑过 ⇒ currentId 仍是 null ⇒ 任何 expectId 都算过期。
+      // No load run yet ⇒ currentId still null ⇒ any expectId is stale.
       expect(patchPerson({ name: 'X' }, 'X')).toBe(false)
       expect(person.value).toBeNull()
     })
 
-    // ── 评审 Important 3:身份守卫 ────────────────────────────────────────────
-    it('expectId 与当前装着的人物不符时整条回写作废(返回 false,数据不动)', async () => {
+    // ── Review Important 3: identity guard ────────────────────────────────────────────
+    it('When expectId does not match currently held person: entire write-back void (returns false, data unchanged)', async () => {
       ;(service.photos.getPerson as any).mockResolvedValue({ person: { id: '7', name: 'Alice' }, relations: [] })
       ;(service.photos.personPlaces as any).mockResolvedValue([])
       ;(service.photos.getPersonAssets as any).mockResolvedValue([])
@@ -222,13 +222,13 @@ describe('usePersonDetail', () => {
       await load('7')
 
       expect(isCurrent('7')).toBe(true)
-      expect(isCurrent(7)).toBe(true)          // 铁律:String() 归一,数字 id 也算同一人
+      expect(isCurrent(7)).toBe(true)          // iron law: String() normalization, numeric ids also count as same person
       expect(isCurrent('8')).toBe(false)
       expect(patchPerson({ name: 'HIJACKED' }, '8')).toBe(false)
       expect(person.value?.name).toBe('Alice')
     })
 
-    it('load(新 id) 一进门就同步换身份 —— 不等响应回来,旧人物在途的回写立刻作废', () => {
+    it('load(new id) swaps identity immediately on entry — without waiting for response, stale person in-flight write-back void immediately', () => {
       let resolveGet: ((v: unknown) => void) | undefined
       ;(service.photos.getPerson as any).mockImplementation(() => new Promise((r) => { resolveGet = r }))
       ;(service.photos.personPlaces as any).mockResolvedValue([])
@@ -237,15 +237,15 @@ describe('usePersonDetail', () => {
       const { load, isCurrent } = usePersonDetail()
       void load('A')
       expect(isCurrent('A')).toBe(true)
-      void load('B')                            // 路由一变、watch 一调 load
-      expect(isCurrent('A')).toBe(false)        // A 还没 resolve,身份已经不是它了
+      void load('B')                            // route changes, watch calls load
+      expect(isCurrent('A')).toBe(false)        // A not yet resolved, identity already not A
       expect(isCurrent('B')).toBe(true)
       resolveGet?.({ person: { id: 'B' }, relations: [] })
     })
   })
 
   describe('removePhotosLocally / flatPhotos', () => {
-    it('按 id 移除(数字 id 铁律),移空的月份整个消失;flatPhotos 顺序=各月拼接', async () => {
+    it('Remove by id (numeric id iron law), empty month disappears entirely; flatPhotos order = concatenate all months', async () => {
       ;(service.photos.getPerson as any).mockResolvedValue({ person: { id: '7' }, relations: [] })
       ;(service.photos.personPlaces as any).mockResolvedValue([])
       ;(service.photos.getPersonAssets as any).mockResolvedValue([
@@ -258,7 +258,7 @@ describe('usePersonDetail', () => {
 
       expect(flatPhotos().map((p) => String(p.id))).toEqual(['1', '2'])
 
-      // '1' 号月份(2026-02)只有一张照片,id 是数字 1;用字符串 '1' 移除,铁律要求命中
+      // Month '1' (2026-02) has only one photo, id is numeric 1; remove with string '1', iron law requires hit
       removePhotosLocally(['1'])
       expect(months.value.map((m) => m.key)).toEqual(['2026-01'])
       expect(flatPhotos().map((p) => String(p.id))).toEqual(['2'])

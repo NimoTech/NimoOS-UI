@@ -1,12 +1,12 @@
-/** store 应用 title 的语言键大小写不统一(v2 商店=大写 en_US,v1/容器=小写 en_us),
- *  逐一容忍再回退任意可用值,最后才用 id。桌面 home/stores/apps.ts 同款约定。 */
+/** Store app titles have inconsistent language key casing (v2 store = uppercase en_US, v1/containers = lowercase en_us);
+ *  tolerate each case and fall back through available values, finally using id as last resort. Desktop home/stores/apps.ts follows the same convention. */
 export function resolveAppTitle(t: Record<string, string> | undefined, fallback: string): string {
   if (!t) return fallback
   return t.zh_cn || t.en_us || t.en_US || t.zh_CN || Object.values(t)[0] || fallback
 }
 
-/** Vue2 ice_i18n 同款取值链(common-i18n.js):custom(用户改名)→ 当前 lang → en_us → en_US
- *  → 任意可用值 → fallback。语言键大小写在源头就不统一,逐一容忍。 */
+/** Vue2 ice_i18n equivalent lookup chain (common-i18n.js): custom (user-renamed) → current lang → en_us → en_US
+ *  → any available value → fallback. Language key casing is inconsistent at the source; tolerate each case. */
 export function resolveAppText(
   t: Record<string, string> | undefined,
   lang: string,

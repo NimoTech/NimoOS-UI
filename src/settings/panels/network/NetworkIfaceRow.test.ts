@@ -8,10 +8,12 @@ import type { MergedIface } from '../../util/netMerge'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
 
-// 菜单经 reka DropdownMenuPortal 渲染,且真实 DropdownMenuItem 会 inject MenuRootContext
-// (stub 掉 Root 后挂载会抛 "must be used within MenuRoot")→ 照 InstalledAppCard.test.ts 的
-// 先例把 Root/Trigger/Portal/Content/Item 一起 stub,只验「渲染哪些项 + 点击 emit」这层条件
-// 逻辑;浮层定位与键盘导航留实机看。
+// The menu renders through reka DropdownMenuPortal, and the real DropdownMenuItem injects
+// MenuRootContext (stubbing out Root alone causes mounting to throw "must be used within
+// MenuRoot") → following the precedent in InstalledAppCard.test.ts, stub Root/Trigger/Portal/
+// Content/Item together and only verify this layer of conditional logic — "which items
+// render + clicking emits"; leave overlay positioning and keyboard navigation to real-device
+// checks.
 const MenuRootStub = { template: '<div class="menu-root"><slot /></div>' }
 const PassThroughStub = { template: '<div><slot /></div>' }
 const TriggerStub = { template: '<button class="menu-trigger"><slot /></button>' }
@@ -39,8 +41,8 @@ function mountRow(iface: Partial<MergedIface> = {}) {
   })
 }
 
-describe('NetworkIfaceRow —— 展示(对位 Vue2 SettingsPanel.vue L500-577)', () => {
-  it('以太网:类型名「以太网」+ 网卡名标签 + 速率标签 + DHCP+IP 标签', () => {
+describe('NetworkIfaceRow —— display (maps to Vue2 SettingsPanel.vue L500-577)', () => {
+  it('ethernet: type name "以太网" + interface-name tag + speed tag + DHCP+IP tag', () => {
     const w = mountRow()
     expect(w.text()).toContain('以太网')
     const tags = w.findAll('.set-net-tag').map((t) => t.text())
@@ -50,35 +52,35 @@ describe('NetworkIfaceRow —— 展示(对位 Vue2 SettingsPanel.vue L500-577)'
     expect(tags[2]).toContain('192.168.1.143')
   })
 
-  it('静态 IP 的标签前缀是 Static(Vue2 写死英文字面量,照留)', () => {
+  it('the static-IP tag prefix is Static (Vue2 hardcodes the English literal, kept as-is)', () => {
     const w = mountRow({ dhcp: false, addr: '192.168.1.250' })
     expect(w.findAll('.set-net-tag')[2].text()).toContain('Static')
   })
 
-  it('state=up 时状态点带 .up,down 时不带', () => {
+  it('state=up carries .up on the status dot, down does not', () => {
     expect(mountRow({ state: 'up' }).get('.set-net-dot').classes()).toContain('up')
     expect(mountRow({ state: 'down' }).get('.set-net-dot').classes()).not.toContain('up')
   })
 
-  it('speed=0 的口不渲染速率标签;addr 空的口不渲染 IP 标签', () => {
+  it('an interface with speed=0 does not render the speed tag; an interface with empty addr does not render the IP tag', () => {
     const w = mountRow({ speed: 0, maxSpeed: 0, addr: '' })
     const tags = w.findAll('.set-net-tag')
     expect(tags).toHaveLength(1)
     expect(tags[0].text()).toBe('enp2s0')
   })
 
-  it('maxSpeed 大于 speed 时显示两段', () => {
+  it('shows both segments when maxSpeed is greater than speed', () => {
     expect(mountRow({ speed: 1000, maxSpeed: 2500 }).findAll('.set-net-tag')[1].text()).toBe('1 Gbps / 2.5 Gbps')
   })
 
-  it('wifi 按模式显示类型名', () => {
+  it('wifi shows the type name based on mode', () => {
     expect(mountRow({ name: 'wlp1s0', type: 'wifi' }).text()).toContain('Wi-Fi')
     expect(mountRow({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'ap' } }).text()).toContain('热点')
     expect(mountRow({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'concurrent' } }).text())
       .toContain('Wi-Fi + 热点')
   })
 
-  it('虚拟口:显示「虚拟网络」、**没有菜单按钮**、有占位保持对齐', () => {
+  it('virtual interface: shows "虚拟网络", **has no menu button**, has a spacer to keep alignment', () => {
     const w = mountRow({ name: 'docker0', isVirtual: true, type: 'bridge' })
     expect(w.text()).toContain('虚拟网络')
     expect(w.find('.menu-trigger').exists()).toBe(false)
@@ -86,37 +88,37 @@ describe('NetworkIfaceRow —— 展示(对位 Vue2 SettingsPanel.vue L500-577)'
   })
 })
 
-describe('NetworkIfaceRow —— 菜单项按模式变化(Vue2 L545-573 的注释表)', () => {
-  it('非无线(config 无 wireless):只有「编辑」', () => {
+describe('NetworkIfaceRow —— menu items vary by mode (Vue2 L545-573 comment table)', () => {
+  it('non-wireless (no wireless in config): only "编辑"', () => {
     const items = mountRow().findAll('.menu-item').map((i) => i.text())
     expect(items).toEqual(['编辑'])
   })
 
-  it('ap:编辑 + 切换到 Wi-Fi(hybridCapable=false 时无混合项)', () => {
+  it('ap: "编辑" + "切换到 Wi-Fi" (no hybrid item when hybridCapable=false)', () => {
     const items = mountRow({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'ap' } })
       .findAll('.menu-item').map((i) => i.text())
     expect(items).toEqual(['编辑', '切换到 Wi-Fi'])
   })
 
-  it('client:编辑 + 切换到热点', () => {
+  it('client: "编辑" + "切换到热点"', () => {
     const items = mountRow({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client' } })
       .findAll('.menu-item').map((i) => i.text())
     expect(items).toEqual(['编辑', '切换到热点'])
   })
 
-  it('client + hybridCapable:多一项「切换到混合模式」', () => {
+  it('client + hybridCapable: one extra item, "切换到混合模式"', () => {
     const items = mountRow({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client' }, hybridCapable: true })
       .findAll('.menu-item').map((i) => i.text())
     expect(items).toEqual(['编辑', '切换到热点', '切换到混合模式'])
   })
 
-  it('concurrent:只有「编辑」(即使 hybridCapable)', () => {
+  it('concurrent: only "编辑" (even when hybridCapable)', () => {
     const items = mountRow({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'concurrent' }, hybridCapable: true })
       .findAll('.menu-item').map((i) => i.text())
     expect(items).toEqual(['编辑'])
   })
 
-  it('点「编辑」emit edit;点切换项 emit switchMode 带目标模式', async () => {
+  it('clicking "编辑" emits edit; clicking a switch item emits switchMode with the target mode', async () => {
     const w = mountRow({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client' }, hybridCapable: true })
     const items = w.findAll('.menu-item')
     await items[0].trigger('click')

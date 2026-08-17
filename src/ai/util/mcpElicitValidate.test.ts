@@ -20,41 +20,41 @@ function multiEnum(over: Partial<ElicitField> = {}): ElicitField {
 const echo = (s: string, p?: Record<string, unknown>) => `${s}|${JSON.stringify(p ?? {})}`
 
 describe('validateArrayFields', () => {
-  it('全合法时返回 null', () => {
+  it('all valid returns null', () => {
     expect(validateArrayFields([multiEnum()], { tags: ['a'] }, echo)).toBeNull()
   })
 
-  it('required 且一项没选 → 报 aiMcpElicitErrRequired', () => {
+  it('required and nothing selected → returns aiMcpElicitErrRequired', () => {
     const r = validateArrayFields([multiEnum({ required: true })], { tags: [] }, echo)
     expect(r).toBe('aiMcpElicitErrRequired|{"label":"标签"}')
   })
 
-  it('min_items 独立于 required:required=false 选 0 项照样违规', () => {
+  it('min_items independent of required: required=false selecting 0 items still violates', () => {
     const r = validateArrayFields([multiEnum({ required: false, min_items: 1 })], { tags: [] }, echo)
     expect(r).toBe('aiMcpElicitErrMinItems|{"label":"标签","n":1}')
   })
 
-  it('max_items 超了报 aiMcpElicitErrMaxItems', () => {
+  it('max_items exceeded reports aiMcpElicitErrMaxItems', () => {
     const r = validateArrayFields([multiEnum({ max_items: 1 })], { tags: ['a', 'b'] }, echo)
     expect(r).toBe('aiMcpElicitErrMaxItems|{"label":"标签","n":1}')
   })
 
-  it('非 multi_enum 字段一律跳过(哪怕值不合法)', () => {
+  it('non multi_enum fields are all skipped (even if value is invalid)', () => {
     const f: ElicitField = { key: 'name', type: 'string', required: true, min_items: 5 }
     expect(validateArrayFields([f], { name: '' }, echo)).toBeNull()
   })
 
-  it('缺 title 时用 key 兜底', () => {
+  it('when title is missing use key as fallback', () => {
     const r = validateArrayFields([multiEnum({ title: undefined, required: true })], { tags: [] }, echo)
     expect(r).toBe('aiMcpElicitErrRequired|{"label":"tags"}')
   })
 
-  it('fields/values 为空或缺键都不炸', () => {
+  it('empty or missing key fields/values don\'t crash', () => {
     expect(validateArrayFields(null, null, echo)).toBeNull()
     expect(validateArrayFields([multiEnum({ min_items: 1 })], {}, echo)).toBe('aiMcpElicitErrMinItems|{"label":"标签","n":1}')
   })
 
-  it('不传 t 时原样返回键名本身(保持独立可测)', () => {
+  it('when t is not passed returns the key name as-is (remain independently testable)', () => {
     const r = validateArrayFields([multiEnum({ required: true })], { tags: [] })
     expect(r).toBe('aiMcpElicitErrRequired')
   })

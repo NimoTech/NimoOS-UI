@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { AxiosInstance } from 'axios'
 import { createKvm } from './kvm'
 
-// 记录调用的 http 桩。KVM 信封 = {success:boolean,data,message},与全系统 Result 不同。
+// Stub that records calls. KVM envelope = {success:boolean,data,message}, different from system-wide Result.
 function stub(map: Record<string, unknown> = {}) {
   const calls: { m: string; url: string; body?: unknown }[] = []
   const h = (m: string) => async (url: string, body?: unknown) => {
@@ -13,7 +13,7 @@ function stub(map: Record<string, unknown> = {}) {
   return { http, calls }
 }
 
-// 真机 fixture(2026-08-02 curl GET /v1/kvm/vms,逐字)
+// Real device fixture (2026-08-02 curl GET /v1/kvm/vms, verbatim)
 const VM_ROW = {
   id: 'e939191c-2bd2-4f14-88c9-0bf05d3b4d40', name: 'sp9-alpine-test',
   uuid: '2bf07a4a-fed2-4c43-992e-2e711c94e6a3', state: 'running',
@@ -25,8 +25,8 @@ const VM_ROW = {
   createdAt: '2026-07-30T20:33:51.843539328+08:00', updatedAt: '2026-07-30T20:33:51.843539461+08:00',
 }
 
-describe('createKvm —— 信封层数按端点写死', () => {
-  it('GET /vms 剥两层,拿到 data.data 数组与 data.total', async () => {
+describe('createKvm — envelope depth hardcoded per endpoint', () => {
+  it('GET /vms unwraps two layers, gets data.data array and data.total', async () => {
     const { http, calls } = stub({ '/kvm/vms': { success: true, data: { data: [VM_ROW], total: 1 } } })
     const r = await createKvm(http).getVMList()
     expect(calls[0]).toMatchObject({ m: 'get', url: '/kvm/vms' })
@@ -35,13 +35,13 @@ describe('createKvm —— 信封层数按端点写死', () => {
     expect(r.data[0].vncWebsocketPort).toBe(5700)
   })
 
-  it('GET /vms/:id 剥两层', async () => {
+  it('GET /vms/:id unwraps two layers', async () => {
     const { http } = stub({ [`/kvm/vms/${VM_ROW.id}`]: { success: true, data: { data: VM_ROW } } })
     expect((await createKvm(http).getVM(VM_ROW.id)).state).toBe('running')
   })
 
-  it('GET /settings 只剥一层(handler 手拼 map,没有内层 data)', async () => {
-    // 真机实测 2026-08-02
+  it('GET /settings unwraps only one layer (handler hand-constructs map, no inner data)', async () => {
+    // Real device test 2026-08-02
     const REAL = {
       success: true,
       data: {
@@ -56,14 +56,14 @@ describe('createKvm —— 信封层数按端点写死', () => {
     expect(s.networkInterfaces).toEqual(['enp2s0', 'enp4s0', 'wlp1s0'])
   })
 
-  it('PUT /settings 剥两层(回显请求体)', async () => {
+  it('PUT /settings unwraps two layers (echoes request body)', async () => {
     const body = { storagePath: '/DATA/KVM', defaultVcpu: 2, defaultMemory: 2048, autostart: false }
     const { http, calls } = stub({ '/kvm/settings': { success: true, data: { data: body } } })
     expect(await createKvm(http).updateSettings(body)).toMatchObject({ defaultVcpu: 2 })
     expect(calls[0]).toMatchObject({ m: 'put', url: '/kvm/settings', body })
   })
 
-  it('GET /vms/:id/vnc 只剥一层', async () => {
+  it('GET /vms/:id/vnc unwraps only one layer', async () => {
     const { http } = stub({
       [`/kvm/vms/${VM_ROW.id}/vnc`]: {
         success: true,
@@ -75,39 +75,39 @@ describe('createKvm —— 信封层数按端点写死', () => {
     })
   })
 
-  // 真机 fixture(2026-08-02 curl GET /v1/kvm/isos,alpine-319 那一条,逐字):
-  // 已下载(status:downloaded)也照样带 recommendedVcpu/recommendedMemory/minMemory/minDisk,
-  // 没有 createdAt;progress 恒返回(此条为 0,非下载中)。
+  // Real device fixture (2026-08-02 curl GET /v1/kvm/isos, the alpine-319 row, verbatim):
+  // Even downloaded (status:downloaded) comes with recommendedVcpu/recommendedMemory/minMemory/minDisk,
+  // no createdAt; progress always returned (0 for this row, not downloading).
   const ISO_ROW = {
     id: 'alpine-319', name: 'Alpine Linux', version: '3.19', category: 'linux',
     size: '195 MB', status: 'downloaded', progress: 0, path: '/DATA/KVM/isos/alpine-319.iso',
     recommendedVcpu: 1, recommendedMemory: 512, minMemory: 256, minDisk: 2,
   }
 
-  it('GET /isos 只剥一层(直接是数组)', async () => {
+  it('GET /isos unwraps only one layer (directly an array)', async () => {
     const { http } = stub({ '/kvm/isos': { success: true, data: [ISO_ROW] } })
     const list = await createKvm(http).getISOList()
     expect(list).toHaveLength(1)
     expect(list[0].path).toBe('/DATA/KVM/isos/alpine-319.iso')
   })
 
-  it('GET /isos/:id 剥两层,形状与真机一致(无 createdAt,无 downloadURL)', async () => {
+  it('GET /isos/:id unwraps two layers, shape matches real device (no createdAt, no downloadURL)', async () => {
     const { http } = stub({ '/kvm/isos/alpine-319': { success: true, data: { data: ISO_ROW } } })
     const iso = await createKvm(http).getISO('alpine-319')
     expect(iso).toEqual(ISO_ROW)
     expect((iso as Record<string, unknown>).createdAt).toBeUndefined()
   })
 
-  it('GET /isos/:id/progress 只剥一层,形状是 {status,progress},没有 id', async () => {
-    // 真机 fixture(2026-08-02 curl GET /v1/kvm/isos/alpine-319/progress,逐字)
+  it('GET /isos/:id/progress unwraps only one layer, shape is {status,progress}, no id', async () => {
+    // Real device fixture (2026-08-02 curl GET /v1/kvm/isos/alpine-319/progress, verbatim)
     const { http } = stub({ '/kvm/isos/alpine-319/progress': { success: true, data: { progress: 100, status: 'completed' } } })
     const p = await createKvm(http).getISODownloadProgress('alpine-319')
     expect(p).toEqual({ progress: 100, status: 'completed' })
     expect((p as Record<string, unknown>).id).toBeUndefined()
   })
 
-  it('GET /vms/:id/snapshots 剥两层,state 是 active 不是 running', async () => {
-    // 真机 fixture(2026-08-02 curl 探针:POST 建快照再 DELETE 清理,逐字取 state 字面量)
+  it('GET /vms/:id/snapshots unwraps two layers, state is active not running', async () => {
+    // Real device fixture (2026-08-02 curl probe: POST create snapshot then DELETE cleanup, verbatim state literal)
     const snap = { id: '1d866a2a-0f4e-4e0d-baf4-ad615752c57c', vmId: VM_ROW.id, name: 'before-upgrade',
       description: '', state: 'active', createdAt: '2026-08-02T02:10:24.744055518+08:00' }
     const { http } = stub({ [`/kvm/vms/${VM_ROW.id}/snapshots`]: { success: true, data: { data: [snap] } } })
@@ -116,61 +116,61 @@ describe('createKvm —— 信封层数按端点写死', () => {
     expect(list[0].state).toBe('active')
   })
 
-  it('控制动作只剥一层,startVM 返回 {status}', async () => {
+  it('control actions unwrap only one layer, startVM returns {status}', async () => {
     const { http, calls } = stub({ [`/kvm/vms/${VM_ROW.id}/start`]: { success: true, data: { status: 'started' } } })
     await createKvm(http).startVM(VM_ROW.id)
     expect(calls[0]).toMatchObject({ m: 'post', url: `/kvm/vms/${VM_ROW.id}/start` })
   })
 
-  it('setAutostart 带 body,返回 {autostart}', async () => {
+  it('setAutostart has body, returns {autostart}', async () => {
     const { http, calls } = stub({ [`/kvm/vms/${VM_ROW.id}/autostart`]: { success: true, data: { autostart: true } } })
     expect(await createKvm(http).setAutostart(VM_ROW.id, true)).toBe(true)
     expect(calls[0].body).toEqual({ autostart: true })
   })
 
-  it('setBootFromDisk 带 body,data 是 null 也不抛', async () => {
+  it('setBootFromDisk has body, does not throw even if data is null', async () => {
     const { http, calls } = stub({ [`/kvm/vms/${VM_ROW.id}/boot`]: { success: true, data: null } })
     await createKvm(http).setBootFromDisk(VM_ROW.id, true)
     expect(calls[0].body).toEqual({ bootFromDisk: true })
   })
 
-  it('deleteVM 打 DELETE', async () => {
+  it('deleteVM hits DELETE', async () => {
     const { http, calls } = stub({ [`/kvm/vms/${VM_ROW.id}`]: { success: true, data: null } })
     await createKvm(http).deleteVM(VM_ROW.id)
     expect(calls[0]).toMatchObject({ m: 'delete', url: `/kvm/vms/${VM_ROW.id}` })
   })
 
-  it('success:false 抛出后端 message', async () => {
+  it('success:false throws backend message', async () => {
     const { http } = stub({ '/kvm/vms': { success: false, message: 'libvirt connection failed' } })
     await expect(createKvm(http).getVMList()).rejects.toThrow('libvirt connection failed')
   })
 
-  it('success:false 且无 message 时抛兜底文案,不抛 undefined', async () => {
+  it('success:false and no message throws fallback text, not undefined', async () => {
     const { http } = stub({ '/kvm/vms': { success: false } })
     await expect(createKvm(http).getVMList()).rejects.toThrow('kvm request failed')
   })
 
-  it('列表接口在 data.data 缺失时退化成空列表,不抛', async () => {
-    // 后端 nil slice → data:{data:null,total:0}
+  it('list endpoints degrade to empty list when data.data is missing, do not throw', async () => {
+    // backend nil slice → data:{data:null,total:0}
     const { http } = stub({ '/kvm/vms': { success: true, data: { data: null, total: 0 } } })
     expect(await createKvm(http).getVMList()).toEqual({ data: [], total: 0 })
   })
 
-  it('快照列表同样在 null 时退化成空数组', async () => {
+  it('snapshot list also degrades to empty array when null', async () => {
     const { http } = stub({ [`/kvm/vms/${VM_ROW.id}/snapshots`]: { success: true, data: { data: null } } })
     expect(await createKvm(http).getSnapshots(VM_ROW.id)).toEqual([])
   })
 
-  it('getISOList 在 data 为 null 时退化成空数组', async () => {
+  it('getISOList degrades to empty array when data is null', async () => {
     const { http } = stub({ '/kvm/isos': { success: true, data: null } })
     expect(await createKvm(http).getISOList()).toEqual([])
   })
 })
 
-describe('createKvm —— 25 个方法的 url/method 全覆盖', () => {
+describe('createKvm — full coverage of url/method for 25 methods', () => {
   const ID = 'vm-1'
   const SID = 'snap-1'
-  it('逐个打对端点', async () => {
+  it('hits each endpoint correctly', async () => {
     const { http, calls } = stub()
     const k = createKvm(http)
     await k.getVMList(); await k.getVM(ID); await k.createVM({ name: 'a' } as never)
@@ -213,7 +213,7 @@ describe('createKvm —— 25 个方法的 url/method 全覆盖', () => {
     ])
   })
 
-  it('downloadISO 的 body 是 {id},不是裸字符串', async () => {
+  it('downloadISO body is {id}, not a bare string', async () => {
     const { http, calls } = stub()
     await createKvm(http).downloadISO('alpine-319')
     expect(calls[0].body).toEqual({ id: 'alpine-319' })

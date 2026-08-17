@@ -1,23 +1,30 @@
-// SP7 修复:相册区两处"不透明深色板压在玻璃壳上"。
+// SP7 fix: two spots in the photos section where an "opaque dark panel sits on top of the glass shell".
 //
-// 病根是一类移植缺陷 —— **照抄 token 名,但两个同名 token 的语境不同**:
-//   · Vue2 相册区是一整块**不透明深色页面**(`photos.scss:3` `--bg: #0A0A0C`),页内任何
-//     元素刷 `var(--bg)` 都与页底无缝;
-//   · New-UI 的相册区活在 AreaShell 的**玻璃壳**里(半透明 + 壁纸/渐变透上来),同样刷
-//     `var(--bg)`(`#1a2138`)就变成一块黑板 —— 真机截图里那条横贯整宽的黑带就是它。
+// The root cause is a class of porting defect — **copying the token name, while the two
+// same-named tokens carry different context**:
+//   · Vue2's photos section is one whole **opaque dark page** (`photos.scss:3` `--bg: #0A0A0C`),
+//     so any element inside the page painting `var(--bg)` blends seamlessly with the page background;
+//   · New-UI's photos section lives inside AreaShell's **glass shell** (semi-transparent, with the
+//     wallpaper/gradient showing through), so painting the same `var(--bg)` (`#1a2138`) turns into
+//     a solid slab — the band running the full width in the real-device screenshot is exactly that.
 //
-// 本仓 `--bg` 的**正当用法是"占满视口、自己就是页底"的壳**(StorageShell / SettingsShell /
-// MediaViewer / SearchDialog)与 SmartViewCard 拼贴图的缝隙色;内嵌在区域壳里的行/条/面板
-// 一律走玻璃 token(`--panel-bg`),同区先例:PhotosSidebar / PlacesRail / PhotoInfoPanel /
-// PersonPlacesTab 全是 `var(--panel-bg)`。
+// In this repo, the **legitimate use of `--bg`** is for a shell that "fills the viewport and is
+// itself the page background" (StorageShell / SettingsShell / MediaViewer / SearchDialog), plus the
+// gap color in SmartViewCard's collage image; rows/bars/panels embedded inside an area shell must
+// always use the glass token (`--panel-bg`) — precedent in this same section: PhotosSidebar /
+// PlacesRail / PhotoInfoPanel / PersonPlacesTab all use `var(--panel-bg)`.
 //
-// `--panel-bg-solid`(深色是不透明渐变实底)是**为地图专门引入的**:PlaceDetailPanel 压在
-// PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。除此之外没有第二个
-// 合法场景 —— 所以下面第三组用**白名单**钉住它的消费方集合,多一个就红。
+// `--panel-bg-solid` (an opaque gradient fill in dark mode) was **introduced specifically for the
+// map**: PlaceDetailPanel sits on top of the PlacesMap canvas, and translucency would let the map's
+// grid dots show through (P6b real-device acceptance feedback). There is no second legitimate use
+// case beyond that — so the third group below pins down its set of consumers with an **allowlist**;
+// one more consumer than that and it goes red.
 //
-// jsdom 不算级联、也不做布局,这类缺陷单测抓不到(5952 例全绿也没抓到),故与
-// color-guard.test.ts / photosLayoutHeightCap.test.ts 同一路数:对样式块原文做文本断言。
-// 读盘一律 node:fs —— 本仓 `?raw` 在测试环境恒空(color-guard 曾因此空转)。
+// jsdom doesn't compute cascade or do layout, so this class of defect isn't caught by unit tests
+// (5952 passing tests didn't catch it either), so — same approach as color-guard.test.ts /
+// photosLayoutHeightCap.test.ts — this asserts against the raw style-block text. Always read files
+// via node:fs — `?raw` is always empty in this repo's test environment (color-guard once spun idle
+// because of this).
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -26,22 +33,22 @@ const SRC = path.resolve(__dirname, '../..')
 
 function read(rel: string): string {
   const text = fs.readFileSync(path.join(SRC, rel), 'utf8')
-  expect(text.length, `${rel} 读到空内容,取数方式失效了`).toBeGreaterThan(0)
+  expect(text.length, `${rel} read back empty — the read helper is broken`).toBeGreaterThan(0)
   return text
 }
 
-/** 取某个选择器的规则体(只取第一处,够用:这几个类在各自 SFC 里都只有一条规则)。 */
+/** Grab a selector's rule body (first occurrence only — good enough since each of these classes has only one rule in its own SFC). */
 function ruleBody(text: string, selector: string): string {
   const i = text.indexOf(selector)
-  expect(i, `找不到选择器 ${selector}`).toBeGreaterThan(-1)
+  expect(i, `couldn't find selector ${selector}`).toBeGreaterThan(-1)
   const open = text.indexOf('{', i)
   const close = text.indexOf('}', open)
-  expect(open, `${selector} 后面没有 {`).toBeGreaterThan(-1)
-  expect(close, `${selector} 的规则体没有 }`).toBeGreaterThan(open)
+  expect(open, `${selector} has no { after it`).toBeGreaterThan(-1)
+  expect(close, `${selector}'s rule body has no }`).toBeGreaterThan(open)
   return text.slice(open + 1, close)
 }
 
-describe('相册区表面用玻璃 token,不刷应用底色', () => {
+describe('Photos section surfaces use the glass token, not the app background color', () => {
   // Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward) correction: this case's own
   // premise -- "this page still lives inside AreaShell's glass shell, so any background paints a
   // visible band" -- is no longer true, same class of correction as Fix-2 item 6 below did for
@@ -54,17 +61,18 @@ describe('相册区表面用玻璃 token,不刷应用底色', () => {
   // with every other selector name already covered by vue2-parity/photos.scss, letting THAT rule
   // (which does paint `background: var(--bg)`, matching Vue2 1:1, photos.scss:2610-2616) govern
   // directly.
-  it('搜索页不再自带本地 .filterbar 规则(已随 2026-08-13 回退整体移交 parity)', () => {
+  it('the search page no longer carries a local .filterbar rule (handed over to parity by the 2026-08-13 rollback)', () => {
     const src = read('views/PhotosSearch.vue')
-    expect(src, '搜索页仍留着一份本地 .filterbar 规则,应已随回退删除').not.toMatch(/\n\.filterbar\s*\{/)
+    expect(src, 'the search page still keeps a local .filterbar rule; the rollback should have removed it').not.toMatch(/\n\.filterbar\s*\{/)
   })
 
-  it('parity 自己的 .filterbar 画底色(Plan C 已脱离 AreaShell 玻璃壳,画底色不再产生色带)+ 仍保留分隔线与层叠', () => {
+  it('parity own .filterbar does paint a background (Plan C left the AreaShell glass shell, so a fill no longer leaves a band) and still keeps its divider and stacking', () => {
     const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.filterbar {')
     expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
-    // border-bottom 是它与排序行之间唯一的视觉分界。
+    // border-bottom is the only visual boundary between it and the sort row.
     expect(body).toMatch(/border-bottom\s*:\s*1px solid var\(--line\)/)
-    // position/z-index 不是装饰:筛选弹层(.fpop)是它的后代,靠这两条才画得到下方网格之上。
+    // position/z-index aren't decorative: the filter popover (.fpop) is a descendant of this
+    // element, and these two properties are what let it render above the grid below.
     expect(body).toMatch(/position\s*:\s*sticky/)
     expect(body).toMatch(/z-index\s*:\s*6/)
   })
@@ -82,17 +90,19 @@ describe('相册区表面用玻璃 token,不刷应用底色', () => {
   // `--panel-bg`, which was not, and stayed a barely-visible glass tint in photos light mode --
   // the actual bug this correction fixes, on top of restoring the pre-Plan-C premise this test
   // case itself no longer describes).
-  it('智能视图详情的右侧栏用 parity 自己的不透明面板底(Plan C 已脱离 AreaShell 玻璃壳,与 PhotosSidebar 现状一致)', () => {
+  it('the smart view detail right sidebar uses parity own opaque panel background (Plan C left the AreaShell glass shell, matching what PhotosSidebar does now)', () => {
     const body = ruleBody(read('views/PhotosSmartViewDetail.vue'), '.sv-detail-side {')
     expect(body).toMatch(/background\s*:\s*var\(--surface-1\)/)
-    expect(body, '右侧栏底下没有地图,用不着不透明实底(且早已不是 --panel-bg-solid 消费方)').not.toMatch(/var\(--panel-bg-solid\)/)
-    expect(body, '不应再回退到未随 photos-is-light 切换的全局玻璃 token').not.toMatch(/var\(--panel-bg\)/)
+    expect(body, 'nothing behind the right sidebar is a map, so it has no need for an opaque solid fill (and it stopped consuming --panel-bg-solid long ago)').not.toMatch(/var\(--panel-bg-solid\)/)
+    expect(body, 'it must not fall back to the global glass token that never followed the photos-is-light switch').not.toMatch(/var\(--panel-bg\)/)
   })
 })
 
-describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
-  // 唯一合法场景:压在 PlacesMap 画布上的地点详情面板(半透会把地图网格点透上来)。
-  // 每新增一条都必须先问"它底下真的有地图吗" —— 没有就该用 --panel-bg。
+describe('--panel-bg-solid consumer allowlist (reverse gate)', () => {
+  // The one legitimate use case: the place detail panel that sits on top of the PlacesMap canvas
+  // (translucency would let the map's grid dots show through).
+  // Every new addition must first answer "is there really a map underneath it?" — if not, it
+  // should use --panel-bg instead.
   const ALLOW = new Set(['photos/components/PlaceDetailPanel.vue'])
 
   function walk(dir: string, out: string[] = []): string[] {
@@ -110,15 +120,15 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
 
   const files = walk(SRC)
 
-  it('取数有效(扫到了 .vue 文件)', () => {
+  it('the scan actually found something (picked up .vue files)', () => {
     expect(files.length).toBeGreaterThan(50)
   })
 
-  it('只有白名单里的组件用 --panel-bg-solid', () => {
+  it('only the components on the allowlist use --panel-bg-solid', () => {
     const users = files
       .filter((p) => fs.readFileSync(p, 'utf8').includes('var(--panel-bg-solid)'))
       .map((p) => path.relative(SRC, p).replace(/\\/g, '/'))
-    expect(users.slice().sort(), `--panel-bg-solid 的消费方变了`).toEqual([...ALLOW].sort())
+    expect(users.slice().sort(), `the set of --panel-bg-solid consumers has changed`).toEqual([...ALLOW].sort())
   })
 })
 
@@ -137,12 +147,12 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
 // ViewerShell.vue's own opaque shell over its own z-index:0 bokeh layer. jsdom does not compute
 // paint order/cascade, so (same as this file's other cases) this is a raw-source assertion, not
 // a rendered-DOM one; real-device verification is still the authority for the visual result.
-describe('Fix-2 item 6b: .app 建立自己的层叠上下文,压在全局 aurora(z-index:0)之上', () => {
-  it('.photos-root .app 有 position:relative + z-index:1(两套主题通用,不分深浅色)', () => {
+describe('Fix-2 item 6b: .app establishes its own stacking context, sitting above the global aurora (z-index:0)', () => {
+  it('.photos-root .app carries position:relative + z-index:1 (shared by both themes, not split light/dark)', () => {
     const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root .app {')
     expect(body).toMatch(/position\s*:\s*relative/)
     expect(body).toMatch(/z-index\s*:\s*1\b/)
-    // 不透明底色仍然保留,两件事互相独立、都要成立。
+    // The opaque background stays as well -- the two are independent and both must hold.
     expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
   })
 })

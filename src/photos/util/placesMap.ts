@@ -41,8 +41,8 @@ import { project, WORLD_DOTS, type WorldDot } from './worldMap'
 export const MAX_SCALE = 16
 
 export interface Place {
-  id: string // String(key) 归一后的 id(铁律:后端 key 是 int32)
-  key: number | string // 后端原值,回传接口时用
+  id: string // normalized id from String(key) (invariant: backend key is int32)
+  key: number | string // backend original value, used when calling APIs
   region: string
   country: string
   city: string
@@ -50,8 +50,8 @@ export interface Place {
   lat: number
   count: number
   recent: boolean
-  last: string // 后端 "Jan 2, 2006" 英文显示串
-  lastDate: Date | null // parsePlaceLast(last) 的结果,过滤只看这个
+  last: string // backend "Jan 2, 2006" English display string
+  lastDate: Date | null // result of parsePlaceLast(last), filtering only looks at this
   trips: number
   home: boolean
   thumbs: string[]
@@ -64,7 +64,7 @@ export interface PlacesStats { cities: number, countries: number, photos: number
 export type TimeFilterId = 'all' | 'year' | 'trip' | 'custom'
 export interface PlacesFilter {
   timeFilter: TimeFilterId
-  customStart: string // 'YYYY-MM-DD' 或 ''
+  customStart: string // 'YYYY-MM-DD' or ''
   customEnd: string
   minCount: number
   regionFilter: string | null
@@ -91,7 +91,7 @@ export interface Pin {
 
 // Go time layout "Jan 2, 2006"'s three-letter months (places.go:76 uses exactly
 // this layout for Place.Last).
-// Not new Date(str): that goes through the host locale parser, which Safari /
+// Not new Date(str): that goes through the host locale parser, which Safari and
 // older engines can return Invalid Date for.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 const LAST_RE = /^([A-Za-z]{3}) (\d{1,2}), (\d{4})$/
@@ -108,15 +108,14 @@ export function parsePlaceLast(last: string | null | undefined): Date | null {
   const day = Number(m[2])
   const year = Number(m[3])
   const d = new Date(year, mi, day)
-  // 防 'Feb 31, 2026' 之类溢出成 3 月 3 日:回读校验。
+  // Prevent overflow like 'Feb 31, 2026' rolling over to Mar 3: validate by reading back.
   if (d.getFullYear() !== year || d.getMonth() !== mi || d.getDate() !== day)
     return null
   return d
 }
 
-// PhotosPlacesView.vue:12-21. The two thresholds (40/100) are load-bearing
-// beyond this function: they're duplicated as literals in the on-map legend
-// (PhotosPlacesView.vue:1032-1039, "< 40 / 40-100 / 100+"). Changing them here
+// PhotosPlacesView.vue:12-21. The two thresholds (40/100) are load-bearing beyond this function: they're duplicated
+// as literals in the on-map legend (PhotosPlacesView.vue:1032-1039, "< 40 / 40-100 / 100+"). Changing them here
 // requires updating the legend too (deviation log 11-③).
 export function tierRadius(count: number): number {
   if (count >= 100)
@@ -126,10 +125,9 @@ export function tierRadius(count: number): number {
   return 7
 }
 
-// PhotosPlacesView.vue:28-62. Relaxation pass that nudges pins apart until no
-// two centers sit closer than `minSep` (viewBox units). Mutates pins in place.
-// Deterministic: exact overlaps are broken apart along a stable,
-// index-derived direction (golden-angle spread).
+// PhotosPlacesView.vue:28-62. Relaxation pass that nudges pins apart until no two centers sit closer than `minSep`
+// (viewBox units). Mutates pins in place. Deterministic: exact overlaps are broken apart along a stable, index-derived
+// direction (golden-angle spread).
 export function declutterPins(pins: Pin[], minSep: number): void {
   if (pins.length < 2)
     return
@@ -166,15 +164,15 @@ export function declutterPins(pins: Pin[], minSep: number): void {
   }
 }
 
-// PhotosPlacesView.vue:644-660, parameterized: Vue2 read `this.view.scale` as
-// `lo` directly (component state); here it's an injected argument so the
-// function is pure. Binary search for the lowest scale (within 22 steps) at
-// which `members` first splits into >= 2 clusters, then nudges just past that
-// threshold so the split is visually obvious rather than borderline.
-// 评审 M7:placesMap.test.ts:176-191 逐字复制了下面这段 22 步二分,专门用来钉住
-// `hi * 1.04` 这个收敛系数(评审已接受为唯一可行的钉法)。改这里的步数(22)或换一种
-// 收敛策略时,务必同步改测试文件里的对应段——否则那条测试会静默失去意义(不再真的复算
-// 同一个算法),而不是变红提醒你。
+// PhotosPlacesView.vue:644-660, parameterized: Vue2 read `this.view.scale` as `lo` directly (component state); here
+// it's an injected argument so the function is pure. Binary search for the lowest scale (within 22 steps) at which
+// `members` first splits into >= 2 clusters, then nudges just past that threshold so the split is visually obvious
+// rather than borderline.
+// Review M7: placesMap.test.ts:176-191 verbatim copies the 22-step binary search below, specifically to pin the
+// convergence coefficient `hi * 1.04` (review accepted it as the only viable pinning method). When changing the step
+// count (22) or switching convergence strategy here, be sure to sync the corresponding section in the test file —
+// otherwise that test will silently lose its meaning (no longer actually recomputing the same algorithm), rather
+// than turning red to alert you.
 export function splitScaleFor(members: Place[], currentScale: number): number {
   if (!members || members.length < 2)
     return MAX_SCALE
@@ -196,9 +194,8 @@ export function splitScaleFor(members: Place[], currentScale: number): number {
 // PhotosPlacesView.vue:235-278.
 export function buildPins(places: Place[], scale: number, activeId: string | null): Pin[] {
   const projected = places.map(p => ({ ...p, ...project(p.lon, p.lat) }))
-  // At full zoom every city must be its own clickable pin — even if two
-  // bubbles still physically overlap, we never leave an un-splittable cluster
-  // behind. Below max we cluster by overlap as usual.
+  // At full zoom every city must be its own clickable pin — even if two bubbles still physically overlap, we never
+  // leave an un-splittable cluster behind. Below max we cluster by overlap as usual.
   const atMax = scale >= MAX_SCALE
   const clusters: Cluster<typeof projected[number]>[] = atMax
     ? projected.map(p => ({ x: p.x, y: p.y, count: p.count, members: [p], lead: p }))
@@ -243,8 +240,7 @@ export function buildPins(places: Place[], scale: number, activeId: string | nul
   return out
 }
 
-// PhotosPlacesView.vue:228-234. Deliberately O(dots × places) full scan, no
-// spatial index (deviation log 11-①).
+// PhotosPlacesView.vue:228-234. Deliberately O(dots × places) full scan, no spatial index (deviation log 11-①).
 export function visitedDots(places: Place[]): Array<WorldDot & { visited: boolean }> {
   return WORLD_DOTS.map(d => ({
     ...d,
@@ -309,7 +305,7 @@ const REGION_LABEL_KEYS: Record<string, string> = {
   antarctica: 'photosPlacesRegionAntarctica',
 }
 
-// 未知 id 返回 null,调用方回落到后端 label(偏离登记 3)。
+// Unknown id returns null, caller falls back to backend label (deviation log 3).
 export function regionLabelKey(id: string): string | null {
   return REGION_LABEL_KEYS[id] ?? null
 }
@@ -336,12 +332,13 @@ export function extraFilterCount(f: PlacesFilter): number {
   return n
 }
 
-// PhotosPlacesView.vue:1129, 偏离登记 16(用户 2026-07-31 pre-flight 裁定)。
-// Vue2 写死 `° N`/`° E`:南半球/西半球的 spot 会显示成错误方向(纬度 -33.87 度渲染成
-// "33.869° N"而不是"S")。这里按符号选方向字母,格式(三位小数、`° `、` · ` 分隔)与
-// Vue2 逐字一致,只有方向字母是修正。方向字母(N/S/E/W)刻意不进 i18n —— 它们是地理学
-// 通用记号(制图学标准缩写),不是需要翻译的自然语言文案,所有语言的地图/GPS 场景都用
-// 这四个拉丁字母,进 i18n 反而要求翻译者对着"N"想一个"译名",没有意义。
+// PhotosPlacesView.vue:1129, deviation log 16 (user decision 2026-07-31 pre-flight).
+// Vue2 hardcodes `° N`/`° E`: spots in southern/western hemisphere show wrong direction (latitude -33.87° renders as
+// "33.869° N" instead of "S"). Here the direction letter is chosen by sign, format (three decimals, `° `, ` · `
+// separator) verbatim matches Vue2, only the direction letter is corrected. Direction letters (N/S/E/W) are
+// intentionally NOT i18n'd — they are geographic universal notation (cartographic standard abbreviations), not
+// natural language text needing translation; all languages' maps/GPS contexts use these four Latin letters. Putting
+// them in i18n would only ask translators to invent "translations" for "N", which is pointless.
 export function formatSpotCoords(lat: number, lon: number): string {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return ''
   const ns = lat < 0 ? 'S' : 'N'

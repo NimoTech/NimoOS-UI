@@ -10,11 +10,13 @@ vi.mock('@nimotech/nimoos-service', () => ({
 }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
-// ⚠️ **必须用花括号、不能写成 `beforeEach(() => mock.mockReset().mockResolvedValue(x))`** ——
-// 那种链式写法会把 mock 函数本身**当成 teardown 回调返回**给 vitest(beforeEach 支持返回清理函数),
-// 于是每个测试结束后 vitest 会**再调一次这个 mock**;若该测试把实现换成了「抛错」,那次调用
-// 产生的 rejected promise 没人 await → 报成 `Unknown Error: <msg>`,而断言其实全是过的。
-// 本文件三条失败用例就是这么来的,排查花了几轮。
+// ⚠️ **Must use braces here, not `beforeEach(() => mock.mockReset().mockResolvedValue(x))`** —
+// that chained form makes the mock function itself get **returned to vitest as the teardown
+// callback** (beforeEach supports returning a cleanup function), so after every test vitest
+// **calls this mock a second time**; if that test swapped the implementation to "throw", that
+// extra call produces a rejected promise nobody awaits → surfaces as `Unknown Error: <msg>`,
+// even though the assertions all actually passed.
+// This file's three false failures came from exactly this, and took a few rounds to track down.
 beforeEach(() => {
   changePassword.mockReset()
   changePassword.mockResolvedValue(undefined)
@@ -32,8 +34,8 @@ async function fill(w: ReturnType<typeof mountForm>, ori: string, pw: string, cf
   await w.find('[data-test="acc-pwd-cfm"]').setValue(cfm)
 }
 
-describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(:415-440)', () => {
-  it('三个 password 类型输入框,占位文案与 Vue2 一致', () => {
+describe('ChangePasswordForm — maps to Vue2 state 3 (:723-744) + savePassword (:415-440)', () => {
+  it('three password-type inputs, placeholder copy matches Vue2', () => {
     const w = mountForm()
     for (const [k, key] of [
       ['acc-pwd-ori', 'settingsAccOriPassword'],
@@ -46,18 +48,18 @@ describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(
     }
   })
 
-  it('三个输入框都包在 .set-net-field 里(C7:否则吃到 .set-input 的 92px)', () => {
+  it('all three inputs are wrapped in .set-net-field (C7: otherwise they inherit .set-input\'s 92px)', () => {
     const w = mountForm()
     for (const k of ['acc-pwd-ori', 'acc-pwd-new', 'acc-pwd-cfm']) {
       expect(w.find(`[data-test="${k}"]`).element.closest('.set-net-field')).not.toBeNull()
     }
   })
 
-  it('有一个 autocomplete=username 的蜜罐(Vue2 :725,防浏览器自动填充打到别处)', () => {
+  it('has an autocomplete=username honeypot (Vue2 :725, prevents the browser from autofilling elsewhere)', () => {
     expect(mountForm().find('input[autocomplete="username"]').exists()).toBe(true)
   })
 
-  it('两次新密码不一致 → 内联报错,且一次请求都不发', async () => {
+  it('mismatched new passwords → inline error, and no request is sent at all', async () => {
     const w = mountForm()
     await fill(w, 'old', 'aaaaaa', 'bbbbbb')
     expect(await submitOf(w)).toBe(false)
@@ -66,7 +68,7 @@ describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(
     expect(changePassword).not.toHaveBeenCalled()
   })
 
-  it('任一框为空 → 内联报错,不发请求', async () => {
+  it('any field left empty → inline error, no request sent', async () => {
     const w = mountForm()
     await fill(w, '', 'aaaaaa', 'aaaaaa')
     expect(await submitOf(w)).toBe(false)
@@ -74,21 +76,21 @@ describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(
     expect(w.find('.set-danger').text()).toBe(zh.settingsAccFillAllFields)
   })
 
-  it('确认框为空也拦住(Vue2 三个框都是 required)', async () => {
+  it('an empty confirm field is blocked too (Vue2 marks all three fields required)', async () => {
     const w = mountForm()
     await fill(w, 'old', 'aaaaaa', '')
     expect(await submitOf(w)).toBe(false)
     expect(changePassword).not.toHaveBeenCalled()
   })
 
-  it('成功时按 (old_password, password) 顺序调共享包,并返回 true', async () => {
+  it('on success, calls the shared package with (old_password, password) in that order, and returns true', async () => {
     const w = mountForm()
     await fill(w, 'old-pw', 'new-pw', 'new-pw')
     expect(await submitOf(w)).toBe(true)
     expect(changePassword).toHaveBeenCalledWith('old-pw', 'new-pw')
   })
 
-  it('成功后清空三个输入框(Vue2 :429-431)', async () => {
+  it('clears all three inputs on success (Vue2 :429-431)', async () => {
     const w = mountForm()
     await fill(w, 'old-pw', 'new-pw', 'new-pw')
     await submitOf(w)
@@ -98,7 +100,7 @@ describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(
     }
   })
 
-  it('失败时优先显示后端 message,用内联 .set-danger 而不是 toast(C6)', async () => {
+  it('on failure, prefers the backend message, shown inline via .set-danger instead of a toast (C6)', async () => {
     changePassword.mockImplementation(async () => { throw Object.assign(new Error('Request failed'), { response: { data: { message: '原密码错误' } } }) })
     const w = mountForm()
     await fill(w, 'bad', 'new-pw', 'new-pw')
@@ -107,8 +109,8 @@ describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(
     expect(w.find('.set-danger').text()).toBe('原密码错误')
   })
 
-  it('后端没给 message 时回退成 axios 的 message', async () => {
-    changePassword.mockImplementation(async () => { throw new Error('Network Error') }) // 无 response 的网络错
+  it('falls back to axios\'s message when the backend gives none', async () => {
+    changePassword.mockImplementation(async () => { throw new Error('Network Error') }) // A network error with no response
     const w = mountForm()
     await fill(w, 'a', 'new-pw', 'new-pw')
     await submitOf(w)
@@ -116,7 +118,7 @@ describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(
     expect(w.find('.set-danger').text()).toBe('Network Error')
   })
 
-  it('失败后输入不清空(方便用户改一个字重试)', async () => {
+  it('input is not cleared after a failure (lets the user tweak one character and retry)', async () => {
     changePassword.mockImplementation(async () => { throw new Error('X') })
     const w = mountForm()
     await fill(w, 'bad', 'new-pw', 'new-pw')
@@ -125,7 +127,7 @@ describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(
     expect((w.find('[data-test="acc-pwd-ori"]').element as HTMLInputElement).value).toBe('bad')
   })
 
-  it('提交在途时三个框 disabled,且不会产生第二次请求', async () => {
+  it('all three fields are disabled while submit is in flight, and no second request is produced', async () => {
     let resolve!: () => void
     changePassword.mockReturnValue(new Promise<void>((r) => { resolve = r }))
     const w = mountForm()
@@ -139,7 +141,7 @@ describe('ChangePasswordForm —— 对位 Vue2 state 3(:723-744)+ savePassword(
     await p
   })
 
-  it('重新提交会清掉上一次的错误提示', async () => {
+  it('resubmitting clears the previous error message', async () => {
     changePassword.mockImplementationOnce(async () => { throw new Error('X') })
     const w = mountForm()
     await fill(w, 'a', 'new-pw', 'new-pw')

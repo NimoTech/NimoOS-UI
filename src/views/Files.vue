@@ -75,7 +75,7 @@ const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
 
-// 对话框开关 + 上下文
+// Dialog toggles + context
 const settingsOpen = ref(false)
 const overlayRef = ref<InstanceType<typeof TimeMachineOverlay> | null>(null)
 const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
@@ -88,17 +88,23 @@ const batchModalId = ref('')
 const batchModalPath = ref('')
 const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 
-// 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
+// Context-menu target: set when a row/card emits; reset to null in blank areas (container's target is not a row/card)
 const ctxEntry = ref<FileEntry | null>(null)
 function onItemContextmenu(payload: { entry: FileEntry; event: MouseEvent }) {
-  // 2026-08-13 契约变更(机主要求):右键**不碰选区**。此前这里会 selectOnly() 把被点项收进
-  // 选区,副作用是单纯右键就点亮行选中态、并把顶部 SelectionToolbar 拉出来。现在:
-  // 右键未选中的项 → 选区原样不动,菜单动作经 contextTargets 只作用于该项;
-  // 右键已选中的项(在多选选区内)→ 菜单作用于整个选区(行为不变)。
+  // 2026-08-13 contract change (owner's request): right-click **does not touch the selection**.
+  // Previously this called selectOnly() to fold the clicked item into the selection, with the
+  // side effect that a plain right-click alone would light up the row's selected state and pull
+  // out the top SelectionToolbar. Now:
+  // right-click on an unselected item → selection stays as-is, the menu action acts only on that
+  // item via contextTargets;
+  // right-click on an already-selected item (inside a multi-selection) → the menu acts on the
+  // whole selection (behaviour unchanged).
   ctxEntry.value = payload.entry
 }
-// 容器 contextmenu 会话 onItemContextmenu 冒泡触发(同一原生事件),但只有当右键落在
-// 空白处(target 不在任何 [data-path] 行/卡内)才应重置为 null —— 否则会清掉刚设置的 entry。
+// The container's contextmenu handler fires from the same bubbled native event that also
+// triggers onItemContextmenu, but it should only reset to null when the right-click lands on
+// a blank area (target is not inside any [data-path] row/card) — otherwise it would clear the
+// entry that was just set.
 function onBlankContextmenu(e: MouseEvent) {
   const el = e.target as HTMLElement
   if (el.closest('[data-path]')) return
@@ -119,10 +125,11 @@ function ctxTargets(entry: FileEntry | null): FileEntry[] {
 // Menu prop: must be the count of the effective target set, not the original selection count
 const ctxTargetCount = computed(() => ctxTargets(ctxEntry.value).length)
 
-// 多选工具栏「共享」按钮是否显示:选区内含至少一个文件夹
+// Whether the multi-select toolbar's "Share" button shows: the selection contains at least one folder
 const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is_dir))
 
-// 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
+// Current selection (shared by the three restore entry points in snapshot view: the banner
+// button, the selection toolbar, and right-click on a single item, each via its own entry point)
 const snapshotSelection = computed(() => selectedEntries.value)
 
 // Share the effective target set (ctxTargets(entry) — for a right-clicked entry outside the
@@ -151,7 +158,7 @@ async function onShare(entry: FileEntry | null, candidates: FileEntry[] = ctxTar
   if (targets.length === 1) shareDlg.value = { open: true, name: shareName(targets[0].path) }
 }
 
-// 右键菜单动作分发
+// Context-menu action dispatch
 // `targets` defaults to the effective target set of the listing's context menu.
 // The sidebar passes it explicitly: a right-click on a favourite is about that
 // one folder, and the listing's selection has nothing to do with it (F3).
@@ -161,9 +168,11 @@ function onCtxAction(action: string, entry: FileEntry | null, targets: FileEntry
     case 'new-file': openNew('file'); break
     case 'refresh': ops.refresh(); break
     case 'copy-path':
-      // reka-ui 菜单打开时会把菜单外的 DOM 置为 inert,copyPath 的 execCommand('copy')
-      // 兜底(非安全上下文下)此刻选区无效——会静默失败却仍返回 true。推迟到菜单关闭、
-      // inert 解除后再复制(execCommand 延迟执行仍有效,已实测)。
+      // While the reka-ui menu is open it marks all DOM outside the menu as inert, so the
+      // execCommand('copy') fallback inside copyPath (used in non-secure contexts) has no
+      // valid selection at this moment — it fails silently while still returning true. Defer
+      // the copy until the menu closes and inert is lifted (execCommand still works when run
+      // later, verified in testing).
       if (entry) { const e = entry; setTimeout(() => ops.copyPath(e), 0) }
       break
     case 'rename': if (entry) renameDlg.value = { open: true, entry }; break
@@ -205,7 +214,7 @@ async function onSetWallpaper(entry: FileEntry | null) {
   }
 }
 
-// ── 上传:隐藏 input 触发 + 拖拽落区 ──
+// ── Upload: hidden-input trigger + drag-drop zone ──
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
 
@@ -275,7 +284,7 @@ async function triggerFolderSelect() {
 function onInputChange(e: Event) {
   const input = e.target as HTMLInputElement
   if (input.files && input.files.length) handleSelectedFiles(input.files)
-  input.value = '' // 允许重复选择同一文件再次触发 change
+  input.value = '' // Allow reselecting the same file to trigger change again
 }
 
 function onRefill(p: { targetPath: string; missing: string[] }): void {
@@ -302,8 +311,9 @@ defineExpose({ handleSelectedFiles, onRefill })
 const preparingCount = ref(0)
 const preparing = computed(() => preparingCount.value > 0 && !conflicts.dialog.open)
 
-// 落地空目录:createEmptyDirs 建目录(容忍已存在),按结果 toast,只有目标目录就是
-// 当前所在目录时才刷新列表(在别处上传的批次不该打断用户正在看的页面)。
+// Land empty directories: createEmptyDirs creates the dirs (tolerating ones that already
+// exist), toasts the result, and only refreshes the listing when the target directory is the
+// current one (a batch uploaded elsewhere shouldn't interrupt the page the user is looking at).
 async function commitEmptyDirs(dirs: { relativePath: string }[], targetPath: string) {
   if (!dirs.length) return
   const { created, failed } = await createEmptyDirs(dirs.map((d) => d.relativePath), targetPath)
@@ -331,9 +341,11 @@ async function runCommitSelectedFiles(entries: { file: File; relativePath: strin
   const pending = refillPending.value
   refillPending.value = null
 
-  // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
-  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。这道守卫对空目录同样
-  // 适用 —— 空目录批次也走 commitEmptyDirs 写盘,不能绕过只读视图的拦截。
+  // Read-only snapshot fallback interception (second line of defence): both drag-drop and the
+  // file picker funnel through here, and while the UI already hides the upload entry points
+  // (first line), the drag-drop zone covers the whole screen and can bypass the hidden chip.
+  // This guard applies to empty directories too — an empty-dir batch also writes to disk via
+  // commitEmptyDirs, so it must not slip past the read-only view's interception.
   if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
 
   // Refill branch: the target directory is the batch's own target_path (not the
@@ -358,17 +370,21 @@ async function runCommitSelectedFiles(entries: { file: File; relativePath: strin
   // protected-dir check, which has the exact same split('/')[0] hazard); reuse
   // it here rather than duplicating the regex.
   const normalized = toSelectedFiles(wanted, targetPath)
-  // 超长路径前置过滤:后端 tus ingest 对 ENAMETOOLONG 是异步静默失败,前端会先报
-  // "上传成功"(bug.txt #2)。relativePath 逐段查 NAME_MAX,拼接目标全路径查 PATH_MAX。
-  // 空目录同样要过这道检查(评审发现:此前只过滤了文件,拖拽一个深路径的空文件夹
-  // 会绕过前置提示,直接撞上后端那句没有信息量的 "Fail")——relativePath 已由
-  // dropEntries 去掉了前导斜杠,与文件条目走的是同一套判定,故复用同一个 fitsLimits。
+  // Pre-filter for over-long paths: the backend's tus ingest fails ENAMETOOLONG
+  // asynchronously and silently, so the frontend would report "upload succeeded" first
+  // (bug.txt #2). Check each relativePath segment against NAME_MAX, and the joined target
+  // full path against PATH_MAX. Empty directories must pass this same check (caught in review:
+  // previously only files were filtered, so dragging in an empty folder with a deep path would
+  // bypass the up-front notice and land straight on the backend's uninformative "Fail")
+  // — relativePath already has its leading slash stripped by dropEntries, so it goes through
+  // the same test as file entries and can reuse the same fitsLimits.
   const fitsLimits = (rel: string) =>
     !rel.split('/').some(nameTooLong) && !pathTooLong(joinPath(targetPath, rel))
   const withinLimits = normalized.filter((e) => fitsLimits(e.relativePath))
   const withinLimitsDirs = emptyDirs.filter(fitsLimits)
-  // 文件与空目录合并成一条 toast,而不是分别弹两条——用户看到的是同一批拖拽操作,
-  // 拆开报会显得像出了两个问题。
+  // Merge files and empty directories into a single toast rather than firing two separately
+  // — the user sees this as one drag-drop operation, and splitting the report would make it
+  // look like two things went wrong.
   const tooLong = (normalized.length - withinLimits.length) + (emptyDirs.length - withinLimitsDirs.length)
   if (tooLong > 0) toast.show(t('filesUploadPathTooLong', { count: tooLong }))
   // Refuse protected-directory entries BEFORE the conflict prompt, not after.
@@ -424,7 +440,7 @@ async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
   )
 }
 
-// ── 拖拽落区(.files-main 全域可放)──
+// ── Drag-drop zone (droppable across the whole .files-main) ──
 const isDragIn = ref(false)
 let dragLeaveTimer: ReturnType<typeof setTimeout> | null = null
 function onDragOver() {
@@ -432,7 +448,7 @@ function onDragOver() {
   isDragIn.value = true
 }
 function onDragLeave() {
-  // 防抖:在子元素间移动也会触发 dragleave,稍作延迟避免闪烁
+  // Debounce: moving between child elements also fires dragleave, so delay slightly to avoid flicker
   if (dragLeaveTimer) clearTimeout(dragLeaveTimer)
   dragLeaveTimer = setTimeout(() => { isDragIn.value = false }, 50)
 }
@@ -459,8 +475,8 @@ async function onDrop(e: DragEvent) {
   }
 }
 
-// ── Ctrl+V 粘贴上传:截图/复制的文件传到当前目录,复用 commitSelectedFiles ──
-// 焦点在输入框(重命名/搜索等)时不抢浏览器默认粘贴;剪贴板只有文字时静默忽略。
+// ── Ctrl+V paste upload: pasted screenshots/copied files go to the current directory, reusing commitSelectedFiles ──
+// Don't steal the browser's default paste when focus is in an input (rename/search/etc.); silently ignore when the clipboard holds only text.
 function isEditableTarget(el: EventTarget | null): boolean {
   const node = el instanceof HTMLElement ? el : null
   if (!node) return false
@@ -510,8 +526,9 @@ function askDelete(entries: FileEntry[]) {
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
 
-// 时间机器要知道当前目录相对卷根的位置:卡片按它展示"那一刻的这个文件夹",
-// 进入后也落在同一个相对路径上。
+// Time Machine needs to know the current directory's position relative to the volume root:
+// the card uses it to show "this folder at that moment", and entering it lands on the same
+// relative path.
 const snapshotRelPath = computed(() => relPathUnderMount(browse.currentVolume?.mount ?? '', files.currentPath))
 
 function onSnapshotSelect(path: string) {
@@ -522,9 +539,11 @@ function onSnapshotSelect(path: string) {
 function goVirtual(vp: string) {
   router.push('/files/' + virtualPathToRouteParam(vp))
 }
-// 退出快照:回到活卷上的同名目录;该目录在活卷上已经不存在(比如那之后被删了)则回卷根。
-// dirExists 用列目录成功与否判定 —— 文件区没有单独的"目录是否存在"接口,列目录失败
-// (404/权限)一律当作不存在,退回卷根总是安全的落点。
+// Exit snapshot: return to the same-named directory on the live volume; if that directory no
+// longer exists on the live volume (e.g. it was deleted afterwards), fall back to the volume
+// root. dirExists is judged by whether listing the directory succeeds — the Files area has no
+// separate "does this directory exist" endpoint, so any listing failure (404/permission) is
+// treated as non-existent, and falling back to the volume root is always a safe landing spot.
 async function exitSnapshot() {
   const target = await resolveExitTarget(browse.browseInfo, async (p) => {
     try { await service.folder.getList(p); return true } catch { return false }
@@ -532,9 +551,11 @@ async function exitSnapshot() {
   if (target) goVirtual(toVirtualPath(target, files.displayNames))
 }
 async function sync() {
-  // 旧格式深链:/files?path=X(X 真实或虚拟;来源:Vue2 AI「打开文件位置」、上传通知、
-  // Home 文件夹瓦片)→ 归一化成规范 /files/<虚拟段>,highlight 透传。
-  // displayNames 已由 onMounted 的 loadRoots() 就绪(P6 SharesPage 竞态教训)。
+  // Legacy deep-link format: /files?path=X (X is real or virtual; sources: Vue2 AI's "open
+  // file location", upload notifications, Home folder tiles) → normalize into the canonical
+  // /files/<virtual segment>, passing highlight through.
+  // displayNames is already ready by this point, from onMounted's loadRoots() (lesson from the
+  // P6 SharesPage race).
   const qp = route.query.path
   if (typeof qp === 'string' && qp) {
     const { virtualPath } = resolveInputPath(qp, files.displayNames)
@@ -556,17 +577,21 @@ async function sync() {
   await files.load(toRealPath(vp, files.displayNames))
   applyHighlight()
 }
-// 深链 ?highlight=<文件名>:目录加载后按名定位 → 滚动到可视区 + 闪烁 2.5s(Vue2 _highlight
-// 同款体验)。找不到(已删/改名)静默;URL 不清 highlight,刷新重闪无害(与 Vue2 一致)。
-// 命令式 DOM class(而非 prop 下钻):瞬态视觉,列表重渲染丢 class 可接受。
+// Deep link ?highlight=<filename>: after the directory loads, locate by name → scroll into
+// view + flash for 2.5s (same experience as Vue2's _highlight). Silent if not found
+// (deleted/renamed); the URL doesn't clear highlight, so re-flashing on refresh is harmless
+// (matches Vue2).
+// Imperative DOM class (rather than prop drilling): this is a transient visual effect, and
+// losing the class on a list re-render is acceptable.
 function applyHighlight() {
   const name = typeof route.query.highlight === 'string' ? route.query.highlight : ''
   if (!name) return
   const entry = files.sortedEntries.find((e) => e.name === name)
   if (!entry) return
   nextTick(() => {
-    // 网格视图虚拟化后,目标若在窗口外根本没有元素可以 scrollIntoView ——
-    // 先按行索引把它滚进来,元素随之渲染出来,下一帧再闪。
+    // With the grid view virtualized, if the target is off-window there is no element at all
+    // to call scrollIntoView on — scroll it in by row index first so the element renders, then
+    // flash it on the next frame.
     if (files.viewMode === 'grid' && gridRef.value) {
       gridRef.value.scrollToPath(entry.path)
       requestAnimationFrame(() => {
@@ -601,7 +626,8 @@ function openEntry(entry: FileEntry) {
   const r = resolveOpen(entry, files.sortedEntries)
   if (r.kind === 'dir') { goVirtual(toVirtualPath(entry.path, files.displayNames)); return }
   if (r.kind === 'view') { viewer.openItem(entry, files.sortedEntries); return }
-  // 不可预览的文件类型:先征询,由用户决定是否下载,而非直接触发下载。
+  // File types that can't be previewed: ask first and let the user decide whether to download,
+  // rather than triggering a download directly.
   downloadDlg.value = { open: true, entry }
 }
 function confirmDownload() {
@@ -612,7 +638,7 @@ function onSelect(payload: { entry: FileEntry; mode: 'toggle' | 'range' }) {
   else files.toggleSelect(payload.entry.path)
 }
 
-// ── 框选(几何真机验;纯 marqueeSelect/rectFromPoints 已单测)──
+// ── Marquee selection (geometry verified on real devices; marqueeSelect/rectFromPoints alone are unit-tested) ──
 const listwrap = ref<HTMLElement | null>(null)
 const gridRef = ref<InstanceType<typeof FileGridView> | null>(null)
 const marquee = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
@@ -621,18 +647,20 @@ const marqueeStyle = computed(() => {
   const r = rectFromPoints(marquee.value.x1, marquee.value.y1, marquee.value.x2, marquee.value.y2)
   return { left: r.left + 'px', top: r.top + 'px', width: r.right - r.left + 'px', height: r.bottom - r.top + 'px' }
 })
-// 任意处按下并拖拽即起框;移动超过阈值才算拖拽,否则视为普通单击(进目录/选中)。
+// Pressing down anywhere and dragging starts a marquee; only counts as a drag once movement
+// exceeds the threshold, otherwise it's treated as a plain click (enter directory/select).
 const DRAG_THRESHOLD = 4 // px
 let downX = 0
 let downY = 0
-let armed = false // 已在可框选区按下,尚未判定单击/拖拽
-let dragging = false // 已越过阈值,框选进行中
+let armed = false // Pressed down in a selectable area, click vs. drag not yet decided
+let dragging = false // Past the threshold, marquee selection in progress
 
-// 拖拽全程压制原生文本选择:selectstart 是浏览器开始选区的唯一入口,
-// preventDefault 它可稳跨浏览器阻止选中文件名/日期/大小等文字(user-select:none 并不可靠)。
+// Suppress native text selection for the whole drag: selectstart is the browser's only entry
+// point for starting a text selection, and calling preventDefault on it reliably blocks
+// selecting filename/date/size text across browsers (user-select:none is not reliable).
 function preventSelectStart(e: Event) { e.preventDefault() }
 
-// 列表视图未虚拟化,照旧量 DOM。
+// The list view isn't virtualized, so measure the DOM as usual.
 function rectsFromDom(): ItemRect[] {
   const items: ItemRect[] = []
   listwrap.value?.querySelectorAll<HTMLElement>('[data-path]').forEach((node) => {
@@ -645,8 +673,9 @@ function rectsFromDom(): ItemRect[] {
 function collectSelection() {
   if (!marquee.value) return
   const selRect = rectFromPoints(marquee.value.x1, marquee.value.y1, marquee.value.x2, marquee.value.y2)
-  // 网格视图是虚拟化的:屏幕外的行没有 DOM,量节点只会量到可视那几行,
-  // 拖过视口就什么都选不中。改由组件按布局几何给出全部矩形。
+  // The grid view is virtualized: off-screen rows have no DOM, so measuring nodes only picks
+  // up the rows currently visible, and dragging past the viewport would select nothing. Have
+  // the component supply all rects from its layout geometry instead.
   const items = files.viewMode === 'grid' && gridRef.value ? gridRef.value.itemRects() : rectsFromDom()
   files.setSelection(marqueeSelect(items, selRect))
 }
@@ -654,12 +683,12 @@ function collectSelection() {
 function onMarqueeDown(e: MouseEvent) {
   if (e.button !== 0) return
   const el = e.target as HTMLElement
-  if (el.closest('input,button,a,label')) return // 复选框/★/按钮等交互控件保持原生行为
+  if (el.closest('input,button,a,label')) return // Keep native behaviour for interactive controls like checkboxes/star/buttons
   downX = e.clientX
   downY = e.clientY
   armed = true
   dragging = false
-  e.preventDefault() // 阻止原生选区/拖影(不影响随后的 click,单击仍能进目录/选中)
+  e.preventDefault() // Block native selection/drag ghost (doesn't affect the following click — a plain click can still enter a directory/select)
   window.addEventListener('mousemove', onMarqueeMove)
   window.addEventListener('mouseup', onMarqueeUp)
 }
@@ -667,7 +696,7 @@ function onMarqueeMove(e: MouseEvent) {
   if (!armed) return
   if (!dragging) {
     if (Math.abs(e.clientX - downX) < DRAG_THRESHOLD && Math.abs(e.clientY - downY) < DRAG_THRESHOLD) return
-    dragging = true // 越过阈值 → 正式起框
+    dragging = true // Past the threshold → officially start the marquee
     marquee.value = { x1: downX, y1: downY, x2: downX, y2: downY }
     window.getSelection()?.removeAllRanges()
     document.addEventListener('selectstart', preventSelectStart)
@@ -692,7 +721,8 @@ function onMarqueeUp() {
   marquee.value = null
   teardownMarquee()
   if (wasDragging) {
-    // 吞掉拖拽后紧跟的那次 click(否则起拖的行/卡会触发 进目录/选中);仅此一次,下一 tick 撤除。
+    // Swallow the click that immediately follows a drag (otherwise the row/card where the drag
+    // started would trigger enter-directory/select); only once, removed on the next tick.
     const swallow = (ev: MouseEvent) => { ev.stopPropagation(); ev.preventDefault() }
     window.addEventListener('click', swallow, true)
     setTimeout(() => window.removeEventListener('click', swallow, true), 0)
@@ -709,7 +739,8 @@ onMounted(async () => {
   favorites.load()
   await sync()
 })
-// params.path(常规导航)或 query.path(?path= 深链落到同组件)变化都要重新 sync。
+// Both params.path (regular navigation) and query.path (?path= deep link landing on the same
+// component) changing should re-run sync.
 watch(() => [route.params.path, route.query.path], () => { sync().catch((e) => console.warn('[files] route sync failed', e)) })
 
 let offOperate: (() => void) | null = null
@@ -720,9 +751,11 @@ let offDiskAdd: (() => void) | undefined
 let offDiskRemove: (() => void) | undefined
 onMounted(() => { mounts.loadMounts() })
 onMounted(() => {
-  // local-storage:storage_status 是每 5s 定时上报的心跳,不是变更事件 —— 不要订阅它,
-  // 否则文件区打开期间会永久 5s 轮询 samba.listConnections()+/storage,并可能在拖拽排序中途
-  // 打乱 disks/displayNames。disk:added/removed 才是真正的变更信号(涵盖 USB 热插拔 + 挂载变化)。
+  // local-storage:storage_status is a heartbeat reported every 5s on a timer, not a change
+  // event — don't subscribe to it, or the Files area would permanently poll
+  // samba.listConnections()+/storage every 5s while it's open, and could scramble
+  // disks/displayNames mid-drag-reorder. disk:added/removed are the real change signals
+  // (covering USB hotplug + mount changes).
   const refresh = () => { mounts.loadMounts(); files.loadRoots() }
   offDiskAdd = bus.on('local-storage:disk:added', refresh)
   offDiskRemove = bus.on('local-storage:disk:removed', refresh)
@@ -749,7 +782,8 @@ onUnmounted(() => { offRecover?.() })
 // deleted — see uploads.ts's initUploads()/resumePending().
 onMounted(() => { uploads.initUploads() })
 
-// 每会话拉一次快照卷列表:入口按钮(canShowEntry)与只读锁(browseInfo)都依赖它就绪。
+// Fetch the snapshot volume list once per session: both the entry button (canShowEntry) and
+// the read-only lock (browseInfo) depend on it being ready.
 onMounted(() => { browse.ensureVolumes() })
 </script>
 
@@ -765,8 +799,10 @@ onMounted(() => { browse.ensureVolumes() })
         @dragleave="onDragLeave"
         @drop.prevent="onDrop"
       >
-        <!-- 评审修复(Important):快照态下投放本就被 commitSelectedFiles 的 guard 拦住并 toast,
-             但这块全屏遮罩先诱导用户"松手就能上传",松手才被告知这是只读快照——体验倒置。 -->
+        <!-- Code review fix (Important): in snapshot view, dropping is already blocked and toasted
+             by commitSelectedFiles's guard, but this full-screen overlay lures the user into
+             thinking "drop it and it uploads" first, only telling them it's read-only after they
+             let go — the experience was backwards. -->
         <div v-if="isDragIn && !browse.isSnapshotView" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
         <div class="files-topbar">
           <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
@@ -893,8 +929,9 @@ onMounted(() => { browse.ensureVolumes() })
       @select="onSnapshotSelect"
       @open-settings="settingsOpen = true"
     />
-    <!-- 设置弹窗打开时时间机器不关闭(有意):新建快照成功后能当场看见新刻度冒出来。
-         z-index 天然成立(覆盖层 900 < Dialog.vue 的 1000/1001),不加任何覆写。 -->
+    <!-- Time Machine stays open while the settings dialog is open (intentional): after creating
+         a new snapshot successfully, the new tick mark can be seen appearing right away.
+         z-index ordering holds naturally (overlay 900 < Dialog.vue's 1000/1001), no override needed. -->
     <SnapshotSettingsDialog
       v-model:open="settingsOpen"
       :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
@@ -944,12 +981,12 @@ onMounted(() => { browse.ensureVolumes() })
   background: color-mix(in srgb, var(--accent, #6ea8fe) 12%, transparent);
   color: var(--fg); font-size: 14px; font-weight: 600; pointer-events: none;
 }
-/* ≤768px:侧栏已收抽屉(FilesSidebar.is-drawer 脱离文档流),布局单列;工具栏允许换行 */
+/* ≤768px: the sidebar has collapsed into a drawer (FilesSidebar.is-drawer taken out of document flow), layout goes single-column; the toolbar is allowed to wrap */
 @media (max-width: 768px) {
   .files-layout { gap: 0; }
   .files-topbar { flex-direction: column; align-items: stretch; gap: 8px; }
   .files-topbar-right { flex-wrap: wrap; justify-content: flex-start; row-gap: 8px; }
-  /* flex-basis 100% 迫使 actions 占满整行、宽度被约束,内部 chips 才会真正折行(0 0 auto 会按 max-content 溢出屏幕) */
+  /* flex-basis 100% forces actions to fill the full row and constrains its width, so the chips inside actually wrap (0 0 auto would overflow the screen at max-content width) */
   .files-actions { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; row-gap: 8px; }
 }
 </style>

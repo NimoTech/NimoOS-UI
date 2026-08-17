@@ -7,17 +7,17 @@ import zh from '../../../../i18n/zh_cn'
 import SkillDetail from './SkillDetail.vue'
 import type { Skill } from '../../../types/skill'
 
-// SP8-P3a Task 5 —— 对齐 Vue2 src/views/AI/Skills/SkillDetail.vue(271 行)只读半。
-// SP8-P3b Task 6 —— 加写操作:开关 + 更多菜单(禁用/复制/导出/删除)+ 删除确认弹窗。
-// 公共约束 §9:vi.mock 骨架用 vi.hoisted() 避免 ESM 提升的 TDZ ReferenceError。
+// SP8-P3a Task 5 — align with Vue2 src/views/AI/Skills/SkillDetail.vue (271 lines) read-only half.
+// SP8-P3b Task 6 — add write operations: switch + more menu (disable/copy/export/delete) + delete confirmation dialog.
+// Shared constraint §9: vi.mock skeleton use vi.hoisted() to avoid ESM hoisting TDZ ReferenceError.
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
 }))
 
-// Task 6 —— 导出按钮走同步 URL builder(不是 axios 调用),复制按钮走
-// `useCopyFeedback` 内部的 `copyText`(非安全上下文 execCommand 兜底,见该模块头注释)。
-// mock 手法与 McpTokensSection.test.ts 完全一致(同一对函数的既有 mock 先例)。
+// Task 6 — export button uses synchronous URL builder (not axios call), copy button uses
+// `copyText` internal to `useCopyFeedback` (insecure context execCommand fallback, see module header comment).
+// mock technique completely same as McpTokensSection.test.ts (existing mock precedent for same function pair).
 const h = vi.hoisted(() => ({
   exportSkillURL: vi.fn((id: string) => `/v1/ai/skills/${id}/export?token=abc`),
   copyText: vi.fn().mockResolvedValue(undefined),
@@ -36,8 +36,8 @@ function makeSkill(overrides: Partial<Skill> = {}): Skill {
     title: 'Weekly Report',
     description: 'Summarizes the week and posts it to the family channel.',
     trigger: 'manual',
-    // 故意写一个与真实 trigger 语义不符的 trigger_human,专门钉住偏离 4
-    // (界面绝不能读这个字段——见下方「trigger_human 陷阱」用例)。
+    // Intentionally write trigger_human semantically inconsistent with real trigger, specifically nail down deviation 4
+    // (UI must never read this field — see "trigger_human trap" test case below).
     trigger_human: 'WRONG',
     color: 'blue',
     icon: 'sparkle',
@@ -53,8 +53,8 @@ function makeSkill(overrides: Partial<Skill> = {}): Skill {
   }
 }
 
-// Task 6 —— 删除确认弹窗 portal 到 `.set-app`(见组件头注释「偏离申报 2」/
-// SkModal.vue D1),测试须先在 body 里放一个同名宿主,先例 SkModal.test.ts::withHost()。
+// Task 6 — delete confirmation dialog portals to `.set-app` (see component header comment "Deviation notice 2" /
+// SkModal.vue D1), test must pre-place same-named host in body, precedent SkModal.test.ts::withHost().
 function withHost(): HTMLElement {
   const host = document.createElement('div')
   host.className = 'set-app'
@@ -69,18 +69,18 @@ const mountDetail = (skill: Skill | null, props: { busy?: Record<string, boolean
     attachTo: document.body,
   })
 
-// 公共约束 §9:异步断言用 flushPromises(),不用单个 await nextTick()。
+// Shared constraint §9: async assertions use flushPromises(), not single await nextTick().
 const flush = async () => { await flushPromises(); await nextTick() }
 
-describe('SkillDetail(只读半 + P3b 写操作半)', () => {
+describe('SkillDetail (read-only half + P3b write operations half)', () => {
   let host: HTMLElement
 
   beforeEach(() => {
     push.mockClear()
     h.exportSkillURL.mockClear()
     h.copyText.mockClear()
-    // useCopyFeedback() 内部调用 useToast()(Pinia store),组件 setup() 时无条件
-    // 调用一次,故每个测试都要有一个 active Pinia,不只是涉及复制的用例。
+    // useCopyFeedback() internally calls useToast() (Pinia store), unconditionally
+    // called once during component setup(), so each test needs active Pinia, not just copy-related cases.
     setActivePinia(createPinia())
     host = withHost()
   })
@@ -89,7 +89,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     document.body.innerHTML = ''
   })
 
-  it('空态:skill=null 时展示两行文案,不渲染详情条', () => {
+  it('empty state: when skill=null show two lines of text, do not render detail bar', () => {
     const w = mountDetail(null)
     expect(w.find('.sk-detail-empty').exists()).toBe(true)
     expect(w.find('.empty-title').text()).toBe('在左侧选择一个技能')
@@ -97,11 +97,11 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.find('.sk-detail-bar').exists()).toBe(false)
   })
 
-  // 【反转,SP8-P3b Task 6,公共约束 §9 明确要求「反转不是删除」】P3a 版本断言这
-  // 三个写操作控件「必须完全不出现」;P3b 落地后 `.sw`/`.sk-pill-more` 必须渲染,
-  // `.sk-menu` 仍是 false ——但语义已经从「永不渲染」变成「默认收起」(菜单展开的
-  // 交互由下方专项用例覆盖)。改前/改后原文已贴进任务报告。
-  it('顶部条:标题/name code/试用按钮/开关/更多菜单按钮全部渲染(P3b 写操作落地)', () => {
+  // [Reversal, SP8-P3b Task 6, shared constraint §9 explicitly requires "reversal not deletion"] P3a version asserts
+  // these three write control elements "must not appear at all"; after P3b lands `.sw`/`.sk-pill-more` must render,
+  // `.sk-menu` still false — but semantics changed from "never render" to "default collapsed" (menu expand
+  // interaction covered by dedicated test cases below). Before/after original text pasted in task report.
+  it('top bar: title / name code / try button / switch / more menu button all rendered (P3b write operations landed)', () => {
     const w = mountDetail(makeSkill({ title: 'Weekly Report', name: 'weekly-report' }))
     expect(w.find('.sk-name span').text()).toBe('Weekly Report')
     expect(w.find('.sk-name code').text()).toBe('weekly-report')
@@ -112,7 +112,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.find('.sk-menu').exists()).toBe(false)
   })
 
-  it('四格元信息:状态(启用)/触发方式/来源/上次运行 + 累计次数', () => {
+  it('four info cells: status (enabled) / trigger mode / source / last run + total count', () => {
     const w = mountDetail(makeSkill({
       enabled: true,
       trigger: 'manual',
@@ -133,21 +133,21 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(cells[3].find('.total').text()).toBe('· 共 1,234 次')
   })
 
-  it('状态格:停用态显示「已暂停」且 data-disabled=true', () => {
+  it('status cell: disabled state shows "paused" and data-disabled=true', () => {
     const w = mountDetail(makeSkill({ enabled: false }))
     const statusVal = w.findAll('.sk-meta-cell')[0].find('.val')
     expect(statusVal.text()).toContain('已暂停')
     expect(statusVal.attributes('data-disabled')).toBe('true')
   })
 
-  it('状态圆点不带任何内联样式(颜色完全交给 SCSS 的 data-disabled 选择器,不是内联 rgba)', () => {
+  it('status dot carries no inline styles (color entirely delegated to SCSS data-disabled selector, not inline rgba)', () => {
     const wEnabled = mountDetail(makeSkill({ enabled: true }))
     const wDisabled = mountDetail(makeSkill({ enabled: false }))
     expect(wEnabled.find('.dot').attributes('style')).toBeUndefined()
     expect(wDisabled.find('.dot').attributes('style')).toBeUndefined()
   })
 
-  it('三种 trigger 在详情格的显示:auto=自动触发,manual=手动,slash=/技能名', () => {
+  it('three trigger types in detail cell display: auto=automatic, manual=manual, slash=/skill name', () => {
     const wAuto = mountDetail(makeSkill({ trigger: 'auto' }))
     expect(wAuto.findAll('.sk-meta-cell')[1].find('.val').text()).toBe('自动触发')
 
@@ -158,12 +158,12 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(wSlash.findAll('.sk-meta-cell')[1].find('.val').text()).toBe('/weekly-report')
   })
 
-  it('未知 trigger 原样显示 trigger 字符串本身(triggerLabel 返回 null 的兜底)', () => {
+  it('unknown trigger shows trigger string as-is (fallback when triggerLabel returns null)', () => {
     const w = mountDetail(makeSkill({ trigger: 'some-future-trigger' }))
     expect(w.findAll('.sk-meta-cell')[1].find('.val').text()).toBe('some-future-trigger')
   })
 
-  it('trigger_human 陷阱:trigger=auto 但 trigger_human=WRONG,界面必须显示「自动触发」而不是 WRONG(钉住偏离 4)', () => {
+  it('trigger_human trap: trigger=auto but trigger_human=WRONG, UI must show "automatic" not WRONG (nail down deviation 4)', () => {
     const w = mountDetail(makeSkill({ trigger: 'auto', trigger_human: 'WRONG' }))
     const text = w.findAll('.sk-meta-cell')[1].find('.val').text()
     expect(text).toBe('自动触发')
@@ -171,7 +171,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.text()).not.toContain('WRONG')
   })
 
-  it("author='You' 本地化成「你」,真实人名原样显示", () => {
+  it("author='You' localized to 'you', real names shown as-is", () => {
     const wYou = mountDetail(makeSkill({ author: 'You' }))
     expect(wYou.findAll('.sk-meta-cell')[2].find('.val').text()).toBe('你')
 
@@ -179,23 +179,22 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(wBob.findAll('.sk-meta-cell')[2].find('.val').text()).toBe('Bob Chen')
   })
 
-  it('last_used 为空字符串时显示 em dash(—),不做任何相对时间映射', () => {
+  it('last_used empty string shows em dash (—), no relative time mapping', () => {
     const w = mountDetail(makeSkill({ last_used: '' }))
     expect(w.findAll('.sk-meta-cell')[3].find('.val').text()).toContain('—')
   })
 
-  it('描述段:原样显示 description,不经过任何本地化', () => {
+  it('description section: show description as-is, no localization', () => {
     const w = mountDetail(makeSkill({ description: '一段自由文本描述,含标点。' }))
     expect(w.find('.sk-description').text()).toBe('一段自由文本描述,含标点。')
   })
 
-  // 【反转,SP8-P3b Task 7,公共约束 §9 明确要求「反转不是删除」】P3a 版本(改前原文见
-  // 上方本次 diff)断言 TestPanel「完全不渲染」;T7 把它挂回 Vue2 :108-112 对应的位置,
-  // 现在要断言的是**存在且顺序正确**——不只是"存在"就算数(存在但被塞到文件末尾也会
-  // 通过一个弱断言,钉不住"夹在描述段与 SKILL.md 段之间"这个位置要求),所以按 DOM
-  // 顺序遍历所有 `.sk-section-title`,断言 TestPanel 自己的段头标题恰好夹在
-  // "描述"与"SKILL.md"两个标题之间。
-  it('TestPanel 挂载在描述段与 SKILL.md 段之间(P3b 落地,按 DOM 顺序断言,不只是「存在」)', () => {
+  // [Reversal, SP8-P3b Task 7, shared constraint §9 explicitly requires "reversal not deletion"] P3a version (before change original text
+  // in diff above) asserts TestPanel "completely not rendered"; T7 mounts it back to Vue2 :108-112 location,
+  // now must assert **exists and correct order** — not just "exists" (exists but at end of file still passes weak assertion,
+  // cannot nail down "between description and SKILL.md" location requirement), so traverse all `.sk-section-title` by DOM
+  // order, assert TestPanel's own section title exactly between "description" and "SKILL.md" titles.
+  it('TestPanel mounted between description and SKILL.md sections (P3b landed, assert by DOM order, not just "exists")', () => {
     const w = mountDetail(makeSkill())
     const tp = w.findComponent({ name: 'TestPanel' })
     expect(tp.exists()).toBe(true)
@@ -203,19 +202,19 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(titles).toEqual(['描述', '沙箱测试', 'SKILL.md', '附带文件'])
   })
 
-  it('SKILL.md 段:markdown 渲染出真实 HTML(不是转义后的原文本)', () => {
+  it('SKILL.md section: markdown renders real HTML (not escaped source text)', () => {
     const w = mountDetail(makeSkill({ md: '# Title\n\nSome **bold** text.' }))
     const mdHtml = w.find('.sk-md').html()
     expect(mdHtml).toContain('<strong>bold</strong>')
     expect(mdHtml).not.toContain('# Title')
   })
 
-  it('SKILL.md 为空字符串时不抛错,渲染空内容', () => {
+  it('SKILL.md empty string throws no error, renders empty content', () => {
     const w = mountDetail(makeSkill({ md: '' }))
     expect(w.find('.sk-md').text()).toBe('')
   })
 
-  it('附带文件:逐行渲染 name/size,段头 hint 显示文件数', () => {
+  it('bundled files: render name/size per line, section header hint shows file count', () => {
     const w = mountDetail(makeSkill({
       files: [
         { name: 'notes.txt', size: '12 B' },
@@ -228,20 +227,20 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(rows[0].find('.size').text()).toBe('12 B')
     expect(rows[1].find('.name').text()).toBe('archive.zip')
     expect(rows[1].find('.size').text()).toBe('1.0 MB')
-    // 终审 M2:详情页共有 3 个 `.sk-section-hint`(描述段 :152 / SKILL.md 段 :165 /
-    // 附带文件段 :175),`w.find()` 只返回第一个(描述段的 hint),原断言只查
-    // `.exists()` 命中的是描述段、对 `filesHint` 计算属性(SkillDetail.vue:78)
-    // 零覆盖(把 `n` 写死成任意常数仍然全绿)。改成精确定位第三个 hint 并断言
-    // 其文案(aiSkNFiles = '{n} 个文件',2 个文件 → '2 个文件')。
-    // 【SP8-P3b Task 7 更新】TestPanel 挂回描述段与 SKILL.md 段之间后,它自己的段头
-    // 也带一个 `.sk-section-hint`(aiSkTestHint),序列从 3 个变成 4 个,「附带文件」
-    // 段的 hint 相应从下标 2 挪到下标 3——这是结构性位移,不是断言被削弱。
+    // Final review M2: detail page has 3 `.sk-section-hint` total (description :152 / SKILL.md :165 /
+    // bundled files :175), `w.find()` only returns first (description's hint), original assertion only checked
+    // `.exists()` hit is description, `filesHint` computed property (SkillDetail.vue:78)
+    // zero coverage (hardcoding `n` as any constant still all green). Changed to precisely locate third hint and assert
+    // its text (aiSkNFiles = '{n} files', 2 files → '2 files').
+    // [SP8-P3b Task 7 update] After TestPanel hangs back between description and SKILL.md sections, its own section header
+    // also carries `.sk-section-hint` (aiSkTestHint), sequence changes from 3 to 4, "bundled files"
+    // section's hint accordingly moves from index 2 to 3 — this is structural shift, not assertion weakened.
     const hints = w.findAll('.sk-section-hint')
     expect(hints).toHaveLength(4)
     expect(hints[3].text()).toBe('2 个文件')
   })
 
-  it('目录尺寸 "(3 files)" 被本地化成中文「3 个文件」,普通文件字节单位原样透传', () => {
+  it('directory size "(3 files)" localized to Chinese "3 files", regular file byte units passed through', () => {
     const w = mountDetail(makeSkill({
       files: [
         { name: 'assets', size: '(3 files)' },
@@ -253,30 +252,30 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(rows[1].find('.size').text()).toBe('12 B')
   })
 
-  it('附带文件为空数组时展示空态文案「没有附带文件」', () => {
+  it('bundled files empty array shows empty state "no bundled files"', () => {
     const w = mountDetail(makeSkill({ files: [] }))
     const rows = w.findAll('.sk-file-row')
     expect(rows).toHaveLength(1)
     expect(rows[0].find('.name').text()).toBe('没有附带文件')
   })
 
-  it('附带文件为 null(后端 nil slice 序列化坑)时同样展示空态,不抛错', () => {
+  it('bundled files is null (backend nil slice serialization pitfall) also shows empty state, no error', () => {
     const w = mountDetail(makeSkill({ files: null as unknown as Skill['files'] }))
     const rows = w.findAll('.sk-file-row')
     expect(rows).toHaveLength(1)
     expect(rows[0].find('.name').text()).toBe('没有附带文件')
   })
 
-  it('「在对话中试用」:点击 push 到 /ai/agent 并带正确的 skill id 查询参数', async () => {
+  it('"Try in chat": click push to /ai/agent with correct skill id query parameter', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-42' }))
     await w.find('.sk-pill-try').trigger('click')
     expect(push).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith({ path: '/ai/agent', query: { skill: 'sk-42' } })
   })
 
-  // ===== SP8-P3b Task 6 —— 顶部条写操作 + 删除确认弹窗 =====
+  // ===== SP8-P3b Task 6 — top bar write operations + delete confirmation dialog =====
 
-  it('开关:data-on/aria-checked 反映 enabled,点击 emit toggle(id, !enabled)', async () => {
+  it('switch: data-on/aria-checked reflects enabled, click emits toggle(id, !enabled)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-1', enabled: true }))
     const sw = w.find('.sw')
     expect(sw.attributes('data-on')).toBe('true')
@@ -285,7 +284,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.emitted('toggle')).toEqual([['sk-1', false]])
   })
 
-  it('停用态开关:data-on=false,点击 emit toggle(id, true)', async () => {
+  it('disabled switch: data-on=false, click emits toggle(id, true)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-1', enabled: false }))
     const sw = w.find('.sw')
     expect(sw.attributes('data-on')).toBe('false')
@@ -293,7 +292,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.emitted('toggle')).toEqual([['sk-1', true]])
   })
 
-  it('busy[id] 为真时开关禁用(aria-disabled=true),为空对象/其它 id 时不禁用', () => {
+  it('when busy[id] true switch disabled (aria-disabled=true), empty object/other ids not disabled', () => {
     const wBusy = mountDetail(makeSkill({ id: 'sk-9' }), { busy: { 'sk-9': true } })
     expect(wBusy.find('.sw').attributes('aria-disabled')).toBe('true')
 
@@ -304,7 +303,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(wOther.find('.sw').attributes('aria-disabled')).toBe('false')
   })
 
-  it('更多菜单:点击 .sk-pill-more 开合', async () => {
+  it('more menu: click .sk-pill-more toggle open/close', async () => {
     const w = mountDetail(makeSkill())
     expect(w.find('.sk-menu').exists()).toBe(false)
     await w.find('.sk-pill-more').trigger('click')
@@ -313,7 +312,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.find('.sk-menu').exists()).toBe(false)
   })
 
-  it('更多菜单:外部 mousedown 关闭菜单,菜单内部点击不触发外部关闭逻辑', async () => {
+  it('more menu: external mousedown closes menu, menu internal click does not trigger external close logic', async () => {
     const w = mountDetail(makeSkill())
     await w.find('.sk-pill-more').trigger('click')
     expect(w.find('.sk-menu').exists()).toBe(true)
@@ -322,10 +321,10 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     await flush()
     expect(w.find('.sk-menu').exists()).toBe(false)
 
-    // 【P3b 终审 M2】上面只测了"外部"，标题里承诺的"菜单内部点击不触发外部关闭逻辑"
-    // 之前零断言——`useClickOutside` 判定用 `el.contains(event.target)`（见该 composable
-    // 头注释），`.sk-menu` 是 `menuWrap` 的子元素，在它内部 mousedown 理应被判定为
-    // "在内部"、不关闭菜单。这里补回标题承诺的那一半。
+    // [P3b final review M2] Only tested "external" above, title promises "menu internal click does not trigger external close logic"
+    // previously zero assertion — `useClickOutside` uses `el.contains(event.target)` to judge (see composable
+    // header comment), `.sk-menu` is child of `menuWrap`, mousedown inside should be judged as
+    // "inside", not close menu. Here add back the half promised in title.
     await w.find('.sk-pill-more').trigger('click')
     expect(w.find('.sk-menu').exists()).toBe(true)
     w.find('.sk-menu button').element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
@@ -333,7 +332,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.find('.sk-menu').exists()).toBe(true)
   })
 
-  it('菜单项顺序与文案:暂停/启用 → 复制 SKILL.md → 导出技能 → <hr> → 危险项', async () => {
+  it('menu item order and text: pause/enable → copy SKILL.md → export skill → <hr> → danger item', async () => {
     const w = mountDetail(makeSkill({ enabled: true, system: false }))
     await w.find('.sk-pill-more').trigger('click')
     const menu = w.find('.sk-menu')
@@ -347,14 +346,14 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(menu.find('hr').exists()).toBe(true)
   })
 
-  it('菜单第一项(暂停/启用):enabled 时文案「临时禁用」,disabled 时文案「启用」,点击都 emit toggle', async () => {
+  it('menu first item (pause/enable): when enabled text "pause temporarily", when disabled text "enable", both emit toggle', async () => {
     const wEnabled = mountDetail(makeSkill({ id: 'sk-1', enabled: true }))
     await wEnabled.find('.sk-pill-more').trigger('click')
     const btnsEnabled = wEnabled.findAll('.sk-menu button')
     expect(btnsEnabled[0].text()).toContain('临时禁用')
     await btnsEnabled[0].trigger('click')
     expect(wEnabled.emitted('toggle')).toEqual([['sk-1', false]])
-    // closeAnd 先收起菜单再执行动作。
+    // closeAnd closes menu first then execute action.
     expect(wEnabled.find('.sk-menu').exists()).toBe(false)
 
     const wDisabled = mountDetail(makeSkill({ id: 'sk-1', enabled: false }))
@@ -365,7 +364,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(wDisabled.emitted('toggle')).toEqual([['sk-1', true]])
   })
 
-  it('危险项文案:内置技能显示「卸载」,用户技能显示「删除技能」', async () => {
+  it('danger item text: built-in skills show "uninstall", user skills show "delete skill"', async () => {
     const wSystem = mountDetail(makeSkill({ system: true }))
     await wSystem.find('.sk-pill-more').trigger('click')
     const dangerSystem = wSystem.findAll('.sk-menu button')[3]
@@ -378,7 +377,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(dangerUser.text()).toContain('删除技能')
   })
 
-  it('点击「复制 SKILL.md」调用 copyText 传入 skill.md,点击后菜单立即收起', async () => {
+  it('click "copy SKILL.md" calls copyText with skill.md, menu closes immediately after click', async () => {
     const w = mountDetail(makeSkill({ md: '# Title\n\nBody.' }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[1].trigger('click')
@@ -386,14 +385,14 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.find('.sk-menu').exists()).toBe(false)
   })
 
-  it('复制 SKILL.md 为空字符串时,copyText 收到空字符串(不是 undefined)', async () => {
+  it('when SKILL.md empty string, copyText receives empty string (not undefined)', async () => {
     const w = mountDetail(makeSkill({ md: '' }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[1].trigger('click')
     expect(h.copyText).toHaveBeenCalledWith('')
   })
 
-  it('点击「导出技能」:创建的 <a> 的 href/download 正确且被点击一次', async () => {
+  it('click "export skill": created <a> has correct href/download and clicked once', async () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     const appendSpy = vi.spyOn(document.body, 'appendChild')
     const w = mountDetail(makeSkill({ id: 'sk-7', name: 'weekly-report' }))
@@ -406,14 +405,14 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(anchor.getAttribute('href')).toBe('/v1/ai/skills/sk-7/export?token=abc')
     expect(anchor.getAttribute('download')).toBe('weekly-report.tar.gz')
     expect(clickSpy).toHaveBeenCalledTimes(1)
-    // 点击后菜单立即收起。
+    // menu closes immediately after click.
     expect(w.find('.sk-menu').exists()).toBe(false)
 
     clickSpy.mockRestore()
     appendSpy.mockRestore()
   })
 
-  it('导出:技能没有 name 时,download 回落成 "skill.tar.gz"', async () => {
+  it('export: when skill has no name, download falls back to "skill.tar.gz"', async () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     const appendSpy = vi.spyOn(document.body, 'appendChild')
     const w = mountDetail(makeSkill({ id: 'sk-8', name: '' }))
@@ -427,18 +426,18 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     appendSpy.mockRestore()
   })
 
-  it('点击危险项:打开确认弹窗(portal 进 .set-app),菜单同时收起', async () => {
+  it('click danger item: open confirmation dialog (portal into .set-app), menu closes simultaneously', async () => {
     const w = mountDetail(makeSkill({ system: false }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[3].trigger('click')
     await flush()
     expect(w.find('.sk-menu').exists()).toBe(false)
     expect(host.querySelector('.sk-confirm')).not.toBeNull()
-    // 关键断言:弹窗节点落在 .set-app 容器内,不是直挂 body(D1,同 SkModal.test.ts)。
+    // key assertion: dialog node in .set-app container, not directly on body (D1, same as SkModal.test.ts).
     expect(host.querySelector('.sk-confirm')!.closest('.set-app')).toBe(host)
   })
 
-  it('确认弹窗:内置技能标题/正文(D3 实话文案,不含"重新安装")/按钮/历史运行次数', async () => {
+  it('confirmation dialog: built-in skill title/body (D3 truthful text, no "reinstall")/button/historical runs', async () => {
     const w = mountDetail(makeSkill({ system: true, calls: 7, name: 'built-in-skill' }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[3].trigger('click')
@@ -452,7 +451,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-btn.danger')?.textContent).toContain('卸载')
   })
 
-  it('确认弹窗:用户技能标题/正文/按钮文案(与内置技能不同措辞)', async () => {
+  it('confirmation dialog: user skill title/body/button text (different wording from built-in)', async () => {
     const w = mountDetail(makeSkill({ system: false, calls: 7 }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[3].trigger('click')
@@ -465,7 +464,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-btn.danger')?.textContent).not.toContain('卸载')
   })
 
-  it('确认弹窗:点确认按钮 emit delete(id) 且弹窗关闭', async () => {
+  it('confirmation dialog: click confirm button emits delete(id) and closes dialog', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-3', system: false }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[3].trigger('click')
@@ -479,7 +478,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-confirm')).toBeNull()
   })
 
-  it('确认弹窗:点取消按钮不 emit delete,弹窗关闭', async () => {
+  it('confirmation dialog: click cancel button no emit delete, dialog closes', async () => {
     const w = mountDetail(makeSkill({ system: false }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[3].trigger('click')
@@ -493,7 +492,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-confirm')).toBeNull()
   })
 
-  it('skill.id 变化时复位菜单(菜单打开中途切换技能,菜单自动收起)', async () => {
+  it('skill.id change resets menu (menu closes when switching skills mid-open)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-1' }))
     await w.find('.sk-pill-more').trigger('click')
     expect(w.find('.sk-menu').exists()).toBe(true)
@@ -503,7 +502,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.find('.sk-menu').exists()).toBe(false)
   })
 
-  it('skill.id 变化时复位确认弹窗(弹窗打开中途切换技能,弹窗自动关闭)', async () => {
+  it('skill.id change resets confirmation dialog (dialog closes when switching skills mid-open)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-1', system: false }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[3].trigger('click')
@@ -515,13 +514,13 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-confirm')).toBeNull()
   })
 
-  // ===== SP8-P3b Task 7 —— D4 弹窗(停用技能「在对话中试用」先提示) + TestPanel test 转发 =====
-  // D4 弹窗走 SkModal(标准壳),不是上面删除确认弹窗那套裸 reka 原语,故断言走
-  // `.sk-modal-title`/`.sk-btn.primary`/`.sk-btn.ghost` 这套 SkModal 既有先例
-  // (同 ChannelsSection.test.ts「3. genCode…」用例查 `.sk-modal` 的手法),而不是
-  // `.sk-confirm*`(那是删除弹窗专属的类名)。
+  // ===== SP8-P3b Task 7 — D4 dialog (disabled skill "try in chat" prompt first) + TestPanel test forward =====
+  // D4 dialog uses SkModal (standard shell), not bare reka primitives from delete confirmation above, so assertions use
+  // `.sk-modal-title`/`.sk-btn.primary`/`.sk-btn.ghost` SkModal existing precedent
+  // (same as ChannelsSection.test.ts "3. genCode..." case to query `.sk-modal`), not
+  // `.sk-confirm*` (those are delete dialog exclusive classes).
 
-  it('D4:停用技能点「在对话中试用」不跳转,弹出确认弹窗(标题/正文命中 i18n 文案)', async () => {
+  it('D4: disabled skill "try in chat" no navigate, shows confirmation dialog (title/body match i18n text)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-1', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -530,12 +529,11 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-modal')?.textContent).toContain('停用的技能不会被加载')
   })
 
-  // 【评审 Important 1,任务书简化了设计文档 §9.4:「成功才跳转;失败则留在弹窗 +
-  // danger toast,不跳转」——弹窗必须保持打开直到父组件真的把 enabled 改成 true,不是
-  // 发 toggle 那一刻就关。下面三条覆盖 ①点了之后弹窗仍开且未 push ②enabled 变 true
-  // 后弹窗关闭+push ③失败(prop 不变)→ 弹窗仍开、永不 push。】
+  // [Review Important 1, task simplified design doc §9.4: "navigate only on success; on failure stay in dialog +
+  // danger toast, no navigate" — dialog must stay open until parent truly changes enabled to true, not close at toggle moment.
+  // Below three cover ① after click dialog still open, no push ② enabled becomes true then dialog closes+push ③ fails (prop unchanged) → dialog still open, never push.]
 
-  it('D4「启用并试用」:点击后弹窗仍开、未 push,只 emit toggle(id,true)', async () => {
+  it('D4 "enable and try": after click dialog still open, no push, only emit toggle(id,true)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-5', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -544,13 +542,13 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     enableBtn.click()
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-5', true]])
-    // 发 toggle 那一刻还没跳转——父组件还没告知启用是否成功,弹窗必须留在原地
-    // (设计文档 §9.4,不是「发了就关」)。
+    // toggle request moment no navigate yet — parent not yet said enable succeeded, dialog must stay
+    // (design doc §9.4, not "close on send").
     expect(push).not.toHaveBeenCalled()
     expect(host.querySelector('.sk-modal-title')?.textContent).toBe('该技能已停用')
   })
 
-  it('D4「启用并试用」:父组件把 enabled 真的改成 true(toggle 成功)后,弹窗关闭 + push 同一步发生', async () => {
+  it('D4 "enable and try": parent changes enabled to true (toggle succeeds), dialog closes + push same step', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-5', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -564,7 +562,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-modal')).toBeNull()
   })
 
-  it('D4:toggle 失败(父组件不改 enabled)→ 弹窗仍开、永不 push', async () => {
+  it('D4: toggle fails (parent doesn\'t change enabled) → dialog still open, never push', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-6', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -572,16 +570,16 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-6', true]])
 
-    // 父组件请求失败:enabled 原样不变(仍是 false)——不是"取消"，是失败态。
-    // 弹窗必须留在原地(设计文档 §9.4),用户能再点一次或点取消;danger toast 由
-    // 父组件(T8 SkillsSection.onToggle)负责,本组件不重复发。
+    // parent request fails: enabled unchanged (still false) — not "cancel", failure state.
+    // dialog must stay (design doc §9.4), user can retry or cancel; danger toast by
+    // parent (T8 SkillsSection.onToggle), this component no repeat.
     await w.setProps({ skill: makeSkill({ id: 'sk-6', enabled: false }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
     expect(host.querySelector('.sk-modal-title')?.textContent).toBe('该技能已停用')
   })
 
-  it('D4:点「取消」关闭弹窗,不 push、不 emit toggle', async () => {
+  it('D4: click "cancel" close dialog, no push, no emit toggle', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-7', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -592,13 +590,13 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(w.emitted('toggle')).toBeUndefined()
   })
 
-  // 【P3b 终审 I1】点「取消」/`skill.id` 变化之外,SkModal 自带的 X 关闭按钮
-  // (`.sk-x`)、reka 的 Esc、点遮罩都只走 `@update:open`——此前这条路径没清
-  // `pendingTryId`,挂号悬着后,用户之后随便用顶部条开关把这个技能启用一次(与
-  // 「启用并试用」毫无关系的操作)也会被误判成"待跳转"而 push。RED 验证:把
-  // `onTryModalOpenChange` 里的 `if (!v) pendingTryId.value = null` 删掉 → 这条精确
-  // 报红(push 被调用 1 次,断言期望 0 次)。
-  it('D4:用 .sk-x 关闭弹窗(不是取消按钮)后清挂号——之后手动开关启用该技能不应触发 push', async () => {
+  // [P3b final review I1] Besides click "cancel" / `skill.id` change, SkModal's built-in X close button
+  // (`.sk-x`), reka's Esc, click overlay all only go through `@update:open` — this path previously didn't clear
+  // `pendingTryId`, with registration hanging, user later using top bar switch to enable this skill once (completely unrelated
+  // to "enable and try") would be misparsed as "waiting to navigate" and push. RED verification: delete
+  // `if (!v) pendingTryId.value = null` in `onTryModalOpenChange` → this case precisely reports red (push called 1 time,
+  // assertion expects 0).
+  it('D4: close dialog with .sk-x (not cancel button) then clear registration — later manual switch enable should not trigger push', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-8', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -606,18 +604,18 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-8', true]])
 
-    // toggle 请求“失败”(父组件从不把 enabled 改成 true)——用 X 关掉弹窗,而不是点取消。
+    // toggle request "fails" (parent never changes enabled to true) — close the dialog with X, not cancel.
     ;(host.querySelector('.sk-x') as HTMLButtonElement).click()
     await flush()
     expect(host.querySelector('.sk-modal')).toBeNull()
 
-    // 之后用户自己在顶部条把这个技能启用(与「启用并试用」无关的独立操作)。
+    // Afterwards the user enables this skill themselves from the top bar (an independent action unrelated to "enable and try").
     await w.setProps({ skill: makeSkill({ id: 'sk-8', enabled: true }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('D4「启用并试用」挂号后切到别的技能,原技能迟到的 enabled=true 不再触发 push(残留清除,pendingTryId 一次性语义)', async () => {
+  it('D4 "enable and try" registered then switch to another skill, original skill\'s late enabled=true no longer triggers push (residual clear, pendingTryId one-time)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-10', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -625,22 +623,21 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-10', true]])
 
-    // 响应到达前,用户已经切到另一个技能——skill.id 变化的 watch 会清掉挂号。
+    // Before the response arrives, the user has already switched to another skill — the watch on skill.id change clears the registration.
     await w.setProps({ skill: makeSkill({ id: 'sk-11', enabled: false }) })
     await flush()
 
-    // 迟到的响应此刻才把 sk-10 的 enabled 改成 true(用户又切回了 sk-10)——因为
-    // 挂号已经在切换那一刻被清空,不应该被误读成"待跳转"而 push。
+    // The late response only now flips sk-10's enabled to true (the user switched back to sk-10) — because
+    // the registration was already cleared at the moment of the switch, it must not be misread as "pending navigation" and push.
     await w.setProps({ skill: makeSkill({ id: 'sk-10', enabled: true }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
   })
 
-  // 【评审 Important 2 之①】钉住「跳转前清空 pendingTryId」这道防线本身(与上面「残留
-  // 清除」那条不同——那条钉的是 skill.id 变化时的复位 watch;这条钉的是成功分支自己
-  // 清空 pendingTryId,同一技能不换 id 也要成立)。RED 验证:把成功分支里的
-  // `pendingTryId.value = null` 删掉 → 这条用例精确报红(第二次 push 被多算一次)。
-  it('D4:成功跳转一次后,同一技能之后被手动开关多次,push 总次数仍是 1(挂号已被消费,不会残留重复触发)', async () => {
+  // [Review Important 2 ①] Nail down "clear pendingTryId before navigate" line itself (different from "residual clear" above —
+  // that one nails skill.id change reset watch; this one nails success branch clearing pendingTryId itself, must hold even same skill no id change).
+  // RED verification: delete `pendingTryId.value = null` in success branch → this case precisely reports red (second push counted extra once).
+  it('D4: after successful navigate once, same skill later manually switch multiple times, push total still 1 (registration consumed, no lingering repeat)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-3', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -650,7 +647,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     await flush()
     expect(push).toHaveBeenCalledTimes(1)
 
-    // 用户之后自己用开关把这个技能关闭再打开——不该被误读成"待跳转"而再跳一次。
+    // The user later turns this skill off and back on themselves via the switch — must not be misread as "pending navigation" and navigate again.
     await w.setProps({ skill: makeSkill({ id: 'sk-3', enabled: false }) })
     await flush()
     await w.setProps({ skill: makeSkill({ id: 'sk-3', enabled: true }) })
@@ -658,33 +655,33 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(push).toHaveBeenCalledTimes(1)
   })
 
-  // 【评审 Important 2 之②】钉住 `if (enabled === true)` 这个判断本身。构造合成竞态:
-  // D4 弹窗打开期间(点确认之前),技能被别处启用(enabled 变 true)——此时 pendingTryId
-  // 还是 null,watcher 空转;随后用户仍然点了确认(pendingTryId 挂号),因为 enabled
-  // 已经是 true、不会再触发"从非 true 到 true"的变化,pendingTryId 悬而不清;紧接着
-  // enabled 被别处改回 false,watcher 第一次真正触发,newVal=false——必须不 push。
-  // RED 验证:把 `if (enabled === true)` 判断删掉(变成一进 if 块就无条件清挂号+push)
-  // → 这条用例精确报红。
-  it('D4:挂号后 watcher 第一次真正触发时 enabled 是 false(不是 true)→ 不 push(钉住 `if (enabled === true)` 判断)', async () => {
+  // [Review Important 2 ②] Nail down `if (enabled === true)` check itself. Construct synthetic race:
+  // D4 dialog open (before click confirm), skill enabled elsewhere (enabled becomes true) — pendingTryId
+  // still null, watcher idles; then user still clicks confirm (pendingTryId registers), because enabled
+  // already true, won't trigger "from non-true to true" change, pendingTryId lingers; immediately after
+  // enabled changed back to false elsewhere, watcher truly triggers first time, newVal=false — must not push.
+  // RED verification: delete `if (enabled === true)` check (becomes unconditional clear registration+push once in if block)
+  // → this case precisely reports red.
+  it('D4: watcher truly triggers first time after registration with enabled=false (not true) → no push (nail down `if (enabled === true)` check)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-9', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
-    // 合成竞态:弹窗打开期间技能被别处启用(此时还没点确认,pendingTryId 仍是 null)。
+    // Synthetic race: the skill gets enabled elsewhere while the dialog is open (confirm hasn't been clicked yet, pendingTryId is still null).
     await w.setProps({ skill: makeSkill({ id: 'sk-9', enabled: true }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
-    // 用户仍然点了确认——enabled 已经是 true,不构成"变化",watcher 不会再触发,
-    // pendingTryId 挂号后悬而不清。
+    // The user still clicks confirm — enabled is already true, so it doesn't count as a "change," the watcher
+    // won't fire again, and the pendingTryId registration lingers uncleared.
     ;(host.querySelector('.sk-btn.primary') as HTMLButtonElement).click()
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-9', true]])
-    // enabled 被别处改回 false——watcher 第一次真正触发,newVal 是 false。
+    // enabled gets flipped back to false elsewhere — the watcher truly fires for the first time, with newVal false.
     await w.setProps({ skill: makeSkill({ id: 'sk-9', enabled: false }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('enabled === true 时点「在对话中试用」直接跳转,不弹 D4 弹窗(P3a 既有行为未回归)', async () => {
+  it('when enabled === true click "try in chat" jump directly, no D4 dialog (P3a existing behavior not regressed)', async () => {
     const w = mountDetail(makeSkill({ id: 'sk-42', enabled: true }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
@@ -693,7 +690,7 @@ describe('SkillDetail(只读半 + P3b 写操作半)', () => {
     expect(host.querySelector('.sk-modal')).toBeNull()
   })
 
-  it('TestPanel 的 test 事件被向上转发成本组件的 test emit', async () => {
+  it('TestPanel\'s test event forwarded up as this component\'s test emit', async () => {
     const w = mountDetail(makeSkill())
     const tp = w.findComponent({ name: 'TestPanel' })
     expect(tp.exists()).toBe(true)

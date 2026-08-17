@@ -1,7 +1,7 @@
 // Ported verbatim (logic unchanged, types added) from Vue2 NimoOS-UI
 // src/views/Photos/hoverScrub.js (whole file, 36 lines).
 
-// 把指针的横向位置映射到帧序号 [0, frameCount-1]
+// Maps the pointer's horizontal position to a frame index [0, frameCount-1]
 export function computeFrameFromX(clientX: number, rectLeft: number, rectWidth: number, frameCount: number): number {
   if (rectWidth <= 0 || frameCount <= 0) return 0
   const p = (clientX - rectLeft) / rectWidth
@@ -11,13 +11,17 @@ export function computeFrameFromX(clientX: number, rectLeft: number, rectWidth: 
   return idx
 }
 
-// 窗口（正好一帧）在正方形 tile 内的尺寸——不依赖像素测量。
+// Size of the window (exactly one frame) inside the square tile -- doesn't depend on pixel measurement.
 //
-// 关键：覆盖层（.sprite-window）按 contain 收窄到【正好一帧】并由父级居中，黑边由底层
-// tile 的 #000 背景自然形成——而不是把整条 sprite 铺满 tile（那样竖屏帧很窄、窗口里会
-// 塞进相邻帧，造成「邻帧穿帮」）。窗口宽=一帧 → 内部 <img> 位移只露当前帧，邻帧落在窗口外被裁。
+// Key point: the overlay (.sprite-window) is shrunk via `contain` to exactly one frame and
+// centered by its parent; the letterboxing bars come naturally from the underlying tile's
+// #000 background -- rather than stretching the whole sprite strip across the tile (which
+// would make portrait frames very narrow, letting adjacent frames leak into the window and
+// "bleed through"). Window width = one frame -> the inner <img>'s translation only ever
+// reveals the current frame, with neighboring frames landing outside the window and clipped.
 //
-// 在正方形 tile 内 contain：横向（ar≥1）铺满宽、高按比例；竖向（ar<1）铺满高、宽按比例。
+// `contain` inside the square tile: landscape (ar>=1) fills the width, height scales
+// proportionally; portrait (ar<1) fills the height, width scales proportionally.
 export function computeWindowStyle(frameW: number, frameH: number): { width: string; height: string } {
   const ar = frameW / frameH
   return {
@@ -26,9 +30,11 @@ export function computeWindowStyle(frameW: number, frameH: number): { width: str
   }
 }
 
-// 整条雪碧图 <img>：宽 = N×窗口宽（每帧恰占满窗口），用 translateX 位移到第 i 帧。
-// transform 百分比相对元素自身宽度：第 i 帧 → -i/N。transform 是合成器属性，
-// 换帧不触发重绘（background-position 是 paint 级，曾是悬浮卡顿主因）。
+// The full sprite-strip <img>: width = N x window width (each frame exactly fills the window),
+// shifted to frame i via translateX. The transform percentage is relative to the element's own
+// width: frame i -> -i/N. transform is a compositor property, so switching frames never
+// triggers a repaint (background-position is paint-level, and used to be the main cause of
+// hover-scrub jank).
 export function computeStripStyle(frameCount: number, currentFrame: number): { width: string; transform: string } {
   const N = Math.max(1, frameCount)
   return {

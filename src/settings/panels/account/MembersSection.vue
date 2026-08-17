@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// 成员区 —— 对位 Vue2 AccountPanel state 1 下半(:664-712)+ loadMembers/openAddMember/
-// submitAddMember/deleteMember(:469-536)。
+// Members section —— maps to the lower half of Vue2 AccountPanel state 1 (:664-712) +
+// loadMembers/openAddMember/submitAddMember/deleteMember (:469-536).
 //
-// ⛔ 添加会真 useradd + chpasswd 写 /etc/shadow + setfacl(user.go:845-870);
-//    删除会 userdel + **os.RemoveAll(该用户数据目录)**(user.go:656-672,不可撤销)。
-//    用户 2026-08-01 拍板:本期两条都不在真机上点、整块挂账(债务 D28)。
-// ⚠️ 本机 GET /v1/users/members 实测返回 [] → 真机上只看得到「暂无成员」空态,
-//    成员行 / folder_count / 时间格式化只有单测。
-// ⚠️ 后端只隐藏调用者本人、**不隐藏其它管理员**(user.go:694-697)→ 列表里可能出现
-//    role==='admin' 的行,**不要按 role 过滤**。
+// ⛔ Adding a member really runs useradd + chpasswd, writing /etc/shadow + setfacl (user.go:845-870);
+//    deleting really runs userdel + **os.RemoveAll(that user's data directory)** (user.go:656-672, irreversible).
+//    User decided on 2026-08-01: neither action gets clicked on a real device this cycle — both are parked as debt (D28).
+// ⚠️ On this machine GET /v1/users/members verified to return [] → on the real device you only ever
+//    see the "no members" empty state; the member row / folder_count / date formatting are unit-test only.
+// ⚠️ The backend only hides the caller themselves, **it does not hide other admins** (user.go:694-697) →
+//    a row with role==='admin' may show up in the list — **do not filter by role**.
 import { onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type MemberInfo } from '@nimotech/nimoos-service'
@@ -25,8 +25,9 @@ const members = ref<MemberInfo[]>([])
 const loading = ref(false)
 const loadFailed = ref(false)
 
-// 就地代际守卫(plan C8)。本组件**有第二个触发点**:添加成功、删除成功后都会重新取数,
-// 所以「前一次取数还在飞、后一次已回来」是真实路径,用 seq 区分。
+// In-place generation guard (plan C8). This component **has a second trigger point**:
+// both a successful add and a successful delete re-fetch, so "the previous fetch is still
+// in flight when the next one returns" is a real path — use seq to tell them apart.
 let alive = true
 let seq = 0
 onUnmounted(() => {
@@ -43,8 +44,9 @@ async function loadMembers() {
     loadFailed.value = false
   } catch {
     if (!alive || mySeq !== seq) return
-    // 🔧 plan C14:Vue2 这里 `catch { this.members = [] }` 把失败吞成空列表 → 界面显示
-    // 「暂无成员」而不是报错,与同屏兄弟(NAS 那几处会报错)不一致。这里显式区分。
+    // 🔧 plan C14: Vue2's `catch { this.members = [] }` here swallows failures into an empty
+    // list → the UI shows "no members" instead of an error, inconsistent with its sibling
+    // panels on the same screen (the NAS ones do show an error). Distinguish explicitly here.
     members.value = []
     loadFailed.value = true
   } finally {
@@ -53,7 +55,7 @@ async function loadMembers() {
 }
 loadMembers()
 
-// ── 添加成员(内联表单,Vue2 :674-691) ─────────────────────────────────
+// ── Add member (inline form, Vue2 :674-691) ─────────────────────────────────
 const showAdd = ref(false)
 const newUsername = ref('')
 const newPassword = ref('')
@@ -62,7 +64,7 @@ const addError = ref('')
 const addBusy = ref(false)
 
 function openAdd() {
-  // Vue2 openAddMember(:481-487) 每次打开都清空三个输入与错误
+  // Vue2 openAddMember (:481-487) clears all three inputs and the error every time it opens
   newUsername.value = ''
   newPassword.value = ''
   newConfirmation.value = ''
@@ -86,13 +88,13 @@ async function submitAdd() {
   }
   addBusy.value = true
   try {
-    // ⛔ 真建 Linux 用户 —— 见文件头
+    // ⛔ Really creates a Linux user —— see file header
     await service.users.createMember(newUsername.value, newPassword.value)
     showAdd.value = false
     await loadMembers()
     toast.show(t('settingsAccMemberAdded'))
   } catch (e) {
-    // C6:表单内联报错,优先后端 message(Vue2 也是内联 b-notification,这点一致)
+    // C6: inline error in the form, prefer the backend message (Vue2 also uses an inline b-notification here, consistent)
     const r = e as { response?: { data?: { message?: string } }; message?: string }
     addError.value = r?.response?.data?.message || r?.message || t('settingsAccMemberAddFailed')
   } finally {
@@ -100,19 +102,22 @@ async function submitAdd() {
   }
 }
 
-// ── 删除成员(二次确认,Vue2 deleteMember :520-536) ────────────────────
-// ⚠️ 目标存在**非响应式**变量里、`@update:open` 只管可见性,不能在那里清目标 ——
-// reka-ui 的 AlertDialogAction 在**同一次点击**里就会发 update:open(false),且可能先跑,
-// 在那里清掉目标会让随后的 confirm 读到 null、什么都不删(本组件第一版就这么错过,
-// 两条用例翻红才逮到)。同 files/components/UploadPanel.vue:116-126 的既有教训。
-// 取消后残留的 deleteTarget 无害:它只被 confirmDelete 读,且下次 askDelete 会覆盖。
+// ── Delete member (confirmation dialog, Vue2 deleteMember :520-536) ────────────────────
+// ⚠️ The target lives in a **non-reactive** variable; `@update:open` only handles
+// visibility, so the target must not be cleared there —— reka-ui's AlertDialogAction
+// fires update:open(false) within the **same click**, and may run first; clearing the
+// target there would make the subsequent confirm read null and delete nothing (this
+// component's first version got this wrong exactly this way — caught only when two test
+// cases went red). Same lesson as the existing one at files/components/UploadPanel.vue:116-126.
+// A leftover deleteTarget after cancel is harmless: it is only read by confirmDelete, and the
+// next askDelete overwrites it.
 const deleteOpen = ref(false)
 let deleteTarget: MemberInfo | null = null
 
 const deleteMessage = ref('')
 function askDelete(m: MemberInfo) {
   deleteTarget = m
-  // Vue2 用 `<b>` 加粗名字;ui/AlertDialog 的 message 是纯文本 → 不加粗(已登记的微小差异)
+  // Vue2 bolds the name with `<b>`; ui/AlertDialog's message is plain text → not bolded (a minor, already-logged difference)
   deleteMessage.value = `${t('settingsAccDelete')} ${m.username}?`
   deleteOpen.value = true
 }
@@ -122,12 +127,12 @@ async function confirmDelete() {
   deleteOpen.value = false
   if (!m) return
   try {
-    // ⛔ 不可撤销:userdel + os.RemoveAll(用户数据目录)
+    // ⛔ Irreversible: userdel + os.RemoveAll(user data directory)
     await service.users.deleteUser(m.id)
     await loadMembers()
     toast.show(t('settingsAccDeleted'))
   } catch {
-    // 面板级操作 → 用 toast 是对的(Vue2 同款)
+    // A panel-level action → a toast is the right call here (Vue2 does the same)
     toast.show(t('settingsAccDeleteFailed'))
   }
 }
@@ -142,7 +147,7 @@ async function confirmDelete() {
       </button>
     </div>
 
-    <!-- 添加成员内联表单 -->
+    <!-- Add-member inline form -->
     <div v-if="showAdd" class="set-mem-form" data-test="acc-member-form">
       <p v-if="addError" class="set-danger" data-test="acc-member-error">{{ addError }}</p>
       <div class="set-net-field">
@@ -183,11 +188,12 @@ async function confirmDelete() {
             {{ t('settingsAccCreatedAt') }}: {{ formatMemberDate(m.created_at) }}
           </p>
         </div>
-        <!-- 图标按钮用**单色符号 + aria-label**,与仓内既有约定一致
-             (SettingsRow.vue:28 的 `›`、PowerFlow.vue:60 的 `⟳`、AppActionsMenu.vue:10 的 `⋮`)。
-             不用 ⚙/🗑 这类会被平台渲染成**彩色 emoji** 的码点 —— 与本 UI 的单色语言不搭,
-             且不同平台字形差异大(headless 下直接是空方框)。
-             Vue2 那里是 mdi 图标(cog-outline / delete-outline),New-UI 无图标字体。 -->
+        <!-- Icon buttons use **monochrome glyphs + aria-label**, consistent with the existing
+             convention in this repo (SettingsRow.vue:28's `›`, PowerFlow.vue:60's `⟳`,
+             AppActionsMenu.vue:10's `⋮`). Avoid code points like ⚙/🗑 that platforms render as
+             **colorful emoji** — that clashes with this UI's monochrome visual language, and
+             glyph shapes vary wildly across platforms (headless renders them as blank boxes).
+             Vue2 uses mdi icons there (cog-outline / delete-outline); New-UI has no icon font. -->
         <button
           class="set-btn" type="button" :aria-label="t('settingsAccMembers')"
           data-test="acc-member-settings" @click="emit('open-member', m)"
@@ -201,7 +207,7 @@ async function confirmDelete() {
           ✕
         </button>
       </div>
-      <!-- 🔧 plan C14:失败不再伪装成空态 -->
+      <!-- 🔧 plan C14: failures are no longer disguised as an empty state -->
       <p v-if="loadFailed" class="set-danger" data-test="acc-members-load-error">
         {{ t('settingsAccMembersLoadFailed') }}
       </p>

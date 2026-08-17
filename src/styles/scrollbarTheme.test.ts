@@ -1,18 +1,27 @@
-// 滚动条主题守卫(2026-08-13 白色主题滚动条不可见 bug 的回归测试)。
+// Scrollbar theme guard (regression test for the 2026-08-13 light-theme
+// invisible-scrollbar bug).
 //
-// 根因:theme.css 顶部 `* { scrollbar-color: <白色字面量> transparent }` 把白色滑块
-// **显式**写在了每一个元素上;白色主题的翻转只写在 `:root[data-theme="light"]` 这一个
-// 元素上。`scrollbar-color` 虽可继承,但"元素自身的显式声明"永远压过"从 root 继承",
-// 于是除页面最外层外,一切内部滚动容器(文件列表等)在白色主题下仍是白滑块贴白底。
-// 且 Chrome 121+ 一旦元素设置了 scrollbar-color,就整体忽略 ::-webkit-scrollbar-* 伪元素
-// 样式,第 561-564 行那套 webkit 白色主题规则根本不生效。
+// Root cause: the top of theme.css had `* { scrollbar-color: <literal thumb colour> transparent }`,
+// which put the thumb colour **explicitly** on every single element; the
+// light-theme override was only written on the single `:root[data-theme="light"]`
+// element. `scrollbar-color` is inheritable, but an element's own explicit
+// declaration always wins over inheriting from root, so every inner scroll
+// container (the file list, etc.) other than the outermost page element kept
+// the non-light-theme thumb colour against a light background. On top of
+// that, once an element sets `scrollbar-color`, Chrome 121+ ignores its
+// `::-webkit-scrollbar-*` pseudo-elements entirely, so the webkit light-theme
+// rule block at lines 561-564 never took effect at all.
 //
-// 正确形态:滑块颜色收成 token(--scrollbar-thumb / --scrollbar-thumb-hover),两套主题块
-// 各给值;`*` 规则里引用 var(--…) —— 自定义属性正常继承,每个元素都能解析出当前主题的值。
+// Correct shape: the thumb colour is collapsed into tokens
+// (--scrollbar-thumb / --scrollbar-thumb-hover), given a value in both theme
+// blocks; the `*` rule references var(--…) — custom properties inherit
+// normally, so every element resolves to whatever the current theme's value is.
 //
-// 本守卫只看源文本(已知局限,见 newui-css-invisible-failure-guards):它钉的是
-// "声明必须 token 化 + token 双主题齐全"这两条机械可查的约定;渲染层取证在交付前
-// 用真浏览器 computed style 复核。
+// This guard only looks at source text (a known limitation — see
+// newui-css-invisible-failure-guards): it enforces the two mechanically
+// checkable conventions "declarations must be tokenized" and "the token must
+// have a value in both theme blocks". Rendering-level verification against
+// real browser computed style still needs a final pass before shipping.
 /// <reference types="node" />
 import fs from 'node:fs'
 import path from 'node:path'
@@ -24,7 +33,7 @@ const themeCss = fs.readFileSync(
   'utf8',
 )
 
-// 提取一个选择器对应的声明块(首个匹配),按花括号配平。
+// Extract the declaration block for a selector (first match), balancing braces.
 function blockOf(selectorRe: RegExp): string {
   const m = selectorRe.exec(themeCss)
   if (!m) return ''
@@ -40,33 +49,33 @@ function blockOf(selectorRe: RegExp): string {
   return ''
 }
 
-describe('滚动条颜色必须 token 化(白色主题滚动条不可见回归)', () => {
-  it('所有 scrollbar-color 声明都引用 var(--scrollbar-thumb),不得写字面量', () => {
+describe('scrollbar thumb colour must be tokenized (light-theme invisible-scrollbar regression)', () => {
+  it('every scrollbar-color declaration references var(--scrollbar-thumb), never a literal', () => {
     const decls = [...themeCss.matchAll(/scrollbar-color\s*:\s*([^;]+);/g)].map((m) => m[1].trim())
-    expect(decls.length, 'theme.css 里应存在 scrollbar-color 声明').toBeGreaterThan(0)
+    expect(decls.length, 'theme.css should have a scrollbar-color declaration').toBeGreaterThan(0)
     for (const v of decls) {
-      expect(v, `scrollbar-color 的值必须走 token(继承到每个元素),不能写死单主题字面量:${v}`)
+      expect(v, `scrollbar-color's value must go through a token (so it inherits to every element) — it must not hardcode a single-theme literal: ${v}`)
         .toMatch(/var\(--scrollbar-thumb\)/)
     }
   })
 
-  it('所有 ::-webkit-scrollbar-thumb 的 background 都引用 --scrollbar-thumb 系 token', () => {
+  it('every ::-webkit-scrollbar-thumb background references a --scrollbar-thumb token', () => {
     const re = /::-webkit-scrollbar-thumb[^{]*\{([^}]*)\}/g
     const blocks = [...themeCss.matchAll(re)].map((m) => m[1])
-    expect(blocks.length, 'theme.css 里应存在 ::-webkit-scrollbar-thumb 规则').toBeGreaterThan(0)
+    expect(blocks.length, 'theme.css should have a ::-webkit-scrollbar-thumb rule').toBeGreaterThan(0)
     for (const b of blocks) {
       const bg = /background\s*:\s*([^;]+);/.exec(b)?.[1].trim() ?? ''
-      expect(bg, `::-webkit-scrollbar-thumb 的 background 必须走 token:${bg}`)
+      expect(bg, `::-webkit-scrollbar-thumb's background must go through a token: ${bg}`)
         .toMatch(/var\(--scrollbar-thumb(-hover)?\)/)
     }
   })
 
-  it('--scrollbar-thumb / --scrollbar-thumb-hover 在蓝白两套主题块里都有定义', () => {
+  it('--scrollbar-thumb / --scrollbar-thumb-hover are defined in both theme blocks', () => {
     const blue = blockOf(/(^|\n):root\s*\{/)
     const light = blockOf(/(^|\n):root\[data-theme="light"\]\s*\{/)
     for (const token of ['--scrollbar-thumb:', '--scrollbar-thumb-hover:']) {
-      expect(blue, `:root(蓝色默认)块缺少 ${token}`).toContain(token)
-      expect(light, `:root[data-theme="light"] 块缺少 ${token}`).toContain(token)
+      expect(blue, `the :root (default theme) block is missing ${token}`).toContain(token)
+      expect(light, `the :root[data-theme="light"] block is missing ${token}`).toContain(token)
     }
   })
 })

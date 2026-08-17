@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/stream/TimelineMinimap.vue -->
+<!-- 1:1 port from Vue2 src/views/AI/Agent/stream/TimelineMinimap.vue -->
 <script setup lang="ts">
 import { ref, computed, onBeforeUpdate } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -14,8 +14,8 @@ const { t } = useI18n()
 const wrap = ref<HTMLElement | null>(null)
 const cy = ref<number | null>(null)
 
-// v-for template refs: Vue3 doesn't reliably keep array order across re-renders
-// for the string `ref="…"` shorthand, so collect via a function ref reset each
+// v-for template refs: Vue3 doesn't reliably maintain array order across re-renders
+// with the string `ref="…"` shorthand, so collect via a function ref reset on each
 // update — equivalent to Vue2's `this.$refs.tickEls` array.
 const tickEls = ref<(Element | null)[]>([])
 onBeforeUpdate(() => { tickEls.value = [] })

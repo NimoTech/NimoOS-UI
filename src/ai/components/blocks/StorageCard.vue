@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/StorageCard.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/StorageCard.vue -->
 <script setup lang="ts">
 import { computed } from 'vue'
 

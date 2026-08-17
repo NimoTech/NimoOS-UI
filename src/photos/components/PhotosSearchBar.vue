@@ -1,34 +1,39 @@
 <script setup lang="ts">
-// SP7-P7a-T16: PhotosSearchBar.vue —— 搜索框(D13)。
-// 结构对应 Vue2 PhotosTopbar.vue:14-24(模板,`.search` 圆角输入框容器)+ :52-70
-// (query prop 回流 watch + submitSearch/onKbd)。样式对应 photos.scss:226-246。
+// SP7-P7a-T16: PhotosSearchBar.vue — search bar (D13).
+// Structure corresponds to Vue2 PhotosTopbar.vue:14-24 (template, `.search` rounded input container)
+// + :52-70 (query prop backflow watch + submitSearch/onKbd). Styles correspond to
+// photos.scss:226-246.
 //
-// 与 Vue2 PhotosTopbar.vue 的差异(结构规格 5,登记不建):Vue2 的 topbar 还有一个
-// `searchMode` 态下的返回键(`:6-8`,emit('exit-search'))。New-UI 由路由承担"返回"
-// 语义(`/photos/search` → 浏览器后退 / 侧栏切换),本组件不做返回键,也不接
-// `lightboxOpen` 之类的抑制 prop——这些概念在路由化后不再需要。Produces 接口骨架里
-// 列的 `(e: 'exit'): void` 因此不在这里实现(结构规格 5 明确"登记不建"覆盖了接口骨架
-// 那行,以结构规格为准)。
+// Differences from Vue2 PhotosTopbar.vue (structure spec 5, registry not building): Vue2's topbar
+// also has a back button in `searchMode` (:6-8, emit('exit-search')). New-UI delegates 'back'
+// semantics to routing (`/photos/search` → browser back / sidebar toggle); this component doesn't
+// make a back button, nor accept suppression props like `lightboxOpen` — these concepts no longer
+// needed after routing. The `(e: 'exit'): void` listed in Produces interface skeleton is therefore
+// not implemented here (structure spec 5 clearly 'registry not building' overrides that interface
+// line; structure spec is authoritative).
 //
-// 空串也 emit(结构规格 3):回源核对发现 brief 引用的 Vue2 `PhotosTopbar.vue:66-69`
-// (`submitSearch`)实际上是 `if (!q) return`(空串不 emit)——与 brief 描述不符,这是
-// 本任务查实的一处 brief 事实错误(报告里登记)。空串确实会 emit 的真实先例是
-// `PhotosTimeline.vue`的 `@exit-search="onSearch('')"` 这条独立wiring(退出搜索按钮
-// 直接调 `onSearch('')`,不经过 `submitSearch` 的空串守卫)。本组件面向的是路由化的
-// 独立搜索页(§7e-3),没有"返回键"这个概念,Enter 键本身就要承担"提交词/清空退出"
-// 两种语义,因此照 brief 结构规格 3 与测试用例的明确要求实现"空串也 emit"——由宿主
-// (PhotosSearch.vue/Photos.vue)决定空串提交时导航去哪。
+// Empty string also emits (structure spec 3): source check found Vue2's `PhotosTopbar.vue:66-69`
+// (`submitSearch`) referenced by brief is actually `if (!q) return` (empty string doesn't emit) —
+// inconsistent with brief description; this is a brief factual error this task discovered (logged
+// in report). Real precedent where empty string does emit is `PhotosTimeline.vue`'s
+// `@exit-search="onSearch('')"` independent wiring (exit search button directly calls onSearch(''),
+// bypasses submitSearch's empty string guard). This component targets routed independent search
+// page (§7e-3), has no 'back button' concept; Enter key must bear both 'submit term / clear and
+// exit' semantics; therefore per brief structure spec 3 and test case requirements, implement
+// 'empty string also emits' — host (PhotosSearch.vue/Photos.vue) decides navigation on empty
+// submit.
 //
-// value prop 回流(结构规格 2,照搬 PhotosTopbar.vue:57 的 `!==` 守卫):不在用户正在
-// 输入时用外部 value 打断——只有当 value 真的变化时才覆盖本地 text。
+// Value prop backflow (structure spec 2, copied from PhotosTopbar.vue:57's `!==` guard): don't
+// interrupt user input with external value — only override local text when value truly changes.
 //
-// fix round 1 · I3(评审查实的真缺陷):placeholder 第一版误用了
-// `photosSearchSearchLibrary`(="搜索你的资料库")——那句在 Vue2 里其实是**预搜索态的
-// `<h2>`**(`PhotosSearchView.vue:6`),不是输入框占位符。Vue2 `PhotosTopbar.vue:19` 的
-// 真实 placeholder 是另一句长文案("Search photos, people, places, or describe in a
-// sentence…"),i18n 表里原来没有对应键——已按文案回源铁律,从
-// `NimoOS-UI/src/assets/lang/zh_CN.json:2405` / `en_US.json:2324` 查出原文对应译文,
-// 新增 `photosSearchSearchBarPlaceholder` 键(追加在两个 locale 文件末尾,未重排)。
+// Fix round 1 · I3 (review-verified true defect): placeholder first version mistakenly used
+// `photosSearchSearchLibrary` (="search your library") — that phrase is actually **pre-search
+// state `<h2>`** (`PhotosSearchView.vue:6`) in Vue2, not input placeholder. Vue2
+// `PhotosTopbar.vue:19`'s real placeholder is different long text ('Search photos, people,
+// places, or describe in a sentence…'); i18n table originally had no corresponding key — per
+// source text rule, looked up original and translation from `NimoOS-UI/src/assets/lang/zh_CN.json:2405`
+// / `en_US.json:2324`, added new key `photosSearchSearchBarPlaceholder` (appended to end of both
+// locale files, not reordered).
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -57,7 +62,8 @@ watch(
 )
 
 function submit(): void {
-  // 照搬 Vue2 submitSearch 的 trim 口径;结构规格 3:空串也 emit(见文件头注释)。
+  // Copy Vue2 submitSearch's trim caliber; structure spec 3: empty string also emits (see file
+  // header comment).
   emit('submit', text.value.trim())
 }
 
@@ -82,18 +88,20 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Vue2 PhotosTopbar.vue photos.scss:226-246(`.search`/`.search input`/`.search .kbd`)。
-   本组件不建 `.kbd`(↵ 提示徽标)——结构规格 1 明确只要求"圆角输入框容器含 search 图标
-   14px + <input>",两处都没有提这个提示徽标,登记为刻意的范围收窄(不是漏做)。
-   高度与 Vue2 两个变体(topbar 里 32px / 搜索页 `.search-active` 40px)都不同——本组件
-   在两处(Photos.vue 时间线顶部 / PhotosSearch.vue 搜索页顶部)复用同一份外观,不做
-   "普通/放大"两态,取两者之间的 34px 作为统一值(登记:结构规格没有给"变体" prop,
-   这是本任务自己的简化决定)。
-   fix round 1 · M13(评审并入):`.photos-search-bar` 外层容器本身**无 Vue2 对应**——
-   Vue2 的搜索框是 `PhotosTopbar.vue` 内联在一个共享顶栏里的一个 flex 子项,没有独立
-   组件、也没有专属的外层 padding;New-UI 把它拆成独立组件复用在两个页面顶部,需要一层
-   自己的外壳容器来控制页面内的留白——`4px 4px 14px` 是本任务自定的量(不是照抄 Vue2,
-   因为 Vue2 根本没有这个容器),已在此登记而非静默新增。 */
+/* Vue2 PhotosTopbar.vue photos.scss:226-246 (`.search`/`.search input`/`.search .kbd`).
+   This component doesn't build `.kbd` (↵ hint badge) — structure spec 1 explicitly only requires
+   'rounded input container with search icon 14px + <input>', both places didn't mention this
+   hint badge, logged as deliberate scope narrowing (not omitted). Height differs from Vue2's two
+   variants (topbar 32px / search page `.search-active` 40px) — this component reuses same
+   appearance in two places (Photos.vue timeline top / PhotosSearch.vue search page top), no
+   'normal/enlarged' states; took 34px between the two as unified value (registry: structure spec
+   doesn't give a 'variant' prop, this is this task's own simplification decision).
+   Fix round 1 · M13 (review merged): `.photos-search-bar` outer container itself **has no Vue2
+   equivalent** — Vue2's search box is a flex child inline in shared topbar in
+   `PhotosTopbar.vue`, no standalone component, no dedicated outer padding; New-UI split it as
+   standalone component reused at top of two pages, needs a shell container of its own to control
+   page whitespace — `4px 4px 14px` is this task's own value (not copied from Vue2; Vue2 doesn't
+   have this container), logged here not silently added. */
 .photos-search-bar { display: flex; justify-content: center; padding: 4px 4px 14px; }
 .search {
   flex: 1;
@@ -102,8 +110,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  /* fix round 1 · M13:改回 Vue2 字面值(photos.scss:229 是 `padding: 0 12px`,第一版
-     写成 14px 是抄错,不是刻意偏离——照 Vue2 值改回。 */
+  /* Fix round 1 · M13: changed back to Vue2 literal value (photos.scss:229 is `padding: 0 12px`;
+     first version was 14px due to copy error, not deliberate deviation — changed back to Vue2
+     value. */
   padding: 0 12px;
   border-radius: 999px;
   background: var(--chip-bg);

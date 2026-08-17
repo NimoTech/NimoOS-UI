@@ -18,12 +18,12 @@ beforeEach(() => {
 const stopped = { name: 'jf', status: 'exited', app_type: 'v2app', port: 8096, index: '/web' }
 
 describe('useStartApp', () => {
-  it('appUrl:有 port/index 拼地址,都没有返回 null', () => {
+  it('appUrl: with port/index construct address, without both return null', () => {
     expect(appUrl({ port: 8096, index: '/web', hostname: 'h' } as never)).toBe('http://h:8096/web')
     expect(appUrl({ name: 'x' } as never)).toBe(null)
   })
 
-  it('prompt 进入 confirm 态;dismiss 清空', () => {
+  it('prompt enters confirm state; dismiss clears', () => {
     const sa = useStartApp()
     sa.prompt('jf')
     expect(sa.state.value).toEqual({ key: 'jf', phase: 'confirm' })
@@ -31,7 +31,7 @@ describe('useStartApp', () => {
     expect(sa.state.value).toBe(null)
   })
 
-  it('confirm:调 start → 轮询到 running → 关弹窗并跳转', async () => {
+  it('confirm: call start → poll until running → close dialog and navigate', async () => {
     const apps = useAppsStore()
     apps.setApps([stopped] as never)
     ;(service.apps.getGrid as ReturnType<typeof vi.fn>).mockResolvedValue([{ ...stopped, status: 'running' }])
@@ -45,7 +45,7 @@ describe('useStartApp', () => {
     expect(nav).toHaveBeenCalledWith(`http://${window.location.hostname}:8096/web`)
   })
 
-  it('启动态中 dismiss:完成后不跳转', async () => {
+  it('dismiss during startup: don\'t navigate on completion', async () => {
     const apps = useAppsStore()
     apps.setApps([stopped] as never)
     ;(service.apps.getGrid as ReturnType<typeof vi.fn>).mockResolvedValue([{ ...stopped, status: 'running' }])
@@ -53,15 +53,15 @@ describe('useStartApp', () => {
     const sa = useStartApp()
     sa.prompt('jf')
     const p = sa.confirm({ pollMs: 5, timeoutMs: 100, navigate: nav })
-    sa.dismiss() // 用户收起"正在启动…"弹窗
+    sa.dismiss() // user collapses the "starting..." dialog
     expect(await p).toBe(true)
     expect(nav).not.toHaveBeenCalled()
   })
 
-  it('超时:关弹窗、返回 false、不跳转', async () => {
+  it('timeout: close dialog, return false, don\'t navigate', async () => {
     const apps = useAppsStore()
     apps.setApps([stopped] as never)
-    ;(service.apps.getGrid as ReturnType<typeof vi.fn>).mockResolvedValue([stopped]) // 一直 exited
+    ;(service.apps.getGrid as ReturnType<typeof vi.fn>).mockResolvedValue([stopped]) // always exited
     const nav = vi.fn()
     const sa = useStartApp()
     sa.prompt('jf')

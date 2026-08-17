@@ -1,36 +1,45 @@
-// SP8-P2a Task 5 —— 1:1 移植自 Vue2
-// `src/views/AI/Settings/store/settingsStore.js`(376 行),整体搬成一个
-// Pinia setup store(用户 2026-07-28 决定;拆分会让顶栏状态灯、导航徽标这些
-// 跨分区读数变成 store 互相引用,得不偿失)。
+// SP8-P2a Task 5 — 1:1 ported from Vue2
+// `src/views/AI/Settings/store/settingsStore.js` (376 lines), migrated as a whole
+// Pinia setup store (user decided on 2026-07-28; splitting would make
+// top-bar status lights, nav badges, etc. require cross-section store references,
+// which is not worth the cost).
 //
-// 【取数口径】Vue2 里 `ai.xxx()` 返回 axios 原始响应,所以处处写 `resp.data`。
-// 共享包 `service.ai.*` 已在包内解过那一层,直接吐 body。故 Vue2 的
-// `resp.data || []` 这里写作 `body || []`,**不再多剥一层 .data**。
-// 与 agentStore.ts:110-130 头注释确立的口径一致。
+// 【Data format】In Vue2, `ai.xxx()` returns raw axios responses, so `resp.data`
+// is written everywhere. The shared package `service.ai.*` already unwraps that
+// layer internally and returns the body directly. Thus Vue2's `resp.data || []`
+// becomes `body || []` here, **without unpacking an extra .data layer**.
+// This matches the format established in agentStore.ts:110-130 header comment.
 //
-// 【Vue2 响应式 API 的机械替换】(等价物,非行为改动)
-//   Vue.observable({...}) → 一组 ref
+// 【Mechanical replacement of Vue2 reactivity APIs】(equivalent semantics, not
+// behavior changes)
+//   Vue.observable({...}) → a set of refs
 //   Vue.set(o, k, v)      → o[k] = v
 //   Vue.delete(o, k)      → delete o[k]
 //   state.x               → x.value
-//   actions.foo() 内部互调 → 直接调本地函数
+//   actions.foo() internal calls → call local functions directly
 //
-// 【与 Vue2 的行为差:resetTransientUi()】详见函数上方注释。根因是 Vue2 的
-// `createSettingsStore()` 每次挂载新建、卸载丢弃,而 Pinia 是全局单例。
+// 【Behavior difference from Vue2: resetTransientUi()】See the comment above
+// that function. The root cause is that Vue2's `createSettingsStore()` creates
+// a new instance on every mount and discards it on unmount, whereas Pinia is
+// a global singleton.
 //
-// 【主题】不在本 store —— 见 `./aiTheme`(Agent 页与设置页共享)。
+// 【Theme】Not in this store — see `./aiTheme` (shared between Agent and Settings pages).
 //
-// 【i18n】Vue2 `saveProvider()`(settingsStore.js:211)用
-// `i18n.t('Name and Base URL are required')` 取生产译文。本仓 vue-i18n 9 走
-// composition 模式,对应写法是 `i18n.global.t(...)`(与 agentStore.ts:6,893
-// 的既有先例一致),键名 `aiCfgProviderNameUrlRequired`。
-// 【Task 5 fix,评审 Important】实现者最初判断 i18n 化可以延到 Task 10(理由:
-// brief Step 6 的 `git add` 清单没列 i18n 文件),改成了硬编码英文 Error
-// message——评审指出这个判断错了:`ProvidersSection.vue:175-182` 的 catch 是
-// `e.message || t('Save failed')`,**e.message 优先**,硬编码英文会原样弹给
-// 中文用户,是接线即暴露的生产缺陷,不是可以拖延的债。协调者裁定：Step 6
-// 文件清单的疏漏让位于"用户可见文案必须走 i18n"的全局硬约束,当场修正,
-// 已在 `src/i18n/zh_cn.ts`/`en_us.ts` 补上 `aiCfgProviderNameUrlRequired` 键。
+// 【i18n】Vue2's `saveProvider()` (settingsStore.js:211) uses
+// `i18n.t('Name and Base URL are required')` to get the production translation.
+// This repo's vue-i18n 9 uses composition mode, so the equivalent is
+// `i18n.global.t(...)` (matching the existing pattern in agentStore.ts:6,893),
+// with key name `aiCfgProviderNameUrlRequired`.
+// 【Task 5 fix, review-Important】The implementer initially judged that i18n
+// could be deferred to Task 10 (reasoning: the `git add` list in brief Step 6
+// doesn't list i18n files), so they hardcoded an English Error message — the
+// review pointed out this judgment was wrong: `ProvidersSection.vue:175-182`'s
+// catch is `e.message || t('Save failed')`, **e.message takes priority**, so
+// hardcoded English will pop up verbatim to Chinese users — this is a production
+// defect exposed immediately, not a deferrable debt. The coordinator ruled:
+// the gap in the Step 6 file list must yield to the global hard constraint
+// "user-visible copy must use i18n"; corrected immediately; already added
+// the `aiCfgProviderNameUrlRequired` key to `src/i18n/zh_cn.ts` / `en_us.ts`.
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
@@ -38,16 +47,17 @@ import { service } from '@nimotech/nimoos-service'
 import { i18n } from '../../i18n'
 import type { SectionId } from '../components/settings/sections'
 
-// ── 类型:服务端返回体在共享包里都是 `unknown`,这里按 Vue2 的实际用法窄化 ──
+// ── Types: server return bodies are all `unknown` in the shared package, narrowed
+// here based on Vue2's actual usage ──
 
-/** settingsStore.js:71-73 `installedModels` 表项;字段依 ModelsSection.vue:71-73 用法推得。 */
+/** settingsStore.js:71-73 — `installedModels` entry; fields inferred from ModelsSection.vue:71-73 usage. */
 export interface ModelEntry {
   name: string
   size_bytes?: number
   [key: string]: unknown
 }
 
-/** settingsStore.js:84 `hfResults` 表项;字段依 ModelsSection.vue:129-134 用法推得。 */
+/** settingsStore.js:84 — `hfResults` entry; fields inferred from ModelsSection.vue:129-134 usage. */
 export interface HfRepo {
   id: string
   downloads?: number
@@ -55,9 +65,10 @@ export interface HfRepo {
 }
 
 /**
- * settingsStore.js:114-121 —— 单个 HF 导入任务。**`_timer` 必须留在这个对象里**
- * (不得挪成模块级 Map):Vue2 `Settings.vue:160` 的挂载恢复循环靠 `!job._timer`
- * 判断是否需要重新起定时器,把它挪走会破坏那道守卫(brief 明确点名)。
+ * settingsStore.js:114-121 — a single HF import job. **`_timer` must stay in this object**
+ * (must not be moved to a module-level Map): Vue2's `Settings.vue:160` mount-recovery
+ * loop uses `!job._timer` to determine whether to restart the timer; moving it would
+ * break that guard (explicitly called out in brief).
  */
 export interface ImportJob {
   repo: string
@@ -73,7 +84,7 @@ export interface ImportJob {
   _timer: ReturnType<typeof setInterval> | null
 }
 
-/** settingsStore.js:172 `providers` 表项;字段依 ProvidersSection.vue:30-33 用法推得。 */
+/** settingsStore.js:172 — `providers` entry; fields inferred from ProvidersSection.vue:30-33 usage. */
 export interface Provider {
   id: string | number
   name: string
@@ -92,7 +103,7 @@ export interface ProviderFormData {
   protocol: string
 }
 
-/** settingsStore.js:22-25 编辑/新建表单弹层状态。 */
+/** settingsStore.js:22-25 — edit/create form dialog state. */
 export interface ProviderForm {
   visible: boolean
   editing: Provider | null
@@ -100,7 +111,7 @@ export interface ProviderForm {
   data: ProviderFormData
 }
 
-/** applyProviderPreset 的入参形状;PRESETS 常量本身留在消费方组件(ProvidersSection,Task 10)。 */
+/** Shape of applyProviderPreset input parameters; PRESETS constant itself kept in the consuming component (ProvidersSection, Task 10). */
 export interface ProviderPreset {
   name: string
   base_url: string
@@ -108,7 +119,7 @@ export interface ProviderPreset {
   protocol: string
 }
 
-/** settingsStore.js:27 每 provider 的模型目录条目;字段依 ProvidersSection.vue:63-67 用法推得。 */
+/** settingsStore.js:27 — model directory entry per provider; fields inferred from ProvidersSection.vue:63-67 usage. */
 export interface ProviderModel {
   name: string
   source: string
@@ -121,14 +132,14 @@ export interface ProviderModelsEntry {
   models: ProviderModel[]
 }
 
-/** settingsStore.js:31 隐私策略;字段依 PrivacySection.vue:22-45 用法推得。 */
+/** settingsStore.js:31 — privacy policy; fields inferred from PrivacySection.vue:22-45 usage. */
 export interface Policy {
   allow_remote: boolean
   default_backend: string
   escalation_prompt: boolean
 }
 
-/** settingsStore.js:34 黑名单条目。 */
+/** settingsStore.js:34 — blacklist entry. */
 export interface BlacklistEntry {
   id: string | number
   pattern: string
@@ -136,10 +147,11 @@ export interface BlacklistEntry {
 }
 
 /**
- * settingsStore.js:38 三个后台服务的就绪态。**初值是 `null`(未知),不是
- * `false`**——Settings.vue:12-14 的 `pillState()` 用三态区分"还没查过"(灰)
- * 与"查过了、确实是关的"(红)。`loadServicesStatus()` 成功后恒落到布尔值,
- * 只有初始未加载过这一刻是 null。
+ * settingsStore.js:38 — ready state of three background services. **Initial value is
+ * `null` (unknown), not `false`** — Settings.vue:12-14's `pillState()` uses
+ * three-state logic to distinguish "not checked yet" (gray) from "checked and
+ * indeed off" (red). After `loadServicesStatus()` succeeds, always falls to boolean
+ * value; only the initial unchecked moment is null.
  */
 export interface ServicesStatus {
   ollama: boolean | null
@@ -158,7 +170,7 @@ export interface ParserStatus {
   concurrency: number
 }
 
-/** settingsStore.js:126 轮询回包;字段依同函数体内 `data.completed/total/status/error` 用法推得。 */
+/** settingsStore.js:126 — polling response body; fields inferred from `data.completed/total/status/error` usage in that function body. */
 interface ImportStatusBody {
   completed: number
   total: number
@@ -166,7 +178,7 @@ interface ImportStatusBody {
   error?: string
 }
 
-/** settingsStore.js:337-345 服务状态回包;字段依同函数体内用法推得。 */
+/** settingsStore.js:337-345 — services status response body; fields inferred from usage in that function body. */
 interface ServicesStatusBody {
   ollama?: { running?: boolean }
   openvino?: { running?: boolean }
@@ -175,25 +187,25 @@ interface ServicesStatusBody {
   parser?: ParserStatus
 }
 
-/** settingsStore.js:147 `e.response.status === 404` 判断的窄化封装(axios 错误形状)。 */
+/** settingsStore.js:147 — narrowing wrapper for `e.response.status === 404` check (axios error shape). */
 function isNotFound(e: unknown): boolean {
   const status = (e as { response?: { status?: number } } | null | undefined)?.response?.status
   return status === 404
 }
 
 export const useSettingsStore = defineStore('ai-settings', () => {
-  // ── UI(settingsStore.js:8,45)──
+  // ── UI (settingsStore.js:8,45) ──
   const activeSection = ref<SectionId>('models')
 
   function setActiveSection(section: SectionId) {
     activeSection.value = section
   }
 
-  // ── Models(settingsStore.js:11-18)──
+  // ── Models (settingsStore.js:11-18) ──
   const installedModels = ref<ModelEntry[]>([])
   const modelsLoading = ref(false)
   const pullModelInput = ref('')
-  /** settingsStore.js:14 `{ 'name:tag': true }`。 */
+  /** settingsStore.js:14 — `{ 'name:tag': true }`. */
   const pullingModels = ref<Record<string, true>>({})
   const hfQuery = ref('')
   const hfResults = ref<HfRepo[]>([])
@@ -215,12 +227,15 @@ export const useSettingsStore = defineStore('ai-settings', () => {
   }
 
   /**
-   * settingsStore.js:58-68 —— 观察项(照搬,不改,brief 点名登记):
-   * `pullingModels[name]` 在 `finally` 里立即删除,所以调用方展示的
-   * "Pulling: xxx(后台运行中——请手动刷新查看进度)"提示实际上**只在这次
-   * HTTP 请求在途的那一瞬间**为真,与文案宣称的"后台运行中"语义不符。
-   * 后端 `POST /pull` 是否同步阻塞未知(若同步阻塞到下载完成,这条提示反而
-   * 是准的),待真机观察,这里不擅自改成常驻状态。
+   * settingsStore.js:58-68 — Observation item (ported as-is, unchanged, explicitly
+   * registered in brief): `pullingModels[name]` is deleted immediately in `finally`,
+   * so the "Pulling: xxx (running in background — please refresh manually to see
+   * progress)" hint displayed by the caller is actually **only true during that one
+   * moment when the HTTP request is in flight**, which doesn't match the "running
+   * in background" semantics the copy claims. Unknown whether the backend `POST /pull`
+   * is synchronously blocking (if it blocks until download completes, this hint
+   * would actually be accurate); awaiting real-device observation; not changing this
+   * to resident state without authority.
    */
   async function pullModel() {
     const name = pullModelInput.value.trim()
@@ -283,17 +298,21 @@ export const useSettingsStore = defineStore('ai-settings', () => {
   }
 
   /**
-   * settingsStore.js:113-153 —— 建条目 + 起 2s 轮询定时器。
+   * settingsStore.js:113-153 — create entry + start 2s polling timer.
    *
-   * D3(brief)——Vue2 `Settings.vue:159-163` 有一段挂载时遍历
-   * `state.hfImportJobs` 恢复未完成下载轮询的代码,但 Vue2 每次挂载都
-   * `createSettingsStore()` 新建一份 state,`hfImportJobs` 恒为 `{}`,那段
-   * 恢复循环**从未执行过一次**——离开设置页时进度条消失、定时器随闭包泄漏。
-   * Pinia 单例下 `hfImportJobs` 与 `_timer` 都还在,该恢复循环(Task 8 落地)
-   * 第一次有了意义:回到页面进度条会继续显示。这是"照搬后行为变好",不是
-   * bug 修复,但按纪律仍需申报。**Vue2 原文 `&& !job._timer` 守卫要逐字保留**
-   * ——它是防止重复起定时器的闸,因此 `_timer` 必须留在 job 对象上(见
-   * ImportJob 类型注释),不得优化成模块级 Map。
+   * D3(brief) — Vue2's `Settings.vue:159-163` has code that traverses
+   * `state.hfImportJobs` on mount to restore unfinished download polling,
+   * but Vue2 creates a new state with `createSettingsStore()` on every mount,
+   * so `hfImportJobs` is always `{}`, and that recovery loop **never executes
+   * once** — progress bar disappears when leaving Settings page, timer leaks
+   * with closure. Under Pinia singleton, both `hfImportJobs` and `_timer`
+   * persist; that recovery loop (Task 8 landing) now has meaning for the
+   * first time: returning to the page shows the progress bar continuing.
+   * This is "behavior improved after porting", not a bug fix, but by discipline
+   * still must be reported. **The Vue2 original `&& !job._timer` guard must be
+   * preserved word-for-word** — it is the latch preventing duplicate timer
+   * starts, so `_timer` must remain in the job object (see ImportJob type
+   * comment), must not be optimized into a module-level Map.
    */
   function startImportJob(repo: string, filename: string) {
     hfImportJobs.value[filename] = {
@@ -351,7 +370,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     delete hfImportJobs.value[filename]
   }
 
-  /** settingsStore.js:161-166 —— cancelImport 的失败被有意吞掉(fire and forget)。 */
+  /** settingsStore.js:161-166 — cancelImport failures are intentionally swallowed (fire and forget). */
   async function cancelImportJob(filename: string) {
     const job = hfImportJobs.value[filename]
     if (job && job._timer) clearInterval(job._timer)
@@ -363,7 +382,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     }
   }
 
-  // ── Providers(settingsStore.js:21-28)──
+  // ── Providers (settingsStore.js:21-28) ──
   const providers = ref<Provider[]>([])
   const providersLoading = ref(false)
   const providerForm = ref<ProviderForm>({
@@ -393,7 +412,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
       providerForm.value.data = {
         name: provider.name || '',
         base_url: provider.base_url || '',
-        api_key: '', // settingsStore.js:185 —— never pre-fill api_key on edit
+        api_key: '', // settingsStore.js:185 — never pre-fill api_key on edit
         default_model: (provider.default_model as string) || '',
         protocol: (provider.protocol as string) || 'openai',
       }
@@ -423,9 +442,10 @@ export const useSettingsStore = defineStore('ai-settings', () => {
   }
 
   /**
-   * settingsStore.js:208-233 —— 校验错误文案走 i18n,见文件头【i18n】说明:
-   * `ProvidersSection.vue:175-182` 的 catch 优先展示 `e.message`,硬编码英文
-   * 会原样弹给中文用户,故用 `i18n.global.t('aiCfgProviderNameUrlRequired')`。
+   * settingsStore.js:208-233 — validation error copy uses i18n, see the 【i18n】
+   * note in the file header: `ProvidersSection.vue:175-182`'s catch prioritizes
+   * showing `e.message`, hardcoded English will pop up verbatim to Chinese users,
+   * so using `i18n.global.t('aiCfgProviderNameUrlRequired')`.
    */
   async function saveProvider() {
     const data = providerForm.value.data
@@ -455,7 +475,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     }
   }
 
-  /** settingsStore.js:235-248 —— 失败需回滚到调用前快照并重新抛出。 */
+  /** settingsStore.js:235-248 — on failure, rollback to pre-call snapshot and re-throw. */
   async function toggleProvider(id: string | number, enabled: boolean) {
     const snapshot = providers.value.map((p) => ({ ...p }))
     try {
@@ -476,7 +496,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     await loadProviders()
   }
 
-  /** settingsStore.js:255-264 —— 失败时保留上次的 models,不清空,并重新抛出。 */
+  /** settingsStore.js:255-264 — on failure, keep the previous models, don't clear, and re-throw. */
   async function loadProviderModels(id: string | number) {
     providerModels.value[id] = {
       loading: true,
@@ -494,7 +514,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     }
   }
 
-  /** settingsStore.js:266-275 —— 同 loadProviderModels,换刷新端点。 */
+  /** settingsStore.js:266-275 — same as loadProviderModels, but with a different refresh endpoint. */
   async function refreshProviderModels(id: string | number) {
     providerModels.value[id] = {
       loading: true,
@@ -513,15 +533,16 @@ export const useSettingsStore = defineStore('ai-settings', () => {
   }
 
   /**
-   * settingsStore.js:277-282 —— 持久化某 provider 的收藏集 + 手动模型列表。
-   * `models` 是期望的完整列表 `{ name, favorite }`(source 由服务端权威决定)。
+   * settingsStore.js:277-282 — persist a provider's favorites + manual model list.
+   * `models` is the desired complete list `{ name, favorite }` (source is decided
+   * authoritatively by the server).
    */
   async function saveProviderModels(id: string | number, models: { name: string; favorite: boolean }[]) {
     const body = await service.ai.updateProviderModels(id, models)
     providerModels.value[id] = { loading: false, models: (body as ProviderModel[]) || [] }
   }
 
-  /** settingsStore.js:284-290 —— 只带 name/favorite 两个字段提交,不带 source。 */
+  /** settingsStore.js:284-290 — submit only name/favorite fields, not source. */
   function toggleModelFavorite(id: string | number, name: string, favorite: boolean) {
     const entry = providerModels.value[id]
     if (!entry) return
@@ -539,7 +560,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     return saveProviderModels(id, desired)
   }
 
-  /** settingsStore.js:300-307 —— 只删 source==='manual' 的同名项。 */
+  /** settingsStore.js:300-307 — only delete same-name items where source==='manual'. */
   function removeManualModel(id: string | number, name: string) {
     const entry = providerModels.value[id]
     if (!entry) return
@@ -549,7 +570,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     return saveProviderModels(id, desired)
   }
 
-  // ── Privacy(settingsStore.js:31)──
+  // ── Privacy (settingsStore.js:31) ──
   const policy = ref<Policy | null>(null)
   const policyLoading = ref(false)
   const policySaving = ref(false)
@@ -565,7 +586,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     }
   }
 
-  /** settingsStore.js:319-333 —— 乐观更新,失败回滚并重新抛出;policy 为 null 时先填默认值。 */
+  /** settingsStore.js:319-333 — optimistic update, rollback on failure and re-throw; if policy is null, fill defaults first. */
   async function updatePolicyField<K extends keyof Policy>(field: K, value: Policy[K]) {
     const old = policy.value ? { ...policy.value } : null
     if (!policy.value) {
@@ -575,8 +596,9 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     policy.value = next
     policySaving.value = true
     try {
-      // Policy 故意不带索引签名(见类型定义处注释),保持 updatePolicyField<K> 的
-      // keyof 收窄;这里按需转成共享包要求的 Record<string, unknown> 形参。
+      // Policy deliberately omits index signature (see type definition comment),
+      // to keep updatePolicyField<K>'s keyof narrowing; here convert to the
+      // Record<string, unknown> parameter type the shared package requires as needed.
       await service.ai.updatePolicy(next as unknown as Record<string, unknown>)
     } catch (e) {
       policy.value = old
@@ -586,7 +608,8 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     }
   }
 
-  // ── Blacklist(settingsStore.js:34-35;P2b 消费,本期只搬 store 侧)──
+  // ── Blacklist (settingsStore.js:34-35; consumed by P2b, only the store-side is
+  // migrated this period) ──
   const blacklist = ref<BlacklistEntry[]>([])
   const blacklistLoading = ref(false)
 
@@ -601,7 +624,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     }
   }
 
-  /** settingsStore.js:362-368 —— 回包可能是 `{id,...}` 或裸 id 本身,兜底用时间戳。 */
+  /** settingsStore.js:362-368 — response body may be `{id,...}` or bare id itself, fall back to timestamp. */
   async function addBlacklist(pattern: string) {
     const body = await service.ai.addBlacklistPattern(pattern)
     const raw = body as { id?: string | number } | string | number | null | undefined
@@ -616,7 +639,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     blacklist.value = blacklist.value.filter((x) => x.id !== id)
   }
 
-  // ── Services status(settingsStore.js:38-40)──
+  // ── Services status (settingsStore.js:38-40) ──
   const servicesStatus = ref<ServicesStatus>({ ollama: null, openvino: null, agent: null })
   const searchStatus = ref<SearchStatus>({ running: false })
   const parserStatus = ref<ParserStatus>({
@@ -626,7 +649,7 @@ export const useSettingsStore = defineStore('ai-settings', () => {
     concurrency: 2,
   })
 
-  /** settingsStore.js:335-351 —— 整体失败被吞掉,三组状态全部落回默认("关闭")值。 */
+  /** settingsStore.js:335-351 — overall failure is swallowed, all three status groups fall back to default ("off") values. */
   async function loadServicesStatus() {
     try {
       const body = await service.ai.getServicesStatus()
@@ -651,17 +674,21 @@ export const useSettingsStore = defineStore('ai-settings', () => {
   }
 
   /**
-   * SP8-P2a D2 —— Vue2 没有这个动作,本仓必须有。
+   * SP8-P2a D2 — Vue2 doesn't have this action, but this repo must.
    *
-   * Vue2 `Settings.vue:101` 每次挂载都 `createSettingsStore()` 新建一份 state,
-   * 组件卸载即丢弃,所以每次进设置页 activeSection 恒为 'models'、表单恒收起、
-   * HF 搜索结果恒为空。Pinia 是全局单例,会把上次离开时的瞬态 UI 状态原样带
-   * 回来 —— 那是架构差异,不是 Vue2 的行为,必须显式复位以保持 1:1。
+   * Vue2's `Settings.vue:101` creates a new state with `createSettingsStore()`
+   * on every mount and discards it on unmount, so every time entering Settings:
+   * activeSection is always 'models', forms are always collapsed, HF search
+   * results are always empty. Pinia is a global singleton and brings back the
+   * transient UI state from the last time you left — that's an architectural
+   * difference, not Vue2 behavior; must be explicitly reset to maintain 1:1 parity.
    *
-   * 精确切分:**只重置瞬态 UI**。刻意不动
-   *   - hfImportJobs / pullingModels:真在后台跑的任务,清了进度条就没了
-   *   - installedModels / providers / policy / blacklist / *Status:服务端数据
-   *     缓存,清了页面会先白一下再重填,视觉上反而比 Vue2 差
+   * Precise scope: **only reset transient UI**. Deliberately leave alone:
+   *   - hfImportJobs / pullingModels: tasks truly running in background; clearing
+   *     them clears the progress bar
+   *   - installedModels / providers / policy / blacklist / *Status: server-side
+   *     data caches; clearing them makes the page blank first then re-fill,
+   *     visually worse than Vue2
    */
   function resetTransientUi() {
     activeSection.value = 'models'

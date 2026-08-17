@@ -7,7 +7,7 @@ import {
 
 const vm = (state: string) => ({ id: 'x', state } as KvmVM)
 
-describe('电源动作可用性派生(逐字对 Vue2 KVMFullPage.vue:665-700 的 computed)', () => {
+describe('power action availability derivatives (exactly matching Vue2 KVMFullPage.vue:665-700 computed)', () => {
   it('canPowerOn:stopped / crashed', () => {
     expect(canPowerOn(vm('stopped'))).toBe(true)
     expect(canPowerOn(vm('crashed'))).toBe(true)
@@ -15,7 +15,7 @@ describe('电源动作可用性派生(逐字对 Vue2 KVMFullPage.vue:665-700 的
     expect(canPowerOn(vm('paused'))).toBe(false)
     expect(canPowerOn(vm('missing'))).toBe(false)
   })
-  it('canShutDown:只有 running', () => {
+  it('canShutDown: only running', () => {
     expect(canShutDown(vm('running'))).toBe(true)
     expect(canShutDown(vm('paused'))).toBe(false)
   })
@@ -24,15 +24,15 @@ describe('电源动作可用性派生(逐字对 Vue2 KVMFullPage.vue:665-700 的
     expect(canRestart(vm('paused'))).toBe(true)
     expect(canRestart(vm('stopped'))).toBe(false)
   })
-  it('canPause:只有 running', () => {
+  it('canPause: only running', () => {
     expect(canPause(vm('running'))).toBe(true)
     expect(canPause(vm('suspended'))).toBe(false)
   })
-  it('canResume:只有 paused', () => {
+  it('canResume: only paused', () => {
     expect(canResume(vm('paused'))).toBe(true)
     expect(canResume(vm('suspended'))).toBe(false)
   })
-  it('canWakeUp:只有 suspended', () => {
+  it('canWakeUp: only suspended', () => {
     expect(canWakeUp(vm('suspended'))).toBe(true)
     expect(canWakeUp(vm('paused'))).toBe(false)
   })
@@ -47,7 +47,7 @@ describe('电源动作可用性派生(逐字对 Vue2 KVMFullPage.vue:665-700 的
     expect(canEditSettings(vm('crashed'))).toBe(true)
     expect(canEditSettings(vm('running'))).toBe(false)
   })
-  it('全部派生对 null 一律 false,不抛', () => {
+  it('all derivatives return false for null, no throw', () => {
     for (const f of [canPowerOn, canShutDown, canRestart, canPause, canResume, canWakeUp, canDelete, canEditSettings]) {
       expect(f(null)).toBe(false)
       expect(f(undefined)).toBe(false)
@@ -56,49 +56,49 @@ describe('电源动作可用性派生(逐字对 Vue2 KVMFullPage.vue:665-700 的
 })
 
 describe('showDeleteDivider', () => {
-  it('crashed 时既能开机又能删 → 需要分隔线', () => {
+  it('when crashed, both can power on and can delete → need divider', () => {
     expect(showDeleteDivider(vm('crashed'))).toBe(true)
   })
-  it('stopped 时也是既能开机又能删 → 需要分隔线', () => {
+  it('when stopped, also both can power on and can delete → need divider', () => {
     expect(showDeleteDivider(vm('stopped'))).toBe(true)
   })
-  it('missing 时只能删、没有任何电源项 → 不要分隔线', () => {
+  it('when missing, only can delete, no power actions → don\'t need divider', () => {
     expect(showDeleteDivider(vm('missing'))).toBe(false)
   })
-  it('running 时不能删 → 不要分隔线', () => {
+  it('when running, cannot delete → don\'t need divider', () => {
     expect(showDeleteDivider(vm('running'))).toBe(false)
   })
-  it('null 不抛', () => {
+  it('null doesn\'t throw', () => {
     expect(showDeleteDivider(null)).toBe(false)
   })
 })
 
 describe('stateLabelKey', () => {
-  it('五个已知状态映射到 i18n key', () => {
+  it('five known states map to i18n keys', () => {
     expect(stateLabelKey('running')).toBe('kvmStateRunning')
     expect(stateLabelKey('stopped')).toBe('kvmStateStopped')
     expect(stateLabelKey('paused')).toBe('kvmStatePaused')
     expect(stateLabelKey('suspended')).toBe('kvmStateSuspended')
     expect(stateLabelKey('error')).toBe('kvmStateError')
   })
-  it('未知状态原样返回(照 Vue2:crashed/missing 没有映射,直接显示原文)', () => {
+  it('unknown states return as-is (following Vue2: crashed/missing have no mapping, display original text directly)', () => {
     expect(stateLabelKey('crashed')).toBe('crashed')
     expect(stateLabelKey('missing')).toBe('missing')
     expect(stateLabelKey('')).toBe('')
   })
 })
 
-describe('isWindowsGuest(对 Vue2 KVMFullPage.vue:711-714 的 computed)', () => {
-  it('os 含 win(大小写不敏感)→ true', () => {
+describe('isWindowsGuest (matching Vue2 KVMFullPage.vue:711-714 computed)', () => {
+  it('os contains win (case-insensitive) → true', () => {
     expect(isWindowsGuest({ os: 'Windows 10' } as KvmVM)).toBe(true)
     expect(isWindowsGuest({ os: 'WIN11' } as KvmVM)).toBe(true)
     expect(isWindowsGuest({ os: 'windows-server' } as KvmVM)).toBe(true)
   })
-  it('os 不含 win → false', () => {
+  it('os doesn\'t contain win → false', () => {
     expect(isWindowsGuest({ os: 'linux' } as KvmVM)).toBe(false)
     expect(isWindowsGuest({ os: 'Ubuntu' } as KvmVM)).toBe(false)
   })
-  it('null/undefined → false,不抛', () => {
+  it('null/undefined → false, doesn\'t throw', () => {
     expect(isWindowsGuest(null)).toBe(false)
     expect(isWindowsGuest(undefined)).toBe(false)
   })

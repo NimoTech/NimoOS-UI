@@ -1,66 +1,67 @@
 <!--
-  SP8-P4 Task 8 —— 1:1 移植自 Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerModal.vue`
-  (216 行)。新增/编辑表单弹窗,含快速粘贴解析与 headers/env 的 KV 编辑器。
+  SP8-P4 Task 8 — Ported from Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerModal.vue`
+  (216 lines). Add/edit form modal with quick-paste parsing and headers/env KV editor.
 
-  ===== 接口偏离(协调者裁定 3,已授权)=====
-  Vue2 是 `v-if="modalOpen"`(每次打开重新创建实例,`data()` 天然只跑一次)+ `@close`
-  事件。本仓照 `../skills/AddSkillModal.vue` 先例改成 `v-model:open` 常挂(组件实例
-  在整个设置页生命周期里只创建一次),并新增 `serverError` prop 承载保存失败的行内
-  报错(Vue2 把保存失败塞进 toast,偏离 D5 要求改行内,先例 `.sk-field-err` /
-  `.chan-field-err`,见下方 grep 证据)。
-  组件实例常驻带来的后果:Vue2 靠“重新创建实例”天然获得“每次打开都是干净表单”,本仓
-  必须显式在 `watch(open)` 里从当前 `props.server` 重新派生所有字段——这不只是“复位
-  成空表单”(AddSkillModal 的做法,因为它没有“编辑已有数据”这个场景),而是“新增态
-  复位成空、编辑态复位成该服务器的当前值”,因为持久实例可能被父组件先后用于编辑不同
-  的服务器。watch(open) 的 true 分支统一处理这两种情况。
+  ===== Interface divergence (coordinator ruling 3, authorized) =====
+  Vue2 uses `v-if=”modalOpen”` (recreates instance each open, `data()` runs once) + `@close`
+  event. This repo follows `../skills/AddSkillModal.vue` pattern, using `v-model:open`
+  (component instance created once for entire settings page), and adds `serverError` prop
+  for inline error display (Vue2 puts save errors in toast, divergence D5 requires inline,
+  following `.sk-field-err` / `.chan-field-err` pattern).
+  Persistent instance consequence: Vue2 gets clean form on each open via recreation; this repo
+  must explicitly re-derive all fields in `watch(open)` from current `props.server` — not just
+  “reset to empty” (AddSkillModal's approach, lacking edit scenario), but “clear on add,
+  restore to server's values on edit”, since persistent instance may be used for different
+  servers by parent. watch(open) true branch handles both cases.
 
-  ===== 偏离 D1(公共约束 §3 第 1 条,强制)=====
-  `parsePaste()`:共享包 `service.ai.parseMCPCommand` 已 `return res.data`
-  (`NimoOS-Service/src/ai.ts`),后端 `mcp.go:137` 是裸对象 `200`。Vue2 `:166` 的
-  `const p = (resp && resp.data) || {}` 在本仓恒解出 `{}`——快速粘贴会永远静默填不进
-  任何字段,且不报错(`{}` 落进各字段的 `|| ''`/`|| []` 兜底,界面看起来“什么都没
-  发生”)。本仓直接把 `await service.ai.parseMCPCommand(cmd)` 的返回值当 `McpParsed`
-  用,不再多剥一层 `.data`。
+  ===== Divergence D1 (public constraint §3.1, mandatory) =====
+  `parsePaste()`: shared package `service.ai.parseMCPCommand` already `return res.data`
+  (`NimoOS-Service/src/ai.ts`), backend `mcp.go:137` is bare object `200`. Vue2 line 166's
+  `const p = (resp && resp.data) || {}` always resolves to `{}` here — quick-paste silently
+  fails to fill any fields, no error (`{}` falls through to field defaults `|| ''`/`|| []`,
+  appears “nothing happened”). This repo uses `await service.ai.parseMCPCommand(cmd)` return
+  directly as `McpParsed`, no extra `.data` layer.
 
-  ===== 偏离 D5(公共约束 §3 第 5 条)=====
-  `pasteErr` 不再读 Vue2 `:182` 的 `e.response.data.message`(后端英文原文,界面永不
-  回显原文的硬约束),改用 `util/mcpErrorKey.ts`(T3)的 `parseCommandErrorKey(e)` 映射
-  成 i18n 键,`t()` 出当前语言的本地化文案再赋给 `pasteErr`。
+  ===== Divergence D5 (public constraint §3.5) =====
+  `pasteErr` no longer reads Vue2 line 182's `e.response.data.message` (backend English text,
+  hard rule against displaying raw backend text), uses `util/mcpErrorKey.ts` (T3)
+  `parseCommandErrorKey(e)` to map to i18n key, `t()` produces localized text.
 
-  ===== N1(公共约束 §3.5 第 1 条,照抄不改,已确认照抄)=====
-  Vue2 `valid`(`:141-146`)要求名称非空,后端 `validateAndClean`(`mcp.go:273-289`)
-  对 `name` 零校验。本仓 `valid` 逐字照抄这条(见下方 computed),**不新增任何前置
-  校验,也不删除这条**——判据见设计文档 §6 决策 N1:这不是“前端比后端严格”那类需要
-  改的东西,是纯 UI 级要求(无名服务器在列表里就是一条无法辨识的空白条目),不涉及
-  任何数据转换。
+  ===== N1 (public constraint §3.5.1, follow exactly, confirmed) =====
+  Vue2 `valid` (lines 141-146) requires non-empty name; backend `validateAndClean`
+  (`mcp.go:273-289`) has zero validation. This repo copies exactly (see computed below),
+  **no new validation, no deletion** — design doc §6 decision N1: not "frontend stricter than
+  backend” issue, pure UI requirement (unnamed server = unidentifiable blank list entry),
+  no data transformation involved.
 
-  ===== N2(公共约束 §3.5 第 2 条,照抄不改,已确认照抄)=====
-  `parsePaste()` 的 non-stdio 分支(`p.transport !== 'stdio'`)**不清空 `headers`**——
-  对齐 Vue2 `:174-179` 的 else 分支只清 `command`/`argsText`/`env`,不动 `headers`。
-  stdio 分支(`:168-173`)才清 `headers`(因为 headers 只属于 http/sse)。这不是遗漏的
-  不对称,是有意设计:解析成 http/sse 时保留用户已经手填的请求头是正确行为。
+  ===== N2 (public constraint §3.5.2, follow exactly, confirmed) =====
+  `parsePaste()` non-stdio branch (`p.transport !== 'stdio'`) **does not clear `headers`** —
+  aligns with Vue2 lines 174-179 else branch clearing only `command`/`argsText`/`env`,
+  leaving `headers` alone. stdio branch (lines 168-173) clears `headers` (headers only for
+  http/sse). Not oversight but by design: preserving manually-entered headers when parsing
+  to http/sse is correct.
 
-  ===== N3(公共约束 §3.5 第 3 条,照抄不改,已确认照抄)=====
-  编辑态无法清空已有的 headers/env——`headers`/`env` 两个 ref 无论新增态还是编辑态
-  都从空数组起步(Vue2 `data(){ headers: [], env: [] }`,`:132-133`,不读
-  `server.has_headers`/`has_env` 的值填回表单,因为后端从不下发明文,见
-  `types/mcpServer.ts` 对 `has_headers`/`has_env` 的注释)。`.mcp-kv-hint`
-  (`aiMcpSrvKvHint`,值「留空保持不变;填写则覆盖全部。」)在编辑态且原有
-  `has_headers`/`has_env` 为真时显示,明示这个语义——对应后端 `applyReq`
-  (`mcp.go:230-269`)只覆盖请求体里出现的字段。
+  ===== N3 (public constraint §3.5.3, follow exactly, confirmed) =====
+  Edit mode cannot clear existing headers/env — both `headers` and `env` refs start empty
+  (Vue2 `data(){ headers: [], env: [] }`, lines 132-133), never populate from
+  `server.has_headers`/`has_env` because backend never sends plaintext (see
+  `types/mcpServer.ts` comments on `has_headers`/`has_env`). `.mcp-kv-hint`
+  (`aiMcpSrvKvHint`, “leave empty to keep; fill to replace all”) shown on edit when
+  original `has_headers`/`has_env` true, expressing this semantic — matches backend
+  `applyReq` (`mcp.go:230-269`) only overwriting fields in request.
 
-  ===== 内联 style / 占位符,尺寸不是颜色,照抄(公共约束 §6)=====
-  - `style="font-family: var(--font-mono); font-size: 12.5px"`(快速粘贴输入框
-    `:14`、URL 输入框 `:42`、命令输入框 `:65`)
-  - `style="grid-template-columns: repeat(3, 1fr)"`(传输三选一 `:31`)
-  - `argsText` 的 placeholder 用 `&#10;` 换行(`:73`),逐字照抄
+  ===== Inline style / placeholder dimensions not colors, copied as-is (public constraint §6) =====
+  - `style=”font-family: var(--font-mono); font-size: 12.5px”` (quick-paste input
+    line 14, URL input line 42, command input line 65)
+  - `style=”grid-template-columns: repeat(3, 1fr)”` (transport three-choice line 31)
+  - `argsText` placeholder uses `&#10;` line break (line 73), copied verbatim
 
-  ===== 零 <style> 块,用到的每个类均已存在(grep 证据见任务报告)=====
+  ===== No <style> block, all classes already exist (grep evidence in task report) =====
   `.sk-field*`/`.sk-trig-options`/`.sk-trig-option`/`.sk-btn`/`.sw`/`.save-note`/
-  `.sk-field-err`(`sk-shared.scss`)· `.mcp-quickadd-row`/`.mcp-quickadd-err`/
-  `.mcp-kv*`/`.mcp-args`(T1 `mcp-styles.scss`)。⚠️ `.mcp-quickadd`(Vue2 `:9`,本组件
-  也照抄这个类名挂在快速添加的 `.sk-field` 上)在 `mcp-styles.scss` 里本来就没有
-  对应规则——Vue2 原文如此,不为它补 CSS。
+  `.sk-field-err` (`sk-shared.scss`) · `.mcp-quickadd-row`/`.mcp-quickadd-err`/
+  `.mcp-kv*`/`.mcp-args` (T1 `mcp-styles.scss`). ⚠️ `.mcp-quickadd` (Vue2 line 9, this
+  component also copies this class name on quick-add `.sk-field`) has no matching rule in
+  `mcp-styles.scss` — Vue2 source is thus; not adding CSS for it.
 -->
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
@@ -73,7 +74,7 @@ import type { McpServer, McpParsed, McpServerFormPayload } from '../../../types/
 
 interface KvRow { k: string; v: string }
 
-// 接口偏离(裁定 3):新增 `server`(编辑态数据来源)与 `serverError`(行内报错)。
+// Interface divergence (ruling 3): adds `server` (edit mode data source) and `serverError` (inline error).
 const props = defineProps<{
   open: boolean
   server: McpServer | null
@@ -88,12 +89,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 对齐 Vue2 `computed: { isEdit() { return !!this.server } }`(:140)。
+// Aligns with Vue2 `computed: { isEdit() { return !!this.server } }` (line 140).
 const isEdit = computed(() => !!props.server)
 
 const modalTitle = computed(() => (isEdit.value ? t('aiMcpSrvEditTitle') : t('aiMcpSrvAdd')))
 
-// 对齐 Vue2 `data()`(:123-137)。表单字段一律组件本地 ref(公共约束 §5)。
+// Aligns with Vue2 `data()` (lines 123-137). Form fields are always component-local refs (public constraint §5).
 const name = ref('')
 const transport = ref('http')
 const url = ref('')
@@ -108,8 +109,8 @@ const parsing = ref(false)
 
 const nameInputEl = ref<HTMLInputElement | null>(null)
 
-// 对齐 Vue2 `computed: { valid() {...} } `(:141-146)。
-// N1(照抄不改):名称非空是后端没有的 UI 级要求,不许因此新增其它前置校验。
+// Aligns with Vue2 `computed: { valid() {...} }` (lines 141-146).
+// N1 (follow exactly): non-empty name is backend-lacking UI requirement, no additional pre-validation allowed.
 const valid = computed(() => {
   if (name.value.trim().length === 0) return false
   return transport.value === 'stdio'
@@ -117,18 +118,19 @@ const valid = computed(() => {
     : url.value.trim().length > 0
 })
 
-// 对齐 Vue2 `computed: { transports() {...} }`(:147-153)。name 字段(HTTP/SSE/STDIO)
-// 是字面量不是 i18n 键,与 Vue2 一致;desc 走 t()。
+// Aligns with Vue2 `computed: { transports() {...} }` (lines 147-153). name field (HTTP/SSE/STDIO)
+// is literal not i18n key, matching Vue2; desc uses t().
 const transports = computed(() => [
   { id: 'http', name: 'HTTP', descKey: 'aiMcpSrvTransportHttp' },
   { id: 'sse', name: 'SSE', descKey: 'aiMcpSrvTransportSse' },
   { id: 'stdio', name: 'STDIO', descKey: 'aiMcpSrvTransportStdio' },
 ])
 
-// 从当前 props.server 派生表单初值——新增态(server=null)全部清空,编辑态回填
-// 除 headers/env 外的字段(N3:headers/env 一律从空数组起步,不回填明文,因为
-// 后端从不下发)。见文件头「接口偏离」段:持久实例每次打开都要重新派生,不能只
-// 在组件创建时读一次 props.server(那是 Vue2 v-if 重建实例才能吃到的免费红利)。
+// Derive form initial values from current props.server — add mode (server=null) clears all,
+// edit mode refills except headers/env (N3: headers/env always start empty array, never refill
+// plaintext because backend never sends it). See file header "interface divergence" section:
+// persistent instance must re-derive each open, cannot read props.server only at creation
+// (Vue2's v-if recreation gets that for free).
 function resetForm() {
   const s = props.server
   name.value = s ? s.name : ''
@@ -144,11 +146,11 @@ function resetForm() {
   parsing.value = false
 }
 
-// 对齐 Vue2 `mounted(){ this.$nextTick(() => focus) }`(:155-157)。
-// 用 setTimeout(0) 而不是 nextTick——照 AddSkillModal.vue 头注释「reka 初始焦点
-// 实测结论」的先例:reka Dialog 的 FocusScope 自己的 mount-auto-focus 与本组件的
-// nextTick 是同一微任务级时序赛跑,宏任务级延迟才能稳定压过默认聚焦落到 SkModal
-// 的关闭按钮上,不是新引入的偏离,是沿用已验证过的既有写法。
+// Aligns with Vue2 `mounted(){ this.$nextTick(() => focus) }` (lines 155-157).
+// Uses setTimeout(0) not nextTick — follows AddSkillModal.vue header comment "reka initial focus
+// test finding": reka Dialog FocusScope mount-auto-focus and this component's nextTick race at
+// microtask level; macro-task delay needed to reliably override default focus on SkModal close
+// button, not new divergence but reusing verified existing pattern.
 watch(
   () => props.open,
   (v) => {
@@ -160,14 +162,14 @@ watch(
   { immediate: true },
 )
 
-// 对齐 Vue2 `methods: { parsePaste() {...} }`(:159-187)。
+// Aligns with Vue2 `methods: { parsePaste() {...} }` (lines 159-187).
 async function parsePaste() {
   const cmd = pasteCmd.value.trim()
   if (!cmd) return
   parsing.value = true
   pasteErr.value = ''
   try {
-    // 偏离 D1(见文件头):单层取数,不再多剥 `.data`。
+    // Divergence D1 (see file header): single-layer fetch, no extra `.data` layer.
     const p = await service.ai.parseMCPCommand(cmd) as McpParsed
     transport.value = p.transport || 'http'
     if (p.transport === 'stdio') {
@@ -177,7 +179,7 @@ async function parsePaste() {
       url.value = ''
       headers.value = []
     } else {
-      // N2(照抄不改,见文件头):non-stdio 分支不清 headers。
+      // N2 (follow exactly, see file header): non-stdio branch doesn't clear headers.
       url.value = p.url || ''
       command.value = ''
       argsText.value = ''
@@ -185,14 +187,14 @@ async function parsePaste() {
     }
     if (!name.value.trim() && p.suggested_name) name.value = p.suggested_name
   } catch (e) {
-    // 偏离 D5(见文件头):不回显后端原文,走 error_key 映射 + t()。
+    // Divergence D5 (see file header): no raw backend text, use error_key mapping + t().
     pasteErr.value = t(parseCommandErrorKey(e))
   } finally {
     parsing.value = false
   }
 }
 
-// 对齐 Vue2 `methods: { collect(rows) {...} }`(:188-195)。
+// Aligns with Vue2 `methods: { collect(rows) {...} }` (lines 188-195).
 function collect(rows: KvRow[]): Record<string, string> {
   const out: Record<string, string> = {}
   for (const r of rows) {
@@ -202,14 +204,14 @@ function collect(rows: KvRow[]): Record<string, string> {
   return out
 }
 
-// 对齐 Vue2 `methods: { parseArgs(text) {...} }`(:196-198)。
+// Aligns with Vue2 `methods: { parseArgs(text) {...} }` (lines 196-198).
 function parseArgs(text: string): string[] {
   return String(text || '').split('\n').map((s) => s.trim()).filter((s) => s.length > 0)
 }
 
-// 对齐 Vue2 `methods: { submit() {...} }`(:199-213)。
-// N3(照抄不改,见文件头):`if (!isEdit || Object.keys(x).length)` 逐字照抄——
-// 编辑态且 KV 为空时不带该字段,对应后端「只覆盖请求里出现的字段」。
+// Aligns with Vue2 `methods: { submit() {...} }` (lines 199-213).
+// N3 (follow exactly, see file header): `if (!isEdit || Object.keys(x).length)` copied verbatim —
+// edit mode with empty KV doesn't include field, matching backend "only overwrite fields in request".
 function submit() {
   if (!valid.value) return
   const payload: McpServerFormPayload = {
@@ -237,9 +239,9 @@ function onCancel() {
 
 <template>
   <SkModal :open="props.open" :title="modalTitle" @update:open="(v) => emit('update:open', v)">
-    <!-- 行内报错(接口偏离,裁定 3):Vue2 把保存失败塞进 toast,本仓改行内,
-         先例 `.sk-field-err`(AddSkillModal.vue:183)/`.chan-field-err`
-         (ChannelsSection.vue:449),同款「落在 body 顶部,先于所有字段」。 -->
+    <!-- Inline error (interface divergence, ruling 3): Vue2 puts save errors in toast, this repo uses inline,
+         following `.sk-field-err` (AddSkillModal.vue line 183) / `.chan-field-err`
+         (ChannelsSection.vue line 449), same pattern "appears at body top, before all fields". -->
     <p v-if="props.serverError" class="sk-field-err" role="alert">{{ props.serverError }}</p>
 
     <div v-if="!isEdit" class="sk-field mcp-quickadd">

@@ -1,6 +1,9 @@
-// WS 信令客户端。相对 Vue2 修两个 bug(spec §5):
-// 1) token 焊死在 URL —— 改为每次 connect() 现读现构 + 连前预刷新(WS 握手拿不到 401,只能事前防);
-// 2) 断线重连 _connect() 空参 no-op —— 改为重连走同一条完整 connect() 路径。
+// WS signaling client. Fixes two bugs vs Vue2 (spec §5):
+// 1) Token hardcoded in URL — changed to read-on-demand in each connect() +
+//    refresh before connecting (WS handshake cannot receive 401, must prevent
+//    upfront);
+// 2) Reconnect _connect() with no args was a no-op — changed to use the same
+//    full connect() path for reconnection.
 import type { ServerMessage } from './protocol'
 import { shouldRefreshBeforeDownload } from '../util/download'
 
@@ -17,7 +20,7 @@ export interface ServerConnectionDeps {
   onReconnectScheduled: () => void
 }
 
-const RECONNECT_DELAY_MS = 5000 // 对齐 Vue2 提示语「5 秒后重连」
+const RECONNECT_DELAY_MS = 5000 // align with Vue2 message "reconnect in 5 seconds"
 
 export class ServerConnection {
   private socket: WebSocket | null = null
@@ -32,9 +35,9 @@ export class ServerConnection {
     this.connecting = true
     try {
       if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
-      // 连前预刷新:判定复用 P2c 下载的 shouldRefreshBeforeDownload(同一判定不复制)
+      // Refresh before connect: reuse the check from P2c download shouldRefreshBeforeDownload (same check, no duplication)
       if (shouldRefreshBeforeDownload(this.deps.getExpiresAt(), this.deps.now())) {
-        try { await this.deps.refresh() } catch { return } // 刷新失败:共享包 onAuthFail 已跳登录
+        try { await this.deps.refresh() } catch { return } // refresh failed: shared package onAuthFail already redirects to login
       }
       if (this.destroyed) return
       const token = this.deps.getToken()
@@ -45,7 +48,7 @@ export class ServerConnection {
       ws.onopen = () => this.deps.onConnectionChange(true)
       ws.onmessage = (e) => this.handleMessage(e.data as string)
       ws.onclose = () => this.handleDisconnect()
-      ws.onerror = () => {} // close 事件随后触发,重连在 handleDisconnect
+      ws.onerror = () => {} // close event fires next, reconnect happens in handleDisconnect
       this.socket = ws
     } finally {
       this.connecting = false
@@ -83,9 +86,11 @@ export class ServerConnection {
     this.socket = null
   }
 
-  // 非永久断开(spec §5):pagehide 用,别用 destroy() —— pagehide 也在 bfcache 导航时触发,
-  // destroy() 的 destroyed 标记是永久的,会让 bfcache 恢复后的页面连不回来。
-  // 不设 destroyed;既有的 visibilitychange → connect() 路径会在页面恢复时自然复活连接(同 Vue2 _disconnect())。
+  // Non-permanent disconnect (spec §5): for pagehide, not destroy() — pagehide
+  // fires on bfcache navigation too, and destroy()'s destroyed flag is permanent,
+  // which would break the page after bfcache restore. Do not set destroyed;
+  // existing visibilitychange → connect() path naturally revives when page
+  // restores (same as Vue2 _disconnect()).
   suspend(): void {
     if (!this.socket) return
     this.send({ type: 'disconnect' })

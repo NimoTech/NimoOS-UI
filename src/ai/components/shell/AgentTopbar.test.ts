@@ -16,8 +16,8 @@ const i18n = createI18n({
     zh_cn: {
       aiBack: '返回',
       aiNewConversation: '新对话',
-      // SP8-P1c2 Task 9 —— AI-rename 按钮 tooltip + ModelPicker(真实挂载,非
-      // stub)所需的全部文案。
+      // SP8-P1c2 Task 9 — all copy needed for the AI-rename button tooltip and the
+      // ModelPicker (mounted for real, not stubbed).
       aiRename: 'AI 重命名',
       aiLocalOllama: '本地 Ollama',
       aiCloudModels: '云端',
@@ -41,7 +41,7 @@ describe('AgentTopbar', () => {
     vi.useRealTimers()
   })
 
-  it('标题输入防抖 500ms 后 flush,emit update-title(trim 过的值)', async () => {
+  it('title input debounces for 500ms then flushes, emitting update-title with the trimmed value', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', storedTitle: '旧标题' },
       global: { plugins: [i18n] },
@@ -56,7 +56,7 @@ describe('AgentTopbar', () => {
     expect(w.emitted('update-title')?.[0]).toEqual(['新标题'])
   })
 
-  it('blur 时立即 flush(不等防抖),空值 blur 则还原为 props.storedTitle', async () => {
+  it('blur flushes immediately without waiting for the debounce, and blurring with an empty value restores props.storedTitle', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', storedTitle: '旧标题' },
       global: { plugins: [i18n] },
@@ -79,7 +79,7 @@ describe('AgentTopbar', () => {
     expect(w.emitted('update-title')?.length).toBe(1)
   })
 
-  it('切换 sessionId 时重置本地标题为新 session 的 storedTitle', async () => {
+  it('switching sessionId resets the local title to the new session storedTitle', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', storedTitle: '会话一标题' },
       global: { plugins: [i18n] },
@@ -88,7 +88,7 @@ describe('AgentTopbar', () => {
     expect((w.find('.topbar-title-input').element as HTMLInputElement).value).toBe('会话二标题')
   })
 
-  it('主题切换按钮 emit toggle-theme;左侧面板按钮 emit toggle-left', async () => {
+  it('theme toggle button emits toggle-theme; left panel button emits toggle-left', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', theme: 'light' },
       global: { plugins: [i18n] },
@@ -103,7 +103,7 @@ describe('AgentTopbar', () => {
     expect(w.emitted('toggle-theme')).toBeTruthy()
   })
 
-  it('goHome:有历史且不在首页时走 router.push', async () => {
+  it('goHome: uses router.push when there is history and not on the home page', async () => {
     const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(2)
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
@@ -114,7 +114,7 @@ describe('AgentTopbar', () => {
     historySpy.mockRestore()
   })
 
-  it('SP8-P1c2 Task 9:ModelPicker 与 AI 改名按钮已回填(占位注释消失)', () => {
+  it('SP8-P1c2 Task 9: ModelPicker and the AI-rename button are filled in (placeholder comment gone)', () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },
@@ -127,7 +127,7 @@ describe('AgentTopbar', () => {
     expect(w.findAll('.icon-btn')).toHaveLength(5)
   })
 
-  it('SP8-P1c2:右侧面板开关按钮 emit toggle-right,data-active 反映 !rightCollapsed(Vue2 shell/AgentTopbar.vue:43-45)', async () => {
+  it('SP8-P1c2: right panel toggle button emits toggle-right, data-active reflects !rightCollapsed (Vue2 shell/AgentTopbar.vue:43-45)', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', rightCollapsed: false },
       global: { plugins: [i18n] },
@@ -144,7 +144,7 @@ describe('AgentTopbar', () => {
     expect(w.findAll('.icon-btn')[4].attributes('data-active')).toBe('false')
   })
 
-  it('SP8-P1c2 Task 8:ThinkingBar 挂在第二行,props 从 thinking 拆开传入(Vue2 shell/AgentTopbar.vue:47-54)', () => {
+  it('SP8-P1c2 Task 8: ThinkingBar is mounted on the second row, its props are destructured from thinking (Vue2 shell/AgentTopbar.vue:47-54)', () => {
     const w = mount(AgentTopbar, {
       props: {
         sessionId: 's1',
@@ -162,7 +162,7 @@ describe('AgentTopbar', () => {
     })
   })
 
-  it('SP8-P1c2 Task 8:ThinkingBar 的 update:enabled/update:level 被重映射成 thinking-enabled/thinking-level 往上抛', async () => {
+  it('SP8-P1c2 Task 8: ThinkingBar update:enabled/update:level are remapped to thinking-enabled/thinking-level and re-emitted upward', async () => {
     const w = mount(AgentTopbar, {
       props: {
         sessionId: 's1',
@@ -180,7 +180,7 @@ describe('AgentTopbar', () => {
     expect(w.emitted('update:level')).toBeUndefined()
   })
 
-  it('SP8-P1c2 Task 8:未传 thinking prop 时使用默认值(enabled=true, level=medium, supportsThinking=false)', () => {
+  it('SP8-P1c2 Task 8: uses default values when the thinking prop is not passed (enabled=true, level=medium, supportsThinking=false)', () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },
@@ -194,7 +194,7 @@ describe('AgentTopbar', () => {
     })
   })
 
-  it('SP8-P1c2 Task 9:ModelPicker 拿到 availableModels/selectedModel,select/open-settings 转发成 select-model/open-settings', async () => {
+  it('SP8-P1c2 Task 9: ModelPicker receives availableModels/selectedModel, select/open-settings are forwarded as select-model/open-settings', async () => {
     const models = [{ key: 'local:a', source: 'local' as const, displayName: 'A' }]
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', availableModels: models, selectedModel: 'local:a' },
@@ -209,7 +209,7 @@ describe('AgentTopbar', () => {
     expect(w.emitted('open-settings')).toHaveLength(1)
   })
 
-  it('SP8-P1c2 Task 9:点 sparkle emit regenerate-title;本会话正在重生成(前台或后台)时禁用,标题输入框仅前台重生成时禁用', async () => {
+  it('SP8-P1c2 Task 9: clicking sparkle emits regenerate-title; disabled while this session is regenerating (foreground or background), the title input is disabled only for foreground regeneration', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1', storedTitle: '旧标题' },
       global: { plugins: [i18n] },
@@ -236,14 +236,14 @@ describe('AgentTopbar', () => {
     expect(w.find('.topbar-title-input').attributes('disabled')).toBeUndefined()
   })
 
-  it('F1 修复:sessionId 为数值型会话 id 时(经 String() 传入),isAnyRegenerating/isExplicitRegenerating 仍需按值归一后比较激活(不因 42 !== "42" 而失效)', async () => {
+  it('F1 fix: when sessionId is a numeric session id (passed through String()), isAnyRegenerating/isExplicitRegenerating must still normalize values before comparing activation (must not fail just because 42 !== "42")', async () => {
     const w = mount(AgentTopbar, {
       props: {
         sessionId: String(42),
         storedTitle: '旧标题',
-        // regeneratingTitleFor.id 保留原生类型(数值),与 store 一致——AgentPage
-        // 只对传给 AgentTopbar 的 sessionId 做了 String() 转换,regeneratingTitleFor
-        // 本身原样透传,两侧类型不对称正是 F1 要修的坑。
+        // regeneratingTitleFor.id keeps its native type (number), matching the store — AgentPage
+        // only applies String() to the sessionId passed to AgentTopbar; regeneratingTitleFor
+        // itself is passed through as-is, and this type asymmetry is exactly the pitfall F1 fixes.
         regeneratingTitleFor: { id: 42, background: false },
       },
       global: { plugins: [i18n] },
@@ -252,7 +252,7 @@ describe('AgentTopbar', () => {
     expect(w.find('.topbar-title-input').attributes('disabled')).toBeDefined()
   })
 
-  it('SP8-P1c2 Task 9:标题输入框获得焦点时 sparkle 亦禁用(Vue2 shell/AgentTopbar.vue:24 isFocused)', async () => {
+  it('SP8-P1c2 Task 9: sparkle is also disabled while the title input has focus (Vue2 shell/AgentTopbar.vue:24 isFocused)', async () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },

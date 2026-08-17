@@ -1,21 +1,24 @@
-// SP8-P5b Task 3 —— K15:`loadAllJobs` / `loadIndexedFiles` / `loadDistillJobs`
-// 三个 action 各自的 store 实例局部 epoch 过期守卫（异步过期守卫纪律第 6 次命中）。
+// SP8-P5b Task 3 —— K15: `loadAllJobs` / `loadIndexedFiles` / `loadDistillJobs`
+// three actions each with store instance-local epoch stale guard (async stale guard
+// discipline sixth hit).
 //
-// 本文件只测「交错路径」本身：先发后至 / 先发先至 两种到达顺序下守卫是否正确
-// 生效。三个 action 各自的正常行为（单桶归位、N4 按 filter 只刷对应桶等）已经
-// 在 `knowledgeStore.parser.test.ts` / `knowledgeStore.notesWiki.test.ts` 里覆盖
-// 过，这里不重复。
+// This file only tests "interleaving paths" themselves: whether guard correctly works
+// under both arrival orders (earlier-arrives-later / earlier-arrives-first). Each
+// action's normal behavior (single bucket reset, N4 refresh only corresponding bucket
+// per filter, etc.) already covered in `knowledgeStore.parser.test.ts` /
+// `knowledgeStore.notesWiki.test.ts`, no repeat here.
 //
-// mock 形状来源（全部回 `.superpowers/sdd/p5b-fixtures/`，禁手编，见治理 §4）：
+// Mock shapes sourced (all from `.superpowers/sdd/p5b-fixtures/`, no hand-editing, see
+// governance §4):
 //   - `ai.parserJobs` → `jobs-pending.json` / `jobs-running.json` / `jobs-failed.json`
-//     的原样 snake_case（`service.ai.parser*` 零转换，§4.1）。
+//     verbatim snake_case (`service.ai.parser*` zero transformation, §4.1).
 //   - `ai.parserFiles` → `files-default.json` / `files-mime-prefix-legacy.json` /
-//     `files-sort-size-asc.json` 的原样 snake_case。
-//   - `notes.listDistillJobs` / `notes.getDistillStatus` → 队列本机为空
-//     （`distill-jobs.json`/`distill-status.json` 实测都是空），行形状按治理
-//     §4.2 表格右列（包已归一化的 camelCase：`filePath`/`lastError`/…）与
-//     `knowledgeStore.notesWiki.test.ts` 里已有的 `JOBS()` 写法同一模具（README
-//     「未实测·源码推定」表登记过的形状，非手编）。
+//     `files-sort-size-asc.json` verbatim snake_case.
+//   - `notes.listDistillJobs` / `notes.getDistillStatus` → queue empty on this machine
+//     (`distill-jobs.json`/`distill-status.json` live-test both empty), row shape per
+//     governance §4.2 table right column (package-normalized camelCase: `filePath`/`lastError`/…)
+//     same pattern as `JOBS()` in `knowledgeStore.notesWiki.test.ts` (shape in README
+//     "untested·source inferred" table, not hand-edited).
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
@@ -33,7 +36,7 @@ vi.mock('../../../stores/toast', () => ({ useToast: () => ({ show: toastShow }) 
 
 import { useKnowledgeStore } from './knowledgeStore'
 
-/** 可控 deferred promise —— 交错路径测试的标准工具（治理 §9「异步断言」）。 */
+/** Controllable deferred promise —— standard tool for interleaving path tests (governance §9 "async assertions"). */
 function deferred<T>() {
   let resolve!: (v: T) => void
   let reject!: (e: unknown) => void
@@ -50,16 +53,17 @@ beforeEach(() => {
 })
 
 // ══════════════════════════════════════════════════════════════════════
-// loadAllJobs —— 竞态实证:QueueView 10 秒轮询 + `setScope('index')` 手动
-// 触发,两路并存。行内容取自 `jobs-pending.json`（同一份真实响应体里的
-// 第 0/1 行,分别当"新鲜"/"过期"两次调用的 pending 桶用,字段逐字未改）与
-// `jobs-running.json`（唯一一行,两次调用共用不影响判别力,判别力全部落在
-// pending 桶）。failed 桶本机实测为空（`jobs-failed.json`），POISON_FAILED_ROW
-// 借用 `jobs-pending.json` 的 `jobs[2]`（id 346）整行照抄当判别用假行（见下方
-// 常量注释，修复轮 1 M-2）。
+// loadAllJobs —— race evidence: QueueView 10-second polling + `setScope('index')`
+// manual trigger, two paths coexist. Row content from `jobs-pending.json` (rows 0/1
+// from same real response body, used as pending bucket for "fresh"/"stale" two calls,
+// fields unchanged exactly) and `jobs-running.json` (single row, shared by both calls
+// no impact on discrimination, all discrimination rests on pending bucket). Failed
+// bucket empty on this machine (`jobs-failed.json`), POISON_FAILED_ROW borrows row
+// `jobs[2]` (id 346) from `jobs-pending.json` copied entirely as stale marker (see
+// constant comment below, fix round 1 M-2).
 // ══════════════════════════════════════════════════════════════════════
-describe('loadAllJobs 过期守卫(K15)', () => {
-  // jobs-pending.json 的 jobs[0]（id 348）与 jobs[1]（id 347），逐字段照抄。
+describe('loadAllJobs stale guard (K15)', () => {
+  // jobs-pending.json jobs[0] (id 348) and jobs[1] (id 347), copied field-for-field.
   const FRESH_PENDING_ROW = {
     id: 348,
     root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
@@ -88,7 +92,7 @@ describe('loadAllJobs 过期守卫(K15)', () => {
     picked_at: null,
     done_at: null,
   }
-  // jobs-running.json 的唯一一行。
+  // jobs-running.json single row.
   const RUNNING_ROW = {
     id: 10,
     root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
@@ -103,11 +107,11 @@ describe('loadAllJobs 过期守卫(K15)', () => {
     picked_at: 1784438018718,
     done_at: null,
   }
-  const EMPTY = { jobs: [] } // jobs-failed.json 原样
-  // 【修复轮 1,M-2】本机 failed 桶实测为空(`jobs-failed.json` = `{"jobs":[]}`），
-  // 取不到真实的 failed 行；用同一份 `jobs-pending.json` 的 `jobs[2]`（id 346，
-  // `op:"delete"`）整行照抄当 failed 桶的判别用假行 —— 字段形状仍是实测过的，
-  // 不是手编残缺对象（原来的 `{ id: 999 }` 已删）。
+  const EMPTY = { jobs: [] } // jobs-failed.json verbatim
+  // 【Fix round 1, M-2】This machine's failed bucket live-test empty (`jobs-failed.json` =
+  // `{"jobs":[]}`), can't get real failed row; use row `jobs[2]` (id 346, `op:"delete"`)
+  // from same `jobs-pending.json` copied entirely as stale marker for failed bucket ——
+  // field shape still live-tested, not hand-edited incomplete object (original `{ id: 999 }` removed).
   const POISON_FAILED_ROW = {
     id: 346,
     root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
@@ -123,7 +127,7 @@ describe('loadAllJobs 过期守卫(K15)', () => {
     done_at: null,
   }
 
-  it('交错:先发(轮询)后至,不覆盖后发(手动 setScope)已写入的三桶', async () => {
+  it('Interleaved: earlier (polling) arrives later, does not overwrite later (manual setScope) already written buckets', async () => {
     const d1p = deferred<{ jobs: unknown[] }>()
     const d1r = deferred<{ jobs: unknown[] }>()
     const d1f = deferred<{ jobs: unknown[] }>()
@@ -131,21 +135,21 @@ describe('loadAllJobs 过期守卫(K15)', () => {
     const d2r = deferred<{ jobs: unknown[] }>()
     const d2f = deferred<{ jobs: unknown[] }>()
     // Promise.all([loadJobs('pending'), loadJobs('running'), loadJobs('failed')])
-    // 三个子调用按数组字面量顺序同步发出 —— 每次 loadAllJobs() 调用对应连续
-    // 三次 mockImplementationOnce。
+    // three sub-calls issued synchronously in array literal order —— each loadAllJobs()
+    // call corresponds to three consecutive mockImplementationOnce.
     ai.parserJobs
-      .mockImplementationOnce(() => d1p.promise) // 第一发(轮询) pending
-      .mockImplementationOnce(() => d1r.promise) // 第一发 running
-      .mockImplementationOnce(() => d1f.promise) // 第一发 failed
-      .mockImplementationOnce(() => d2p.promise) // 第二发(手动) pending
-      .mockImplementationOnce(() => d2r.promise) // 第二发 running
-      .mockImplementationOnce(() => d2f.promise) // 第二发 failed
+      .mockImplementationOnce(() => d1p.promise) // first (polling) pending
+      .mockImplementationOnce(() => d1r.promise) // first running
+      .mockImplementationOnce(() => d1f.promise) // first failed
+      .mockImplementationOnce(() => d2p.promise) // second (manual) pending
+      .mockImplementationOnce(() => d2r.promise) // second running
+      .mockImplementationOnce(() => d2f.promise) // second failed
 
     const s = useKnowledgeStore()
-    const first = s.loadAllJobs() // 轮询那一路,先发出
-    const second = s.loadAllJobs() // setScope('index') 手动触发,后发出,应该赢
+    const first = s.loadAllJobs() // polling path, sent first
+    const second = s.loadAllJobs() // manual setScope('index') trigger, sent later, should win
 
-    // 后发先至:手动触发的这一路先落地。
+    // Later arrives first: manual trigger path lands first.
     d2p.resolve({ jobs: [FRESH_PENDING_ROW] })
     d2r.resolve({ jobs: [RUNNING_ROW] })
     d2f.resolve(EMPTY)
@@ -154,25 +158,25 @@ describe('loadAllJobs 过期守卫(K15)', () => {
     expect(s.jobs.running.map((j) => j.id)).toEqual([10])
     expect(s.jobs.failed).toEqual([])
 
-    // 先发后至:轮询那一路才落地，必须被整发丢弃，不许覆盖上面已经生效的结果。
+    // Earlier arrives later: polling path lands finally, must be entirely discarded, cannot overwrite results already in effect.
     d1p.resolve({ jobs: [STALE_PENDING_ROW] })
     d1r.resolve({ jobs: [] })
     d1f.resolve({ jobs: [POISON_FAILED_ROW] })
     await first
-    expect(s.jobs.pending.map((j) => j.id)).toEqual([348]) // 没被 347 覆盖
-    expect(s.jobs.running.map((j) => j.id)).toEqual([10]) // 没被清空
-    expect(s.jobs.failed).toEqual([]) // 没被 stale 的 346 号行污染
+    expect(s.jobs.pending.map((j) => j.id)).toEqual([348]) // not overwritten by 347
+    expect(s.jobs.running.map((j) => j.id)).toEqual([10]) // not cleared
+    expect(s.jobs.failed).toEqual([]) // not polluted by stale row 346
     expect(toastShow).not.toHaveBeenCalled()
   })
 
-  it('反向对照:非重叠调用(先发先落地再发下一次),两发都真实生效', async () => {
+  it('Reverse test: non-overlapping calls (earlier lands first then next), both truly take effect', async () => {
     ai.parserJobs.mockImplementation(async (p: { status: string }) => {
       if (p.status === 'pending') return { jobs: [FRESH_PENDING_ROW] }
       if (p.status === 'running') return { jobs: [RUNNING_ROW] }
       return EMPTY
     })
     const s = useKnowledgeStore()
-    await s.loadAllJobs() // 第一次调用，完全落地
+    await s.loadAllJobs() // first call, fully landed
     expect(s.jobs.pending.map((j) => j.id)).toEqual([348])
 
     ai.parserJobs.mockImplementation(async (p: { status: string }) => {
@@ -180,7 +184,7 @@ describe('loadAllJobs 过期守卫(K15)', () => {
       if (p.status === 'running') return EMPTY
       return { jobs: [POISON_FAILED_ROW] }
     })
-    await s.loadAllJobs() // 第二次调用，不与第一次重叠，理应正常生效
+    await s.loadAllJobs() // second call, non-overlapping with first, should take effect normally
     expect(s.jobs.pending.map((j) => j.id)).toEqual([347])
     expect(s.jobs.running).toEqual([])
     expect(s.jobs.failed.map((j) => j.id)).toEqual([346])
@@ -188,45 +192,47 @@ describe('loadAllJobs 过期守卫(K15)', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════════
-// loadIndexedFiles —— 竞态实证:`onPathPrefixInput`/`onMimePrefixInput` 每敲
-// 一键整发重载,无 debounce（N9，照抄不改，只修先发后至覆盖的正确性）。
-// 用 `files-default.json`（键入 "/DATA/tmp" 时的结果，8 个文件）模拟先发
-// （stale），`files-mime-prefix-legacy.json`（再敲一个字符后收窄到旧版
-// office mime 前缀，命中 0 个文件）模拟后发（fresh）—— 与蓝本叙事一致：
-// 键入越多字符，范围收得越窄。
+// loadIndexedFiles —— race evidence: `onPathPrefixInput`/`onMimePrefixInput` each
+// keystroke reloads entire request, no debounce (N9, copy exactly, only fix earlier-later
+// overwrite correctness).
+// Use `files-default.json` (result of typing "/DATA/tmp", 8 files) simulate earlier
+// (stale), `files-mime-prefix-legacy.json` (typing one more character narrows to legacy
+// office MIME prefix, hits 0 files) simulate later (fresh) —— consistent with blueprint
+// narrative: more characters typed, narrower range.
 // ══════════════════════════════════════════════════════════════════════
-describe('loadIndexedFiles 过期守卫(K15)', () => {
-  // files-default.json 原样（截取判别所需字段，逐字照抄）。
+describe('loadIndexedFiles stale guard (K15)', () => {
+  // files-default.json verbatim (excerpt needed fields, copied field-for-field).
   const STALE_FILES = [
     { file_id: '2685dfba774c87b77b9ca4af44e691f6', status: 'indexing' },
     { file_id: '05d732586959ea3f480b5feb4b0d17c8', status: 'ok' },
     { file_id: '4018267c2ec373cddb244ac220a06cc2', status: 'ok' },
   ]
   const STALE_TOTAL = 8
-  // files-mime-prefix-legacy.json 原样：{"total":0,...,"files":[]}
+  // files-mime-prefix-legacy.json verbatim: {"total":0,...,"files":[]}
   const FRESH_FILES: unknown[] = []
   const FRESH_TOTAL = 0
 
-  it('交错:先发(输入较短前缀)后至,不覆盖后发(输入更长前缀)的结果,loading 不提前归位', async () => {
+  it('Interleaved: earlier (shorter prefix) arrives later, does not overwrite later (longer prefix) result, loading not early reset', async () => {
     const d1 = deferred<{ files: unknown[]; total: number }>()
     const d2 = deferred<{ files: unknown[]; total: number }>()
     ai.parserFiles.mockImplementationOnce(() => d1.promise).mockImplementationOnce(() => d2.promise)
 
     const s = useKnowledgeStore()
-    const first = s.loadIndexedFiles() // 敲下 "/DATA" 触发的一发
-    const second = s.loadIndexedFiles() // 紧接着敲下更长前缀触发的一发，更新
+    const first = s.loadIndexedFiles() // trigger from typing "/DATA"
+    const second = s.loadIndexedFiles() // immediately typing longer prefix, later trigger
     expect(s.indexedFiles.loading).toBe(true)
 
-    // 先发(stale)先落地：不该提前把 loading 撤掉、不该把 files 写成它的结果，
-    // 否则用户会在过滤条已经显示更长前缀的情况下，先看到一帧"完成"的旧数据。
+    // Earlier (stale) lands first: should not prematurely clear loading, should not write
+    // files as its result, else user sees "complete" frame with old data while filter
+    // already shows longer prefix.
     d1.resolve({ files: STALE_FILES, total: STALE_TOTAL })
     await first
-    expect(s.indexedFiles.loading).toBe(true) // 没被提前归位
-    expect(s.indexedFiles.files).toEqual([]) // 没被写成 stale 数据（仍是初值）
+    expect(s.indexedFiles.loading).toBe(true) // not prematurely reset
+    expect(s.indexedFiles.files).toEqual([]) // not written to stale data (still initial)
     expect(s.indexedFiles.total).toBe(0)
     expect(toastShow).not.toHaveBeenCalled()
 
-    // 后发(fresh)落地：此时才真正归位 + 写数据。
+    // Later (fresh) lands: only now truly reset + write data.
     d2.resolve({ files: FRESH_FILES, total: FRESH_TOTAL })
     await second
     expect(s.indexedFiles.loading).toBe(false)
@@ -234,37 +240,37 @@ describe('loadIndexedFiles 过期守卫(K15)', () => {
     expect(s.indexedFiles.total).toBe(FRESH_TOTAL)
   })
 
-  // 【修复轮 1,I-1 补】评审变异 M8:只删 catch 分支里的
-  // `if (epoch !== indexedFilesEpoch) return`，`src/ai/knowledge/stores/` 52 例
-  // 全绿——因为原三组交错用例全走成功路径，catch 分支的守卫没有任何用例证明。
-  // 真实后果：过期的一发失败（请求被中止/后端瞬时 500），而最新一发已经成功
-  // 写入数据时，没有这条守卫会把 `s.error` 补写上去——正确数据之上又叠一条
-  // 错误横幅。本例专测这条路径。
-  it('交错:过期的一发失败,最新一发成功 → error 不被污染,loading 归位到成功值', async () => {
+  // 【Fix round 1, I-1 supplement】Review mutation M8: only delete `if (epoch !== indexedFilesEpoch) return`
+  // in catch branch, 52 tests in `src/ai/knowledge/stores/` still green —— because original
+  // three interleaving test groups all take success path, catch branch guard has no test proof.
+  // Real consequence: stale request fails (aborted / backend momentary 500), while latest
+  // already succeeded and written data, without this guard would additionally write `s.error` ——
+  // error banner stacked on top of correct data. This test specifically covers that path.
+  it('Interleaved: stale failure, latest success → error not polluted, loading reset to success value', async () => {
     const d1 = deferred<{ files: unknown[]; total: number }>()
     const d2 = deferred<{ files: unknown[]; total: number }>()
     ai.parserFiles.mockImplementationOnce(() => d1.promise).mockImplementationOnce(() => d2.promise)
 
     const s = useKnowledgeStore()
-    const first = s.loadIndexedFiles() // 过期的一发，最终会失败
-    const second = s.loadIndexedFiles() // 最新的一发，会成功
+    const first = s.loadIndexedFiles() // stale request, will eventually fail
+    const second = s.loadIndexedFiles() // latest request, will succeed
 
-    // 最新一发先成功落地。
+    // Latest succeeds first.
     d2.resolve({ files: FRESH_FILES, total: FRESH_TOTAL })
     await second
     expect(s.indexedFiles.error).toBe(null)
     expect(s.indexedFiles.files).toEqual(FRESH_FILES)
     expect(s.indexedFiles.loading).toBe(false)
 
-    // 过期的一发才失败落地：不许把 error 写上去，也不许再动 loading。
+    // Stale then fails: must not write error, must not touch loading again.
     d1.reject(new Error('boom'))
     await first
-    expect(s.indexedFiles.error).toBe(null) // 没被 stale 的失败污染
-    expect(s.indexedFiles.files).toEqual(FRESH_FILES) // 仍是最新一发的数据
-    expect(s.indexedFiles.loading).toBe(false) // 没被 stale 分支再动一次
+    expect(s.indexedFiles.error).toBe(null) // not polluted by stale failure
+    expect(s.indexedFiles.files).toEqual(FRESH_FILES) // still latest request data
+    expect(s.indexedFiles.loading).toBe(false) // not touched by stale branch again
   })
 
-  it('反向对照:非重叠调用(先发先落地再发下一次),两发都真实生效且各自归位 loading', async () => {
+  it('Reverse test: non-overlapping calls (earlier lands first then next), both truly take effect and each resets loading', async () => {
     ai.parserFiles.mockResolvedValueOnce({ files: STALE_FILES, total: STALE_TOTAL })
     const s = useKnowledgeStore()
     await s.loadIndexedFiles()
@@ -272,8 +278,8 @@ describe('loadIndexedFiles 过期守卫(K15)', () => {
     expect(s.indexedFiles.total).toBe(STALE_TOTAL)
     expect(s.indexedFiles.loading).toBe(false)
 
-    // files-sort-size-asc.json 原样（sort=size&order=asc，同样 8 个文件里的另
-    // 一个 3 行切片，与上面那组文件不同，用来证明第二发确实生效）。
+    // files-sort-size-asc.json verbatim (sort=size&order=asc, another 3-row slice from
+    // same 8 files, different from above group, to prove second call truly takes effect).
     const SECOND_FILES = [
       { file_id: '6e1be7c24c4cdb09e1bf1a8318e8ca27', status: 'indexing' },
       { file_id: 'ae3894193e56d181e90b23712f1e3081', status: 'indexing' },
@@ -288,25 +294,25 @@ describe('loadIndexedFiles 过期守卫(K15)', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════════
-// loadDistillJobs —— 竞态实证:10 秒轮询 + `setFilter(f)` + `setScope('distill')`
-// + `retryDistill`/`cancelDistill` 内部重载，四路并存；且按 filter 只刷对应
-// 桶（N4），串号会让 pending 的结果落进 failed 桶（或反过来，把 failed 桶
-// 已经刷新的最新结果被 stale 的 pending 请求带来的全量 counts/done/total
-// 覆盖掉）。
-// distill 队列本机为空（`distill-jobs.json`/`distill-status.json` 实测都是
-// 空），行内容按治理 §4.2 表格右列（包已归一化 camelCase）与既有
-// `knowledgeStore.notesWiki.test.ts` 的 `JOBS()` 写法同一模具（README 里
-// 「未实测·源码推定」登记过的形状）。
+// loadDistillJobs —— race evidence: 10-second polling + `setFilter(f)` + `setScope('distill')`
+// + internal reload in `retryDistill`/`cancelDistill`, four paths coexist; and per filter
+// only refresh corresponding bucket (N4), stale responses let pending results land in
+// failed bucket (or inverse: latest refresh results in failed bucket overwritten by full
+// counts/done/total from stale pending request).
+// Distill queue empty on this machine (`distill-jobs.json`/`distill-status.json` live-test
+// both empty), row content per governance §4.2 table right column (package-normalized camelCase)
+// same pattern as `JOBS()` in existing `knowledgeStore.notesWiki.test.ts` (README
+// "untested·source inferred" shape).
 // ══════════════════════════════════════════════════════════════════════
-describe('loadDistillJobs 过期守卫(K15)', () => {
-  it('交错:先发(pending pill)后至,不覆盖后发(failed pill)已写入的桶与全量 counts', async () => {
+describe('loadDistillJobs stale guard (K15)', () => {
+  it('Interleaved: earlier (pending pill) arrives later, does not overwrite later (failed pill) written bucket and full counts', async () => {
     const d1jobs = deferred<{ jobs: unknown[]; counts: Record<string, number> }>()
     const d1status = deferred<{ distilled: number }>()
     const d2jobs = deferred<{ jobs: unknown[]; counts: Record<string, number> }>()
     const d2status = deferred<{ distilled: number }>()
     notes.listDistillJobs
-      .mockImplementationOnce(() => d1jobs.promise) // 第一发：用户点了 pending pill
-      .mockImplementationOnce(() => d2jobs.promise) // 第二发：紧接着点了 failed pill
+      .mockImplementationOnce(() => d1jobs.promise) // first: user clicked pending pill
+      .mockImplementationOnce(() => d2jobs.promise) // second: immediately clicked failed pill
     notes.getDistillStatus
       .mockImplementationOnce(() => d1status.promise)
       .mockImplementationOnce(() => d2status.promise)
@@ -315,7 +321,7 @@ describe('loadDistillJobs 过期守卫(K15)', () => {
     const first = s.loadDistillJobs('pending')
     const second = s.loadDistillJobs('failed')
 
-    // 后发(failed pill)先落地。
+    // Later (failed pill) lands first.
     d2jobs.resolve({
       jobs: [{ filePath: '/f2', status: 'failed' }],
       counts: { pending: 9, running: 9, failed: 2 },
@@ -327,23 +333,23 @@ describe('loadDistillJobs 过期守卫(K15)', () => {
     expect(s.distillJobs.done).toBe(20)
     expect(s.distillJobs.total).toBe(1)
 
-    // 先发(pending pill)后落地：必须整发丢弃 —— 既不能往 pending 桶写入
-    // stale 数据,也不能用它的全量 counts/done/total 冲掉上面刚写入的最新值。
+    // Earlier (pending pill) lands later: must entirely discard —— cannot write stale
+    // data to pending bucket, cannot overwrite latest values just written with its full counts/done/total.
     d1jobs.resolve({
       jobs: [{ filePath: '/p1', status: 'pending' }],
       counts: { pending: 1, running: 0, failed: 0 },
     })
     d1status.resolve({ distilled: 1 })
     await first
-    expect(s.distillJobs.pending).toEqual([]) // stale 的 pending 桶没被写入
-    expect(s.distillJobs.failed.map((j) => j.filePath)).toEqual(['/f2']) // failed 桶没被冲掉
-    expect(s.distillJobs.counts).toEqual({ pending: 9, running: 9, failed: 2 }) // 全量计数没被 stale 覆盖
+    expect(s.distillJobs.pending).toEqual([]) // stale pending bucket not written
+    expect(s.distillJobs.failed.map((j) => j.filePath)).toEqual(['/f2']) // failed bucket not overwritten
+    expect(s.distillJobs.counts).toEqual({ pending: 9, running: 9, failed: 2 }) // full count not overwritten by stale
     expect(s.distillJobs.done).toBe(20)
     expect(s.distillJobs.total).toBe(1)
     expect(toastShow).not.toHaveBeenCalled()
   })
 
-  it('反向对照:非重叠调用(pill 依次点两次),两次都真实生效', async () => {
+  it('Reverse test: non-overlapping calls (pill clicked twice), both truly take effect', async () => {
     notes.listDistillJobs.mockResolvedValueOnce({
       jobs: [{ filePath: '/p1', status: 'pending' }],
       counts: { pending: 1, running: 0, failed: 0 },
@@ -361,7 +367,7 @@ describe('loadDistillJobs 过期守卫(K15)', () => {
     notes.getDistillStatus.mockResolvedValueOnce({ distilled: 4 })
     await s.loadDistillJobs('failed')
     expect(s.distillJobs.failed.map((j) => j.filePath)).toEqual(['/f1'])
-    expect(s.distillJobs.pending.map((j) => j.filePath)).toEqual(['/p1']) // N4：另一桶保留上次结果
+    expect(s.distillJobs.pending.map((j) => j.filePath)).toEqual(['/p1']) // N4: other bucket keeps last result
     expect(s.distillJobs.done).toBe(4)
   })
 })

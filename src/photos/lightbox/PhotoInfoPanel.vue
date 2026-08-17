@@ -1,22 +1,22 @@
 <script setup lang="ts">
-// EXIF/详情栏——移植自 Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue:74-149(<aside class="lb-info">)。
-// 纯展示组件:props { photo, visible },emits 无。
-// delta(见 task-7-brief.md):
-//   1) 删「交给 Nimo」/「Hand off to Nimo」按钮(Vue2 :84-87)——本组件不渲染任何 ask-nimo 交互。
-//   2) tags/scene/faces 在 P2 时间线路径恒为空 → 对应段落整体隐藏(v-if 挡在外层 div 上),保留结构以便后续接入真实数据后无需改模板。
+// EXIF / info panel — ported from Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue:74-149 (<aside class="lb-info">).
+// Pure display component: props { photo, visible }, no emits.
+// Delta (see task-7-brief.md):
+//   1) Removed "Hand off to Nimo" button (Vue2 :84-87) — this component does not render any ask-nimo interaction.
+//   2) tags/scene/faces are always empty on P2 timeline path → whole sections hidden (v-if on outer div), structure preserved for real data integration later without template changes.
 //
-// Task 15B(SP7-P5 两笔记账收口)人脸 chip 真头像 —— 前置事实纠正(task-15-brief.md):
-//   ① 后端没有 asset-scoped face-thumbnail 端点,全仓只有 person-scoped 的
-//      /v1/photos/persons/:id/face-thumbnail;② Vue2 灯箱本身也是首字母占位
-//      (PhotosLightbox.vue:128-129 的 `{{ f[0] }}`)——New-UI 此前(delta ② 的原描述)其实已经
-//      与 Vue2 1:1;③ 根因是 Photo.faces 只是人名字符串数组(assetToPhoto.ts:311/398),不带
-//      personId,且后端只在收藏列表接口填充这个字段。
-//   本任务做的是在不改后端前提下能做到的最好版本:用人名反查人物列表(usePhotosPeople)拿
-//   personId,唯一命中(resolvePersonByName)才用 PersonAvatar 显示真头像,否则保持首字母
-//   占位——这是超出 Vue2 的增强,登记为偏离;真正的正解(后端让 faces 带 personId,或新增
-//   asset-scoped 端点)记后端票,不在本任务范围。不加点击跳转(保持 Vue2 的非交互 chip)。
-//   顺带修正:占位首字母原来是裸 `f[0]`(未大写),改用 personInitial(f) 统一大写,对齐
-//   Vue2 peopleUtils.js 的 personInitial 语义。
+// Task 15B (SP7-P5 two ledger entries closing) face chip real avatars — factual correction up front (task-15-brief.md):
+//   ① Backend has no asset-scoped face-thumbnail endpoint, only person-scoped exists across the repo:
+//      /v1/photos/persons/:id/face-thumbnail; ② Vue2 lightbox itself also uses first-letter placeholder
+//      (PhotosLightbox.vue:128-129 `{{ f[0] }}`) — New-UI previously (original delta ② description) was already
+//      1:1 with Vue2; ③ root cause: Photo.faces is just name string array (assetToPhoto.ts:311/398), no
+//      personId, and backend only populates this field in favorites list endpoints.
+//   This task does the best version without backend changes: reverse-lookup person by name in person list (usePhotosPeople) to get
+//   personId, use PersonAvatar to show real avatar only on unique match (resolvePersonByName), otherwise keep first-letter
+//   placeholder — this enhancement exceeds Vue2, logged as deviation; true fix (backend adds personId to faces or new
+//   asset-scoped endpoint) tracked as backend ticket, outside this task scope. No click navigation added (keeps Vue2's non-interactive chip).
+//   Side fix: placeholder first letter was bare `f[0]` (not capitalized), now uses personInitial(f) for consistent uppercasing, aligns
+//   with Vue2 peopleUtils.js personInitial semantics.
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { copyText } from '../../files/util/clipboard'
@@ -30,7 +30,7 @@ const props = defineProps<{ photo: Photo | null; visible: boolean }>()
 
 const { t } = useI18n()
 
-// —— 相机/拍摄字段格式化(照 Vue2 :95-96 的 toFixed 规则) ——
+// —— Camera/shooting field formatting (per Vue2 :95-96 toFixed rules) ——
 const apertureLabel = computed(() => {
   const a = props.photo?.aperture
   if (a == null || a === '') return null
@@ -48,22 +48,22 @@ const mapSrc = computed(() => hasLocation.value ? osmEmbedSrc(props.photo!.latit
 const faces = computed(() => (props.photo?.faces as string[] | undefined) ?? [])
 const tags = computed(() => (props.photo?.tags as string[] | undefined) ?? [])
 
-// —— Task 15B:人脸 chip 真头像(见头部注释的前置事实纠正与登记的偏离) ——
+// —— Task 15B: face chip real avatars (see head comment factual corrections and logged deviations) ——
 const people = usePhotosPeople()
-// 只拉一次(store 的 peopleLoaded 标志天然去重):faces 非空且尚未加载过才拉。失败时
-// peopleLoaded 留 false(people.ts 内部约定),下次开图 watch 会再触发一次重试。
+// Fetch only once (store's peopleLoaded flag naturally deduplicates): only fetch if faces non-empty and not yet loaded. On failure
+// peopleLoaded stays false (internal convention in people.ts), next photo open watch will retry once.
 watch(
   faces,
   (list) => { if (list.length > 0 && !people.peopleLoaded) void people.fetchPeople() },
   { immediate: true },
 )
-// 人名 → 唯一匹配的人物(重名/无匹配都是 null,退回首字母占位)。与 faces 一起渲染,
-// 随 people.people 到位后自动重新求值。
+// Name → uniquely matched person (duplicates/no match are null, fall back to initial placeholder). Renders with faces,
+// auto re-evaluates when people.people arrives.
 const faceEntries = computed(() =>
   faces.value.map((f) => ({ name: f, person: resolvePersonByName(people.people, f) })),
 )
 
-// —— 复制文件路径 ——(HTTP 非安全上下文兜底走 src/files/util/clipboard.ts 既有 copyText)
+// —— Copy file path —— (HTTP insecure context falls back to existing copyText in src/files/util/clipboard.ts)
 const justCopied = ref(false)
 let copiedTimer: ReturnType<typeof setTimeout> | null = null
 async function onCopyPath(): Promise<void> {
@@ -75,14 +75,14 @@ async function onCopyPath(): Promise<void> {
     if (copiedTimer) clearTimeout(copiedTimer)
     copiedTimer = setTimeout(() => { justCopied.value = false; copiedTimer = null }, 2000)
   } catch {
-    // 两条兜底路径都失败——静默忽略,不打断详情栏展示(与 Vue2 行为一致,未做 toast)
+    // Both fallback paths failed — silently ignore, don't interrupt info panel display (matches Vue2 behavior, no toast)
   }
 }
 </script>
 
 <template>
   <aside v-if="visible && photo" class="info-panel scroll">
-    <!-- 图片:相机与拍摄 -->
+    <!-- Image: camera & capture -->
     <div v-if="!photo.isVideo" class="info-section">
       <div class="info-label">{{ t('photosInfoCameraCapture') }}</div>
       <div v-if="photo.camera" class="info-row" data-field="camera"><span class="k">{{ t('photosFieldCamera') }}</span><span class="v">{{ photo.camera }}</span></div>
@@ -94,7 +94,7 @@ async function onCopyPath(): Promise<void> {
       <div v-if="photo.size" class="info-row" data-field="file-size"><span class="k">{{ t('photosFieldFileSize') }}</span><span class="v">{{ photo.size }}</span></div>
     </div>
 
-    <!-- 视频:编码/帧率/码率/旋转 -->
+    <!-- Video: codec/framerate/bitrate/rotation -->
     <div v-if="photo.isVideo" class="info-section">
       <div class="info-label">{{ t('photosInfoVideo') }}</div>
       <div v-if="photo.duration" class="info-row" data-field="duration"><span class="k">{{ t('photosFieldDuration') }}</span><span class="v">{{ photo.duration }}</span></div>
@@ -107,7 +107,7 @@ async function onCopyPath(): Promise<void> {
       <div v-if="photo.size" class="info-row" data-field="file-size"><span class="k">{{ t('photosFieldFileSize') }}</span><span class="v">{{ photo.size }}</span></div>
     </div>
 
-    <!-- 位置:图片/视频共用 -->
+    <!-- Location: shared for image & video -->
     <div v-if="photo.place || photo.coords" class="info-section" data-section="location">
       <div class="info-label">{{ t('photosInfoLocation') }}</div>
       <div v-if="photo.place" class="info-row" data-field="place"><span class="k">{{ t('photosFieldPlace') }}</span><span class="v">{{ photo.place }}</span></div>
@@ -115,14 +115,14 @@ async function onCopyPath(): Promise<void> {
       <div v-if="hasLocation" class="map-mini">
         <iframe :src="mapSrc" title="map" loading="lazy"></iframe>
         <div class="map-pin"></div>
-        <!-- 自绘归属声明:OSM 自己那条页脚(Report a problem / Make a Donation /
-             Website and API terms)已被上下对称裁切挡掉(见 .map-mini iframe 的注释),
-             但 ODbL 要求保留署名,故在盒内右下补一条最小可读的 credit。 -->
+        <!-- OSM attribution statement: OSM's own footer (Report a problem / Make a Donation /
+             Website and API terms) is hidden by symmetric vertical crop (see .map-mini iframe comment),
+             but ODbL requires attribution preserved, so adding minimal readable credit in box lower right. -->
         <div class="map-credit">© OpenStreetMap</div>
       </div>
     </div>
 
-    <!-- 人物(P2 时间线路径 faces 多为空,恒隐藏本段;有数据时渲染 chip,不引入 face-thumbnail) -->
+    <!-- People (P2 timeline path faces mostly empty, section always hidden; renders chips when data exists, no face-thumbnail) -->
     <div v-if="faces.length > 0" class="info-section" data-section="people">
       <div class="info-label">{{ t('photosInfoPeople') }} · {{ faces.length }}</div>
       <div class="face-row">
@@ -140,7 +140,7 @@ async function onCopyPath(): Promise<void> {
       </div>
     </div>
 
-    <!-- Nimo 识别(P2 时间线路径 tags/scene 恒空,隐藏本段;保留结构等后续接入) -->
+    <!-- Nimo recognition (P2 timeline path tags/scene always empty, section hidden; structure preserved for future integration) -->
     <div v-if="tags.length > 0" class="info-section" data-section="nimo-sees">
       <div class="info-label">{{ t('photosInfoNimoSees') }}<template v-if="photo.scene"> · {{ photo.scene }}</template></div>
       <div class="tag-row">
@@ -148,7 +148,7 @@ async function onCopyPath(): Promise<void> {
       </div>
     </div>
 
-    <!-- 文件路径 + 复制 -->
+    <!-- File path + copy -->
     <div class="info-section">
       <div class="info-label">{{ t('photosInfoFile') }}</div>
       <div class="path-row">
@@ -186,13 +186,13 @@ async function onCopyPath(): Promise<void> {
 .info-row .v { color: var(--fg); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .map-mini { position: relative; border-radius: 10px; overflow: hidden; height: 140px; border: 1px solid var(--card-border); }
-/* 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的那条页脚文字
-   (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms)。
-   iframe 是跨域的,内部元素无法用 CSS 隐藏,只能靠外层裁切;实测在 328px 宽处那条页脚会
-   折成两行占约 40px,故裁 48px 留余量(更窄/更宽处行数只会更少)。
-   **上下对称裁切**:iframe 比盒子高 2×48px 并上移 48px,让地图中心仍落在盒子中心 ——
-   若只加高不上移,OSM 自己的标记会掉到 .map-pin 下方错位(已用无头浏览器截图自查过对位)。
-   代价:内嵌页右上角的 +/- 缩放钮也一并被裁掉,小地图不再可缩放(可接受,它是位置示意图)。 */
+/* User 2026-07-31 acceptance: remove OSM embedded page's own footer text
+   (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms).
+   iframe is cross-origin, internal elements can't be hidden by CSS, only crop from outside; measured at 328px wide that footer
+   wraps to two lines ~40px tall, so crop 48px with buffer (narrower/wider will use fewer lines).
+   **Symmetric vertical crop**: iframe is 2×48px taller than box and shifted up 48px, keeps map center in box center —
+   if only increased height without shift, OSM's own marker would drop below .map-pin misaligned (verified with headless browser screenshot).
+   Trade-off: +/- zoom buttons in embedded page's top right also cropped, mini map no longer zoomable (acceptable, it's position indicator). */
 .map-mini iframe {
   position: absolute; left: 0; width: 100%; border: none; display: block;
   top: -48px; height: calc(100% + 96px);
@@ -201,9 +201,9 @@ async function onCopyPath(): Promise<void> {
   position: absolute; right: 6px; bottom: 4px; z-index: 1;
   font-size: 9px; line-height: 1.2; letter-spacing: .01em;
   pointer-events: none;
-  /* theme-exception: 归属声明压在任意地图瓦片上(颜色不可预测),固定浅色 + 深色投影保可读,皮肤无关 */
+  /* theme-exception: attribution sits on any map tile (color unpredictable), fixed light color + dark shadow for readability, theme-independent */
   color: rgba(255, 255, 255, 0.72);
-  /* theme-exception: 同上,投影为固定暗色描边 */
+  /* theme-exception: same as above, shadow is fixed dark stroke */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
 .map-pin {
@@ -233,7 +233,7 @@ async function onCopyPath(): Promise<void> {
 }
 .copy-btn:hover { background: var(--chip-bg-hi); }
 
-/* 窄屏:桌面态右栏 → 底部浮层/全宽覆盖(独立浮层,不接 useSidebarDrawer——那是侧栏专用) */
+/* Narrow screens: desktop right panel → bottom float/full-width overlay (standalone float, not using useSidebarDrawer — that's sidebar-only) */
 @media (max-width: 768px) {
   .info-panel {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto;

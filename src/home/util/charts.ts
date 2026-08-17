@@ -1,6 +1,6 @@
 const H = 32
 
-// engine.js 66-72:0–100 序列 → polyline 点串
+// engine.js 66-72: 0–100 sequence → polyline points
 export function sparklinePoints(points: number[]): string {
   if (!points || points.length < 2) return ''
   const n = points.length
@@ -10,7 +10,7 @@ export function sparklinePoints(points: number[]): string {
     .join(' ')
 }
 
-// engine.js 87-88:速率序列按窗口峰值定标
+// engine.js 87-88: rate sequence scaled by window peak
 export function netChartPoints(arr: number[], max: number): string {
   if (!arr || arr.length < 2) return ''
   const m = max < 1 ? 1 : max
@@ -19,7 +19,7 @@ export function netChartPoints(arr: number[], max: number): string {
     .join(' ')
 }
 
-// engine.js 79-85:两序列峰值(≥1)
+// engine.js 79-85: peak of two sequences (≥1)
 export function netPeak(up: number[], down: number[]): number {
   let max = 1
   for (const v of up) if (v > max) max = v

@@ -29,16 +29,16 @@ const memoryStr = computed({
 
 const publishedPorts = computed(() => props.model.services.flatMap((s) => s.ports.map((p) => p.published)).filter(Boolean))
 
-// ── D5: command 逐 token 编辑 ──
+// ── D5: token-by-token command editing ──
 function addCmd() { svc.value.commandTokens.push(''); svc.value.commandDirty = true }
 function delCmd(i: number) { svc.value.commandTokens.splice(i, 1); svc.value.commandDirty = true }
 function setCmd(i: number, ev: Event) { svc.value.commandTokens[i] = (ev.target as HTMLInputElement).value; svc.value.commandDirty = true }
 
-// ── D5: 网络下拉,按 driver 分组,bridge/host/none 置顶 ──
+// ── D5: network dropdown, grouped by driver, bridge/host/none pinned to top ──
 const networkGroups = computed(() => {
   const groups = new Map<string, DockerNetwork[]>()
   for (const n of props.networks ?? []) {
-    if (NETWORK_MODE_VALUES.includes(n.name)) continue // 默认网络已固定置顶,不重复列出
+    if (NETWORK_MODE_VALUES.includes(n.name)) continue // default networks are already fixed at top, not listed again
     if (!groups.has(n.driver)) groups.set(n.driver, [])
     groups.get(n.driver)!.push(n)
   }
@@ -46,7 +46,7 @@ const networkGroups = computed(() => {
 })
 function onNetworkChange() { svc.value.networkDirty = true }
 
-// ── D5: stable tag 下拉,贴在 image 输入框旁 ──
+// ── D5: stable tag dropdown, placed next to image input ──
 const currentStableTag = computed(() => props.stableTags?.[svc.value.name] ?? null)
 function imageTagOf(image: string): string {
   const i = image.lastIndexOf(':')
@@ -172,7 +172,7 @@ const tagSelect = computed<string>({
         <button type="button" class="row-add" :class="{ on: showPreview }" data-test="tips-preview-btn" @click="showPreview = true">{{ t('appsSettingsTipsPreview') }}</button>
       </div>
       <textarea v-if="!showPreview" v-model="model.tipsCustom" class="set-input tips-area" rows="6" data-test="tips-input" />
-      <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown html:false,输出已转义 -->
+      <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown html:false, output is escaped -->
       <div v-else class="tips-preview" data-test="tips-preview" v-html="tipsHtml" />
     </section>
   </div>
@@ -204,11 +204,12 @@ const tagSelect = computed<string>({
   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
 }
 .set-input:focus { border-color: var(--accent); }
-/* 上面那条把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
- * 本文件有 5 个 <select class="set-input">:作者一旦给 <select> 指定背景,Chrome 就把它带到
- * 弹出列表上,而原生 option **不渲染 gradient**(退回浏览器默认白底),配上近白的 --fg 就是
- * 白底白字。根节点的 color-scheme: dark 救不了(作者背景优先)。`.set-input` 同时给文本框用,
- * 多这条后代规则对文本框无影响。守卫:styles/selectPopup.test.ts。 */
+/* The line above sets background to var(--chip-bg) — in dark theme it is a **semi-transparent white gradient**.
+ * This file has 5 <select class="set-input">: once the author specifies a background for <select>, Chrome applies it to
+ * the dropdown list, but native option **does not render gradient** (falls back to browser default white background),
+ * paired with near-white --fg results in white text on white. The root node's color-scheme: dark cannot save it
+ * (author background takes priority). `.set-input` is also used for text inputs, so this extra descendant rule has
+ * no effect on text inputs. Guard: styles/selectPopup.test.ts. */
 .set-input option,
 .set-input optgroup {
   background-color: var(--set-option-bg);

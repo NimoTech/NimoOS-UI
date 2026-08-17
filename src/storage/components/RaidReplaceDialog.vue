@@ -5,17 +5,20 @@ import Dialog from '../../components/ui/Dialog.vue'
 import { fmtSize } from '../../home/util/format'
 import { filterReplacementCandidates, type ReplaceTarget, type CandidateDiskLike } from '../util/raidReplace'
 
-// 迁移自 NimoOS-UI/src/components/Storage/raid/RaidReplaceDisk.vue(2026-08-11 serial 语义版)。
-// 与首版(按 path 传盘)的差异:
-// - 故障盘展示 target.label(在位 faulty 盘是实时 path,拔掉的盘是 serial —— 它的
-//   缓存路径可能已属于另一块物理盘,绝不当身份展示);请求体由父视图从 target 取
-//   old_disk_path + old_disk_serial。
-// - 候选盘经 filterReplacementCandidates 过滤(按 serial 排除被换盘自身,路径撞车不清空列表)。
-// - 候选盘带 RAID 残留(role:"residue")时选项打警告标;确认时插入第二步确认,点名
-//   残留阵列与其创建/最后活动时间,确认后才 emit wipeResidue: true。
-//   ⚠️ array_name/created_at/updated_at 来自盘上 mdadm 超块,是不可信文本 ——
-//   只能经模板插值({{ }})渲染,绝不能拼 HTML。
-// store 调用留给父视图(StorageRaidDetail.vue),本组件只 emit confirm。
+// Migrated from NimoOS-UI/src/components/Storage/raid/RaidReplaceDisk.vue (2026-08-11 serial-semantics version).
+// Differences from the first version (which passed disks by path):
+// - The faulty-disk display uses target.label (an in-place faulty disk shows the live path;
+//   a pulled disk shows the serial — its cached path may already belong to a different physical
+//   disk, so it must never be shown as identity); the request body's old_disk_path +
+//   old_disk_serial are read from target by the parent view.
+// - Candidate disks are filtered through filterReplacementCandidates (excludes the disk being
+//   replaced by serial; a path collision does not clear the list).
+// - When a candidate disk carries leftover RAID data (role: "residue"), its option gets a
+//   warning flag; confirming inserts a second confirmation step naming the residual array and
+//   its creation/last-active time, only emitting wipeResidue: true after that confirmation.
+//   ⚠️ array_name/created_at/updated_at come from the disk's mdadm superblock and are untrusted
+//   text — they must only be rendered via template interpolation ({{ }}), never concatenated into HTML.
+// The store call is left to the parent view (StorageRaidDetail.vue); this component only emits confirm.
 const props = defineProps<{
   open: boolean
   raidId: number | string
@@ -29,7 +32,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 const newDiskPath = ref('')
-// 残留二次确认步:true 时整个弹窗内容切换成清除确认
+// Residue second-confirmation step: when true, the entire dialog body switches to the wipe confirmation
 const residueConfirm = ref(false)
 
 const candidates = computed(() => filterReplacementCandidates(props.disks, props.target))
@@ -38,8 +41,9 @@ const selectedResidue = computed(() => {
   return d?.raid?.role === 'residue' ? d.raid : null
 })
 
-// 开/关都清空选择与确认步:对齐 RaidDeleteDialog/FormatDialog 同款教训——不重新打开
-// 也须已清空,避免下一次打开残留上一块盘的选中/上一步的确认态。
+// Both opening and closing clear the selection and confirmation step: aligning with the same
+// lesson from RaidDeleteDialog/FormatDialog — it must already be cleared even without a re-open,
+// to avoid the next open carrying over the previous disk's selection or confirmation state.
 watch(
   () => props.open,
   () => {
@@ -51,7 +55,8 @@ watch(
 function onConfirm(): void {
   if (!newDiskPath.value) return
   if (selectedResidue.value) {
-    // 选中的盘带外来阵列残留超块 —— 先把是谁的、什么时候的说清楚,确认了才清
+    // The selected disk carries a foreign array's residual superblock — spell out whose it is and
+    // when before wiping, and only wipe after confirmation
     residueConfirm.value = true
     return
   }
@@ -128,10 +133,14 @@ function onWipeConfirm(): void {
   background: var(--chip-bg); color: var(--fg); outline: none;
 }
 .rrd-select:focus { border-color: var(--accent); }
-/* 上面那条把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
- * 作者一旦给 <select> 指定背景,Chrome 就把它带到弹出列表上,而原生 option **不渲染 gradient**
- * (退回浏览器默认白底),配上近白的 --fg 就是白底白字。根节点的 color-scheme: dark 救不了
- * (作者背景优先)。所以这里显式钉住实心底色与字色。守卫:styles/selectPopup.test.ts。 */
+/* The rule above sets background to var(--chip-bg) — under the dark theme this is a
+ * **translucent, light-toned gradient**. The moment the author gives <select> an explicit
+ * background, Chrome carries it over onto the popup list, but native <option> elements
+ * **don't render the gradient** (they fall back to the browser's default light background),
+ * and paired with a near-neutral --fg that renders as invisible low-contrast text on that light
+ * background. The root's color-scheme: dark can't rescue this (the author-specified background
+ * wins). So this pins an explicit solid background and foreground color here. Guarded by:
+ * styles/selectPopup.test.ts. */
 .rrd-select option,
 .rrd-select optgroup {
   background-color: var(--set-option-bg);

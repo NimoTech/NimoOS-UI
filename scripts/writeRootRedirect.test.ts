@@ -5,11 +5,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// ⚠️ 不用 `new URL('./x', import.meta.url)`:这个两参数字面量形态会被当作
-// Vite 的资源 URL 字面量特殊处理,在 vitest(jsdom)下解析成相对 dev server
-// 的 http: URL 而不是 file:,导致 fileURLToPath 直接抛错(同
-// src/settings/panels/panels.test.ts:56 记录的坑,同一口径:先
-// fileURLToPath(import.meta.url) 拿到本文件路径,再用 path.join 拼)。
+// ⚠️ Do not use `new URL('./x', import.meta.url)`: this two-arg literal form gets
+// special-cased as a Vite asset URL literal, and under vitest (jsdom) it resolves to an
+// http: URL relative to the dev server instead of file:, making fileURLToPath throw
+// (same trap recorded at src/settings/panels/panels.test.ts:56, same approach: get this
+// file's path via fileURLToPath(import.meta.url) first, then join with path.join).
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SCRIPT = join(HERE, 'write-root-redirect.sh')
 const REPO_ROOT = join(HERE, '..')
@@ -28,7 +28,7 @@ function run(...args: string[]): string {
 }
 
 describe('write-root-redirect.sh', () => {
-  it('根目录没有 index.html 时写出重定向页', () => {
+  it('When root directory has no index.html, write a redirect page', () => {
     const out = run(root)
     expect(out).toMatch(/^wrote: /)
     const html = readFileSync(join(root, 'index.html'), 'utf8')
@@ -36,16 +36,16 @@ describe('write-root-redirect.sh', () => {
     expect(html).toContain("location.replace('/app/' + location.search + location.hash)")
   })
 
-  it('已存在的是本脚本上次写的(前 5 行含标记)→ 覆盖重写', () => {
-    writeFileSync(join(root, 'index.html'), '<!doctype html>\n<!-- nimoos-new-ui-redirect -->\n<!-- 旧版本 -->\n')
+  it('If existing file was written by this script last time (first 5 lines contain marker) → overwrite and rewrite', () => {
+    writeFileSync(join(root, 'index.html'), '<!doctype html>\n<!-- nimoos-new-ui-redirect -->\n<!-- old version -->\n')
     const out = run(root)
     expect(out).toMatch(/^wrote: /)
     const html = readFileSync(join(root, 'index.html'), 'utf8')
-    expect(html).not.toContain('旧版本')
+    expect(html).not.toContain('old version')
     expect(html).toContain("location.replace('/app/'")
   })
 
-  it('🔴 已存在的是别的应用的首页(无标记)→ 一字不动,只报 skip', () => {
+  it('🔴 If existing file is another app\'s homepage (no marker) → do not touch it at all, only report skip', () => {
     const foreign = '<!DOCTYPE html><html><head><title>NimoOS</title></head><body><div id="app"></div></body></html>'
     writeFileSync(join(root, 'index.html'), foreign)
     const out = run(root)
@@ -53,7 +53,7 @@ describe('write-root-redirect.sh', () => {
     expect(readFileSync(join(root, 'index.html'), 'utf8')).toBe(foreign)
   })
 
-  it('标记出现在第 6 行及以后不算数(防止误判一份很长的别家首页)', () => {
+  it('If marker appears on line 6 or later, it does not count (prevent false positive on a long third-party homepage)', () => {
     const decoy = '\n'.repeat(8) + '<!-- nimoos-new-ui-redirect -->'
     writeFileSync(join(root, 'index.html'), decoy)
     const out = run(root)
@@ -61,28 +61,31 @@ describe('write-root-redirect.sh', () => {
     expect(readFileSync(join(root, 'index.html'), 'utf8')).toBe(decoy)
   })
 
-  // ⚠️ 这条不能只写 expect(...).toThrow() —— 脚本文件还不存在时 bash 退 127 也会 throw,
-  // 那样这条用例在"实现之前"就是绿的,永远抓不到"忘了写参数校验"。断言到具体退出码 + stderr。
-  it('不传参数时以退出码 1 失败并打印 usage', () => {
+  // ⚠️ This one cannot just be expect(...).toThrow() — when the script file does not exist,
+  // bash exits 127 which also throws, so the case would be green "before the implementation"
+  // and never catch a missing argument check. Assert the specific exit code + stderr.
+  it('When no argument is passed, fail with exit code 1 and print usage', () => {
     let err: any
     try {
       execFileSync('bash', [SCRIPT], { encoding: 'utf8', stdio: 'pipe' })
     } catch (e) {
       err = e
     }
-    expect(err, '缺参数时必须失败').toBeDefined()
-    expect(err.status).toBe(1) // 127 = 脚本本身没找到,不算通过
+    expect(err, 'Must fail when argument is missing').toBeDefined()
+    expect(err.status).toBe(1) // 127 = script itself not found; does not count as passing
     expect(String(err.stderr)).toMatch(/usage/)
   })
 
-  // www 根目录不可写时(装机说明历史上只 chown 了 app 子目录,根目录常年是
-  // root:root)不能甩一句裸的 Permission denied 就中止——那样 rsync 明明成功了,
-  // 操作者却只看到"部署失败"且不知道下一步做什么。断言退出非 0 且提示里带
-  // 可执行的 chown 命令,而不是断言具体报错文案(避免测试锁死措辞)。
-  // root 用户对任何权限位都能写(access(2) 对 root 会绕过 DAC 检查),chmod 0555
-  // 挡不住,这条用例在 root 下必然测不出东西,跳过而不是造出假红/假绿。
+  // When the www root is not writable (the install doc historically only chowned the app
+  // subdirectory; the root is often root:root), the script must not abort with a bare
+  // Permission denied — rsync already succeeded, yet the operator only sees "deploy failed"
+  // with no next step. Assert a non-zero exit and that the hint contains an actionable
+  // chown command, rather than asserting the exact error copy (avoid locking the wording).
+  // root can write regardless of permission bits (access(2) bypasses DAC checks for root),
+  // so chmod 0555 cannot block it; this case can prove nothing under root — skip it
+  // instead of producing a fake red/green.
   it.skipIf(process.getuid?.() === 0)(
-    '🔴 www 根目录不可写时非零退出,并打印带 chown 命令的可操作提示',
+    '🔴 When www root directory is not writable, exit with non-zero code and print an actionable hint with chown command',
     () => {
       chmodSync(root, 0o555)
       let err: any
@@ -91,26 +94,29 @@ describe('write-root-redirect.sh', () => {
       } catch (e) {
         err = e
       } finally {
-        chmodSync(root, 0o755) // 改回可写,afterEach 的 rmSync 才删得掉
+        chmodSync(root, 0o755) // restore writability so afterEach's rmSync can delete it
       }
-      expect(err, '目录不可写时必须失败').toBeDefined()
+      expect(err, 'Must fail when directory is not writable').toBeDefined()
       expect(err.status).not.toBe(0)
       const stderr = String(err.stderr)
-      expect(stderr, '提示要点名具体路径').toContain(root)
-      expect(stderr, '提示要给出可执行的修复命令,不能是裸错误').toMatch(/chown/)
+      expect(stderr, 'Hint must specify the exact path').toContain(root)
+      expect(stderr, 'Hint must provide an executable fix command, not just a bare error').toMatch(/chown/)
     }
   )
 
-  // deploy.sh 是 `./scripts/write-root-redirect.sh …` 直接执行的(不带 bash 前缀),
-  // 而本测试全程用 `bash SCRIPT` 调 —— 少了这条,可执行位丢了测试照绿、真机部署 Permission denied。
-  // 断言 git 索引里的模式而不只是本地文件权限:模式要跟着提交走才对下一个 clone 有效。
+  // deploy.sh executes `./scripts/write-root-redirect.sh …` directly (no bash prefix),
+  // while this test always invokes via `bash SCRIPT` — without this case, a lost executable
+  // bit keeps tests green but on-device deploy fails with Permission denied.
+  // Assert the mode in the git index, not just local file permissions: the mode must travel
+  // with commits to be effective for the next clone.
   //
-  // ⚠️ 这个文件会随 `git archive HEAD` 进入不含 .git 的产物树(tarball 消费者
-  // 拿到的就是纯文件,没有 git 仓库),此时 `git ls-files` 会以 128 退出、抛异常。
-  // 优雅退化:先探测是否身处 git 工作树,是则连带断言索引模式(更强的保证——
-  // 模式真的跟着提交走);不是则只退回到断言本地文件权限位,保证在非 git 的
-  // 产物树里跑测试也能过,而不是整条有价值的断言直接删掉。
-  it('🔴 脚本可执行,若身处 git 工作树则索引里记的也是 100755', () => {
+  // ⚠️ This file enters the artifact tree via `git archive HEAD` without .git (tarball
+  // consumers get plain files, no git repo), where `git ls-files` exits 128 and throws.
+  // Graceful degradation: first detect whether we are inside a git work tree; if so, also
+  // assert the index mode (the stronger guarantee — the mode really travels with commits);
+  // if not, fall back to asserting only the local permission bits, so tests still pass in
+  // a non-git artifact tree instead of deleting the whole valuable assertion.
+  it('🔴 Script is executable; if inside a git work tree, the index also records 100755', () => {
     expect(statSync(SCRIPT).mode & 0o111).toBeTruthy()
 
     let inWorkTree = false
@@ -125,41 +131,42 @@ describe('write-root-redirect.sh', () => {
       inWorkTree = false
     }
 
-    if (!inWorkTree) return // 非 git 产物树(如 tarball 解包后跑测试):文件权限位已经断言过,到此为止
+    if (!inWorkTree) return // non-git artifact tree (e.g. tests run from an unpacked tarball): permission bits already asserted, stop here
 
     const entry = execFileSync('git', ['ls-files', '-s', 'scripts/write-root-redirect.sh'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
     })
-    expect(entry, '文件要先 git add 进索引才量得到模式').toMatch(/^100755 /)
+    expect(entry, 'File must be git added to the index before the mode can be measured').toMatch(/^100755 /)
   })
 
-  it('写出的页面在无 JS 时也能跳(noscript meta refresh 兜底)', () => {
+  it('The generated page can redirect even without JS (noscript meta refresh fallback)', () => {
     run(root)
     const html = readFileSync(join(root, 'index.html'), 'utf8')
     expect(html).toContain('<noscript><meta http-equiv="refresh" content="0;url=/app/"></noscript>')
   })
 
-  // 顺带盯住原子写:临时文件必须已经 mv 掉,不能留在目录里(网关会把它也当静态文件服务)。
-  it('只写 index.html,不在根目录留下任何别的文件(含 .tmp)', () => {
+  // Also watch the atomic write: the temp file must already be mv'ed away, not left in the directory (the gateway would serve it as a static file too).
+  it('Only write index.html, leave no other files in root directory (including .tmp)', () => {
     run(root)
     expect(existsSync(join(root, 'index.html'))).toBe(true)
     expect(readdirSync(root)).toEqual(['index.html'])
   })
 })
 
-describe('deploy.sh 接线', () => {
-  // 用文件顶部已有的 HERE 常量拼路径。⚠️ 不要写 `new URL('./deploy.sh', import.meta.url)`:
-  // 这个两参数字面量形态会被 Vite 当资源 URL 静态转换,vitest(jsdom)下解析成 http: 而非
-  // file:,fileURLToPath 直接抛 TypeError 且整个测试文件 0 collected(Task 1 已实测踩过)。
+describe('deploy.sh wiring', () => {
+  // Build the path from the HERE constant defined at the top of the file. ⚠️ Do not write
+  // `new URL('./deploy.sh', import.meta.url)`: this two-arg literal form gets statically
+  // transformed by Vite as an asset URL; under vitest (jsdom) it resolves to http: instead of
+  // file:, fileURLToPath throws a TypeError, and the whole test file collects 0 tests (hit in Task 1).
   const deploySrc = readFileSync(join(HERE, 'deploy.sh'), 'utf8')
 
-  it('调用了重定向脚本,并且传的是 www 根而不是 app 子目录', () => {
+  it('Invokes the redirect script and passes the www root, not the app subdirectory', () => {
     expect(deploySrc).toContain('./scripts/write-root-redirect.sh /var/lib/nimoos/www')
     expect(deploySrc).not.toContain('write-root-redirect.sh /var/lib/nimoos/www/app')
   })
 
-  it('调用点在 rsync 之后(先把应用铺好,再补根目录那一跳)', () => {
+  it('Invocation happens after rsync (lay out the app first, then add the root directory redirect)', () => {
     const rsyncAt = deploySrc.indexOf('rsync -a --delete')
     const callAt = deploySrc.indexOf('./scripts/write-root-redirect.sh')
     expect(rsyncAt).toBeGreaterThan(-1)

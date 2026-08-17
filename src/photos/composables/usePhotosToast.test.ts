@@ -11,7 +11,7 @@ describe('usePhotosToast', () => {
     vi.useRealTimers()
   })
 
-  it('show() 把 toast 入队,携带 text/icon/action', () => {
+  it('show() enqueues a toast, carrying text/icon/action', () => {
     const { show, toasts } = usePhotosToast()
     show({ text: 'Moved to Trash', icon: 'trash' })
     expect(toasts.value).toHaveLength(1)
@@ -19,7 +19,7 @@ describe('usePhotosToast', () => {
     expect(toasts.value[0].icon).toBe('trash')
   })
 
-  it('不带 action 时默认 2800ms 后自动移除', () => {
+  it('without action, auto-removes after 2800ms by default', () => {
     const { show, toasts } = usePhotosToast()
     show({ text: 'Favorited' })
     vi.advanceTimersByTime(2799)
@@ -28,7 +28,7 @@ describe('usePhotosToast', () => {
     expect(toasts.value).toHaveLength(0)
   })
 
-  it('带 action 时默认 5000ms 后自动移除', () => {
+  it('with action, auto-removes after 5000ms by default', () => {
     const { show, toasts } = usePhotosToast()
     show({ text: 'Moved to Trash', action: { label: 'Undo', onClick: () => {} } })
     vi.advanceTimersByTime(4999)
@@ -37,7 +37,7 @@ describe('usePhotosToast', () => {
     expect(toasts.value).toHaveLength(0)
   })
 
-  it('显式传入 duration 时覆盖默认值', () => {
+  it('explicit duration overrides the default value', () => {
     const { show, toasts } = usePhotosToast()
     show({ text: 'Custom', duration: 1000 })
     vi.advanceTimersByTime(999)
@@ -46,7 +46,7 @@ describe('usePhotosToast', () => {
     expect(toasts.value).toHaveLength(0)
   })
 
-  it('action.onClick 触发后立即移除,不等到时', () => {
+  it('action.onClick fires and removes immediately, without waiting for the timer', () => {
     const onClick = vi.fn()
     const { show, toasts } = usePhotosToast()
     show({ text: 'Moved to Trash', action: { label: 'Undo', onClick } })
@@ -54,12 +54,12 @@ describe('usePhotosToast', () => {
     toasts.value[0].action?.onClick()
     expect(onClick).toHaveBeenCalledTimes(1)
     expect(toasts.value).toHaveLength(0)
-    // 移除后不应该再有挂起的定时器把已清空的队列重新清一次导致报错
+    // After removal, no leftover pending timer should try to clear the already-empty queue again and throw
     vi.advanceTimersByTime(6000)
     expect(toasts.value).toHaveLength(0)
   })
 
-  it('action.onClick 抛出异常时,该 toast 仍然被移除(Vue2 photosToast.js:123-124 的 try/catch 口径)', () => {
+  it('when action.onClick throws, the toast is still removed (matches the try/catch behavior in Vue2 photosToast.js:123-124)', () => {
     const onClick = vi.fn(() => {
       throw new Error('boom')
     })
@@ -70,7 +70,7 @@ describe('usePhotosToast', () => {
     expect(toasts.value).toHaveLength(0)
   })
 
-  it('__resetForTests 清空队列与计时器', () => {
+  it('__resetForTests clears the queue and timers', () => {
     const { show, toasts, __resetForTests } = usePhotosToast()
     show({ text: 'A' })
     __resetForTests()

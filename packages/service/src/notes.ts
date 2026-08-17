@@ -1,21 +1,25 @@
 import type { AxiosInstance } from 'axios'
 
 /**
- * notes 域 —— Python agent(:8282)的知识笔记 API,经 NimoOS-AI 反代
- * `/v1/ai/agent/notes/*`(`route/v2.go:189-191` 给 settings 与 dir-info 另套了 AdminOnly)。
+ * notes domain — the Python agent's (:8282) knowledge notes API, proxied through NimoOS-AI
+ * `/v1/ai/agent/notes/*` (`route/v2.go:189-191` wraps settings and dir-info with an extra AdminOnly gate).
  *
- * 1:1 移植自 Vue2 `src/service/notes.js`(203 行)。
- * 【返回值约定】与 ai 域「body 原样不 unwrap」不同:本域**返回已归一化的 camelCase 值**
- * —— Vue2 里这层归一化就在 service 层完成(视图只见 camelCase),照搬其分层。
- * 【为什么单独成域而不并进 ai.ts】① 消费方将来含文件区右键「沉淀」(非 AI 区)
- * ② 8 个纯函数需要脱离 http 实例被单测与消费方直接 import。
+ * Ported 1:1 from Vue2 `src/service/notes.js` (203 lines).
+ * [Return value convention] Unlike the ai domain, where the body is returned unwrapped as-is,
+ * this domain **returns already-normalized camelCase values** — in Vue2 this normalization
+ * happens at the service layer too (views only ever see camelCase); we carried that layering over as-is.
+ * [Why this is its own domain instead of folding into ai.ts] (1) future consumers include
+ * the Files area's right-click "distill" action (not the AI area)
+ * (2) the 8 pure functions need to be importable directly by unit tests and consumers, independent of the http instance.
  *
- * 【结构性偏离,SP8-P5a Task 1 申报】Vue2 里 getNotesSettings/putNotesSettings/
- * distillFile/cancelDistillJob/listDistillJobs/getDistillStatus 六个函数是模块级具名导出,
- * 不在默认导出的 `notes` 对象里(蓝本把它们放在文件下半段,单独 export）。本仓消费口径
- * 是「REST 一律经 `service.notes.*`」,一个域一个入口,故按 brief 要求把它们收进
- * `createNotes(http)` 返回对象里,成为其方法。这是包 API 形状的调整,不是界面/行为改动——
- * 方法体逐行照蓝本搬,无逻辑变化。
+ * [Structural deviation, declared under SP8-P5a Task 1] In Vue2, getNotesSettings/putNotesSettings/
+ * distillFile/cancelDistillJob/listDistillJobs/getDistillStatus are six module-level named exports,
+ * not part of the default-exported `notes` object (the blueprint puts them in the second half of the
+ * file, exported separately). This repo's consumption convention
+ * is "REST always goes through `service.notes.*`" — one entry point per domain — so per the brief
+ * we folded them into the object returned by `createNotes(http)`, as its methods. This is an
+ * adjustment to the package's API shape, not a UI/behavior change —
+ * the method bodies were carried over line-for-line from the blueprint, with no logic changes.
  */
 
 export interface Note {

@@ -1,13 +1,17 @@
 /// <reference types="node" />
-// 显式引 node 类型而不是往 tsconfig 的 types 数组里加 "node"(同 color-guard.test.ts)。
+// Node types are referenced explicitly rather than added to tsconfig's `types` array
+// (same approach as color-guard.test.ts).
 //
-// SP16 Task 11:vue-i18n 在键缺失时**静默回落成键名本身**,所以一个拼错的键会原样出现在
-// 界面上(用户看到 `kvmToastResumd` 这种东西),而三道门全绿:vue-tsc 不会拿字符串字面量
-// 去比对文案表,单测里断言渲染文本时往往断的又正好是键名自己的文本,build 更不管。
-// 这道守卫查的方向是「源码引用的键在不在语料里」。
+// vue-i18n **silently falls back to the key name itself** when a key is missing, so a
+// typo'd key shows up verbatim on screen (users see things like `kvmToastResumd`) while
+// all three gates stay green: vue-tsc never compares string literals against the
+// catalogue, a unit test asserting rendered text is often asserting the key's own name,
+// and build does not care either. This guard checks one direction: is every key the
+// source references actually in the catalogue?
 //
-// 与既有的 parity.test.ts **不重复**:那份查的是 zh 与 en 两侧键集合是否对等、值是否非空,
-// **从不读源码** ⇒ 一个两侧都不存在的键它照样放行。两份各守一个方向。
+// It does **not** duplicate parity.test.ts, which checks that the zh and en key sets match
+// and that no value is empty, and **never reads the source** -- a key that exists in
+// neither locale sails straight through there. Each file guards one direction.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,8 +21,9 @@ import enBase from './en_us'
 import zhSp9 from './zh_cn.sp9'
 import enSp9 from './en_us.sp9'
 
-// 与运行时逐字一致:index.ts:9 装进 createI18n 的就是这两个合并结果。
-// (zh_cn.ts 这个出口自己已经把它那几块并好了;sp9 那片走的是另一套装配路径,得单独并。)
+// Word-for-word what the runtime does: these two merged results are exactly what
+// index.ts hands to createI18n. (The zh_cn.ts entry point has already merged its own
+// pieces; the sp9 shard travels a separate assembly path and has to be merged here.)
 const zh: Record<string, unknown> = { ...zhBase, ...zhSp9 }
 const en: Record<string, unknown> = { ...enBase, ...enSp9 }
 
@@ -33,27 +38,31 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-// 必须先剥注释。本仓的移植注释里大量引用 Vue2 的原始键名(`$t('Off')`、`$t('Enable')`
-// 这一类"我们复用成了别的键"的说明),还有被注释掉的旧代码行 —— 实测不剥注释时会报出
-// 74 条"缺键",全部是注释里的引用,一条真缺口都没有。误报会让守卫直接被人关掉,
-// 所以宁可漏(注释里的键本来也不影响运行时)。
+// Comments have to be stripped first. The porting comments in this repo quote Vue2's
+// original key names all over the place (`$t('Off')`, `$t('Enable')` and similar "we
+// reused this as a different key" notes), plus commented-out old code lines -- measured:
+// without stripping, the guard reports 74 "missing keys", every one of them a reference
+// inside a comment and not a single real gap. False positives get a guard switched off,
+// so prefer missing a case (a key inside a comment does not affect runtime anyway).
 function stripComments(src: string): string {
   return src
-    .replace(/\/\*[\s\S]*?\*\//g, '')       // 块注释(JS 与 CSS 通用)
-    .replace(/<!--[\s\S]*?-->/g, '')        // 模板里的 HTML 注释
-    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1') // 行注释;`[^:]` 挡住 http:// 这种
+    .replace(/\/\*[\s\S]*?\*\//g, '')       // block comments (JS and CSS alike)
+    .replace(/<!--[\s\S]*?-->/g, '')        // HTML comments in templates
+    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1') // line comments; `[^:]` keeps http:// out
 }
 
-// 只认 `t('字面量')` 这一种形态。`t(someVar)` / `t(`x${y}`)` 静态查不了,**不要**为了
-// 覆盖它们放宽正则 —— 假阴性可接受,假阳性会让守卫被关掉。
+// Only the `t('literal')` shape is recognised. `t(someVar)` / `t(\`x\${y}\`)` cannot be
+// resolved statically -- do **not** loosen the regex to cover them: false negatives are
+// acceptable here, false positives get the guard switched off.
 const KEY_RE = /\bt\('([a-zA-Z][a-zA-Z0-9_]*)'\)/g
 
-describe("t() 引用的 i18n 键在两侧语料里都存在", () => {
-  // 语料文件自己不是消费方(它们的内容里也带 $t('…') 的说明性引用),排除掉。
+describe('every i18n key referenced by t() exists in both catalogues', () => {
+  // The catalogue files are not consumers themselves (their own contents carry
+  // illustrative `$t('…')` references), so they are excluded.
   const files = walk(SRC).filter((f) => !f.startsWith(path.join(SRC, 'i18n') + path.sep))
 
-  it('全仓没有死键', () => {
-    expect(files.length).toBeGreaterThan(100) // 防空转:目录结构变了就该红
+  it('has no dead keys anywhere in the repo', () => {
+    expect(files.length).toBeGreaterThan(100) // idle-run guard: a changed directory layout should go red
 
     const missing: string[] = []
     let checked = 0
@@ -62,19 +71,21 @@ describe("t() 引用的 i18n 键在两侧语料里都存在", () => {
       for (const m of src.matchAll(KEY_RE)) {
         const k = m[1]
         checked += 1
-        if (!(k in zh)) missing.push(`${path.relative(SRC, f)}: zh 缺 ${k}`)
-        if (!(k in en)) missing.push(`${path.relative(SRC, f)}: en 缺 ${k}`)
+        if (!(k in zh)) missing.push(`${path.relative(SRC, f)}: zh is missing ${k}`)
+        if (!(k in en)) missing.push(`${path.relative(SRC, f)}: en is missing ${k}`)
       }
     }
 
-    // 第二道防空转:正则哪天被改坏(或剥注释剥过了头)会让 checked 掉到 0,
-    // 那时 missing 也是空的、测试照样绿 —— 这个下限让"什么都没检查"变成红。
-    // 2026-08-09 实测:本仓 3207 次引用。下限要同时兼顾**开源产物树** —— 它剥掉了
-    // 两个功能区,只剩约 1570 次(实测),所以门槛不能按本仓的量级定,否则守卫在产物树
-    // 里会因为"少了两个区"而误红。取 800 这个量级:足以抓住"正则坏了→一条都没扫到",
-    // 又不会因为正常增删或剥离而碰到。
-    expect(checked, '一个 t() 字面量都没扫到,守卫在空转').toBeGreaterThan(800)
+    // Second idle-run guard: if the regex is ever broken (or comment stripping goes too
+    // far), `checked` drops to 0, `missing` is then empty too and the test stays green --
+    // this floor turns "checked nothing at all" red. Measured 2026-08-09: 3207 references
+    // in this repo. The floor also has to hold for a tree with whole areas stripped out
+    // (about 1570 references measured there), so it cannot be set at this repo's
+    // magnitude or the guard would go red simply for having fewer areas. 800 is high
+    // enough to catch "regex broke -> nothing scanned" and low enough that ordinary
+    // additions, deletions or stripping never reach it.
+    expect(checked, 'not a single t() literal was scanned; the guard is idling').toBeGreaterThan(800)
 
-    expect(missing, `\n发现 t() 引用了不存在的键:\n${missing.join('\n')}`).toEqual([])
+    expect(missing, `\nt() references keys that do not exist:\n${missing.join('\n')}`).toEqual([])
   })
 })

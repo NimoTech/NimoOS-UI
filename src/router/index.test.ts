@@ -5,54 +5,57 @@ import { describe, it, expect, vi } from 'vitest'
 vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn(() => ({ addEventListener: vi.fn(), destroy: vi.fn() })) } }))
 
 import { router } from './index'
-// 评审 M5:原来这里的注释声称"完整的顺序/未重排断言见 PhotosPlaces.test.ts",但那份文件
-// 只用 `?raw` 取 PhotosPlaces.vue 自己的样式块做 pointer-events 断言,从未读过 router/index.ts
-// 的源文本——那句话是不实的。真正的顺序/未重排断言就近放在这里,用 `?raw` 读原始文本核对。
+// Review M5: this comment used to claim the full ordering / no-reorder assertion lives in
+// PhotosPlaces.test.ts, but that file only uses `?raw` to read PhotosPlaces.vue's own style
+// block for a pointer-events assertion, and never reads the source text of router/index.ts —
+// that claim was inaccurate. The real ordering / no-reorder assertion lives right here instead,
+// checked against the raw source via `?raw`.
 import routerIndexRaw from './index.ts?raw'
 
 describe('router', () => {
-  it('/files/shares 命中 files-shares 而非 catch-all files-path', () => {
+  it('/files/shares matches files-shares, not the catch-all files-path', () => {
     const m = router.resolve('/files/shares')
     expect(m.name).toBe('files-shares')
   })
-  it('/files/NimoOS-HD/Documents 仍命中 files-path', () => {
+  it('/files/NimoOS-HD/Documents still matches files-path', () => {
     const m = router.resolve('/files/NimoOS-HD/Documents')
     expect(m.name).toBe('files-path')
   })
-  it('/photos/favorites 命中 photos-favorites 路由', () => {
+  it('/photos/favorites matches the photos-favorites route', () => {
     const m = router.resolve('/photos/favorites')
     expect(m.name).toBe('photos-favorites')
   })
-  it('/photos/trash 命中 photos-trash 路由', () => {
+  it('/photos/trash matches the photos-trash route', () => {
     const m = router.resolve('/photos/trash')
     expect(m.name).toBe('photos-trash')
   })
-  it('/photos/albums 命中 photos-albums 路由', () => {
+  it('/photos/albums matches the photos-albums route', () => {
     const m = router.resolve('/photos/albums')
     expect(m.name).toBe('photos-albums')
   })
-  it('/photos/albums/7 命中 photos-album-detail 路由,params.id 为字符串 "7"', () => {
+  it('/photos/albums/7 matches the photos-album-detail route, params.id is the string "7"', () => {
     const m = router.resolve('/photos/albums/7')
     expect(m.name).toBe('photos-album-detail')
     expect(m.params.id).toBe('7')
   })
-  it('/photos/people 命中 photos-people 路由', () => {
+  it('/photos/people matches the photos-people route', () => {
     const m = router.resolve('/photos/people')
     expect(m.name).toBe('photos-people')
   })
-  it('/photos/people/7 命中 photos-person-detail 路由,params.id 为字符串 "7"', () => {
+  it('/photos/people/7 matches the photos-person-detail route, params.id is the string "7"', () => {
     const m = router.resolve('/photos/people/7')
     expect(m.name).toBe('photos-person-detail')
     expect(m.params.id).toBe('7')
   })
-  it('/photos/places 命中 photos-places 路由', () => {
+  it('/photos/places matches the photos-places route', () => {
     const m = router.resolve('/photos/places')
     expect(m.name).toBe('photos-places')
   })
 
-  // P6a-T11:只追加,不重排——新路由必须夹在 /photos/people/:id 与 /login 之间,且两者
-  // 本身的相对顺序不能被打乱(评审 M5:之前这条断言只存在于一句不实的注释里,这里补真的)。
-  it('/photos/places 追加在 /photos/people/:id 之后、/login 之前(只追加,不重排)', () => {
+  // P6a-T11: append-only, no reordering — the new route must sit between /photos/people/:id
+  // and /login, and their own relative order must not be disturbed (review M5: this assertion
+  // used to exist only as an inaccurate comment; this backfills the real one).
+  it('/photos/places is appended after /photos/people/:id and before /login (append-only, no reordering)', () => {
     const peopleDetailIdx = routerIndexRaw.indexOf(`{ path: '/photos/people/:id'`)
     const placesIdx = routerIndexRaw.indexOf(`{ path: '/photos/places'`)
     const loginIdx = routerIndexRaw.indexOf(`{ path: '/login'`)
@@ -61,17 +64,20 @@ describe('router', () => {
     expect(loginIdx).toBeGreaterThan(placesIdx)
   })
 
-  // SP7-P7a-T4:/photos/smart-views 命中真实注册的路由(用产线单例 router.resolve 真解析,
-  // 不是 spy push——同上面每一条既有路由断言的既定写法)。
-  it('/photos/smart-views 命中 photos-smart-views 路由', () => {
+  // SP7-P7a-T4: /photos/smart-views matches the actually registered route (resolved for real
+  // via the production router singleton's router.resolve, not a spy push — same established
+  // pattern as every existing route assertion above).
+  it('/photos/smart-views matches the photos-smart-views route', () => {
     const m = router.resolve('/photos/smart-views')
     expect(m.name).toBe('photos-smart-views')
   })
 
-  // 只追加,不重排——新路由必须夹在 /photos/places/:key 与 /login 之间,且两者本身的
-  // 相对顺序不能被打乱(同上 P6a-T11 的既有手法,行序比较而非 getRoutes() 下标——vue-router 4
-  // 会把动态段路由排到静态之前,P6b-T9 实测过,下标比较会得出错误结论)。
-  it('/photos/smart-views 追加在 /photos/places/:key 之后、/login 之前(只追加,不重排)', () => {
+  // Append-only, no reordering — the new route must sit between /photos/places/:key and
+  // /login, and their own relative order must not be disturbed (same established technique as
+  // P6a-T11 above: compare line order in the source, not getRoutes() index — vue-router 4 sorts
+  // dynamic-segment routes ahead of static ones, confirmed in P6b-T9, so comparing indexes
+  // would reach the wrong conclusion).
+  it('/photos/smart-views is appended after /photos/places/:key and before /login (append-only, no reordering)', () => {
     const placesKeyIdx = routerIndexRaw.indexOf(`{ path: '/photos/places/:key'`)
     const smartViewsIdx = routerIndexRaw.indexOf(`{ path: '/photos/smart-views'`)
     const loginIdx = routerIndexRaw.indexOf(`{ path: '/login'`)
@@ -80,14 +86,14 @@ describe('router', () => {
     expect(loginIdx).toBeGreaterThan(smartViewsIdx)
   })
 
-  // SP7-P7a-T6:/photos/smart-views/:id 详情路由,同上既定手法(行序比较 + 真 resolve)。
-  it('/photos/smart-views/7 命中 photos-smart-view-detail 路由,params.id 为字符串 "7"', () => {
+  // SP7-P7a-T6: /photos/smart-views/:id detail route, same established technique as above (line-order comparison + a real resolve).
+  it('/photos/smart-views/7 matches the photos-smart-view-detail route, params.id is the string "7"', () => {
     const m = router.resolve('/photos/smart-views/7')
     expect(m.name).toBe('photos-smart-view-detail')
     expect(m.params.id).toBe('7')
   })
 
-  it('/photos/smart-views/:id 追加在 /photos/smart-views 之后、/login 之前(只追加,不重排)', () => {
+  it('/photos/smart-views/:id is appended after /photos/smart-views and before /login (append-only, no reordering)', () => {
     const listIdx = routerIndexRaw.indexOf(`{ path: '/photos/smart-views'`)
     const detailIdx = routerIndexRaw.indexOf(`{ path: '/photos/smart-views/:id'`)
     const loginIdx = routerIndexRaw.indexOf(`{ path: '/login'`)
@@ -96,7 +102,7 @@ describe('router', () => {
     expect(loginIdx).toBeGreaterThan(detailIdx)
   })
 
-  it('主路由表已展开 knowledge 路由', async () => {
+  it('the main route table has expanded the knowledge routes', async () => {
     const { router } = await import('./index')
     const paths = router.getRoutes().map((r) => r.path)
     expect(paths).toContain('/ai/knowledge')

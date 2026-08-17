@@ -1,8 +1,9 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/tabs/ContextTab.vue(16 行)。SP8-P1c2 Task 10。
+  1:1 port from Vue2 src/views/AI/Agent/tabs/ContextTab.vue (16 lines). SP8-P1c2 Task 10.
 
-  这是 Vue2 里本来就"尚未支持"的纯占位面板(标题 + 说明句),不是本任务被裁剪掉的
-  功能——按 brief 原样港过来即可,不要顺手实现"把文件加入对话上下文"。
+  This is a pure placeholder panel (title + description) that was already "not yet supported"
+  in Vue2, not functionality cut from this task — port as-is per brief, do not implement
+  "add files to context" feature.
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'

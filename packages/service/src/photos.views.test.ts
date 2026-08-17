@@ -17,8 +17,8 @@ function capture(data: unknown = []) {
 }
 const noToken = () => null
 
-describe('photos 智能视图', () => {
-  it('CRUD/复制', async () => {
+describe('photos smart views', () => {
+  it('CRUD / duplicate', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.listSmartViews()
@@ -34,7 +34,7 @@ describe('photos 智能视图', () => {
     expect(calls[4]).toMatchObject({ method: 'delete', url: '/photos/smart-views/5' })
     expect(calls[5]).toMatchObject({ method: 'post', url: '/photos/smart-views/5/duplicate' })
   })
-  it('资产/活动/预览/导出', async () => {
+  it('assets / activity / preview / export', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.getSmartViewAssets(5, { limit: 30, offset: 60, recent: true })
@@ -46,13 +46,13 @@ describe('photos 智能视图', () => {
     expect(calls[2]).toMatchObject({ method: 'post', url: '/photos/smart-views/preview', body: { condsRaw: 'x', description: 'd', threshold: 0.6, includeVideos: true } })
     expect(calls[3]).toMatchObject({ method: 'post', url: '/photos/smart-views/5/export?format=album' })
   })
-  it('exportSmartViewUrl 带 format 与 token', () => {
+  it('exportSmartViewUrl includes format and token', () => {
     const p = createPhotos({} as AxiosInstance, () => 'T1')
     expect(p.exportSmartViewUrl(5, 'zip')).toBe('/v1/photos/smart-views/5/export?format=zip&token=T1')
   })
 })
-describe('photos 回收站', () => {
-  it('列表/单恢复/批量/全部/清除/清空', async () => {
+describe('photos trash', () => {
+  it('list / single restore / batch / restore-all / purge / empty', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.listTrash()
