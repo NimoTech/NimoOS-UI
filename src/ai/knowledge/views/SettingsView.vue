@@ -378,7 +378,7 @@ function onMigrateOpenChange(v: boolean): void {
   if (!v) closeMigrate()
 }
 
-/** Reference `doMigrate()` (`:267-270`) — red flag: **close dialog before sending request**,
+/** Reference `doMigrate()` (`:267-270`) — 🔴 **close dialog before sending request**,
  *  order copied verbatim. */
 async function doMigrate(): Promise<void> {
   closeMigrate()
@@ -422,7 +422,7 @@ async function togglePause(): Promise<void> {
   }
 }
 
-/** Reference `setConcurrency(n)` (`:290-297`) — red flag: payload key is `n`
+/** Reference `setConcurrency(n)` (`:290-297`) — 🔴 payload key is `n`
  *  (backend `controlReq{ N *int json:"n" }`). */
 async function setConcurrency(n: number): Promise<void> {
   try {
