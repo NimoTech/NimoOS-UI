@@ -323,20 +323,23 @@ describe('PhotoInfoPanel', () => {
     })
 
     // Task 15 (Plan G): wires the previously no-op onGiveNimo to useAskNimo().openWith() with
-    // Vue2's exact canned prompt (PhotosLightbox.vue:84-87).
-    it('点击后打开 Ask Nimo,预填文案取文件名(basename of filePath)', async () => {
-      const photo = makePhoto({ filePath: '/a/b/sunset.jpg', title: '' })
+    // Vue2's exact canned prompt (PhotosLightbox.vue:84 -- `$t('Edit this photo: {title}',
+    // { title: photo.title })`, always photo.title as-is, no filePath-basename derivation).
+    // filePath is deliberately set to a DIFFERENT basename than title here, to prove the prefill
+    // tracks title only and is not silently re-derived from the file path.
+    it('点击后打开 Ask Nimo,预填文案取 photo.title(不做 filePath basename 派生)', async () => {
+      const photo = makePhoto({ title: 'sunset', filePath: '/a/b/unrelated-name.jpg' })
       const w = mountPanel(photo)
       await w.find('[data-test="lb-give-nimo"]').trigger('click')
       expect(useAskNimo().popupOpen.value).toBe(true)
-      expect(useAskNimo().prefill.value).toBe('编辑这张照片：sunset.jpg')
+      expect(useAskNimo().prefill.value).toBe('编辑这张照片：sunset')
     })
 
-    it('filePath 无可用文件名(basename)时回退到 photo.title', async () => {
-      const photo = makePhoto({ filePath: '', title: 'Untitled' })
+    it('photo.title 缺失(null/undefined)时回退到 photo.id', async () => {
+      const photo = makePhoto({ title: undefined as unknown as string, id: 'p42' })
       const w = mountPanel(photo)
       await w.find('[data-test="lb-give-nimo"]').trigger('click')
-      expect(useAskNimo().prefill.value).toBe('编辑这张照片：Untitled')
+      expect(useAskNimo().prefill.value).toBe('编辑这张照片：p42')
     })
 
     it('visible=false 时按钮也不渲染(随整个面板一起隐藏)', () => {
