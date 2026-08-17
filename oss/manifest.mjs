@@ -150,6 +150,10 @@ export const DELETE = [
   'src/views/__tests__/PhotosSmartViewDetail.test.ts',
   'src/views/__tests__/PhotosSmartViews.test.ts',
   'src/views/__tests__/PhotosTrash.test.ts',
+  // Plan G (Ask Nimo) final fix wave: itemized like its view-test siblings above -- lives
+  // directly under views/__tests__/ (fs-reads several Photos*.vue files by path at runtime,
+  // so it must ship stripped alongside them, same reasoning as photosStripCoverage.test.mjs).
+  'src/views/__tests__/askNimoHostMounted.test.ts',
 
   // 2026-08-14(相册 vue2-parity 两批合流带进来的两个守卫):它们守的是
   // src/photos/styles/vue2-parity/*.scss 与其它区之间的类名/keyframes 冲突,

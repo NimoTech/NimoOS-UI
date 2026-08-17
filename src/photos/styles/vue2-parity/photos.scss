@@ -66,7 +66,7 @@
   --hero-scrim: rgba(10,10,12,0.30); /* veil over blurred hero backdrops */
 
   /* Plan G (Ask Nimo): FAB progress ring gradient endpoints. Theme-invariant by design (Vue2
-     itself never re-themes this ring), so both blocks below carry the identical literal values --
+     itself never re-themes this ring), so both theme blocks carry the identical literal values --
      not a token-substitution gap, a deliberate parity choice. */
   --nimo-ring-from: #b39bff;
   --nimo-ring-to: #6e5bff;
@@ -2607,7 +2607,10 @@
    kept as documented dead source -- Vue3's <transition> never applies that class name); this
    rule supplies the real Vue3 selector so AskNimoDrawer.vue's `<transition name="chat-drawer">`
    slide actually runs. */
-.chat-drawer-enter-from { transform: translateX(100%); opacity: 0.5; }
+/* Review fix (minor #9): prefixed with `.photos-root`, matching the T10
+   `.nimo-fab-swap-enter-from` shim precedent (~:890) -- `.chat-drawer` itself only ever renders
+   inside `.photos-root` (AskNimoDrawer.vue), so this is behavior-preserving. */
+.photos-root .chat-drawer-enter-from { transform: translateX(100%); opacity: 0.5; }
 .photos-root .cd-head {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
@@ -4454,14 +4457,20 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 8px;
+  /* Vue2 NimoTaskBar.vue:117 -- task area when expanded: uses a background color distinct from
+     its surroundings, like a dropdown panel. */
   padding: 10px;
   border-radius: 10px;
   background: rgba(var(--ink), 0.05);
 }
+/* Vue2 NimoTaskBar.vue:127 -- use theme color variables, following light/dark theme; don't
+   hardcode a color (otherwise white text would be invisible in light theme). */
 .photos-root .nimo-tb-type-head { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
 .photos-root .nimo-tb-type-label { flex: 1; }
 .photos-root .nimo-tb-type-pct { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--text-3); }
 .photos-root .nimo-tb-type-count { color: var(--text-3); opacity: 0.7; }
+/* Vue2 NimoTaskBar.vue:137 -- smooth progress bar animation: so even tasks the backend finishes
+   instantly still show a rolling effect. */
 .photos-root .nimo-tb-bar i { transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1); }
 .photos-root .nimo-tb-type.has-error .nimo-tb-bar i { background: #FF9F43; }
 .photos-root .nimo-tb-row-alert {

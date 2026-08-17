@@ -63,6 +63,23 @@ describe('NimoModelPicker', () => {
     wrapper.unmount()
   })
 
+  // Review fix (CRITICAL #1): the "Go to Settings" link used to point at a nonexistent route
+  // ('#/settings/ai-providers'); it must target this repo's real AI provider settings route
+  // ('/ai/settings', router name 'ai-settings') and close the dropdown first, matching Vue2
+  // NimoModelPicker.vue:167-177's goConfig().
+  it('clicking "Go to Settings" navigates to #/ai/settings and closes the list', async () => {
+    const agent = useAgentStore('photos')
+    agent.availableModels = []
+    const originalHash = window.location.hash
+    const wrapper = mount(NimoModelPicker, { attachTo: document.body })
+    await wrapper.find('.nimo-mp-trigger').trigger('click')
+    await wrapper.find('.nimo-mp-config').trigger('click')
+    expect(window.location.hash).toBe('#/ai/settings')
+    expect(wrapper.find('.nimo-mp-list').exists()).toBe(false)
+    window.location.hash = originalHash
+    wrapper.unmount()
+  })
+
   it('clicking a model calls selectModel(key) and closes the list', async () => {
     const agent = useAgentStore('photos')
     agent.availableModels = [

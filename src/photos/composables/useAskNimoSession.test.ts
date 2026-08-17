@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAgentStore } from '../../ai/stores/agentStore'
 import {
@@ -30,6 +30,12 @@ describe('useAskNimoSession', () => {
     localStorage.clear()
     __resetPhotosSessionForTests()
     vi.useFakeTimers()
+  })
+
+  // Review fix (minor #4): repo convention pairs vi.useFakeTimers() with an afterEach
+  // vi.useRealTimers() so fake timers never leak into a later, unrelated test file.
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('first ensure() this page load always discards any saved session id and creates fresh', async () => {
@@ -73,5 +79,25 @@ describe('useAskNimoSession', () => {
 
   it('a session with zero activity never expires', () => {
     expect(isPhotosSessionExpired()).toBe(false)
+  })
+
+  // Review fix (minor #5): exercises the agent.pendingCancel await branch -- resetPhotosSession
+  // must wait for a still-settling cancel (left behind by a previous stop()) before deleting the
+  // stale session, not race ahead of it.
+  it('resetPhotosSession awaits a still-pending agent.pendingCancel before deleting the stale session', async () => {
+    const agent = stubAgent()
+    await ensurePhotosSession(agent)
+    let resolvePendingCancel: () => void = () => {}
+    agent.stop = vi.fn(async () => {
+      agent.pendingCancel = new Promise<void>((resolve) => { resolvePendingCancel = resolve })
+    })
+    const resetPromise = resetPhotosSession(agent)
+    await Promise.resolve() // let stop() run and the microtask queue settle up to the await
+    await Promise.resolve()
+    expect(agent.deleteSession).not.toHaveBeenCalled()
+    resolvePendingCancel()
+    await resetPromise
+    expect(agent.deleteSession).toHaveBeenCalledWith('sess-1')
+    expect(agent.createSession).toHaveBeenCalledTimes(2)
   })
 })

@@ -1,5 +1,5 @@
 <!-- Model dropdown for Ask Nimo. Pixel source: Vue2 NimoOS-UI src/views/Photos/NimoModelPicker.vue
-     + photos.scss:4034-4084 (already ported, this component only supplies markup/logic).
+     + photos.scss:4176-4227 (already ported, this component only supplies markup/logic).
      No props/emits: reads useAgentStore('photos') directly, same self-contained pattern Vue2
      used via store injection -- New-UI has no provide() chain in Photos, so direct store access
      is the equivalent seam.
@@ -12,17 +12,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAgentStore } from '../../../ai/stores/agentStore'
+import { useAgentStore, type AgentModel } from '../../../ai/stores/agentStore'
 import { useFixedMenuPosition } from '../../composables/useFixedMenuPosition'
-
-interface AgentModel {
-  key: string
-  source: 'local' | 'cloud'
-  displayName?: string
-  providerName?: string
-  providerId?: string | number
-  provider_type?: string
-}
 
 const { t } = useI18n()
 const agent = useAgentStore('photos')
@@ -45,7 +36,7 @@ function groupLabel(providerType: string): string {
   return t(GROUP_LABEL[providerType] || GROUP_LABEL.other)
 }
 
-const pickableItems = computed(() => (agent.availableModels as AgentModel[]) || [])
+const pickableItems = computed(() => agent.availableModels || [])
 
 const groups = computed(() => {
   const byType = new Map<string, AgentModel[]>()
@@ -83,8 +74,14 @@ function pick(m: AgentModel): void {
   agent.selectModel(m.key)
   open.value = false
 }
+// Review fix (CRITICAL #1): the old '#/settings/ai-providers' hash targeted a route that
+// doesn't exist in this repo's router (src/router/index.ts registers the AI provider settings
+// page at name 'ai-settings', path '/ai/settings') -- clicking this button was a dead link.
+// Also closes the dropdown first, matching Vue2 NimoModelPicker.vue:167-177's goConfig()
+// (`this.open = false` before navigating).
 function goConfig(): void {
-  window.location.hash = '#/settings/ai-providers'
+  open.value = false
+  window.location.hash = '#/ai/settings'
 }
 
 // Re-check N-1: document-level outside-click, verbatim port of Vue2 NimoModelPicker.vue:114-123

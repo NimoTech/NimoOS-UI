@@ -174,9 +174,18 @@ function startDragMini(e: MouseEvent): void {
   window.addEventListener('mouseup', onMiniUp)
 }
 
+// Review fix (IMPORTANT #3): restores Vue2 PhotosAskNimo.vue:211-213's toggle() semantics for
+// the FAB click -- popup open -> close it; popup closed -> open it with a blank prefill. The
+// previous unconditional `nimo.openWith('')` regressed this to "always (re)open", which also
+// had the side effect of wiping any prefill/context chips already staged in the popup whenever
+// the FAB was clicked while it was already open.
 function openFab(): void {
   if (dragMoved) { dragMoved = false; return }
-  nimo.openWith('')
+  if (nimo.popupOpen.value) {
+    nimo.closePopup()
+  } else {
+    nimo.openWith('')
+  }
 }
 // Re-check N-5 ②: Vue2 PhotosAskNimo.vue:34 has `@mousedown.stop` on the dismiss "x" button --
 // this template's dismiss() is only bound to @click, but the button itself also sits inside the
@@ -185,14 +194,12 @@ function openFab(): void {
 //
 // Review fix (deliberate deviation from Vue2, ruled correct): the template's "x" also carries
 // `@click.stop`, which Vue2's own dismiss button does NOT have (PhotosAskNimo.vue:31-38 only
-// stops the mousedown). This is required by this port's architecture, not an oversight: Vue2's
-// FAB click handler is `toggle()` (open/close the SAME popup), so `dismiss()`'s bubbled click
-// just closed a popup that was already about to be hidden by dismissal anyway -- harmless there.
-// This port's FAB click handler is `openFab()` -> `nimo.openWith('')`, which has no toggle
-// semantics and unconditionally opens the popup. Without `.stop` here, clicking the "x" would
-// bubble to `openFab()` and reopen the popup in the same click that just dismissed the FAB to
-// its mini edge-tab -- a regression this architecture doesn't have. See the
-// "closes without reopening the popup" test below.
+// stops the mousedown). `dismiss()` only flips `fabDismissed` -- it never touches `popupOpen` --
+// so without `.stop` here, the click would still bubble up to `openFab()`'s now-restored toggle
+// semantics (Vue2 PhotosAskNimo.vue:211-213) and flip the popup open/closed as a side effect of
+// dismissing the FAB to its mini edge-tab, a spurious side effect Vue2 itself never has (there,
+// dismiss and the popup's own open state are the same click target's concern, not two competing
+// handlers on nested elements). See the "closes without reopening the popup" test below.
 function dismiss(): void {
   nimo.dismissFab()
 }

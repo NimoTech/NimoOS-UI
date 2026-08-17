@@ -48,6 +48,16 @@ describe('AskNimoFab', () => {
     expect(useAskNimo().prefill.value).toBe('')
   })
 
+  // Review fix (IMPORTANT #3): restores Vue2 PhotosAskNimo.vue:211-213's toggle() -- clicking
+  // the FAB while the popup is already open must close it, not re-open/reset it.
+  it('clicking the FAB body while the popup is already open closes it (Vue2 toggle semantics)', async () => {
+    const wrapper = mount(AskNimoFab)
+    useAskNimo().openWith('hello')
+    expect(useAskNimo().popupOpen.value).toBe(true)
+    await wrapper.find('.nimo-fab').trigger('click')
+    expect(useAskNimo().popupOpen.value).toBe(false)
+  })
+
   it('no ring rendered when there are zero tasks', () => {
     const wrapper = mount(AskNimoFab)
     expect(wrapper.find('.nimo-fab-ring').exists()).toBe(false)
@@ -148,9 +158,9 @@ describe('AskNimoFab', () => {
 
   // Review fix (IMPORTANT #2): deliberate deviation from Vue2 (which has no @click.stop on the
   // dismiss "x" -- see the comment at dismiss()'s definition). Guards against a regression this
-  // port's architecture is uniquely exposed to: openFab() unconditionally opens the popup (no
-  // toggle semantics), so without .stop, the "x" click bubbling to the FAB's own @click would
-  // reopen the popup in the same click that just dismissed the FAB.
+  // port's architecture is uniquely exposed to: dismiss() never touches popupOpen, so without
+  // .stop, the "x" click bubbling to the FAB's own @click would flip popupOpen via openFab()'s
+  // toggle semantics (Vue2 PhotosAskNimo.vue:211-213) in the same click that just dismissed the FAB.
   it('clicking the dismiss x with the popup closed does not bubble into opening the popup', async () => {
     const wrapper = mount(AskNimoFab)
     expect(useAskNimo().popupOpen.value).toBe(false)

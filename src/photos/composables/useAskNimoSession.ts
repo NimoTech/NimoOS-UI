@@ -27,11 +27,36 @@ export function isPhotosSessionExpired(): boolean {
   return lastActiveAt > 0 && Date.now() - lastActiveAt >= PHOTOS_IDLE_TTL_MS
 }
 
+// Review fix (minor #11): quota-exceeded / private-mode Safari / disabled storage must degrade
+// to a no-op/fallback rather than throwing into callers -- same tolerance pattern as
+// useAskNimo.ts's readNum()/writeStorage()/removeStorage().
+function readSessionId(): string | null {
+  try {
+    return localStorage.getItem(PHOTOS_SESSION_KEY)
+  } catch {
+    return null
+  }
+}
+function writeSessionId(id: string): void {
+  try {
+    localStorage.setItem(PHOTOS_SESSION_KEY, id)
+  } catch {
+    // Best-effort persistence only -- see readSessionId's comment above.
+  }
+}
+function removeSessionId(): void {
+  try {
+    localStorage.removeItem(PHOTOS_SESSION_KEY)
+  } catch {
+    // Best-effort persistence only -- see readSessionId's comment above.
+  }
+}
+
 async function createPhotosSession(agent: AgentStore): Promise<void> {
   await agent.createSession()
   if (!agent.activeSessionId) throw new Error('createPhotosSession: no session id returned')
   lastActiveAt = 0
-  localStorage.setItem(PHOTOS_SESSION_KEY, String(agent.activeSessionId))
+  writeSessionId(String(agent.activeSessionId))
   try {
     await agent.setSessionTitle(agent.activeSessionId, PHOTOS_SESSION_TITLE)
   } catch {
@@ -44,21 +69,21 @@ export async function resetPhotosSession(agent: AgentStore): Promise<void> {
   if (agent.pendingCancel) {
     try { await agent.pendingCancel } catch { /* already swallowed in stop() */ }
   }
-  const staleId = agent.activeSessionId || localStorage.getItem(PHOTOS_SESSION_KEY)
+  const staleId = agent.activeSessionId || readSessionId()
   if (staleId) {
     try { await agent.deleteSession(staleId) } catch { /* best-effort */ }
   }
-  localStorage.removeItem(PHOTOS_SESSION_KEY)
+  removeSessionId()
   await createPhotosSession(agent)
 }
 
 export async function ensurePhotosSession(agent: AgentStore): Promise<void> {
   if (!bootDone) {
     bootDone = true
-    const saved = localStorage.getItem(PHOTOS_SESSION_KEY)
+    const saved = readSessionId()
     if (saved) {
       try { await agent.deleteSession(saved) } catch { /* best-effort orphan cleanup */ }
-      localStorage.removeItem(PHOTOS_SESSION_KEY)
+      removeSessionId()
     }
     await createPhotosSession(agent)
     return

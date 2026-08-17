@@ -28,8 +28,9 @@
 // src/photos/styles/vue2-parity/photos.scss:556-557 (pre-staged for this task), and the
 // orb is sized 18x18 (Vue2 PhotosGrid.vue:121 `width:18px;height:18px`), not 13px —
 // 13px is only used for PhotosIcon glyphs on the other buttons in this bar, the Vue2
-// nimo-orb span itself is always sized independently of that convention (see
-// PhotosTopbar.vue's own 16px instance).
+// nimo-orb span itself is always sized independently of that convention (Vue2
+// PhotosTopbar.vue's own instance is also 18px, matching PhotosGrid.vue here; the 16px
+// instance the Vue2 codebase actually has is PhotosLightbox.vue:85).
 import { useI18n } from 'vue-i18n'
 import PhotosIcon from './PhotosIcon.vue'
 
