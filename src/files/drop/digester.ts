@@ -1,4 +1,4 @@
-// FileDigester:逐字移植 Vue2 Network.js(含 NaN 进度归一)。
+// FileDigester: character-by-character port of Vue2 Network.js (includes NaN progress normalization).
 import type { ReceivedFile } from './protocol'
 
 export class FileDigester {

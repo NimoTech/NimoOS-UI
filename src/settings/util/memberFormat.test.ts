@@ -1,18 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { formatMemberDate, validateNewMember } from './memberFormat'
 
-describe('formatMemberDate —— 1:1 对位 Vue2 AccountPanel formatDate(:538-543)', () => {
-  it('本地时间 YYYY-MM-DD HH:mm:ss,各段补零', () => {
+describe('formatMemberDate —— 1:1 port of Vue2 AccountPanel formatDate(:538-543)', () => {
+  it('local time YYYY-MM-DD HH:mm:ss, each segment zero-padded', () => {
     // Construct with local time so the test machine's timezone can't make the assertion flaky
     const d = new Date(2026, 6, 3, 4, 5, 6) // 2026-07-03 04:05:06 local
     expect(formatMemberDate(d.toISOString())).toBe('2026-07-03 04:05:06')
   })
-  it('空值返回空串(Vue2 !dateStr 早退)', () => {
+  it('empty value returns empty string (Vue2 !dateStr early return)', () => {
     expect(formatMemberDate('')).toBe('')
     expect(formatMemberDate(null)).toBe('')
     expect(formatMemberDate(undefined)).toBe('')
   })
-  it('Go 零值时间不炸,但**年份不补零**(与 Vue2 逐字一致,故意保留)', () => {
+  it('Go zero-value time does not blow up, but **the year is not zero-padded** (matches Vue2 byte-for-byte, kept intentionally)', () => {
     // Backend created_at may be Go's zero value 0001-01-01T00:00:00Z (verified on this
     // machine's /v1/users/current). Vue2 formatDate only padStart's month/day/h/m/s and
     // **uses getFullYear() directly for the year** -> outputs "1-01-01", not "0001-01-01".
@@ -24,26 +24,26 @@ describe('formatMemberDate —— 1:1 对位 Vue2 AccountPanel formatDate(:538-5
     expect(out).toMatch(/^\d{1,4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
     expect(out.startsWith('0001-')).toBe(false)
   })
-  it('无法解析的串返回空串(Vue2 会渲染 NaN-NaN-NaN,这是照 plan C1 改正的行为)', () => {
+  it('unparseable string returns empty string (Vue2 would render NaN-NaN-NaN; this behavior is corrected per plan C1)', () => {
     expect(formatMemberDate('not-a-date')).toBe('')
   })
 })
 
-describe('validateNewMember —— 1:1 对位 Vue2 submitAddMember(:493-506)', () => {
-  it('用户名或密码为空 → empty', () => {
+describe('validateNewMember —— 1:1 port of Vue2 submitAddMember(:493-506)', () => {
+  it('username or password empty → empty', () => {
     expect(validateNewMember('', 'pw1234', 'pw1234')).toBe('empty')
     expect(validateNewMember('bob', '', '')).toBe('empty')
   })
-  it('密码短于 6 位 → tooShort', () => {
+  it('password shorter than 6 chars → tooShort', () => {
     expect(validateNewMember('bob', 'pw123', 'pw123')).toBe('tooShort')
   })
-  it('刚好 6 位放过', () => {
+  it('exactly 6 chars passes', () => {
     expect(validateNewMember('bob', 'pw1234'.slice(0, 6), 'pw1234'.slice(0, 6))).toBeNull()
   })
-  it('两次密码不一致 → mismatch', () => {
+  it('the two password entries do not match → mismatch', () => {
     expect(validateNewMember('bob', 'pw1234', 'pw4321')).toBe('mismatch')
   })
-  it('校验顺序与 Vue2 一致:空 > 长度 > 一致性', () => {
+  it('validation order matches Vue2: empty > length > consistency', () => {
     // Empty AND short AND mismatched -> still reports empty
     expect(validateNewMember('bob', '', 'x')).toBe('empty')
     // Short AND mismatched -> reports tooShort

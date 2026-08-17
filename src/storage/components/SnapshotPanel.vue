@@ -32,17 +32,20 @@ const policySummaryText = computed(() => {
   return t('snapPolicySummary', { hourly: p.hourly_keep, daily: p.daily_keep, weekly: p.weekly_keep })
 })
 
-// Vue2 的 state watcher(SnapshotPanel.vue:160-164):只在"变成 enabled"这一刻拉策略,
-// 每次转换只拉一次(初次加载即 enabled 也算一次转换)。
+// Vue2's state watcher (SnapshotPanel.vue:160-164): only fetches the policy at the moment it
+// "becomes enabled", once per transition (loading already enabled on first load also counts as one transition).
 watch(state, (val, oldVal) => {
   if (val === 'enabled' && oldVal !== 'enabled') store.loadPolicy(props.volumeUuid)
 })
 
-// 必修 1(Critical):单例 store 跨路由存活,换阵列(/storage/raid/7 → /storage/raid/8)
-// 时若 StorageRaidDetail 实例被 vue-router 复用,本组件首帧可能吃到旧 volumeUuid prop,
-// 随后 prop 才更新为新卷 —— 没有这个 watcher 就会一直显示旧卷的开关/数量/策略摘要,
-// 却对 props.volumeUuid(新卷)发出保护开关与保留策略写入。reset() 把 volumeLoading
-// 打回 true,面板收起、内嵌 SnapshotTimeline 随之卸载重挂,避免它拿着旧展开态残留。
+// Must-fix 1 (Critical): the store singleton survives across routes. When switching arrays
+// (/storage/raid/7 → /storage/raid/8), if vue-router reuses the StorageRaidDetail instance,
+// this component's first frame may receive the old volumeUuid prop, with the prop only updating
+// to the new volume afterward — without this watcher it would keep showing the old volume's
+// toggle/count/policy summary while writing the protection toggle and retention policy against
+// props.volumeUuid (the new volume). reset() flips volumeLoading back to true, collapsing the
+// panel and unmounting/remounting the embedded SnapshotTimeline along with it, so it doesn't
+// carry over the old expanded state.
 onMounted(() => { store.reset(); store.loadVolume(props.volumeUuid) })
 watch(() => props.volumeUuid, (uuid) => { store.reset(); store.loadVolume(uuid) })
 
@@ -50,7 +53,7 @@ function onToggle() {
   store.toggle(props.volumeUuid, !(store.volume?.enabled ?? false))
 }
 
-// --- 高级保留策略表单(Vue2 SnapshotPanel.vue:209-223) ----------------------
+// --- Advanced retention policy form (Vue2 SnapshotPanel.vue:209-223) ----------------------
 const advancedOpen = ref(false)
 const policyForm = ref<PolicyForm>({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
 const fieldErrors = ref<Partial<Record<keyof PolicyForm, string>>>({})
@@ -58,8 +61,9 @@ const manualLabel = ref('')
 
 function openAdvanced() {
   const p = store.policy
-  // Number() 包裹:后端可能把这些字段序列化成数字字符串,不归一的话 validatePolicyForm
-  // 里的 Number.isInteger 会误判合法值为非法(字符串永远不是 integer),白白挡用户保存。
+  // Wrapped in Number(): the backend may serialize these fields as numeric strings; without
+  // normalizing them, validatePolicyForm's Number.isInteger check would wrongly flag valid
+  // values as invalid (a string is never an integer), needlessly blocking the user from saving.
   policyForm.value = {
     hourly_keep: Number(p?.hourly_keep ?? 24),
     daily_keep: Number(p?.daily_keep ?? 7),
@@ -83,10 +87,10 @@ async function onSavePolicy() {
   if (ok) advancedOpen.value = false
 }
 
-// --- 手动创建快照(Vue2 SnapshotPanel.vue:240-254) --------------------------
+// --- Manually create a snapshot (Vue2 SnapshotPanel.vue:240-254) --------------------------
 async function onCreateSnapshot() {
   const ok = await store.createSnapshot(props.volumeUuid, manualLabel.value)
-  if (ok) manualLabel.value = ''   // Vue2 同款:只有成功才清备注
+  if (ok) manualLabel.value = ''   // Same as Vue2: only clears the note on success
 }
 </script>
 
@@ -94,7 +98,7 @@ async function onCreateSnapshot() {
   <div v-if="!store.volumeLoading" class="sp-card">
     <div class="sp-title">{{ t('snapTitle') }}</div>
 
-    <!-- 不支持:无开关,只有一行说明(Vue2 SnapshotPanel.vue:4-9) -->
+    <!-- Unsupported: no toggle, just a single line of explanation (Vue2 SnapshotPanel.vue:4-9) -->
     <div v-if="state === 'unsupported'" class="sp-row sp-unsupported">
       <span class="sp-muted">{{ t('snapUnsupported') }}</span>
     </div>
@@ -173,7 +177,7 @@ async function onCreateSnapshot() {
         <span class="sp-muted">{{ t('snapKept') }}</span>
       </div>
 
-      <!-- 可见性 1:1 照 Vue2 SnapshotPanel.vue:99-102:启用时,或已关闭但仍有历史快照时 -->
+      <!-- Visibility mirrors Vue2 SnapshotPanel.vue:99-102 1:1: when enabled, or when disabled but historical snapshots still exist -->
       <SnapshotTimeline
         v-if="state === 'enabled' || (state === 'disabled' && (store.volume?.count ?? 0) > 0)"
         :volume-uuid="volumeUuid"
@@ -183,8 +187,8 @@ async function onCreateSnapshot() {
 </template>
 
 <style scoped>
-/* 结构照 StorageRaidDetail 的 .rd-card —— scoped 样式不穿透子组件,与 Vue2
-   SnapshotPanel 重复 .info-card 是同一个原因(见 Vue2:260-261 注释)。 */
+/* Structure mirrors StorageRaidDetail's .rd-card — scoped styles don't pierce child components,
+   the same reason this duplicates .info-card from Vue2 SnapshotPanel (see the Vue2:260-261 comment). */
 .sp-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 14px; }
 .sp-title { font-size: 11px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.4px; padding: 8px 12px; border-bottom: 1px solid var(--card-border); }
 .sp-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--card-border); font-size: 12.5px; }

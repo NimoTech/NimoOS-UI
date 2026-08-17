@@ -57,7 +57,7 @@ beforeEach(() => {
 })
 
 describe('GoogleDriveAuthDialog', () => {
-  it('渲染标题/提示/指引链接(指向本应用自带的 guide 页)', async () => {
+  it('renders title / hint / guide link (points to app-bundled guide page)', async () => {
     mountDlg()
     await nextTick()
     expect(document.body.textContent).toContain('绑定 Google 云端硬盘')
@@ -66,7 +66,7 @@ describe('GoogleDriveAuthDialog', () => {
     expect(a.getAttribute('target')).toBe('_blank')
   })
 
-  it('空值/仅空格时连接按钮 disabled,不调 service', async () => {
+  it('empty / whitespace-only: connect button disabled, does not call service', async () => {
     mountDlg()
     await nextTick()
     const btn = q<HTMLButtonElement>('.ui-btn.primary')
@@ -77,7 +77,7 @@ describe('GoogleDriveAuthDialog', () => {
     expect(authMock).not.toHaveBeenCalled()
   })
 
-  it('填两项(带首尾空格)→ 连接:trim 后调 service,成功 emit auth-url + 关框', async () => {
+  it('fill both fields (with leading/trailing spaces) → connect: trim and call service, success emits auth-url and closes dialog', async () => {
     authMock.mockResolvedValue('https://auth?state=${HOST}x')
     const w = mountDlg()
     await nextTick()
@@ -92,7 +92,7 @@ describe('GoogleDriveAuthDialog', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('失败透出后端 message;取不到用通用键;框不关', async () => {
+  it('failure surfaces backend message; if unavailable uses generic key; dialog stays open', async () => {
     authMock.mockRejectedValueOnce({ response: { data: { message: '凭据无效' } } })
     const w = mountDlg()
     await nextTick()
@@ -110,7 +110,7 @@ describe('GoogleDriveAuthDialog', () => {
     expect(toast.msg).toBe('发起授权失败')
   })
 
-  it('open 翻真时重置字段', async () => {
+  it('when open toggles true, resets fields', async () => {
     const w = mountDlg()
     await nextTick()
     await type('input[name="client_id"]', 'leftover')

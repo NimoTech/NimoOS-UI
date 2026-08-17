@@ -1,27 +1,34 @@
 <script setup lang="ts">
-// 安装横幅:选中的 VM 正在运行、但还没切回硬盘引导(bootFromDisk=false)且挂着 iso 时
-// 显示,提示用户 ISO 装完系统后点按钮切回硬盘引导。视觉 1:1 对 Vue2
-// components/KVM/KVMFullPage.vue 模板 :142-149 + 样式 :3096-3147——注意样式在 Vue2
-// 文件末尾**第二个、非 scoped** 的 `<style lang="scss">` 块里(第一个 `<style scoped>`
-// 在 :1657 起,全局块在 :2875 起),不是随手能在 scoped 块里找到的,这里单独标注一下
-// 免得下次翻 Vue2 源文件翻错地方。
+// Installation banner: shown when the selected VM is running but has not yet switched back
+// to disk boot (bootFromDisk=false) and an ISO is attached, prompting the user to click
+// the button to switch back to disk boot after the ISO finishes installing the system.
+// Visual 1:1 match with Vue2 components/KVM/KVMFullPage.vue template :142-149 + styles
+// :3096-3147 — note that the styles are in the **second, non-scoped** `<style lang="scss">`
+// block at the end of the Vue2 file (first `<style scoped>` at :1657, global block at :2875),
+// not something you can find at will in the scoped block; noted separately here to avoid
+// looking up the wrong place when translating Vue2 sources next time.
 //
-// 这是全页唯一的浅色块(--kvm-banner-* 系列 token 是浅蓝底,T2 阶段就在 theme.sp9.css
-// 里定义好了、当时未使用,本任务是第一个消费它们的地方)。显示条件由父组件(KvmPage)
-// 算好通过 v-if 控制挂载,本组件只管渲染 + 点击回调。
+// This is the only light-colored block on the entire page (the --kvm-banner-* series of
+// tokens are light-blue background, defined in theme.sp9.css in T2 phase but unused at
+// the time; this task is the first to consume them). Display condition is computed by the
+// parent component (KvmPage) and controlled via v-if mounting; this component only handles
+// rendering + click callback.
 //
-// ⚠️ 评审 Important #1 修复(2026-08-02):eject 失败时原来完全静默——`useVmList` 把
-// 失败原因写进共享的 `lastError`,但那条内联错误只在 ConsoleStage 的
-// `console-placeholder`(`v-if="!connected"`)里渲染;安装横幅的显示条件要求
-// `state==='running'`,此时 T6 早已自动建立 VNC 连接、`connected` 恒为 true,占位层
-// 压根不渲染,`lastError` 因此有写但从无处显示。Vue2 这里是弹一条红色 toast;按 KVM 区
-// 从 T5 起确立的"控制台内联显示、不用 toast"约定,这里改成在横幅**内部**新增一行错误
-// 文案(Vue2 没有这个元素,是新增的展示位——没有 toast 就必须有个地方放这条信息,
-// 不是可有可无的装饰)。
+// WARNING: Review Important #1 fix (2026-08-02): eject failure was completely silent before —
+// `useVmList` writes the failure reason into the shared `lastError`, but that inline error
+// only renders in ConsoleStage's `console-placeholder` (`v-if="!connected"`); the banner's
+// display condition requires `state==='running'`, at which point T6 has already auto-established
+// a VNC connection, `connected` is always true, the placeholder does not render at all,
+// so `lastError` is written but has nowhere to be displayed. Vue2 pops a red toast here;
+// following the "inline display in console, no toast" convention established in KVM since T5,
+// we changed this to add a line of error text **inside the banner** (Vue2 has no such element,
+// this is a new display location — without toast, there must be somewhere to put this message,
+// not just decorative).
 //
-// errorKey 与 ConsoleStage 的 error-key 走同一套约定:可能是 i18n key(如
-// 'kvmEjectFailed'),也可能是后端返回的已解析原文,两种情况都用 te()/t() 判定——
-// 同 KvmPage.vue 里 consoleErrorKey 的既有写法,保持整个 KVM 区错误展示逻辑一致。
+// errorKey follows the same convention as ConsoleStage's error-key: could be an i18n key
+// (like 'kvmEjectFailed') or already-parsed raw text returned from the backend; in both cases
+// use te()/t() to determine — same as the existing consoleErrorKey pattern in KvmPage.vue,
+// keeping KVM error display logic consistent across the entire area.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -36,14 +43,16 @@ const errorText = computed(() => {
   return te(key) ? t(key) : key
 })
 
-// ⚠️ 与 Vue2 的偏离(改正确逻辑、不照抄 bug,已申报):Vue2 的 `.is-loading` 只靠 CSS
-// `pointer-events: none` 挡鼠标点击(:3127-3130),按钮本身没有 disabled 属性——键盘
-// 用户 Tab 到按钮上按 Enter/Space 触发的 click 事件不受 pointer-events 影响,finishingInstall
-// 为真时理论上仍能重复调用 handleInstallationFinished(该方法内部虽然也有
-// `if (this.finishingInstall) return` 兜底,但那层兜底与"点击层面挡不挡得住"是两件事,
-// 双保险不冲突)。这里直接在点击处理函数里判断 busy 再决定要不要 emit,不新增原生
-// disabled 属性(disabled 在多数浏览器会带来 Vue2 没有的默认视觉,比如更淡的默认光标/
-// 焦点样式,不是 1:1;纯 JS 判断不影响任何视觉)。
+// ⚠️ Deviation from Vue2 (correcting logic, not copying bugs — already reported): Vue2's `.is-loading`
+// relies only on CSS `pointer-events: none` to block mouse clicks (:3127-3130), with no
+// disabled attribute on the button itself. Keyboard users tabbing to the button and pressing
+// Enter/Space trigger click events unaffected by pointer-events; in theory, with finishingInstall
+// true, handleInstallationFinished could be called repeatedly (the method itself has an
+// `if (this.finishingInstall) return` fallback, but that's separate from "whether clicks are blocked
+// at the click-handler level"; belt-and-braces approach doesn't conflict). Here we check busy
+// directly in the click handler and decide whether to emit; no native disabled attribute is added
+// (disabled brings Vue2-absent default visuals to most browsers — e.g. fainter default cursor/
+// focus styles; not 1:1; pure JS check doesn't affect any visuals).
 function onClick(): void {
   if (!props.busy) emit('finish')
 }
@@ -52,8 +61,9 @@ function onClick(): void {
 <template>
   <div class="installation-banner">
     <div class="banner-content">
-      <!-- ℹ 是单色文字符号占位(禁 emoji),对位 Vue2 b-icon icon="information-outline"。
-           纯装饰,文字本身已经说明信息,不需要额外 aria-label。 -->
+      <!-- ℹ is a monochrome text symbol placeholder (no emoji), corresponding to Vue2's
+           b-icon icon="information-outline". Pure decoration; the text itself already conveys
+           the information, no additional aria-label needed. -->
       <span aria-hidden="true">ℹ</span>
       <span>{{ t('kvmInstallingFromIso') }}</span>
     </div>
@@ -65,8 +75,9 @@ function onClick(): void {
     >
       {{ t('kvmFinishedInstalling') }}
     </button>
-    <!-- 新增元素(Vue2 没有,评审要求补——见上方脚本注释):eject 失败时的内联错误提示。
-         flex-basis:100% 让它在有内容时独占一行,不影响没有错误时原本的单行布局。 -->
+    <!-- New element (Vue2 didn't have this; added per review request — see script comment above):
+         inline error message when eject fails. flex-basis:100% makes it take a full line when
+         present, without affecting the single-line layout when there's no error. -->
     <p v-if="errorText" class="banner-error">{{ errorText }}</p>
   </div>
 </template>

@@ -18,8 +18,8 @@ function recorder(dataFor?: (verb: string, url: string) => unknown) {
   return { http, calls }
 }
 
-describe('createWiki — URL/动词表', () => {
-  it('每个方法各调一次', async () => {
+describe('createWiki — URL/verb table', () => {
+  it('calls each method once', async () => {
     const { http, calls } = recorder((_v, url) => (url === '/wiki/node' ? { path: '/x' } : []))
     const wiki = createWiki(http)
     await wiki.getRoots()
@@ -38,19 +38,19 @@ describe('createWiki — URL/动词表', () => {
       'delete /wiki/roots/r1', 'delete /wiki/roots/r1?purge_files=true',
       'post /wiki/roots/r1/rescan', 'patch /wiki/roots/r1',
     ])
-    expect(calls[2].cfg).toBe(undefined)                       // 无 rootId → 不传 params
-    expect(calls[3].cfg).toEqual({ params: { root_id: 'r1' } }) // 有 rootId → 传
+    expect(calls[2].cfg).toBe(undefined)                       // no rootId → no params sent
+    expect(calls[3].cfg).toEqual({ params: { root_id: 'r1' } }) // has rootId → sent
     expect(calls[9].body).toEqual({ enabled: false })
   })
 
-  it('getRoots 对 null 响应兜底成空数组(Go nil slice 序列化成 null)', async () => {
+  it('getRoots falls back to an empty array on a null response (Go nil slice serializes to null)', async () => {
     const { http } = recorder(() => null)
     expect(await createWiki(http).getRoots()).toEqual([])
     expect(await createWiki(http).getCandidates()).toEqual([])
     expect(await createWiki(http).getTree()).toEqual([])
   })
 
-  it('getRaw 把非字符串 body 强制成字符串,null/undefined 成空串', async () => {
+  it('getRaw forces a non-string body to a string, null/undefined become an empty string', async () => {
     const mk = (v: unknown) => createWiki(recorder(() => v).http)
     expect(await mk('# hi').getRaw('/a')).toBe('# hi')
     expect(await mk(null).getRaw('/a')).toBe('')
@@ -58,15 +58,15 @@ describe('createWiki — URL/动词表', () => {
     expect(await mk(42).getRaw('/a')).toBe('42')
   })
 
-  it('getRaw / getNode 用 path 作 query 参数', async () => {
+  it('getRaw / getNode use path as a query param', async () => {
     const { http, calls } = recorder(() => 'x')
     await createWiki(http).getRaw('/DATA/a b')
     expect(calls[0].cfg).toEqual({ params: { path: '/DATA/a b' } })
   })
 })
 
-describe('wiki 纯函数(移植 Vue2 wikiRoots.spec.js)', () => {
-  it('normalizeRoot 把 Go PascalCase 映射成 camelCase', () => {
+describe('wiki pure functions (ported from Vue2 wikiRoots.spec.js)', () => {
+  it('normalizeRoot maps Go PascalCase to camelCase', () => {
     expect(normalizeRoot({ ID: 'r1', Path: '/DATA', Level: 'space', WatchMode: 'auto',
       StorageMode: 'inline', Enabled: true, ScanIntervalS: 21600, CreatedAt: 1,
       LastScanAt: 0, NeedsReconcile: true }))
@@ -75,7 +75,7 @@ describe('wiki 纯函数(移植 Vue2 wikiRoots.spec.js)', () => {
         lastScanAt: 0, needsReconcile: true })
   })
 
-  it('normalizeRoot 缺省时 needsReconcile / enabled 为 false、数值为 0', () => {
+  it('normalizeRoot defaults needsReconcile / enabled to false, numeric fields to 0', () => {
     const r = normalizeRoot({ ID: 'r2', Path: '/x' })
     expect(r.needsReconcile).toBe(false)
     expect(r.enabled).toBe(false)
@@ -83,14 +83,14 @@ describe('wiki 纯函数(移植 Vue2 wikiRoots.spec.js)', () => {
     expect(r.lastScanAt).toBe(0)
   })
 
-  it('normalizeTreeNode 映射 /wiki/tree 的 snake_case 行', () => {
+  it('normalizeTreeNode maps a /wiki/tree snake_case row', () => {
     expect(normalizeTreeNode({ path: '/DATA/Wiki', level: 'dir', ai_label: 'Work notes',
       user_notes_updated_at: '', last_modified: '2026-07-20T10:00:00+08:00' }))
       .toEqual({ path: '/DATA/Wiki', level: 'dir', aiLabel: 'Work notes',
         userNotesUpdatedAt: '', lastModified: '2026-07-20T10:00:00+08:00' })
   })
 
-  it('normalizeNode 映射 child_map / recent_changes 并容忍 null', () => {
+  it('normalizeNode maps child_map / recent_changes and tolerates null', () => {
     const n = normalizeNode({ path: '/DATA', level: 'root', ai_label: '', summary: null,
       child_map: [{ name: 'Docs', last_modified: 't1', is_opaque: 1 }],
       recent_changes: [{ path: '/DATA/a.md', op: 'create', at: 't2' }],
@@ -102,7 +102,7 @@ describe('wiki 纯函数(移植 Vue2 wikiRoots.spec.js)', () => {
     expect(n.etag).toBe('abc')
   })
 
-  it('normalizeNode 顶得住最小载荷', () => {
+  it('normalizeNode holds up against a minimal payload', () => {
     const n = normalizeNode({ path: '/x' })
     expect(n.childMap).toEqual([])
     expect(n.recentChanges).toEqual([])
@@ -110,12 +110,12 @@ describe('wiki 纯函数(移植 Vue2 wikiRoots.spec.js)', () => {
     expect(n.parentWiki).toBe('')
   })
 
-  it('createRootBody 用 Go 字段名(无下划线)与固定默认值', () => {
+  it('createRootBody uses Go field names (no underscores) and fixed default values', () => {
     expect(createRootBody({ path: '/DATA' })).toEqual({ Path: '/DATA', Level: 'space',
       WatchMode: 'auto', StorageMode: 'inline', ScanIntervalS: 21600 })
   })
 
-  it('createRootBody 支持 mirror 重试与自定义间隔,且间隔至少 1 小时', () => {
+  it('createRootBody supports mirror retry and a custom interval, with a minimum interval of 1 hour', () => {
     const b = createRootBody({ path: '/mnt/ro', watchMode: 'scan_only', scanIntervalH: 2, mirror: true })
     expect(b.StorageMode).toBe('mirror')
     expect(b.WatchMode).toBe('scan_only')
@@ -124,8 +124,8 @@ describe('wiki 纯函数(移植 Vue2 wikiRoots.spec.js)', () => {
   })
 })
 
-describe('判别力补充断言(评审教训:getRoots/getCandidates/getTree 三者都是「取数组→兜底[]→map normalizer」形状,互换 normalizer 用 brief 原有断言测不出)', () => {
-  it('getRoots 对非空真实响应用 normalizeRoot 归一化(与 normalizeTreeNode 输出形状不同,用错 normalizer 必报红)', async () => {
+describe('supplementary discriminating assertions (review lesson: getRoots/getCandidates/getTree are all "get array → fall back to [] → map normalizer" shaped, swapping the normalizer would not be caught by the brief\'s original assertions)', () => {
+  it('getRoots normalizes a non-empty real response with normalizeRoot (a different output shape from normalizeTreeNode, using the wrong normalizer must fail)', async () => {
     const { http } = recorder(() => [{ ID: 'r1', Path: '/DATA', Level: 'space', WatchMode: 'auto',
       StorageMode: 'inline', Enabled: true, ScanIntervalS: 21600, CreatedAt: 1,
       LastScanAt: 0, NeedsReconcile: true }])
@@ -135,7 +135,7 @@ describe('判别力补充断言(评审教训:getRoots/getCandidates/getTree 三�
       lastScanAt: 0, needsReconcile: true }])
   })
 
-  it('getTree 对非空真实响应用 normalizeTreeNode 归一化(snake_case → camelCase,与 normalizeRoot 输出形状不同)', async () => {
+  it('getTree normalizes a non-empty real response with normalizeTreeNode (snake_case → camelCase, a different output shape from normalizeRoot)', async () => {
     const { http } = recorder(() => [{ path: '/DATA/Wiki', level: 'dir', ai_label: 'Work notes',
       user_notes_updated_at: '', last_modified: '2026-07-20T10:00:00+08:00' }])
     const out = await createWiki(http).getTree()

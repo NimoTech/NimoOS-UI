@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/SemanticSearchCard.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/SemanticSearchCard.vue -->
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -241,7 +241,7 @@ function onFullFileClick(f: SemFile | SemPassage) {
 
       <!-- ── Tab content ── -->
       <div class="semcard-body">
-        <!-- "全部" combined layout -->
+        <!-- "All" combined layout -->
         <div v-if="activeTab === 'all'" class="semcard-all-layout">
           <!-- Images strip -->
           <div v-if="images && images.length > 0" class="semcard-section">

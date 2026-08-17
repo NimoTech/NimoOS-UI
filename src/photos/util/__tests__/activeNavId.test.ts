@@ -8,24 +8,24 @@ const NAV = [
 ]
 
 describe('activeNavId', () => {
-  it('/photos 精确命中 library,不误伤', () => {
+  it('/photos exactly matches library, no false positive', () => {
     expect(activeNavId('/photos', NAV)).toBe('library')
   })
 
-  it('/photos/favorites 命中 favorites(最长前缀,不双高亮 library)', () => {
+  it('/photos/favorites matches favorites (longest prefix, does not double-highlight library)', () => {
     expect(activeNavId('/photos/favorites', NAV)).toBe('favorites')
   })
 
-  it('/photos/trash 命中 trash', () => {
+  it('/photos/trash matches trash', () => {
     expect(activeNavId('/photos/trash', NAV)).toBe('trash')
   })
 
-  it('前瞻:/photos/albums/123 命中最长前缀(若有 albums 条目)', () => {
+  it('lookahead: /photos/albums/123 matches the longest prefix (if an albums entry exists)', () => {
     const nav2 = [...NAV, { id: 'albums', route: '/photos/albums' }]
     expect(activeNavId('/photos/albums/123', nav2)).toBe('albums')
   })
 
-  it('无匹配返回 null', () => {
+  it('returns null when there is no match', () => {
     expect(activeNavId('/other', NAV)).toBeNull()
   })
 })

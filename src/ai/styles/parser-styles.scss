@@ -1,69 +1,85 @@
-/* Parser 两页(解析器状态 / 测试沙盒)的样式 —— SP8-P5c Task 2b
+/* Styles for Parser two pages (parser status / test sandbox) — SP8-P5c Task 2b
  *
- * 1:1 移植自 Vue2 蓝本的两处 scoped 样式(共 199 行,`git show main:` @ 7a6ee6b7):
- *   ① `src/views/AI/Parser/parser-styles.scss`(74 行)
- *        → 本文件的 `.parser-app .parser-status-page { … }` 段
- *   ② `src/views/AI/Parser/ParserTest.vue:245-369` 的内联 `<style lang="scss" scoped>`(125 行)
- *        → 本文件的 `.parser-app .parser-test-page { … }` 段
- *   ⚠️ 蓝本的 `ParserTest.vue` **不** `@import './parser-styles.scss'`(只有 `ParserStatus.vue:162-164`
- *   那个 `<style>` 块 import 了),所以两份是**各自独立**的 scoped 样式,不是一份加一份补丁。
+ * 1:1 ported from Vue2 baseline two scoped styles (199 lines total, `git show main:` @ 7a6ee6b7):
+ *   ① `src/views/AI/Parser/parser-styles.scss` (74 lines)
+ *        → this file's `.parser-app .parser-status-page { … }` section
+ *   ② `src/views/AI/Parser/ParserTest.vue:245-369` inline `<style lang="scss" scoped>` (125 lines)
+ *        → this file's `.parser-app .parser-test-page { … }` section
+ *   ⚠️ The baseline `ParserTest.vue` does **not** `@import './parser-styles.scss'` (only the
+ *   `<style>` block in `ParserStatus.vue:162-164` imported it), so the two are **independently**
+ *   scoped styles, not one plus one patch.
  *
- * 【K23 —— 两页各自一个作用域,同名类不合并】治理 §3 K23 / 附录 B §B.1 的 C-2 实测:两份里
- * 重名的完整选择器只有 `.card` / `.page-header` / `.page-header h2` 三条声明逐字相同,而
- * `.row`(gap/padding vs gap/margin)· `h3`(状态页多一条字重)· `li`(padding 与虚线档位都不同)·
- * `.hint`(测试页内部就有两份不同的)全都不同。合并 = 界面不 1:1 = 回归。
- * → 逐字相同的那 3 条也**照 K23 在两个作用域下各留一份**(「东西在哪儿就搬到哪儿」)。
+ * 【K23 — each page has its own scope, same-named classes not merged】Governance §3 K23 / Appendix
+ * B §B.1 C-2 testing: among the same-named complete selectors, only `.card` / `.page-header` /
+ * `.page-header h2` have identical declarations word-for-word, while `.row` (gap/padding vs
+ * gap/margin) · `h3` (status page has extra font-weight) · `li` (padding and dashed line positions
+ * both differ) · `.hint` (test page itself has two different versions) all differ. Merging = UI not
+ * 1:1 = regression. → the three word-for-word identical ones **stay in each scope per K23** ("keep
+ * things where they are").
  *
- * 【K9 —— 零顶层裸选择器】蓝本那 60+ 个裸类名(`.card` `.row` `.hint` `.error` `.empty` …)与 9 个
- * 元素选择器(`h2` `h3` `b` `li` `p` `em` `strong` `input` `code`)在 Vue2 靠 `scoped` 隔离;搬进
- * New-UI 的全局 scss 必须自己收口 —— 本文件里**每一条规则都嵌在那两个页面作用域之下**,
- * 第 0 列只允许出现 `.parser-app` / `.parser-app .parser-status-page` / `.parser-app .parser-test-page`
- * 三个选择器(**后代**选择器,见下面的 K31)。`parserStyles.test.ts` 的断言 (b) 钉这一条。
+ * 【K9 — zero top-level bare selectors】The baseline's 60+ bare class names (`.card` `.row` `.hint`
+ * `.error` `.empty` …) and 9 element selectors (`h2` `h3` `b` `li` `p` `em` `strong` `input` `code`)
+ * are isolated by `scoped` in Vue2; moving into New-UI's global scss must be self-contained — every
+ * rule in this file is **nested under one of the two page scopes**, column 0 only allows three
+ * selectors: `.parser-app` / `.parser-app .parser-status-page` / `.parser-app .parser-test-page`
+ * (**descendant** selectors, see K31 below). Assertion (b) in `parserStyles.test.ts` pins this.
  *
- * 【K21 —— token 从哪来】本文件**不声明任何 token**:`knowledge.scss` 的两个 token 声明块选择器
- * 已由 Task 2a 各扩了一个逗号项(`.knowledge-app, .parser-app { … }` 与
- * `:root[data-theme="light"] .knowledge-app, :root[data-theme="light"] .parser-app { … }`),
- * 一份声明供两个作用域(先例:`tokens.scss:31-32` 的 `.agent-app, .ai-toast-scope`)。
- * 因此 `.parser-app` 也不需要、且**不许**自己声明 `color-scheme` —— 那两个 token 块已经分别带了。
- * 🔴 为什么不能让页面根挂 `.knowledge-app` 借 token:`knowledge.scss` 里 `.knowledge-app` 的 token 块与
- * **满屏两列外壳块共用同一个选择器**(治理 §6.1 的 E-4),挂上去会把这两个普通文档流页面变成
- * 100vw 栅格的第一列并裁掉内容。同理不能借 `.agent-app`(它也带外壳,且 `.agent-app .card` 会与
- * 本文件的 `.card` 同权串号,漏进 overflow/box-shadow)。
+ * 【K21 — where tokens come from】This file **declares no tokens**: the two token declaration block
+ * selectors in `knowledge.scss` were each expanded with a comma item by Task 2a
+ * (`.knowledge-app, .parser-app { … }` and `:root[data-theme="light"] .knowledge-app,
+ * :root[data-theme="light"] .parser-app { … }`), one declaration serving two scopes (precedent:
+ * `tokens.scss:31-32` with `.agent-app, .ai-toast-scope`). Therefore `.parser-app` also doesn't
+ * need and **cannot** declare `color-scheme` on its own — those two token blocks already have it.
+ * 🔴 Why can't we let the page root borrow `.knowledge-app` tokens: `.knowledge-app`'s token block
+ * in `knowledge.scss` is **shared with the full-screen two-column shell block** (Governance §6.1
+ * E-4), hanging it would turn these two normal flow pages into the first column of a 100vw grid
+ * and clip content. Similarly can't borrow `.agent-app` (it also has a shell, and `.agent-app .card`
+ * would collide at equal specificity with this file's `.card`, leaking overflow/box-shadow).
  *
- * 【配色 —— 附录 B 是唯一权威】蓝本有 19 处 `var(假 token, 回退值)` 写法,那 6 个假 token 名
- * (前缀 `ns-` 那一族)在 Vue2 全仓**零声明**(治理 §12.1 复核),真实渲染的就是回退值
- * → 附录 B §B.2 按**回退值的语义**建映射,不按 token 名猜语义,并且**不保留那层 `var(假 token, …)`
- * 的壳**(留着就是往新仓引入一个全仓无声明的死引用,附录 B §B.9 的自查⑦ 要求本文件零残留)。
- * 下面每一处颜色都标了「蓝本行号 + 中文语义」;按 R5,注释里**不写出被替换掉的色字面量**。
- * 全文零 hex 色值、零函数式色值、零具名色;`transparent` 本文件零处。
+ * 【Color scheme — Appendix B is the sole authority】The baseline has 19 instances of
+ * `var(fake-token, fallback)` syntax, those 6 fake token names (the `ns-` prefix family) have
+ * **zero declarations** in the Vue2 full repo (Governance §12.1 verification), what actually renders
+ * is the fallback value → Appendix B §B.2 builds mapping per **fallback value's semantics**, not by
+ * guessing from token names, and **doesn't preserve the `var(fake-token, …)` wrapper** (keeping it
+ * introduces a repo-wide undeclared dead reference into the new repo, Appendix B §B.9 self-check ⑦
+ * requires this file have zero remnants). Every color below is tagged with "baseline line number +
+ * Chinese semantics"; per R5, comments **don't write out the replaced color literals**. Zero hex
+ * color values in full text, zero function-style colors, zero named colors; zero `transparent`.
  *
- * 【K25 —— 暗色档与 Vue2 不同,是有意的】Vue2 只有(实际渲染的)一套浅色值;本文件走两档 token,
- * 暗档跟着 token 变。用户 2026-08-03 口径:浅色档肉眼与 Vue2 一致即可。
- * ⚠️ 附录 B 取舍②:浅档 `--warning` / `--success` 比 Vue2 明显更深(暂停/运行指示灯、`.warn`、
- * `.score`、`.ok-hint` 吃这两个 token)—— 这是 K2 给整个 AI 区定的暖中性纸感色板,协调者裁定 A-2
- * **不为 Parser 两页开小灶**,已进验收清单。
+ * 【K25 — dark mode differs from Vue2, intentional】Vue2 only has (actually rendered) one light set
+ * of values; this file uses two token tiers, dark tier follows token changes. User 2026-08-03
+ * direction: light tier visually matches Vue2 is sufficient. ⚠️ Appendix B choice ②: light tier
+ * `--warning` / `--success` noticeably deeper than Vue2 (pause/run indicators, `.warn`, `.score`,
+ * `.ok-hint` use these two tokens) — this is the warm-neutral paper-feel palette K2 sets for the
+ * whole AI area, coordinator decision A-2 **doesn't make special case for Parser two pages**,
+ * already in acceptance checklist.
  *
- * 【1:1 边界】除颜色写法外,版式 / 间距 / 结构 / 声明顺序 / 单行多声明的排版全部逐字照抄,包括
- * `font-family: ui-monospace, monospace`(**不换成 `var(--font-mono)`** —— 那是另一串字体栈,
- * 会改变实际渲染)与 `opacity: 0.5`、`transition: background 0.15s` 这些非颜色量。
+ * 【1:1 boundary】Apart from color syntax, layout / spacing / structure / declaration order / single-
+ * line multi-declaration formatting all copied word-for-word, including `font-family: ui-monospace,
+ * monospace` (**not swapped to `var(--font-mono)`** — that's a different font stack, would change
+ * actual rendering) and `opacity: 0.5`, `transition: background 0.15s` other non-color values.
  */
 
-/* 【K22 —— Vue2 没有这三行,本刀新增,治理 §3 K22 已授权】`src/styles/theme.css:318` 是
- * `body { overflow: hidden }`;`/ai/parser` 与 `/ai/parser/test` 在 `knowledgeRoutes.ts:62-63` 是
- * **顶层路由**(不在 KnowledgeLayout 之下),不自建滚动容器的话超出视口的内容**永远看不到**。
- * 先例:`AreaShell.vue` 的 `.area-shell{height:100vh;height:100dvh}` + `.area-body{overflow:auto}`、
- * `knowledge.scss` 的 `.knowledge-app` 外壳 + `.k-scroll{overflow-y:auto}` 内滚动器。
+/* 【K22 — Vue2 doesn't have these three lines, newly added here, Governance §3 K22 authorized】
+ * `src/styles/theme.css:318` is `body { overflow: hidden }`; `/ai/parser` and `/ai/parser/test` in
+ * `knowledgeRoutes.ts:62-63` are **top-level routes** (not under KnowledgeLayout), without building
+ * our own scroll container, content exceeding viewport **can never be seen**. Precedent:
+ * `AreaShell.vue` with `.area-shell{height:100vh;height:100dvh}` + `.area-body{overflow:auto}`,
+ * `knowledge.scss` with `.knowledge-app` outer shell + `.k-scroll{overflow-y:auto}` inner scroller.
  *
- * 【K31 —— `.parser-app` 是**外层包裹元素**,页面根类在**内层元素**上(协调者 2026-08-03 裁定)】
- * 选择器因此是**后代**形式 `.parser-app .parser-status-page`,不是复合形式 `.parser-app.parser-status-page`;
- * 两页模板写成 `<div class="parser-app"><div class="parser-status-page">…</div></div>`,**比蓝本多一层 DOM**。
- * 🔴 为什么必须分两层:蓝本页面根自带 `max-width: 900px; margin: 0 auto`。若把滚动容器与页面根做成
- * **同一个元素**,`overflow-y: auto` 的滚动条就落在那条 900px 居中列的右缘(宽屏上约在屏幕中间),
- * 而 Vue2 是整页滚动、滚动条在**视口最右缘** —— 那是**用户可见的界面不 1:1**;多这一层 DOM 用户不可见。
- * 上面 K22 引的两个先例本来就是两元素(`.area-shell` + `.area-body`、`.knowledge-app` + `.k-scroll`),
- * 压成一个元素才是偏离。
- * 🔴 本块**只许**有这三行结构属性:零颜色属性、零 `--x:` 声明(§6.1 落地约束 1,
- * `parserStyles.test.ts` 的断言 (c) 钉这一条)。
+ * 【K31 — `.parser-app` is the **outer wrapper element**, page root class on **inner element**
+ * (coordinator 2026-08-03 decision)】selector thus is **descendant** form `.parser-app .parser-status-page`,
+ * not compound form `.parser-app.parser-status-page`; both page templates written as
+ * `<div class="parser-app"><div class="parser-status-page">…</div></div>`, **one more DOM layer than
+ * baseline**. 🔴 Why must we split into two layers: the baseline page root comes with
+ * `max-width: 900px; margin: 0 auto`. If we make the scroll container and page root the **same
+ * element**, the `overflow-y: auto` scrollbar falls on the right edge of that 900px centered column
+ * (on wide screens around screen middle), whereas Vue2 scrolls the whole page with scrollbar at
+ * **viewport far right** — that's **user-visible UI not 1:1**; the extra DOM layer is not user-
+ * visible. The two precedent examples K22 cites above are already two elements (`.area-shell` +
+ * `.area-body`, `.knowledge-app` + `.k-scroll`), collapsing to one element would be divergence.
+ * 🔴 This block **only allows** these three structural property lines: zero color properties, zero
+ * `--x:` declarations (§6.1 landing constraint 1, assertion (c) in `parserStyles.test.ts` pins this).
  */
 .parser-app {
   height: 100vh;
@@ -71,68 +87,68 @@
   overflow-y: auto;
 }
 
-/* ===== ParserStatus(解析器状态页)—— 蓝本 src/views/AI/Parser/parser-styles.scss:1-74 全段 ===== */
+/* ===== ParserStatus (parser status page) — baseline src/views/AI/Parser/parser-styles.scss:1-74 full section ===== */
 .parser-app .parser-status-page {
-  /* 蓝本 :1-5 */
+  /* Baseline :1-5 */
   padding: 16px;
   max-width: 900px;
   margin: 0 auto;
 
-  /* 蓝本 :6-9(与测试页的 `.page-header` / `h2` 逐字相同,按 K23 各留一份) */
+  /* Baseline :6-9 (identical word-for-word to test page `.page-header` / `h2`, each kept in scope per K23) */
   .page-header {
     display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
     h2 { margin: 0; font-size: 18px; }
   }
-  /* 蓝本 :10-11 */
+  /* Baseline :10-11 */
   .refresh-btn { padding: 4px 12px; cursor: pointer; }
   .header-actions { display: flex; gap: 12px; align-items: center; }
-  /* 蓝本 :12-17 */
+  /* Baseline :12-17 */
   .test-link {
     font-size: 13px;
-    color: var(--accent); /* 蓝本 :14 链接色 */
+    color: var(--accent); /* Baseline :14 link color */
     text-decoration: none;
     &:hover { text-decoration: underline; }
   }
 
-  /* 蓝本 :19-25(与测试页的 `.card` 逐字相同,按 K23 各留一份) */
+  /* Baseline :19-25 (identical word-for-word to test page `.card`, each kept in scope per K23) */
   .card {
-    background: var(--bg-elevated); /* 蓝本 :20 卡片实底 */
-    border: 1px solid var(--line-faint); /* 蓝本 :21 卡片描边 */
+    background: var(--bg-elevated); /* Baseline :20 card solid background */
+    border: 1px solid var(--line-faint); /* Baseline :21 card border */
     border-radius: 6px;
     padding: 14px 16px;
     margin-bottom: 12px;
   }
-  /* 蓝本 :26-29 */
+  /* Baseline :26-29 */
   .card.unreachable {
-    border-color: var(--danger); /* 蓝本 :27 错误态描边 */
-    color: var(--danger); /* 蓝本 :28 错误态前景 */
+    border-color: var(--danger); /* Baseline :27 error state border */
+    color: var(--danger); /* Baseline :28 error state foreground */
   }
-  /* 蓝本 :30-45 */
+  /* Baseline :30-45 */
   .control-card {
     .row { display: flex; align-items: center; gap: 16px; padding: 6px 0; }
     .status-text {
       font-weight: 500;
       .dot {
         display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-        background: var(--success); margin-right: 6px; /* 蓝本 :36 运行中指示灯 */
-        &.paused { background: var(--warning); /* 蓝本 :37 暂停指示灯 */ }
+        background: var(--success); margin-right: 6px; /* Baseline :36 running indicator */
+        &.paused { background: var(--warning); /* Baseline :37 paused indicator */ }
       }
     }
     .pause-btn { padding: 4px 12px; cursor: pointer; margin-left: auto; }
     .concurrency-row { gap: 12px; }
     .device-row { gap: 12px; flex-wrap: wrap; }
-    .resolved-hint { font-size: 11px; color: var(--text-tertiary); margin-left: auto; /* 蓝本 :43 三级灰辅助文字 */ }
+    .resolved-hint { font-size: 11px; color: var(--text-tertiary); margin-left: auto; /* Baseline :43 tertiary muted helper text */ }
     .radio { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
   }
-  /* 蓝本 :46-49 */
+  /* Baseline :46-49 */
   .queue-card {
     display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px;
     .kv b { margin-left: 6px; }
   }
-  /* 蓝本 :50-65 */
+  /* Baseline :50-65 */
   .folders-card {
     h3 { margin: 0 0 10px; font-size: 14px; font-weight: 500; }
-    .empty { color: var(--text-tertiary); /* 蓝本 :52 三级灰空态文字 */ }
+    .empty { color: var(--text-tertiary); /* Baseline :52 tertiary muted empty state text */ }
     .folder-list { list-style: none; padding: 0; margin: 0; }
     .folder-row {
       position: relative; display: grid;
@@ -142,60 +158,60 @@
       .folder-count { text-align: right; font-weight: 500; }
       .folder-bar {
         position: absolute; left: 0; bottom: 0; height: 2px;
-        background: var(--accent); opacity: 0.5; /* 蓝本 :62 进度条底(与链接色同值同语义) */
+        background: var(--accent); opacity: 0.5; /* Baseline :62 progress bar background (same value and semantics as link color) */
       }
     }
   }
-  /* 蓝本 :66-74 */
+  /* Baseline :66-74 */
   .failures-card {
     .toggle { background: none; border: none; cursor: pointer; padding: 0; font-size: 13px; }
     .failure-list { list-style: none; padding: 0; margin: 8px 0 0;
-      li { padding: 6px 0; border-top: 1px dashed var(--line-faint); /* 蓝本 :69 虚线分隔(与卡片描边同值同语义) */
+      li { padding: 6px 0; border-top: 1px dashed var(--line-faint); /* Baseline :69 dashed separator (same value and semantics as card border) */
         .path { font-family: ui-monospace, monospace; font-size: 12px; }
-        .error { color: var(--danger); font-size: 11px; /* 蓝本 :71 错误前景 */ }
+        .error { color: var(--danger); font-size: 11px; /* Baseline :71 error foreground */ }
       }
     }
   }
 }
 
-/* ===== ParserTest(测试沙盒页)—— 蓝本 src/views/AI/Parser/ParserTest.vue:245-369 的内联 <style> ===== */
+/* ===== ParserTest (test sandbox page) — baseline src/views/AI/Parser/ParserTest.vue:245-369 inline <style> ===== */
 .parser-app .parser-test-page {
-  /* 蓝本 :246-250 */
+  /* Baseline :246-250 */
   padding: 16px;
   max-width: 900px;
   margin: 0 auto;
 
-  /* 蓝本 :251-255(`.page-header` / `h2` 与状态页逐字相同;`.back-link` 只有本页有) */
+  /* Baseline :251-255 (`.page-header` / `h2` identical word-for-word to status page; `.back-link` only in this page) */
   .page-header {
     display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
     h2 { margin: 0; font-size: 18px; }
-    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; /* 蓝本 :254 链接色 */ }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; /* Baseline :254 link color */ }
   }
-  /* 蓝本 :256-262(与状态页的 `.card` 逐字相同,按 K23 各留一份) */
+  /* Baseline :256-262 (identical word-for-word to status page `.card`, each kept in scope per K23) */
   .card {
-    background: var(--bg-elevated); /* 蓝本 :257 卡片实底 */
-    border: 1px solid var(--line-faint); /* 蓝本 :258 卡片描边 */
+    background: var(--bg-elevated); /* Baseline :257 card solid background */
+    border: 1px solid var(--line-faint); /* Baseline :258 card border */
     border-radius: 6px;
     padding: 14px 16px;
     margin-bottom: 12px;
   }
-  /* 蓝本 :263-264 */
+  /* Baseline :263-264 */
   .help-card p { margin: 4px 0; }
-  .help-card .small { font-size: 12px; color: var(--text-tertiary); /* 蓝本 :264 三级灰 */ }
-  /* 蓝本 :265-318 */
+  .help-card .small { font-size: 12px; color: var(--text-tertiary); /* Baseline :264 tertiary muted */ }
+  /* Baseline :265-318 */
   .upload-card {
     .dropzone {
-      border: 2px dashed var(--line-strong); /* 蓝本 :267 比卡片描边更重的拖放区虚线 */
+      border: 2px dashed var(--line-strong); /* Baseline :267 heavier dashed drop zone line than card border */
       border-radius: 6px;
       padding: 24px;
       text-align: center;
       transition: background 0.15s;
       margin-bottom: 12px;
-      /* 蓝本 :273 —— 拖入高亮:淡强调色底 + 强调色描边 */
+      /* Baseline :273 — drag-in highlight: light accent background + accent border */
       &.active { background: var(--accent-soft); border-color: var(--accent); }
       &.has { padding: 12px 16px; }
       .pick-btn { padding: 6px 14px; cursor: pointer; }
-      .hint { color: var(--text-tertiary); margin-left: 8px; font-size: 12px; /* 蓝本 :276 三级灰 */ }
+      .hint { color: var(--text-tertiary); margin-left: 8px; font-size: 12px; /* Baseline :276 tertiary muted */ }
       .file-meta {
         display: flex; align-items: center; gap: 12px;
         strong { font-family: ui-monospace, monospace; }
@@ -206,90 +222,90 @@
     .params-row { flex-wrap: wrap; }
     .param {
       display: inline-flex; flex-direction: column; gap: 2px;
-      font-size: 11px; color: var(--text-secondary); /* 蓝本 :287 二级灰(参数标签比 hint 深) */
+      font-size: 11px; color: var(--text-secondary); /* Baseline :287 secondary muted (parameter labels darker than hints) */
       input {
         width: 80px; padding: 4px 6px;
-        border: 1px solid var(--line-faint); /* 蓝本 :290 输入框描边 */
+        border: 1px solid var(--line-faint); /* Baseline :290 input box border */
         border-radius: 3px; font-family: ui-monospace, monospace;
       }
     }
     .reset-btn { padding: 4px 10px; cursor: pointer; font-size: 12px; align-self: end; }
-    .hint-line { font-size: 11px; color: var(--text-tertiary); margin: 2px 0 8px; /* 蓝本 :295 三级灰 */
-      em { color: var(--text-quaternary); /* 蓝本 :296 比三级灰更淡的第四档 */ }
+    .hint-line { font-size: 11px; color: var(--text-tertiary); margin: 2px 0 8px; /* Baseline :295 tertiary muted */
+      em { color: var(--text-quaternary); /* Baseline :296 quaternary, lighter than tertiary */ }
     }
-    .ok-hint em { color: var(--text-tertiary); font-style: normal; font-size: 11px; /* 蓝本 :298 三级灰 */ }
+    .ok-hint em { color: var(--text-tertiary); font-style: normal; font-size: 11px; /* Baseline :298 tertiary muted */ }
     .query-input {
       flex: 1; padding: 6px 10px;
-      border: 1px solid var(--line-faint); /* 蓝本 :301 输入框描边 */
+      border: 1px solid var(--line-faint); /* Baseline :301 input box border */
       border-radius: 4px;
     }
     .checkbox { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
     .submit-btn {
       padding: 6px 16px; cursor: pointer;
-      /* 蓝本 :307 —— 强调色实底 + 实底之上的前景(--text-on-accent 只在 accent 实底上可用) */
+      /* Baseline :307 — solid accent background + foreground on solid accent (--text-on-accent only available on solid accent) */
       background: var(--accent); color: var(--text-on-accent); border: none; border-radius: 4px;
       &:disabled { opacity: 0.5; cursor: not-allowed; }
     }
-    .ok-hint { color: var(--success); font-size: 13px; /* 蓝本 :310 成功态前景 */ }
+    .ok-hint { color: var(--success); font-size: 13px; /* Baseline :310 success state foreground */ }
     .error-box {
       margin-top: 8px; padding: 8px 12px;
-      background: var(--danger-soft); /* 蓝本 :313 错误色淡底 */
-      border-left: 3px solid var(--danger); /* 蓝本 :314 错误色左边条 */
-      color: var(--danger); /* 蓝本 :315 错误前景 */
+      background: var(--danger-soft); /* Baseline :313 light danger color background */
+      border-left: 3px solid var(--danger); /* Baseline :314 danger color left border */
+      color: var(--danger); /* Baseline :315 error foreground */
       font-size: 13px;
     }
   }
-  /* 蓝本 :319-329 */
+  /* Baseline :319-329 */
   .docling-card {
     .toggle { background: none; border: none; cursor: pointer; padding: 0; font-size: 13px; }
     .docling-md {
       margin: 8px 0 0; padding: 10px 12px;
-      background: var(--accent-softer); /* 蓝本 :323 强调色最淡档底(比 :273 那档更淡) */
-      border-left: 3px solid var(--accent); /* 蓝本 :324 强调色左边条 */
+      background: var(--accent-softer); /* Baseline :323 lightest accent background (lighter than :273) */
+      border-left: 3px solid var(--accent); /* Baseline :324 accent color left border */
       font-family: ui-monospace, monospace; font-size: 12px;
       white-space: pre-wrap; word-break: break-word;
       max-height: 360px; overflow: auto;
     }
   }
-  /* 蓝本 :330-344 */
+  /* Baseline :330-344 */
   .scored-card {
     h3 { margin: 0 0 10px; font-size: 14px; }
-    .warn { color: var(--warning); font-size: 12px; margin-bottom: 6px; /* 蓝本 :332 警告前景 */ }
+    .warn { color: var(--warning); font-size: 12px; margin-bottom: 6px; /* Baseline :332 warning foreground */ }
     .scored-list { list-style: none; padding: 0; margin: 0; }
-    .scored-list li { padding: 8px 0; border-top: 1px dashed var(--line-faint); /* 蓝本 :334 最淡分隔线 */ }
+    .scored-list li { padding: 8px 0; border-top: 1px dashed var(--line-faint); /* Baseline :334 lightest separator line */ }
     .scored-list li:first-child { border-top: none; }
     .rank-line {
       display: flex; gap: 12px; align-items: baseline; font-size: 12px;
       .rank-no { font-weight: bold; }
-      .score { color: var(--success); /* 蓝本 :339 成功态前景 */ }
-      .rerank-score { color: var(--accent); /* 蓝本 :340 强调色前景 */ }
-      .chunk-ref { color: var(--text-tertiary); margin-left: auto; /* 蓝本 :341 三级灰 */ }
+      .score { color: var(--success); /* Baseline :339 success state foreground */ }
+      .rerank-score { color: var(--accent); /* Baseline :340 accent foreground */ }
+      .chunk-ref { color: var(--text-tertiary); margin-left: auto; /* Baseline :341 tertiary muted */ }
     }
     .rank-text { font-family: ui-monospace, monospace; font-size: 12px; margin-top: 4px; white-space: pre-wrap; }
   }
-  /* 蓝本 :345-368 */
+  /* Baseline :345-368 */
   .chunks-card {
     h3 { margin: 0 0 10px; font-size: 14px; }
-    .empty { color: var(--text-tertiary); /* 蓝本 :347 三级灰空态文字 */ }
+    .empty { color: var(--text-tertiary); /* Baseline :347 tertiary muted empty state text */ }
     .chunk-list { list-style: none; padding: 0; margin: 0; }
     .chunk-item {
-      padding: 10px 0; border-top: 1px dashed var(--line-faint); /* 蓝本 :350 最淡分隔线 */
+      padding: 10px 0; border-top: 1px dashed var(--line-faint); /* Baseline :350 lightest separator line */
       &:first-child { border-top: none; }
     }
     .chunk-head {
       display: flex; gap: 12px; align-items: baseline; font-size: 13px; margin-bottom: 4px;
-      .hint { color: var(--text-tertiary); font-size: 11px; /* 蓝本 :355 三级灰 */ }
+      .hint { color: var(--text-tertiary); font-size: 11px; /* Baseline :355 tertiary muted */ }
     }
     .chunk-text {
       font-family: ui-monospace, monospace; font-size: 12px;
-      background: var(--bg-chip); padding: 6px 8px; border-radius: 3px; /* 蓝本 :359 中性 chip 底(等宽代码块) */
+      background: var(--bg-chip); padding: 6px 8px; border-radius: 3px; /* Baseline :359 neutral chip background (monospace code block) */
       white-space: pre-wrap; word-break: break-word; margin: 4px 0;
       max-height: 160px; overflow: auto;
     }
     .emb-preview {
       font-size: 11px; margin-top: 2px;
-      .emb-label { color: var(--text-tertiary); margin-right: 6px; /* 蓝本 :365 三级灰 */ }
-      code { font-family: ui-monospace, monospace; color: var(--text-secondary); /* 蓝本 :366 二级灰 */ }
+      .emb-label { color: var(--text-tertiary); margin-right: 6px; /* Baseline :365 tertiary muted */ }
+      code { font-family: ui-monospace, monospace; color: var(--text-secondary); /* Baseline :366 secondary muted */ }
     }
   }
 }

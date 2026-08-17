@@ -133,7 +133,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     toastedBatches.add(batchId)
     // Count only files actually uploaded (progress 100, incl. server-side
     // duplicates). A pure skip is status 'done' with progress 0 — it is not a
-    // success and must not trigger a "上传成功" toast.
+    // success and must not trigger a "upload successful" toast.
     const doneCount = items.filter((i) => i.status === 'done' && i.progress === 100).length
     const errorCount = items.filter((i) => i.status === 'error').length
     if (doneCount > 0) {

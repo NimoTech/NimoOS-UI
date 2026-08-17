@@ -245,6 +245,12 @@ export default {
   settingsTermUnavailableHint: '系统终端的后端接口（/v1/sys/wsssh）已被停用，终端与终端安全策略暂不可用。', // 🆕(本期空态说明)
   settingsTermFullscreen: '全屏',
   settingsTermExitFullscreen: '退出全屏',        // 🆕(Vue2 全屏按钮只有图标,无文字)
+  // 🆕 日志分页(Vue2 无对位:它整块渲染,这是本次修「页面无响应」新增的交互)
+  settingsTermLogsOlder: '‹ 更早',
+  settingsTermLogsNewer: '更新 ›',
+  settingsTermLogsPage: '第 {page} / {total} 页',
+  settingsTermLogsLive: '实时刷新中',
+  settingsTermLogsPaused: '已暂停实时刷新 · 回第 1 页恢复',
   // ── P3 storage tab(入口卡,授权偏离 #3)────────────────────────────────
   settingsStoreEntryTitle: '打开存储区',          // 🆕(本期新增入口卡,授权偏离 #3)
   settingsStoreEntrySub: '磁盘、存储空间、RAID 与快照都在存储区管理。',                 // 🆕(本期新增)

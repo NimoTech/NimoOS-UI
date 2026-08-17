@@ -3,7 +3,7 @@ const KEY = 'nimoos:samba-hosts'
 export interface SambaHost {
   host: string
   guest: boolean
-  username: string // 仅存用户名,绝不存密码(对齐 Vue2)
+  username: string // Store username only, never store password (aligned with Vue2)
 }
 
 export function parseAddress(input: string): { protocol: 'smb' | 'nfs' | null; host: string } {
@@ -31,6 +31,6 @@ export function writeHosts(list: SambaHost[]): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(list))
   } catch {
-    /* 非安全上下文/隐私模式:忽略 */
+    /* Non-secure context / private mode: ignore */
   }
 }

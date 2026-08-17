@@ -1,43 +1,46 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/shell/MentionPopover.vue(409 行)。
-  纯展示/交互组件:props 驱动 open/query/segments/anchorRect,emit
-  drill-in/pick/pop-segment/close——由后续任务(composer)负责检测输入里的
-  "@" 并喂 query/segments、处理 pick。本任务不接线。
+  1:1 ported from Vue2 src/views/AI/Agent/shell/MentionPopover.vue (409 lines).
+  Pure display/interaction component: props drive open/query/segments/anchorRect, emit
+  drill-in/pick/pop-segment/close — a later task (composer) is responsible for detecting
+  "@" in the input and feeding query/segments, and for handling pick. This task doesn't wire it up.
 
-  机械转换清单(对应 .superpowers/sdd/p1c1-task-7-brief.md Step 3):
-  1. $set(loadingPaths,...)/$set(entriesByPath,...)(Vue2:215-234)→ ref<Record<...>>
-     直接赋值——Vue3 Proxy 响应式对新 key 赋值天然可追踪,无需 $set。
-  2. beforeDestroy(Vue2:195-197)→ onBeforeUnmount,摘掉 window.keydown 捕获监听;
-     open watcher 里 add/remove 的配对逻辑保留(Vue2:172-181),见下方 watch(open)。
-  3. v-for + v-else 同元素(Vue2:44-46)→ 外层 <template v-else> 包住 v-for。
-  4. <template v-for> 的 key 移到 <template> 上(Vue2:15-18)——Vue2 原写法把
-     chev 图标和 crumb span 分别用 `c${i}`/`s${i}` 两把 key,但 Vue3 的
-     <template v-for> 只能在 <template> 本身挂一把 key,故合并为单一 key。
-  5. >>> 深选择器(Vue2:370)→ :deep(mark)。
-  6. hi watcher 里 $nextTick + querySelector(...).scrollIntoView(...)(Vue2:187-193)
-     → nextTick + ref 取 DOM;jsdom 里 scrollIntoView 可能不存在,调用前 `?.` 守卫
-     (允许的防御性偏离,brief 明确认可)。
-  7. 补 Vue2 缺的 catch——见 loadMounts/loadCurrent 内注释。
-  8. popStyle(Vue2:161-169)照抄。
-  9. 键盘 onKey(Vue2:235-268)逐案照抄。
-  10. 样式:position:fixed + pointer-events:auto 保留(祖先 .composer-wrap 是
-      pointer-events:none);--hairline-ring 新 token 替换裸 rgba 发丝环;
-      [data-theme=dark] 覆盖背景整条删除,统一走 --glass-strong。
+  Mechanical conversion checklist (matches .superpowers/sdd/p1c1-task-7-brief.md Step 3):
+  1. $set(loadingPaths,...)/$set(entriesByPath,...) (Vue2:215-234) → ref<Record<...>>
+     direct assignment — Vue3 Proxy reactivity naturally tracks assignment to new keys, no $set needed.
+  2. beforeDestroy (Vue2:195-197) → onBeforeUnmount, removes the window keydown capture listener;
+     the open watcher's add/remove pairing logic is kept (Vue2:172-181), see watch(open) below.
+  3. v-for + v-else on the same element (Vue2:44-46) → an outer <template v-else> wraps the v-for.
+  4. The key on <template v-for> moved onto the <template> itself (Vue2:15-18) — the Vue2 original
+     used two separate keys, `c${i}`/`s${i}`, for the chev icon and the crumb span, but Vue3's
+     <template v-for> can only carry one key on the <template> itself, so they're merged into one.
+  5. >>> deep selector (Vue2:370) → :deep(mark).
+  6. hi watcher's $nextTick + querySelector(...).scrollIntoView(...) (Vue2:187-193)
+     → nextTick + ref for DOM access; scrollIntoView may not exist in jsdom, guard with `?.` before calling
+     (an allowed defensive deviation, explicitly approved by the brief).
+  7. Added the catch Vue2 was missing — see the comments inside loadMounts/loadCurrent.
+  8. popStyle (Vue2:161-169) copied as-is.
+  9. Keyboard onKey (Vue2:235-268) copied case-by-case as-is.
+  10. Styling: position:fixed + pointer-events:auto kept (the ancestor .composer-wrap is
+      pointer-events:none); the new --hairline-ring token replaces the bare rgba hairline ring;
+      the [data-theme=dark] background override block is removed entirely, using --glass-strong throughout.
 
-  另一处偏离(非 Vue2 缺陷,是本仓库的正确性修复,见下方 watch(open) 内注释):
-  Vue2 的 open watcher 里 loadMounts()/loadCurrent() 是"发了就不等"地并发调用——
-  若 segments 在组件"第一次以 open=true 创建"时就已非空(mounts 此时还是空数组),
-  currentAbsolute 算出来是 '',loadCurrent 会直接空跑且此后再无人重试,导致这类
-  "带初始 segments 打开"的场景永远拉不到条目。这里在需要先加载 mounts 时
-  await 一下再决定是否 loadCurrent,修掉这个时序坑。
+  Another deviation (not a Vue2 defect — a correctness fix made in this repo, see the watch(open) comment below):
+  In Vue2's open watcher, loadMounts()/loadCurrent() are called concurrently, fire-and-forget —
+  if segments is already non-empty the first time the component is created with open=true (mounts is
+  still an empty array at that point), currentAbsolute evaluates to '', loadCurrent runs as a no-op and
+  nothing ever retries it afterward, so this "opened with initial segments" scenario can never load its
+  entries. Here, when mounts needs loading first, we await it before deciding whether to call
+  loadCurrent, fixing this timing bug.
 
-  Review fix(2026-07-27):上面这个 await 本身又引入了新问题——window.addEventListener
-  必须在 open 变 true 的同一个 tick、await 之前同步挂上,否则(a)mounts 请求未返回期间
-  按键无效,(b)组件在该 await 挂起期间卸载时,onBeforeUnmount 先跑(摘不掉还没挂上的
-  监听),await 恢复后再挂,监听从此再无人摘,永久挂着一个 capture-phase 的 window
-  监听。修法见下方 watch(open):挂监听这行必须保持在任何 await 之前同步执行,
-  mounts/loadCurrent 的加载移进一个内层 async IIFE,不阻塞挂监听、也不让挂监听这行
-  出现在任何 await 之后。
+  Review fix (2026-07-27): the await introduced above created a new problem — window.addEventListener
+  must be attached synchronously, in the same tick that open becomes true, before the await. Otherwise
+  (a) keys pressed while the mounts request is still in flight do nothing, and (b) if the component
+  unmounts while suspended on that await, onBeforeUnmount runs first (there's nothing to remove yet
+  since the listener hasn't attached), the listener attaches anyway once the await resumes, and it is
+  never removed again — a capture-phase window listener leaks permanently. The fix, in watch(open)
+  below: the listener-attach line must stay synchronous, executed before any await; the mounts/loadCurrent
+  loading is moved into an inner async IIFE, so it never blocks the listener attach and the listener-attach
+  line never ends up after an await.
 -->
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'

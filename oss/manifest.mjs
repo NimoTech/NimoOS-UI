@@ -60,7 +60,7 @@ export const DELETE = [
   // 文档 / AI 辅助开发痕迹 / 设计稿(E7/E8:用户拍板一份文档都不带)
   'docs',
   'CLAUDE.md',
-  'design-export',
+  // 'design-export' 已在 2ad712f8 从私有仓删除,这里不再需要(留着会触发 stale 硬失败)
 
   // 各期台账(2026-08-05 起入库,见 .superpowers/.gitignore)。282 份报告里写满了
   // 内部决策、后端接口实测、AI/相册/搜索的设计过程 —— 属于 E7「一份文档都不带」的范围,
@@ -150,6 +150,15 @@ export const DELETE = [
   'src/views/__tests__/PhotosSmartViewDetail.test.ts',
   'src/views/__tests__/PhotosSmartViews.test.ts',
   'src/views/__tests__/PhotosTrash.test.ts',
+
+  // 2026-08-14(相册 vue2-parity 两批合流带进来的两个守卫):它们守的是
+  // src/photos/styles/vue2-parity/*.scss 与其它区之间的类名/keyframes 冲突,
+  // 而且各自钉了 `expect(parityFiles.length).toBeGreaterThan(0)` —— 相册整域删掉后
+  // 扫不到任何 parity 文件,留着必红(不是"变空转",是直接失败)。整体删除。
+  // 保留面的同类守卫(color-guard.test.ts / AppToast.zIndex.test.ts)不受影响:
+  // 它们扫的是全仓 .vue/.css,不依赖相册目录。
+  'src/styles/class-collision-guard.test.ts',
+  'src/styles/keyframes-guard.test.ts',
 
   // (搜索 demo 的鱼 public/demo/fish_video_poster.jpg 已于终审 cleanup 批从私有仓
   //  直接删除 —— 它在私有版也是零引用的孤儿,不必再由本清单剥离。DELETE 条目路径
@@ -276,17 +285,17 @@ export const REPLACE = [
   // T10:MediaViewer 拆转录面板(摘要/转录/Ask 三 tab、说话人分色、章节过滤全删;
   // 保留自绘播放器 + 真实波形 + 视频/图片通路 + 封面元数据)
   { path: 'src/files/viewers/MediaViewer.vue', from: 'MediaViewer.vue',
-    privateSha256: 'a82ed56d908a27a0a00f4fa325c3d2d300fb551c453202af18732a8e88944031' },
+    privateSha256: 'cdcf9a6d4cb75ffcfc7ad8b638602a73e57a7e94f24c29ccae51579563f1fd05' },
 
   // T11:AddPanel 去照片 tab(模板块 + tab 定义 + usePhotosStore 声明/import +
   // .lib-photo-* 样式四处一并删除;409 行附近 ic-photos 注释改泛化措辞)
   { path: 'src/home/components/AddPanel.vue', from: 'AddPanel.vue',
-    privateSha256: '948b9dcae47cef319b93342e551a4f1dd65e358c63174df525dd457f44d656fe' },
+    privateSha256: '7faf9cf8605b22bb37f811d616543e80016961551f53dc99379cce3d4b13f01f' },
 
   // T12:README 重写(面向外部开发者,私有版讲的是与 Vue 2 并存/绞杀迁移/同级克隆
   // Service —— 受众不同且后两条在开源包里都是假的,没有可继承内容,整文件替换)
   { path: 'README.md', from: 'README.md',
-    privateSha256: 'bc30420593910b48cc5750dc759d646bea8db62a24ff400d1763e106f243c155' },
+    privateSha256: 'd7e224513d27be1f10e3d68e153d775e4b6d6e0feea451f65c6ae2411488a722' },
 ]
 
 /** 类 3 · 锚点补丁。命中次数必须恰好 1 次。T6-T9 填。 */
@@ -360,33 +369,34 @@ export const PATCH = [
   //    因此全部 hits=0。下面是 T5 之后现场 sed 抓到的逐字文本;replace 侧一律不变
   //    (开源版的目标形态与 SP9-P8 那轮定下的一致:无 cutover flag、无 AI、无相册)。
   { path: 'src/home/composables/useOpenAction.ts',
-    find: `// 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)、存储区(/storage,SP6-P1)、相册区
-// (/photos,SP7-P8b)、系统设置(/settings)与 KVM(/kvm,两者 SP9-P8)、AI 区(/ai,SP8-P6)
-// 已全部活在本应用;SP1-SP9 迁移至此收官。
-// photos / ai / vm 这三条留在表里不是死键 —— cutover 回退时(flag 置 1)就跳它们,所以是"回退目标"
-// 而不是"主路径";这也是它们与 appstore/storage/settings 的区别(那三个在 Vue2 侧是模态弹窗、
-// 没有自己的路由,回退只能落 /#/legacy 老桌面 —— settings 因此也用 '/#/legacy' 作回退目标,
-// 落到老桌面后再点「设置」磁贴,由 Vue2 侧的 resolveEntryTarget('/settings') 判定弹老模态)。
-// router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
+    find: `// Files section (/files, SP4-P8), Apps section (/apps, SP5-P8), Storage section (/storage, SP6-P1), Photos section
+// (/photos, SP7-P8b), Settings (/settings) and KVM (/kvm, both SP9-P8), AI section (/ai, SP8-P6)
+// all now live in this app; SP1-SP9 migration is finalized here.
+// photos / ai / vm are not dead keys left in the table —— at cutover rollback (flag set to 1)
+// they redirect through them, so they are "rollback targets" not "main paths"; this is also the difference
+// from appstore/storage/settings (those three are modal dialogs on Vue2, have no own routes,
+// rollback can only land on /#/legacy legacy desktop —— settings therefore also uses '/#/legacy' as rollback target;
+// after landing there, clicking the "settings" tile is decided by Vue2's resolveEntryTarget('/settings') to pop modal).
+// router module cycle (router → Home → ... → this file) only accesses push at runtime; ESM lazy binding is safe.
 const SYS_ROUTE: Record<string, string> = {
   photos: '/#/photos', ai: '/#/ai/agent', vm: '/#/kvm',
   settings: '/#/legacy',
 }`,
-    replace: `// 系统入口全部活在本应用内。
-// router 模块环(router→Home→…→本文件)只在运行时访问 push,ESM 延迟绑定安全。
+    replace: `// Every system entry point lives inside this app.
+// The router module cycle (router -> Home -> ... -> this file) only touches push at runtime, so ESM lazy binding is safe.
 const SYS_ROUTE: Record<string, string> = {
   vm: '/kvm', settings: '/settings',
 }` },
   { path: 'src/home/composables/useOpenAction.ts',
-    find: `// 回退 flag(与 Vue2 strangler.js 的 strangler:disabled:<from> 命名一致):
-// == '1' 时磁贴退回 Vue2 老页面(见 SYS_ROUTE 各自的目标),可逆 cutover。
-// /apps = SP5-P8;/storage = SP6-P6(Vue2 桌面那三个存储入口共用同一把键,
-// 同源共享 localStorage,所以置一次即两侧同时回退);/photos = SP7-P8b(与 Vue2
-// strangler.js 的 migratedRoutes 里那条 /photos 共用同一把键,同理置一次两侧同时回退);
-// /kvm 与 /settings = SP9-P8,同理一把键管两侧(/kvm 在 Vue2 的 migratedRoutes、
-// /settings 在 migratedEntries)。
-// /ai = SP8-P6,同理一把键管两侧(Vue2 侧在 migratedRoutes)。
-// ⚠️ 键名取的是**路由路径**,不是磁贴 key —— vm 磁贴对应的键是 '/kvm'。
+    find: `// Fallback flag (naming consistent with Vue2's strangler.js strangler:disabled:<from>):
+// == '1' when tile falls back to Vue2 old page (see SYS_ROUTE fallback targets), reversible cutover.
+// /apps = SP5-P8; /storage = SP6-P6 (the three storage entry points on Vue2 desktop share the same key,
+// same-origin shared localStorage, so setting once rolls back both sides); /photos = SP7-P8b (shares the same key
+// with the /photos in Vue2's strangler.js migratedRoutes, setting once rolls back both sides);
+// /kvm and /settings = SP9-P8, similarly one key controls both sides (/kvm in Vue2's migratedRoutes,
+// /settings in migratedEntries).
+// /ai = SP8-P6, similarly one key controls both sides (Vue2 side in migratedRoutes).
+// ⚠️ Key name uses the **route path**, not the tile key —— vm tile's key is '/kvm'.
 function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
@@ -445,14 +455,14 @@ function cutoverDisabled(from: string): boolean {
       router.push(SYS_ROUTE[key] || '/')
       return` },
   { path: 'src/home/composables/useOpenAction.ts',
-    find: `    // 桌面照片磁贴:cutover 后进应用内时间线。刻意不带 asset —— Vue2 这里也只是跳
-    // /#/photos、不定位到具体某张(桌面磁贴的 key 是渐变色字符串,不是资产 id),
-    // 界面 1:1 就该保持"点进相册首页"。flag 置 1 时退回 Vue2 老相册。
+    find: `    // Desktop photo tile: after cutover, enter in-app timeline. Deliberately no asset —— Vue2 here also just jumps
+    // to /#/photos, not to a specific photo (desktop tile's key is a gradient color string, not an asset id),
+    // UI 1:1 should maintain "entering photos home". flag set to 1 falls back to Vue2 old album.
     else if (it.kind === 'photo') {
       if (cutoverDisabled('/photos')) window.location.href = '/#/photos'
       else router.push('/photos')
     }
-    // 桌面 AI 小组件:cutover 后进应用内 Agent 页。flag 置 1 时退回 Vue2 老 Agent。
+    // Desktop AI widget: after cutover, enter in-app Agent page. flag set to 1 falls back to Vue2 old Agent.
     else if (it.kind === 'widget' && it.key === 'ai') {
       if (cutoverDisabled('/ai')) window.location.href = '/#/ai/agent'
       else router.push('/ai/agent')
@@ -461,9 +471,9 @@ function cutoverDisabled(from: string): boolean {
 
   function sendToAI(text?: string) {
     const q = (text || '').trim()
-    // cutover 后走应用内路由:query 用对象形式交给 vue-router 编码,不手工拼串
-    // (AgentPage.vue 的 onMounted 读 route.query.message,一次性消费后 router.replace 抹掉)。
-    // flag 置 1 时退回 Vue2,那边只认拼好的 hash URL,所以保留 encodeURIComponent。
+    // After cutover, use in-app router: query passed to vue-router as object form for encoding, not manually concatenated
+    // (AgentPage.vue's onMounted reads route.query.message, consumed once then router.replace clears it).
+    // flag set to 1 falls back to Vue2, which only recognizes pre-built hash URL, so keep encodeURIComponent.
     if (cutoverDisabled('/ai')) {
       window.location.href = '/#/ai/agent' + (q ? '?message=' + encodeURIComponent(q) : '')
       return
@@ -574,18 +584,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
   { path: 'src/home/components/HomeTopbar.vue',
-    find: `/* search-btn: glass pill with magnifier icon — matches 搜索组件.dc.html topbar button */
+    find: `/* search-btn: glass pill with magnifier icon — matches search component.dc.html topbar button */
 .search-btn { padding-left: 13px; }
 .search-btn .ic { width: 17px; height: 17px; }
 
 `,
     replace: '' },
-  // 复审 Important①:上面 3 条删掉了搜索胶囊与 ⌘K 监听,但这条中文注释原文
-  // "...保留搜索与主题切换" 完全没被摘到 —— 会作为静默泄漏(oss/forbidden.mjs
-  // 的中文词表目前没有"搜索")随包发布。词表本身的修补是另一个任务的活,这里
-  // 只改措辞,不提搜索。
+  // Review Important①: the three entries above drop the search pill and the ⌘K listener, but this
+  // comment still advertises the search entry — it would ship as a silent leak (forbidden.mjs does
+  // not list this wording). Fixing the word list is a separate task; here we only reword, without
+  // mentioning search. (Anchor re-pointed 2026-08-14: the comment was translated to English upstream.)
   { path: 'src/home/components/HomeTopbar.vue',
-    find: '保留搜索与主题切换', replace: '保留主题切换' },
+    find: 'keep search and theme toggle', replace: 'keep the theme toggle' },
   // 复审 Important②:上面删掉 onKey/onMounted/onUnmounted 三行后,这个 import
   // 变成死代码(全文件再无第二处使用 onMounted/onUnmounted,已用 grep 核实)。
   { path: 'src/home/components/HomeTopbar.vue',
@@ -626,8 +636,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   // 头部映射注释也点了名(现场 sed 取出,brief 未给):按角色裁剪的那一整项功能
   // 已经不存在,继续保留具体名字和旧计数只是死文档,一并改写。
   { path: 'src/settings/util/tabs.ts',
-    find: '//   - data().tabs (L855-863) —— 侧栏 rail 的 7 项\n//   - visibleTabs (L1034)    —— 非 admin 过滤掉 folder-permissions\n',
-    replace: '//   - data().tabs (L855-863) / visibleTabs (L1034) —— 侧栏 rail 项与按角色的可见性裁剪\n' },
+    find: '//   - data().tabs (L855-863) -- the 7 sidebar rail items\n//   - visibleTabs (L1034)    -- non-admin filters out folder-permissions\n',
+    replace: '//   - data().tabs (L855-863) / visibleTabs (L1034) -- sidebar rail items and role-based visibility\n' },
   // SP17:lan-devices(Vue2 #93)插进了 system-status 与 folder-permissions 之间,且是
   // 公开面功能(局域网设备发现,不含任何管理员专属信息)——FIND 锚点跟着私有侧新增的这一行走,
   // REPLACE 仍只摘掉 folder-permissions,lan-devices 保留在开源产物里。
@@ -640,8 +650,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/settings/util/tabs.ts',
     find: "  'folder-permissions': 'settingsTabFolderPermissions',\n", replace: '' },
   { path: 'src/settings/util/tabs.ts',
-    find: "/** Vue2 visibleTabs:只有 admin 能看到 folder-permissions。role 缺失按非 admin 处理。 */\nexport function railTabsFor(role: string | undefined): readonly SettingsTab[] {\n  if (role === 'admin') return RAIL_TABS\n  return RAIL_TABS.filter((t) => t !== 'folder-permissions')\n}",
-    replace: "/** rail 上没有按角色隐藏的项,直接返回全集(保留函数形状以免调用处发散)。 */\nexport function railTabsFor(): readonly SettingsTab[] {\n  return RAIL_TABS\n}" },
+    find: "/** Vue2 visibleTabs: only admin sees folder-permissions. Missing role is treated as non-admin. */\nexport function railTabsFor(role: string | undefined): readonly SettingsTab[] {\n  if (role === 'admin') return RAIL_TABS\n  return RAIL_TABS.filter((t) => t !== 'folder-permissions')\n}",
+    replace: "/** No rail item is hidden by role here; return the whole set (the signature is kept so callers stay uniform). */\nexport function railTabsFor(): readonly SettingsTab[] {\n  return RAIL_TABS\n}" },
 
   // ── panels/index.ts ─────────────────────────────────────────────────────
   { path: 'src/settings/panels/index.ts',
@@ -661,9 +671,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: '  search_switch: true,\n', replace: '' },
 
   // ── 注释洗白(代码一个字节不动)────────────────────────────────────────
+  // 2026-08-14:color-guard 是保留面的全仓守卫,文件头那段"相册 parity 目录整目录豁免"
+  // 的登记在开源版没有对应物(相册整域已删),连同它引用的内部 spec 路径一并摘掉。
+  // 代码不动:当前扫描面本来就不含 .scss。
+  { path: 'src/styles/color-guard.test.ts',
+    find: `//
+// Registered exemption (owner's call 2026-08-11, see docs/superpowers/specs/2026-08-11-photos-vue2-parity-reskin-design.md §4):
+// src/photos/styles/vue2-parity/*.scss is the pixel source of truth from the old Vue2 repo, with its own .photos-root-scoped token system,
+// so the whole directory is exempt from this guard. The current scan surface (.vue style blocks + .css) doesn't include .scss anyway; if .scss is ever brought into scope,
+// this directory's exclusion must be kept.
+`,
+    replace: '' },
   { path: 'src/apps/util/systemApp.ts',
-    find: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(AI agent 运行时 /\n *  Photos ML 后端等),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。",
-    replace: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(供其他应用使用的\n *  内部服务容器),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。" },
+    find: " *  If any service in compose has the label `nimoos.system == \"true\"`, it is a background component (AI agent runtime /\n *  Photos ML backend, etc.); the desktop appgrid already hides these. The app management page must also hide them,",
+    replace: " *  If any service in compose has the label `nimoos.system == \"true\"`, it is a background component (an\n *  internal service container used by other apps); the desktop appgrid already hides these. The app management page must also hide them," },
   { path: 'src/settings/util/appPaths.ts',
     find: '// The backend returns four keys -- app_data / images / database / photos_data\n// (verified 2026-08-09). Vue 2 rendered only the first three until #103 added the\n// photos cache row; all four are rendered here.',
     replace: '// The backend may return additional keys beyond the ones listed in ORDER below;\n// only the keys in ORDER are rendered.' },
@@ -671,8 +692,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   //    (Task 3's real behavior) -- the open-source side reverts to three rows below,
   //    so this description must match what the reverted code actually derives.
   { path: 'src/settings/util/appPaths.ts',
-    find: '// 设置 · 应用 —— 「App 数据存储位置」四行的派生。',
-    replace: '// 设置 · 应用 —— 「App 数据存储位置」三行的派生。' },
+    find: '// Settings / Apps -- derivation of the four "App data storage location" rows.',
+    replace: '// Settings / Apps -- derivation of the three "App data storage location" rows.' },
   // -- photos_data is a HARD-banned word (forbidden.mjs): Task 3 (private-side) gives
   //    the App data location panel a fourth "photos cache" row, backed by the
   //    /v1/sys/paths photos_data key -- this is exactly the landing path for the
@@ -695,27 +716,27 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: "consulted, so such entries would be dead code (Vue 2 #105 reached the same result).",
     replace: 'consulted, so such entries would be dead code here.' },
   { path: 'src/apps/stores/installedApps.ts',
-    find: '        // 系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。',
-    replace: '        // 系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。' },
+    find: '        // System background containers (nimoos.system=true, e.g. AI agent / Photos ML) are hidden from users —\n        // consistent with the desktop appgrid (same rule as backend isSystemComposeApp).',
+    replace: '        // System background containers (nimoos.system=true, internal service containers used by other apps) are hidden from users —\n        // consistent with the desktop appgrid (same rule as backend isSystemComposeApp).' },
   { path: 'src/settings/panels/AppsPanel.vue',
-    find: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用、标注待相册区迁移完成后启用。\n//    数据源是**相册**的 IndexedDB 上传队列(Vue2 @/views/Photos/upload/idb.js),SP7 尚未迁。',
+    find: '// "Clear local pending-upload cache" = policy 3 "for show": UI is 1:1, button disabled, labeled as\n//    enabled once the Photos area migration is done.\n//    The data source is the **Photos** area\'s IndexedDB upload queue (Vue2 @/views/Photos/upload/idb.js),\n//    not yet migrated as of SP7.',
     // I5-guard(⑤b)复核:原 replace 仍带 "政策三「做样子」"(内部分级术语,FORBIDDEN 清单
     // 里的"做样子"本就是冲它去的,REPLACE-only 时代未覆盖到 PATCH,漏检)。
-    replace: '// 「清理本地待上传缓存」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
+    replace: '// "Clear local pending-upload cache": UI is 1:1, button disabled — the backend capability this\n//    feature depends on is not available yet.\n//    The data source is a local IndexedDB upload queue (a separate implementation from the files\n//    area\'s upload queue, see the next line).' },
   { path: 'src/settings/panels/AppsPanel.vue',
-    find: '// 三块:① 「App 数据存储位置」four rows (app_data / images / database / photos_data;\n//         from Task 2\'s buildAppPathRows, photos_data is the fourth row Task 3 added,\n//         matching Vue 2 #103)',
-    replace: '// 三块:① 「App 数据存储位置」三行(app_data / images / database,来自 Task2 buildAppPathRows)' },
+    find: '// Three sections: ① "App data storage location" four rows (app_data / images / database / photos_data;\n//         from Task 2\'s buildAppPathRows, photos_data is the fourth row Task 3 added,\n//         matching Vue 2 #103)',
+    replace: '// Three sections: ① "App data storage location" three rows (app_data / images / database;\n//         from buildAppPathRows)' },
   { path: 'src/settings/panels/AppsPanel.vue',
     find: "  database: 'settingsAppsDatabase',\n  photos_data: 'settingsAppsPhotosData',\n}",
     replace: "  database: 'settingsAppsDatabase',\n}" },
   // -- Two more comments in this file say "four rows" in the private source; revert
   //    both to "three rows" so they match the reverted (three-row) code below.
   { path: 'src/settings/panels/AppsPanel.vue',
-    find: '// ── 取数(App 数据存储位置四行) ──────────────────────────────────────────',
-    replace: '// ── 取数(App 数据存储位置三行) ──────────────────────────────────────────' },
+    find: '// ── Fetching data (the four "App data storage location" rows) ──────────────────────────────────────────',
+    replace: '// ── Fetching data (the three "App data storage location" rows) ───────────────────────────────────────' },
   { path: 'src/settings/panels/AppsPanel.vue',
-    find: '// 评审 Important #3:取数在途时不能渲染四行 0 值——尤其是「用户数据库」那行,pathText()',
-    replace: '// 评审 Important #3:取数在途时不能渲染三行 0 值——尤其是「用户数据库」那行,pathText()' },
+    find: '// Review Important #3: must not render the four rows with 0 values while the fetch is still in flight',
+    replace: '// Review Important #3: must not render the three rows with 0 values while the fetch is still in flight' },
   // -- The settingsAppsPhotosData key ("Photos Cache" / HARD-banned word "相册") only
   //    feeds the fourth row reverted above; once reverted, this key has zero consumers
   //    on the open-source side, so delete it from both locales together -- no orphan.
@@ -730,11 +751,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   // 2026-08-05 私有侧把 .superpowers/ 从 gitignore 拿掉改成入库(台账丢过一次),
   // 锚点跟着改。开源侧两行都不需要:.claude/ 本就不导出,.superpowers/ 已在 DELETE 表。
   { path: '.gitignore',
-    find: '\n# Claude Code 本地状态(隔离 worktree、会话配置),不入库\n.claude/\n# .superpowers/ **入库** —— 台账是各期唯一的决策记录。SP7 曾把整个目录弄丢且 git 救不回,\n# SP9-P7 又发现 P5/P6 的台账只活在 gitignore 里。规则见 .superpowers/.gitignore:\n# 台账(.md)与自查截图(.png)进库,评审 diff / 备份 / 快照环境这类机器产物不进。\n',
+    find: '\n# Claude Code local state (isolated worktrees, session config) — not committed\n.claude/\n# .superpowers/ IS committed — the ledgers are the only decision record per sprint. SP7 once\n# lost the whole directory with no git recovery, and SP9-P7 found the P5/P6 ledgers only\n# existed in gitignore. Rules live in .superpowers/.gitignore:\n# ledgers (.md) and self-check screenshots (.png) go in; review diffs / backups / snapshot-env machine artifacts stay out.\n',
     replace: '' },
   { path: '.gitignore',
-    find: '\n# 时间机器验收测试台(T12):假后端 + 专用 vite 配置,只在本机验收用,不进版本库\nscripts/tmlab/\nvite.config.tmlab.ts',
-    replace: '\n# 导出报告(含上游 commit hash),仅供本地追溯\n.export-report.txt' },
+    find: '\n# Time-machine acceptance test bench (T12): fake backend + dedicated vite config, local acceptance only, not versioned\nscripts/tmlab/\nvite.config.tmlab.ts',
+    replace: '\n# Export report (carries the upstream commit hash) — local traceability only\n.export-report.txt' },
 
   // ═══════════════════ T8:i18n 四个 locale + theme.css ═══════════════════
 
@@ -809,10 +830,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: "// `action` (Task 9, SP7-P3 photos trash view): optional inline affordance (e.g.\n",
     replace: "// `action`: optional inline affordance (e.g.\n" },
   { path: 'src/styles/color-guard.test.ts',
-    find: `// 静默失效。本期实测命中 4 个文件(ClusterActionDialog / PersonRelGraph / PersonPlacesTab /
-// PhotosTrash),当时恰好是绿的(非假绿),但两个隐患都成立。
+    find: `// stops working on these files. This round's scan hit 4 files (ClusterActionDialog / PersonRelGraph / PersonPlacesTab /
+// PhotosTrash) — they happened to be passing at the time (not a false pass), but both hazards were real.
 `,
-    replace: `// 静默失效。当初实测命中 4 个组件文件,当时恰好是绿的(非假绿),但两个隐患都成立。
+    replace: `// stops working on these files. The scan at the time hit 4 component files — they happened to be passing (not a false pass), but both hazards were real.
 ` },
 
   // ── src/styles/theme.css:相册专用 token 组整块删除 ─────────────────────────
@@ -824,27 +845,33 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   //    ——名字通用、无相册字样、不触发任何禁词,留着零成本,删了反而可能被后来人重新发明。
   // --album-cover-fallback(PhotosAlbums/PhotosAlbumDetail 专用)
   { path: 'src/styles/theme.css',
-    find: `  /* 相册无封面渐变占位(PhotosAlbums.vue / PhotosAlbumDetail.vue 曾各写一份逐字相同的
-     linear-gradient(135deg, color-mix(accent 35%, panel-bg), accent),提成本 token 消灭
-     重复;两处均改用它,见 THEMING.md 例外清单外的普通语义 token 用法)。 */
+    find: `  /* Album no-cover gradient placeholder (PhotosAlbums.vue / PhotosAlbumDetail.vue each used
+     to have their own byte-for-byte copy of
+     linear-gradient(135deg, color-mix(accent 35%, panel-bg), accent); lifted into a token
+     to kill the duplication -- both sites now use this, see THEMING.md's plain semantic-token
+     usage outside the exceptions list). */
   --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
 `,
     replace: '' },
   // --avatar-fallback(PersonAvatar 专用)
   { path: 'src/styles/theme.css',
-    find: `  /* 人物头像三级兜底的渐变实底(PersonAvatar.vue,SP7-P5)。目标是贴近 Vue2 5 处重复的
-     linear-gradient(135deg,#6E5BFF,#4A3BD1)/(135deg,#8950F2,#6c3bcd)(两套并存本身不一致,
-     这里统一成一份 token)。用 --accent 混黑代替写死紫色,保持"颜色一律走 token"红线;
-     对比度实算见 PersonAvatar.vue 顶部注释与任务报告。 */
+    find: `  /* Person avatar's third-tier fallback gradient fill (PersonAvatar.vue, SP7-P5). Aims to
+     match Vue2's five duplicated copies of
+     linear-gradient(135deg,#6E5BFF,#4A3BD1)/(135deg,#8950F2,#6c3bcd) (the two variants
+     already disagreed with each other; unified into a single token here). Mixes --accent
+     with darkening instead of hardcoding a fixed accent hue, keeping the "colors always go
+     through a token" line intact; the actual contrast math lives in PersonAvatar.vue's
+     top-of-file comment and the task report. */
   --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
 `,
     replace: '' },
   // --place-row-* 三色(PlacesRail)
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesRail.vue(P6a-T5)选中城市行三处——Vue2 photos-places.scss:153-156/:163-167
-     的 rgba(var(--accent-rgb), 0.10/0.30/0.18) 精确复刻(该视图只有深色设计,数值级
-     精度要求专用 token,不从 --accent-soft 三档就近凑,同 --drop-bg/--spark-fill/
-     --orb-glow 的既有先例)。 */
+    find: `  /* PlacesRail.vue (P6a-T5) selected-city row, three spots -- an exact port of Vue2
+     photos-places.scss:153-156/:163-167's rgba(var(--accent-rgb), 0.10/0.30/0.18) (that
+     view only ever had a dark design; the numeric precision required calls for a
+     dedicated token instead of settling for one of --accent-soft's three tiers, following
+     the existing precedent set by --drop-bg/--spark-fill/--orb-glow). */
   --place-row-bg: rgba(138, 180, 255, 0.10);
   --place-row-border: rgba(138, 180, 255, 0.30);
   --place-thumb-active: rgba(138, 180, 255, 0.18);
@@ -852,92 +879,115 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: '' },
   // --pin-* 六色 + --pin-cluster-stroke(PlacesMap 图钉)
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue(P6a-T6)图钉——Vue2 photos-places.scss:366-411 的
-     rgba(var(--accent-rgb), α) 精确复刻。--accent-rgb 在 Vue2 明确标注
-     theme-invariant(恒为 110,91,255),即这些 alpha 层在深浅两套 app 主题下都不变——
-     图钉铺的是地图预设自己的画布(4 套预设 + 自定义色,深浅与 app 主题无关,custom 模式
-     恒为黑底),不能按 app 主题去降 alpha,否则「浅色 app 主题 + custom 黑底」会把图钉
-     洗没。故两套主题块 alpha 完全相同,只有 RGB 跟随本仓 --accent-rgb 深浅两档。 */
+    find: `  /* PlacesMap.vue (P6a-T6) map pins -- an exact port of Vue2 photos-places.scss:366-411's
+     rgba(var(--accent-rgb), α). Vue2 explicitly marks --accent-rgb theme-invariant
+     (permanently 110,91,255), meaning these alpha layers don't change between the dark and
+     light app themes -- the pins sit on the map preset's own canvas (4 presets plus a
+     custom color, independent of the app theme's light/dark state; custom mode always has
+     a dark backdrop), so alpha can't be lowered to follow the app theme, or a "light app
+     theme + dark custom backdrop" combination would wash the pins out entirely. So both
+     theme blocks share identical alpha; only the RGB follows this repo's dark/light
+     --accent-rgb pair. */
   --pin-bg: rgba(138, 180, 255, 0.16);
   --pin-stroke: rgba(138, 180, 255, 0.55);
   --pin-active-bg: rgba(138, 180, 255, 0.30);
   --pin-pulse: rgba(138, 180, 255, 0.25);
   --pin-cluster-hover-bg: rgba(138, 180, 255, 0.42);
   --pin-glow: rgba(138, 180, 255, 0.7);
-  /* Vue2 原值是比 accent 更浅的淡紫 rgba(196,184,255,0.85),让簇读作"一组"而非单点;
-     这里 RGB 改取本仓 --accent-text(169,198,255)——语义正是"比 accent 更浅/更可读的
-     accent 色",alpha 精确复刻原值 0.85。 */
+  /* Vue2's original value is a pale-lilac rgba(196,184,255,0.85), lighter than accent, so
+     a cluster reads as "a group" rather than a single point; here the RGB is swapped for
+     this repo's --accent-text (169,198,255) -- its semantics are exactly "an
+     accent-derived hue that's lighter/more readable than accent", with the alpha an exact
+     port of the original 0.85. */
   --pin-cluster-stroke: rgba(169, 198, 255, 0.85);
 `,
     replace: '' },
   // --place-current-trip
   { path: 'src/styles/theme.css',
-    find: `  /* Vue2 原值 #34c759(当前行程绿,图例第四组也用),两套主题下都用同一个值——不用
-     本仓 --good(它是青绿 #5fe3b0/#15754c,与 iOS 绿不同,是近似不是精确复刻)。 */
+    find: `  /* Vue2's original value #34c759 (the current-trip color, also used by the legend's fourth
+     group), the same value in both themes -- not reusing this repo's --good (that's a
+     teal-leaning #5fe3b0/#15754c, distinct from the iOS hue, an approximation rather than
+     an exact port). */
   --place-current-trip: #34c759;
 `,
     replace: '' },
   // --place-home-base(PlaceDetailPanel)
   { path: 'src/styles/theme.css',
-    find: `  /* PlaceDetailPanel.vue(P6b-T3)「常驻地」标记色——新增 token,精确复刻 Vue2
-     photos-places.scss 内联 \`style="color:#c4b8ff"\`(:1078)。偏离登记(brief 字面要求
-     两套主题给不同值,深色浅紫、浅色改深色向,同 --accent-text 的做法):这里改成
-     **两套主题同值**,不跟随 app 主题深浅——它与紧邻的 --place-current-trip 用在完全
-     相同的语境(.ttl-region 内,叠在 hero 暗化封面照片之上,该遮罩本身钉死恒为深色,
-     与 app 是深色皮肤还是纸感皮肤无关),若照字面给浅色主题一个深紫版本,会在浅色 app
-     主题下把深紫字压在恒暗的照片渐变上,直接违反本任务"hero 前景色红线"的对比度要求。
-     不用 --accent-text 就近凑:那是"比 accent 更浅更可读"的语义(蓝色调),这里要与
-     「本次旅行」并列的第二个状态色(紫色调),同 --pin-cluster-stroke 换基色不换语义的
-     既有先例,但这里连 alpha/精确色值都直接照抄 Vue2 字面量(theme-invariant,同
-     --place-current-trip 的既有先例)。 */
+    find: `  /* PlaceDetailPanel.vue (P6b-T3) "home base" marker color -- a new token, an exact port
+     of Vue2 photos-places.scss's inline \`style="color:#c4b8ff"\` (:1078). Deviation on
+     record (the brief literally asks for different values per theme: dark stays light
+     violet, light shifts toward a deeper tone, the same approach as --accent-text): here
+     it's changed to **the same value in both themes**, not following the app theme's
+     light/dark split -- it sits in exactly the same context as its neighbor
+     --place-current-trip (inside .ttl-region, layered over the hero's darkened cover
+     photo, and that scrim is itself pinned permanently dark regardless of whether the app
+     skin is dark or paper-toned); giving the light theme a deeper-violet version as the
+     brief literally asks would push that deep-violet text onto a permanently dark photo
+     gradient in the light app theme, a direct violation of this task's "hero foreground
+     color line". Not settling for --accent-text either: that token's semantics are
+     "lighter/more readable than accent" (an azure-leaning hue), while this one needs to be
+     the second status color paired alongside "current trip" (a violet-leaning hue) --
+     following the same swap-the-base-hue-but-not-the-semantics precedent as
+     --pin-cluster-stroke, except here even the alpha/exact color value is copied straight
+     from the Vue2 literal (theme-invariant, the same precedent as --place-current-trip). */
   --place-home-base: #c4b8ff;
 `,
     replace: '' },
   // --map-dot-bg-fallback(PlacesMap 陆地点阵)
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue(P6a-T6)陆地点阵底色的 CSS 回落值——theme-invariant,两套主题块同值。
-     精确复刻 Vue2 photos-places.scss:347 的字面量 rgba(255,255,255,0.10)(该视图刻意不走
-     --ink/文字色系,因为这层压在地图预设自己的深色画布上,与 app 主题无关)。
-     不能用本仓 --fg-faint 顶替:深色 --fg-faint 是 rgba(255,255,255,0.52)(0.52 vs 0.10,
-     陆地点阵会亮到盖过 --map-dot 的已访问点),浅色 --fg-faint 更是不透明的暖灰 #9a958a
-     (铺在 custom 模式的纯黑地图画布上会变成一块不透明灰块)——评审 I1 实测复核过这条
-     失效路径确实可达(Vue2 :150/:137 两条最常见路径的 dotBg 都是 null,即都吃 CSS 回落,
-     不是罕见分支)。 */
+    find: `  /* PlacesMap.vue (P6a-T6) land-dot-grid base color CSS fallback -- theme-invariant, same
+     value in both theme blocks. An exact port of Vue2 photos-places.scss:347's literal
+     rgba(255,255,255,0.10) (that view deliberately avoids the --ink/text-color family,
+     because this layer sits over the map preset's own dark canvas, independent of the
+     app theme). This can't be swapped for this repo's --fg-faint: dark theme's --fg-faint
+     is rgba(255,255,255,0.52) (0.52 vs 0.10 -- the land dot grid would brighten enough to
+     overpower --map-dot's visited-point markers), and light theme's --fg-faint is worse
+     still, an opaque warm neutral #9a958a (which turns into a solid tinted block when laid
+     over custom mode's plain dark map canvas) -- review I1 re-verified this failure path
+     is genuinely reachable (Vue2's two most common paths, :150/:137, both leave dotBg
+     null, i.e. both fall through to this CSS default -- not a rare branch). */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
 `,
     replace: '' },
   // --float-bg(PlacesZoomBar 浮动药丸底)
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesZoomBar.vue(P6a-T8)垂直缩放滑杆的浮动药丸底——新增 token,精确复刻 Vue2
-     photos.scss:49(NimoOS-UI 全局浮动条/FAB 共用底,不是 photos-places.scss 自己定义的)。
-     本仓之前没有等价的"半透明浮动工具条底"token,--panel-bg(0.1)/--popup-bg(渐变,
-     ~0.9-0.95)/--tool-bg(0.16,不透明纯色)都对不上这个扁平 0.85 的量级,故新增而非近似。 */
+    find: `  /* PlacesZoomBar.vue (P6a-T8) vertical zoom slider's floating pill background -- a new
+     token, an exact port of Vue2 photos.scss:49 (NimoOS-UI's shared global floating-bar/FAB
+     background, not something photos-places.scss defines on its own). This repo had no
+     equivalent "translucent floating toolbar background" token before -- --panel-bg (0.1),
+     --popup-bg (a gradient, ~0.9-0.95), and --tool-bg (0.16, an opaque flat color) all miss
+     this flat 0.85 magnitude, hence a new token rather than an approximation. */
   --float-bg: rgba(20, 20, 28, 0.85);
 `,
     replace: '' },
   // --zb-hover-bg / --zb-track-bg
   { path: 'src/styles/theme.css',
-    find: `  /* 同上组件——Vue2 用 rgba(var(--ink), 0.08/0.12) 给 .zb-btn:hover 背景与 .zb-track 底色
-     做"跟随文字色的透明度斜坡";本仓没有 --ink 这个 RGB 三元组 token。alpha 精确复刻
-     Vue2 的 0.08/0.12,RGB 改取本仓 --fg 的真实分解值(dark #ffffff→255,255,255)——不照抄
-     Vue2 light 主题里 --ink 的 (35,37,43)(该值本身只是 Vue2 注释自称的"AI --text-primary
-     近似",不是设计精确值),同 --pin-cluster-stroke 的换基色先例。 */
+    find: `  /* Same component -- Vue2 uses rgba(var(--ink), 0.08/0.12) for .zb-btn:hover's background
+     and .zb-track's base color, an "alpha ramp that follows the text color"; this repo has
+     no --ink RGB-triple token. The alpha is an exact port of Vue2's 0.08/0.12, but the RGB
+     is swapped for this repo's --fg's actual decomposed value (dark theme #ffffff ->
+     255,255,255) -- not copied from Vue2's light-theme --ink value of (35,37,43) (that
+     value is, per Vue2's own comment, only an approximation of "AI --text-primary", not a
+     precise design value), following the same base-hue-swap precedent as
+     --pin-cluster-stroke. */
   --zb-hover-bg: rgba(255, 255, 255, 0.08);
   --zb-track-bg: rgba(255, 255, 255, 0.12);
 `,
     replace: '' },
   // --zb-thumb-shadow
   { path: 'src/styles/theme.css',
-    find: `  /* .zb-thumb 把手投影第二层——Vue2 photos-places.scss:281 的 box-shadow 里
-     \`0 1px 4px rgba(0,0,0,0.4)\` 从未随 Vue2 自己的深浅主题变化,theme-invariant,
-     两套主题块同值(先例见 --place-current-trip)。 */
+    find: `  /* .zb-thumb handle's second shadow layer -- Vue2 photos-places.scss:281's box-shadow
+     \`0 1px 4px rgba(0,0,0,0.4)\` never varied across Vue2's own dark/light themes,
+     theme-invariant, same value in both theme blocks (precedent: --place-current-trip). */
   --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
 `,
     replace: '' },
   // --warn-*(人脸识别关闭 / Photos AI 离线两条横幅)
   { path: 'src/styles/theme.css',
-    find: `  /* 警告/降级语义(SP7-P5:人脸识别关闭、Photos AI 后端离线两条横幅)。对齐 Vue2 的
-     #FF9F0A 系;深色主题直接取原值,浅色主题按本仓 --dem-* 的既有做法压暗前景保证对比度。 */
+    find: `  /* Warning/degraded semantics (SP7-P5: the face-recognition-disabled and Photos AI
+     backend-offline banners). Aligned with Vue2's #FF9F0A family; the dark theme takes
+     the original value directly, the light theme darkens the foreground for contrast
+     following this repo's existing --dem-* approach. */
   --warn-fg: #ff9f0a;
   --warn-bg: rgba(255, 159, 10, 0.08);
   --warn-border: rgba(255, 159, 10, 0.32);
@@ -945,55 +995,71 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: '' },
   // --badge-photo/video/ocr(搜索结果媒体类别徽标)
   { path: 'src/styles/theme.css',
-    find: `  /* SP7-P7a-T15:搜索结果卡片左上角媒体类别徽标(.type-badge[data-type])三色——
-     数据可视化类别色（THEMING.md §0 第三类例外的变体：同一批结果里要把"照片/视频/
-     OCR 命中"这三种互不相同的类别互相区分开，颜色语义是"第几类"而非"主题强调色"）。
-     精确复刻 Vue2 photos.scss:2768-2770 的字面量,两套主题块同值——不随皮肤深浅走,
-     同 --place-current-trip/--console-bg 的既有先例(同类先例见 THEMING.md §6)。
-     不用 --accent/--danger 就近凑:它们是三个并列的类别标识,不是"强调"或"危险"语义。 */
-  --badge-photo: rgba(50, 190, 230, 0.9);   /* 青 cyan */
-  --badge-video: rgba(255, 149, 10, 0.92);  /* 橙 orange */
-  --badge-ocr: rgba(16, 185, 129, 0.92);    /* 翠绿 emerald */
+    find: `  /* SP7-P7a-T15: the three colors for the search result card's top-left media-category
+     badge (.type-badge[data-type]) -- data-visualization category colors (a variant of
+     THEMING.md §0's third exception category: the same result set needs to tell "photo /
+     video / OCR hit" categories apart from each other, so the color semantics are "which
+     category" rather than "theme accent"). An exact port of Vue2 photos.scss:2768-2770's
+     literals, same value in both theme blocks -- doesn't follow the skin's light/dark
+     state, the same precedent as --place-current-trip/--console-bg (see THEMING.md §6 for
+     the same category of precedent). Not settling for --accent/--danger: those three are
+     parallel category labels, not an "emphasis" or "danger" semantic. */
+  --badge-photo: rgba(50, 190, 230, 0.9);   /* cyan */
+  --badge-video: rgba(255, 149, 10, 0.92);  /* amber */
+  --badge-ocr: rgba(16, 185, 129, 0.92);    /* emerald */
 `,
     replace: '' },
   // --photos-seg-*(设置页容量条分段色)
   { path: 'src/styles/theme.css',
-    find: `  /* SP7-P8a-T3:设置页存储卡容量条分段色(PhotosStorageCard.vue,消费于
-     src/photos/util/storagePalette.ts 的 STORAGE_SEG_COLORS)——同上一组一样是**数据可视化
-     类别色**:同一条容量条上要把 videos/raw/ai/other 四个互不相同的数据段互相区分开,
-     颜色语义是"第几类数据"而不是"主题强调色"。photos 段用 --accent、thumbs 段用 --success
-     (既有语义 token 直接复用,不新增),这四个是 Vue2 内联的、本仓无对应语义 token 的字面量,
-     故新增。深色精确复刻 Vue2 PhotosSettings.vue:320/321/323 的字面量;浅色不能照抄深色值——
-     videos 的中蓝、raw 的浅粉柔和色铺在本主题纯白 --card-bg 上会偏灰、分段边界糊掉,故各自
-     加深/提高饱和度保持在白底上可辨识(同 --warn-fg 浅色把 #FF9F0A 压成 #96610a 保对比度的
-     既定手法,但这里是三个并列的类别色而非单一警告语义,故各给独立值而非借用 --warn-fg)。 */
+    find: `  /* SP7-P8a-T3: settings page storage card's capacity bar segment colors
+     (PhotosStorageCard.vue, consumed by src/photos/util/storagePalette.ts's
+     STORAGE_SEG_COLORS) -- like the previous group, these are **data-visualization
+     category colors**: the same capacity bar needs to tell the four distinct data
+     segments videos/raw/ai/other apart, so the color semantics are "which data category"
+     rather than "theme accent". The photos segment reuses --accent, the thumbs segment
+     reuses --success (existing semantic tokens reused as-is, no new ones needed); these
+     four are Vue2-inline literals with no matching semantic token in this repo, hence new
+     ones. Dark theme is an exact port of Vue2 PhotosSettings.vue:320/321/323's literals;
+     light theme can't just copy the dark values -- videos' mid-tone and raw's soft pale
+     tint both wash out and blur the segment boundaries against this theme's fully opaque
+     --card-bg (#ffffff), so each is darkened/saturated to stay legible on a pale
+     background (the same established technique as --warn-fg's light-theme handling,
+     which darkens #FF9F0A to #96610a for contrast -- but these are three parallel
+     category labels rather than a single warning semantic, so each gets its own
+     independent value instead of borrowing --warn-fg). */
   --photos-seg-video: #5e94ff;
   --photos-seg-raw: #ff9ac2;
   --photos-seg-ai: #ff9f0a;
-  /* other 段 Vue2 原值是 rgba(var(--ink),0.25)("跟随文字色的透明度斜坡"),本仓无 --ink
-     三元组 token——同 --zb-hover-bg/--zb-track-bg 的既定换基先例:alpha 精确复刻 0.25,
-     RGB 改取本仓 --fg 的真实分解值(dark #ffffff→255,255,255)。 */
+  /* The other segment's Vue2 original value is rgba(var(--ink),0.25) (an "alpha ramp that
+     follows the text color"), and this repo has no --ink RGB-triple token -- following the
+     same established base-hue-swap precedent as --zb-hover-bg/--zb-track-bg: alpha is an
+     exact port of 0.25, RGB is swapped for this repo's --fg's actual decomposed value
+     (dark theme #ffffff -> 255,255,255). */
   --photos-seg-other: rgba(255, 255, 255, 0.25);
 `,
     replace: '' },
   // light:--album-cover-fallback
   { path: 'src/styles/theme.css',
-    find: `  /* 相册无封面渐变占位(见 :root 同名 token 注释),白色纸感主题下取值同一份公式,
-     --accent/--panel-bg 各自已按本主题定义,结果自然是本主题配色。 */
+    find: `  /* Album no-cover gradient placeholder (see the :root token of the same name's comment);
+     the paper theme uses the same formula, and since --accent/--panel-bg are each already
+     defined for this theme, the result naturally comes out in this theme's colors. */
   --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
 `,
     replace: '' },
   // light:--avatar-fallback
   { path: 'src/styles/theme.css',
-    find: `  /* 见 :root 同名 token 注释;白色纸感主题下 accent 更深,mix 百分比调到 70% 才不至于
-     整块糊成近黑(对比度实算见 PersonAvatar.vue / 任务报告)。 */
+    find: `  /* See the :root token of the same name's comment; the paper theme's accent is deeper, so
+     the mix percentage is raised to 70% to avoid the whole thing blurring into a near-dark
+     blob (actual contrast math is in PersonAvatar.vue / the task report). */
   --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000));
 `,
     replace: '' },
   // light:--place-row-*
   { path: 'src/styles/theme.css',
-    find: `  /* Vue2 该视图仅有深色设计,浅色值没有原件可照——按 accent 家族深→浅收敛惯例推导
-     (.14→.11、.24→.20、.36→.30,约 ×0.83):.10→.08、.30→.25、.18→.15。 */
+    find: `  /* Vue2 only ever designed a dark version of this view, so there's no original to copy
+     for the light value -- derived using the accent family's dark->light convergence
+     convention (.14->.11, .24->.20, .36->.30, roughly x0.83): .10->.08, .30->.25,
+     .18->.15. */
   --place-row-bg: rgba(59, 91, 219, 0.08);
   --place-row-border: rgba(59, 91, 219, 0.25);
   --place-thumb-active: rgba(59, 91, 219, 0.15);
@@ -1001,9 +1067,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: '' },
   // light:--pin-*
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue(P6a-T6)图钉——见 :root 同名 token 注释:alpha 与 :root 完全相同
-     (theme-invariant,铺在地图预设自己的画布上,不随 app 主题降 alpha),RGB 换成本仓
-     浅色 --accent-rgb(59,91,219)。 */
+    find: `  /* PlacesMap.vue (P6a-T6) map pins -- see the :root token of the same name's comment:
+     alpha is identical to :root's (theme-invariant, sits on the map preset's own canvas,
+     doesn't lower alpha to follow the app theme), RGB is swapped for this repo's light
+     theme --accent-rgb (59,91,219). */
   --pin-bg: rgba(59, 91, 219, 0.16);
   --pin-stroke: rgba(59, 91, 219, 0.55);
   --pin-active-bg: rgba(59, 91, 219, 0.30);
@@ -1014,56 +1081,64 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: '' },
   // light:--pin-cluster-stroke
   { path: 'src/styles/theme.css',
-    find: `  /* RGB 取本仓浅色 --accent-text(53,80,196),alpha 精确复刻 Vue2 原值 0.85(见 :root 同名注释)。 */
+    find: `  /* RGB is taken from this repo's light theme --accent-text (53,80,196), alpha is an
+     exact port of Vue2's original 0.85 (see the :root token of the same name's comment). */
   --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
 `,
     replace: '' },
   // light:--place-current-trip
   { path: 'src/styles/theme.css',
-    find: `  /* 两套主题同值,见 :root 同名注释。 */
+    find: `  /* Same value in both themes, see the :root token of the same name's comment. */
   --place-current-trip: #34c759;
 `,
     replace: '' },
   // light:--place-home-base
   { path: 'src/styles/theme.css',
-    find: `  /* 两套主题同值,见 :root 同名注释(偏离登记:未按字面要求给浅色主题一个深紫版本,
-     理由同 :root 块的完整登记——它与 --place-current-trip 语境完全相同,恒叠在
-     hero 的固定暗化渐变之上,与 app 是深色还是纸感皮肤无关)。 */
+    find: `  /* Same value in both themes, see the :root token of the same name's comment (deviation
+     on record: didn't give the light theme a deeper-violet version as literally required
+     -- the reasoning is the same as the :root block's full write-up: it sits in exactly
+     the same context as --place-current-trip, permanently layered over the hero's fixed
+     darkening gradient, independent of whether the app skin is dark or paper-toned). */
   --place-home-base: #c4b8ff;
 `,
     replace: '' },
   // light:--map-dot-bg-fallback
   { path: 'src/styles/theme.css',
-    find: `  /* theme-invariant,两套主题块同值——见 :root 同名 token 注释(不用 --fg-faint 的理由同上,
-     浅色 --fg-faint 是不透明暖灰 #9a958a,同样会在地图画布上变成一块不透明色块)。 */
+    find: `  /* theme-invariant, same value in both theme blocks -- see the :root token of the same
+     name's comment (same reasoning as above for not using --fg-faint: light theme's
+     --fg-faint is an opaque warm neutral #9a958a, which would likewise turn into a solid
+     tinted block over the map canvas). */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
 `,
     replace: '' },
   // light:--float-bg
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesZoomBar.vue(P6a-T8)——见 :root 同名 token 注释。精确复刻 Vue2 photos.scss:84
-     的浅色浮动条底字面量。 */
+    find: `  /* PlacesZoomBar.vue (P6a-T8) -- see the :root token of the same name's comment. An
+     exact port of Vue2 photos.scss:84's light-theme floating-bar-background literal. */
   --float-bg: rgba(255, 255, 255, 0.85);
 `,
     replace: '' },
   // light:--zb-hover-bg / --zb-track-bg
   { path: 'src/styles/theme.css',
-    find: `  /* 见 :root 同名 token 注释:alpha 与 :root 完全相同(0.08/0.12),RGB 换成本仓浅色
-     --fg 的真实分解值(#1c1b19→28,27,25)。 */
+    find: `  /* See the :root token of the same name's comment: alpha is identical to :root's
+     (0.08/0.12), RGB is swapped for this repo's light theme --fg's actual decomposed
+     value (#1c1b19 -> 28,27,25). */
   --zb-hover-bg: rgba(28, 27, 25, 0.08);
   --zb-track-bg: rgba(28, 27, 25, 0.12);
 `,
     replace: '' },
   // light:--zb-thumb-shadow
   { path: 'src/styles/theme.css',
-    find: `  /* 两套主题同值,见 :root 同名注释。 */
+    find: `  /* Same value in both themes, see the :root token of the same name's comment. */
   --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
 `,
     replace: '' },
   // light:--warn-*
   { path: 'src/styles/theme.css',
-    find: `  /* 警告/降级语义(见 :root 同名注释)。#FF9F0A 直接铺在纸感白底上只有 ~1.9:1,
-     故前景压到深琥珀(同 --dem-fg 的 #92600c 一档),底/描边给纸感主题的实色。 */
+    find: `  /* Warning/degraded semantics (see the :root token of the same name's comment). #FF9F0A
+     laid directly over the paper theme's pale background is only ~1.9:1, so the
+     foreground is darkened to a deep amber (matching --dem-fg's #92600c tier), while the
+     background/border get the paper theme's solid tints. */
   --warn-fg: #96610a;
   --warn-bg: #fdf3e2;
   --warn-border: #f0d7a6;
@@ -1071,7 +1146,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: '' },
   // light:--badge-*
   { path: 'src/styles/theme.css',
-    find: `  /* SP7-P7a-T15:同 :root 同名注释——三个媒体类别徽标色,两套主题块同值,不随皮肤翻转。 */
+    find: `  /* SP7-P7a-T15: same as the :root token of the same name's comment -- the three media
+     category badge colors, same value in both theme blocks, doesn't flip with the skin. */
   --badge-photo: rgba(50, 190, 230, 0.9);
   --badge-video: rgba(255, 149, 10, 0.92);
   --badge-ocr: rgba(16, 185, 129, 0.92);
@@ -1079,21 +1155,29 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     replace: '' },
   // light:--photos-seg-*
   { path: 'src/styles/theme.css',
-    find: `  /* SP7-P8a-T3:同 :root 同名注释——存储卡容量条分段色。浅色主题按可读性微调(不是照抄
-     Vue2 唯一深色设计的原值):
-     --photos-seg-video 从 Vue2 的中蓝 #5e94ff 加深到 #3560d8——纸感白底 --card-bg(#ffffff)
-     上原值发灰、和相邻分段边界不够清楚,加深/提高饱和度后仍是同一色相的蓝。
-     --photos-seg-raw 从 Vue2 的浅粉 #ff9ac2 加深到 #c93f79——浅粉铺在纯白底上几乎融进背景,
-     压深成同色相的玫红以保证分段轮廓可辨。
-     --photos-seg-ai 从 Vue2 的橙 #ff9f0a 压到 #a15f0a——同 --warn-fg 浅色档处理同一个字面量
-     色值的既定手法(压暗保对比度),但这里是独立的类别标识 token,不直接借用 --warn-fg
-     (那是"警告"语义,这里是"第几类数据"语义,同一个字面量色值、两个不同的 token)。 */
+    find: `  /* SP7-P8a-T3: same as the :root token of the same name's comment -- storage card
+     capacity bar segment colors. The light theme tunes these for legibility (not a
+     straight copy of Vue2's only-ever-dark design):
+     --photos-seg-video is deepened from Vue2's mid-tone azure #5e94ff to #3560d8 -- the
+     original value looked washed-out and made segment boundaries unclear against this
+     theme's fully opaque --card-bg (#ffffff); deepening/saturating it keeps the same hue
+     family.
+     --photos-seg-raw is deepened from Vue2's pale pink #ff9ac2 to #c93f79 -- the pale pink
+     nearly disappeared into a plain pale background, so it's darkened into a rose of the
+     same hue to keep the segment outline legible.
+     --photos-seg-ai is darkened from Vue2's amber #ff9f0a to #a15f0a -- the same
+     established technique as --warn-fg's light-theme handling of the identical literal
+     color value (darken for contrast), but this is an independent category-label token
+     that doesn't directly borrow --warn-fg (that one is the "warning" semantic, this one
+     is the "which data category" semantic -- the same literal color value, two different
+     tokens). */
   --photos-seg-video: #3560d8;
   --photos-seg-raw: #c93f79;
   --photos-seg-ai: #a15f0a;
-  /* alpha 与 :root 同为 0.25(精确复刻 Vue2 other 段 rgba(var(--ink),0.25)),RGB 换成本仓
-     浅色 --fg 的真实分解值(#1c1b19→28,27,25)——同 --zb-hover-bg/--zb-track-bg 浅色档的既定
-     换基公式。 */
+  /* alpha matches :root's 0.25 (an exact port of Vue2's other segment's
+     rgba(var(--ink),0.25)), RGB is swapped for this repo's light theme --fg's actual
+     decomposed value (#1c1b19 -> 28,27,25) -- the same established base-hue-swap formula
+     as --zb-hover-bg/--zb-track-bg's light tier. */
   --photos-seg-other: rgba(28, 27, 25, 0.25);
 `,
     replace: '' },
@@ -1133,8 +1217,8 @@ import PhotosSettings from '../views/PhotosSettings.vue'
   // SP15-P1-T7: append only, never reorder — router/index.test.ts asserts the source line order.
   { path: '/photos/moments/:id', name: 'photos-moment-detail', component: PhotosMomentDetail },
   { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
-  // SP7-P8a-T5:只追加,不重排——须排在最后一条既有 /photos/* 之后(router/index.test.ts
-  // 用 node:fs 读源文本行序断言,而非 router.getRoutes(),见该测试文件注释)。
+  // SP7-P8a-T5: append only, never reorder — must come after the last existing /photos/*
+  // (router/index.test.ts asserts source-text line order via node:fs, not router.getRoutes(); see that test file's comments).
   { path: '/photos/settings', name: 'photos-settings', component: PhotosSettings },
 `,
     replace: '' },
@@ -1145,28 +1229,38 @@ import PhotosSettings from '../views/PhotosSettings.vue'
   //    相册失败路径与 .pd-scrim/.cad-overlay ②末尾单独钉那两个相册遮罩的 it.each 块
   //    (整块删:它只有相册两条,前面那条 glob 全量断言仍在)。
   { path: 'src/components/AppToast.zIndex.test.ts',
-    find: `// 为什么需要一条测试:遮罩都带 backdrop-filter,压在遮罩下方的 toast 不是"偏灰"而是
-// **完全读不到**。本期评审抓到的真实后果 —— 三条「失败了但刻意保留弹窗让用户重试」的路径
-// (人物改名失败 / 建相册失败 / 命名未命名人物失败)全部把失败原因藏在 z-index 220 的
-// .pd-scrim / .cad-overlay 底下,用户只看到按钮"没反应",反复重试。
+    find: `// Why this needs a test: the scrims all carry backdrop-filter, so a toast buried under one is not
+// "a bit gray" but **completely unreadable**. Real consequence caught in this sprint's review —
+// three "failed but the dialog is deliberately kept open for retry" paths (rename person failed /
+// create album failed / name unnamed person failed) all hid the failure reason under the
+// z-index 220 .pd-scrim / .cad-overlay (since Plan D Task 4: renamed to .person-dialog-scrim,
+// now 200, via the Vue2-parity stylesheet — still below toast either way); users only saw a
+// button that "did nothing" and kept retrying.
 `,
-    replace: `// 为什么需要一条测试:遮罩都带 backdrop-filter,压在遮罩下方的 toast 不是"偏灰"而是
-// **完全读不到**——用户只看到按钮"没反应",反复重试。
+    replace: `// Why this needs a test: the scrims all carry backdrop-filter, so a toast buried under one is not
+// "a bit gray" but **completely unreadable** — users only see a button that "did nothing" and keep retrying.
 ` },
   { path: 'src/components/AppToast.zIndex.test.ts',
-    find: `  // 本期评审命中的三条路径的两个具体遮罩,单独钉一遍(上一条即使被人放宽也还有这道)。
+    find: `  // Pin the two concrete scrims from the three review-hit paths individually (even if someone relaxes the previous test, this one remains).
+  //
+  // Plan D Task 4 update: both rules moved out of their component's own local \`<style
+  // scoped>\` block (now deleted) into the global parity stylesheet — \`.pd-scrim\` was
+  // renamed to the Vue2 anchor \`.person-dialog-scrim\` and now lives in
+  // photos-people.scss; \`.cad-overlay\` kept its name (ClusterActionDialog.vue's classes
+  // don't change per Plan D) but its rule now lives in that same parity file too. Point
+  // both rows at the file that actually carries the rule now.
   it.each([
-    ['src/views/PhotosPersonDetail.vue', '.pd-scrim'],
-    ['src/photos/components/ClusterActionDialog.vue', '.cad-overlay'],
-  ])('%s 的 %s 低于 toast', (rel, selector) => {
+    ['src/photos/styles/vue2-parity/photos-people.scss', '.person-dialog-scrim'],
+    ['src/photos/styles/vue2-parity/photos-people.scss', '.cad-overlay'],
+  ])('%s %s is below toast', (rel, selector) => {
     const src = Object.entries(files).find(([p]) => relOf(p) === rel)?.[1]
-    expect(src, \`\${rel} 未被 glob 收到\`).toBeTruthy()
+    expect(src, \`\${rel} not collected by glob\`).toBeTruthy()
     const css = styleText(rel, src as string)
-    // 取该选择器所在规则块里的 z-index。
+    // Take the z-index from the rule block containing this selector.
     const block = new RegExp(\`\\\\\${selector}\\\\s*\\\\{([^}]*)\\\\}\`).exec(css)
-    expect(block, \`\${rel} 里找不到 \${selector} 规则块\`).toBeTruthy()
+    expect(block, \`Cannot find \${selector} rule block in \${rel}\`).toBeTruthy()
     const z = zIndexes((block as RegExpExecArray)[1])
-    expect(z.length, \`\${selector} 规则块里没有 z-index\`).toBe(1)
+    expect(z.length, \`No z-index in \${selector} rule block\`).toBe(1)
     expect(z[0]).toBeLessThan(toastZ)
   })
 `,
@@ -1177,47 +1271,50 @@ import PhotosSettings from '../views/PhotosSettings.vue'
   //    连带摘掉 `./index.ts?raw` 那个 import 与它上面的说明注释 —— 原文只被顺序断言用到,
   //    留着会是未使用变量(开源侧 vue-tsc 直接红)。
   { path: 'src/router/index.test.ts',
-    find: `// 评审 M5:原来这里的注释声称"完整的顺序/未重排断言见 PhotosPlaces.test.ts",但那份文件
-// 只用 \`?raw\` 取 PhotosPlaces.vue 自己的样式块做 pointer-events 断言,从未读过 router/index.ts
-// 的源文本——那句话是不实的。真正的顺序/未重排断言就近放在这里,用 \`?raw\` 读原始文本核对。
+    find: `// Review M5: this comment used to claim the full ordering / no-reorder assertion lives in
+// PhotosPlaces.test.ts, but that file only uses \`?raw\` to read PhotosPlaces.vue's own style
+// block for a pointer-events assertion, and never reads the source text of router/index.ts —
+// that claim was inaccurate. The real ordering / no-reorder assertion lives right here instead,
+// checked against the raw source via \`?raw\`.
 import routerIndexRaw from './index.ts?raw'
 `,
     replace: '' },
   { path: 'src/router/index.test.ts',
-    find: `  it('/photos/favorites 命中 photos-favorites 路由', () => {
+    find: `  it('/photos/favorites matches the photos-favorites route', () => {
     const m = router.resolve('/photos/favorites')
     expect(m.name).toBe('photos-favorites')
   })
-  it('/photos/trash 命中 photos-trash 路由', () => {
+  it('/photos/trash matches the photos-trash route', () => {
     const m = router.resolve('/photos/trash')
     expect(m.name).toBe('photos-trash')
   })
-  it('/photos/albums 命中 photos-albums 路由', () => {
+  it('/photos/albums matches the photos-albums route', () => {
     const m = router.resolve('/photos/albums')
     expect(m.name).toBe('photos-albums')
   })
-  it('/photos/albums/7 命中 photos-album-detail 路由,params.id 为字符串 "7"', () => {
+  it('/photos/albums/7 matches the photos-album-detail route, params.id is the string "7"', () => {
     const m = router.resolve('/photos/albums/7')
     expect(m.name).toBe('photos-album-detail')
     expect(m.params.id).toBe('7')
   })
-  it('/photos/people 命中 photos-people 路由', () => {
+  it('/photos/people matches the photos-people route', () => {
     const m = router.resolve('/photos/people')
     expect(m.name).toBe('photos-people')
   })
-  it('/photos/people/7 命中 photos-person-detail 路由,params.id 为字符串 "7"', () => {
+  it('/photos/people/7 matches the photos-person-detail route, params.id is the string "7"', () => {
     const m = router.resolve('/photos/people/7')
     expect(m.name).toBe('photos-person-detail')
     expect(m.params.id).toBe('7')
   })
-  it('/photos/places 命中 photos-places 路由', () => {
+  it('/photos/places matches the photos-places route', () => {
     const m = router.resolve('/photos/places')
     expect(m.name).toBe('photos-places')
   })
 
-  // P6a-T11:只追加,不重排——新路由必须夹在 /photos/people/:id 与 /login 之间,且两者
-  // 本身的相对顺序不能被打乱(评审 M5:之前这条断言只存在于一句不实的注释里,这里补真的)。
-  it('/photos/places 追加在 /photos/people/:id 之后、/login 之前(只追加,不重排)', () => {
+  // P6a-T11: append-only, no reordering — the new route must sit between /photos/people/:id
+  // and /login, and their own relative order must not be disturbed (review M5: this assertion
+  // used to exist only as an inaccurate comment; this backfills the real one).
+  it('/photos/places is appended after /photos/people/:id and before /login (append-only, no reordering)', () => {
     const peopleDetailIdx = routerIndexRaw.indexOf(\`{ path: '/photos/people/:id'\`)
     const placesIdx = routerIndexRaw.indexOf(\`{ path: '/photos/places'\`)
     const loginIdx = routerIndexRaw.indexOf(\`{ path: '/login'\`)
@@ -1226,17 +1323,20 @@ import routerIndexRaw from './index.ts?raw'
     expect(loginIdx).toBeGreaterThan(placesIdx)
   })
 
-  // SP7-P7a-T4:/photos/smart-views 命中真实注册的路由(用产线单例 router.resolve 真解析,
-  // 不是 spy push——同上面每一条既有路由断言的既定写法)。
-  it('/photos/smart-views 命中 photos-smart-views 路由', () => {
+  // SP7-P7a-T4: /photos/smart-views matches the actually registered route (resolved for real
+  // via the production router singleton's router.resolve, not a spy push — same established
+  // pattern as every existing route assertion above).
+  it('/photos/smart-views matches the photos-smart-views route', () => {
     const m = router.resolve('/photos/smart-views')
     expect(m.name).toBe('photos-smart-views')
   })
 
-  // 只追加,不重排——新路由必须夹在 /photos/places/:key 与 /login 之间,且两者本身的
-  // 相对顺序不能被打乱(同上 P6a-T11 的既有手法,行序比较而非 getRoutes() 下标——vue-router 4
-  // 会把动态段路由排到静态之前,P6b-T9 实测过,下标比较会得出错误结论)。
-  it('/photos/smart-views 追加在 /photos/places/:key 之后、/login 之前(只追加,不重排)', () => {
+  // Append-only, no reordering — the new route must sit between /photos/places/:key and
+  // /login, and their own relative order must not be disturbed (same established technique as
+  // P6a-T11 above: compare line order in the source, not getRoutes() index — vue-router 4 sorts
+  // dynamic-segment routes ahead of static ones, confirmed in P6b-T9, so comparing indexes
+  // would reach the wrong conclusion).
+  it('/photos/smart-views is appended after /photos/places/:key and before /login (append-only, no reordering)', () => {
     const placesKeyIdx = routerIndexRaw.indexOf(\`{ path: '/photos/places/:key'\`)
     const smartViewsIdx = routerIndexRaw.indexOf(\`{ path: '/photos/smart-views'\`)
     const loginIdx = routerIndexRaw.indexOf(\`{ path: '/login'\`)
@@ -1245,14 +1345,14 @@ import routerIndexRaw from './index.ts?raw'
     expect(loginIdx).toBeGreaterThan(smartViewsIdx)
   })
 
-  // SP7-P7a-T6:/photos/smart-views/:id 详情路由,同上既定手法(行序比较 + 真 resolve)。
-  it('/photos/smart-views/7 命中 photos-smart-view-detail 路由,params.id 为字符串 "7"', () => {
+  // SP7-P7a-T6: /photos/smart-views/:id detail route, same established technique as above (line-order comparison + a real resolve).
+  it('/photos/smart-views/7 matches the photos-smart-view-detail route, params.id is the string "7"', () => {
     const m = router.resolve('/photos/smart-views/7')
     expect(m.name).toBe('photos-smart-view-detail')
     expect(m.params.id).toBe('7')
   })
 
-  it('/photos/smart-views/:id 追加在 /photos/smart-views 之后、/login 之前(只追加,不重排)', () => {
+  it('/photos/smart-views/:id is appended after /photos/smart-views and before /login (append-only, no reordering)', () => {
     const listIdx = routerIndexRaw.indexOf(\`{ path: '/photos/smart-views'\`)
     const detailIdx = routerIndexRaw.indexOf(\`{ path: '/photos/smart-views/:id'\`)
     const loginIdx = routerIndexRaw.indexOf(\`{ path: '/login'\`)
@@ -1268,9 +1368,9 @@ import routerIndexRaw from './index.ts?raw'
   //    之后这些键一个都不存在。前半段(locale parity / 值非空 / 分片不覆盖基座)与相册无关,
   //    保留。这里连块首那行注释一起摘,免得留下悬空注释。
   { path: 'src/i18n/parity.test.ts',
-    find: `/* P6a-T4:地点域键的完整性与术语守卫。 */
-describe('photosPlaces 键(SP7-P6a)', () => {
-  it('六个大洲键齐备,且 regionLabelKey 的返回值全部有译文', async () => {
+    find: `/* P6a-T4: completeness and terminology guard for the places-domain keys. */
+describe('photosPlaces keys (SP7-P6a)', () => {
+  it('all six continent keys are present, and every regionLabelKey return value has a translation', async () => {
     const { regionLabelKey } = await import('../photos/util/placesMap')
     for (const id of ['asia', 'americas', 'europe', 'africa', 'oceania', 'antarctica']) {
       const k = regionLabelKey(id)!
@@ -1279,15 +1379,15 @@ describe('photosPlaces 键(SP7-P6a)', () => {
     }
   })
 
-  it('中文文案不含工程词「簇」「聚类」「气泡」', () => {
+  it('the Chinese copy avoids the engineering words 「簇」「聚类」「气泡」', () => {
     const bad = Object.entries(zh)
       .filter(([k]) => k.startsWith('photosPlaces'))
       .filter(([, v]) => typeof v === 'string' && /簇|聚类|气泡/.test(v))
     expect(bad).toEqual([])
   })
 
-  /* P6b-T1:地点详情面板键的完整性与插值槽守卫。 */
-  it('P6b 地点键在两个 locale 都存在且无空值', () => {
+  /* P6b-T1: completeness and interpolation-slot guard for the place detail panel keys. */
+  it('the P6b place keys exist in both locales with no empty values', () => {
     const keys = ['photosPlacesHomeBase', 'photosPlacesSpotResetName', 'photosPlacesCoverPageInfo',
       'photosPlacesInsightHome', 'photosPlacesInsightHomeBase', 'photosPlacesVisitHistory']
     for (const k of keys) {
@@ -1295,7 +1395,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
       expect(String((en as Record<string, unknown>)[k] ?? '')).not.toBe('')
     }
   })
-  it('insight 键的插值占位符两个 locale 完全一致(漏一个槽 <i18n-t> 会静默丢内容)', () => {
+  it('insight keys have identical interpolation slots in both locales (a missing slot makes <i18n-t> silently drop content)', () => {
     const slots = (s: string) => (s.match(/\\{[a-zA-Z]+\\}/g) ?? []).sort()
     for (const k of ['photosPlacesInsightMostPhotographed', 'photosPlacesInsightTopSpot',
       'photosPlacesInsightCompanions', 'photosPlacesInsightHome']) {
@@ -1326,30 +1426,33 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   //    末尾那段"sp9 走第二条装配路径"的提醒与相册/AI 无关、在产出树里依然成立(sp9 分片
   //    是保留面),故不整段丢掉,改写成只提 base 的版本一并留下。
   { path: 'src/i18n/zh_cn.ts',
-    find: `// SP7-P8b:本文件从"一整份文案表"改成几行的**合并出口**,真正的内容拆成几块:
-//   zh_cn.base.ts   —— 全区共用 + 各区自己的文案
-//   zh_cn.photos.ts —— 相册区那 702 个 photos* 键
-//   zh_cn.ai.ts     —— AI 区那 1207 个 ai* 键(SP8-P6 合流时加入)
+    find: `// SP7-P8b: this file changed from "one whole copy table" into a few-line **merge outlet**; the real content is split into pieces:
+//   zh_cn.base.ts   — copy shared across areas + each area's own copy
+//   zh_cn.photos.ts — the 702 photos* keys of the Photos area
+//   zh_cn.ai.ts     — the 1207 ai* keys of the AI area (added during the SP8-P6 merge)
 //
-// 为什么拆:开源版没有相册区、也没有 AI 区,\`oss/manifest.mjs\` 要把这两块文案剥掉。
-// 原先那些键散在主文件 90 多个区段里,剥它们意味着上百条锚点补丁 × 2 语言 —— 而 PATCH
-// 要求锚点命中恰好 1 次,以后**改任何一条相册/AI 文案都会把开源导出打红**。拆开之后
-// 开源侧只需:删掉 zh_cn.photos.ts / zh_cn.ai.ts 两个文件 + 把下面那两行展开补丁掉。
+// Why split: the OSS edition has no Photos area and no AI area; \`oss/manifest.mjs\` must
+// strip those two blocks of copy. Those keys used to be scattered across 90+ sections of
+// the main file; stripping them meant hundreds of anchor patches × 2 languages — and PATCH
+// requires each anchor to match exactly once, so **any future edit to a photos/AI string
+// would break the OSS export**. After the split, the OSS side only needs to delete
+// zh_cn.photos.ts / zh_cn.ai.ts and patch away the two spread lines below.
 //
-// 为什么保留本文件作为出口(而不是让消费方各自 import 几块):全仓有 40+ 个测试
-// \`import zh from '…/i18n/zh_cn'\` 自建 createI18n,把它们逐个改成"再多 import 一块"既吵
-// 又会在下次分片时重演。出口不动,消费方就一行都不用改。
+// Why keep this file as the outlet (instead of having consumers import the pieces
+// themselves): 40+ tests across the repo do \`import zh from '…/i18n/zh_cn'\` and build their
+// own createI18n; changing each to "import one more piece" is noisy and would repeat at the
+// next sharding. With the outlet unchanged, consumers change zero lines.
 //
-// 注意:SP9 那一片(zh_cn.sp9.ts)**不在本出口里** —— 它在 i18n/index.ts 与
-// parity.test.ts 里各自单独并进来,与这里的 base/photos/ai 是两套装配路径。
+// Note: the SP9 shard (zh_cn.sp9.ts) is **not part of this outlet** — it is merged in
+// separately in i18n/index.ts and parity.test.ts; that is a second assembly path distinct from base/photos/ai here.
 `,
     //    ⚠️ 措辞受 tree.test.mjs「PATCH 的 replace 内容也不含固定清单里的词」那道守卫约束:
     //    期号只允许以**文件名**形式出现(正则 /\bSP\d(?!\.ts)/i 的 (?!\.ts) 豁免),所以
     //    下面写 "zh_cn.sp9.ts 那一片" 而不是 "sp9 那一片"。第一版写成后者被守卫逮到。
-    replace: `// 中文文案(默认 / fallback locale)。
+    replace: `// Chinese copy (default / fallback locale).
 //
-// 注意:zh_cn.sp9.ts 那一片**不在本出口里** —— 它在 i18n/index.ts 与
-// parity.test.ts 里各自单独并进来,与这里的 base 是两套装配路径。
+// Note: the zh_cn.sp9.ts shard is **not part of this outlet** — it is merged in separately
+// in i18n/index.ts and parity.test.ts; that is a second assembly path distinct from base here.
 ` },
   { path: 'src/i18n/en_us.ts',
     find: `// SP7-P8b:合并出口 —— 拆分理由与结构说明见 zh_cn.ts 的文件头注释(两语言逐条成对)。
@@ -1415,19 +1518,19 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   // ── src/styles/theme.css(E11:说话人/orb/照片磁贴 token 与类,--wave-none 保留)──
   // 分节标题去掉"照片"(应用/文件夹磁贴结构本身保留)
   { path: 'src/styles/theme.css',
-    find: "/* ---- P4c: 应用 / 文件夹 / 照片 磁贴结构 ---- */\n",
-    replace: "/* ---- P4c: 应用 / 文件夹 磁贴结构 ---- */\n" },
+    find: "/* ---- P4c: app / folder / photo tile structure ---- */\n",
+    replace: "/* ---- P4c: app / folder tile structure ---- */\n" },
   // :root 说话人配色注释 + --spk-1..5(锚点跨过 --wave-none,见下条单独删 --wave-dim)
   { path: 'src/styles/theme.css',
-    find: "  /* 说话人配色(音频转录/波形,最多 5 色循环;dark 用亮版;避开金色以免与星标混淆) */\n  --spk-1: oklch(0.74 0.13 250);   /* 蓝 */\n  --spk-2: oklch(0.72 0.13 305);   /* 紫 */\n  --spk-3: oklch(0.77 0.12 190);   /* 青 */\n  --spk-4: oklch(0.73 0.15 18);    /* 珊瑚 */\n  --spk-5: oklch(0.79 0.14 150);   /* 绿 */\n",
+    find: "  /* Speaker palette (audio transcript/waveform, cycles through up to 5 hues; dark theme\n     uses the brighter set; avoids gold so it doesn't get confused with the star highlight) */\n  --spk-1: oklch(0.74 0.13 250);   /* azure */\n  --spk-2: oklch(0.72 0.13 305);   /* violet */\n  --spk-3: oklch(0.77 0.12 190);   /* cyan */\n  --spk-4: oklch(0.73 0.15 18);    /* coral */\n  --spk-5: oklch(0.79 0.14 150);   /* emerald */\n",
     replace: "" },
   // :root --wave-dim(--wave-none 保留,两者不连续,分开删)
   { path: 'src/styles/theme.css',
-    find: "  --wave-dim: var(--fg-faint);     /* 波形:过滤时被弱化的竖条 */\n",
+    find: "  --wave-dim: var(--fg-faint);     /* waveform: bars dimmed while filtering */\n",
     replace: "" },
   // light 主题同一批 --spk-1..5
   { path: 'src/styles/theme.css',
-    find: "  /* 说话人配色(白色纸感用暗版,同 hue 系) */\n  --spk-1: oklch(0.52 0.15 255);\n  --spk-2: oklch(0.50 0.16 305);\n  --spk-3: oklch(0.53 0.12 200);\n  --spk-4: oklch(0.55 0.18 22);\n  --spk-5: oklch(0.52 0.15 150);\n",
+    find: "  /* Speaker palette (paper theme uses the deeper set, same hue family) */\n  --spk-1: oklch(0.52 0.15 255);\n  --spk-2: oklch(0.50 0.16 305);\n  --spk-3: oklch(0.53 0.12 200);\n  --spk-4: oklch(0.55 0.18 22);\n  --spk-5: oklch(0.52 0.15 150);\n",
     replace: "" },
   // light 主题 --wave-dim
   { path: 'src/styles/theme.css',
@@ -1446,7 +1549,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
     replace: "" },
   // "照片磁贴"分节标题 + .kind-photo + .photo-thumb
   { path: 'src/styles/theme.css',
-    find: "/* 照片磁贴 */\n.kind-photo { padding: 0; }\n.photo-thumb { display: block; width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); }\n",
+    find: "/* Photo tile */\n.kind-photo { padding: 0; }\n.photo-thumb { display: block; width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); }\n",
     replace: "" },
   { path: 'src/styles/theme.css',
     find: ".ic-photos   { background: conic-gradient(from 20deg, #ff735f, #ffd54f, #60e27c, #55baff, #ca83ff, #ff735f); }\n",
@@ -1491,7 +1594,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   // SP9-P8:settings / vm 各有一对用例。**正向那两条(router.push /settings、/kvm)在开源版
   // 依然成立**(SYS_ROUTE 已指内部路由,由兜底那句 push 出去),保留;只删两条 flag 回退用例。
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('回退 flag strangler:disabled:/settings==1 时 settings 退回 /#/legacy 老桌面', () => {
+    find: `  it('when fallback flag strangler:disabled:/settings==1, settings should fall back to legacy desktop /#/legacy', () => {
     localStorage.setItem('strangler:disabled:/settings', '1')
     const { openApp } = useOpenAction()
     openApp('settings')
@@ -1502,7 +1605,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
 `,
     replace: '' },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('回退 flag strangler:disabled:/kvm==1 时 vm 退回 Vue2 全页 /#/kvm(不是 /#/legacy)', () => {
+    find: `  it('when fallback flag strangler:disabled:/kvm==1, vm should fall back to Vue2 full page /#/kvm (not /#/legacy)', () => {
     localStorage.setItem('strangler:disabled:/kvm', '1')
     const { openApp } = useOpenAction()
     openApp('vm')
@@ -1514,7 +1617,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
     replace: '' },
   // 两条跨 flag 隔离用例:开源版一把 flag 都没有(且 photos 不存在),整块删。
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('五把 flag 逐条独立:只关 /kvm,settings/storage/appstore/photos 都照走应用内路由', () => {
+    find: `  it('five flags are independent: only disabling /kvm, while settings/storage/appstore/photos still use in-app router', () => {
     localStorage.setItem('strangler:disabled:/kvm', '1')
     const { openApp } = useOpenAction()
     openApp('settings'); expect(router.push).toHaveBeenCalledWith('/settings')
@@ -1524,7 +1627,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
     expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/kvm')
   })
-  it('只关 /settings 时 vm 仍走应用内 /kvm(反向隔离)', () => {
+  it('when only /settings is disabled, vm should still use in-app /kvm (reverse isolation)', () => {
     localStorage.setItem('strangler:disabled:/settings', '1')
     const { openApp } = useOpenAction()
     openApp('vm')
@@ -1535,7 +1638,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
 `,
     replace: '' },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('回退 flag strangler:disabled:/apps==1 时 appstore 退回 /#/legacy', () => {
+    find: `  it('when fallback flag strangler:disabled:/apps==1, appstore should fall back to /#/legacy', () => {
     localStorage.setItem('strangler:disabled:/apps', '1')
     const { openApp } = useOpenAction()
     openApp('appstore')
@@ -1546,7 +1649,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
 `,
     replace: '' },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('回退 flag strangler:disabled:/storage==1 时 storage 退回 /#/legacy', () => {
+    find: `  it('when fallback flag strangler:disabled:/storage==1, storage should fall back to /#/legacy', () => {
     localStorage.setItem('strangler:disabled:/storage', '1')
     const { openApp } = useOpenAction()
     openApp('storage')
@@ -1557,13 +1660,13 @@ describe('photosPlaces 键(SP7-P6a)', () => {
 `,
     replace: '' },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('photo 磁贴应用内 push /photos(SP7-P8b cutover)', () => {
+    find: `  it('photo tile should use in-app push /photos (SP7-P8b cutover)', () => {
     const { openItem } = useOpenAction()
     openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
     expect(router.push).toHaveBeenCalledWith('/photos')
     expect(hrefs.length).toBe(0)
   })
-  it('photo 磁贴:回退 flag 置 1 时退回 Vue2 /#/photos', () => {
+  it('photo tile: when fallback flag is set to 1, should fall back to Vue2 /#/photos', () => {
     localStorage.setItem('strangler:disabled:/photos', '1')
     const { openItem } = useOpenAction()
     openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
@@ -1576,13 +1679,13 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   // SP7-P8b 新增的三条 photos 磁贴用例:开源版没有相册区,'photos' 不是系统应用,
   // 三条全删(前两条断言相册路由,第三条断言"photos 的 flag 不影响别人")。
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('photos 磁贴应用内 router.push /photos(SP7-P8b cutover)', () => {
+    find: `  it('photos tile should use in-app router.push /photos (SP7-P8b cutover)', () => {
     const { openApp } = useOpenAction()
     openApp('photos')
     expect(router.push).toHaveBeenCalledWith('/photos')
     expect(hrefs.length).toBe(0)
   })
-  it('回退 flag strangler:disabled:/photos==1 时 photos 退回 Vue2 /#/photos(不是 /#/legacy)', () => {
+  it('when fallback flag strangler:disabled:/photos==1, photos should fall back to Vue2 /#/photos (not /#/legacy)', () => {
     localStorage.setItem('strangler:disabled:/photos', '1')
     const { openApp } = useOpenAction()
     openApp('photos')
@@ -1590,7 +1693,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/photos')
   })
-  it('photos 那把 flag 不影响 storage / appstore', () => {
+  it('the photos flag should not affect storage / appstore', () => {
     localStorage.setItem('strangler:disabled:/photos', '1')
     const { openApp } = useOpenAction()
     openApp('storage')
@@ -1616,8 +1719,8 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   { path: 'src/views/Home.integration.test.ts',
     find: "import { createRouter, createMemoryHistory } from 'vue-router'\n", replace: '' },
   { path: 'src/views/Home.integration.test.ts',
-    find: `// SP9-P8:Home 挂的 SearchDialog 用 useRoute()/useRouter() 消费深链 ?q=,
-// 所以挂载必须带 router 插件(最小 memory 路由表,不引真实 src/router)。
+    find: `// SP9-P8: the SearchDialog mounted by Home consumes the deep link ?q= via useRoute()/useRouter(),
+// so mounting must include the router plugin (a minimal memory route table, not the real src/router).
 function makeRouter() {
   return createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
 }
@@ -1631,7 +1734,7 @@ function mountHome() {
   { path: 'src/views/Home.p4b.test.ts',
     find: "import { createRouter, createMemoryHistory } from 'vue-router'\n", replace: '' },
   { path: 'src/views/Home.p4b.test.ts',
-    find: `    // SP9-P8:Home 挂的 SearchDialog 用 useRoute()/useRouter(),挂载必须带 router 插件。
+    find: `    // SP9-P8: the SearchDialog mounted by Home uses useRoute()/useRouter(), so mounting must include the router plugin.
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
     const w = mount(Home, { global: { plugins: [i18n, router] } })`,
     replace: '    const w = mount(Home, { global: { plugins: [i18n] } })' },
@@ -1694,7 +1797,7 @@ function mountHome() {
     expect(tiles).toHaveLength(3)
     expect(tiles.map((t) => t.classes().some((c) => c === 'kind-app' || c === 'kind-photo' || c === 'kind-folder')))
       .toEqual([true, true, true])
-    // 顺序:files(r1) → photo(r2) → folder(r3)
+    // Order: files (r1) → photo (r2) → folder (r3)
     expect(tiles[0].classes()).toContain('kind-app')
     expect(tiles[1].classes()).toContain('kind-photo')
     expect(tiles[2].classes()).toContain('kind-folder')
@@ -1708,7 +1811,7 @@ function mountHome() {
     expect(tiles).toHaveLength(2)
     expect(tiles.map((t) => t.classes().some((c) => c === 'kind-app' || c === 'kind-folder')))
       .toEqual([true, true])
-    // 顺序:files(r1) → folder(r3)
+    // Order: files (r1) → folder (r3)
     expect(tiles[0].classes()).toContain('kind-app')
     expect(tiles[1].classes()).toContain('kind-folder')
   })
@@ -1804,12 +1907,12 @@ function mountHome() {
     expect(railTabsFor('admin')).toEqual(RAIL_TABS)
   })
 
-  it('非 admin 看不到 folder-permissions(Vue2 visibleTabs L1034)', () => {
+  it('a non-admin does not see folder-permissions (Vue2 visibleTabs L1034)', () => {
     expect(railTabsFor('user')).not.toContain('folder-permissions')
     expect(railTabsFor('user')).toHaveLength(7)
   })
 
-  it('role 缺失按非 admin 处理(保守:不泄漏管理项)', () => {
+  it('a missing role is treated as non-admin (conservative: does not leak admin entries)', () => {
     expect(railTabsFor(undefined)).not.toContain('folder-permissions')
   })
 })
@@ -1824,31 +1927,31 @@ function mountHome() {
     find: '    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(10)\n',
     replace: '    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(9)\n' },
   { path: 'src/settings/panels/panels.test.ts',
-    find: `  // P4 起 folder-permissions 与 account 也填了真实内容
-  // (见 FolderPermissionsPanel.test.ts / AccountPanel.test.ts)——**至此 9 个 tab 全部实现完毕,
-  // 骨架抽查已经没有对象了**(原来那条 it.each 与「骨架的文案 key 都有译文」两条随之收口)。`,
-    replace: `  // account 也填了真实内容(见 AccountPanel.test.ts)——**至此所有 tab 全部实现完毕,
-  // 骨架抽查已经没有对象了**(原来那条 it.each 与「骨架的文案 key 都有译文」两条随之收口)。` },
+    find: `  // Since P4, folder-permissions and account also have real content
+  // (see FolderPermissionsPanel.test.ts / AccountPanel.test.ts) — **at this point all 9 tabs are fully implemented,
+  // so there's no longer any target left for the skeleton spot-check** (the original it.each and the "skeleton copy keys all have translations" case are retired along with it).`,
+    replace: `  // account also has real content (see AccountPanel.test.ts) — **at this point all tabs are fully implemented,
+  // so there's no longer any target left for the skeleton spot-check** (the original it.each and the "skeleton copy keys all have translations" case are retired along with it).` },
   // -- Important (review round 2): this file asserts against the live AppsPanel, whose
   //    ORDER got reverted to three rows above -- if this test file keeps asserting 4,
   //    the open-source repo would ship a test that is guaranteed to fail. Revert the
   //    row count and the two "four rows" wordings in the surrounding comments/title so
   //    the description matches what the reverted component actually renders.
   { path: 'src/settings/panels/panels.test.ts',
-    find: '  // Task 9 起 apps 也填了真实内容(数据位置四行 + Docker 缓存清理 + 待上传缓存做样子,见',
+    find: '  // Since Task 9, apps also has real content (four data-location rows + Docker cache cleanup + upload-cache placeholder, see',
     // 跟上面 P4 那条同一处理:丢掉 "TaskN 起" 这个内部期号前缀,句子从主语直接起;顺手把
     // "做样子"(FORBIDDEN 词表内部分级术语)也换掉——两个词此前从未入过 PATCH 的 replace,
     // 一直未受检地随 find/replace 同步演进,这次为了改行数措辞把这句纳入 PATCH,一起洗白。
-    replace: '  // apps 也填了真实内容(数据位置三行 + Docker 缓存清理 + 待上传缓存占位,见' },
+    replace: '  // apps also has real content (three data-location rows + Docker cache cleanup + upload-cache placeholder, see' },
   { path: 'src/settings/panels/panels.test.ts',
-    find: '  // 的静态标记:四行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。',
-    replace: '  // 的静态标记:三行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。' },
+    find: '  // with zero mocks: the four data-location rows always render (whether the fetch has settled doesn\'t affect the row count, same precedent as storage).',
+    replace: '  // with zero mocks: the three data-location rows always render (whether the fetch has settled doesn\'t affect the row count, same precedent as storage).' },
   { path: 'src/settings/panels/panels.test.ts',
     find: `  it('apps has real content (four data-location rows + Docker cleanup + upload-cache placeholder), no longer a bare skeleton', async () => {
     setActivePinia(createPinia())
     const w = mount(PANEL_BY_TAB.apps, { global: { plugins: [i18n] } })
-    // 评审 Important #3 新增了真实加载态:两个接口都落定前先渲染 .set-skeleton(不是
-    // 遗漏,是避免落定前露四行 0 值假读数),这里先钉住"确实经过了加载态"。
+    // Review Important #3 added a real loading state: .set-skeleton renders before both APIs settle (not
+    // an oversight, it avoids exposing four rows of fake zero readings before settling) — here we pin down that it does go through the loading state.
     expect(w.find('.set-skeleton').exists()).toBe(true)
     await flushPromises()
     expect(w.find('.set-skeleton').exists()).toBe(false)
@@ -1856,8 +1959,8 @@ function mountHome() {
     replace: `  it('apps has real content (three data-location rows + Docker cleanup + upload-cache placeholder), no longer a bare skeleton', async () => {
     setActivePinia(createPinia())
     const w = mount(PANEL_BY_TAB.apps, { global: { plugins: [i18n] } })
-    // 评审 Important #3 新增了真实加载态:两个接口都落定前先渲染 .set-skeleton(不是
-    // 遗漏,是避免落定前露三行 0 值假读数),这里先钉住"确实经过了加载态"。
+    // Review Important #3 added a real loading state: .set-skeleton renders before both APIs settle (not
+    // an oversight, it avoids exposing three rows of fake zero readings before settling) — here we pin down that it does go through the loading state.
     expect(w.find('.set-skeleton').exists()).toBe(true)
     await flushPromises()
     expect(w.find('.set-skeleton').exists()).toBe(false)
@@ -1885,7 +1988,7 @@ function mountHome() {
     expect(rows[2].text()).toContain('用户数据库')
     expect(rows[3].text()).toContain('相册缓存')
   })`,
-    replace: `  it('渲染三行数据位置 —— 后端给了 4 个 key(含未知的第 4 个 key),界面 1:1 只显示 3 行', async () => {
+    replace: `  it('renders three data-location rows -- the backend sent 4 keys (one of them unknown), the UI shows only 3', async () => {
     const w = mountPanel()
     await flushPromises()
     const rows = w.findAll('.set-app-row')
@@ -1895,9 +1998,9 @@ function mountHome() {
     expect(rows[2].text()).toContain('用户数据库')
   })` },
   { path: 'src/settings/panels/AppsPanel.test.ts',
-    find: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带待相册区迁移的标注(政策三"做样子")\', async () => {',
+    find: '  it(\'clear-local-pending-uploads row: UI is present, button disabled, labeled as pending photos-migration ("just for show" per policy 3)\', async () => {',
     // I5-guard(⑤b)复核:原标题仍带 "政策三"做样子""(REPLACE-only 时代未覆盖到 PATCH,漏检)。
-    replace: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带禁用态标注\', async () => {' },
+    replace: "  it('clear-local-pending-uploads row: present, button disabled, carries the disabled-state note', async () => {" },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "    expect(w.text()).toContain('待相册区迁移完成后启用')\n",
     replace: "    expect(w.text()).toContain('该功能所需的后端能力尚未提供')\n" },
@@ -1905,11 +2008,11 @@ function mountHome() {
   //    (Task 3's real behavior); the open-source side reverts to three, so the comment
   //    describing the guard has to match what the reverted code actually renders.
   { path: 'src/settings/panels/AppsPanel.test.ts',
-    find: '  // 评审 Important #3:取数在途时不能渲染四行 0 值假读数(尤其是「用户数据库」那行,',
-    replace: '  // 评审 Important #3:取数在途时不能渲染三行 0 值假读数(尤其是「用户数据库」那行,' },
+    find: '  // Review Important #3: while the fetch is in flight, must not render four rows of fake',
+    replace: '  // Review Important #3: while the fetch is in flight, must not render three rows of fake' },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "  it('stays on the loading skeleton (no zero-value fake rows) while fetching; renders the real four rows only after both endpoints settle', async () => {",
-    replace: "  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实三行', async () => {" },
+    replace: "  it('stays on the loading skeleton (no zero-value fake rows) while fetching; renders the real three rows only after both endpoints settle', async () => {" },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: `    resolveStorage(RAW_STORAGE)
     await flushPromises()
@@ -1929,7 +2032,7 @@ function mountHome() {
     expect(w.findAll('.set-app-row')).toHaveLength(3)
   })
 
-  it('取数失败时三行仍在(空路径),不白屏', async () => {
+  it('still shows three rows (with empty paths) when the fetch fails -- no blank screen', async () => {
     getSystemPaths.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
     await flushPromises()
@@ -1951,7 +2054,7 @@ function mountHome() {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
   })`,
-    replace: `  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),只渲染前 3 行', () => {
+    replace: `  it('always returns 3 rows in a fixed order -- the backend sent 4 keys (one of them unknown), only the first 3 are built', () => {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database'])
   })` },
@@ -1974,7 +2077,7 @@ function mountHome() {
     expect(rows[3].path).toBe('/DATA/.system_data/photos')
     expect(rows[3].size).toBe(6281536962)
   })`,
-    replace: `  it('后端 data 为 null / 缺 key 时给出空路径 0 大小的三行,不抛', () => {
+    replace: `  it('gives three empty-path, zero-size rows (not a throw) when backend data is null / missing keys', () => {
     const rows = buildAppPathRows(null, [SYS_VOL])
     expect(rows).toHaveLength(3)
     expect(rows[0]).toMatchObject({ path: '', size: 0 })
@@ -2023,20 +2126,20 @@ function mountHome() {
   // ── installedApps.test.ts:注释点名 AI agent / Photos ML,措辞对齐 T7 洗白后
   //    的孪生产品代码注释(installedApps.ts 同一行,已在上面改过) ─────────────
   { path: 'src/apps/stores/installedApps.test.ts',
-    find: "  it('refresh 过滤系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)', async () => {",
-    replace: "  it('refresh 过滤系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)', async () => {" },
+    find: "  it('refresh filters system background containers (nimoos.system=true, e.g. AI agent / Photos ML)', async () => {",
+    replace: "  it('refresh filters system background containers (nimoos.system=true, internal service containers used by other apps)', async () => {" },
 
   // ── systemApp.test.ts:文件头注释独立复述了同一段解释,同样点名 Photos ML,
   //    与 systemApp.ts 源文件那处 T7 洗白对齐(该文件本身不在 REPLACE/PATCH 表里
   //    改过,是测试文件自己写的第二份类似文案)─────────────────────────────────
   { path: 'src/apps/util/systemApp.test.ts',
-    find: `// 后端 isSystemComposeApp(route/v2/internal_web.go)的前端等价物:
-// compose 任一 service 的 label \`nimoos.system == "true"\` 即系统幕后组件,
-// 应从面向用户的应用管理页隐藏(agent 运行时 / Photos ML 后端等)。
+    find: `// Frontend equivalent of the backend's isSystemComposeApp (route/v2/internal_web.go):
+// if any compose service has the label \`nimoos.system == "true"\` it is a behind-the-scenes system component
+// and should be hidden from the user-facing app management page (agent runtime / Photos ML backend, etc.).
 `,
-    replace: `// 后端 isSystemComposeApp(route/v2/internal_web.go)的前端等价物:
-// compose 任一 service 的 label \`nimoos.system == "true"\` 即系统幕后组件,
-// 应从面向用户的应用管理页隐藏(供其他应用使用的内部服务容器等)。
+    replace: `// Frontend equivalent of the backend's isSystemComposeApp (route/v2/internal_web.go):
+// if any compose service has the label \`nimoos.system == "true"\` it is a behind-the-scenes system component
+// and should be hidden from the user-facing app management page (internal service containers used by other apps, etc.).
 ` },
 
   // ── locale.test.ts:mock blob 里的 search_switch(E2 已从 systemConfig 类型删除
@@ -2071,10 +2174,10 @@ function mountHome() {
   //    setFav 会把它们过滤掉,断言必须换成 oss 版仍然存在的 key ──────────────
   { path: 'src/home/composables/useDock.test.ts',
     find: `  it('defaults favKeys to the 5 dock keys and computes moreKeys as the rest', () => {
-    useAppsStore() // 系统 6 应用就位
+    useAppsStore() // the 6 system apps are in place
     const d = useDock()
     expect(d.favKeys.value).toEqual(['files', 'photos', 'ai', 'vm', 'appstore'])
-    expect(d.moreKeys.value).toContain('settings') // 第 6 个系统应用进 more
+    expect(d.moreKeys.value).toContain('settings') // the 6th system app goes into more
     expect(d.moreKeys.value).not.toContain('files')
   })
   it('setFav persists to localStorage', () => {
@@ -2085,10 +2188,10 @@ function mountHome() {
     expect(d.moreKeys.value).toContain('ai')
   })`,
     replace: `  it('defaults favKeys to the 4 dock keys and computes moreKeys as the rest', () => {
-    useAppsStore() // 系统 5 应用就位
+    useAppsStore() // the 5 system apps are in place
     const d = useDock()
     expect(d.favKeys.value).toEqual(['files', 'storage', 'vm', 'appstore'])
-    expect(d.moreKeys.value).toContain('settings') // 第 5 个系统应用进 more
+    expect(d.moreKeys.value).toContain('settings') // the 5th system app goes into more
     expect(d.moreKeys.value).not.toContain('files')
   })
   it('setFav persists to localStorage', () => {
@@ -2103,14 +2206,14 @@ function mountHome() {
     useAppsStore()
     const d = useDock()
     d.setFav(['files', 'photos'])
-    d.reorder('settings', 'fav', 'photos') // settings(more) 插到 photos 前
+    d.reorder('settings', 'fav', 'photos') // settings (from more) inserted before photos
     expect(d.favKeys.value).toEqual(['files', 'settings', 'photos'])
   })`,
     replace: `  it('moves a more-key into favorites before a given key', () => {
     useAppsStore()
     const d = useDock()
     d.setFav(['files', 'vm'])
-    d.reorder('settings', 'fav', 'vm') // settings(more) 插到 vm 前
+    d.reorder('settings', 'fav', 'vm') // settings (from more) inserted before vm
     expect(d.favKeys.value).toEqual(['files', 'settings', 'vm'])
   })` },
   { path: 'src/home/composables/useDock.reorder.test.ts',
@@ -2162,8 +2265,8 @@ function mountHome() {
   // 剩下要处理的只有 P8 新加的那条 flag 回退用例:开源版无 flag,整块删。
   { path: 'src/home/components/HomeDock.test.ts',
     find: `
-  // 回退可逆也要在 dock 这条链路上验一次:flag 命中时仍整页跳老桌面,且 dock 照样收起。
-  it('expanded: 回退 flag strangler:disabled:/settings==1 时 settings 仍整页跳 /#/legacy', async () => {
+  // Fallback reversibility also needs one verification on dock's path: when flag is hit, still full-page jump to old desktop, dock collapses normally.
+  it('expanded: fallback flag strangler:disabled:/settings==1 still full-page jumps settings to /#/legacy', async () => {
     useAppsStore()
     localStorage.setItem('strangler:disabled:/settings', '1')
     const hrefs: string[] = []
@@ -2179,18 +2282,18 @@ function mountHome() {
     replace: '' },
   // 私有版那条正向用例的注释里提到 cutover / #/legacy(开源版没有这段历史),改掉措辞。
   { path: 'src/home/components/HomeDock.test.ts',
-    find: `  // SP9-P8 cutover:settings 从整页跳 /#/legacy 改成应用内 router.push('/settings')。
-  // 断言方式与 useOpenAction.test.ts 同一套(那里是单元级,这里是 dock 点击链路级)。
+    find: `  // SP9-P8 cutover: settings changed from full-page jump /#/legacy to in-app router.push('/settings').
+  // Assertion pattern same as useOpenAction.test.ts (that's unit level, this is dock click flow level).
 `,
-    replace: `  // settings 磁贴走应用内路由。断言方式与 useOpenAction.test.ts 同一套
-  // (那里是单元级,这里是 dock 点击链路级)。
+    replace: `  // The settings tile uses in-app routing. Same assertion style as useOpenAction.test.ts
+  // (that one is at unit level, this one at the dock click-path level).
 ` },
   // 全部应用抽屉的应用总数:oss 只有 5 个系统应用(files/storage/vm/appstore/settings,
   // T6 删了 photos/ai),抽屉里 .dock-app 数量恒等于 apps.order.length = 5,不是私有版的 6
   { path: 'src/home/components/HomeDock.test.ts',
-    find: `    // 全量 = fav(5) + more(≥1,含设置),多于 dock 条上的 4+1
+    find: `    // Full set = fav(5) + more(≥1, includes settings), more than 4+1 on dock bar
     expect(sheet!.querySelectorAll('.dock-app').length).toBeGreaterThanOrEqual(6)`,
-    replace: `    // 全量 = oss 全部 5 个系统应用(fav 4 + more 里的 settings),多于 dock 条上的 4+1
+    replace: `    // Full set = all 5 system apps (fav 4 + settings under more), more than the 4+1 on the dock bar
     expect(sheet!.querySelectorAll('.dock-app').length).toBeGreaterThanOrEqual(5)` },
 
   // ── SettingsShell.test.ts:railTabsFor 不再按角色过滤,"admin 看到 folder-
@@ -2215,27 +2318,27 @@ function mountHome() {
   // theme.css:全局滚动条注释列了三个复用场景,其中"搜索"指向已删的 SearchDialog——
   // 去掉这一个场景名,"文件预览/Welcome"两个保留场景不受影响。
   { path: 'src/styles/theme.css',
-    find: '复用于搜索、文件预览、Welcome 等一切滚动区',
-    replace: '复用于文件预览、Welcome 等一切滚动区' },
+    find: "a scroll region -- search, file preview, Welcome, and more",
+    replace: "a scroll region -- file preview, Welcome, and more" },
   // theme.css:"2.6 环形图 / 迷你图 / AI 光球"分节标题——AiWidget 的光球 token(--orb-core/
   // --orb-glow)T8 已经删了,但标题文字本身被漏网,直接点名"AI"。环形图/迷你图两个真实
   // token(--ring-*/--spark-*)与 AI 无关,标题掐掉后半截即可。
   { path: 'src/styles/theme.css',
-    find: '/* 2.6 环形图 / 迷你图 / AI 光球 */',
-    replace: '/* 2.6 环形图 / 迷你图 */' },
+    find: '/* 2.6 Ring chart / sparkline / AI orb */',
+    replace: '/* 2.6 Ring chart / sparkline */' },
   // theme.css:两套主题块里"扩展/语义 token"注释各点名了一次 SearchDialog(已删组件)
   // 作为 token 的历史来源说明,MediaViewer 是仍然保留的真实消费方,原样留着。
   { path: 'src/styles/theme.css',
-    find: '扩展/语义 token(SearchDialog·MediaViewer 提升为全局;每套主题都给值)。见 THEMING.md §2.12',
-    replace: '扩展/语义 token(MediaViewer 提升为全局;每套主题都给值)。见 THEMING.md §2.12' },
+    find: 'Extended/semantic tokens (promoted to global from SearchDialog/MediaViewer; every theme\n     gives these a value). See THEMING.md §2.12',
+    replace: 'Extended/semantic tokens (promoted to global from MediaViewer; every theme\n     gives these a value). See THEMING.md §2.12' },
   { path: 'src/styles/theme.css',
-    find: '扩展/语义 token(白色纸感,取自 SearchDialog/MediaViewer 原浅色板)',
-    replace: '扩展/语义 token(白色纸感,取自 MediaViewer 原浅色板)' },
+    find: 'Extended/semantic tokens (paper theme, taken from SearchDialog/MediaViewer\'s original\n     light-theme palette)',
+    replace: "Extended/semantic tokens (paper theme, taken from MediaViewer's original\n     light-theme palette)" },
 
   // StartAppDialog.vue:spinner 样式注释拿已删的 SearchDialog 当参照物,改成不点名。
   { path: 'src/home/components/StartAppDialog.vue',
-    find: '/* 与 SearchDialog .spinner 同款:--ring-track 底圈 + --accent 顶弧 */',
-    replace: '/* 复用统一 spinner 样式:--ring-track 底圈 + --accent 顶弧 */' },
+    find: '/* Same style as SearchDialog .spinner: --ring-track bottom ring + --accent top arc */',
+    replace: '/* Reuses the shared spinner style: --ring-track base ring + --accent top arc */' },
 
   // GridItem.vue:CSS 注释里还留着"app/folder/photo"三态,但 'photo' 这个 kind 连同
   // PhotoTile 已经被前面的补丁删干净了——这句纯文字描述没跟着改,补上。
@@ -2244,8 +2347,8 @@ function mountHome() {
     replace: 'is not clipped on app/folder items' },
   // MobileHome.vue:同一处道理,"photo 磁贴占 2×2"这个分句描述的是已删的 photo 磁贴。
   { path: 'src/home/components/MobileHome.vue',
-    find: '图标区:行高=列宽 → 格子恒为正方形;photo 磁贴占 2×2,dense 回填空洞',
-    replace: '图标区:行高=列宽 → 格子恒为正方形,dense 回填空洞' },
+    find: 'Icon area: row-height = column-width → grid always square; photo tiles span 2×2, dense backfills holes',
+    replace: 'Icon area: row-height = column-width → grid cells are always square, dense backfills holes' },
   // gridMath.test.ts:clampSize 是通用的尺寸吸附逻辑,测试标题里仍在举例"photo"这个
   // 已经不存在的 kind——它不是测试内容(测试本体用的是 kind:'app'),只是标题文字。
   { path: 'src/home/grid/gridMath.test.ts',
@@ -2256,8 +2359,8 @@ function mountHome() {
   // Photos 模块的 collectFilesFromDataTransfer 函数名当对比对象——直接点名了私有功能
   // 内部的函数名,改成不点名的表述,行为对比本身(不按媒体类型过滤/不跳过隐藏文件)保留。
   { path: 'src/files/upload/dropEntries.ts',
-    find: '。与 Photos 的 collectFilesFromDataTransfer 不同:不按媒体',
-    replace: '。不按媒体' },
+    find: ". Unlike Photos'\n// collectFilesFromDataTransfer: no media type filtering",
+    replace: '. No media type filtering' },
   { path: 'src/files/upload/dropEntries.test.ts',
     find: "    // Unlike Photos' collectFilesFromDataTransfer, the file manager's drop path",
     replace: '    // The file manager\'s drop path' },
@@ -2265,8 +2368,8 @@ function mountHome() {
   // Files.vue:旧格式深链来源说明里点名了 Vue2 时代的 "AI" 功能(打开文件位置的入口
   // 之一),AI 功能整个已经不存在,来源说明改成不点名的"旧版"。
   { path: 'src/views/Files.vue',
-    find: '来源:Vue2 AI「打开文件位置」、上传通知、',
-    replace: '来源:旧版「打开文件位置」、上传通知、' },
+    find: 'sources: Vue2 AI\'s "open\n  // file location", upload notifications',
+    replace: 'sources: the legacy "open\n  // file location", upload notifications' },
 
   // useIsoBrowser.test.ts:LISTING 是真机 curl 抓的 /DATA 根目录真实内容,其中
   // '.wiki.md' 是 NimoOS-Wiki 在真实设备上生成的文件——这份 fixture 只是用来验证
@@ -2325,7 +2428,7 @@ function mountHome() {
   //    调用点去掉恒 false 的守卫)。这里补 8 条:删恒真用例、清理 beforeEach、
   //    洗白 3 处 "P8 cutover:" 注释与 2 处 it() 标题、洗白 protocol.ts 注释。──
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('storage 与 apps 两把 flag 互不干扰', () => {
+    find: `  it('storage and apps flags should not interfere with each other', () => {
     localStorage.setItem('strangler:disabled:/apps', '1')
     const { openApp } = useOpenAction()
     openApp('storage')
@@ -2341,34 +2444,36 @@ function mountHome() {
 `, replace: `  hrefs = []; opens = []
 ` },
   { path: 'src/home/components/HomeDock.test.ts',
-    find: '// P8 cutover:dock 的 files 图标改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
-    replace: '// dock 的 files 图标走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
+    find: '// P8 cutover: dock\'s files icon changed to in-app router.push, need to mock router singleton (vi.mock is hoisted before imports).',
+    replace: "// The dock's files icon uses in-app router.push, so the router singleton has to be mocked (vi.mock is hoisted above imports)." },
   { path: 'src/home/components/GridItem.click.test.ts',
-    find: '// P8 cutover:文件夹瓦片改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
-    replace: '// 文件夹瓦片走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
+    find: '// P8 cutover: folder tiles changed to in-app router.push, need to mock router singleton (vi.mock gets hoisted before import).',
+    replace: '// Folder tiles use in-app router.push, so the router singleton has to be mocked (vi.mock is hoisted above imports).' },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: '// P8 cutover:文件入口改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
-    replace: '// 文件入口走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
+    find: '// P8 cutover: the files entry now uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).',
+    replace: '// The files entry uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).' },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: "  it('appstore 磁贴应用内 router.push /apps/store(SP5-P8 cutover)', () => {",
-    replace: "  it('appstore 磁贴应用内 router.push /apps/store', () => {" },
+    find: "  it('appstore tile should use in-app router.push /apps/store (SP5-P8 cutover)', () => {",
+    replace: "  it('appstore tile should use in-app router.push /apps/store', () => {" },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: "  it('storage 磁贴应用内 router.push /storage(SP6-P6 cutover)', () => {",
-    replace: "  it('storage 磁贴应用内 router.push /storage', () => {" },
+    find: "  it('storage tile should use in-app router.push /storage (SP6-P6 cutover)', () => {",
+    replace: "  it('storage tile should use in-app router.push /storage', () => {" },
   { path: 'src/files/drop/protocol.ts',
-    find: '// 硬约束:P8 翻 strangler 前新旧页面并存互传,任何形状/数值改动都会破坏兼容。',
-    replace: '// 硬约束:该协议用于页面间互传,任何形状/数值改动都会破坏兼容。' },
+    find: '// Hard constraint: before P8 strangler flip, old and new pages coexist and interoperate;\n// any shape/value changes break compatibility.',
+    replace: '// Hard constraint: this protocol carries transfers between pages; any shape/value change\n// breaks compatibility.' },
 
   // ── I6:vite.config.ts 直接点名 Claude Code,与「删 CLAUDE.md 因为它是最直白的
   //    AI 辅助开发标记」的理由自相矛盾。exclude 数组本身保留(功能无害)。────────
   { path: 'vite.config.ts',
-    find: '    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本),',
-    replace: '    // 本机可能存在 .claude/ 等工具目录(含整个仓库副本),' },
+    find: "    // Claude Code's isolated worktrees appear under .claude/worktrees/ (each a full repo\n    // copy); without the exclusion, vitest recurses into them, runs other sessions' tests,\n    // and fails en masse.",
+    replace: "    // Tool directories such as .claude/ may hold full repo copies on a developer machine;\n    // without the exclusion, vitest recurses into them, runs other sessions' tests,\n    // and fails en masse." },
 
   // ── I7a:注释里泄露内部 SDD 台账路径(.superpowers/sdd/sp9/...)与债务编号。──
   { path: 'src/settings/util/ifaceForm.ts',
-    find: '// → 写路径的正确性只能靠这里的单测(见台账 .superpowers/sdd/sp9/03-p2.md 债务 D18)。',
-    replace: '// → 写路径的正确性只能靠这里的单测(该接口没有安全的真机验证途径)。' },
+    find: `// -> the write path's correctness can only be covered by the unit tests here (see ledger
+// .superpowers/sdd/sp9/03-p2.md, debt D18).`,
+    replace: `// -> the write path's correctness can only be covered by the unit tests here (there is no
+// safe way to verify this endpoint on a real machine).` },
 
   // ── M1:package.json 的 name 是私有仓名(new-ui 暗示存在一个 old UI)。────────
   { path: 'package.json',
@@ -2376,8 +2481,8 @@ function mountHome() {
 
   // ── M2:scripts/deploy.sh 注释里写着私有仓名。──────────────────────────────
   { path: 'scripts/deploy.sh',
-    find: '# 构建 NimoOS-New-UI 并部署到 Gateway 的 /app/ 静态目录。',
-    replace: '# 构建本项目并部署到 Gateway 的 /app/ 静态目录。' },
+    find: "# Build NimoOS-New-UI and deploy to the Gateway's /app/ static directory.",
+    replace: "# Build this project and deploy to the Gateway's /app/ static directory." },
 
   // ═══════════════ SP8-P6-T7 合流(2026-08-06):AI 区剥离 ═══════════════════
   // src/ai 整域与两个 i18n 分片走 DELETE。下面收的是**域外**那些引用它的文件 ——
@@ -2405,7 +2510,7 @@ function mountHome() {
   //    锚点从块前的空行开始吃,避免删完在上一条用例与 `})` 之间留一个空行。
   { path: 'src/router/index.test.ts',
     find: `
-  it('主路由表已展开 knowledge 路由', async () => {
+  it('the main route table has expanded the knowledge routes', async () => {
     const { router } = await import('./index')
     const paths = router.getRoutes().map((r) => r.path)
     expect(paths).toContain('/ai/knowledge')
@@ -2425,11 +2530,13 @@ function mountHome() {
   //    src/ai/styles/tokens.scss 的 AI 侧覆写,后者随 src/ai 一起没了),不是 AI 专用。
   //    spec D8 原写"AI 专用 theme token 整组删"是笔误,已按实测收窄为"theme.css 不动"。
   { path: 'src/components/AppToast.vue',
-    find: `  <!-- SP8-P2b 验收第 3 轮(2026-07-30):AI 区在前台时,给自己套上 AI 的 toast 作用域与
-       明暗。不这么做的话本组件读的是全局蓝黑主题的半透明白底 + 白字,画在 AI 浅色页面上
-       完全看不见(AI 区所有 toast 都收不到反馈)。根因与 token 取值见
-       src/ai/stores/aiTheme.ts 的 aiSurfaces 注释、样式在 tokens.scss 的 .ai-toast-scope。
-       不在 AI 区时两个绑定都不生效 —— 桌面/文件/应用区观感零变化(用户明确要求)。 -->
+    find: `  <!-- SP8-P2b acceptance round 3 (2026-07-30): while the AI area is in the foreground, wrap
+       ourselves in the AI toast scope and its light/dark theme. Without this, the component reads
+       the global blue-black theme's translucent white background + white text, which is completely
+       invisible on the AI light pages (no AI-area toast feedback ever reaches the user). Root cause
+       and token values: aiSurfaces comment in src/ai/stores/aiTheme.ts; styles in tokens.scss
+       .ai-toast-scope. Outside the AI area both bindings are inert — desktop/files/apps areas look
+       exactly the same (explicit user requirement). -->
   <transition-group
     name="toast" tag="div" class="toast-stack"
     :class="{ 'ai-toast-scope': aiTheme.aiSurfaceActive }"
@@ -2444,14 +2551,17 @@ function mountHome() {
   //    (它仍高于产出树里最高的 .sk-modal-bg = 1100,改小反而要重新论证,且下方
   //    AppToast.test.ts 末条守卫断言 > 10000);只把理由改写成不点名 AI 的版本。
   { path: 'src/components/AppToast.vue',
-    find: `   —— 用户以为按钮没响应,反复重试(2026-07-30 用户在「创建令牌」弹窗里点复制复现)。
-   【SP8-P6-T3 合流】取 sp8 的 10100 而非 master 的 1100:AI 区随本次合流进入主干,
-   它的 SearchImageLightbox / SearchFileDrawer 坐在 10000、SearchFullResults 9999,
-   1100 会被它们压住。10100 是"高于全仓最高的 10000、且留出余量"的最小安全值。
-   本元素 pointer-events: none,置顶不会拦截任何点击。守卫见 AppToast.test.ts 末条。 */`,
-    replace: `   —— 用户以为按钮没响应,反复重试(2026-07-30 用户在「创建令牌」弹窗里点复制复现)。
-   取值 10100:留足余量,高于全仓任何浮层。本元素 pointer-events: none,置顶不会拦截
-   任何点击。守卫见 AppToast.test.ts 末条。 */`,
+    find: `   (reproduced 2026-07-30: user clicked copy in the "create token" dialog).
+   [SP8-P6-T3 merge] take sp8's 10100 rather than master's 1100: the AI area lands on trunk with
+   this merge, and its SearchImageLightbox / SearchFileDrawer sit at 10000, SearchFullResults 9999,
+   so 1100 would be buried under them. 10100 is the smallest safe value that is "above the repo's
+   highest 10000, with headroom".
+   This element has pointer-events: none, so being on top never intercepts clicks. Guard: last
+   test in AppToast.test.ts. */`,
+    replace: `   (reproduced 2026-07-30: user clicked copy in the "create token" dialog).
+   The value 10100 keeps plenty of headroom above every overlay in the repo.
+   This element has pointer-events: none, so being on top never intercepts clicks. Guard: last
+   test in AppToast.test.ts. */`,
   },
 
   // ── src/components/AppToast.test.ts:AI 作用域那 4 条用例 + import ──────────
@@ -2463,21 +2573,22 @@ function mountHome() {
     find: "import { useAiTheme } from '../ai/stores/aiTheme'\n", replace: '' },
   { path: 'src/components/AppToast.test.ts',
     find: `
-// 【SP8-P2b 验收第 3 轮,用户 2026-07-30 拍板】AI 区在前台时,提示条要跟随 AI 的明暗主题
-// (否则白底白字看不见,详见 aiTheme.test.ts 的说明)。离开 AI 区必须完全恢复原样 ——
-// 用户明确要求「桌面零影响」,所以「不在 AI 区时不带任何额外 class / data-theme」这条
-// 同样要钉住。
-describe('AppToast —— AI 区 toast 作用域', () => {
+// [SP8-P2b acceptance round 3, user decision 2026-07-30] While the AI area is in the foreground,
+// the toast must follow the AI light/dark theme (otherwise white-on-white is invisible, see the
+// notes in aiTheme.test.ts). Leaving the AI area must restore everything exactly — the user
+// explicitly required "zero impact on the desktop", so "no extra class / data-theme outside the
+// AI area" must be pinned as well.
+describe('AppToast — AI area toast scoping', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('不在 AI 区:不带 ai-toast-scope、不带 data-theme(桌面零影响)', () => {
+  it('Not in AI area: no ai-toast-scope, no data-theme (zero impact on desktop)', () => {
     const w = mount(AppToast)
     const root = w.find('.toast-stack')
     expect(root.classes()).not.toContain('ai-toast-scope')
     expect(root.attributes('data-theme')).toBeUndefined()
   })
 
-  it('AI 区在前台:带 ai-toast-scope,且 data-theme 跟随 AI 主题', async () => {
+  it('AI area in foreground: has ai-toast-scope, data-theme follows AI theme', async () => {
     const ai = useAiTheme()
     ai.enterAiSurface()
     const w = mount(AppToast)
@@ -2486,19 +2597,19 @@ describe('AppToast —— AI 区 toast 作用域', () => {
     expect(root.attributes('data-theme')).toBe(ai.theme)
   })
 
-  it('AI 区内切换明暗:data-theme 跟着变(弹窗/提示不用关掉重开)', async () => {
+  it('Toggling light/dark inside AI area: data-theme changes (dialogs/toasts do not need to be closed and reopened)', async () => {
     const ai = useAiTheme()
     ai.enterAiSurface()
     const w = mount(AppToast)
     const before = w.find('.toast-stack').attributes('data-theme')
     ai.toggleTheme()
-    await w.vm.$nextTick()
+    await w.vm.\$nextTick()
     const after = w.find('.toast-stack').attributes('data-theme')
     expect(after).not.toBe(before)
     expect(after).toBe(ai.theme)
   })
 
-  it('离开 AI 区后恢复:class 与 data-theme 都撤掉', async () => {
+  it('After leaving AI area, restore: both class and data-theme are removed', async () => {
     const ai = useAiTheme()
     ai.enterAiSurface()
     const w = mount(AppToast)
@@ -2512,10 +2623,12 @@ describe('AppToast —— AI 区 toast 作用域', () => {
 `,
     replace: '' },
   { path: 'src/components/AppToast.test.ts',
-    find: `// \`1100\`,AI 区的 SearchImageLightbox/SearchFileDrawer 是 \`10000\`、SearchFullResults 是 \`9999\`
-// (全仓 grep 实测的最高层)。提示条是**最顶层反馈**,必须盖在这些之上,否则任何弹窗打开时`,
-    replace: `// \`1100\`,而全仓 grep 实测的最高浮层坐在 \`10000\`。
-// 提示条是**最顶层反馈**,必须盖在这些之上,否则任何弹窗打开时` },
+    find: `// scrim at \`sk-shared.scss:102\` is \`1100\`, and the AI area's SearchImageLightbox/SearchFileDrawer
+// are \`10000\`, SearchFullResults \`9999\` (the highest layers found by a repo-wide grep). The toast
+// is the **topmost feedback** and must cover all of these, otherwise the user gets no feedback`,
+    replace: `// scrim at \`sk-shared.scss:102\` is \`1100\`, while the highest overlay found by a repo-wide grep
+// sits at \`10000\`. The toast is the **topmost feedback** and must cover all of these,
+// otherwise the user gets no feedback` },
 
   // ── src/home/composables/useOpenAction.test.ts:T5 新加的 AI cutover 整块 ──
   //    上面 T13 / 修复波两节已有 11 条锚点打在本文件上(实测均未受本次合流影响,
@@ -2529,15 +2642,15 @@ describe('AppToast —— AI 区 toast 作用域', () => {
     find: "  localStorage.removeItem('strangler:disabled:/ai')\n", replace: '' },
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: `
-describe('AI 区 cutover(SP8-P6)', () => {
-  it('ai 磁贴应用内 router.push /ai/agent', () => {
+describe('AI section cutover (SP8-P6)', () => {
+  it('ai tile should use in-app router.push /ai/agent', () => {
     const { openApp } = useOpenAction()
     openApp('ai')
     expect(router.push).toHaveBeenCalledWith('/ai/agent')
     expect(hrefs.length).toBe(0)
   })
 
-  it('flag 置 1 时 ai 磁贴退回 Vue2 /#/ai/agent', () => {
+  it('when flag is set to 1, ai tile should fall back to Vue2 /#/ai/agent', () => {
     localStorage.setItem('strangler:disabled:/ai', '1')
     const { openApp } = useOpenAction()
     openApp('ai')
@@ -2545,14 +2658,14 @@ describe('AI 区 cutover(SP8-P6)', () => {
     expect(hrefs).toEqual(['/#/ai/agent'])
   })
 
-  it('桌面 AI 小组件应用内 router.push /ai/agent', () => {
+  it('desktop AI widget should use in-app router.push /ai/agent', () => {
     const { openItem } = useOpenAction()
     openItem({ kind: 'widget', key: 'ai' } as LayoutItem)
     expect(router.push).toHaveBeenCalledWith('/ai/agent')
     expect(hrefs.length).toBe(0)
   })
 
-  it('flag 置 1 时 AI 小组件退回 Vue2', () => {
+  it('when flag is set to 1, AI widget should fall back to Vue2', () => {
     localStorage.setItem('strangler:disabled:/ai', '1')
     const { openItem } = useOpenAction()
     openItem({ kind: 'widget', key: 'ai' } as LayoutItem)
@@ -2560,27 +2673,27 @@ describe('AI 区 cutover(SP8-P6)', () => {
     expect(hrefs).toEqual(['/#/ai/agent'])
   })
 
-  it('sendToAI 应用内带 message query(对象形式,不手工编码)', () => {
+  it('sendToAI should use in-app with message query (object form, not manually encoded)', () => {
     const { sendToAI } = useOpenAction()
     sendToAI('帮我找 发票 & 收据')
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: '帮我找 发票 & 收据' } })
     expect(hrefs.length).toBe(0)
   })
 
-  it('sendToAI 空文本不带 query', () => {
+  it('sendToAI with empty text should not include query', () => {
     const { sendToAI } = useOpenAction()
     sendToAI('   ')
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
   })
 
-  it('knowledge 磁贴走应用内路由 /ai/knowledge(SP14 #98,无回退目标)', () => {
+  it('knowledge tile should use in-app router /ai/knowledge (SP14 #98, no fallback target)', () => {
     const { openApp } = useOpenAction()
     openApp('knowledge')
     expect(router.push).toHaveBeenCalledWith('/ai/knowledge')
     expect(hrefs.length).toBe(0)
   })
 
-  it('flag 置 1 时 sendToAI 退回 Vue2 并保持 encodeURIComponent 拼串', () => {
+  it('when flag is set to 1, sendToAI should fall back to Vue2 and maintain encodeURIComponent string concatenation', () => {
     localStorage.setItem('strangler:disabled:/ai', '1')
     const { sendToAI } = useOpenAction()
     sendToAI('发票 & 收据')
@@ -2649,46 +2762,61 @@ describe('AI 区 cutover(SP8-P6)', () => {
 
   //    (a) 文件头:整段重写成两片版(原文点名 photosSlice.test.ts / photos / ai)
   { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
-    find: `// SP8-P6-T4:i18n 分片不相交守卫(常驻)。
+    find: `// SP8-P6-T4: standing guard that the i18n shards stay disjoint.
 //
-// 背景与三条安全前提见 photosSlice.test.ts 顶部注释:分片靠对象展开合并
-// (\`{...base, ...photos, ...ai}\`),重复键会被后展开的静默覆盖 —— git 不报冲突,
-// parity.test.ts 只测「合并后」的键集,两语言若以同样方式撞车、合并结果仍然相等,
-// parity 也照过。这类错误此前完全无声。
+// Background and the three safety premises are in photosSlice.test.ts's top comment:
+// shards are combined by object spread (\`{...base, ...photos, ...ai}\`), so a duplicate key
+// is silently overwritten by whichever spread comes last -- git reports no conflict, and
+// parity.test.ts only checks the *merged* key set, so if both languages collide the same
+// way the merged results still match and parity passes too. This class of mistake used to
+// be completely silent.
 //
-// 本文件补 photosSlice.test.ts 没覆盖的三个缺口(该文件已经守住了「三片(base/
-// photos/ai)两两不相交」「出口是纯合并」,不在此重复):
+// This file covers the three gaps photosSlice.test.ts leaves (that file already pins
+// "the three shards (base/photos/ai) are pairwise disjoint" and "the entry point is a
+// pure merge", neither of which is repeated here):
 //
-//   ① 真实分片是 **4 片**,不是 3 片。\`zh_cn.sp9.ts\` / \`en_us.sp9.ts\` 不经过
-//      \`zh_cn.ts\` / \`en_us.ts\` 那个出口 —— 它在 \`src/i18n/index.ts\` 里单独并入
-//      (\`{ ...zh, ...zhSp9 }\`),是第二条独立的装配路径。photosSlice.test.ts 只验
-//      \`zh_cn.ts\` 出口(base+photos+ai),漏掉了 sp9 这一片与其余三片的撞车风险,
-//      而 sp9 是整个 SP9 期文案,体量(459 键)不小。
-//   ② ai 分片自身的前缀守卫(该分片是 T3 新建的,还没有专属守卫)。
-//   ③ 两语言分片结构对称 —— 每一片 zh 与 en 的键集须完全一致。若两语言各自以
-//      不同方式撞车,「合并后键数相等」这类聚合检查会失明(键数凑巧相等但键不同)。
+//   ① There are **4** real shards, not 3. \`zh_cn.sp9.ts\` / \`en_us.sp9.ts\` do not go
+//      through the \`zh_cn.ts\` / \`en_us.ts\` entry point -- they are merged separately in
+//      \`src/i18n/index.ts\` (\`{ ...zh, ...zhSp9 }\`), a second, independent assembly path.
+//      photosSlice.test.ts only checks the \`zh_cn.ts\` entry point (base+photos+ai), so it
+//      misses the risk of sp9 colliding with the other three, and sp9 is a whole sprint's
+//      worth of copy (459 keys) -- not a small shard.
+//   ② A prefix guard for the ai shard itself (that shard was added in T3 and had no
+//      guard of its own).
+//   ③ Per-shard structural symmetry between the two languages -- every shard's zh and en
+//      key sets must be identical. If the two languages each collide in a different way,
+//      an aggregate check like "the merged key counts are equal" goes blind (the counts
+//      happen to match while the keys differ).
 //
-// 「无损划分」这条刻意验证**真实装配路径**:import '../index' 拿到的 createI18n
-// 实例(index.ts 里 \`messages.zh_cn\` / \`messages.en_us\`),而不是只测 zh_cn.ts 那个
-// 不含 sp9 的出口 —— 后者会漏掉 sp9 分片撞车的可能性。`,
-    replace: `// i18n 分片不相交守卫(常驻)。
+// The "lossless partition" case deliberately exercises the **real assembly path**: the
+// createI18n instance obtained via import '../index' (\`messages.zh_cn\` / \`messages.en_us\`
+// inside index.ts), rather than only the zh_cn.ts entry point, which does not include sp9
+// and would therefore miss the possibility of an sp9 collision.`,
+    replace: `// Standing guard that the i18n shards stay disjoint.
 //
-// 文案分成两片文件,靠对象展开合并(\`{ ...base, ...shard }\`),重复键会被后展开的
-// 静默覆盖 —— git 不报冲突,而 parity.test.ts 只测「合并后」的键集:两语言若以同样
-// 方式撞车、合并结果仍然相等,parity 也照过。这类错误此前完全无声。
+// The copy is split across two files and combined by object spread
+// (\`{ ...base, ...shard }\`), so a duplicate key is silently overwritten by whichever
+// spread comes last -- git reports no conflict, and parity.test.ts only checks the
+// *merged* key set: if both languages collide the same way the merged results still
+// match and parity passes too. This class of mistake used to be completely silent.
 //
-// 本文件补 parity.test.ts 没覆盖的三个缺口:
+// This file covers three gaps parity.test.ts leaves:
 //
-//   ① parity 的「分片不得覆盖基座已有 key」**只查了 zh 一侧**
-//      (parity.test.ts 里 \`Object.keys(zhSp9).filter((k) => k in zhBase)\`)。
-//      只在英文侧撞车时:合并后两语言键集仍然相等 → parity 第一条绿;zh 侧没撞 →
-//      parity 那条也绿。结果是英文文案被静默覆盖而无人看守。下面双语各查一遍。
-//   ② **真实装配路径**。\`src/i18n/index.ts\` 才是产线把两片并起来的地方
-//      (\`{ ...zh, ...zhSp9 }\`),而 parity.test.ts 自己手写了一遍合并公式、根本不
-//      import index.ts。本文件的「无损划分」刻意读 index.ts 装出来的 createI18n
-//      实例,「index.ts 有没有真把分片并进去」才有覆盖 —— 全仓仅此一处。
-//   ③ 两语言**逐片**结构对称。parity 断言的是「合并后」的集合,跨片错位(某键在
-//      zh 的基座里、却在 en 的分片里)合并后仍然相等,逐片比较才看得见。` },
+//   ① parity's "a shard must not override a key the base already has" **only checks the
+//      zh side** (\`Object.keys(zhSp9).filter((k) => k in zhBase)\` in parity.test.ts).
+//      When only the English side collides, the merged key sets are still equal so
+//      parity's first case passes, and the zh side really did not collide so that case
+//      passes too. English copy gets silently overwritten with nothing watching. Both
+//      languages are checked below.
+//   ② The **real assembly path**. \`src/i18n/index.ts\` is where the two shards actually
+//      get combined in production (\`{ ...zh, ...zhSp9 }\`), while parity.test.ts writes
+//      the merge formula out again itself and never imports index.ts. The "lossless
+//      partition" case below deliberately reads the createI18n instance index.ts built,
+//      so "did index.ts really merge the shard in" is covered -- the only place in the
+//      repo that does.
+//   ③ **Per-shard** structural symmetry between the two languages. parity asserts on the
+//      *merged* set, so a cross-shard misplacement (a key in zh's base but in en's shard)
+//      still compares equal after merging; only a per-shard comparison sees it.` },
 
   //    (b)(c) 摘掉两组 import(4 行)。⚠️ 剩下的 sp9 两行是**保留原文**,不经
   //           replace payload —— 冻结分身守卫按设计不管它们(见上方长注释)。
@@ -2699,8 +2827,8 @@ describe('AI 区 cutover(SP8-P6)', () => {
 
   //    (d) zh 侧不相交:六对 → 一对
   { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
-    find: `describe('zh 四片两两不相交(base / photos / ai / sp9)', () => {
-  it('六对组合全部不相交', () => {
+    find: `describe('zh: the four shards are pairwise disjoint (base / photos / ai / sp9)', () => {
+  it('all six pairings are disjoint', () => {
     expect(overlap(zhBase as Dict, zhPhotos as Dict), 'base × photos').toEqual([])
     expect(overlap(zhBase as Dict, zhAi as Dict), 'base × ai').toEqual([])
     expect(overlap(zhBase as Dict, zhSp9 as Dict), 'base × sp9').toEqual([])
@@ -2709,16 +2837,16 @@ describe('AI 区 cutover(SP8-P6)', () => {
     expect(overlap(zhAi as Dict, zhSp9 as Dict), 'ai × sp9').toEqual([])
   })
 })`,
-    replace: `describe('zh 两片不相交(基座 / zh_cn.sp9.ts)', () => {
-  it('基座与分片不相交', () => {
-    expect(overlap(zhBase as Dict, zhSp9 as Dict), '基座 × 分片').toEqual([])
+    replace: `describe('zh: the two shards are disjoint (base / zh_cn.sp9.ts)', () => {
+  it('base and shard are disjoint', () => {
+    expect(overlap(zhBase as Dict, zhSp9 as Dict), 'base × shard').toEqual([])
   })
 })`},
 
   //    (e) en 侧不相交:这条是 parity 缺的那一条,注释里把理由钉死,免得后人又删
   { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
-    find: `describe('en 四片两两不相交(base / photos / ai / sp9)', () => {
-  it('六对组合全部不相交', () => {
+    find: `describe('en: the four shards are pairwise disjoint (base / photos / ai / sp9)', () => {
+  it('all six pairings are disjoint', () => {
     expect(overlap(enBase as Dict, enPhotos as Dict), 'base × photos').toEqual([])
     expect(overlap(enBase as Dict, enAi as Dict), 'base × ai').toEqual([])
     expect(overlap(enBase as Dict, enSp9 as Dict), 'base × sp9').toEqual([])
@@ -2727,76 +2855,92 @@ describe('AI 区 cutover(SP8-P6)', () => {
     expect(overlap(enAi as Dict, enSp9 as Dict), 'ai × sp9').toEqual([])
   })
 })`,
-    replace: `// ⚠️ 别删这个 describe:它是 parity.test.ts **没有**的那一条。parity 的
-// 「分片不得覆盖基座已有 key」只查 zh 侧,只在英文侧撞车时它整套断言全绿
-// (合并后两语言键集仍相等、zh 侧确实没撞),英文文案就这么被静默覆盖。
-describe('en 两片不相交(基座 / en_us.sp9.ts)', () => {
-  it('基座与分片不相交', () => {
-    expect(overlap(enBase as Dict, enSp9 as Dict), '基座 × 分片').toEqual([])
+    replace: `// ⚠️ Do not delete this describe: it is the one parity.test.ts does **not** have.
+// parity's "a shard must not override a key the base already has" only checks the zh
+// side, so when the collision is on the English side its whole set of assertions stays
+// green (the merged key sets are still equal, and the zh side really did not collide) --
+// and English copy gets silently overwritten.
+describe('en: the two shards are disjoint (base / en_us.sp9.ts)', () => {
+  it('base and shard are disjoint', () => {
+    expect(overlap(enBase as Dict, enSp9 as Dict), 'base × shard').toEqual([])
   })
 })`},
 
   //    (f) 无损划分:判别力边界注释重写 + 两个求和从四项收到两项
   { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
-    find: `  // 用真实 i18n 实例的 messages,而不是重新手写一遍 {...a, ...b, ...c, ...d} ——
-  // 否则本测试和被测代码用同一条(可能同样错的)装配公式,查不出装配路径本身写错的情况。
+    find: `  // Read the real i18n instance's messages instead of hand-writing {...a, ...b, ...c, ...d}
+  // again -- otherwise this test and the code under test would share the same (possibly
+  // equally wrong) assembly formula and could never catch the assembly path itself being
+  // wrong.
   //
-  // 这条断言的判别力边界(独立评审做过变异实测,结论记在这里免得后人误读):
-  //   能抓:某个分片游离在真实装配路径之外(比如以后新增第五片却忘了在 index.ts 里并进
-  //     去),或真实 messages 里混进了这四个已知分片之外的来源。sp9×ai 定向撞车的变异
-  //     (往 zh_cn.sp9.ts 塞一个与 zh_cn.ai.ts 重名的键)会同时把这条和「两两不相交」
-  //     一起打红 —— 这也是 shardDisjoint.test.ts 存在的核心理由:同一变异下
-  //     photosSlice.test.ts 的 12 条断言全绿、完全失明(它没有 sp9 这一片)。
-  //   抓不到:某个分片内部纯删除/纯增加而不撞名的情况 —— 例如从 zh_cn.sp9.ts 删掉
-  //     一个键。这时「四片键数之和」与「真实装配后键数」两边同步减 1,等式在集合论上
-  //     恒成立(只要「四片两两不相交」这个前提没被破坏),此断言必然保持绿,不代表
-  //     文案没被误删。防"误删文案"要靠别的手段(比如 messageSyntax.test.ts 那类值域
-  //     检查,或对已知键名做存在性断言),不归本条断言管。
+  // What this assertion can and cannot discriminate (an independent review ran mutation
+  // tests; the conclusion is recorded here so nobody misreads it later):
+  //   Catches: a shard drifting outside the real assembly path (say a fifth shard is added
+  //     later and nobody merges it in index.ts), or the real messages picking up a source
+  //     beyond these four known shards. A targeted sp9×ai collision (planting a key in
+  //     zh_cn.sp9.ts that also exists in zh_cn.ai.ts) turns this red together with the
+  //     pairwise-disjoint cases -- which is the core reason shardDisjoint.test.ts exists:
+  //     under that same mutation all 12 assertions in photosSlice.test.ts stay green and
+  //     completely blind (it has no sp9 shard).
+  //   Misses: a pure deletion or pure addition inside one shard that collides with
+  //     nothing -- say removing a key from zh_cn.sp9.ts. Then "the sum of the four shards'
+  //     key counts" and "the assembled key count" both drop by 1, and the equation holds
+  //     by set theory (as long as the pairwise-disjoint premise is intact), so this stays
+  //     green without meaning that no copy was lost. Guarding against accidental copy
+  //     deletion needs other means (value-range checks like messageSyntax.test.ts, or
+  //     existence assertions on known key names); it is not this assertion's job.
   const realMessages = i18n.global.messages.value as Record<string, Dict>
 
-  it('zh_cn: base+photos+ai+sp9 键数之和 == messages.zh_cn 键数', () => {
+  it('zh_cn: base+photos+ai+sp9 key counts sum to the messages.zh_cn key count', () => {
     const sum = Object.keys(zhBase as Dict).length + Object.keys(zhPhotos as Dict).length +
       Object.keys(zhAi as Dict).length + Object.keys(zhSp9 as Dict).length
     expect(sum).toBe(Object.keys(realMessages.zh_cn).length)
   })
 
-  it('en_us: base+photos+ai+sp9 键数之和 == messages.en_us 键数', () => {
+  it('en_us: base+photos+ai+sp9 key counts sum to the messages.en_us key count', () => {
     const sum = Object.keys(enBase as Dict).length + Object.keys(enPhotos as Dict).length +
       Object.keys(enAi as Dict).length + Object.keys(enSp9 as Dict).length
     expect(sum).toBe(Object.keys(realMessages.en_us).length)
   })
 })
 
-describe('ai 分片前缀守卫', () => {
-  it('zh_cn.ai.ts 键全部以 ai 开头', () => {
+describe('ai shard prefix guard', () => {
+  it('every zh_cn.ai.ts key starts with ai', () => {
     const bad = Object.keys(zhAi as Dict).filter((k) => !k.startsWith('ai'))
-    expect(bad, \`非 ai 前缀键: \${bad.join(', ')}\`).toEqual([])
+    expect(bad, \`keys without the ai prefix: \${bad.join(', ')}\`).toEqual([])
   })
 
-  it('en_us.ai.ts 键全部以 ai 开头', () => {
+  it('every en_us.ai.ts key starts with ai', () => {
     const bad = Object.keys(enAi as Dict).filter((k) => !k.startsWith('ai'))
-    expect(bad, \`非 ai 前缀键: \${bad.join(', ')}\`).toEqual([])
+    expect(bad, \`keys without the ai prefix: \${bad.join(', ')}\`).toEqual([])
   })
 })`,
-    replace: `  // 用真实 i18n 实例的 messages,而不是重新手写一遍 {...a, ...b} —— 否则本测试和
-  // 被测代码用同一条(可能同样错的)装配公式,查不出装配路径本身写错的情况。
-  // **全仓只有这里**对 src/i18n/index.ts 的真实装配结果下断言。
+    replace: `  // Read the real i18n instance's messages instead of hand-writing {...a, ...b} again --
+  // otherwise this test and the code under test would share the same (possibly equally
+  // wrong) assembly formula and could never catch the assembly path itself being wrong.
+  // **This is the only place in the repo** that asserts on what src/i18n/index.ts really
+  // assembled.
   //
-  // 这条断言的判别力边界(记在这里免得后人误读):
-  //   能抓:某个分片游离在真实装配路径之外(比如以后新增一片却忘了在 index.ts 里
-  //     并进去),或真实 messages 里混进了这两个已知分片之外的来源。
-  //   抓不到:某个分片内部纯删除/纯增加而不撞名的情况 —— 例如从分片里删掉一个键。
-  //     这时「两片键数之和」与「真实装配后键数」两边同步减 1,等式在集合论上恒成立
-  //     (只要「两片不相交」这个前提没被破坏),此断言必然保持绿,不代表文案没被
-  //     误删。防"误删文案"要靠别的手段(对已知键名做存在性断言之类),不归本条管。
+  // What this assertion can and cannot discriminate (recorded here so nobody misreads it
+  // later):
+  //   Catches: a shard drifting outside the real assembly path (say another shard is
+  //     added later and nobody merges it in index.ts), or the real messages picking up a
+  //     source beyond these two known shards.
+  //   Misses: a pure deletion or pure addition inside one shard that collides with
+  //     nothing -- say removing a key from the shard. Then "the sum of the two shards'
+  //     key counts" and "the assembled key count" both drop by 1, and the equation holds
+  //     by set theory (as long as the disjoint premise is intact), so this stays green
+  //     without meaning that no copy was lost. Guarding against accidental copy deletion
+  //     needs other means (existence assertions on known key names and the like); it is
+  //     not this assertion's job.
   const realMessages = i18n.global.messages.value as Record<string, Dict>
 
-  it('zh_cn: 两片键数之和 == messages.zh_cn 键数', () => {
+  it('zh_cn: the two shards\\' key counts sum to the messages.zh_cn key count', () => {
     const sum = Object.keys(zhBase as Dict).length + Object.keys(zhSp9 as Dict).length
     expect(sum).toBe(Object.keys(realMessages.zh_cn).length)
   })
 
-  it('en_us: 两片键数之和 == messages.en_us 键数', () => {
+  it('en_us: the two shards\\' key counts sum to the messages.en_us key count', () => {
     const sum = Object.keys(enBase as Dict).length + Object.keys(enSp9 as Dict).length
     expect(sum).toBe(Object.keys(realMessages.en_us).length)
   })
@@ -2804,34 +2948,37 @@ describe('ai 分片前缀守卫', () => {
 
   //    (g) 逐片中英对称:摘掉 photos / ai 两条,注释改写
   { path: 'src/i18n/__tests__/shardDisjoint.test.ts',
-    find: `describe('两语言分片结构对称(每一片 zh 与 en 键集完全一致)', () => {
-  // photos 这一条与 photosSlice.test.ts「两语言键集完全一致」重复 —— 保留是为了让
-  // 本文件本身就是「四片对称性」的完整清单,不必跳去另一个文件才能确认 photos 也被
-  // 覆盖到。base / ai / sp9 三条是本文件独有,此前没有任何测试守这三片的中英对称。
-  it('base 分片: zh 与 en 键集完全一致', () => {
+    find: `describe('per-shard symmetry between the two languages (each shard has identical zh and en key sets)', () => {
+  // The photos case overlaps with photosSlice.test.ts's "both languages have identical key
+  // sets" -- it is kept so that this file is a complete inventory of four-shard symmetry on
+  // its own, without having to open another file to confirm photos is covered too. The
+  // base / ai / sp9 cases are unique to this file; nothing guarded those three shards'
+  // zh/en symmetry before.
+  it('base shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhBase as Dict).sort()).toEqual(Object.keys(enBase as Dict).sort())
   })
 
-  it('photos 分片: zh 与 en 键集完全一致', () => {
+  it('photos shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhPhotos as Dict).sort()).toEqual(Object.keys(enPhotos as Dict).sort())
   })
 
-  it('ai 分片: zh 与 en 键集完全一致', () => {
+  it('ai shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhAi as Dict).sort()).toEqual(Object.keys(enAi as Dict).sort())
   })
 
-  it('sp9 分片: zh 与 en 键集完全一致', () => {
+  it('sp9 shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhSp9 as Dict).sort()).toEqual(Object.keys(enSp9 as Dict).sort())
   })
 })`,
-    replace: `describe('两语言逐片结构对称(每一片 zh 与 en 键集完全一致)', () => {
-  // parity.test.ts 断言的是「合并后」的集合,跨片错位(某键在 zh 的基座里、却在
-  // en 的分片里)合并后仍然相等 —— 只有逐片比较才看得见。这两条是本文件独有。
-  it('基座: zh 与 en 键集完全一致', () => {
+    replace: `describe('per-shard symmetry between the two languages (each shard has identical zh and en key sets)', () => {
+  // parity.test.ts asserts on the *merged* set, so a cross-shard misplacement (a key in
+  // zh's base but in en's shard) still compares equal after merging -- only a per-shard
+  // comparison sees it. These two cases are unique to this file.
+  it('base: zh and en key sets are identical', () => {
     expect(Object.keys(zhBase as Dict).sort()).toEqual(Object.keys(enBase as Dict).sort())
   })
 
-  it('分片: zh 与 en 键集完全一致', () => {
+  it('shard: zh and en key sets are identical', () => {
     expect(Object.keys(zhSp9 as Dict).sort()).toEqual(Object.keys(enSp9 as Dict).sort())
   })
 })`},
@@ -2846,8 +2993,8 @@ describe('ai 分片前缀守卫', () => {
   //    不少地读到了非空内容",`?raw` 恒空的老坑一旦复发(读到 0 个)照样立刻打红,
   //    判别力与私有侧等价 —— 这不是放宽,是按产出树的真实规模重新钉紧。
   { path: 'src/components/AppToast.zIndex.test.ts',
-    find: "    expect(sheets.length, '独立样式表一个都没读到(`?raw` 恒空的老坑)').toBeGreaterThan(5)",
-    replace: "    // 本树共 5 个独立样式表(全部是 .css);阈值 4 = 「5 个一个不少地读到了非空内容」。\n    expect(sheets.length, '独立样式表一个都没读到(`?raw` 恒空的老坑)').toBeGreaterThan(4)" },
+    find: "    expect(sheets.length, 'Standalone stylesheets not read at all (old pitfall: `?raw` always empty)').toBeGreaterThan(5)",
+    replace: "    // This tree has 5 standalone stylesheets (all .css); threshold 4 means \"all 5 were read with non-empty content\".\n    expect(sheets.length, 'Standalone stylesheets not read at all (old pitfall: `?raw` always empty)').toBeGreaterThan(4)" },
 
   // ── 注释洗白:sp8-ai 合流往**保留面**的文件里带进来的 7 处点名 ────────────
   //    这 7 处是 2026-08-06 实测跑完整导出、泄漏守卫在 New-UI 侧命中的全部内容
@@ -2856,24 +3003,29 @@ describe('ai 分片前缀守卫', () => {
 
   //    ① AppToast.zIndex.test.ts:引用了两个已删测试文件当"先例"。守卫本身保留。
   { path: 'src/components/AppToast.zIndex.test.ts',
-    find: `// 空壳 —— 守卫会"绿"得毫无判别力。这正是 photosSlice.test.ts / knowledgeStyles.test.ts
-// 文件头记的同一个坑(「读盘一律 node:fs,\`?raw\` 恒空」),这里沿用它们的既定手法。`,
-    replace: `// 空壳 —— 守卫会"绿"得毫无判别力。本仓另有几处样式守卫踩过同一个坑,
-// 既定手法是「读盘一律 node:fs,\`?raw\` 恒空」,这里沿用。` },
+    find: `// with zero discriminating power. This is the same pit recorded at the top of photosSlice.test.ts /
+// knowledgeStyles.test.ts ("always read from disk via node:fs; \`?raw\` is always empty"), and we
+// follow their established approach here.`,
+    replace: `// with zero discriminating power. A few other style guards in this repo hit the same pit; the
+// established approach is "always read from disk via node:fs; \`?raw\` is always empty", and we
+// follow it here.` },
 
   //    ②③ clipboard.ts / clipboard.test.ts:reka 焦点陷阱那段根因说明里点名了
   //       复现路径所在的页面。根因与修法与那个页面无关(是 reka DialogContent 的
   //       通用行为),把页面名换成"设置页/弹窗"即可,技术内容一字不动。
   { path: 'src/files/util/clipboard.ts',
-    find: `// 原本一律挂 document.body,结果**弹窗里的复制全部失败**(用户实测:AI 设置页页面上的复制
-// 正常,「创建令牌」弹窗里三个都复制不到东西)。根因在 reka 的焦点陷阱`,
-    replace: `// 原本一律挂 document.body,结果**弹窗里的复制全部失败**(用户实测:设置页页面上的复制
-// 正常,弹窗里的复制按钮一个都复制不到东西)。根因在 reka 的焦点陷阱` },
+    find: `// Originally always attached to document.body, but **all copies in dialogs fail**
+// (user test: copy on the AI settings page works, but all three copies in the "Create Token"
+// dialog fail). Root cause is reka's focus trap`,
+    replace: `// Originally always attached to document.body, but **all copies in dialogs fail**
+// (user test: copy on the settings page works, but no copy button inside a dialog copies
+// anything). Root cause is reka's focus trap` },
   { path: 'src/files/util/clipboard.test.ts',
-    find: `// 【SP8-P2b 验收第 4 轮,2026-07-30】用户实测:AI 设置页**页面上**的复制正常,**「创建令牌」
-// 弹窗里的三个复制全部失败(剪贴板里什么都没有)**。`,
-    replace: `// 【2026-07-30 用户实测】设置页**页面上**的复制正常,**弹窗里的复制按钮
-// 全部失败(剪贴板里什么都没有)**。` },
+    find: `// SP8-P2b round 4 acceptance, 2026-07-30 — user test: copy on the AI settings **page**
+// works, but all three copy buttons in the **"Create Token" dialog** fail
+// (clipboard is empty).`,
+    replace: `// [2026-07-30 user test] Copying on the settings **page** works, but **none of the copy
+// buttons inside a dialog copy anything (the clipboard stays empty)**.` },
 
   //    ④⑤⑥ userProfile.ts:三处点名(AI 侧栏 / AgentSidebar / AI 区)。这个 store
   //         本身是保留面(任何渲染头像的组件都能用),只是它的文件头讲的是"能力从
@@ -2894,8 +3046,8 @@ describe('ai 分片前缀守卫', () => {
   //      tree.test.mjs 那道守卫禁止 replace 内容出现该词(第一版连着换被逮到)。
   //      上一行属于"保留原文"、不经 replace 写入,不受该守卫管辖,也不在泄漏词表里。
   { path: 'vite.config.ts',
-    find: '  // /app/#/ai/* 验收」的能力一条不少,还额外覆盖了 /v3 与 MessageBus WS。',
-    replace: '  // /app/#/ 验收」的能力一条不少,还额外覆盖了 /v3 与 MessageBus WS。' },
+    find: 'then enter /app/#/ai/* for acceptance',
+    replace: 'then enter /app/#/ for acceptance' },
 ]
 
 /** Service 侧的锚点补丁(相对 packages/service/)。T7 填。 */

@@ -16,7 +16,7 @@ export const useFoldersStore = defineStore('home-folders', () => {
     try {
       const data = await service.folder.getList(path)
       const content = (data && data.content) || []
-      // 与 Files 区同一套隐藏规则:系统条目不进选择器,自然也拖不上桌面
+      // same hiding rules as Files area: system entries do not go into picker, naturally cannot be dragged to desktop
       cache.value[path] = content.filter((x) => x.is_dir && !isHiddenEntry(x.name)).map((x) => ({ name: x.name, path: x.path }))
     } catch (e) { console.warn('[home] folder load failed', path, e); cache.value[path] = [] }
   }
@@ -26,7 +26,7 @@ export const useFoldersStore = defineStore('home-folders', () => {
   // "NimoOS-HD" — remap it to /DATA so we never browse from `/`.
   async function loadDisks() {
     try {
-      // SP6-P1:统一走 service.storage.list(行为等价,原 getHttp 直打 /storage)
+      // SP6-P1: unified to use service.storage.list (behavior equivalent, original getHttp hit /storage directly)
       // SP12-T9: a single transient failure used to blank the disk list for good,
       // and with no disk roots the Files page has no default directory to open.
       const groups = ((await retryRequest(() => service.storage.list({ system: 'show' }) as Promise<any[]>)) as any[]) || []

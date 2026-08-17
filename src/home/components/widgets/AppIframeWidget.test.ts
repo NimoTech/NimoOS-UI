@@ -22,7 +22,7 @@ describe('AppIframeWidget', () => {
     vi.useRealTimers()
   })
 
-  it('停止应用不留残余计时器触发假失败态(应显示"应用未运行"占位)', async () => {
+  it('stopping app leaves no stale timer to trigger false failed state (should show "app not running" placeholder)', async () => {
     const s = useAppsStore()
     seedRunning(s)
     const w = mount(AppIframeWidget, { props: { item: item() } })
@@ -44,7 +44,7 @@ describe('AppIframeWidget', () => {
     expect(w.find('.aw-retry').exists()).toBe(false)
   })
 
-  it('恢复运行后重新 arm 计时器,8s 内未 load 才出现失败态 + 重试按钮', async () => {
+  it('after recovery re-arms timer, failed state + retry button appear only if not loaded within 8s', async () => {
     const s = useAppsStore()
     seedRunning(s)
     const w = mount(AppIframeWidget, { props: { item: item() } })

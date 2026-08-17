@@ -1,13 +1,13 @@
 import type { KvmISO } from '@nimotech/nimoos-service'
 
-/** 本地 ISO 文件名过滤。照 Vue2 OSSelector.vue:312/:331 的
- * `item.name.toLowerCase().endsWith('.iso')` 判断,抽成独立纯函数复用。 */
+/** Local ISO filename filter. Following Vue2 OSSelector.vue:312/:331's
+ * `item.name.toLowerCase().endsWith('.iso')` check, extracted as a standalone pure function for reuse. */
 export function isIsoFile(name: string): boolean {
   return name.toLowerCase().endsWith('.iso')
 }
 
-/** 文件大小格式化(字节数)。逐字对 Vue2 OSSelector.vue:292-302 formatFileSize:
- * 1024 进制、一位小数、`!bytes`(含 undefined 与 0)返回空串。 */
+/** File size formatting (bytes). Exactly matching Vue2 OSSelector.vue:292-302 formatFileSize:
+ * 1024 base, one decimal place, `!bytes` (including undefined and 0) returns empty string. */
 export function formatFileSize(bytes: number | undefined): string {
   if (!bytes) return ''
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -20,20 +20,21 @@ export function formatFileSize(bytes: number | undefined): string {
   return `${size.toFixed(1)} ${units[i]}`
 }
 
-/** 分类过滤。照 Vue2 OSSelector.vue:196-199 filteredOS computed。 */
+/** Category filter. Following Vue2 OSSelector.vue:196-199 filteredOS computed. */
 export function filterByCategory(list: KvmISO[], cat: string): KvmISO[] {
   if (cat === 'all') return list
   return list.filter((os) => os.category === cat)
 }
 
-/** 本地 ISO 文件名反查所属模板。照 Vue2 OSSelector.vue:328-346
- * handleCustomItemClick:先按文件名是否包含某模板 id 直接命中(:335-340),
- * 未命中再走 win11/win10/泛 win 三级兜底(:343-345)。
+/** Reverse lookup template by local ISO filename. Following Vue2 OSSelector.vue:328-346
+ * handleCustomItemClick: first directly match if filename contains a template id (:335-340),
+ * if not matched, fall back through win11/win10/generic win three-level fallback (:343-345).
  *
- * 偏离登记(改正确,非照抄):Vue2 那三行兜底找的是 `o.id === 'windows11'` /
- * `'windows10'`。真机 `GET /v1/kvm/isos` 返回的模板 id 是 `win10`/`win11`,
- * `windows11`/`windows10` 这两个字面量在真实响应里从未出现过——Vue2 那三行是死代码,
- * 兜底永远匹配不到任何模板。这里把字面量改成真机的 `win11`/`win10`。 */
+ * Deviation from registration (corrected, not copied verbatim): Vue2's three-line fallback
+ * looks for `o.id === 'windows11'` / `'windows10'`. Real device `GET /v1/kvm/isos` returns
+ * template ids `win10`/`win11`, but `windows11`/`windows10` these two literals never appear
+ * in real responses—Vue2's three lines are dead code, the fallback will never match any
+ * template. Here the literals are changed to the real device's `win11`/`win10`. */
 export function matchTemplateByFilename(fileName: string, templates: KvmISO[]): KvmISO | null {
   const lowerName = fileName.toLowerCase()
 
@@ -41,7 +42,8 @@ export function matchTemplateByFilename(fileName: string, templates: KvmISO[]): 
     if (lowerName.includes(tmpl.id.toLowerCase())) return tmpl
   }
 
-  // 三级兜底,id 字面量见函数头偏离登记(win11/win10,非 Vue2 原文的 windows11/windows10)。
+  // Three-level fallback, id literals see function header deviation note (win11/win10, not Vue2's
+  // original windows11/windows10).
   if (lowerName.includes('win11')) return templates.find((t) => t.id === 'win11') ?? null
   if (lowerName.includes('win10')) return templates.find((t) => t.id === 'win10') ?? null
   if (lowerName.includes('win')) {
@@ -51,22 +53,26 @@ export function matchTemplateByFilename(fileName: string, templates: KvmISO[]): 
   return null
 }
 
-/** 本地 ISO 文件名反查所属模板 —— 家族前缀("较宽松")版。照 Vue2
- * KVMFullPage.vue:1392-1403 `onOSSelect` 里 `os.id && os.id !== 'local'` 为假时走的
- * 那段兜底逻辑(直到本次全分支评审前,New-UI 一直没搬这一层,只搬了同文件
- * OSSelector.vue:328-346 那个"严格"版,即上面的 `matchTemplateByFilename`)。
+/** Reverse lookup template by local ISO filename — family-prefix ("looser") version.
+ * Following Vue2 KVMFullPage.vue:1392-1403 `onOSSelect` where `os.id && os.id !== 'local'`
+ * is false, that fallback logic (until this round of full-branch review, New-UI had never
+ * ported this layer, only ported the same file's OSSelector.vue:328-346 the 'strict' version,
+ * namely the above `matchTemplateByFilename`).
  *
- * 与 `matchTemplateByFilename` 的关系(为什么要两个函数,不是重复):Vue2 对同一份
- * `getISOList()` 数据用了两个不同松紧度的匹配器,分别喂给两条不同的调用路径——
- * `matchTemplateByFilename` 是**第一遍**(IsoBrowser 浏览本地文件、点击 .iso 那一刻,
- * 对应 handleCustomItemClick):先按 id 整个子串命中,再 win11/win10/泛 win 三级兜底,
- * 命中不了就把 id 落成 'local'。`matchTemplateByFamily` 是**第二遍**兜底(创建弹窗收到
- * `os.id==='local'` 时,对应 onOSSelect 那段 else 分支):按模板 id 的第一段(`split('-')[0]`,
- * 如 'ubuntu'/'debian'/'alpine')反查文件名是否包含这个家族前缀,`win*` 系列额外要求
- * 文件名同时包含版本号数字。两遍加起来才是 Vue2 真实的匹配能力——只搬第一遍会让
- * `alpine-standard-3.19.1-x86_64.iso` 这类"文件名不含完整模板 id,但含家族前缀"的
- * 真实命名落不到任何模板,推荐规格(vcpu/memory/disk)与准确的 osType/firmware 全部
- * 丢失,退化成"通用 Linux"。 */
+ * Relationship with `matchTemplateByFilename` (why two functions, not duplication): Vue2 uses
+ * the same `getISOList()` data with two different tightness-levels of matchers, fed to two
+ * different call paths— `matchTemplateByFilename` is the **first pass** (IsoBrowser browsing
+ * local files, at the moment of clicking .iso, corresponding to handleCustomItemClick): first
+ * match by id as a whole substring, then win11/win10/generic win three-level fallback, if not
+ * matched, fall id to 'local'. `matchTemplateByFamily` is the **second pass** fallback (when
+ * creating dialog receives `os.id==='local'`, corresponding to the else branch of onOSSelect):
+ * by the first segment of template id (`split('-')[0]`, such as 'ubuntu'/'debian'/'alpine')
+ * reverse-check if filename contains this family prefix, `win*` series additionally requires
+ * filename to also contain version number digits. Together both passes are Vue2's actual
+ * matching capability—porting only the first pass would let files like
+ * `alpine-standard-3.19.1-x86_64.iso` (filename doesn't contain full template id, but contains
+ * family prefix) fall to no template, recommended specs (vcpu/memory/disk) and accurate
+ * osType/firmware all lost, degrading to 'generic Linux'. */
 export function matchTemplateByFamily(fileName: string, templates: KvmISO[]): KvmISO | null {
   const lowerName = fileName.toLowerCase()
 
@@ -94,9 +100,10 @@ export interface OsTemplateDefaults {
   minDisk?: number
 }
 
-/** 选中 osTemplate 后联动出的默认值。照 Vue2 KVMFullPage.vue:720-746
- * watch('newVM.osTemplate')。generic-linux/generic-windows 是两个固定占位模板,
- * 其余按真实模板的 id/name 是否含 'win' 判断 windows,并带出推荐规格。 */
+/** Default values linked when osTemplate is selected. Following Vue2 KVMFullPage.vue:720-746
+ * watch('newVM.osTemplate'). generic-linux/generic-windows are two fixed placeholder templates,
+ * the rest determine windows based on whether the real template's id/name contains 'win', and
+ * bring out recommended specs. */
 export function osTemplateDefaults(templateId: string, templates: KvmISO[]): OsTemplateDefaults {
   if (templateId === 'generic-linux') {
     return { osType: 'linux', firmware: 'bios', os: 'Linux' }
@@ -107,8 +114,9 @@ export function osTemplateDefaults(templateId: string, templates: KvmISO[]): OsT
 
   const tmpl = templates.find((t) => t.id === templateId)
   if (!tmpl) {
-    // 未知 id:回落到 generic-linux 的行为(Vue2 找不到 tmpl 时 watch 整段是空 no-op,
-    // 但调用方需要一个确定的返回值——回落成最保守的 linux/bios,不新增语义)。
+    // Unknown id: fall back to generic-linux behavior (when Vue2 can't find tmpl, the entire
+    // watch is a no-op, but the caller needs a definite return value—fall back to the most
+    // conservative linux/bios, no new semantics).
     return { osType: 'linux', firmware: 'bios', os: 'Linux' }
   }
 

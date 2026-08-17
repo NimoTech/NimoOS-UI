@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/stream/timelineMath.js
+// Directly ported from Vue2 src/views/AI/Agent/stream/timelineMath.js
 // Pure helpers for the timeline minimap (dock magnification + previews).
 //
 // NOTE: src/ai/types.ts does not exist yet (created in Task 4). Using a

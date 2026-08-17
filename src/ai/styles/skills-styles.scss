@@ -1,20 +1,23 @@
-// SP8-P3a Task 1 —— 只读侧,1:1 摘自 Vue2 `src/views/AI/Skills/skills-styles.scss`
-// (782 行)。本档只收「只读半」用到的类;弹窗/开关/菜单/测试面板/确认框/toast 等
-// 交互件已归属别处或留给 P3b(见任务书 §1.1 逐行取舍表,brief 已核对哪些类归属
-// `sk-shared.scss`/`settings-styles.scss`,本档不重复定义)。
+// SP8-P3a Task 1 — Read-only section, 1:1 extracted from Vue2 `src/views/AI/Skills/skills-styles.scss`
+// (782 lines). This file only contains classes used in the "read-only half"; dialogs/toggles/menus/test panel/
+// confirm boxes/toasts and other interactive elements are assigned elsewhere or left for P3b (see task spec
+// §1.1 row-by-row selection table; brief has verified which classes belong to `sk-shared.scss`/
+// `settings-styles.scss`; this file does not duplicate those definitions).
 //
-// 【token 基座】与 sk-shared.scss/settings-styles.scss 同款:token 由 SettingsPage.vue
-// 根元素的 `.agent-app` 提供,本档不重复定义 token。
+// [Token base] Same as sk-shared.scss/settings-styles.scss: tokens are provided by the `.agent-app` root
+// element of SettingsPage.vue; this file does not duplicate token definitions.
 //
-// 【裸色处理】本档是**新文件**,不在 tokens.scss 头部登记的「整档移植件」豁免名单内
-// (那份名单只登记了 settings-styles.scss / sk-shared.scss),因此逐处裸色都换成
-// 本仓既有 token,找不到语义匹配的直接照抄会破坏 color-guard 约定的场合,改用
-// `color-mix(in srgb, var(--X) N%, transparent)` 从既有语义 token 派生半透明色——
-// 这不是新造字面量,而是沿用 tokens.scss 自己在 `--icon-tile-glow`
-// (`color-mix(in srgb, var(--accent) 22%, transparent)`)处已经确立的写法,好处是
-// 能精确保留 Vue2 原透明度比例,同时换成本仓改版后的语义色相(本仓 --success/--warning
-// 已从旧 iOS 配色改成暖色板,数值与 Vue2 不再逐位相同,但语义相同)。
-// 逐处裸色对照见下方各规则旁的行内注释。
+// [Bare color handling] This file is a **new file**, not on the "file-level portage exemption list" registered
+// in the tokens.scss header (that list only registers settings-styles.scss / sk-shared.scss), so all bare colors
+// are replaced with existing tokens in this repo. When no semantic match is found and a direct copy would
+// violate the color-guard convention, use `color-mix(in srgb, var(--X) N%, transparent)` to derive
+// semi-transparent colors from existing semantic tokens. This is not creating new literals; it reuses the
+// approach already established in tokens.scss itself at `--icon-tile-glow`
+// (`color-mix(in srgb, var(--accent) 22%, transparent)`). The benefit is that the original transparency ratio
+// from Vue2 is preserved exactly, while substituting this repo's revised semantic hues (this repo's
+// --success/--warning have shifted from old iOS colors to warm palette; the values no longer match Vue2
+// digit-for-digit, but the semantics are the same). Bare color mappings for each rule are documented in
+// inline comments next to the rules below.
 
 // ----- Middle: skill list column -----
 // Vue2 skills-styles.scss:5-12
@@ -40,7 +43,7 @@
   z-index: 6;
   flex-shrink: 0;
 }
-// `.sk-col-title`(Vue2:26-31)不移植 —— 全仓零引用,Vue2 死 CSS(brief §1.1)。
+// `.sk-col-title` (Vue2:26-31) not ported — zero repo references, Vue2 dead CSS (brief §1.1).
 
 // Vue2 skills-styles.scss:32-45
 .sk-col-search {
@@ -113,13 +116,13 @@
   width: 30px; height: 30px;
   border-radius: 9px;
   display: grid; place-items: center;
-  // Vue2 skills-styles.scss:97 原为纯白色前景(方块图标在彩色渐变底上的字色)。
+  // Vue2 skills-styles.scss:97 originally pure white foreground (icon text color on colored gradient bg).
   color: var(--text-on-accent);
   flex-shrink: 0;
   margin-top: 1px;
-  // Vue2 skills-styles.scss:100 原为半透明白色内描边发光 —— 与既有 --gloss-inset
-  // token 数值精确相同(同款彩色方块 + 白色内描边先例见 McpCallCard.vue
-  // `.mcc-call-tile`),直接复用。
+  // Vue2 skills-styles.scss:100 originally semi-transparent white inner stroke glow — exactly matches
+  // existing --gloss-inset token values (colored tile + white inner stroke precedent in McpCallCard.vue
+  // `.mcc-call-tile`); reuse directly.
   box-shadow: var(--gloss-inset);
 }
 
@@ -141,13 +144,14 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   &[data-kind="auto"] { background: var(--accent-soft); color: var(--accent); }
-  // Vue2 skills-styles.scss:120 原为紫色半透明背景(约 12% 透明度)—— 该颜色正是
-  // 本仓 --purple 本身(色值恰好相同),用 color-mix 精确复原同等透明度,不新造字面量。
+  // Vue2 skills-styles.scss:120 originally purple semi-transparent background (~ 12% transparency) —
+  // that color is exactly this repo's --purple itself (color values match precisely); use color-mix to
+  // reproduce the same transparency exactly without creating new literals.
   &[data-kind="slash"] { background: color-mix(in srgb, var(--purple) 12%, transparent); color: var(--purple); }
-  // Vue2 skills-styles.scss:121 原为 iOS 橙色半透明背景(约 14% 透明度)—— 本仓
-  // --warning 已从旧 iOS 橙改配暖色板橙,色相不同,按本仓「换当前语义色、保留原
-  // 透明度比例」的既有惯例(参见 tokens.scss --purple-soft 等系列的说明),用
-  // color-mix 派生。
+  // Vue2 skills-styles.scss:121 originally iOS orange semi-transparent background (~ 14% transparency) —
+  // this repo's --warning has shifted from old iOS orange to warm palette orange; the hue is different.
+  // Per this repo's established convention of "use current semantic color while preserving original
+  // transparency ratio" (see tokens.scss --purple-soft series explanation), derive via color-mix.
   &[data-kind="manual"] { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
 }
 .sk-item-desc {
@@ -177,19 +181,20 @@
   color: var(--text-tertiary);
 }
 
-// Vue2 skills-styles.scss:153-163 —— 就地实现(scoped 到 `.set-app` 下的理由与
-// Vue2 相同:压过 `.set-app button { background: transparent }` 重置,见本仓
-// settings-styles.scss:344,specificity (0,1,1) < 这里的 (0,2,0))。
+// Vue2 skills-styles.scss:153-163 — in-place implementation (scoped to `.set-app` for same reason as Vue2:
+// override `.set-app button { background: transparent }` reset; see this repo's settings-styles.scss:344;
+// specificity (0,1,1) < here (0,2,0)).
 .set-app .sk-add-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px;
   border-radius: 8px;
   background: var(--accent);
-  // 【协调者预先解歧义①】Vue2 skills-styles.scss:158 原文本身就带纯白色前景声明
-  // (不是缺失,是本仓禁色字面量,需脱色成 token)——实底 accent 按钮上的白字,
-  // 复用既有 `--text-on-accent`(两套主题皆有值,tokens.scss:59,267),
-  // 与本档 .sk-pill-try:hover(:246)同一处理。Task 8 会往这个按钮里塞 AgentIcon 且
-  // 不传具名 color(走 currentColor 继承),这条 color 声明就是它的前景色来源。
+  // [Coordinator pre-disambiguates ①] Vue2 skills-styles.scss:158 original already has pure white foreground
+  // declaration (not missing; this repo bans color literals, so it needs to be de-colored into a token) —
+  // white text on solid accent button; reuse existing `--text-on-accent` (has values in both themes;
+  // tokens.scss:59,267); same handling as .sk-pill-try:hover(:246) in this file. Task 8 will place AgentIcon
+  // in this button and not pass an explicit color (uses currentColor inheritance); this color declaration
+  // is its foreground-color source.
   color: var(--text-on-accent);
   cursor: pointer;
   transition: all 120ms ease;
@@ -260,11 +265,11 @@
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
-  // Vue2 skills-styles.scss:223 原为纯白色(hover 时反白,实底 --accent 背景上的字色)。
+  // Vue2 skills-styles.scss:223 originally pure white (hover inverts to white text on solid --accent bg).
   &:hover { background: var(--accent); color: var(--text-on-accent); }
 }
 
-// Vue2 skills-styles.scss:225-234 —— 无色字面量,原样搬。
+// Vue2 skills-styles.scss:225-234 — no color literals; ported as-is.
 .sk-pill-more {
   width: 32px; height: 32px;
   border-radius: 50%;
@@ -274,9 +279,9 @@
   &:hover { background: var(--bg-chip); color: var(--text-primary); }
 }
 
-// `.sw`(Vue2:235-259)开工第一步 grep 复核:确认已存在于 sk-shared.scss:66-88
-// (SP8-P2a Task 6 已移植,含 --switch-thumb/--switch-thumb-shadow 两个 token 的
-// 颜色处理),不重复定义。
+// `.sw` (Vue2:235-259) first work step grep verification: confirmed already exists in sk-shared.scss:66-88
+// (SP8-P2a Task 6 already ported, including color handling for --switch-thumb/--switch-thumb-shadow tokens);
+// not redefining.
 
 // Vue2 skills-styles.scss:260-288
 .sk-menu {
@@ -302,10 +307,10 @@
     &:hover { background: var(--bg-chip); }
     &[data-danger="true"] {
       color: var(--danger);
-      // Vue2 skills-styles.scss:283 原为 iOS 红色约 8% 透明度背景字面量——
-      // 本档统一约定(头部说明 + .sk-item-tag data-kind="manual"/"slash" 先例,
-      // 本档 :146,151):用 color-mix 从当前语义色 --danger 派生等比例透明度,
-      // 不新造字面量。
+      // Vue2 skills-styles.scss:283 originally iOS red ~ 8% transparency background literal —
+      // this file's unified convention (header explanation + .sk-item-tag data-kind="manual"/"slash"
+      // precedent, this file :146,151): derive equal-ratio transparency from current semantic color --danger
+      // via color-mix; do not create new literals.
       &:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); }
     }
   }
@@ -354,14 +359,15 @@
     color: var(--text-primary);
     letter-spacing: -0.005em;
     display: flex; align-items: center; gap: 6px;
-    // 【非 Vue2 CSS 原文,本任务新增】Vue2 的 `.dot` 本身没有基础配色规则 ——
-    // 「启用」态的绿点+发光圈是 SkillDetail.vue:67-72 用内联 `:style` 现场拼出来的
-    // (背景取 --success token、发光圈是旧 iOS 绿色的半透明字面量),只有「停用」态
-    // 在 Vue2 CSS 里有对应的 `[data-disabled="true"] .dot` 静态规则(见下)。Task 5
-    // 会把内联 style 换成本仓的 `data-` 属性方案,这里先把「启用」态也补成静态规则,
-    // 让两态都能用同一套 CSS 覆写,不用等 Task 5 现拼内联样式。
-    // 发光圈色值:Vue2 内联字面量是旧 iOS 绿色(约 18% 透明度),本仓无逐位相同的
-    // token,按本档统一约定用 color-mix 从当前语义色 --success 派生等比例透明度。
+    // [Non-Vue2 CSS original; new in this task] Vue2's `.dot` has no base color rules — enabled state's
+    // green dot + glow is built on-the-fly in SkillDetail.vue:67-72 via inline `:style` (bg uses --success
+    // token, glow ring is old iOS green semi-transparent literal); only disabled state has corresponding
+    // `[data-disabled="true"] .dot` static rule in Vue2 CSS (see below). Task 5 will replace inline style
+    // with this repo's `data-` attribute approach; here we first add enabled state as static rule too, so
+    // both states can use same CSS overrides without waiting for Task 5 to build inline styles. Glow ring
+    // color: Vue2's inline literal is old iOS green (~ 18% transparency); this repo has no byte-identical
+    // token; per this file's convention use color-mix to derive equal-ratio transparency from current
+    // semantic color --success.
     .dot {
       width: 7px; height: 7px; border-radius: 50%;
       background: var(--success);
@@ -369,16 +375,16 @@
     }
     &[data-disabled="true"] {
       color: var(--text-tertiary);
-      // Vue2 skills-styles.scss:332 原为四级灰实心点 + 灰色发光圈(约 12% 透明度)——
-      // 本仓没有对应的「四级灰半透明」token,同上用 color-mix 从 --text-quaternary
-      // 派生,不新造字面量、不新建 token。
+      // Vue2 skills-styles.scss:332 originally quaternary-gray solid dot + gray glow ring (~ 12% transparency) —
+      // this repo has no "quaternary-gray semi-transparent" token; similarly derive from --text-quaternary via
+      // color-mix; do not create new literals or tokens.
       .dot { background: var(--text-quaternary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-quaternary) 12%, transparent); }
     }
     .total { color: var(--text-tertiary); font-size: 12px; font-weight: 400; }
   }
 }
 
-// `.sk-section*`(338-354)已存在于 sk-shared.scss:12-27,不重复定义。
+// `.sk-section*` (338-354) already exists in sk-shared.scss:12-27; not redefining.
 
 // Vue2 skills-styles.scss:355-361
 .sk-description {
@@ -398,9 +404,9 @@
   .ico {
     width: 24px; height: 28px;
     border-radius: 4px;
-    // Vue2 skills-styles.scss:371 原为纯白色底色(文件图标的"纸片"底色)——
-    // 与既有 --paper-surface token(专为这类"白纸片"文件图标登记的例外 token)
-    // 语义精确匹配,直接复用。
+    // Vue2 skills-styles.scss:371 originally pure white bg (file icon "paper" sheet bg) — exactly matches
+    // existing --paper-surface token (exception token registered specifically for this type of "white sheet"
+    // file icon); reuse directly.
     background: var(--paper-surface);
     border: 1px solid var(--line);
     box-shadow: var(--shadow-xs);
@@ -473,8 +479,8 @@
     font-size: 12px; font-weight: 500;
     border-radius: var(--r-sm);
     background: var(--accent);
-    // Vue2 skills-styles.scss:438 原为纯白色前景(实底 accent 按钮上的白字,
-    // 与 .sk-add-btn/.sk-pill-try:hover 同一场景)。复用既有 --text-on-accent。
+    // Vue2 skills-styles.scss:438 originally pure white foreground (white text on solid accent button;
+    // same scenario as .sk-add-btn/.sk-pill-try:hover). Reuse existing --text-on-accent.
     color: var(--text-on-accent);
     display: inline-flex; align-items: center; gap: 5px;
     flex-shrink: 0;
@@ -503,21 +509,21 @@
     .bullet {
       width: 6px; height: 6px; border-radius: 50%;
       background: var(--success);
-      // Vue2 skills-styles.scss:465 原为 iOS 绿色约 18% 透明度发光圈字面量——
-      // 与 .sk-meta-cell 的「启用」态发光圈(本档 :302-306)完全同族同比例,
-      // 同样用 color-mix 从 --success 派生。
+      // Vue2 skills-styles.scss:465 originally iOS green ~ 18% transparency glow ring literal —
+      // exactly the same family and ratio as .sk-meta-cell "enabled" state glow ring (this file :302-306);
+      // similarly derive from --success via color-mix.
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
     }
     &[data-state="running"] .bullet {
       background: var(--accent);
       animation: skill-pulse 1.4s ease-in-out infinite;
     }
-    // SP8-P3b Task 4 —— 失败态。Vue2 TestPanel.vue:92-98 靠模板内联样式实现:`.label`
-    // 上内联 `color: var(--danger)`,`.bullet` 上内联背景色 + 一圈约 18% 不透明度的
-    // iOS 红发光圈(字面量写死的 rgba,颜色即 --danger token 现在的色值)——后者是
-    // 字面量 rgba() 且内联颜色本身违反本仓配色硬约束(公共约束 §6),改成
-    // 静态 CSS 分支:发光圈用 color-mix 从 --danger 派生,手法与上方 :506-509 的
-    // success 态发光圈同族同比例(18% 不透明度)。
+    // SP8-P3b Task 4 — failed state. Vue2 TestPanel.vue:92-98 implemented via inline template styles:
+    // inline `color: var(--danger)` on `.label`, inline background + ~ 18% opacity iOS red glow ring on
+    // `.bullet` (literal rgba hardcoded; color is --danger token's current value) — the latter is literal
+    // rgba() and inline color itself violates this repo's color-constraint hard rule (public constraint §6);
+    // switch to static CSS branch: derive glow ring from --danger via color-mix; same family and ratio
+    // (18% opacity) as success state glow ring above :506-509.
     &[data-state="failed"] {
       color: var(--danger);
       .bullet {
@@ -629,25 +635,25 @@
   }
 }
 
-// 【SP8-P3a 整期终审 I1 —— New-UI 独有回归,不是照抄 Vue2 走样,三件套如下】
-// ① Vue2 原文:`skills-styles.scss:570-571`(即上面 `.sk-detail-empty-inner` 块内的
-//    `.empty-title`/`.empty-sub`,本档原样搬了 Vue2 那两行,选择器
-//    `.sk-detail-empty-inner .empty-title` 优先级 (0,2,0))。Vue2 蓝本
-//    `Settings/Settings.vue:2` 根节点只有 `class="set-app"`,不含 `agent-app`,
-//    所以 Vue2 里这两条永远不会跟别的规则同优先级碰撞。
-// ② New-UI `SettingsPage.vue:371` 根节点是 `class="agent-app set-app"`(本仓 token
-//    定义在 `.agent-app` 作用域,见本档头注释),于是 `agent-styles.scss:496-497`
-//    (Agent 页空态自己的规则,P1 已验收、不许改)的 `.agent-app .empty-title` /
-//    `.agent-app .empty-sub` 同样是 (0,2,0),与上面那两条同时命中技能分区的空态元素。
-//    同优先级只能靠 `router/index.ts` 的 import 顺序侥幸决胜,且 agent-styles 没
-//    声明的属性(`letter-spacing`/`.empty-title` 的 `margin`/`.empty-sub` 的
-//    `color`/`margin`)会直接泄漏进来,与 Vue2 视觉不符。
-// ③ 此处怎么修:选择器多套一层 `.sk-detail` 前缀,优先级提到 (0,3,0),
-//    **确定性**压过 agent-styles 的 (0,2,0)(不再依赖 import 顺序);同时把会被
-//    泄漏的 4 个属性显式中和成 Vue2 权威值——`.empty-title` 没有 letter-spacing/
-//    margin,回默认 `normal`/`0`;`.empty-sub` 没有自己的 color(靠继承父级
-//    `.sk-detail-empty-inner` 的 `--text-tertiary`,这里用 `color: inherit` 显式
-//    保证不被 agent-styles 直接命中该元素的 `color` 声明抢走)、margin 回 `0`。
+// [SP8-P3a Full Review I1 — New-UI-specific regression, not Vue2 copy-paste drift; three-part explanation]
+// ① Vue2 original: `skills-styles.scss:570-571` (i.e., `.empty-title`/`.empty-sub` inside the
+//    `.sk-detail-empty-inner` block above; this file copied those two lines as-is from Vue2; selector
+//    `.sk-detail-empty-inner .empty-title` has specificity (0,2,0)). Vue2 template `Settings/Settings.vue:2`
+//    root node has only `class="set-app"`, no `agent-app`, so in Vue2 these two never collide with other
+//    rules at the same specificity.
+// ② New-UI `SettingsPage.vue:371` root node is `class="agent-app set-app"` (this repo's tokens defined
+//    in `.agent-app` scope; see header comment of this file); thus `agent-styles.scss:496-497`
+//    (Agent page empty state's own rules, P1 approved, cannot modify) `.agent-app .empty-title` /
+//    `.agent-app .empty-sub` are also (0,2,0), both firing at the same skill section empty-state elements.
+//    Same specificity can only win by luck based on `router/index.ts` import order; additionally, properties
+//    not declared in agent-styles (`letter-spacing`/`.empty-title`'s `margin`/`.empty-sub`'s `color`/`margin`)
+//    leak through directly, inconsistent with Vue2 visuals.
+// ③ Fix here: wrap selector with `.sk-detail` prefix, raising specificity to (0,3,0), **definitely**
+//    overriding agent-styles' (0,2,0) (no longer depends on import order); simultaneously neutralize the
+//    4 properties that would leak with Vue2's authoritative values — `.empty-title` has no letter-spacing/
+//    margin, reset to defaults `normal`/`0`; `.empty-sub` has no own color (inherits parent
+//    `.sk-detail-empty-inner`'s `--text-tertiary`; explicitly use `color: inherit` to ensure agent-styles'
+//    direct color declaration on this element doesn't steal it), margin resets to `0`.
 .sk-detail .sk-detail-empty-inner {
   .empty-title {
     font-size: 15px; font-weight: 600; color: var(--text-primary);
@@ -659,11 +665,11 @@
   }
 }
 
-// `.sk-modal*`(575-616)已存在于 sk-shared.scss:96-136,`.sk-field*`(617-647)已存在
-// 于 sk-shared.scss:154-183,`.sk-modal-foot`(686-697)已存在于 sk-shared.scss:139-150,
-// `.sk-btn`(698-726)已存在于 sk-shared.scss:29-55,均不重复定义。
+// `.sk-modal*` (575-616) already exists in sk-shared.scss:96-136, `.sk-field*` (617-647) already exists
+// in sk-shared.scss:154-183, `.sk-modal-foot` (686-697) already exists in sk-shared.scss:139-150,
+// `.sk-btn` (698-726) already exists in sk-shared.scss:29-55; none are redefining here.
 
-// Vue2 skills-styles.scss:648-669 —— 无色字面量,原样搬。
+// Vue2 skills-styles.scss:648-669 — no color literals; ported as-is.
 .sk-trig-options {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
 }
@@ -694,12 +700,12 @@
   cursor: pointer;
   position: relative;
   transition: transform 100ms ease;
-  // Vue2 skills-styles.scss:677 原为白色约 20% 透明度内描边发光字面量——
-  // 与 .sk-tile(本档 :123)的 --gloss-inset 同族(彩色色块 + 白色内描边发光),
-  // 但 Vue2 两处字面量透明度不同(约 20% 对约 18%)。按本仓
-  // 既有惯例(同族不同值 → 各开独立 token 以精确保留原值,先例 tokens.scss:175-180
-  // 的 --modal-scrim-soft 相对 --modal-scrim)新增 --gloss-inset-dot,不与
-  // --gloss-inset 合并复用(会引入可见的透明度漂移)。见 tokens.scss 新增处。
+  // Vue2 skills-styles.scss:677 originally white ~ 20% transparency inner-stroke glow literal —
+  // same family as .sk-tile (this file :123) --gloss-inset (colored tile + white inner stroke glow);
+  // but Vue2's two literals have different opacity (~ 20% vs ~ 18%). Per this repo's existing convention
+  // (same family, different value → separate token to preserve exact original; precedent: tokens.scss:175-180
+  // --modal-scrim-soft relative to --modal-scrim) add --gloss-inset-dot; don't merge/reuse with --gloss-inset
+  // (would introduce visible opacity drift). See tokens.scss additions.
   box-shadow: var(--gloss-inset-dot), var(--shadow-xs);
   &:hover { transform: translateY(-1px); }
   &[data-active="true"]::after {
@@ -707,13 +713,13 @@
     border-radius: 11px;
     border: 2px solid var(--accent);
   }
-  // 【偏离(公共约束 §3 偏离 8,brief §1.2 第二条)】Vue2 AddSkillModal.vue:61 用
-  // `:style="{ background: c.bg }"` 内联传底色字面量(渐变字符串)—— 本仓禁止内联
-  // 颜色。改为 `data-color` 属性 + 下面 7 条静态规则,值取 P3a Task 1 已建的
-  // `--grad-sk-*` 7 个 token(tokens.scss:228-234,已 grep 逐个复核存在且拼写一致)。
-  // 7 个 id(blue/purple/pink/orange/green/teal/slate)取自 Vue2 SkillTile.vue:18-26
-  // COLORS 的 key,与本仓 SkillTile.vue 的 SKILL_COLOR_IDS 逐一比对一致。Task 5
-  // (AddSkillModal 组件)负责在 dot 元素上写 `:data-color="c.id"`。
+  // [Deviation (public constraint §3 deviation 8, brief §1.2 second item)] Vue2 AddSkillModal.vue:61
+  // uses `:style="{ background: c.bg }"` inline to pass background literals (gradient strings) — this repo
+  // bans inline colors. Changed to `data-color` attribute + 7 static rules below; values from 7 `--grad-sk-*`
+  // tokens already created in P3a Task 1 (tokens.scss:228-234; grep verified existence and spelling).
+  // 7 IDs (blue/purple/pink/orange/green/teal/slate) from Vue2 SkillTile.vue:18-26 COLORS keys; one-to-one
+  // matching against this repo's SkillTile.vue SKILL_COLOR_IDS. Task 5 (AddSkillModal component) responsible
+  // for writing `:data-color="c.id"` on dot element.
   &[data-color="blue"]   { background: var(--grad-sk-blue); }
   &[data-color="purple"] { background: var(--grad-sk-purple); }
   &[data-color="pink"]   { background: var(--grad-sk-pink); }
@@ -723,10 +729,10 @@
   &[data-color="slate"]  { background: var(--grad-sk-slate); }
 }
 
-// `.sk-toast` + `@keyframes sk-toast-rise`(727-753)永不移植 —— 改用全局 AppToast
-// (公共约束 §3 偏离 3)。
+// `.sk-toast` + `@keyframes sk-toast-rise` (727-753) never port — use global AppToast instead
+// (public constraint §3 deviation 3).
 
-// Vue2 skills-styles.scss:754-773 —— 无色字面量,原样搬。
+// Vue2 skills-styles.scss:754-773 — no color literals; ported as-is.
 .sk-confirm { width: min(420px, 100%); }
 .sk-confirm-body {
   padding: 22px 22px 8px;

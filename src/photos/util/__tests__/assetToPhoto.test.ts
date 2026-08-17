@@ -82,10 +82,10 @@ describe('assetToPhoto', () => {
     expect(assetToPhoto({ id: '1' }).matchScore).toBeNull()
   })
 
-  // P7a-T10 回归(brief 结构规格第 7 条):matchedBy 缺字段 → null;带字段 → 原样透出。
-  // grep 已确认 matchScore/matchedBy/belowCut/isNew 四个字段在本文件里都已存在
-  // (P0 或更早任务补的),本任务不改实现,只补这条此前唯一缺的断言。
-  it('matchedBy: 缺字段 → null,带字段 → 原样透出', () => {
+  // P7a-T10 regression (brief structural spec item 7): matchedBy missing field → null; field present → passed through as-is.
+  // grep already confirmed the four fields matchScore/matchedBy/belowCut/isNew all exist in this file
+  // (added in P0 or an earlier task); this task doesn't change the implementation, it only adds this previously missing assertion.
+  it('matchedBy: null when field is absent, passed through as-is when present', () => {
     expect(assetToPhoto({ id: '1' }).matchedBy).toBeNull()
     expect(assetToPhoto({ id: '1', matchedBy: 'semantic' }).matchedBy).toBe('semantic')
     expect(assetToPhoto({ id: '1', matchedBy: 'ocr' }).matchedBy).toBe('ocr')

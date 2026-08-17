@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// 设置 · 系统状态。对位 Vue2 components/settings/SystemStatus.vue(89 行)。
-// 数据源:GET /v1/gateway/components(**裸 JSON 无信封**,P1 实测校正①)。
-// Vue2 的失败分支是"清空 + 空态",这里照留(它不是吞错:整块内容就是这一个接口)。
+// Settings · System Status. Corresponds to Vue2 components/settings/SystemStatus.vue (89 lines).
+// Data source: GET /v1/gateway/components (**bare JSON, no envelope** — corrected by real-machine testing in P1, item 1).
+// Vue2's failure branch is "clear + empty state"; kept as-is here (not a swallowed error — this whole panel is just this one endpoint).
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type GatewayComponent } from '@nimotech/nimoos-service'
@@ -14,10 +14,10 @@ const components = ref<GatewayComponent[]>([])
 const loading = ref(false)
 const groups = computed(() => groupComponents(components.value))
 
-// 异步过期守卫(全局约束 #2,就地实现,不抽公共 helper):
-// 刷新按钮可在挂载取数落定前再次触发 load(),两次请求谁先返回不确定。
-// 用一个代际计数器标记"当前是第几次 load 发起的",落定时只有代数仍是最新的
-// 那一次才允许写 components —— 更旧的一次即使后落定也必须被丢弃。
+// Async stale guard (global constraint #2, implemented inline, not extracted into a shared helper):
+// the refresh button can trigger load() again before the mount-time fetch settles, and
+// whichever of the two requests resolves first is not guaranteed. A generation counter marks
+// "which load() call this is" — only the call whose generation is still current when it settles is allowed to write components; an older call, even if it settles later, must be discarded.
 let loadSeq = 0
 
 async function load() {
@@ -25,7 +25,7 @@ async function load() {
   loading.value = true
   try {
     const data = await service.sys.getGatewayComponents()
-    if (seq !== loadSeq) return // 已被更新的一次 load 取代,丢弃这份旧结果
+    if (seq !== loadSeq) return // superseded by a newer load() call — discard this stale result
     components.value = data
   } catch {
     if (seq !== loadSeq) return
@@ -40,9 +40,9 @@ onMounted(load)
 <template>
   <SettingsSection :title="t('settingsStatusTitle')">
     <div class="set-comp-head">
-      <!-- Vue2 对位用 Buefy b-button :loading="loading"(只转圈,不禁用点击)——
-           这里不加 disabled 是刻意保持一致:允许用户在请求进行中再次点刷新,
-           新旧两次谁先落定不确定,靠上面的代际计数器守卫,而不是靠禁用按钮堵住这条路。 -->
+      <!-- Vue2's counterpart uses Buefy b-button :loading="loading" (spinner only, doesn't disable clicks) —
+           not adding disabled here is deliberate, to stay consistent: it lets the user click refresh
+           again while a request is in flight; which of the two settles first is guarded by the generation counter above, not by disabling the button. -->
       <button
         class="set-btn set-comp-refresh" type="button"
         :title="t('settingsStatusRefresh')" @click="load"

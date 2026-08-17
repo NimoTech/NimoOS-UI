@@ -1,17 +1,17 @@
 <script setup lang="ts">
-// 灯箱底部缩略图条 —— 移植自 Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue
-// 模板 :167-176(.lb-strip)+ 方法 :249-298(centerActiveThumb / findCenterThumbIndex /
-// updateLocalActiveFromCenter / commitSelection / onStripWheel)。
+// Lightbox bottom filmstrip — ported from Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue
+// Template :167-176 (.lb-strip) + methods :249-298 (centerActiveThumb / findCenterThumbIndex /
+// updateLocalActiveFromCenter / commitSelection / onStripWheel).
 //
-// 移植 delta(见 task-8-brief.md):
-//  1) Vue2 `$emit('nav', delta)`(相对翻页)→ 本组件 emit('select', 绝对 index),
-//     父级(T6/T9 的 PhotoLightbox)拿到后自行调 `lb.goTo(i)`。
-//  2) v-for 内 ref_for 归一数组 —— 每张缩略图共享同一 ref 名(`thumbEls`),Vue3
-//     运行时收集为数组(顺序与 v-for 一致),取用前必须 `Array.isArray` 归一
-//     (照抄 PhotosGrid.vue 的 `hoverPreviewRef` 写法,P1 铁律)。Vue2 原版用条件 ref
-//     (`:ref="p.id===localActiveId ? 'activeThumb' : null"`)只收当前项一个;这里改成
-//     "每项都收、按下标取" 更直白,避免每次 index 变化都要等一次 DOM 重渲染。
-//  3) 当前项高亮按 `props.index`(数字下标)与 v-for 下标 `i` 比较,不按对象引用/id 比较。
+// Migration delta (see task-8-brief.md):
+//  1) Vue2 `$emit('nav', delta)` (relative paging) → this component emit('select', absolute index),
+//     parent (T6/T9 PhotoLightbox) receives and calls `lb.goTo(i)`.
+//  2) ref_for in v-for unifies to array — each thumbnail shares same ref name (`thumbEls`), Vue3
+//     runtime collects to array (order matches v-for), must `Array.isArray` check before use
+//     (copied from PhotosGrid.vue `hoverPreviewRef` pattern, P1 rule). Vue2 original used conditional ref
+//     (`:ref="p.id===localActiveId ? 'activeThumb' : null"`) capturing only current item; changed to
+//     "capture all, access by index" more direct, avoid DOM rerender wait on each index change.
+//  3) Current item highlight uses `props.index` (numeric index) vs v-for index `i`, not object reference/id.
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import type { Photo } from '../util/assetToPhoto'
@@ -22,7 +22,7 @@ const emit = defineEmits<{ (e: 'select', i: number): void }>()
 function thumbnailSrc(id: string | number): string { return service.photos.thumbnailUrl(id, 'small') }
 
 const stripEl = ref<HTMLElement | null>(null)
-// ref_for -> 数组(见文件头 delta 2);歸一手法同 PhotosGrid.vue 的 hoverPreviewRef。
+// ref_for → array (see head delta 2); normalization method same as PhotosGrid.vue hoverPreviewRef.
 const thumbEls = ref<HTMLElement[] | HTMLElement | null>(null)
 
 function elAt(i: number): HTMLElement | null {
@@ -31,8 +31,8 @@ function elAt(i: number): HTMLElement | null {
   return arr[i] ?? null
 }
 
-// —— 停手守卫:centerActiveThumb 触发的滚动动画期间,wheel 计时器到点也不应误发 select ——
-// (照 Vue2 :249-298 的 _programmaticScroll)
+// —— Release guard: during scroll animation triggered by centerActiveThumb, wheel timer should not trigger select by mistake ——
+// (per Vue2 :249-298 _programmaticScroll)
 let programmaticScroll = false
 let unlockTimer: ReturnType<typeof setTimeout> | null = null
 let selectTimer: ReturnType<typeof setTimeout> | null = null
@@ -47,7 +47,7 @@ function centerActiveThumb(smooth = true): void {
   programmaticScroll = true
   if (unlockTimer) clearTimeout(unlockTimer)
   unlockTimer = setTimeout(() => { programmaticScroll = false }, smooth ? 500 : 50)
-  // jsdom(测试环境)没有实现 Element.scrollTo —— 退化为直接赋 scrollLeft。
+  // jsdom (test environment) does not implement Element.scrollTo — fall back to direct scrollLeft assignment.
   if (typeof strip.scrollTo === 'function') {
     strip.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'instant' } as ScrollToOptions)
   } else {
@@ -99,8 +99,8 @@ function onThumbClick(i: number): void {
   emit('select', i)
 }
 
-// index 由外部(点击箭头/键盘/点缩略图)变化后,把该缩略图平滑居中;140ms 内刚发生过
-// 滚轮的场景视为"用户手动滚出来的",不再二次平滑动画(照 Vue2 fromWheel 判断)。
+// After index changes from external source (arrow click/keyboard/thumbnail click), smoothly center that thumbnail;
+// if wheel event happened within 140ms, treat as "user manually scrolled it out", skip smooth animation again (per Vue2 fromWheel check).
 watch(() => props.index, () => {
   const fromWheel = Date.now() - lastWheelTime < 600
   centerActiveThumb(!fromWheel)
@@ -183,8 +183,8 @@ onBeforeUnmount(() => {
   padding: 1px 4px;
   border-radius: 999px;
   font-size: 8px;
-  /* theme-exception: 缩略图上的常驻角标,需在任意照片上都保持对比度,皮肤无关
-     (同 PhotosGrid.vue .tile-vid / VideoHoverPreview.vue 的 chrome 先例) */
+  /* theme-exception: persistent badge on thumbnail needs contrast on any photo, theme-independent
+     (same precedent as PhotosGrid.vue .tile-vid / VideoHoverPreview.vue chrome) */
   background: rgba(0, 0, 0, 0.55); color: #fff;
 }
 .vid-play { font-size: 6px; }

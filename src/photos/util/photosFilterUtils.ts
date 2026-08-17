@@ -1,17 +1,22 @@
-// SP7-P7b-T1:EXIF / 图库筛选谓词——时间线页与跳库页共用同一套判定,保证两边过滤口径一致。
-// Ported from Vue2 NimoOS-UI src/views/Photos/photosFilterUtils.js(27 行),逻辑逐行对应。
+// SP7-P7b-T1: EXIF / gallery filter predicates -- the timeline page and the jump-to-library
+// page share the same judgment logic so both sides filter consistently.
+// Ported from Vue2 NimoOS-UI src/views/Photos/photosFilterUtils.js (27 lines), logic mapped line-for-line.
 //
-// D17 / F2 偏离登记:去掉 Vue2 的 `archiveIds` 形参与分支。回源 grep 实证归档六环全死
-// (PhotosGrid 从不 emit batch-archive → PhotosTimeline 的监听 / onBatchArchive /
-// archiveBatch action / ARCHIVE_BATCH mutation 逐级不可达,`archiveIds` 恒 []),
-// New-UI 未迁归档功能,本仓零写入方。相应地 Vue2 那 58 行测试里的 archiveIds 用例也裁掉。
+// D17 / F2 deviation log: dropped Vue2's `archiveIds` parameter and its branch. Grepping back
+// to source confirms the whole archive chain is dead (PhotosGrid never emits batch-archive ->
+// PhotosTimeline's listener / onBatchArchive / archiveBatch action / ARCHIVE_BATCH mutation are
+// unreachable at every step, `archiveIds` is always []); New-UI never ported the archive
+// feature, and this repo has zero writers for it. The corresponding archiveIds test cases in
+// Vue2's 58-line test file were cut accordingly.
 //
-// 注意 `date` 的形态:它不是 ISO 串,而是 assetToPhoto(:336)用
-// toLocaleDateString('en', { year:'numeric', month:'long', day:'numeric' }) 生成的
-// 本地化串(如 "May 1, 2023")。Vue2 同源同形态,所以 new Date(date) 这个解析方式照抄,
-// 不改读 takenAt(那是另一个字段,行为会变)。
+// Note the shape of `date`: it isn't an ISO string, it's the localized string that
+// assetToPhoto (:336) produces via
+// toLocaleDateString('en', { year:'numeric', month:'long', day:'numeric' }) (e.g. "May 1, 2023").
+// Vue2 has the same shape from the same source, so the new Date(date) parsing approach is
+// copied as-is; don't switch to reading takenAt instead (that's a different field, and the
+// behavior would change).
 
-/** 参与 EXIF 过滤的最小照片形状——`Photo`(assetToPhoto.ts:267)结构上兼容。 */
+/** Minimal photo shape used for EXIF filtering -- structurally compatible with `Photo` (assetToPhoto.ts:267). */
 export interface FilterablePhoto {
   date?: string | null
   place?: string | null

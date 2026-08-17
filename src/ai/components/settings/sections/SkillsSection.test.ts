@@ -8,9 +8,9 @@ import type { Skill } from '../../../types/skill'
 import SkillGroup from '../skills/SkillGroup.vue'
 import SkillDetail from '../skills/SkillDetail.vue'
 
-// SP8-P3a Task 6 —— 承接 Vue2 src/views/AI/Skills/SkillsSection.vue(226 行)只读半。
-// SP8-P3b Task 8 —— 加四个写操作(onToggle/onDelete/onCreate/onTest)+ `+` 按钮接线。
-// 公共约束 §9:vi.mock 骨架用 vi.hoisted() 避免 ESM 提升的 TDZ ReferenceError。
+// SP8-P3a Task 6 — ported from Vue2 src/views/AI/Skills/SkillsSection.vue (226 lines) read-only half.
+// SP8-P3b Task 8 — adds four write operations (onToggle/onDelete/onCreate/onTest) + `+` button wiring.
+// Public constraint §9: vi.mock skeleton uses vi.hoisted() to avoid ESM hoisting TDZ ReferenceError.
 const h = vi.hoisted(() => ({
   listSkills: vi.fn(),
   updateSkill: vi.fn(),
@@ -19,9 +19,9 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: h } }))
 
-// SkillDetail.vue 内部 useRouter()('在对话中试用'按钮),本文件不测试该交互,
-// 但挂载 SkillsSection 会一并挂载 SkillDetail,必须提供替身避免真实 vue-router
-// 报错(同 SkillDetail.test.ts 先例)。
+// SkillDetail.vue internally uses useRouter() ('try in chat' button), this file doesn't test
+// that interaction, but mounting SkillsSection also mounts SkillDetail, must provide stub
+// to avoid real vue-router error (same precedent as SkillDetail.test.ts).
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 
@@ -29,17 +29,19 @@ import SkillsSection from './SkillsSection.vue'
 import { useToast } from '../../../../stores/toast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
-// Task 8:AddSkillModal 走 SkModal(reka Dialog),portal 目标默认 '.set-app'(见
-// SkModal.vue 头注释 D1)——attachTo document.body + 单独挂一个 .set-app host,
-// 手法同 ChannelsSection.test.ts。对既有(P3a)只读半用例无副作用,只读半从不打开弹窗。
+// Task 8: AddSkillModal uses SkModal (reka Dialog), portal target defaults '.set-app'
+// (see SkModal.vue head comment D1) — attachTo document.body + separately mount .set-app host,
+// technique same as ChannelsSection.test.ts. No side effects on existing (P3a) read-only half cases,
+// read-only half never opens dialog.
 const mountSection = () => mount(SkillsSection, { global: { plugins: [i18n] }, attachTo: document.body })
 const flush = async () => {
   await nextTick()
   await nextTick()
   await nextTick()
 }
-// AddSkillModal 打开时的聚焦覆盖用 setTimeout(fn, 0)(宏任务,见该组件头注释「reka 初始
-// 焦点实测结论」),纯微任务级的 flush() 追不上;先例 AddSkillModal.test.ts::macroFlush。
+// AddSkillModal when opening uses focus replacement via setTimeout(fn, 0) (macro task, see component
+// head comment "reka initial focus empirical conclusion"), pure micro task level flush() can't catch up;
+// precedent AddSkillModal.test.ts::macroFlush.
 const macroFlush = async () => { await flush(); await new Promise((r) => setTimeout(r, 0)); await flush() }
 
 function makeSkill(overrides: Partial<Skill> = {}): Skill {
@@ -64,7 +66,7 @@ function makeSkill(overrides: Partial<Skill> = {}): Skill {
   }
 }
 
-describe('SkillsSection(只读半)', () => {
+describe('SkillsSection (read-only half)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     h.listSkills.mockReset()
@@ -72,7 +74,7 @@ describe('SkillsSection(只读半)', () => {
     h.deleteSkill.mockReset()
     h.createSkill.mockReset()
     push.mockClear()
-    // SkModal 的 DialogPortal 目标元素必须在组件挂载前就存在于 DOM(同上方注释)。
+    // SkModal's DialogPortal target element must exist in DOM before component mounting (same as above comment).
     const host = document.createElement('div')
     host.className = 'set-app'
     document.body.appendChild(host)
@@ -82,7 +84,7 @@ describe('SkillsSection(只读半)', () => {
     document.body.innerHTML = ''
   })
 
-  it('挂载即加载,渲染内置/我的两组,且每组各自只含对应 system 归属的技能', async () => {
+  it('on mount loads, renders built-in/mine two groups, each group only contains skills matching respective system ownership', async () => {
     h.listSkills.mockResolvedValue([
       makeSkill({ id: 'a', name: 'built-a', title: 'Built A', system: true }),
       makeSkill({ id: 'b', name: 'mine-b', title: 'Mine B', system: false }),
@@ -95,9 +97,10 @@ describe('SkillsSection(只读半)', () => {
     expect(groupLabels[1]).toContain('我的技能')
     expect(w.findAll('.sk-item')).toHaveLength(2)
 
-    // 评审自查(判据同上):只数总数/只看两条标签文案,不足以钉住「builtIn/personal
-    // 两个 computed 的 filter 条件被写反」这类回归(总数与标签都不变,只是内容
-    // 装错组)——直接查每个 SkillGroup 实例收到的 props,而不是依赖 DOM 顺序推断。
+    // Review self-check (criteria same as above): just counting total/just looking at two label strings
+    // insufficient to pin down regressions like "builtIn/personal two computed filter conditions
+    // written backward" (total and labels unchanged, just content put in wrong group) — directly check
+    // each SkillGroup instance received props, not relying on DOM order inference.
     const groups = w.findAllComponents(SkillGroup)
     expect(groups).toHaveLength(2)
     expect(groups[0].props('label')).toBe('内置技能')
@@ -106,8 +109,8 @@ describe('SkillsSection(只读半)', () => {
     expect(groups[1].props('items').map((s: Skill) => s.name)).toEqual(['mine-b'])
   })
 
-  // 单层取数口径(正)——公共约束 §4 / brief §6.3:裸数组是真实契约形状,必须非空。
-  it('裸数组 mock → 列表非空(单层取数,不再多剥一层 .data)', async () => {
+  // Single layer fetch criteria (positive) — public constraint §4 / brief §6.3: bare array is true contract shape, must be non-empty.
+  it('bare array mock → list non-empty (single layer fetch, not peeling off .data again)', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a' })])
     const w = mountSection()
     await flush()
@@ -115,10 +118,10 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-col-empty').exists()).toBe(false)
   })
 
-  // 单层取数口径(反)—— 钉住口径:若未来有人把 reload() 改回 Vue2 的
-  // `resp.data`(多剥一层 axios 层),这条必须变红。给出 axios 形状的 mock,
-  // 断言列表为空,证明本仓消费端就是单层取数。
-  it('给 { data: [...] } 形状(axios 层)时列表为空——证明本仓是单层取数,不是给实现留退路', async () => {
+  // Single layer fetch criteria (negative) — pin down criteria: if anyone reverts reload() to Vue2's
+  // `resp.data` (peeling off axios layer again), this must turn red. Provide axios shape mock,
+  // assert list empty, prove this repo's consumer side is single layer fetch.
+  it('given { data: [...] } shape (axios layer) list empty — prove this repo is single layer fetch, not leaving implementation an out', async () => {
     h.listSkills.mockResolvedValue({ data: [makeSkill({ id: 'a' })] } as unknown as Skill[])
     const w = mountSection()
     await flush()
@@ -126,11 +129,12 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-col-empty').exists()).toBe(true)
   })
 
-  // 评审 Important(独立回合):原先只用一条共享词 'FAMILY' 命中 description,对
-  // name/title 两个分支没有独立验证——评审探针删掉 `filtered` 里的 s.name 判断,
-  // 9 例仍全绿。改成三条独立用例,每条各配一个「唯一 token 只出现在该字段」的
-  // fixture(不与另外两个技能的任何字段重叠),分别断言只命中预期那条、不误伤
-  // 另外两条。三个 token 互不包含、互不是彼此子串。
+  // Review Important (independent round): originally only used one shared word 'FAMILY' to hit description,
+  // no independent verification for name/title two branches — review probe deleted s.name check in
+  // `filtered`, 9 cases still all green. Changed to three independent cases, each with fixture
+  // of "unique token only appears in that field" (not overlapping with any field of other two skills),
+  // respectively assert only hits expected one, doesn't harm other two. Three tokens don't contain
+  // each other, not substrings of each other.
   function threeFieldFixture(): Skill[] {
     return [
       makeSkill({
@@ -157,7 +161,7 @@ describe('SkillsSection(只读半)', () => {
     ]
   }
 
-  it('搜索命中 name 字段(不误伤 title/description 都不含该词的另外两条)', async () => {
+  it('search hits name field (doesn\'t harm other two whose title/description don\'t contain word)', async () => {
     h.listSkills.mockResolvedValue(threeFieldFixture())
     const w = mountSection()
     await flush()
@@ -169,7 +173,7 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-item-name').text()).toBe('orion-alpha-token')
   })
 
-  it('搜索命中 title 字段(大小写不敏感,不误伤 name/description 都不含该词的另外两条)', async () => {
+  it('search hits title field (case-insensitive, doesn\'t harm other two whose name/description don\'t contain word)', async () => {
     h.listSkills.mockResolvedValue(threeFieldFixture())
     const w = mountSection()
     await flush()
@@ -180,7 +184,7 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-item-name').text()).toBe('plain-name-beta')
   })
 
-  it('搜索命中 description 字段(不误伤 name/title 都不含该词的另外两条)', async () => {
+  it('search hits description field (doesn\'t harm other two whose name/title don\'t contain word)', async () => {
     h.listSkills.mockResolvedValue(threeFieldFixture())
     const w = mountSection()
     await flush()
@@ -191,7 +195,7 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-item-name').text()).toBe('plain-name-gamma')
   })
 
-  it('两种空态文案:无 query 显示"还没有技能…",有 query 显示"没有匹配的技能"+回显 query', async () => {
+  it('two empty states: no query shows "no skills…", has query shows "no matching skills" + echoes query', async () => {
     h.listSkills.mockResolvedValue([])
     const w = mountSection()
     await flush()
@@ -203,14 +207,14 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-col-empty code').text()).toBe('nope')
   })
 
-  it('点条目切换 activeSkill(右侧详情联动)', async () => {
+  it('click item to toggle activeSkill (right detail synchronized)', async () => {
     h.listSkills.mockResolvedValue([
       makeSkill({ id: 'a', name: 'skill-a', title: 'Skill A', system: true }),
       makeSkill({ id: 'b', name: 'skill-b', title: 'Skill B', system: false }),
     ])
     const w = mountSection()
     await flush()
-    // 挂载后默认选中第一项(reload() 里的选中态兜底)。
+    // After mounting, first item selected by default (fallback selection in reload()).
     expect(w.find('.sk-name span').text()).toBe('Skill A')
 
     await w.findAll('.sk-item')[1].trigger('click')
@@ -218,7 +222,7 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-name span').text()).toBe('Skill B')
   })
 
-  it('选中项被搜索过滤掉后不崩:详情仍显示原选中项,不强制清空/不抛错', async () => {
+  it('selected item filtered out by search doesn\'t crash: detail still shows originally selected, not forced clear/not throw', async () => {
     h.listSkills.mockResolvedValue([
       makeSkill({ id: 'a', name: 'weekly-report', title: 'Weekly Report', system: true }),
       makeSkill({ id: 'b', name: 'other', title: 'Other', system: false }),
@@ -227,8 +231,8 @@ describe('SkillsSection(只读半)', () => {
     await flush()
     expect(w.find('.sk-name span').text()).toBe('Weekly Report')
 
-    // 搜索词把当前选中项过滤出左列列表,但 activeSkill 是从全量 skills(非
-    // filtered)里查找的(对齐 Vue2 :116-118),详情面板不受影响、也不抛错。
+    // Search query filters out current selected from left column list, but activeSkill found
+    // from full skills (not filtered) (align Vue2 :116-118), detail panel unaffected, also doesn't throw.
     await w.find('.sk-col-search input').setValue('other')
     await flush()
     expect(w.findAll('.sk-item')).toHaveLength(1)
@@ -236,7 +240,7 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-name span').text()).toBe('Weekly Report')
   })
 
-  it('reload 失败弹 danger toast 且 loading 复位', async () => {
+  it('reload fail shows danger toast and loading reset', async () => {
     h.listSkills.mockRejectedValue(new Error('boom'))
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
@@ -246,7 +250,7 @@ describe('SkillsSection(只读半)', () => {
     expect(w.find('.sk-spinner').exists()).toBe(false)
   })
 
-  it('刷新按钮触发重新加载', async () => {
+  it('refresh button triggers reload', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a' })])
     const w = mountSection()
     await flush()
@@ -265,17 +269,17 @@ describe('SkillsSection(只读半)', () => {
 })
 
 // ============================================================================
-// SP8-P3b Task 8 —— `+` 按钮 + 四个写操作接线。
+// SP8-P3b Task 8 — `+` button + four write operations wiring.
 //
-// 除新建流程外,四个动作走 `w.findComponent(SkillDetail).vm.$emit(...)` 直接触发
-// (先例:本文件同一 SkillDetail 树里的 TestPanel 用 `tp.vm.$emit('test')`,见
-// `SkillDetail.test.ts:665`)——SkillDetail 自己的 UI 交互(开关点击/菜单/确认弹窗)
-// 已在 SkillDetail.test.ts 覆盖,这里只测 SkillsSection 收到 emit 后的处理逻辑
-// (单层取数/busy 生命周期/activeId 落位条件),用直接 emit 而不是重新走一遍点击链路,
-// 也能覆盖 brief §10.2 明确要求的「删的不是当前选中项」这种用点击链路走不到的场景
-// (UI 上只有 activeSkill 会渲染删除入口)。
+// Except new flow, four actions go via `w.findComponent(SkillDetail).vm.$emit(...)` direct trigger
+// (precedent: TestPanel in same SkillDetail tree here uses `tp.vm.$emit('test')`, see
+// `SkillDetail.test.ts:665`) — SkillDetail's own UI interactions (toggle click/menu/confirm dialog)
+// already covered in SkillDetail.test.ts, here only test SkillsSection logic after receiving emit
+// (single layer fetch / busy lifecycle / activeId placement condition), using direct emit instead
+// of re-walking click chain, also covers "delete not current selected item" scenario explicitly
+// required by brief §10.2 which click chain can't reach (only activeSkill renders delete entry on UI).
 // ============================================================================
-describe('SkillsSection(P3b 写操作半)', () => {
+describe('SkillsSection (P3b write operations half)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     h.listSkills.mockReset()
@@ -283,7 +287,7 @@ describe('SkillsSection(P3b 写操作半)', () => {
     h.deleteSkill.mockReset()
     h.createSkill.mockReset()
     push.mockClear()
-    // SkModal 的 DialogPortal 目标元素必须在组件挂载前就存在于 DOM(同上方只读半 host 手法)。
+    // SkModal's DialogPortal target element must exist in DOM before component mounting (same as above read-only half host technique).
     const host = document.createElement('div')
     host.className = 'set-app'
     document.body.appendChild(host)
@@ -293,7 +297,7 @@ describe('SkillsSection(P3b 写操作半)', () => {
     document.body.innerHTML = ''
   })
 
-  it('点击 + 按钮打开新建弹窗(标题正确);再次点击不会叠加打开第二个弹窗', async () => {
+  it('click + button opens new skill dialog (title correct); clicking again doesn\'t stack open second dialog', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a' })])
     const w = mountSection()
     await flush()
@@ -306,7 +310,7 @@ describe('SkillsSection(P3b 写操作半)', () => {
     expect(titles[0].textContent).toBe(zh.aiSkAddTitle)
   })
 
-  it('toggle 成功:后端返回裸 skill,列表项原地替换,toast 按新状态提示对应文案', async () => {
+  it('toggle success: backend returns bare skill, list item replaced in place, toast shows text per new state', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a', name: 'skill-a', enabled: true })])
     h.updateSkill.mockResolvedValue(makeSkill({ id: 'a', name: 'skill-a', enabled: false }))
     const toast = useToast()
@@ -319,15 +323,15 @@ describe('SkillsSection(P3b 写操作半)', () => {
     await flush()
 
     expect(h.updateSkill).toHaveBeenCalledWith('a', { enabled: false })
-    // 列表项原地替换成后端返回的新对象(enabled:false → 渲染 off 标记)。
+    // List item replaced in place with the new object the backend returns (enabled:false → renders off mark).
     expect(w.find('.sk-item-off').exists()).toBe(true)
     expect(show).toHaveBeenCalledWith(zh.aiSkPausedToast)
   })
 
-  // 单层取数口径(反)—— 对齐 P3a Task 6 reload() 那两条钉法(第 86/97 行),同一
-  // 手法用在 onToggle 上:喂一个 axios 层形状的 mock,证明本仓消费端是单层取数,
-  // 不是给实现留“多剥一层也凑合能跑”的退路。
-  it('单层取数口径(反):toggle 喂 { data: skill } 信封形状 → 列表项名称变空(不是信封里的真实值),证明消费端是单层取数', async () => {
+  // Single layer fetch criteria (negative) — align P3a Task 6 reload() that two pinned cases (line 86/97),
+  // same technique applied to onToggle: feed axios layer shape mock, prove this repo's consumer is
+  // single layer fetch, not leaving implementation a "peeling off again also works" out.
+  it('single layer fetch criteria (negative): toggle fed { data: skill } envelope shape → list item name becomes empty (not real value inside envelope), prove consumer is single layer fetch', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a', name: 'skill-a' })])
     h.updateSkill.mockResolvedValue(
       { data: makeSkill({ id: 'a', name: 'renamed', title: 'Renamed' }) } as unknown as Skill,
@@ -339,14 +343,14 @@ describe('SkillsSection(P3b 写操作半)', () => {
     detail.vm.$emit('toggle', 'a', false)
     await flush()
 
-    // 单层取数下,信封对象本身被当成 skill 塞进列表——它没有 `.name` 字段,渲染成
-    // 空字符串。若未来有人在 onToggle 里多剥一层 `.data`(回到 Vue2 的缺陷模具),
-    // 这里会变成 'renamed',此断言精确报红(RED 探针见任务报告)。
+    // Under single layer fetch, envelope object itself put in list as skill — it has no `.name` field,
+    // renders empty string. If anyone peels off `.data` again in onToggle (back to Vue2 defect mold),
+    // this becomes 'renamed', this assert reports red precisely (see RED probe in task report).
     expect(w.find('.sk-item-name').text()).toBe('')
     expect(w.find('.sk-item-name').text()).not.toBe('renamed')
   })
 
-  it('toggle 飞行中:busy[id]=true 传给 SkillDetail(开关禁用),请求落地后立即清空', async () => {
+  it('toggle in flight: busy[id]=true passed to SkillDetail (toggle disabled), immediately clear when request lands', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a', enabled: true })])
     let resolvePromise: (v: unknown) => void = () => {}
     h.updateSkill.mockImplementation(() => new Promise((res) => { resolvePromise = res }))
@@ -363,7 +367,7 @@ describe('SkillsSection(P3b 写操作半)', () => {
     expect(detail.props('busy')).toEqual({})
   })
 
-  it('toggle 失败:danger toast(3000ms),列表项不变', async () => {
+  it('toggle fail: danger toast (3000ms), list item unchanged', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a', name: 'skill-a', enabled: true })])
     h.updateSkill.mockRejectedValue(new Error('boom'))
     const toast = useToast()
@@ -376,11 +380,11 @@ describe('SkillsSection(P3b 写操作半)', () => {
     await flush()
 
     expect(show).toHaveBeenCalledWith(zh.aiSkUpdateFailed, 3000, 'danger')
-    // 仍是 enabled:true,不显示 off 标记 —— 列表项没被改动。
+    // Still enabled:true, doesn't show off mark — list item unchanged.
     expect(w.find('.sk-item-off').exists()).toBe(false)
   })
 
-  it('删除成功:从列表消失,toast 文案按 system 区分(内置=卸载,用户=删除)', async () => {
+  it('delete success: disappears from list, toast text distinguished by system (built-in=uninstall, user=delete)', async () => {
     h.listSkills.mockResolvedValue([
       makeSkill({ id: 'a', name: 'skill-a', system: true }),
       makeSkill({ id: 'b', name: 'skill-b', system: false }),
@@ -400,16 +404,17 @@ describe('SkillsSection(P3b 写操作半)', () => {
     expect(show).toHaveBeenCalledWith('已卸载 skill-a')
   })
 
-  // brief §10.2 明确点名的条件:钉住「只有删的是当前选中项才落到剩余第一项」。
+  // brief §10.2 explicitly names condition: pin down "only when deleting current selected falls to first remaining".
   //
-  // 【评审 Important,已修】原 fixture 只有两项([a, b]),选中 a(默认第一项),删 b——
-  // 删完剩 [a],此时不管 `if (activeId.value === id)` 那个条件生效与否,`activeId`
-  // 落点都是 'a'(条件生效:原地不动,仍是 a;条件被删/无条件回落 skills[0]:也是 a),
-  // 两种实现给出同一结果,断言分辨不出来,是空转用例(评审 RED 探针实测:把条件整个删掉,
-  // 23 例仍全绿)。改成三项 `[a, b, c]`,先切到 **c**(不是删完后剩余列表的第一项)再删
-  // **b**——条件生效:activeId 仍是 c;条件被删(无条件回落 skills[0]):activeId 会错误
-  // 地跳成 a。两种实现在这个 fixture 下必然分道,断言才有判别力。
-  it('删的不是当前选中项时 activeId 不变,详情面板仍显示原选中的技能', async () => {
+  // 【review Important, fixed】original fixture only two items ([a, b]), select a (default first), delete b —
+  // after delete remains [a], whether `if (activeId.value === id)` condition works or not, `activeId`
+  // lands on 'a' (condition works: stays, still a; condition deleted / unconditional fallback skills[0]: also a),
+  // two implementations give same result, assertion can't distinguish, empty case (review RED probe empirical:
+  // delete entire condition, 23 cases still all green). Changed to three items `[a, b, c]`, first switch to
+  // **c** (not first of remaining after delete) then delete **b** — condition works: activeId still c;
+  // condition deleted (unconditional fallback skills[0]): activeId wrongly jumps to a. Two implementations
+  // must diverge on this fixture, assertion has discrimination power.
+  it('delete not current selected → activeId unchanged, detail panel still shows originally selected skill', async () => {
     h.listSkills.mockResolvedValue([
       makeSkill({ id: 'a', name: 'skill-a', title: 'Skill A' }),
       makeSkill({ id: 'b', name: 'skill-b', title: 'Skill B' }),
@@ -418,21 +423,21 @@ describe('SkillsSection(P3b 写操作半)', () => {
     h.deleteSkill.mockResolvedValue(undefined)
     const w = mountSection()
     await flush()
-    // 先切到第三项(c)——删完剩余列表 [a, c] 的第一项是 a,不是 c,两种实现的分歧点。
+    // First switch to third item (c) — after delete remaining list [a, c]'s first item is a, not c, divergence point of two implementations.
     await w.findAll('.sk-item')[2].trigger('click')
     await flush()
     expect(w.find('.sk-name span').text()).toBe('Skill C')
 
     const detail = w.findComponent(SkillDetail)
-    detail.vm.$emit('delete', 'b') // 删的是 b,不是当前选中的 c
+    detail.vm.$emit('delete', 'b') // delete b, not currently selected c
     await flush()
 
     expect(w.findAll('.sk-item')).toHaveLength(2)
-    // activeId 必须仍是 c——若条件被删(无条件回落 skills[0]),这里会变成 'Skill A'。
+    // activeId must still be c — if condition deleted (unconditional fallback skills[0]), here becomes 'Skill A'.
     expect(w.find('.sk-name span').text()).toBe('Skill C')
   })
 
-  it('删除失败:danger toast,列表项存活', async () => {
+  it('delete fail: danger toast, list item survives', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a', name: 'skill-a' })])
     h.deleteSkill.mockRejectedValue(new Error('boom'))
     const toast = useToast()
@@ -448,10 +453,10 @@ describe('SkillsSection(P3b 写操作半)', () => {
     expect(w.findAll('.sk-item')).toHaveLength(1)
   })
 
-  // 必须在改值与点击之间 `await flush()`——`valid` computed 驱动的 `disabled` 属性要等
-  // Vue 把新值同步进真实 DOM 后才会摘掉,同一 tick 内连续 set value → click 会点在还
-  // 带着 `disabled` 的按钮上(先例:AddSkillModal.test.ts 的 setValue()/click() 之间都有
-  // 独立的 `await flush()`)。
+  // Must `await flush()` between value change and click — `disabled` attribute driven by `valid` computed
+  // waits for Vue sync new value into real DOM before removing, continuous set value → click in same tick
+  // clicks on button still with `disabled` (precedent: AddSkillModal.test.ts has independent `await flush()`
+  // between setValue()/click()).
   async function fillAndSubmitAddForm(name: string, description: string) {
     const nameEl = document.querySelector('.sk-modal .sk-field:nth-of-type(1) input') as HTMLInputElement
     const descEl = document.querySelector('.sk-modal .sk-field:nth-of-type(2) textarea') as HTMLTextAreaElement
@@ -464,7 +469,7 @@ describe('SkillsSection(P3b 写操作半)', () => {
     submitEl.click()
   }
 
-  it('创建成功:新技能 push 进列表并被选中、弹窗关闭、toast 提示', async () => {
+  it('create success: new skill pushed to list and selected, dialog closes, toast shown', async () => {
     h.listSkills.mockResolvedValue([])
     h.createSkill.mockResolvedValue(makeSkill({ id: 'new-1', name: 'invoice-tagger', title: 'invoice-tagger' }))
     const toast = useToast()
@@ -479,12 +484,12 @@ describe('SkillsSection(P3b 写操作半)', () => {
 
     expect(h.createSkill).toHaveBeenCalledTimes(1)
     expect(w.findAll('.sk-item')).toHaveLength(1)
-    expect(w.find('.sk-name span').text()).toBe('invoice-tagger') // 新建后立即选中
-    expect(document.querySelector('.sk-modal')).toBeNull() // 弹窗已关
+    expect(w.find('.sk-name span').text()).toBe('invoice-tagger') // selected immediately after creation
+    expect(document.querySelector('.sk-modal')).toBeNull() // dialog closed
     expect(show).toHaveBeenCalledWith('已添加 invoice-tagger')
   })
 
-  it('创建失败(409 skill already exists):行内错误显示 aiSkErrDuplicate 文案,弹窗仍开,列表不变', async () => {
+  it('create fail (409 skill already exists): inline error shows aiSkErrDuplicate text, dialog still open, list unchanged', async () => {
     h.listSkills.mockResolvedValue([])
     h.createSkill.mockRejectedValue({ response: { data: { message: 'skill already exists' } } })
     const w = mountSection()
@@ -497,13 +502,13 @@ describe('SkillsSection(P3b 写操作半)', () => {
 
     const errEl = document.querySelector('.sk-modal .sk-field-err')
     expect(errEl?.textContent).toBe(zh.aiSkErrDuplicate)
-    expect(document.querySelector('.sk-modal')).not.toBeNull() // 弹窗仍开,用户能改完重试
-    expect(w.findAll('.sk-item')).toHaveLength(0) // 列表不变
+    expect(document.querySelector('.sk-modal')).not.toBeNull() // dialog still open, user can edit and retry
+    expect(w.findAll('.sk-item')).toHaveLength(0) // list unchanged
   })
 
-  // 关弹窗要清 createError(brief「协调者预先解掉的两处」第 2 处):上一次创建失败留下
-  // 的行内错误,取消关闭后再次打开不能残留。
-  it('创建失败后取消关闭弹窗,再次打开:行内错误已被清空', async () => {
+  // Dialog close must clear createError (brief "two places pre-resolved by coordinator" place 2): inline error
+  // left by previous create failure, after cancel-close open again must not remain.
+  it('create fail then cancel-close dialog, open again: inline error already cleared', async () => {
     h.listSkills.mockResolvedValue([])
     h.createSkill.mockRejectedValue({ response: { data: { message: 'skill already exists' } } })
     const w = mountSection()
@@ -526,20 +531,21 @@ describe('SkillsSection(P3b 写操作半)', () => {
     expect(document.querySelector('.sk-modal .sk-field-err')).toBeNull()
   })
 
-  // 【同档自查,见任务报告「同档自查」段】原版只在 a(默认选中的第一项,index 0)上
-  // 调用一次 `test`,再切到 b 断言 b 没被污染——如果实现把 `findIndex(s =>
-  // s.id===activeId.value)` 错写成硬编码 `idx = 0`,这条测试仍然全绿(a 恰好就是
-  // index 0,断言值与"正确实现"完全相同),抓不到这类回归。补一段:切到 b 之后**也**
-  // 调用一次 `test`,断言改的是 b(index 1)而不是 a——硬编码 `idx = 0` 的实现会在
-  // 这一步改错 a,断言精确报红(RED 探针见任务报告)。
-  it('onTest:只改当前选中项的 calls/last_used,不影响其它技能(乐观本地值,不落库)', async () => {
+  // 【same-tier self-check, see task report "same-tier self-check" section】original only calls `test` once
+  // on a (default first selected, index 0), then switch to b assert b not polluted — if implementation
+  // wrongly hardcodes `findIndex(s => s.id===activeId.value)` to `idx = 0`, this test still all green
+  // (a happens to be index 0, assert value exactly same as "correct implementation"), can't catch this
+  // regression. Supplement: after switching to b **also** call `test` once, assert changes b (index 1)
+  // not a — hardcoding `idx = 0` implementation wrongly changes a this step, assert reports red precisely
+  // (RED probe see task report).
+  it('onTest: only changes current selected skill calls/last_used, doesn\'t affect others (optimistic local value, not persist)', async () => {
     h.listSkills.mockResolvedValue([
       makeSkill({ id: 'a', name: 'skill-a', title: 'Skill A', calls: 3, last_used: '' }),
       makeSkill({ id: 'b', name: 'skill-b', title: 'Skill B', calls: 5, last_used: '' }),
     ])
     const w = mountSection()
     await flush()
-    expect(w.find('.sk-name span').text()).toBe('Skill A') // 默认选中第一项
+    expect(w.find('.sk-name span').text()).toBe('Skill A') // first item selected by default
 
     const detail = w.findComponent(SkillDetail)
     detail.vm.$emit('test')
@@ -548,22 +554,22 @@ describe('SkillsSection(P3b 写操作半)', () => {
     expect(w.findAll('.sk-meta-cell')[3].find('.val').text()).toContain('Just now')
     expect(w.findAll('.sk-meta-cell')[3].find('.total').text()).toBe('· 共 4 次')
 
-    // 切到 b,确认它的数据完全没被污染。
+    // Switch to b, confirm its data completely not polluted.
     await w.findAll('.sk-item')[1].trigger('click')
     await flush()
     expect(w.find('.sk-name span').text()).toBe('Skill B')
     expect(w.findAll('.sk-meta-cell')[3].find('.total').text()).toBe('· 共 5 次')
     expect(w.findAll('.sk-meta-cell')[3].find('.val').text()).not.toContain('Just now')
 
-    // 现在 b 是选中项(index 1,不是 0)——再调用一次 test,必须改的是 b。硬编码
-    // `idx = 0` 的实现会在这一步改错成 a,下面两条断言会精确报红。
+    // Now b is selected item (index 1, not 0) — call test once more, must change b.
+    // Hardcoding `idx = 0` implementation wrongly changes a this step, below two asserts report red precisely.
     detail.vm.$emit('test')
     await flush()
-    expect(w.find('.sk-name span').text()).toBe('Skill B') // 仍显示 b,不受影响
+    expect(w.find('.sk-name span').text()).toBe('Skill B') // still show b, unaffected
     expect(w.findAll('.sk-meta-cell')[3].find('.val').text()).toContain('Just now')
     expect(w.findAll('.sk-meta-cell')[3].find('.total').text()).toBe('· 共 6 次') // b: 5+1
 
-    // 切回 a,确认 a 的数据停在第一次调用后的值(4 次),没有被第二次 test() 误伤。
+    // Switch back to a, confirm a's data stopped at first call value (4 times), not harmed by second test().
     await w.findAll('.sk-item')[0].trigger('click')
     await flush()
     expect(w.find('.sk-name span').text()).toBe('Skill A')

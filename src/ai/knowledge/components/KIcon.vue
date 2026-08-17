@@ -1,16 +1,16 @@
 <!--
-  1:1 移植自 Vue2 src/components/common/KIcon.vue(42 个 glyph)。
-  【为什么不复用 AgentIcon(偏离 K4)】实测两套图标 26 个同名里 6 个异形
-  (code/download/grid/pause/settings/user),而 settings/user/grid 正被 rail 与
-  移动端 tabs 用到;改 AgentIcon 会污染已收官的 Agent/技能/MCP 三区。
-  P3a/P4 的 D3「SkillIcon 不移植,统一 AgentIcon」当时核实过 SkillIcon ⊂ AgentIcon,
-  本期不成立。
+  1:1 ported from Vue2 src/components/common/KIcon.vue (42 glyphs).
+  【Why not reuse AgentIcon (divergence K4)】 Testing found 6 of 26 same-name icons in two
+  sets have different shapes (code/download/grid/pause/settings/user), and settings/user/grid
+  are currently used by rail and mobile tabs; changing AgentIcon would pollute already-shipped
+  Agent/Skills/MCP three areas. P3a/P4's D3 "SkillIcon not ported, unify AgentIcon" verified
+  SkillIcon ⊂ AgentIcon back then, doesn't apply this period.
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
 
-// Icons used by /ai/knowledge — superset of the design's Icon + KIcon glyphs.
-// Inlined to avoid pulling in a full icon library.
+// Icons used by /ai/knowledge — superset of design's Icon + KIcon glyphs.
+// Inlined to avoid pulling in full icon library.
 const PATHS: Record<string, string> = {
   // base Icon set (icons.jsx)
   plus: '<path d="M10 4v12M4 10h12"/>',

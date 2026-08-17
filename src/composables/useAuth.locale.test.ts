@@ -18,7 +18,7 @@ import { useAuth } from './useAuth'
 describe('useAuth applies server locale', () => {
   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); vi.clearAllMocks() })
 
-  it('login 成功后调用 loadFromServer', async () => {
+  it('call loadFromServer after successful login', async () => {
     await useAuth().login('nimo', 'secret1')
     expect(loadFromServer).toHaveBeenCalledTimes(1)
   })

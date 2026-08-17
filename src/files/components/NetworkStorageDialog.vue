@@ -27,7 +27,7 @@ watch(() => props.open, (o) => {
   hosts.value = readHosts()
 })
 
-// 输入前缀合法 + 有主机时才可连接;非访客要求用户名/密码
+// Can connect when address is valid (protocol/host); non-guest requires username/password
 const canConnect = computed(() => {
   const { protocol, host } = parseAddress(address.value)
   if (!protocol || !host) return false

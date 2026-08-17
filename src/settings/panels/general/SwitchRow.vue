@@ -1,11 +1,14 @@
 <script setup lang="ts">
-// 服务端 system blob 里一个布尔字段的开关行。两处复用:
-//   - 推荐应用(Vue2 L220-226,直接保存)
-//   - 新闻流  (Vue2 L229-236 + rssConfirm L1696-1715,**只在开启方向**弹确认)
-// 「显示其他 Docker 容器应用」那一行不做 —— Vue2 恒不渲染(债务 D15,见计划 §实测校正 4)。
+// A toggle row for one boolean field in the server's system blob. Reused in two places:
+//   - Recommended apps (Vue2 L220-226, saves directly)
+//   - News feed (Vue2 L229-236 + rssConfirm L1696-1715, confirms **only when turning on**)
+// The "show other Docker container apps" row is not implemented -- Vue2 never rendered it
+// either (debt D15, see plan §measured-correction 4).
 //
-// 移植纪律 #1:加载不回写;只在用户拨动时 patch,且只写自己那一个字段
-// (整块覆写会和别的行/语言互相洗,见 systemConfig.ts 的串行队列)。
+// Porting discipline #1: loading never writes back; only patch when the user toggles
+// it, and only write that one field of its own
+// (a full-blob overwrite would race with other rows/languages, see the serial queue in
+// systemConfig.ts).
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SettingsRow from '../../components/SettingsRow.vue'
@@ -18,7 +21,7 @@ import '../../styles/settings.css'
 const props = defineProps<{
   field: string
   labelKey: string
-  /** 三个 confirm* 同时给才启用「开启前确认」 */
+  /** the "confirm before turning on" behavior is only enabled when all three confirm* props are given */
   confirmTitleKey?: string
   confirmMsgKey?: string
   confirmOkKey?: string
@@ -31,10 +34,13 @@ const on = ref<boolean>(SYSTEM_DEFAULTS[props.field] === true)
 const busy = ref(false)
 const confirmOpen = ref(false)
 
-// 交错防护(同 DiskStandbyRow.vue / WebUiPortRow.vue 的理由):真实网络延迟下,用户
-// 可能在 onMounted 的读取返回前就已经拨动过开关(直接落库,或走确认弹窗)——
-// 读取回调不能把显示值冲回服务端的旧快照。就地布尔标志,不抽公共 helper
-// (本仓库此前评审裁定跨组件抽象是过早抽象)。
+// Interleaving guard (same rationale as DiskStandbyRow.vue / WebUiPortRow.vue): under
+// real network latency, the user may have already flipped the toggle (saved directly,
+// or gone through the confirm dialog) before onMounted's read has returned --
+// the read callback must not flush the displayed value back to the server's stale
+// snapshot. An in-place boolean flag, no shared helper extracted
+// (a previous review in this repo ruled that cross-component abstraction here was
+// premature).
 let touched = false
 
 onMounted(async () => {
@@ -44,10 +50,12 @@ onMounted(async () => {
 })
 
 async function save(next: boolean) {
-  // 评审 fix round 2 · Minor:touched 必须在「真的要保存」这一刻才置位,不能在
-  // onToggle 打开确认弹窗那一刻就置(此前的坑:开了确认框但用户点了取消,
-  // touched 已经是 true,迟到的 hydrate 再也无法把行拉回服务端真实值,
-  // 行为永久卡在用户没有确认过的旧显示值上)。
+  // Review fix round 2 · Minor: touched must only be set at the moment we actually
+  // save, not the moment onToggle opens the confirm dialog (prior pitfall: the confirm
+  // dialog opened but the user clicked cancel, touched was already true, and a
+  // late-arriving hydrate could never pull the row back to the server's real value --
+  // behavior stayed permanently stuck on an old displayed value the user never
+  // confirmed).
   touched = true
   const prev = on.value
   on.value = next
@@ -64,7 +72,7 @@ async function save(next: boolean) {
 }
 
 function onToggle(next: boolean) {
-  // 只有「开启」方向需要确认;关闭方向直接存(对位 Vue2 rssConfirm 的 !rss_switch 分支)
+  // Confirmation is only needed in the "turn on" direction; turning off saves directly (matches the !rss_switch branch of Vue2 rssConfirm)
   if (next && props.confirmMsgKey) {
     confirmOpen.value = true
     return

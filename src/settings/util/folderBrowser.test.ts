@@ -9,26 +9,26 @@ describe('dirEntries', () => {
     { name: '.hidden', path: '/DATA/.hidden', is_dir: true },
     { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
   ] as FolderEntry[]
-  it('只留非隐藏目录并按名字排序', () => {
+  it('keeps only non-hidden dirs and sorts by name', () => {
     expect(dirEntries(content)).toEqual([
       { name: 'Apple', path: '/DATA/Apple' },
       { name: 'Zed', path: '/DATA/Zed' },
     ])
   })
-  it('null / undefined → 空数组', () => {
+  it('null / undefined → empty array', () => {
     expect(dirEntries(null)).toEqual([])
     expect(dirEntries(undefined)).toEqual([])
   })
 })
 
 describe('pickerRoots', () => {
-  it('有候选时用候选,label 缺失回退成 path', () => {
+  it('uses the candidates when present; falls back to path when label is missing', () => {
     expect(pickerRoots([{ path: '/DATA', label: 'NimoOS-HD' }, { path: '/mnt/x' }])).toEqual([
       { path: '/DATA', label: 'NimoOS-HD' },
       { path: '/mnt/x', label: '/mnt/x' },
     ])
   })
-  it('候选为空 / null 时回退到内置三根(本期快照恒空,这条就是真机唯一形态)', () => {
+  it('falls back to the built-in three roots when candidates are empty / null (this snapshot period is always empty, so this is the only real-device shape)', () => {
     const fallback = [
       { path: '/DATA', label: 'System (/DATA)' },
       { path: '/media', label: '/media' },
@@ -40,14 +40,14 @@ describe('pickerRoots', () => {
 })
 
 describe('crumbsFor', () => {
-  it('根 crumb 的 path 是空串,逐段累加', () => {
+  it('the root crumb has an empty-string path, accumulating segment by segment', () => {
     expect(crumbsFor('/a/b', 'ROOT')).toEqual([
       { label: 'ROOT', path: '' },
       { label: 'a', path: '/a' },
       { label: 'b', path: '/a/b' },
     ])
   })
-  it('空路径只有根 crumb', () => {
+  it('an empty path yields only the root crumb', () => {
     expect(crumbsFor('', 'ROOT')).toEqual([{ label: 'ROOT', path: '' }])
   })
 })

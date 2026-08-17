@@ -1,6 +1,6 @@
-// 从 NimoOS-UI/src/service/snapshot.js 逐字移植(SP6-P5)。
-// 未迁:snapshotBrowsePath / parseSnapshotBrowsePath / liveVolumePath / parseSnapshotName /
-// formatSnapshotBannerTime / findVolumeForPath —— 属文件区快照浏览套件,随该期一起迁(见 P5 计划台账)。
+// Ported verbatim from NimoOS-UI/src/service/snapshot.js (SP6-P5).
+// Not yet ported: snapshotBrowsePath / parseSnapshotBrowsePath / liveVolumePath / parseSnapshotName /
+// formatSnapshotBannerTime / findVolumeForPath — these belong to the Files-area snapshot browsing suite, to be migrated together with that phase (see the P5 plan ledger).
 
 import type { SnapshotVolume } from '@nimotech/nimoos-service'
 
@@ -48,9 +48,11 @@ export interface PolicyForm {
 
 export type SnapshotState = 'unsupported' | 'disabled' | 'enabled'
 
-// list() 返回 SnapshotVolume[](索引签名透传 volume_uuid/mount 等);收窄为 SnapshotVolumeView。
-// New-UI 新增(不在 Vue2 snapshot.js 中)——照 raidView.asRaidArray 范式补的收窄映射,让
-// TS strict 下的 unknown 索引访问有安全默认值,语义与 Vue2 直接读字段一致。
+// list() returns SnapshotVolume[] (index signature passes through volume_uuid/mount etc.);
+// narrowed here into SnapshotVolumeView.
+// New in New-UI (not present in the Vue2 snapshot.js) — a narrowing map added following the
+// raidView.asRaidArray pattern, so unknown-typed index access under TS strict mode gets safe
+// defaults, with semantics identical to Vue2 reading the fields directly.
 export function asSnapshotVolume(raw: SnapshotVolume | Record<string, unknown>): SnapshotVolumeView {
   const r = raw as Record<string, unknown>
   return {
@@ -77,8 +79,10 @@ export function resolveSnapshotState(v: SnapshotVolumeView | null): SnapshotStat
 // whole numbers; the pause threshold is a whole percentage between 1 and 100.
 // Returns { valid, errors } where `errors` maps field name -> i18n key.
 // (snapshot.js:15-31)
-// 偏离 Vue2:错误值从英文原文改为具名 i18n key('snapErrPositiveInt' / 'snapErrPercent') ——
-// 见 Global Constraints 偏离 3,判定条件/边界值本身逐字照搬,只改了 key 的表示形式。
+// Deviation from Vue2: error values changed from raw English strings to named i18n keys
+// ('snapErrPositiveInt' / 'snapErrPercent') — see Global Constraints deviation 3; the
+// condition/boundary values themselves are carried over verbatim, only the key's
+// representation changed.
 export function validatePolicyForm(form: PolicyForm): { valid: boolean; errors: Partial<Record<keyof PolicyForm, string>> } {
   const errors: Partial<Record<keyof PolicyForm, string>> = {}
   const isPositiveInt = (v: number) => Number.isInteger(v) && v >= 1
@@ -116,14 +120,14 @@ export function classifySnapshotType(type: string | undefined): 'auto' | 'manual
   return 'auto'
 }
 
-// 偏离 Vue2:label 从英文原文("Auto"/"Manual"/"Pre-op protection")改为具名 i18n key,
-// 同上一处偏离 3,分类逻辑本身不变。
+// Deviation from Vue2: label changed from raw English strings ("Auto"/"Manual"/"Pre-op protection")
+// to named i18n keys, same as the previous deviation 3 — the classification logic itself is unchanged.
 export function snapshotTypeLabelKey(type: string | undefined): string {
   return TYPE_LABEL_KEYS[classifySnapshotType(type)]
 }
 
 // "HH:mm" in local wall-clock time.
-// (snapshot.js:64-69,原行号注释为 61-66,以实际源码行号为准)
+// (snapshot.js:64-69; the original line-number comment said 61-66 — the actual source line numbers take precedence)
 export function formatSnapshotClockTime(createdAt: string | number | Date): string {
   const d = createdAt instanceof Date ? createdAt : new Date(createdAt)
   const hh = String(d.getHours()).padStart(2, '0')
@@ -138,9 +142,9 @@ function dayKeyOf(date: Date): string {
 // Returns either { i18nKey: 'snapToday' | 'snapYesterday' } for the caller to
 // run through $t(), or { text } already formatted via toLocaleDateString()
 // for anything older.
-// (snapshot.js:80-89,原行号注释为 76-86)
-// 偏离 Vue2:i18nKey 值从 'Today'/'Yesterday' 改为具名 key 'snapToday'/'snapYesterday',
-// 同偏离 3,日期比较逻辑逐字照搬。
+// (snapshot.js:80-89; the original line-number comment said 76-86)
+// Deviation from Vue2: i18nKey value changed from 'Today'/'Yesterday' to named keys
+// 'snapToday'/'snapYesterday', same as deviation 3 — the date comparison logic is carried over verbatim.
 export function snapshotDayLabel(createdAt: string | number | Date, now: Date = new Date()): { i18nKey?: string; text?: string } {
   const d = createdAt instanceof Date ? createdAt : new Date(createdAt)
   const todayKey = dayKeyOf(now)
@@ -156,7 +160,7 @@ export function snapshotDayLabel(createdAt: string | number | Date, now: Date = 
 // Maps one raw /v2/snapshot list entry to the flat shape the timeline
 // template renders directly. (No "now" here — nothing in this mapping is
 // relative to the current time; that's snapshotDayLabel's job.)
-// (snapshot.js:95-108,原行号注释为 91-103)
+// (snapshot.js:95-108; the original line-number comment said 91-103)
 export function toSnapshotViewModel(snap: SnapshotRaw): SnapshotItemView {
   const typeKind = classifySnapshotType(snap.type)
   return {
@@ -173,9 +177,10 @@ export function toSnapshotViewModel(snap: SnapshotRaw): SnapshotItemView {
 
 // Groups a flat snapshot list into day buckets, newest day first, newest
 // item first within each day. Does not mutate the input.
-// (snapshot.js:112-131,原行号注释为 107-122)
-// Vue2 直接用 `new Date(b.created_at) - new Date(a.created_at)`(Date 相减隐式转 number);
-// TS strict 下改用 `.getTime()` 显式相减,结果等价,非逻辑偏离。
+// (snapshot.js:112-131; the original line-number comment said 107-122)
+// Vue2 uses `new Date(b.created_at) - new Date(a.created_at)` directly (Date subtraction
+// implicitly coerces to number); under TS strict mode this uses explicit `.getTime()`
+// subtraction instead — the result is equivalent, not a logic deviation.
 export function groupSnapshotsByDay(snapshots: SnapshotRaw[], now: Date = new Date()): SnapshotDayGroup[] {
   const sorted = [...(snapshots || [])].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   const groups: SnapshotDayGroup[] = []
@@ -195,7 +200,7 @@ export function groupSnapshotsByDay(snapshots: SnapshotRaw[], now: Date = new Da
 
 // Which day groups should start expanded — the most recent `limit` (default
 // 2) of an already newest-first `groups` array.
-// (snapshot.js:135-137,原行号注释为 126-128)
+// (snapshot.js:135-137; the original line-number comment said 126-128)
 export function defaultExpandedDayKeys(groups: SnapshotDayGroup[], limit = 2): string[] {
   return (groups || []).slice(0, limit).map((g) => g.dayKey)
 }

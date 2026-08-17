@@ -1,10 +1,22 @@
-/* 全局滚动条：底板透明、滑块半透明白，贴合深色玻璃 UI（复用于搜索、文件预览、Welcome 等一切滚动区）。
-   不再使用浏览器默认的黑底滚动条。仅 WebKit + Firefox(scrollbar-*) 两套即可覆盖目标浏览器。 */
-/* ⚠️ 滑块颜色必须写 var(--scrollbar-thumb) 而非字面量:这条 `*` 规则把值显式钉在每一个元素上,
-   元素自身声明压过从 :root 继承的翻转值 —— 写死字面量会让白色主题下所有内部滚动容器仍是
-   白滑块贴白底(不可见);且 Chrome 121+ 元素一旦设了 scrollbar-color 就整体忽略
-   ::-webkit-scrollbar-* 伪元素样式,webkit 那套主题覆盖也救不了。
-   守卫:src/styles/scrollbarTheme.test.ts。 */
+/* Global scrollbar: transparent track, translucent pale thumb, matching the dark glass UI
+   (reused wherever there's a scroll region -- search, file preview, Welcome, and more).
+   No longer relying on the browser's default dark-backed scrollbar. Only the WebKit and
+   Firefox (scrollbar-*) rule sets are needed to cover the target browsers. */
+/* Warning: the thumb color must be written as var(--scrollbar-thumb), never a literal --
+   this `*` rule pins the value explicitly on every element, and an element's own
+   declaration overrides the flipped value inherited from :root -- hardcoding a literal
+   would leave every internal scroll container in the light theme with a pale thumb sitting
+   on an equally pale track (invisible); and once an element sets scrollbar-color, Chrome
+   121+ ignores its ::-webkit-scrollbar-* pseudo-element styles entirely, so a WebKit-side
+   theme override can't rescue it either.
+   Guarded by: src/styles/scrollbarTheme.test.ts. */
+/* Critical: the thumb colour must be var(--scrollbar-thumb), never a literal. This `*` rule pins
+   the value explicitly onto every single element, and an element's own declaration beats the
+   flipped value inherited from :root — a hardcoded literal would leave every inner scroll
+   container in the light theme with a pale thumb on an equally pale track (invisible). On top of
+   that, once an element sets scrollbar-color, Chrome 121+ ignores its ::-webkit-scrollbar-*
+   pseudo-element styling entirely, so the webkit theme override cannot rescue it either.
+   Guard: src/styles/scrollbarTheme.test.ts. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
@@ -22,7 +34,8 @@
 
 :root {
   color-scheme: dark;
-  /* 全局滚动条滑块(顶部 `*` 规则引用;白色主题块必须同步给值,见 THEMING.md §2.11) */
+  /* Global scrollbar thumb (referenced by the top `*` rule; the light theme block must
+     give it a value too, see THEMING.md §2.11) */
   --scrollbar-thumb: rgba(255, 255, 255, 0.28);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
@@ -35,10 +48,11 @@
   --radius: 28px;
   --radius-sm: 18px;
   --radius-xs: 6px;
-  /* 百分比圆角：按元素自身尺寸等比缩放（≈22px/70px 默认观感），图标各处必须保持正方形 */
+  /* Percentage radius: scales proportionally to the element's own size (~22px/70px is the
+     default look); icons must stay square everywhere */
   --icon-radius: 31%;
 
-  /* 拖拽时的高一档投影（更"浮"）+ 文件夹玻璃 + 编辑网格点 */
+  /* One-step-up shadow while dragging (more "afloat") + folder glass + edit-mode grid dots */
   --card-shadow-drag:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
     0 10px 20px rgba(8, 12, 28, 0.3),
@@ -56,7 +70,8 @@
   --good: #5fe3b0;
   --on-accent: #16203a;
 
-  /* 扩展/语义 token(SearchDialog·MediaViewer 提升为全局;每套主题都给值)。见 THEMING.md §2.12 */
+  /* Extended/semantic tokens (promoted to global from SearchDialog/MediaViewer; every theme
+     gives these a value). See THEMING.md §2.12 */
   --card: #232a45;
   --border: rgba(255, 255, 255, 0.14);
   --fg-subtle: rgba(255, 255, 255, 0.4);
@@ -65,22 +80,28 @@
   --accent-text: #a9c6ff;
   --grad-a: #7a98ff;
   --grad-b: #b79bff;
-  /* 相册无封面渐变占位(PhotosAlbums.vue / PhotosAlbumDetail.vue 曾各写一份逐字相同的
-     linear-gradient(135deg, color-mix(accent 35%, panel-bg), accent),提成本 token 消灭
-     重复;两处均改用它,见 THEMING.md 例外清单外的普通语义 token 用法)。 */
+  /* Album no-cover gradient placeholder (PhotosAlbums.vue / PhotosAlbumDetail.vue each used
+     to have their own byte-for-byte copy of
+     linear-gradient(135deg, color-mix(accent 35%, panel-bg), accent); lifted into a token
+     to kill the duplication -- both sites now use this, see THEMING.md's plain semantic-token
+     usage outside the exceptions list). */
   --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
-  /* 人物头像三级兜底的渐变实底(PersonAvatar.vue,SP7-P5)。目标是贴近 Vue2 5 处重复的
-     linear-gradient(135deg,#6E5BFF,#4A3BD1)/(135deg,#8950F2,#6c3bcd)(两套并存本身不一致,
-     这里统一成一份 token)。用 --accent 混黑代替写死紫色,保持"颜色一律走 token"红线;
-     对比度实算见 PersonAvatar.vue 顶部注释与任务报告。 */
+  /* Person avatar's third-tier fallback gradient fill (PersonAvatar.vue, SP7-P5). Aims to
+     match Vue2's five duplicated copies of
+     linear-gradient(135deg,#6E5BFF,#4A3BD1)/(135deg,#8950F2,#6c3bcd) (the two variants
+     already disagreed with each other; unified into a single token here). Mixes --accent
+     with darkening instead of hardcoding a fixed accent hue, keeping the "colors always go
+     through a token" line intact; the actual contrast math lives in PersonAvatar.vue's
+     top-of-file comment and the task report. */
   --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
   --accent-soft: rgba(138, 180, 255, 0.14);
   --accent-soft-2: rgba(138, 180, 255, 0.24);
   --accent-soft-bd: rgba(138, 180, 255, 0.36);
-  /* PlacesRail.vue(P6a-T5)选中城市行三处——Vue2 photos-places.scss:153-156/:163-167
-     的 rgba(var(--accent-rgb), 0.10/0.30/0.18) 精确复刻(该视图只有深色设计,数值级
-     精度要求专用 token,不从 --accent-soft 三档就近凑,同 --drop-bg/--spark-fill/
-     --orb-glow 的既有先例)。 */
+  /* PlacesRail.vue (P6a-T5) selected-city row, three spots -- an exact port of Vue2
+     photos-places.scss:153-156/:163-167's rgba(var(--accent-rgb), 0.10/0.30/0.18) (that
+     view only ever had a dark design; the numeric precision required calls for a
+     dedicated token instead of settling for one of --accent-soft's three tiers, following
+     the existing precedent set by --drop-bg/--spark-fill/--orb-glow). */
   --place-row-bg: rgba(138, 180, 255, 0.10);
   --place-row-border: rgba(138, 180, 255, 0.30);
   --place-thumb-active: rgba(138, 180, 255, 0.18);
@@ -96,17 +117,23 @@
   /* Vue2 原值 #34c759(当前行程绿,图例第四组也用),两套主题下都用同一个值——不用
      本仓 --good(它是青绿 #5fe3b0/#15754c,与 iOS 绿不同,是近似不是精确复刻)。 */
   --place-current-trip: #34c759;
-  /* PlaceDetailPanel.vue(P6b-T3)「常驻地」标记色——新增 token,精确复刻 Vue2
-     photos-places.scss 内联 `style="color:#c4b8ff"`(:1078)。偏离登记(brief 字面要求
-     两套主题给不同值,深色浅紫、浅色改深色向,同 --accent-text 的做法):这里改成
-     **两套主题同值**,不跟随 app 主题深浅——它与紧邻的 --place-current-trip 用在完全
-     相同的语境(.ttl-region 内,叠在 hero 暗化封面照片之上,该遮罩本身钉死恒为深色,
-     与 app 是深色皮肤还是纸感皮肤无关),若照字面给浅色主题一个深紫版本,会在浅色 app
-     主题下把深紫字压在恒暗的照片渐变上,直接违反本任务"hero 前景色红线"的对比度要求。
-     不用 --accent-text 就近凑:那是"比 accent 更浅更可读"的语义(蓝色调),这里要与
-     「本次旅行」并列的第二个状态色(紫色调),同 --pin-cluster-stroke 换基色不换语义的
-     既有先例,但这里连 alpha/精确色值都直接照抄 Vue2 字面量(theme-invariant,同
-     --place-current-trip 的既有先例)。 */
+  /* PlaceDetailPanel.vue (P6b-T3) "home base" marker color -- a new token, an exact port
+     of Vue2 photos-places.scss's inline `style="color:#c4b8ff"` (:1078). Deviation on
+     record (the brief literally asks for different values per theme: dark stays light
+     violet, light shifts toward a deeper tone, the same approach as --accent-text): here
+     it's changed to **the same value in both themes**, not following the app theme's
+     light/dark split -- it sits in exactly the same context as its neighbor
+     --place-current-trip (inside .ttl-region, layered over the hero's darkened cover
+     photo, and that scrim is itself pinned permanently dark regardless of whether the app
+     skin is dark or paper-toned); giving the light theme a deeper-violet version as the
+     brief literally asks would push that deep-violet text onto a permanently dark photo
+     gradient in the light app theme, a direct violation of this task's "hero foreground
+     color line". Not settling for --accent-text either: that token's semantics are
+     "lighter/more readable than accent" (an azure-leaning hue), while this one needs to be
+     the second status color paired alongside "current trip" (a violet-leaning hue) --
+     following the same swap-the-base-hue-but-not-the-semantics precedent as
+     --pin-cluster-stroke, except here even the alpha/exact color value is copied straight
+     from the Vue2 literal (theme-invariant, the same precedent as --place-current-trip). */
   --place-home-base: #c4b8ff;
   /* PlacesMap.vue (P6a-T6) land-dot-lattice CSS fallback color — theme-invariant, same value in
      both theme blocks. Task 6 (Plan E, 2026-08-15) updated the literal from
@@ -130,16 +157,19 @@
      本仓之前没有等价的"半透明浮动工具条底"token,--panel-bg(0.1)/--popup-bg(渐变,
      ~0.9-0.95)/--tool-bg(0.16,不透明纯色)都对不上这个扁平 0.85 的量级,故新增而非近似。 */
   --float-bg: rgba(20, 20, 28, 0.85);
-  /* 同上组件——Vue2 用 rgba(var(--ink), 0.08/0.12) 给 .zb-btn:hover 背景与 .zb-track 底色
-     做"跟随文字色的透明度斜坡";本仓没有 --ink 这个 RGB 三元组 token。alpha 精确复刻
-     Vue2 的 0.08/0.12,RGB 改取本仓 --fg 的真实分解值(dark #ffffff→255,255,255)——不照抄
-     Vue2 light 主题里 --ink 的 (35,37,43)(该值本身只是 Vue2 注释自称的"AI --text-primary
-     近似",不是设计精确值),同 --pin-cluster-stroke 的换基色先例。 */
+  /* Same component -- Vue2 uses rgba(var(--ink), 0.08/0.12) for .zb-btn:hover's background
+     and .zb-track's base color, an "alpha ramp that follows the text color"; this repo has
+     no --ink RGB-triple token. The alpha is an exact port of Vue2's 0.08/0.12, but the RGB
+     is swapped for this repo's --fg's actual decomposed value (dark theme #ffffff ->
+     255,255,255) -- not copied from Vue2's light-theme --ink value of (35,37,43) (that
+     value is, per Vue2's own comment, only an approximation of "AI --text-primary", not a
+     precise design value), following the same base-hue-swap precedent as
+     --pin-cluster-stroke. */
   --zb-hover-bg: rgba(255, 255, 255, 0.08);
   --zb-track-bg: rgba(255, 255, 255, 0.12);
-  /* .zb-thumb 把手投影第二层——Vue2 photos-places.scss:281 的 box-shadow 里
-     `0 1px 4px rgba(0,0,0,0.4)` 从未随 Vue2 自己的深浅主题变化,theme-invariant,
-     两套主题块同值(先例见 --place-current-trip)。 */
+  /* .zb-thumb handle's second shadow layer -- Vue2 photos-places.scss:281's box-shadow
+     `0 1px 4px rgba(0,0,0,0.4)` never varied across Vue2's own dark/light themes,
+     theme-invariant, same value in both theme blocks (precedent: --place-current-trip). */
   --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
   --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
   --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
@@ -147,74 +177,98 @@
   --hit-bg: rgba(255, 224, 138, 0.3); --hit-fg: #ffe08a;
   --success: #5fe3b0;
   --hl-star: #e8c06a;
-  /* 说话人配色(音频转录/波形,最多 5 色循环;dark 用亮版;避开金色以免与星标混淆) */
-  --spk-1: oklch(0.74 0.13 250);   /* 蓝 */
-  --spk-2: oklch(0.72 0.13 305);   /* 紫 */
-  --spk-3: oklch(0.77 0.12 190);   /* 青 */
-  --spk-4: oklch(0.73 0.15 18);    /* 珊瑚 */
-  --spk-5: oklch(0.79 0.14 150);   /* 绿 */
-  --wave-none: var(--fg-subtle);   /* 波形:静场/无人声竖条 */
-  --wave-dim: var(--fg-faint);     /* 波形:过滤时被弱化的竖条 */
+  /* Speaker palette (audio transcript/waveform, cycles through up to 5 hues; dark theme
+     uses the brighter set; avoids gold so it doesn't get confused with the star highlight) */
+  --spk-1: oklch(0.74 0.13 250);   /* azure */
+  --spk-2: oklch(0.72 0.13 305);   /* violet */
+  --spk-3: oklch(0.77 0.12 190);   /* cyan */
+  --spk-4: oklch(0.73 0.15 18);    /* coral */
+  --spk-5: oklch(0.79 0.14 150);   /* emerald */
+  --wave-none: var(--fg-subtle);   /* waveform: bars during silence/no speech */
+  --wave-dim: var(--fg-faint);     /* waveform: bars dimmed while filtering */
   --remove-fg: #ff8a8a; --drop-bad: rgba(255, 80, 100, 0.12); --skeleton-bg: rgba(255, 255, 255, 0.06);
-  /* 容量条的槽底(SP12-T9 侧栏用量悬浮窗)。不复用 --chip-bg:它在纸感主题是纯白
-     #ffffff,刷在同为白底的浮层上等于不可见。 */
+  /* Usage bar's track background (SP12-T9 sidebar usage flyout). Not reusing --chip-bg:
+     in the paper theme it's a fully opaque #ffffff, which paints invisibly over an
+     equally pale-backed overlay. */
   --usage-track: rgba(255, 255, 255, 0.16);
-  /* 警告/降级语义(SP7-P5:人脸识别关闭、Photos AI 后端离线两条横幅)。对齐 Vue2 的
-     #FF9F0A 系;深色主题直接取原值,浅色主题按本仓 --dem-* 的既有做法压暗前景保证对比度。 */
+  /* Warning/degraded semantics (SP7-P5: the face-recognition-disabled and Photos AI
+     backend-offline banners). Aligned with Vue2's #FF9F0A family; the dark theme takes
+     the original value directly, the light theme darkens the foreground for contrast
+     following this repo's existing --dem-* approach. */
   --warn-fg: #ff9f0a;
   --warn-bg: rgba(255, 159, 10, 0.08);
   --warn-border: rgba(255, 159, 10, 0.32);
 
-  /* SP7-P7a-T15:搜索结果卡片左上角媒体类别徽标(.type-badge[data-type])三色——
-     数据可视化类别色（THEMING.md §0 第三类例外的变体：同一批结果里要把"照片/视频/
-     OCR 命中"这三种互不相同的类别互相区分开，颜色语义是"第几类"而非"主题强调色"）。
-     精确复刻 Vue2 photos.scss:2768-2770 的字面量,两套主题块同值——不随皮肤深浅走,
-     同 --place-current-trip/--console-bg 的既有先例(同类先例见 THEMING.md §6)。
-     不用 --accent/--danger 就近凑:它们是三个并列的类别标识,不是"强调"或"危险"语义。 */
-  --badge-photo: rgba(50, 190, 230, 0.9);   /* 青 cyan */
-  --badge-video: rgba(255, 149, 10, 0.92);  /* 橙 orange */
-  --badge-ocr: rgba(16, 185, 129, 0.92);    /* 翠绿 emerald */
+  /* SP7-P7a-T15: the three colors for the search result card's top-left media-category
+     badge (.type-badge[data-type]) -- data-visualization category colors (a variant of
+     THEMING.md §0's third exception category: the same result set needs to tell "photo /
+     video / OCR hit" categories apart from each other, so the color semantics are "which
+     category" rather than "theme accent"). An exact port of Vue2 photos.scss:2768-2770's
+     literals, same value in both theme blocks -- doesn't follow the skin's light/dark
+     state, the same precedent as --place-current-trip/--console-bg (see THEMING.md §6 for
+     the same category of precedent). Not settling for --accent/--danger: those three are
+     parallel category labels, not an "emphasis" or "danger" semantic. */
+  --badge-photo: rgba(50, 190, 230, 0.9);   /* cyan */
+  --badge-video: rgba(255, 149, 10, 0.92);  /* amber */
+  --badge-ocr: rgba(16, 185, 129, 0.92);    /* emerald */
 
-  /* SP7-P8a-T3:设置页存储卡容量条分段色(PhotosStorageCard.vue,消费于
-     src/photos/util/storagePalette.ts 的 STORAGE_SEG_COLORS)——同上一组一样是**数据可视化
-     类别色**:同一条容量条上要把 videos/raw/ai/other 四个互不相同的数据段互相区分开,
-     颜色语义是"第几类数据"而不是"主题强调色"。photos 段用 --accent、thumbs 段用 --success
-     (既有语义 token 直接复用,不新增),这四个是 Vue2 内联的、本仓无对应语义 token 的字面量,
-     故新增。深色精确复刻 Vue2 PhotosSettings.vue:320/321/323 的字面量;浅色不能照抄深色值——
-     videos 的中蓝、raw 的浅粉柔和色铺在本主题纯白 --card-bg 上会偏灰、分段边界糊掉,故各自
-     加深/提高饱和度保持在白底上可辨识(同 --warn-fg 浅色把 #FF9F0A 压成 #96610a 保对比度的
-     既定手法,但这里是三个并列的类别色而非单一警告语义,故各给独立值而非借用 --warn-fg)。 */
+  /* SP7-P8a-T3: settings page storage card's capacity bar segment colors
+     (PhotosStorageCard.vue, consumed by src/photos/util/storagePalette.ts's
+     STORAGE_SEG_COLORS) -- like the previous group, these are **data-visualization
+     category colors**: the same capacity bar needs to tell the four distinct data
+     segments videos/raw/ai/other apart, so the color semantics are "which data category"
+     rather than "theme accent". The photos segment reuses --accent, the thumbs segment
+     reuses --success (existing semantic tokens reused as-is, no new ones needed); these
+     four are Vue2-inline literals with no matching semantic token in this repo, hence new
+     ones. Dark theme is an exact port of Vue2 PhotosSettings.vue:320/321/323's literals;
+     light theme can't just copy the dark values -- videos' mid-tone and raw's soft pale
+     tint both wash out and blur the segment boundaries against this theme's fully opaque
+     --card-bg (#ffffff), so each is darkened/saturated to stay legible on a pale
+     background (the same established technique as --warn-fg's light-theme handling,
+     which darkens #FF9F0A to #96610a for contrast -- but these are three parallel
+     category labels rather than a single warning semantic, so each gets its own
+     independent value instead of borrowing --warn-fg). */
   --photos-seg-video: #5e94ff;
   --photos-seg-raw: #ff9ac2;
   --photos-seg-ai: #ff9f0a;
-  /* other 段 Vue2 原值是 rgba(var(--ink),0.25)("跟随文字色的透明度斜坡"),本仓无 --ink
-     三元组 token——同 --zb-hover-bg/--zb-track-bg 的既定换基先例:alpha 精确复刻 0.25,
-     RGB 改取本仓 --fg 的真实分解值(dark #ffffff→255,255,255)。 */
+  /* The other segment's Vue2 original value is rgba(var(--ink),0.25) (an "alpha ramp that
+     follows the text color"), and this repo has no --ink RGB-triple token -- following the
+     same established base-hue-swap precedent as --zb-hover-bg/--zb-track-bg: alpha is an
+     exact port of 0.25, RGB is swapped for this repo's --fg's actual decomposed value
+     (dark theme #ffffff -> 255,255,255). */
   --photos-seg-other: rgba(255, 255, 255, 0.25);
 
-  /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
+  /* P6 terminal/log console (terminal semantics are pinned dark, don't flip with the
+     theme; same value in both theme blocks, matching the old Vue2 implementation) */
   --console-bg: #1e1e1e;
   --console-fg: #d4d4d4;
-  /* 固定深底区域(monokai 编辑器/日志/终端)的滚动条拇指:全局滚动条颜色随主题翻转,
-     浅色主题下会变成深拇指、落在这些固定深底上不可见——故单独给亮色拇指,两套主题同值 */
+  /* Scrollbar thumb for permanently-dark-backed areas (monokai editor/logs/terminal): the
+     global scrollbar color flips with the theme, and in the light theme it would become a
+     dark thumb sitting on these permanently-dark backdrops (invisible) -- hence a
+     dedicated bright thumb here, same value in both themes */
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
-  /* 时间机器覆盖层。跟随主题(用户拍板):深色是深空,浅色是纸感 —— 两套各自成立,
-     不是一套深色硬塞进浅色主题里。 */
+  /* Time Machine overlay. Follows the theme (owner's call): dark theme is a deep-space
+     look, light theme is paper-toned -- each stands on its own, not one dark design
+     forced into the light theme. */
   --tm-bg:
     radial-gradient(ellipse at 28% 22%, rgba(76, 61, 158, 0.35) 0%, rgba(10, 13, 33, 0) 55%),
     radial-gradient(ellipse at 78% 78%, rgba(30, 64, 140, 0.28) 0%, rgba(10, 13, 33, 0) 55%),
     linear-gradient(160deg, #131a3a 0%, #0a0e21 45%, #05060f 100%);
   --tm-fg: #f1f5f9;
   --tm-fg-muted: rgba(241, 245, 249, 0.62);
-  /* 评审修复(Important):卡堆绝对定位相互重叠,后排卡还带 opacity 0.86/0.7/… 的大字——
-     纯玻璃渐变最大 alpha 只有 0.16,深色主题下(默认主题,本期门面)后面卡片的文字透过
-     前面那张卡直接看得见,互相叠印。垫一层不透明底色(与 --bg:#1a2138 / --card:#232a45
-     协调、比两者更深一点贴合 --tm-bg 的深空基调),玻璃观感保留,叠印消失。 */
+  /* Review fix (Important): the card stack's absolutely positioned cards overlap, and the
+     back cards carry large text at opacity 0.86/0.7/... -- the pure-glass gradient's max
+     alpha is only 0.16, so in the dark theme (the default theme, this cycle's showcase)
+     text from a card behind was visible straight through the card in front, doubling up.
+     Adding an opaque base color layer (coordinated with --bg:#1a2138 / --card:#232a45,
+     slightly deeper to match --tm-bg's deep-space tone) keeps the glass look while
+     eliminating the double-exposure. */
   --tm-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)), #161d3d;
   --tm-card-bd: rgba(255, 255, 255, 0.18);
-  /* 卡片抬头(日期时间 / 类型)与下方文件网格之间的分隔线,比卡片外边框更淡 */
+  /* Divider between the card header (date/time / type) and the file grid below it,
+     fainter than the card's outer border */
   --tm-card-divider: rgba(255, 255, 255, 0.1);
   --tm-card-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
   --tm-rail: rgba(255, 255, 255, 0.5);
@@ -223,7 +277,7 @@
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
 
-  /* 通透玻璃 chip / 按钮 */
+  /* Translucent glass chip / button */
   --chip-border: rgba(255, 255, 255, 0.4);
   --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1));
   --chip-bg-hi: linear-gradient(160deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.16));
@@ -231,12 +285,16 @@
   --dot: rgba(255, 255, 255, 0.45);
   --dot-on: #fff;
 
-  /* 悬浮玻璃面板：高光顶边 + 大柔投影，像浮在空中 */
+  /* Floating glass panel: a highlighted top edge + a large soft shadow, as if hovering
+     in mid-air */
   --card-bg: linear-gradient(157deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.085) 62%);
-  /* 深色玻璃弹层底(Dialog / AlertDialog / ContextMenu 等浮层),比浅色 card 更深、对白字更稳 */
+  /* Dark glass background for popup layers (Dialog / AlertDialog / ContextMenu, etc.),
+     deeper than the light card so light-colored text stays steady against it */
   --popup-bg: linear-gradient(157deg, rgba(30, 34, 52, 0.9), rgba(16, 19, 30, 0.95) 62%);
-  /* 媒体(照片/视频)上方浮层的投影:内容颜色不可控,白图上纯白浮层会隐形,
-     故两套主题都用向外渐隐的黑色柔影(近距一圈 + 远距大扩散)衬出轮廓 */
+  /* Shadow for overlays sitting above media (photos/videos): content color can't be
+     controlled, and a pale overlay over a pale image would go invisible, so both themes
+     use an outward-fading dark soft shadow (a tight ring plus a wide diffuse spread) to
+     carve out the silhouette */
   --media-overlay-shadow: 0 0 5px rgba(0, 0, 0, 0.4), 0 3px 12px rgba(0, 0, 0, 0.45);
   --card-border: rgba(255, 255, 255, 0.36);
   --card-shadow:
@@ -282,11 +340,14 @@
 
   --overlay-bg: rgba(20, 26, 46, 0.46);
   --overlay-blur: blur(50px) saturate(1.5) brightness(1.05);
-  /* 侧栏大面板玻璃(比 --card-bg 更透、阴影更收敛;文件区侧栏用) */
+  /* Large sidebar panel glass (more translucent than --card-bg, more restrained shadow;
+     used by the files area's sidebar) */
   --panel-bg: rgba(255, 255, 255, 0.1);
-  /* 完全不透明的侧栏大面板底(真机验收反馈:地点详情面板压在地图上,--panel-bg 的
-     10% 白会把下面的地图网格点透上来、正文糊掉)。取值 = --popup-bg 去掉 alpha 的
-     同色实底(rgba(30,34,52)=#1e2234 / rgba(16,19,30)=#10131e),保持与弹层同一观感。 */
+  /* Fully opaque large sidebar panel background (real-device acceptance feedback: the
+     place-detail panel sits over the map, and --panel-bg's 10% pale tint let the map's
+     grid dots show through underneath, blurring the body text). Value = --popup-bg with
+     alpha stripped, the same hue at full opacity (rgba(30,34,52)=#1e2234 /
+     rgba(16,19,30)=#10131e), keeping the same look as the popup layer. */
   --panel-bg-solid: linear-gradient(157deg, #1e2234, #10131e 62%);
   --panel-shadow: 0 2px 6px rgba(8, 12, 28, 0.12), 0 10px 24px -12px rgba(8, 12, 28, 0.25);
   --remove-bg: #ff708a;
@@ -310,7 +371,8 @@
 
   --app-size: 64px;
 
-  /* 主页深色纵深背景（body 与文件预览浮层共用，保持一致观感） */
+  /* Home page's dark depth background (shared by body and the file preview overlay to
+     keep a consistent look) */
   --app-bg:
     radial-gradient(62% 52% at 18% 16%, #4a5d92 0%, transparent 60%),
     radial-gradient(58% 50% at 84% 10%, #6a5aa0 0%, transparent 60%),
@@ -331,14 +393,15 @@
   --wallpaper-tile-label-fg: #ffffff;
 }
 
-/* ═══ 白色 / 米白纸感主题:覆盖全部颜色 token(结构 token 沿用 :root)。权威取值见 docs/THEMING.md §2 ═══ */
+/* ═══ Light / ecru paper theme: overrides every color token (structural tokens stay on
+   :root). See docs/THEMING.md §2 for the authoritative values ═══ */
 :root[data-theme="light"] {
   color-scheme: light;
-  /* 滚动条滑块贴浅底改深色(见 THEMING.md §2.11) */
+  /* Scrollbar thumb switches to dark against the pale background (see THEMING.md §2.11) */
   --scrollbar-thumb: rgba(28, 27, 25, 0.22);
   --scrollbar-thumb-hover: rgba(28, 27, 25, 0.4);
 
-  /* 2.1 基础色 */
+  /* 2.1 Base colors */
   --bg: #f7f5ef;
   --fg: #1c1b19;
   --fg-muted: #6e6a61;
@@ -348,21 +411,21 @@
   --good: #15754c;
   --on-accent: #ffffff;
 
-  /* 2.2 品牌渐变 */
+  /* 2.2 Brand gradient */
   --brand-bg: linear-gradient(135deg, #4c6fe8, #6e5ae0);
   --brand-shadow: 0 12px 30px rgba(59, 91, 219, 0.3);
 
-  /* 2.3 chip / 通透按钮 */
+  /* 2.3 chip / translucent button */
   --chip-border: #e7e3d9;
   --chip-bg: #ffffff;
   --chip-bg-hi: #f2efe7;
   --dot: rgba(28, 27, 25, 0.35);
   --dot-on: #1c1b19;
 
-  /* 2.4 卡片 / 浮层 */
+  /* 2.4 Card / overlay */
   --card-bg: #ffffff;
   --popup-bg: #ffffff;
-  /* 媒体浮层投影:同深色主题,白图上必须可见 */
+  /* Media overlay shadow: same as the dark theme, must stay visible over a pale image */
   --media-overlay-shadow: 0 0 5px rgba(0, 0, 0, 0.4), 0 3px 12px rgba(0, 0, 0, 0.45);
   --card-border: #e7e3d9;
   --card-shadow: 0 2px 6px rgba(60, 50, 30, 0.06), 0 26px 50px -20px rgba(60, 50, 30, 0.3);
@@ -385,7 +448,7 @@
   --danger-bg: rgba(192, 57, 43, 0.08);
   --danger-border: rgba(192, 57, 43, 0.35);
 
-  /* 2.5 工具 / 内嵌面 */
+  /* 2.5 Tool / inset surface */
   --tool-bg: #f0eee8;
   --tool-bg-hi: #e7e3d9;
   --inner-bg: #f7f5ef;
@@ -393,7 +456,7 @@
   --inner-border: #e7e3d9;
   --grid-dot: rgba(28, 27, 25, 0.14);
 
-  /* 2.6 环形图 / 迷你图 / AI 光球 */
+  /* 2.6 Ring chart / sparkline / AI orb */
   --ring-hole: rgba(255, 255, 255, 0.85);
   --ring-track: rgba(28, 27, 25, 0.1);
   --spark-fill: rgba(59, 91, 219, 0.14);
@@ -402,13 +465,13 @@
   --orb-core: #d9def5;
   --orb-glow: rgba(59, 91, 219, 0.4);
 
-  /* 2.7 图标 / 标签 / 文件夹 */
+  /* 2.7 Icon / label / folder */
   --folder-bg: linear-gradient(180deg, #a9c2f5, #6e8fe8);
   --icon-shadow: 0 14px 30px -8px rgba(60, 50, 30, 0.22);
   --label-color: rgba(28, 27, 25, 0.92);
   --label-shadow: none;
 
-  /* 2.8 Dock / 全部应用 */
+  /* 2.8 Dock / all apps */
   --dock-bg: rgba(255, 255, 255, 0.9);
   --dock-border: #e7e3d9;
   --dock-shadow: 0 30px 60px -18px rgba(60, 50, 30, 0.32);
@@ -416,11 +479,13 @@
   --all-fg: #1c1b19;
   --all-border: #e7e3d9;
 
-  /* 2.9 浮层 / 背景 / 危险 / 拖放 */
+  /* 2.9 Overlay / background / danger / drop */
   --overlay-bg: rgba(40, 36, 28, 0.28);
-  /* 侧栏大面板玻璃:纸感主题不用实心白(--card-bg=#fff),半透白 + 收敛阴影 */
+  /* Large sidebar panel glass: the paper theme avoids a solid pale fill (--card-bg=#fff),
+     using a semi-translucent pale tint plus a more restrained shadow instead */
   --panel-bg: rgba(255, 255, 255, 0.42);
-  /* 完全不透明版:纸感主题下与 --card-bg/--popup-bg 同为实心白(见深色块注释的理由)。 */
+  /* Fully opaque variant: in the paper theme this is the same solid pale fill as
+     --card-bg/--popup-bg (see the dark block's comment for the reasoning). */
   --panel-bg-solid: #ffffff;
   --panel-shadow: 0 2px 6px rgba(60, 50, 30, 0.05), 0 10px 24px -12px rgba(60, 50, 30, 0.18);
   --remove-bg: #e0466a;
@@ -444,11 +509,12 @@
   --wallpaper-tile-label-bg: rgba(255, 255, 255, 0.72);
   --wallpaper-tile-label-fg: #1c1b19;
 
-  /* 2.10 模糊(纸感不用玻璃) */
+  /* 2.10 Blur (the paper theme doesn't use glass) */
   --blur: none;
   --overlay-blur: blur(8px);
 
-  /* 扩展/语义 token(白色纸感,取自 SearchDialog/MediaViewer 原浅色板) */
+  /* Extended/semantic tokens (paper theme, taken from SearchDialog/MediaViewer's original
+     light-theme palette) */
   --card: #ffffff;
   --border: #e7e3d9;
   --fg-subtle: #9a958a;
@@ -457,17 +523,21 @@
   --accent-text: #3550c4;
   --grad-a: #4c6fe8;
   --grad-b: #6e5ae0;
-  /* 相册无封面渐变占位(见 :root 同名 token 注释),白色纸感主题下取值同一份公式,
-     --accent/--panel-bg 各自已按本主题定义,结果自然是本主题配色。 */
+  /* Album no-cover gradient placeholder (see the :root token of the same name's comment);
+     the paper theme uses the same formula, and since --accent/--panel-bg are each already
+     defined for this theme, the result naturally comes out in this theme's colors. */
   --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
-  /* 见 :root 同名 token 注释;白色纸感主题下 accent 更深,mix 百分比调到 70% 才不至于
-     整块糊成近黑(对比度实算见 PersonAvatar.vue / 任务报告)。 */
+  /* See the :root token of the same name's comment; the paper theme's accent is deeper, so
+     the mix percentage is raised to 70% to avoid the whole thing blurring into a near-dark
+     blob (actual contrast math is in PersonAvatar.vue / the task report). */
   --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000));
   --accent-soft: rgba(59, 91, 219, 0.11);
   --accent-soft-2: rgba(59, 91, 219, 0.2);
   --accent-soft-bd: rgba(59, 91, 219, 0.3);
-  /* Vue2 该视图仅有深色设计,浅色值没有原件可照——按 accent 家族深→浅收敛惯例推导
-     (.14→.11、.24→.20、.36→.30,约 ×0.83):.10→.08、.30→.25、.18→.15。 */
+  /* Vue2 only ever designed a dark version of this view, so there's no original to copy
+     for the light value -- derived using the accent family's dark->light convergence
+     convention (.14->.11, .24->.20, .36->.30, roughly x0.83): .10->.08, .30->.25,
+     .18->.15. */
   --place-row-bg: rgba(59, 91, 219, 0.08);
   --place-row-border: rgba(59, 91, 219, 0.25);
   --place-thumb-active: rgba(59, 91, 219, 0.15);
@@ -476,9 +546,11 @@
      `:root` block's own comment above for the full rationale. */
   /* 两套主题同值,见 :root 同名注释。 */
   --place-current-trip: #34c759;
-  /* 两套主题同值,见 :root 同名注释(偏离登记:未按字面要求给浅色主题一个深紫版本,
-     理由同 :root 块的完整登记——它与 --place-current-trip 语境完全相同,恒叠在
-     hero 的固定暗化渐变之上,与 app 是深色还是纸感皮肤无关)。 */
+  /* Same value in both themes, see the :root token of the same name's comment (deviation
+     on record: didn't give the light theme a deeper-violet version as literally required
+     -- the reasoning is the same as the :root block's full write-up: it sits in exactly
+     the same context as --place-current-trip, permanently layered over the hero's fixed
+     darkening gradient, independent of whether the app skin is dark or paper-toned). */
   --place-home-base: #c4b8ff;
   /* theme-invariant, same value in both theme blocks — see the :root token's own comment
      (Task 6 updated the literal from 0.10 to 0.30; the reasoning against --fg-faint is the same
@@ -488,11 +560,12 @@
   /* PlacesZoomBar.vue(P6a-T8)——见 :root 同名 token 注释。精确复刻 Vue2 photos.scss:84
      的浅色浮动条底字面量。 */
   --float-bg: rgba(255, 255, 255, 0.85);
-  /* 见 :root 同名 token 注释:alpha 与 :root 完全相同(0.08/0.12),RGB 换成本仓浅色
-     --fg 的真实分解值(#1c1b19→28,27,25)。 */
+  /* See the :root token of the same name's comment: alpha is identical to :root's
+     (0.08/0.12), RGB is swapped for this repo's light theme --fg's actual decomposed
+     value (#1c1b19 -> 28,27,25). */
   --zb-hover-bg: rgba(28, 27, 25, 0.08);
   --zb-track-bg: rgba(28, 27, 25, 0.12);
-  /* 两套主题同值,见 :root 同名注释。 */
+  /* Same value in both themes, see the :root token of the same name's comment. */
   --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
   --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
   --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
@@ -500,7 +573,7 @@
   --hit-bg: #fce8a6; --hit-fg: #5a4a12;
   --success: #15754c;
   --hl-star: #c9992f;
-  /* 说话人配色(白色纸感用暗版,同 hue 系) */
+  /* Speaker palette (paper theme uses the deeper set, same hue family) */
   --spk-1: oklch(0.52 0.15 255);
   --spk-2: oklch(0.50 0.16 305);
   --spk-3: oklch(0.53 0.12 200);
@@ -509,45 +582,61 @@
   --wave-none: var(--fg-subtle);
   --wave-dim: var(--fg-faint);
   --remove-fg: #c0392b; --drop-bad: rgba(224, 70, 106, 0.12); --skeleton-bg: rgba(28, 27, 25, 0.05);
-  /* 容量条槽底(见 :root 同名注释):纸感主题反过来压暗,才在白底上看得见。 */
+  /* Usage bar's track background (see the :root token of the same name's comment): the
+     paper theme darkens it instead, so it's visible against the pale background. */
   --usage-track: rgba(28, 27, 25, 0.12);
-  /* 警告/降级语义(见 :root 同名注释)。#FF9F0A 直接铺在纸感白底上只有 ~1.9:1,
-     故前景压到深琥珀(同 --dem-fg 的 #92600c 一档),底/描边给纸感主题的实色。 */
+  /* Warning/degraded semantics (see the :root token of the same name's comment). #FF9F0A
+     laid directly over the paper theme's pale background is only ~1.9:1, so the
+     foreground is darkened to a deep amber (matching --dem-fg's #92600c tier), while the
+     background/border get the paper theme's solid tints. */
   --warn-fg: #96610a;
   --warn-bg: #fdf3e2;
   --warn-border: #f0d7a6;
 
-  /* SP7-P7a-T15:同 :root 同名注释——三个媒体类别徽标色,两套主题块同值,不随皮肤翻转。 */
+  /* SP7-P7a-T15: same as the :root token of the same name's comment -- the three media
+     category badge colors, same value in both theme blocks, doesn't flip with the skin. */
   --badge-photo: rgba(50, 190, 230, 0.9);
   --badge-video: rgba(255, 149, 10, 0.92);
   --badge-ocr: rgba(16, 185, 129, 0.92);
 
-  /* SP7-P8a-T3:同 :root 同名注释——存储卡容量条分段色。浅色主题按可读性微调(不是照抄
-     Vue2 唯一深色设计的原值):
-     --photos-seg-video 从 Vue2 的中蓝 #5e94ff 加深到 #3560d8——纸感白底 --card-bg(#ffffff)
-     上原值发灰、和相邻分段边界不够清楚,加深/提高饱和度后仍是同一色相的蓝。
-     --photos-seg-raw 从 Vue2 的浅粉 #ff9ac2 加深到 #c93f79——浅粉铺在纯白底上几乎融进背景,
-     压深成同色相的玫红以保证分段轮廓可辨。
-     --photos-seg-ai 从 Vue2 的橙 #ff9f0a 压到 #a15f0a——同 --warn-fg 浅色档处理同一个字面量
-     色值的既定手法(压暗保对比度),但这里是独立的类别标识 token,不直接借用 --warn-fg
-     (那是"警告"语义,这里是"第几类数据"语义,同一个字面量色值、两个不同的 token)。 */
+  /* SP7-P8a-T3: same as the :root token of the same name's comment -- storage card
+     capacity bar segment colors. The light theme tunes these for legibility (not a
+     straight copy of Vue2's only-ever-dark design):
+     --photos-seg-video is deepened from Vue2's mid-tone azure #5e94ff to #3560d8 -- the
+     original value looked washed-out and made segment boundaries unclear against this
+     theme's fully opaque --card-bg (#ffffff); deepening/saturating it keeps the same hue
+     family.
+     --photos-seg-raw is deepened from Vue2's pale pink #ff9ac2 to #c93f79 -- the pale pink
+     nearly disappeared into a plain pale background, so it's darkened into a rose of the
+     same hue to keep the segment outline legible.
+     --photos-seg-ai is darkened from Vue2's amber #ff9f0a to #a15f0a -- the same
+     established technique as --warn-fg's light-theme handling of the identical literal
+     color value (darken for contrast), but this is an independent category-label token
+     that doesn't directly borrow --warn-fg (that one is the "warning" semantic, this one
+     is the "which data category" semantic -- the same literal color value, two different
+     tokens). */
   --photos-seg-video: #3560d8;
   --photos-seg-raw: #c93f79;
   --photos-seg-ai: #a15f0a;
-  /* alpha 与 :root 同为 0.25(精确复刻 Vue2 other 段 rgba(var(--ink),0.25)),RGB 换成本仓
-     浅色 --fg 的真实分解值(#1c1b19→28,27,25)——同 --zb-hover-bg/--zb-track-bg 浅色档的既定
-     换基公式。 */
+  /* alpha matches :root's 0.25 (an exact port of Vue2's other segment's
+     rgba(var(--ink),0.25)), RGB is swapped for this repo's light theme --fg's actual
+     decomposed value (#1c1b19 -> 28,27,25) -- the same established base-hue-swap formula
+     as --zb-hover-bg/--zb-track-bg's light tier. */
   --photos-seg-other: rgba(28, 27, 25, 0.25);
 
-  /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
+  /* P6 terminal/log console (terminal semantics are pinned dark, don't flip with the
+     theme; same value in both theme blocks, matching the old Vue2 implementation) */
   --console-bg: #1e1e1e;
   --console-fg: #d4d4d4;
-  /* 固定深底区域(monokai 编辑器/日志/终端)的滚动条拇指:全局滚动条颜色随主题翻转,
-     浅色主题下会变成深拇指、落在这些固定深底上不可见——故单独给亮色拇指,两套主题同值 */
+  /* Scrollbar thumb for permanently-dark-backed areas (monokai editor/logs/terminal): the
+     global scrollbar color flips with the theme, and in the light theme it would become a
+     dark thumb sitting on these permanently-dark backdrops (invisible) -- hence a
+     dedicated bright thumb here, same value in both themes */
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
-  /* 时间机器 —— 浅色纸感:没有星空,背景是米白 + 极淡光晕 */
+  /* Time Machine -- light paper theme: no starfield, the background is ecru plus a
+     very faint glow */
   --tm-bg:
     radial-gradient(ellipse at 26% 20%, rgba(59, 91, 219, 0.10) 0%, rgba(247, 245, 239, 0) 58%),
     radial-gradient(ellipse at 80% 80%, rgba(110, 90, 224, 0.08) 0%, rgba(247, 245, 239, 0) 58%),
@@ -562,10 +651,14 @@
   --tm-rail-sub: rgba(28, 27, 25, 0.16);
 }
 
-/* 白色主题:滚动条滑块颜色已由 --scrollbar-thumb token 在主题块内翻转(见文件顶部 `*` 规则
-   与 THEMING.md §2.11)。这里只需关闭散景光斑与暗角(纸感不要 bokeh)。
-   ⚠️ 别把 scrollbar-color 覆盖写回这里:只写在 :root 上压不过顶部 `*` 规则的逐元素显式声明,
-   内部滚动容器会回到"白滑块贴白底"(2026-08-13 修过的 bug)。 */
+/* Light theme: the scrollbar thumb color is already flipped inside the theme block by the
+   --scrollbar-thumb token (see the top-of-file `*` rule and THEMING.md §2.11). All that's
+   left here is to turn off the bokeh light spots and vignette (the paper theme doesn't
+   want bokeh).
+   Warning: don't write a scrollbar-color override back here -- writing it only on :root
+   can't beat the top `*` rule's per-element explicit declaration, and internal scroll
+   containers would go back to a pale thumb over an equally pale track (a bug fixed on
+   2026-08-13). */
 :root[data-theme="light"] body::before,
 :root[data-theme="light"] body::after { background: none; }
 
@@ -582,17 +675,18 @@ button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .icon { width: 20px; height: 20px; stroke: currentColor; stroke-width: var(--stroke, 1.9); stroke-linecap: round; stroke-linejoin: round; fill: none; }
 
-/* 通透玻璃 chip 按钮（全局），HomeTopbar/AreaShell/ViewerShell 共用同一形态 */
+/* Translucent glass chip button (global), shared by HomeTopbar/AreaShell/ViewerShell */
 .bar-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border: 1px solid var(--chip-border); border-radius: var(--chip-radius, 999px); background: var(--chip-bg); color: var(--fg); font-size: 13px; font-weight: 500; cursor: pointer; backdrop-filter: var(--blur); transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; text-decoration: none; }
 .bar-btn:hover { background: var(--chip-bg-hi); }
 .bar-btn .icon { width: 16px; height: 16px; }
 
-/* ---- 柔光纵深背景（暗调环境，让通透面板浮起来）+ 视差 ---- */
+/* ---- Soft-glow depth background (a dim environment that lets translucent panels
+   float above it) + parallax ---- */
 body {
   background: var(--app-bg);
   background-attachment: fixed;
 }
-/* 散景光斑层（高斯模糊 + 缓动 + 随鼠标视差） */
+/* Bokeh light-spot layer (Gaussian blur + easing + mouse-driven parallax) */
 body::before {
   content: "";
   position: fixed;
@@ -609,7 +703,7 @@ body::before {
   transition: transform 0.45s var(--ease);
   animation: floatField 30s var(--ease) infinite alternate;
 }
-/* 顶部柔光 + 轻微暗角，增强纵深 */
+/* Top soft glow + a subtle vignette, reinforcing depth */
 body::after {
   content: "";
   position: fixed;
@@ -621,7 +715,7 @@ body::after {
     radial-gradient(120% 80% at 50% 120%, rgba(0, 0, 0, 0.32), transparent 55%);
 }
 
-/* ---- 共享动效 ---- */
+/* ---- Shared animations ---- */
 @keyframes jiggle { 0%,100% { transform: rotate(-.55deg); } 50% { transform: rotate(.55deg); } }
 @keyframes itemIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
 @keyframes pop { 0% { transform: scale(.94); } 60% { transform: scale(1.03); } 100% { transform: scale(1); } }
@@ -629,17 +723,17 @@ body::after {
 @keyframes fade { from { opacity: 0; } }
 @keyframes floatField { to { transform: translate(3vw, 3vh) scale(1.08); } }
 
-/* ---- 减少动效模式 ---- */
+/* ---- Reduced-motion mode ---- */
 @media (prefers-reduced-motion: reduce) {
   body::before { animation: none; transition: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
-/* ---- P4c: 网格项目状态（全局）---- */
-/* 通用项目 */
+/* ---- P4c: grid item states (global) ---- */
+/* Generic item */
 .grid-item { position: relative; min-width: 0; min-height: 0; touch-action: none; }
 
-/* 移除按钮：accent-red 圆形，编辑态显示 */
+/* Remove button: a danger-accent circle, shown in editing mode */
 .grid-item .remove {
   display: none; position: absolute; z-index: 4; top: -10px; left: -10px; width: 24px; height: 24px;
   border: 0; border-radius: 50%; background: var(--remove-bg); color: #fff; font-size: 16px; line-height: 1;
@@ -647,7 +741,8 @@ body::after {
 }
 .grid-item.editing .remove { display: grid; place-items: center; }
 
-/* 缩放把手：右下角 accent 圆形 + 箭头，仅编辑态对可缩放项目显示 */
+/* Resize handle: an accent circle plus an arrow in the bottom-right corner, shown only
+   on resizable items in editing mode */
 .resize-handle {
   display: none; position: absolute; z-index: 5; right: -8px; bottom: -8px; width: 26px; height: 26px;
   border-radius: 50%; background: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.5);
@@ -659,67 +754,82 @@ body::after {
 }
 .grid-item.editing .resize-handle { display: block; }
 
-/* 缩放中 */
+/* While resizing */
 .grid-item.resizing { z-index: 50; animation: none; transition: none; }
 .grid-item.resizing.card { box-shadow: var(--card-shadow-drag, var(--card-shadow-hi)); }
 .grid-item.resizing.bad-size { outline: 2px solid var(--remove-bg); outline-offset: -1px; }
 .grid-item.resizing.bad-size.card { box-shadow: 0 0 0 2px var(--remove-bg) inset; }
 
-/* 编辑态 jiggle（使用全局 ±0.55deg） */
+/* Editing-mode jiggle (uses the global ±0.55deg) */
 .grid-item.editing { animation: jiggle .34s ease-in-out infinite; cursor: grab; }
 .grid-item.editing:nth-child(2n) { animation-delay: -.17s; }
 .grid-item.editing:nth-child(3n) { animation-delay: -.09s; }
 
-/* 拖拽中 */
+/* While dragging */
 .grid-item.dragging { z-index: 50; cursor: grabbing; animation: none; opacity: .96; }
 .grid-item.dragging .card { box-shadow: var(--card-shadow-drag, var(--card-shadow-hi)); }
 
-/* 载入错峰淡入（intro 类由 GridCanvas 初次渲染时添加；此规则无副作用） */
-/* NOTE: GridCanvas 目前未设置 .intro 类，规则已到位，接线留待后续任务 */
+/* Staggered fade-in on load (the .intro class is added by GridCanvas on its first render;
+   this rule has no side effect on its own) */
+/* NOTE: GridCanvas doesn't currently set the .intro class -- the rule is in place, wiring
+   it up is deferred to a future task */
 .grid.intro .grid-item { animation: itemIn .5s var(--ease, ease) backwards; animation-delay: calc(var(--i, 0) * 32ms); }
 
-/* 落位回弹 */
+/* Landing bounce-back */
 .grid-item.pop { animation: pop .34s var(--ease, ease); }
 
-/* 编辑态：空格用圆角描边表示可用位置 */
+/* Editing mode: empty slots use a rounded dashed outline to mark available positions */
 .cell {
   pointer-events: none;
-  border-radius: calc(var(--cell, 92px) * 0.167); /* 随格子等比,替代固定 --radius-sm */
+  border-radius: calc(var(--cell, 92px) * 0.167); /* scales with the cell, replacing the fixed --radius-sm */
   border: 1.5px dashed var(--grid-dot, rgba(255,255,255,.26));
   background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.02));
 }
 
-/* 拖拽落点提示 */
+/* Drag-drop target hint */
 .drop-ghost { z-index: 1; border: 2px dashed var(--accent); border-radius: var(--radius); background: var(--drop-bg); pointer-events: none; }
 .drop-ghost.bad { border-color: var(--remove-bg); background: var(--drop-bad, rgba(255,80,100,.12)); }
 
-/* ---- P4c: 应用 / 文件夹 / 照片 磁贴结构 ---- */
-/* 画布上的 app/folder：纵向排布 → 图标在上、标签在下 */
-/* 磁贴内部尺寸(间距/字号/占位圆角)一律按 --cell 等比,保证格子在任意缩放下形状不变;
-   比例锚定 108px 舒适格:gap 5/108≈0.046,字号 16.7/108≈0.155,圆角 18/108≈0.167 */
+/* ---- P4c: app / folder / photo tile structure ---- */
+/* app/folder on the canvas: laid out vertically -> icon on top, label below */
+/* Tile internal sizing (gap/font-size/placeholder radius) all scale proportionally to
+   --cell, keeping the tile's shape stable at any zoom level;
+   ratios anchored to a comfortable 108px cell: gap 5/108≈0.046, font-size 16.7/108≈0.155,
+   radius 18/108≈0.167 */
 .kind-app, .kind-folder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); }
-/* 磁贴根封顶格宽(bug.txt #6 第二形态):.grid-item 是 flex 容器,SFC 的磁贴根
-   (.app-tile/.folder-tile-wrap)作为 flex item 没有宽度上限——nowrap 长名会把它撑到
-   内容宽(min-width:auto 地板),.app-label 的 max-width:100% 解析这个被撑大的父级,
-   省略号永不触发、溢出盖住邻格。封顶 100% 后 label 才真正被格宽约束、长名收成 "…"。 */
+/* Cap the tile root at the cell width (bug.txt #6, second form): .grid-item is a flex container,
+   and the SFC's tile roots (.app-tile/.folder-tile-wrap) are flex items with no width ceiling —
+   a nowrap long name stretches one out to its content width (the min-width:auto floor),
+   .app-label's max-width:100% then resolves against that stretched parent, the ellipsis never
+   triggers, and the overflow covers the neighbouring cell. Capping at 100% is what finally
+   constrains the label to the cell width so long names collapse to "…". */
 .kind-app .app-tile, .kind-folder .folder-tile-wrap { max-width: 100%; }
-/* 图标方格：圆角玻璃 + 白色前景 + icon-shadow */
+/* Cap the tile root's width at the cell width (bug.txt #6, second form): .grid-item is a
+   flex container, and the SFC's tile root (.app-tile/.folder-tile-wrap), as a flex item,
+   has no upper width bound -- a long nowrap name would stretch it to its content width
+   (the min-width:auto floor), and .app-label's max-width:100% resolves against that
+   already-stretched parent, so the ellipsis never triggers and the overflow spills over
+   the neighboring tile. Once capped at 100%, the label is genuinely constrained by the
+   cell width and a long name collapses into "...". */
+.kind-app .app-tile, .kind-folder .folder-tile-wrap { max-width: 100%; }
+/* Icon square: rounded glass + a light foreground + icon-shadow */
 .app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 31%); color: #fff; box-shadow: var(--icon-shadow); }
 .app-ic .icon, .folder-ic .icon { width: 44%; height: 44%; }
-/* 文件夹图标 = 无底板的整张 SVG(对齐文件系统):透明、无边框、无阴影,仅居中撑满 */
+/* Folder icon = a full SVG with no backing plate (matches the filesystem look): transparent,
+   no border, no shadow, just centered and filling the space */
 .folder-ic { display: grid; place-items: center; width: 100%; height: 100%; background: none; box-shadow: none; }
-/* 画布图标填充"方格高度 − 标签行"的正方形 */
+/* Canvas icon fills the square left over from "cell height minus label row" */
 .kind-app .app-ic, .kind-folder .folder-ic, .kind-folder .folder-tile { flex: 1 1 auto; min-height: 0; min-width: 0; width: auto; height: auto; aspect-ratio: 1; }
-/* 标签 */
+/* Label */
 .app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(11px, calc(var(--cell, 92px) * 0.155)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
-/* 文件夹：磨砂圆角容器 + 2×2 内容缩略（iPad 风） */
+/* Folder: a frosted rounded container + a 2x2 content thumbnail grid (iPad-style) */
 .folder-tile { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 12%; width: 100%; height: 100%; padding: 17%; border-radius: var(--icon-radius, 31%); background: var(--folder-glass, rgba(255,255,255,.16)); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); backdrop-filter: var(--blur); }
 .folder-tile i { border-radius: 26%; background: var(--folder-mini, linear-gradient(145deg, rgba(255,255,255,.55), rgba(255,255,255,.2))); }
-/* 照片磁贴 */
+/* Photo tile */
 .kind-photo { padding: 0; }
 .photo-thumb { display: block; width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); }
 
-/* ---- P4c: 应用图标配色（皮肤无关，鲜明渐变） ---- */
+/* ---- P4c: app icon colors (skin-independent, vivid gradients) ---- */
 .ic-files    { background: linear-gradient(145deg, #88dbff, #168cff 62%, #1765db); }
 .ic-photos   { background: conic-gradient(from 20deg, #ff735f, #ffd54f, #60e27c, #55baff, #ca83ff, #ff735f); }
 .ic-video    { background: linear-gradient(145deg, #ff8a8a, #ef4444 60%, #b91c1c); }
@@ -740,10 +850,12 @@ body::after {
 .ic-appstore { background: linear-gradient(145deg, #a5b4fc, #6366f1 60%, #4338ca); }
 .ic-terminal { background: linear-gradient(145deg, #52525b, #18181b); }
 .ic-all      { background: var(--all-bg); color: var(--all-fg); border: 1px solid var(--all-border, transparent); }
-/* 容器应用：无专属配色，用中性玻璃底承载远程图标 */
+/* Container apps: no dedicated color scheme, uses a neutral glass background to carry
+   the remote icon */
 .ic-app      { background: linear-gradient(145deg, rgba(255,255,255,.22), rgba(255,255,255,.08)); border: 1px solid var(--card-border); }
 
-/* ---- P4c: 真实数据图标 / 缩略图（has-img：远程 <img> 填充圆角方格） ---- */
+/* ---- P4c: real-data icons / thumbnails (has-img: a remote <img> fills the rounded
+   square) ---- */
 .app-ic.has-img, .dock-ic.has-img { overflow: hidden; background: var(--card-bg, rgba(255,255,255,.1)); }
 .app-ic.has-img img, .dock-ic.has-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
 .photo-thumb.has-img { background: none; overflow: hidden; }
@@ -752,8 +864,9 @@ body::after {
 /* ---- Dock icons: GLOBAL so both DockApp and the HomeDock all-apps toggle button
    (class="dock-app dock-toggle", whose .dock-ic lives outside DockApp's scope) get sized
    + materialized identically. ---- */
-/* 定宽格子:图标+文字作为一个 cell 参与排布(与桌面 AppTile 同模型),
-   宽度只由 --app-size 决定,文字长短不再影响布局;过长文字在 .dock-label 内省略。 */
+/* Fixed-width cell: icon plus text participate in layout as a single cell (the same
+   model as the desktop AppTile), width is determined solely by --app-size, and text
+   length no longer affects layout; overly long text is ellipsized inside .dock-label. */
 .dock-app { display: grid; justify-items: center; gap: 6px; width: var(--app-size, 64px); padding: 0; border: 0; background: transparent; cursor: pointer; touch-action: none; }
 .dock-ic {
   display: grid; place-items: center;
@@ -767,23 +880,26 @@ body::after {
 .dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
 .dock-ic svg { width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .dock-app:hover .dock-ic { filter: brightness(1.08); }
-/* 已停止的应用:整体灰显(与桌面 AppTile.stopped、AddPanel .is-stopped 同款) */
+/* Stopped apps: dimmed and desaturated overall (matches desktop AppTile.stopped and
+   AddPanel .is-stopped) */
 .dock-app.is-stopped { opacity: 0.45; filter: grayscale(0.6); }
 .dock-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: max(13px, calc(var(--app-size, 64px) * 0.22)); color: var(--fg-muted); }
 
-/* ---- P4c: 磁贴悬停 / 按压反馈（编辑态 .editing 不触发，避让 jiggle/拖拽） ---- */
-/* 图标基础过渡 */
+/* ---- P4c: tile hover / press feedback (doesn't trigger in editing mode .editing, to
+   stay out of the way of jiggle/dragging) ---- */
+/* Icon base transition */
 .kind-app .app-ic,
 .kind-folder .folder-tile,
 .kind-folder .folder-ic,
 .kind-photo .photo-thumb { transition: transform .18s var(--ease, ease), box-shadow .18s var(--ease, ease), filter .18s var(--ease, ease); }
-/* 悬停时将当前项提到邻居之上，防止放大后被相邻格子裁剪 */
+/* On hover, raise the current item above its neighbors so it doesn't get clipped by
+   adjacent cells once scaled up */
 /* NOTE: In New-UI, .kind-* and .editing are BOTH on .grid-item root (no parent .grid.editing wrapper),
    so the mapping is .grid-item:not(.editing).kind-*:hover (compound, not descendant). */
 .grid-item:not(.editing).kind-app:hover,
 .grid-item:not(.editing).kind-folder:hover,
 .grid-item:not(.editing).kind-photo:hover { z-index: 6; }
-/* 悬停放大：抬升 + accent 内发光 + 底部投影 */
+/* Hover zoom: lift up + an inner accent glow + a bottom shadow */
 .grid-item:not(.editing).kind-app:hover .app-ic,
 .grid-item:not(.editing).kind-folder:hover .folder-tile,
 .grid-item:not(.editing).kind-folder:hover .folder-ic,
@@ -795,17 +911,20 @@ body::after {
     0 26px 48px -10px rgba(6, 10, 26, .66);
   filter: brightness(1.1);
 }
-/* 文件夹是无底板 SVG:悬停保留抬升缩放,但去掉方块底板发光/投影(否则会在透明图标上画出一圈发光矩形) */
+/* Folders are a backing-plate-less SVG: hover keeps the lift-and-scale, but drops the
+   square backing plate's glow/shadow (otherwise it draws a glowing rectangle around a
+   transparent icon) */
 .grid-item:not(.editing).kind-folder:hover .folder-ic { box-shadow: none; filter: none; }
 /* NOTE: .tile-2up is NOT emitted by GridItem in New-UI (item.w/h are available but no class is set).
    Deferred: add .tile-2up emission to GridItem when w>=2 && h>=2 for gentler var(--card-hover) scale.
    For now, scale(1.2) applies uniformly to all tile sizes. */
-/* 按压下沉 */
+/* Press-down sink */
 .grid-item:not(.editing).kind-app:active .app-ic,
 .grid-item:not(.editing).kind-folder:active .folder-tile,
 .grid-item:not(.editing).kind-photo:active .photo-thumb { transform: scale(.95); transition: transform .1s var(--ease, ease); }
 
-/* 文件区深链 ?highlight= 定位闪烁(挂在 FileRow/FileTile 根上,跨组件 class 放全局)*/
+/* Files area deep-link ?highlight= location flash (attached to FileRow/FileTile roots,
+   a cross-component class kept global) */
 @keyframes file-flash-kf { 0%, 100% { background: transparent; } 30%, 70% { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
 .file-flash { animation: file-flash-kf 1.25s ease 2; border-radius: 10px; }
 

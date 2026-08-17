@@ -1,4 +1,4 @@
-// 1:1 移植测试见 .superpowers/sdd/p1c1-task-7-brief.md Step 1(逐字照抄,未改动断言)。
+// 1:1 port of test; see .superpowers/sdd/p1c1-task-7-brief.md Step 1 (verbatim copy, assertions unchanged).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -21,7 +21,7 @@ describe('MentionPopover', () => {
     ])
   })
 
-  it('open 时拉 mounts 并渲染条目', async () => {
+  it('fetches mounts and renders items when open', async () => {
     const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g })
     await flushPromises()
     expect(svc.listMounts).toHaveBeenCalled()
@@ -29,14 +29,14 @@ describe('MentionPopover', () => {
     expect(w.text()).toContain('Drive1')
   })
 
-  it('有 segments 时拉该目录条目', async () => {
+  it('fetches directory entries when segments present', async () => {
     const w = mount(MentionPopover, { props: { open: true, query: '', segments: ['Drive1'] }, global: g })
     await flushPromises()
     expect(svc.listFsEntries).toHaveBeenCalledWith('/DATA', false)
     expect(w.findAll('.mention-item')).toHaveLength(2)
   })
 
-  it('query 过滤:startsWith 优先于 includes', async () => {
+  it('query filter: startsWith takes precedence over includes', async () => {
     svc.listFsEntries.mockResolvedValue([
       { path: '/DATA/mydoc', kind: 'dir', name: 'mydoc' },
       { path: '/DATA/doc', kind: 'dir', name: 'doc' },
@@ -48,7 +48,7 @@ describe('MentionPopover', () => {
     expect(names).toHaveLength(2)
   })
 
-  it('点击文件 emit pick;点击目录 emit drill-in', async () => {
+  it('clicking file emits pick; clicking directory emits drill-in', async () => {
     const w = mount(MentionPopover, { props: { open: true, query: '', segments: ['Drive1'] }, global: g })
     await flushPromises()
     const items = w.findAll('.mention-item')
@@ -58,7 +58,7 @@ describe('MentionPopover', () => {
     expect(w.emitted('drill-in')).toBeTruthy()
   })
 
-  it('键盘:↓ 移高亮、Escape emit close、无 query 时 Backspace emit pop-segment', async () => {
+  it('keyboard: ↓ moves highlight, Escape emits close, Backspace without query emits pop-segment', async () => {
     const w = mount(MentionPopover, { props: { open: true, query: '', segments: ['Drive1'] }, global: g, attachTo: document.body })
     await flushPromises()
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
@@ -71,7 +71,7 @@ describe('MentionPopover', () => {
     w.unmount()
   })
 
-  it('卸载后不再响应 window keydown(监听已摘)', async () => {
+  it('after unmount, no longer responds to window keydown (listener removed)', async () => {
     const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g, attachTo: document.body })
     await flushPromises()
     w.unmount()
@@ -79,7 +79,7 @@ describe('MentionPopover', () => {
     expect(w.emitted('close')).toBeFalsy()
   })
 
-  it('抓取失败时不抛未处理 rejection,退空列表', async () => {
+  it('on fetch failure, does not throw unhandled rejection, returns empty list', async () => {
     svc.listMounts.mockRejectedValue(new Error('net'))
     const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g })
     await flushPromises()
@@ -88,7 +88,7 @@ describe('MentionPopover', () => {
 
   // Review fix 1 — capture-phase keydown listener must attach synchronously,
   // before the mounts fetch resolves (see MentionPopover.vue header comment).
-  it('open 时同步挂载 keydown 监听——mounts 请求未完成时按键也生效', async () => {
+  it('synchronously attaches keydown listener when open — key press works even before mounts request completes', async () => {
     let resolveMounts: (v: unknown[]) => void = () => {}
     svc.listMounts.mockReturnValue(new Promise((resolve) => { resolveMounts = resolve }))
     const w = mount(MentionPopover, { props: { open: true, query: '', segments: [] }, global: g, attachTo: document.body })
@@ -109,7 +109,7 @@ describe('MentionPopover', () => {
   // fired". Instead, track add/remove calls made *during this test* by fn
   // reference and simulate the resulting attached/detached state directly —
   // immune to what other tests left on `window`.
-  it('打开后 mounts 请求未完成即卸载——不遗留监听(add/remove 不成对,监听永久挂着)', async () => {
+  it('unmount after open while mounts request not yet complete — no listener leak (add/remove mismatched, listener permanently attached)', async () => {
     const originalAdd = window.addEventListener.bind(window)
     const originalRemove = window.removeEventListener.bind(window)
     const attached = new Map<EventListenerOrEventListenerObject, boolean>()
@@ -138,7 +138,7 @@ describe('MentionPopover', () => {
 
   // Review fix 2 — empty-state "no matches" text must bold the quoted query
   // (Vue2 MentionPopover.vue:38 wraps it in <b>), even though it's now i18n'd.
-  it('无匹配空态:引号内的 query 用 <b> 加粗渲染', async () => {
+  it('no-match empty state: query inside quotes rendered bold with <b>', async () => {
     svc.listFsEntries.mockResolvedValue([])
     const w = mount(MentionPopover, { props: { open: true, query: 'zzz', segments: ['Drive1'] }, global: g })
     await flushPromises()

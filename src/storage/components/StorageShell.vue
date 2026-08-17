@@ -27,12 +27,17 @@ function goHome() {
 
 <style scoped>
 /*
- * 布局约束(实盘验收 acceptance-fix-3):body 全局是 overflow:hidden(见 src/styles/theme.css:302,
- * 桌面端体验需要,不能改),所以本区域的滚动必须由 .st-body 这个「受视口约束」的容器自己承担。
- * 壳(.storage-shell)必须用 height 而不是 min-height —— min-height 会让壳随内容一起长高,
- * 永远撑满、永远不会被视口卡住,.st-body 的 overflow-y:auto 就永远量不出溢出、滚动条永不出现。
- * 参照同类外壳 src/components/shell/AreaShell.vue(文件区在用,滚动正常)的写法对齐。
- * 两行 height 是给不支持 dvh 的旧浏览器兜底,不要合并/删除其中一行。
+ * Layout constraint (real-device acceptance fix acceptance-fix-3): body is globally
+ * overflow:hidden (see src/styles/theme.css:302, required for the desktop experience, cannot
+ * change), so scrolling in this area must be carried entirely by .st-body, the one container
+ * that's actually constrained by the viewport. The shell (.storage-shell) must use height, not
+ * min-height — min-height would let the shell grow taller along with its content, always
+ * filling to fit and never getting capped by the viewport, so .st-body's overflow-y:auto would
+ * never measure any overflow and the scrollbar would never appear.
+ * Aligned with the equivalent shell src/components/shell/AreaShell.vue (used by the Files area,
+ * where scrolling works correctly).
+ * The two height lines are a fallback for older browsers that don't support dvh — don't merge
+ * or remove either one.
  */
 .storage-shell { height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--fg); }
 .st-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; flex: 0 0 auto; }
@@ -49,9 +54,11 @@ function goHome() {
 }
 .st-tab:hover { color: var(--fg); background: var(--hover); }
 .st-tab.active { color: var(--fg); background: var(--chip-bg-hi); border-color: var(--chip-border); }
-/* min-height: 0 是必须的:flex 子项默认 min-height:auto,会阻止它收缩到小于内容高度,
- * 导致 overflow-y:auto 失效(内容再高也不触发滚动条)。AreaShell 靠 flex:1 1 auto 侥幸没踩到,
- * 这里显式写 0 更稳,不依赖浏览器实现细节。 */
+/* min-height: 0 is required: flex children default to min-height:auto, which prevents them
+ * from shrinking below their content height, breaking overflow-y:auto (the scrollbar never
+ * triggers no matter how tall the content gets). AreaShell got lucky and didn't hit this
+ * thanks to flex:1 1 auto; writing 0 explicitly here is more robust and doesn't depend on
+ * browser implementation details. */
 .st-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 22px 28px; }
 .st-body > :deep(*) { max-width: 980px; margin-left: auto; margin-right: auto; }
 @media (max-width: 768px) {

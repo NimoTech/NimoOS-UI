@@ -165,9 +165,10 @@ const projectedPoints = computed(() => validPoints.value.map(pt => ({
   fill: var(--fg-faint);
 }
 
-/* theme-exception: 描边固定白色,不随主题切换——环要在任意主题底色上都能
-   撑开任意 PLACE_PALETTE 填充色(fill 本身是逐点数据,由 :fill 绑定,见上)
-   同例见 PhotosGrid.vue 的 .tile-vid 徽标(固定 chrome 叠加在可变内容上) */
+/* theme-exception: stroke stays fixed white, doesn't follow theme switch — the ring must stand out
+   over any theme background with any PLACE_PALETTE fill color (fill itself is per-point data,
+   bound via :fill, see above). Similar precedent: PhotosGrid.vue's .tile-vid badge (fixed chrome
+   overlaid on variable content) */
 .dot-person {
   stroke: #fff;
 }

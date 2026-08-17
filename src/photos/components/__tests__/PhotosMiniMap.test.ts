@@ -11,24 +11,24 @@ function viewBoxOf(w: ReturnType<typeof mount>): number[] {
 }
 
 describe('PhotosMiniMap', () => {
-  it('无有效点时 viewBox 为全球范围,并显示 emptyText', () => {
+  it('when no valid points, viewBox is global range and emptyText is displayed', () => {
     const w = mount(PhotosMiniMap, { props: { points: [], emptyText: '暂无位置数据' } })
     expect(w.get('svg').attributes('viewBox')).toBe(`0 0 ${MAP_W} ${MAP_H}`)
     expect(w.text()).toContain('暂无位置数据')
   })
 
-  it('单点时 viewBox 经度跨度不小于 MIN_LON_SPAN(投影换算)', () => {
+  it('with single point, viewBox longitude span is not less than MIN_LON_SPAN (projection conversion)', () => {
     const w = mount(PhotosMiniMap, {
       props: { points: [{ latitude: 10, longitude: 20, color: '#fff' }] },
     })
     const [, , vw] = viewBoxOf(w)
-    // MIN_LON_SPAN = 40 度 → 40/360 * MAP_W
+    // MIN_LON_SPAN = 40 degrees → 40/360 * MAP_W
     expect(vw).toBeGreaterThanOrEqual((40 / 360) * MAP_W - 1e-9)
-    // 空态覆盖层不显示
+    // empty state overlay not displayed
     expect(w.find('.mini-map-empty').exists()).toBe(false)
   })
 
-  it('两个远距离点时包围盒(经加 padding 后)覆盖两点的投影坐标', () => {
+  it('with two distant points, bounding box (after adding padding) covers projection coordinates of both points', () => {
     const points = [
       { latitude: 60, longitude: -100, color: '#f00' },
       { latitude: -30, longitude: 140, color: '#0f0' },
@@ -44,14 +44,14 @@ describe('PhotosMiniMap', () => {
     }
   })
 
-  it('latitude 为 NaN 或字符串的点被过滤,不参与包围盒(且不渲染成 person dot)', () => {
+  it('points with latitude as NaN or string are filtered, do not participate in bounding box (and not rendered as person dot)', () => {
     const points = [
       { latitude: Number.NaN, longitude: 20, color: '#f00' },
       { latitude: '30' as unknown as number, longitude: 40, color: '#0f0' },
       { latitude: 10, longitude: 10, color: '#00f' },
     ]
     const w = mount(PhotosMiniMap, { props: { points } })
-    // 只有一个有效点参与渲染
+    // only one valid point participates in rendering
     expect(w.findAll('.dot-person')).toHaveLength(1)
   })
 })

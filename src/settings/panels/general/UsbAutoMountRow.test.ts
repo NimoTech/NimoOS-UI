@@ -25,13 +25,13 @@ beforeEach(() => {
   setActivePinia(createPinia())
 })
 
-describe('UsbAutoMountRow 在 initService 之前挂载', () => {
-  it('不产生 unhandled rejection,组件正常渲染', async () => {
+describe('UsbAutoMountRow mounted before initService', () => {
+  it('does not produce an unhandled rejection; component renders normally', async () => {
     const spy = vi.fn()
     process.on('unhandledRejection', spy)
     const w = mount(UsbAutoMountRow, { global: { plugins: [i18n] } })
     await flushPromises()
-    // 给 microtask 之后的 unhandledRejection 上报留一拍
+    // Leave a tick so a post-microtask unhandledRejection report has time to land
     await new Promise((r) => setTimeout(r, 0))
     process.off('unhandledRejection', spy)
 

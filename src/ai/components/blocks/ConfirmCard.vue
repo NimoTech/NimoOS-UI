@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ConfirmCard.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/ConfirmCard.vue -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import AgentIcon from '../icons/AgentIcon.vue'

@@ -1,19 +1,19 @@
-// Task 1 (SP7-P6a 地点): 地点地图的重叠感知贪心聚类。
-// 逐行照搬 Vue2 NimoOS-UI src/utils/placesCluster.js,只加 TS 类型
-// 与泛型 —— 算法一个字不改。Vue2 侧该模块零测试,本文件的 __tests__ 是全新建。
-// (不写具体行数:行数会随上游变动再次失准,文件路径不会。)
+// Task 1 (SP7-P6a Places): Overlap-aware greedy clustering for places map.
+// Line-by-line copy of Vue2 NimoOS-UI src/utils/placesCluster.js, only adding TS types
+// and generics — algorithm unchanged. Vue2 module has zero tests; this file's __tests__ are brand new.
+// (Not listing specific line numbers: they drift with upstream changes, file paths don't.)
 //
-// 为什么「抬高 scale 就能求裂点」(T2 splitScaleFor 依赖这条不变量):
-// 气泡以恒定屏幕半径渲染(与缩放无关),两气泡在屏幕上重叠的条件是
-//   世界距离 × scale < (半径A + 半径B) × factor
-// 所以放大(scale 变大)会把气泡拉开、缩小会让它们合并,单调可二分。
+// Why "raising scale can find the split point" (T2 splitScaleFor depends on this invariant):
+// Bubbles render at constant screen radius (independent of zoom), the condition for two bubbles to overlap on screen is
+//   world distance × scale < (radiusA + radiusB) × factor
+// So zooming in (larger scale) pulls bubbles apart, zooming out merges them; monotonic and binary-searchable.
 //
-// 播种顺序是 count 降序(最热闹的地方锚定每个簇),同 count 时按原数组下标升序
-// —— 这个 tie-break 决定 lead 是谁、进而决定合成 id `cluster:${lead.id}`,
-// 是渲染 key 的一部分,**不是随手写的,不能改成不稳定排序**。
+// Seeding order is descending by count (busiest places anchor each cluster), ties broken by original array index ascending
+// — this tie-break determines who is lead, and thus the synthesized id `cluster:${lead.id}`,
+// which is part of the render key, **not casual code, cannot be changed to unstable sorting**.
 //
-// 每吸收一个成员就要重算簇半径:count 累加会让 radiusFn(total) 变大,
-// 于是第一轮够不着的点在第二轮可能够得着(测试「簇半径随吸收增长」钉住了这条)。
+// Cluster radius must be recalculated on each member absorption: count accumulation makes radiusFn(total) grow,
+// so points too far in round one may be reachable in round two (test "cluster radius grows with absorption" pins this).
 
 export interface ClusterItem {
   x: number
@@ -30,11 +30,11 @@ export interface Cluster<T extends ClusterItem> {
 }
 
 /**
- * @param items    已投影的点(viewBox 单位)
- * @param scale    当前地图缩放
- * @param radiusFn 给定照片数对应的屏幕空间气泡半径
- * @param factor   重叠松弛系数;1 = 圆刚好相切时才合并
- * @returns 每簇一项,按播种顺序(最大在前)
+ * @param items    projected points (viewBox units)
+ * @param scale    current map zoom
+ * @param radiusFn screen-space bubble radius for a given photo count
+ * @param factor   overlap slack coefficient; 1 = merge when circles are tangent
+ * @returns one item per cluster, in seeding order (largest first)
  */
 export function clusterByOverlap<T extends ClusterItem>(
   items: T[],
@@ -68,7 +68,7 @@ export function clusterByOverlap<T extends ClusterItem>(
     let cx = seed.x
     let cy = seed.y
 
-    // 反复整轮重扫直到一轮没吸到人 —— 簇半径随成员(与 total)累加而增长。
+    // Repeatedly full-scan until a round absorbs nobody — cluster radius grows as members (and total) accumulate.
     let absorbed = true
     while (absorbed) {
       absorbed = false

@@ -15,16 +15,18 @@ vi.mock('@nimotech/nimoos-service', () => ({
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// reka-ui ContextMenuContent 只在打开时渲染到 Portal;测试里改用 stub 直接渲染 #menu slot,
-// 以断言"菜单里出现哪些项"的纯条件逻辑(定位/键盘/打开留真机验)。
+// reka-ui ContextMenuContent only renders to Portal when open; in tests, use stub to render
+// #menu slot directly to assert the pure conditional logic of "which items appear in the menu"
+// (positioning/keyboard/opening are left for real device verification).
 const ContextMenuStub = {
   template: '<div><slot /><div class="menu"><slot name="menu" /></div></div>',
 }
-// 真实 reka-ui ContextMenuItem 在 setup() 里 inject 了 MenuRootContext(由真实
-// ContextMenuRoot 提供);上面的 ContextMenu stub 不再渲染 MenuRoot,所以真实
-// ContextMenuItem 挂载会直接抛 "must be used within MenuRoot"。stub 掉
-// ContextMenuItem 本身(按 class 透传 + 点击发 select),只验证"渲染哪些项 +
-// 点击触发 fire()"这层纯条件逻辑;真实的定位/键盘/高亮交互留 T10 真机验证。
+// The real reka-ui ContextMenuItem injects MenuRootContext in setup() (provided by real
+// ContextMenuRoot); the ContextMenu stub above no longer renders MenuRoot, so mounting
+// the real ContextMenuItem would immediately throw "must be used within MenuRoot". Stub
+// ContextMenuItem itself (pass through by class + emit select on click), only verify the
+// pure conditional logic of "which items are rendered + click triggers fire()"; leave
+// real positioning/keyboard/highlight interactions to real device verification (T10).
 const ContextMenuItemStub = {
   emits: ['select'],
   template: '<div @click="$emit(\'select\')"><slot /></div>',
@@ -39,9 +41,10 @@ function mountMenu(props: { entry: FileEntry | null; selectedCount: number }) {
   })
 }
 
-// mountMenu 内部各造一份新 pinia,与这里手动 mutate 的 store 不是同一份实例
-// (useStore() 在组件 setup 内会用 inject 到的 pinia 覆盖 activePinia)——须自己建
-// pinia、setActive、写好 state,再把同一个 pinia 实例传进 mount 的 global.plugins。
+// mountMenu internally creates a fresh pinia, which is not the same instance as the store
+// we mutate manually here (useStore() inside component setup will override activePinia with
+// the pinia it injects) — must create pinia ourselves, setActive it, set up state, then
+// pass the same pinia instance to mount's global.plugins.
 // Hoisted to file scope (SP11 T10) so both the snapshot-menu suite and the
 // "set as wallpaper" suite can enter snapshot view the same way.
 function mountSnapshotMenu(props: { entry: FileEntry | null; selectedCount: number }) {
@@ -63,7 +66,7 @@ function mountSnapshotMenu(props: { entry: FileEntry | null; selectedCount: numb
 describe('FileContextMenu', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('空白区:新建文件/新建文件夹/刷新', () => {
+  it('blank area: new file / new folder / refresh', () => {
     const w = mountMenu({ entry: null, selectedCount: 0 })
     const txt = w.find('.menu').text()
     expect(txt).toContain('新建文件夹')
@@ -72,33 +75,33 @@ describe('FileContextMenu', () => {
     expect(txt).not.toContain('删除')
   })
 
-  it('普通文件(单选):复制路径 + 删除,无重命名收藏(文件非 dir)', () => {
+  it('regular file (single select): copy path + delete, no rename or favorites (file is not dir)', () => {
     const entry: FileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }
     const w = mountMenu({ entry, selectedCount: 1 })
     const txt = w.find('.menu').text()
     expect(txt).toContain('复制路径')
     expect(txt).toContain('重命名')
     expect(txt).toContain('删除')
-    expect(txt).not.toContain('取消收藏') // 非 dir 不显示收藏
+    expect(txt).not.toContain('取消收藏') // non-dir items do not show favorites
     expect(txt).not.toContain('收藏')
   })
 
-  it('普通文件夹:含收藏', () => {
+  it('regular folder: includes favorites', () => {
     const entry: FileEntry = { name: 'Docs', path: '/DATA/Docs', is_dir: true }
     const w = mountMenu({ entry, selectedCount: 1 })
     expect(w.find('.menu').text()).toContain('收藏')
   })
 
-  it('受保护文件夹:无重命名/删除', () => {
+  it('protected folder: no rename / delete', () => {
     const entry: FileEntry = { name: 'Documents', path: '/DATA/Documents', is_dir: true }
     const w = mountMenu({ entry, selectedCount: 1 })
     const txt = w.find('.menu').text()
     expect(txt).not.toContain('重命名')
     expect(txt).not.toContain('删除')
-    expect(txt).toContain('收藏') // 收藏不受保护限制
+    expect(txt).toContain('收藏') // favorites are not subject to protection restrictions
   })
 
-  it('多选:隐藏单选项(复制路径/重命名),保留删除', () => {
+  it('multi-select: hide single-select items (copy path / rename), keep delete', () => {
     const entry: FileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }
     const w = mountMenu({ entry, selectedCount: 3 })
     const txt = w.find('.menu').text()
@@ -107,39 +110,39 @@ describe('FileContextMenu', () => {
     expect(txt).toContain('删除')
   })
 
-  it('多选文件夹:也不显示收藏(收藏是单项操作)', () => {
+  it('multi-select folder: also do not show favorites (favorites are single-item operation)', () => {
     const entry: FileEntry = { name: 'Docs', path: '/DATA/Docs', is_dir: true }
     const w = mountMenu({ entry, selectedCount: 3 })
     expect(w.find('.menu').text()).not.toContain('收藏')
   })
 
-  it('菜单只剩删除时,删除上方不出现分割线', () => {
+  it('when menu has only delete, no separator appears above delete', () => {
     const entry: FileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }
-    const w = mountMenu({ entry, selectedCount: 3 }) // 多选 → 只有删除
+    const w = mountMenu({ entry, selectedCount: 3 }) // multi-select → only delete remains
     expect(w.find('.ctx-delete').exists()).toBe(true)
     expect(w.find('.ui-ctx-sep').exists()).toBe(false)
   })
 
-  it('单选可操作项:删除上方有分割线(其上还有复制路径等)', () => {
+  it('single-select operable item: separator appears above delete (copy path etc. above)', () => {
     const entry: FileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }
     const w = mountMenu({ entry, selectedCount: 1 })
     expect(w.find('.ui-ctx-sep').exists()).toBe(true)
   })
 
-  it('点删除项 emit action=delete', async () => {
+  it('click delete item emits action=delete', async () => {
     const entry: FileEntry = { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }
     const w = mountMenu({ entry, selectedCount: 1 })
     await w.find('.ctx-delete').trigger('click')
     expect(w.emitted('action')?.[0]).toEqual(['delete', entry])
   })
 
-  it('文件项菜单含 复制(总是) + 剪切(operable)', () => {
+  it('file menu contains copy (always) + cut (operable)', () => {
     const w = mountMenu({ entry: { name: 'a', path: '/DATA/a', is_dir: false } as FileEntry, selectedCount: 1 })
     expect(w.find('.ctx-copy').exists()).toBe(true)
     expect(w.find('.ctx-cut').exists()).toBe(true)
   })
 
-  it('受保护项:剪切隐藏,复制仍在', () => {
+  it('protected item: cut hidden, copy remains', () => {
     const w = mountMenu({ entry: { name: 'AppData', path: '/DATA/AppData', is_dir: true } as FileEntry, selectedCount: 1 })
     expect(w.find('.ctx-cut').exists()).toBe(false)
     expect(w.find('.ctx-copy').exists()).toBe(true)
@@ -163,68 +166,68 @@ describe('FileContextMenu', () => {
     expect(w.find('.ctx-paste').exists()).toBe(false)
   })
 
-  it('文件项菜单含「下载」项且恒显(单选)', () => {
+  it('file menu contains "download" item and always shows (single-select)', () => {
     const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 1 })
     expect(wrapper.find('.ctx-download').exists()).toBe(true)
   })
 
-  it('多选时「下载」仍显示', () => {
+  it('multi-select: "download" still shows', () => {
     const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 3 })
     expect(wrapper.find('.ctx-download').exists()).toBe(true)
   })
 
-  it('空白区:含上传文件/上传文件夹', () => {
+  it('blank area: contains upload file / upload folder', () => {
     const w = mountMenu({ entry: null, selectedCount: 0 })
     const txt = w.find('.menu').text()
     expect(txt).toContain('上传文件')
     expect(txt).toContain('上传文件夹')
   })
 
-  it('点上传文件项 emit action=upload-file', async () => {
+  it('click upload file item emits action=upload-file', async () => {
     const w = mountMenu({ entry: null, selectedCount: 0 })
     await w.find('.ctx-upload-file').trigger('click')
     expect(w.emitted('action')?.[0]).toEqual(['upload-file', null])
   })
 
-  it('点上传文件夹项 emit action=upload-folder', async () => {
+  it('click upload folder item emits action=upload-folder', async () => {
     const w = mountMenu({ entry: null, selectedCount: 0 })
     await w.find('.ctx-upload-folder').trigger('click')
     expect(w.emitted('action')?.[0]).toEqual(['upload-folder', null])
   })
 
-  it('文件夹单选显示「共享到局域网」', () => {
+  it('folder single-select shows "share to LAN"', () => {
     const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
     const w = mountMenu({ entry, selectedCount: 1 })
     expect(w.find('.ctx-share').exists()).toBe(true)
   })
 
-  it('文件项不显示「共享到局域网」', () => {
+  it('file item does not show "share to LAN"', () => {
     const entry: FileEntry = { name: 'f.txt', path: '/DATA/f.txt', is_dir: false }
     const w = mountMenu({ entry, selectedCount: 1 })
     expect(w.find('.ctx-share').exists()).toBe(false)
   })
 
-  it('文件夹多选不显示「共享到局域网」(共享入口仅单选)', () => {
+  it('folder multi-select does not show "share to LAN" (sharing entry for single-select only)', () => {
     const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
     const w = mountMenu({ entry, selectedCount: 3 })
     expect(w.find('.ctx-share').exists()).toBe(false)
   })
 
-  it('已共享的文件夹不显示「共享到局域网」(避免后端 SHARE_ALREADY_EXISTS)', () => {
+  it('already shared folder does not show "share to LAN" (avoid backend SHARE_ALREADY_EXISTS)', () => {
     const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true, extensions: { share: { shared: 'true' } } }
     const w = mountMenu({ entry, selectedCount: 1 })
     expect(w.find('.ctx-share').exists()).toBe(false)
   })
 
-  it('点共享项 emit action=share', async () => {
+  it('click share item emits action=share', async () => {
     const entry: FileEntry = { name: 'D', path: '/DATA/D', is_dir: true }
     const w = mountMenu({ entry, selectedCount: 1 })
     await w.find('.ctx-share').trigger('click')
     expect(w.emitted('action')?.[0]).toEqual(['share', entry])
   })
 
-  describe('快照只读态菜单', () => {
-    it('空白区菜单只剩刷新', () => {
+  describe('snapshot read-only menu', () => {
+    it('blank area menu only has refresh left', () => {
       const w = mountSnapshotMenu({ entry: null, selectedCount: 0 })
       const txt = w.find('.menu').text()
       expect(txt).toContain('刷新')
@@ -232,7 +235,7 @@ describe('FileContextMenu', () => {
       expect(txt).not.toContain('粘贴')
     })
 
-    it('条目菜单只剩恢复到原位置 + 下载', () => {
+    it('item menu only has restore to original location + download left', () => {
       const entry: FileEntry = { name: 'a.txt', path: '/DATA/.snapshots/snap1/a.txt', is_dir: false }
       const w = mountSnapshotMenu({ entry, selectedCount: 1 })
       const txt = w.find('.menu').text()
@@ -243,13 +246,13 @@ describe('FileContextMenu', () => {
       expect(txt).not.toContain('复制路径')
     })
 
-    it('多选时不出现恢复到原位置(恢复文案是单条路径)', () => {
+    it('multi-select: restore to original location does not appear (restore copy is for single path)', () => {
       const entry: FileEntry = { name: 'a.txt', path: '/DATA/.snapshots/snap1/a.txt', is_dir: false }
       const w = mountSnapshotMenu({ entry, selectedCount: 3 })
       expect(w.find('.menu').text()).not.toContain('恢复到原位置')
     })
 
-    it('点恢复到原位置 emit action=restore-original', async () => {
+    it('click restore to original location emits action=restore-original', async () => {
       const entry: FileEntry = { name: 'a.txt', path: '/DATA/.snapshots/snap1/a.txt', is_dir: false }
       const w = mountSnapshotMenu({ entry, selectedCount: 1 })
       await w.find('.ctx-restore-original').trigger('click')

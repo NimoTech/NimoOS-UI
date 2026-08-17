@@ -7,7 +7,7 @@ const props = defineProps<{ open: boolean; name: string; busy?: boolean }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', password: string): void }>()
 const { t } = useI18n()
 const password = ref('')
-// 开/关都清空:关闭后明文密码不得驻留内存(P1 债③)
+// Cleared on both open and close: the plaintext password must not linger in memory after closing (P1 debt item 3)
 watch(
   () => props.open,
   () => {

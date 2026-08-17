@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { sortResults, splitTiers, matchPct, searchStateMatchesQuery, type ScoredPhoto } from '../searchSort'
 import type { Photo } from '../assetToPhoto'
 
-// 最小 Photo 桩:只填 sortResults/splitTiers 实际读取的字段(id/takenAt/belowCut),
-// 其余字段用 as 断言跳过(测试只关心排序/分流行为,不关心 Photo 的完整形状)。
-// id 类型放宽到 string | number(与 Photo.id 一致)—— 收窄成 string 会让
-// String() 归一化那条铁律的混合类型场景一次都执行不到(fix round 1 · I1)。
+// Minimal Photo stub: fills only the fields sortResults/splitTiers actually read
+// (id/takenAt/belowCut); the rest are skipped via an `as` assertion (the tests only care
+// about sort/tier behavior, not Photo's full shape).
+// The id type is widened to string | number (matching Photo.id) — narrowing it to string
+// would mean the mixed-type scenario that pins down the String() normalization rule never
+// runs at all (fix round 1 · I1).
 function stubPhoto(id: string | number, takenAt: string | null, belowCut = false): Photo {
   return { id, takenAt, belowCut } as Photo
 }
@@ -15,13 +17,13 @@ function row(id: string | number, score: number | null, takenAt: string | null, 
 }
 
 describe('sortResults', () => {
-  it('relevance:按 score 降序,null 当 0', () => {
+  it('relevance: descending by score, null treated as 0', () => {
     const rows = [row('a', 0.2, null), row('b', 0.9, null), row('c', null, null)]
     const sorted = sortResults(rows, 'relevance')
     expect(sorted.map(r => r.p.id)).toEqual(['b', 'a', 'c'])
   })
 
-  it('newest/oldest:takenAt 为 null 的项恒在末尾,两个方向各验一次', () => {
+  it('newest/oldest: items with takenAt null always sort last, checked in both directions', () => {
     const rows = [
       row('a', null, '2026-01-01'),
       row('b', null, null),
@@ -33,32 +35,34 @@ describe('sortResults', () => {
     expect(oldest[oldest.length - 1].p.id).toBe('b')
   })
 
-  it('takenAt 相同 → 按 id 稳定排序', () => {
+  it('equal takenAt -> stable sort by id', () => {
     const rows = [row('b', null, '2026-01-01'), row('a', null, '2026-01-01')]
     const sorted = sortResults(rows, 'newest')
     expect(sorted.map(r => r.p.id)).toEqual(['a', 'b'])
   })
 
-  // fix round 1 · I1(评审变异实证):id 混合 string/number 类型时,原始比较
-  // `a.p.id > b.p.id` 与 `String(a.p.id) > String(b.p.id)` 结果相反,能干净区分
-  // 是否真的做了 String() 归一。id=10(number)与 id='9'(string)、takenAt 相同:
-  // 原始比较 10 > '9' 走数值强制转换('9' 转成数字 9)得 true;
-  // String() 后 '10' > '9' 走字典序比较(首字符 '1' < '9')得 false —— 结果相反。
-  it('id 混合 string/number 类型 → 按 String() 归一后比较(与直接比较结果相反,能区分是否漏做 String())', () => {
+  // fix round 1 · I1 (mutation-tested by review): when id mixes string/number types, the raw
+  // comparison `a.p.id > b.p.id` and `String(a.p.id) > String(b.p.id)` give opposite results,
+  // which cleanly distinguishes whether String() normalization actually happened. id=10
+  // (number) vs id='9' (string), same takenAt:
+  // raw comparison 10 > '9' coerces numerically ('9' becomes the number 9) -> true;
+  // after String(), '10' > '9' compares lexicographically (first char '1' < '9') -> false —
+  // opposite results.
+  it('mixed string/number id types -> compared after String() normalization (opposite of a direct comparison, distinguishes whether String() was skipped)', () => {
     const rows = [row(10, null, '2026-01-01'), row('9', null, '2026-01-01')]
     const sorted = sortResults(rows, 'newest')
-    // String(10)='10' < String('9')='9'(字典序),故 10 排在 '9' 前面。
+    // String(10)='10' < String('9')='9' (lexicographic), so 10 sorts before '9'.
     expect(sorted.map(r => r.p.id)).toEqual([10, '9'])
   })
 
-  it('newest 与 oldest 互为逆序(排除 null 项)', () => {
+  it('newest and oldest are exact reverses of each other (excluding null items)', () => {
     const rows = [row('a', null, '2026-01-01'), row('b', null, '2026-03-01'), row('c', null, '2026-02-01')]
     const newest = sortResults(rows, 'newest').map(r => r.p.id)
     const oldest = sortResults(rows, 'oldest').map(r => r.p.id)
     expect(newest).toEqual([...oldest].reverse())
   })
 
-  it('不原地改:返回新数组引用,传入数组顺序不变', () => {
+  it('does not mutate in place: returns a new array reference, and the input array\'s order is unchanged', () => {
     const rows = [row('b', 0.1, null), row('a', 0.9, null)]
     const original = [...rows]
     const sorted = sortResults(rows, 'relevance')
@@ -68,7 +72,7 @@ describe('sortResults', () => {
 })
 
 describe('splitTiers', () => {
-  it("sort='newest' → more 为空、best 全量(非 relevance 排序不分流)", () => {
+  it("sort='newest' -> more is empty, best has everything (non-relevance sorts don't tier)", () => {
     const rows = [row('a', null, '2026-01-01', true), row('b', null, '2026-01-02', false)]
     const sorted = sortResults(rows, 'newest')
     const { best, more } = splitTiers(sorted, 'newest')
@@ -76,7 +80,7 @@ describe('splitTiers', () => {
     expect(best).toEqual(sorted)
   })
 
-  it("sort='relevance' + 3 条中 1 条 belowCut → best 2 / more 1", () => {
+  it("sort='relevance' + 1 of 3 items is belowCut -> best 2 / more 1", () => {
     const rows = [row('a', 0.9, null, false), row('b', 0.8, null, true), row('c', 0.7, null, false)]
     const sorted = sortResults(rows, 'relevance')
     const { best, more } = splitTiers(sorted, 'relevance')
@@ -87,31 +91,31 @@ describe('splitTiers', () => {
 })
 
 describe('matchPct', () => {
-  it('null → null', () => {
+  it('null -> null', () => {
     expect(matchPct(null)).toBeNull()
     expect(matchPct(undefined)).toBeNull()
   })
 
-  it('越界值被夹到 [0,1] 再转百分比', () => {
+  it('out-of-range values are clamped to [0,1] before converting to a percentage', () => {
     expect(matchPct(-0.5)).toBe(0)
     expect(matchPct(1.7)).toBe(100)
   })
 
-  it('正常值四舍五入', () => {
+  it('normal values round to the nearest integer', () => {
     expect(matchPct(0.456)).toBe(46)
   })
 })
 
 describe('searchStateMatchesQuery', () => {
-  it('isSearchMode: false → false', () => {
+  it('isSearchMode: false -> false', () => {
     expect(searchStateMatchesQuery({ isSearchMode: false, searchQuery: 'tokyo' }, 'tokyo')).toBe(false)
   })
 
-  it('query 带首尾空格 → trim 后比较命中', () => {
+  it('query with leading/trailing whitespace -> matches after trimming', () => {
     expect(searchStateMatchesQuery({ isSearchMode: true, searchQuery: 'tokyo' }, '  tokyo  ')).toBe(true)
   })
 
-  it('不同 query → false', () => {
+  it('different query -> false', () => {
     expect(searchStateMatchesQuery({ isSearchMode: true, searchQuery: 'tokyo' }, 'kyoto')).toBe(false)
   })
 })

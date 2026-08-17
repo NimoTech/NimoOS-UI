@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/services/agentStream.js
+// 1:1 ported from Vue2 src/views/AI/Agent/services/agentStream.js
 // (stripLeakedToolArgs L72-89, migrateLegacyMessages L91-98, mcpCallFromToolBlock
 // L105-120, expandHistoryBlock L122-136, photoGridFromToolBlock L138-151,
 // buildPhotoGridBlock L156-169, semanticSearchFromToolBlock L171-184,

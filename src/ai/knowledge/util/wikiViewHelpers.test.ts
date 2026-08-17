@@ -1,29 +1,39 @@
-// SP8-P5f Task 3 —— `wikiViewHelpers.ts` 的守卫。
+// SP8-P5f Task 3 — guard for `wikiViewHelpers.ts`.
 //
-// 承接 Vue2 `NimoOS-UI`(main@7a6ee6b7)
-// `src/views/AI/Knowledge/__tests__/wikiViewHelpers.spec.js`(119 行 / 9 条)的**全部行为**
-// (治理 §4.3 / 裁定 R10:本期只承接这一份 Vue2 spec),并按治理 §9.16 加细。
+// Inherit all behavior from Vue2 `NimoOS-UI`(main@7a6ee6b7)
+// `src/views/AI/Knowledge/__tests__/wikiViewHelpers.spec.js`(119 lines / 9 cases)
+// (governance §4.3 / ruling R10: only inherit this one Vue2 spec this period),
+// with additional refinement per governance §9.16.
 //
-// 🔴 §9.16 —— `buildWikiTree` 是本刀最容易写成零判别力的地方:
-// 同一份「已排好序、层级整齐」的样本上,好几种错实现会给出**相同结果**
-// (「用 `lastIndexOf('/')` 直接切一级父」在整齐树上与正确实现同解)。
-// 因此本文件的四条判别力用例取自 `p5f-fixtures/wiki-tree.CONSTRUCTED.json` 的
-// crossLevel / missingParent / duplicate / unsorted 四种拓扑,并在报告里贴了两组 RED 探针:
-//   ① `findParent` 换成「只切一级」→ crossLevel 那条必须报红;
-//   ② 删掉 `sort` → unsorted 那条必须报红。
+// 🔴 §9.16 — `buildWikiTree` is the place most prone to writing logic with zero
+// discriminative power: on the same "pre-sorted, well-leveled" sample, several
+// wrong implementations give **identical results** ("directly slice one level up
+// using `lastIndexOf('/')`" produces the same result on a well-leveled tree as
+// the correct implementation). Therefore, the four discriminative cases in this
+// file come from the four topologies in `p5f-fixtures/wiki-tree.CONSTRUCTED.json`:
+// crossLevel / missingParent / duplicate / unsorted, with two RED probes in the
+// report:
+//   ① Replace `findParent` with "only slice one level" → crossLevel case must red;
+//   ② Delete `sort` → unsorted case must red.
 //
-// 🔴 §9.15 —— `renderWikiMarkdown` 的 **XSS 用例归 T7 的组件层**(挂载 `WikiView` 后查真实 DOM)。
-// 本文件只放一条「就是转发 `renderMarkdown`」的断言,且**不 mock** `renderMarkdown`
-// (治理明令:禁止 mock 掉 `renderMarkdown` 之后还声称验过 XSS)。
+// 🔴 §9.15 — **XSS cases for `renderWikiMarkdown` belong to component layer T7**
+// (mount `WikiView` and check real DOM). This file has only one assertion that
+// "just forwards `renderMarkdown`", and **does not mock** `renderMarkdown`
+// (governance rule: forbidden to mock away `renderMarkdown` and then claim XSS
+// is verified).
 //
-// 🔴 环境坑三条 —— 逐字沿用 `knowledgeStyles.test.ts:1-17` 的既定解法(不是重新踩坑):
-// ① 本仓 `package.json` 是 `"type": "module"` ⇒ `__dirname` 在 ESM 下不可用,
-//    改用 `import.meta.url` + `fileURLToPath` 的等价写法;
-// ② `node:fs` / `node:path` / `node:url` 的类型声明由 `@types/node` 提供,本仓已装
-//    (SP8-P6 合流自 master)⇒ `vue-tsc --noEmit`(任务门之一)直接通过,**不需要**
-//    `@ts-expect-error` 抑制;sp8-ai 分支上原有的抑制行已在合流时删除;
-// ③ 🔴 **不用 Vite 的 `?raw` 替代 `node:fs`** —— vitest 的 CSSEnablerPlugin 会让 `?raw`
-//    读出空串,断言对空字符串「假通过」(铁律)。
+// 🔴 Three environmental pitfalls — verbatim follow the established solutions
+// from `knowledgeStyles.test.ts:1-17` (not encountering them anew):
+// ① This repo's `package.json` is `"type": "module"` ⇒ `__dirname` unavailable in ESM,
+//    use equivalent via `import.meta.url` + `fileURLToPath`;
+// ② Type declarations for `node:fs` / `node:path` / `node:url` come from
+//    `@types/node`, already installed in this repo (SP8-P6 merged from master)
+//    ⇒ `vue-tsc --noEmit`(one of the task gates) passes directly, **no need for**
+//    `@ts-expect-error` suppression; suppression lines that existed on sp8-ai
+//    branch were deleted during merge;
+// ③ 🔴 **Don't use Vite's `?raw` as substitute for `node:fs`** — vitest's
+//    CSSEnablerPlugin makes `?raw` return empty string, assertions on empty
+//    string "falsely pass" (iron law).
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -41,25 +51,27 @@ import {
 import { renderMarkdown } from '../../markdown/renderMarkdown'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 fixture 抄本(治理 P5c §4.4:抄进测试 + 注释标出处 + 程序化逐字节等价校验;
-//    **不许在运行时读 `.superpowers/`** —— 它不在构建产物里,`?raw` 在 vitest 下恒空)。
-// 🔴 裁定 R14 / fixtures README §0.2:**只取数据字段**,`__meta` 转成注释。
+// 🔴 Fixture copy (governance P5c §4.4: copy into test + comment source + programmatically
+//    verify byte-for-byte equivalence; **don't read `.superpowers/` at runtime** — it's
+//    not in build artifacts, `?raw` is always empty under vitest).
+// 🔴 Ruling R14 / fixtures README §0.2: **take data fields only**, convert `__meta` to comments.
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // ── FIXTURE-COPY-BEGIN: wiki-tree ──────────────────────────────────────────
-// 出处:`.superpowers/sdd/p5f-fixtures/wiki-tree.CONSTRUCTED.json`
-// 🔴 三级出处标签(`__meta.label`)= **`.CONSTRUCTED`** —— **不是真机数据**,
-//    也不许拿它去推翻 N46 的命名结论(fixtures README §0 / 治理 §9.18-2)。
-// `__meta.why`:「GET /v1/wiki/tree 本机实测 90 秒超时、0 字节(D1)⇒ 无真机样本。」
-// `__meta.built_from`:「NimoOS-Wiki/route/v1/wiki.go:126-132 的匿名 struct `sk`
-//    (**snake_case json tag**):path / level / ai_label / user_notes_updated_at / last_modified」
-// `__meta.value_units`:「ai_label 空串合法;last_modified 是 RFC3339 本地时区字符串,
-//    后端 formatTS(ms<=0) 返回 **空串**(wiki.go:47-52)—— 不是 '1970'」
-// `__meta.normalized_shape`:「经 NimoOS-Service/src/wiki.ts:102 normalizeTreeNode →
-//    camelCase { path, level, aiLabel, userNotesUpdatedAt, lastModified }。
-//    store.loadWikiTree() 出的是**扁平数组**,buildWikiTree 吃的就是它」
-// `__meta.topologies`:「三份样本按治理 §9.16 造:normal(整齐树)/ crossLevel(跨级)/
-//    missingParent(父缺位)/ duplicate(重复行)/ unsorted(乱序)」
+// Source: `.superpowers/sdd/p5f-fixtures/wiki-tree.CONSTRUCTED.json`
+// 🔴 Three-level source label (`__meta.label`) = **`.CONSTRUCTED`** — **not real-device data**,
+//    don't use it to overturn naming conclusions from N46 (fixtures README §0 / governance §9.18-2).
+// `__meta.why`: "GET /v1/wiki/tree local test timeout after 90s, 0 bytes (D1) ⇒ no real-device sample."
+// `__meta.built_from`: "Anonymous struct `sk` from NimoOS-Wiki/route/v1/wiki.go:126-132
+//    (**snake_case json tag**): path / level / ai_label / user_notes_updated_at / last_modified"
+// `__meta.value_units`: "ai_label empty string is valid; last_modified is RFC3339 local
+//    timezone string, backend formatTS(ms<=0) returns **empty string**(wiki.go:47-52) — not '1970'"
+// `__meta.normalized_shape`: "After NimoOS-Service/src/wiki.ts:102 normalizeTreeNode →
+//    camelCase { path, level, aiLabel, userNotesUpdatedAt, lastModified }.
+//    store.loadWikiTree() produces **flat array**, that's what buildWikiTree consumes"
+// `__meta.topologies`: "Three samples per governance §9.16: normal(well-leveled tree)/
+//    crossLevel(cross-level)/ missingParent(parent missing)/ duplicate(duplicate row)/
+//    unsorted(unsorted)"
 interface WikiTreeNodeRaw {
   path: string
   level: string
@@ -93,15 +105,15 @@ const WIKI_TREE_RAW: Record<string, WikiTreeNodeRaw[]> = {
 // ── FIXTURE-COPY-END: wiki-tree ────────────────────────────────────────────
 //
 // ── FIXTURE-COPY-BEGIN: wiki-roots-normalized ──────────────────────────────
-// 出处:`.superpowers/sdd/p5f-fixtures/wiki-roots.normalized.CONSTRUCTED.json`
-// 🔴 三级出处标签(`__meta.label`)= **`.CONSTRUCTED`** —— **不是真机数据**。
-// `__meta.why`:「同 wiki-roots.CONSTRUCTED.json —— /roots 本机超时,无真机样本。」
-// `__meta.built_from`:「把 wiki-roots.CONSTRUCTED.json 的 raw_response 逐字段过
-//    NimoOS-Service/src/wiki.ts:85 normalizeRoot」
-// `__meta.shape`:「🔴 camelCase —— 这就是 store.state.wikiRoots 的出口形状,
-//    RootsView / WikiView 的 mock 一律照它(N46)」
-// `__meta.note`:「enabled 经 `!!r.Enabled` 归一成 boolean;
-//    scanIntervalS/createdAt/lastScanAt 经 `|| 0` 兜底」
+// Source: `.superpowers/sdd/p5f-fixtures/wiki-roots.normalized.CONSTRUCTED.json`
+// 🔴 Three-level source label (`__meta.label`) = **`.CONSTRUCTED`** — **not real-device data**.
+// `__meta.why`: "Same as wiki-roots.CONSTRUCTED.json — /roots timeout locally, no real-device sample."
+// `__meta.built_from`: "Pass each field of wiki-roots.CONSTRUCTED.json raw_response through
+//    NimoOS-Service/src/wiki.ts:85 normalizeRoot"
+// `__meta.shape`: "🔴 camelCase — this is the output shape of store.state.wikiRoots,
+//    RootsView / WikiView mocks all follow it (N46)"
+// `__meta.note`: "enabled normalized to boolean via `!!r.Enabled`;
+//    scanIntervalS/createdAt/lastScanAt fallback via `|| 0`"
 const WIKI_ROOTS_NORMALIZED: WikiRoot[] = [
   {
     id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
@@ -131,9 +143,10 @@ const WIKI_ROOTS_NORMALIZED: WikiRoot[] = [
 // ── FIXTURE-COPY-END: wiki-roots-normalized ────────────────────────────────
 
 /**
- * fixture 是 **HTTP 原始 snake_case**;`buildWikiTree` 吃的是 **store 出口 camelCase**
- * (`store.loadWikiTree()`,归一化在共享包 `NimoOS-Service/src/wiki.ts:102 normalizeTreeNode`)。
- * 本函数只做**键名对应**,不重新实现归一化逻辑(N46:两种命名风格是本期最容易搞错的一点)。
+ * Fixture is **HTTP raw snake_case**; `buildWikiTree` consumes **store output camelCase**
+ * (`store.loadWikiTree()`, normalization in shared package `NimoOS-Service/src/wiki.ts:102
+ * normalizeTreeNode`). This function only does **key mapping**, doesn't re-implement
+ * normalization logic (N46: the two naming styles are the easiest to get wrong this period).
  */
 function toStoreShape(r: WikiTreeNodeRaw): WikiTreeNode {
   return {
@@ -152,7 +165,7 @@ const TOPO = {
   unsorted: WIKI_TREE_RAW.unsorted.map(toStoreShape),
 }
 
-/** Vue2 spec 的样本只写 `{path, level}`;本仓类型是共享包 `WikiTreeNode`(五字段全有)。 */
+/** Blueprint samples only write `{path, level}`; this repo type is shared package `WikiTreeNode` (all five fields). */
 function flatNode(path: string, over: Partial<WikiTreeNode> = {}): WikiTreeNode {
   return {
     path,
@@ -165,18 +178,18 @@ function flatNode(path: string, over: Partial<WikiTreeNode> = {}): WikiTreeNode 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// baseName —— 蓝本 `wikiViewHelpers.js:6-11`
+// baseName — blueprint `wikiViewHelpers.js:6-11`
 // ═══════════════════════════════════════════════════════════════════════════
 describe('baseName', () => {
-  // 承接 Vue2 spec `:76-81`「baseName is defensive」四条。
-  it('Vue2 spec 承接:/a/b/c → c · /a/b/ → b · / → / · "" → ""', () => {
+  // Inherit four cases from Vue2 spec `:76-81` "baseName is defensive".
+  it('Vue2 spec inherit: /a/b/c → c · /a/b/ → b · / → / · "" → ""', () => {
     expect(baseName('/a/b/c')).toBe('c')
     expect(baseName('/a/b/')).toBe('b')
     expect(baseName('/')).toBe('/')
     expect(baseName('')).toBe('')
   })
 
-  it('空 / 非字符串一律 ""(蓝本 :7 的运行时防御,收窄成 string 就永远测不到)', () => {
+  it('Empty / non-string all return "" (blueprint :7 runtime defense, narrowed to string never reachable)', () => {
     expect(baseName(undefined)).toBe('')
     expect(baseName(null)).toBe('')
     expect(baseName(0)).toBe('')
@@ -185,36 +198,36 @@ describe('baseName', () => {
     expect(baseName([])).toBe('')
   })
 
-  it('单字符 "/" 不被尾斜杠归一吃掉(蓝本 :8 的 `p.length > 1 ?` 这一支)', () => {
-    // length > 1 才 replace ⇒ '/' 原样保留 ⇒ lastIndexOf('/') === 0 ⇒ slice(1) === '' ⇒ `|| s` 兜底回 '/'。
+  it('Single char "/" not consumed by trailing-slash normalization (blueprint :8 `p.length > 1 ?` branch)', () => {
+    // Only replace if length > 1 ⇒ '/' preserved ⇒ lastIndexOf('/') === 0 ⇒ slice(1) === '' ⇒ `|| s` fallback to '/'.
     expect(baseName('/')).toBe('/')
-    // 判别力:若把 `p.length > 1 ?` 去掉,'/' 会被 replace 成 '',结果变成 ''。
+    // Discriminative: if `p.length > 1 ?` is removed, '/' becomes '', result becomes ''.
     expect(baseName('/')).not.toBe('')
   })
 
-  it('多重尾斜杠一并剥掉(蓝本 :8 的 /\\/+$/)', () => {
+  it('Multiple trailing slashes all stripped (blueprint :8 /\\/+$/)', () => {
     expect(baseName('/a/b///')).toBe('b')
     expect(baseName('/DATA//')).toBe('DATA')
   })
 
-  it('无斜杠时整串就是 basename(蓝本 :10 的 `i < 0` 这一支)', () => {
+  it('No slash means entire string is basename (blueprint :10 `i < 0` branch)', () => {
     expect(baseName('DATA')).toBe('DATA')
     expect(baseName('a')).toBe('a')
   })
 
-  it('🔴 `slice(i + 1) || s` 的兜底分支:剥完尾斜杠仍以 / 结尾的串', () => {
-    // '//' → length > 1 ⇒ replace(/\/+$/) 把**整串**剥成 '' ⇒ lastIndexOf('/') === -1 ⇒ 走 `i < 0` 回 ''。
+  it('🔴 Fallback of `slice(i + 1) || s`: string ending with / after stripping trailing slashes', () => {
+    // '//' → length > 1 ⇒ replace(/\/+$/) strips **entire string** to '' ⇒ lastIndexOf('/') === -1 ⇒ `i < 0` returns ''.
     expect(baseName('//')).toBe('')
-    // 真正命中 `|| s` 兜底的是「lastIndexOf 命中第 0 位且其后为空」的形态,即单字符 '/'。
+    // True hit of `|| s` fallback is "lastIndexOf hit at position 0 and nothing after", i.e. single char '/'.
     expect(baseName('/')).toBe('/')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// buildWikiTree —— 蓝本 `:18-37` + 模块私有 `findParent`(`:39-47`)
+// buildWikiTree — blueprint `:18-37` + module-private `findParent`(`:39-47`)
 // ═══════════════════════════════════════════════════════════════════════════
-describe('buildWikiTree —— Vue2 spec 承接', () => {
-  // 逐字取自 Vue2 spec `:8-14` 的 `flat`(乱序,含两棵树)。
+describe('buildWikiTree — Vue2 spec inherit', () => {
+  // Verbatim from Vue2 spec `:8-14` `flat` (unsorted, contains two trees).
   const flat = [
     flatNode('/DATA/Wiki/Work', { level: 'dir' }),
     flatNode('/DATA', { level: 'root' }),
@@ -223,31 +236,31 @@ describe('buildWikiTree —— Vue2 spec 承接', () => {
     flatNode('/DATA/Downloads', { level: 'dir' }),
   ]
 
-  it('assembles a forest from the unsorted flat list(Vue2 spec :16-22)', () => {
+  it('assembles a forest from the unsorted flat list (Vue2 spec :16-22)', () => {
     const { roots, byPath } = buildWikiTree(flat)
     expect(roots.map((r) => r.path)).toEqual(['/Backup', '/DATA'])
     expect(byPath['/DATA'].children.map((c) => c.path)).toEqual(['/DATA/Downloads', '/DATA/Wiki'])
     expect(byPath['/DATA/Wiki'].children.map((c) => c.path)).toEqual(['/DATA/Wiki/Work'])
   })
 
-  it('顶层根用全路径当 name,子节点用 basename(Vue2 spec :24-28)', () => {
+  it('Top-level roots use full path as name, child nodes use basename (Vue2 spec :24-28)', () => {
     const { byPath } = buildWikiTree(flat)
     expect(byPath['/DATA'].name).toBe('/DATA')
     expect(byPath['/DATA/Wiki/Work'].name).toBe('Work')
   })
 
-  it('忽略重复与空路径(Vue2 spec :38-44)', () => {
+  it('Ignore duplicates and empty paths (Vue2 spec :38-44)', () => {
     const { roots } = buildWikiTree([flatNode('/x'), flatNode('/x'), flatNode(''), null])
     expect(roots).toHaveLength(1)
   })
 
-  it('入参为 null / undefined / 空数组一律回空森林(蓝本 :19 的 `(list || [])`)', () => {
+  it('Input null / undefined / empty array all return empty forest (blueprint :19 `(list || [])`)', () => {
     expect(buildWikiTree(null)).toEqual({ roots: [], byPath: {} })
     expect(buildWikiTree(undefined)).toEqual({ roots: [], byPath: {} })
     expect(buildWikiTree([])).toEqual({ roots: [], byPath: {} })
   })
 
-  it('不修改入参数组(蓝本 :21 的 `.slice()` 在 sort 之前)', () => {
+  it('Do not modify input array (blueprint :21 `.slice()` before sort)', () => {
     const input = [flatNode('/z'), flatNode('/a')]
     const before = input.map((n) => n.path)
     buildWikiTree(input)
@@ -255,62 +268,62 @@ describe('buildWikiTree —— Vue2 spec 承接', () => {
   })
 })
 
-describe('buildWikiTree —— 🔴 治理 §9.16:四种「会分辨错实现」的拓扑(取自 .CONSTRUCTED fixture)', () => {
-  it('normal(整齐树)—— 三级链路,且扁平节点的其余字段原样带进树节点(蓝本 :28 的 `{ ...n }`)', () => {
+describe('buildWikiTree — 🔴 governance §9.16: four topologies that "discriminate wrong implementations" (from .CONSTRUCTED fixture)', () => {
+  it('normal (well-leveled tree) — three-level chain, and other fields of flat nodes pass through as-is to tree nodes (blueprint :28 `{ ...n }`)', () => {
     const { roots, byPath } = buildWikiTree(TOPO.normal)
     expect(roots.map((r) => r.path)).toEqual(['/DATA'])
     expect(byPath['/DATA'].children.map((c) => c.path)).toEqual(['/DATA/Documents'])
     expect(byPath['/DATA/Documents'].children.map((c) => c.path)).toEqual(['/DATA/Documents/Specs'])
-    // 透传字段(T6 会读 aiLabel / lastModified,蓝本 WikiView.vue:191/:193)。
+    // Pass-through fields (T6 reads aiLabel / lastModified, blueprint WikiView.vue:191/:193).
     expect(byPath['/DATA'].aiLabel).toBe('主数据盘')
     expect(byPath['/DATA'].level).toBe('space')
     expect(byPath['/DATA'].lastModified).toBe('2026-08-05T11:32:01+08:00')
     expect(byPath['/DATA/Documents/Specs'].lastModified).toBe('')
   })
 
-  it('🔴 ② crossLevel:/a 与 /a/b/c 在、/a/b 不在 ⇒ 父是 /a(判据:findParent 换成「只切一级」→ 本条必须报红)', () => {
+  it('🔴 ② crossLevel: /a and /a/b/c exist, /a/b does not ⇒ parent is /a (criterion: replace findParent with "only slice one level" → this case must red)', () => {
     const { roots, byPath } = buildWikiTree(TOPO.crossLevel)
-    // 「只切一级」的错实现会让 /a/b/c 找不到 byPath['/a/b'] ⇒ 它变成第二个根、name 变全路径。
+    // Wrong implementation of "only slice one level" makes /a/b/c unable to find byPath['/a/b'] ⇒ it becomes second root, name becomes full path.
     expect(roots.map((r) => r.path)).toEqual(['/a'])
     expect(byPath['/a'].children.map((c) => c.path)).toEqual(['/a/b/c'])
     expect(byPath['/a/b/c'].name).toBe('c')
     expect(byPath['/a/b']).toBeUndefined()
   })
 
-  it('🔴 ① missingParent:只有 /x/y/z ⇒ 成为根且 name 是全路径(蓝本 :34 的 `t.name = n.path`)', () => {
+  it('🔴 ① missingParent: only /x/y/z ⇒ becomes root and name is full path (blueprint :34 `t.name = n.path`)', () => {
     const { roots, byPath } = buildWikiTree(TOPO.missingParent)
     expect(roots).toHaveLength(1)
     expect(roots[0].path).toBe('/x/y/z')
     expect(roots[0].name).toBe('/x/y/z')
-    expect(roots[0].name).not.toBe('z') // 不是 basename —— 这正是「顶层根显示全路径」的判别点
+    expect(roots[0].name).not.toBe('z') // Not basename — this is the discriminant of "top-level roots show full path"
     expect(byPath['/x/y/z']).toBe(roots[0])
   })
 
-  it('🔴 ③ duplicate:同 path 两行 ⇒ 只建一个节点,且**先到的**那行胜出(蓝本 :27 的 `continue`)', () => {
+  it('🔴 ③ duplicate: two rows with same path ⇒ create only one node, **first one** wins (blueprint :27 `continue`)', () => {
     const { roots, byPath } = buildWikiTree(TOPO.duplicate)
     expect(roots).toHaveLength(1)
     expect(Object.keys(byPath)).toEqual(['/dup'])
-    // 「后到覆盖」的错实现会给出 'second'。
+    // Wrong implementation of "later overwrites" would give 'second'.
     expect(byPath['/dup'].aiLabel).toBe('first')
     expect(byPath['/dup'].children).toEqual([])
   })
 
-  it('🔴 ④ unsorted:/u/b 排在 /u 前面 ⇒ 仍只有一个根(判据:删掉 sort → 本条必须报红)', () => {
+  it('🔴 ④ unsorted: /u/b comes before /u ⇒ still only one root (criterion: delete sort → this case must red)', () => {
     const { roots, byPath } = buildWikiTree(TOPO.unsorted)
-    // 无 sort 时 /u/b 先被处理,找不到父 ⇒ 自己成根(roots 变 ['/u/b','/u'])。
+    // Without sort, /u/b processed first, can't find parent ⇒ becomes own root (roots becomes ['/u/b','/u']).
     expect(roots.map((r) => r.path)).toEqual(['/u'])
     expect(byPath['/u'].children.map((c) => c.path)).toEqual(['/u/a', '/u/b'])
     expect(byPath['/u/b'].name).toBe('b')
   })
 
-  it('🔴 sort 是按 path 字典序,不是「按输入顺序」—— 子节点顺序恒定与输入无关', () => {
+  it('🔴 sort is by path lexicographic order, not "input order" — child node order is constant regardless of input', () => {
     const forward = buildWikiTree(TOPO.unsorted)
     const reversed = buildWikiTree([...TOPO.unsorted].reverse())
     expect(reversed.roots.map((r) => r.path)).toEqual(forward.roots.map((r) => r.path))
     expect(reversed.byPath['/u'].children.map((c) => c.path)).toEqual(['/u/a', '/u/b'])
   })
 
-  it('byPath 里的对象与 roots/children 里的是同一份引用(T6 靠这个做就地选中)', () => {
+  it('Object in byPath is same reference as in roots/children (T6 uses this for in-place selection)', () => {
     const { roots, byPath } = buildWikiTree(TOPO.normal)
     expect(byPath['/DATA']).toBe(roots[0])
     expect(byPath['/DATA/Documents']).toBe(roots[0].children[0])
@@ -318,12 +331,12 @@ describe('buildWikiTree —— 🔴 治理 §9.16:四种「会分辨错实现」
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// trailFor —— 蓝本 `:52-62`
+// trailFor — blueprint `:52-62`
 // ═══════════════════════════════════════════════════════════════════════════
 describe('trailFor', () => {
   const { byPath } = buildWikiTree(TOPO.normal)
 
-  it('Vue2 spec 承接:祖先链 root-most first,含自身', () => {
+  it('Vue2 spec inherit: ancestor chain root-most first, includes self', () => {
     expect(trailFor(byPath, '/DATA/Documents/Specs').map((n) => n.path)).toEqual([
       '/DATA',
       '/DATA/Documents',
@@ -331,42 +344,42 @@ describe('trailFor', () => {
     ])
   })
 
-  it('Vue2 spec 承接:中间节点缺位时被过滤掉,已知的仍在', () => {
+  it('Vue2 spec inherit: intermediate nodes missing are filtered, known ones remain', () => {
     expect(trailFor(byPath, '/DATA/Other/Deep').map((n) => n.path)).toEqual(['/DATA'])
   })
 
-  it('Vue2 spec 承接:空串 → []', () => {
+  it('Vue2 spec inherit: empty string → []', () => {
     expect(trailFor(byPath, '')).toEqual([])
   })
 
-  it('非字符串 / undefined / null → []（蓝本 :53 的运行时防御)', () => {
+  it('Non-string / undefined / null → [] (blueprint :53 runtime defense)', () => {
     expect(trailFor(byPath, undefined)).toEqual([])
     expect(trailFor(byPath, null)).toEqual([])
     expect(trailFor(byPath, 42)).toEqual([])
     expect(trailFor(byPath, ['/DATA'])).toEqual([])
   })
 
-  it('整条链都不在索引里 → []', () => {
+  it('Entire chain not in index → []', () => {
     expect(trailFor(byPath, '/Nowhere/At/All')).toEqual([])
   })
 
-  it('多余斜杠被 `filter(Boolean)` 吃掉,链路仍能命中(蓝本 :54)', () => {
+  it('Extra slashes consumed by `filter(Boolean)`, chain still matches (blueprint :54)', () => {
     expect(trailFor(byPath, '//DATA//Documents//').map((n) => n.path)).toEqual([
       '/DATA',
       '/DATA/Documents',
     ])
   })
 
-  it('返回的是 byPath 里的同一份对象引用,不是拷贝', () => {
+  it('Returned object is same reference from byPath, not a copy', () => {
     expect(trailFor(byPath, '/DATA')[0]).toBe(byPath['/DATA'])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// opToType —— 蓝本 `:65-70`(N58:`modify` + 任何未知值 → 'mod' 兜底照抄)
+// opToType — blueprint `:65-70` (N58: `modify` + any unknown value → 'mod' fallback copied)
 // ═══════════════════════════════════════════════════════════════════════════
 describe('opToType', () => {
-  it('Vue2 spec 承接:四分支 + 未知值兜底', () => {
+  it('Vue2 spec inherit: four branches + unknown value fallback', () => {
     expect(opToType('create')).toBe('add')
     expect(opToType('modify')).toBe('mod')
     expect(opToType('delete')).toBe('del')
@@ -374,14 +387,14 @@ describe('opToType', () => {
     expect(opToType('surprise')).toBe('mod')
   })
 
-  it('🔴 N58:`modify` 与任何未知值都落到同一个 mod 兜底(照抄,不许拆成显式 modify 分支后让未知值另走一支)', () => {
-    // `wiki-node.CONSTRUCTED.json` 的 recent_changes 里刻意埋了未知 op `chmod`。
+  it('🔴 N58: `modify` and any unknown value fall to same mod fallback (copy as-is, don\'t split into explicit modify branch with unknown taking another path)', () => {
+    // `wiki-node.CONSTRUCTED.json` recent_changes intentionally embedded unknown op `chmod`.
     for (const unknown of ['chmod', '', 'CREATE', 'Delete', 'move', 'modify']) {
       expect(opToType(unknown)).toBe('mod')
     }
   })
 
-  it('大小写敏感 —— 只认全小写(蓝本用的是 ===)', () => {
+  it('Case-sensitive — only recognizes lowercase (blueprint uses ===)', () => {
     expect(opToType('Create')).not.toBe('add')
     expect(opToType('DELETE')).not.toBe('del')
     expect(opToType('Rename')).not.toBe('ren')
@@ -389,42 +402,42 @@ describe('opToType', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// parseTs —— 蓝本 `:73-77`
-// 🔴 返回**毫秒**;下游 `fmtAgo(ms)`(`knowledgeStore.ts:190`)吃毫秒。
-//    喂错单位不报错,只会静默算成 1970(承 P5d-T3 / P5e §9.13)。
+// parseTs — blueprint `:73-77`
+// 🔴 Returns **milliseconds**; downstream `fmtAgo(ms)`(`knowledgeStore.ts:190`) consumes ms.
+//    Feeding wrong unit doesn't error, silently calculates as 1970 (per P5d-T3 / P5e §9.13).
 // ═══════════════════════════════════════════════════════════════════════════
 describe('parseTs', () => {
-  // fixture `wiki-tree.CONSTRUCTED.json` 的 normal[0].last_modified 原值。
+  // Original value of normal[0].last_modified from fixture `wiki-tree.CONSTRUCTED.json`.
   const RFC = '2026-08-05T11:32:01+08:00'
   const EXPECT_MS = Date.UTC(2026, 7, 5, 3, 32, 1) // +08:00 11:32:01 ⇒ 03:32:01 UTC
 
-  it('Vue2 spec 承接:合法 RFC3339 > 0 · "" → 0 · undefined → 0 · 垃圾串 → 0', () => {
+  it('Vue2 spec inherit: valid RFC3339 > 0 · "" → 0 · undefined → 0 · garbage string → 0', () => {
     expect(parseTs('2026-07-20T10:00:00+08:00')).toBeGreaterThan(0)
     expect(parseTs('')).toBe(0)
     expect(parseTs(undefined)).toBe(0)
     expect(parseTs('not-a-date')).toBe(0)
   })
 
-  it('null 也走 `!s` 那一支 → 0(后端 formatTS(ms<=0) 回空串,不是 "1970")', () => {
+  it('null also goes to `!s` branch → 0 (backend formatTS(ms<=0) returns empty string, not "1970")', () => {
     expect(parseTs(null)).toBe(0)
   })
 
-  it('🔴 单位是毫秒,不是秒 —— 逐位钉死取值', () => {
+  it('🔴 Unit is milliseconds, not seconds — pin down each digit', () => {
     expect(parseTs(RFC)).toBe(EXPECT_MS)
-    // 毫秒侧:13 位 epoch。
+    // Milliseconds side: 13-digit epoch.
     expect(String(parseTs(RFC))).toHaveLength(13)
     expect(parseTs(RFC)).toBeGreaterThan(1e12)
-    // 秒侧:若实现里多除了 1000(或后端换成秒级 epoch 而这里没跟着改),下面这条会成立 —— 必须不成立。
+    // Seconds side: if implementation divides by 1000 extra (or backend switches to second-level epoch without updating here), below holds — must not hold.
     expect(parseTs(RFC)).not.toBe(EXPECT_MS / 1000)
     expect(String(parseTs(RFC))).not.toHaveLength(10)
   })
 
-  it('时区偏移真的参与换算(同一时刻的两种写法必须同值)', () => {
+  it('Timezone offset truly participates in calculation (same moment in two formats must be same value)', () => {
     expect(parseTs('2026-08-05T11:32:01+08:00')).toBe(parseTs('2026-08-05T03:32:01Z'))
     expect(parseTs('2026-08-05T11:32:01+08:00')).not.toBe(parseTs('2026-08-05T11:32:01Z'))
   })
 
-  it('🔴 `Number.isFinite` 那一支:非法但非空的串一律 0,不许漏出 NaN', () => {
+  it('🔴 `Number.isFinite` branch: illegal but non-empty string all become 0, don\'t leak NaN', () => {
     for (const bad of ['not-a-date', 'xxxx-yy-zz', '2026-13-45T99:99:99+08:00', '不是时间']) {
       const ms = parseTs(bad)
       expect(ms).toBe(0)
@@ -434,72 +447,73 @@ describe('parseTs', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// rootForPath —— 蓝本 `:82-90`
-// mock 层次:`store.state.wikiRoots` = **camelCase**(fixtures README §3 / N46)
+// rootForPath — blueprint `:82-90`
+// Mock level: `store.state.wikiRoots` = **camelCase** (fixtures README §3 / N46)
 // ═══════════════════════════════════════════════════════════════════════════
 describe('rootForPath', () => {
   const roots = WIKI_ROOTS_NORMALIZED
   const DATA = roots[0].id
   const DOCS = roots[1].id
 
-  it('Vue2 spec 承接:最长前缀取胜 · 精确相等', () => {
+  it('Vue2 spec inherit: longest prefix wins · exact match', () => {
     expect(rootForPath(roots, '/DATA/Documents/Specs')?.id).toBe(DOCS)
     expect(rootForPath(roots, '/DATA/Downloads')?.id).toBe(DATA)
     expect(rootForPath(roots, '/DATA')?.id).toBe(DATA)
     expect(rootForPath(roots, '/DATA/Documents')?.id).toBe(DOCS)
   })
 
-  it('最长取胜与数组顺序无关(蓝本 :86 的 `r.path.length > best.path.length`)', () => {
+  it('Longest wins regardless of array order (blueprint :86 `r.path.length > best.path.length`)', () => {
     expect(rootForPath([...roots].reverse(), '/DATA/Documents/Specs')?.id).toBe(DOCS)
   })
 
-  it('🔴 非前缀但同名开头 —— /DATA2 不该匹配 /DATA(判据:去掉 `.replace(/\\/+$/,"") + "/"` → 本条必须报红)', () => {
-    // 少了那个补上的 '/',`'/DATA2/x'.startsWith('/DATA')` 会成立 ⇒ 错认成 /DATA 的下属。
+  it('🔴 Non-prefix but same-name prefix — /DATA2 should not match /DATA (criterion: remove `.replace(/\\/+$/,"") + "/"` → this case must red)', () => {
+    // Without that added '/', `'/DATA2/x'.startsWith('/DATA')` would be true ⇒ incorrectly treated as /DATA child.
     expect(rootForPath(roots, '/DATA2/x')).toBeNull()
     expect(rootForPath(roots, '/DATA2')).toBeNull()
-    expect(rootForPath(roots, '/DATA/DocumentsX/y')?.id).toBe(DATA) // 同名开头只影响到第二层
+    expect(rootForPath(roots, '/DATA/DocumentsX/y')?.id).toBe(DATA) // Same-name prefix only affects second level
     expect(rootForPath(roots, '/DATA/DocumentsX/y')?.id).not.toBe(DOCS)
   })
 
-  it('完全不相干的路径 → null(Vue2 spec :113)', () => {
+  it('Completely unrelated path → null (Vue2 spec :113)', () => {
     expect(rootForPath(roots, '/Elsewhere')).toBeNull()
     expect(rootForPath(roots, '')).toBeNull()
   })
 
-  it('root.path 带尾斜杠时归一化后仍能匹配(蓝本 :85 的 replace)', () => {
-    // 🔴 本条的 root 是**本文件就地构造**的变体(fixture 里两个 root 都不带尾斜杠),
-    //    只改了 path 一个字段,其余字段照 fixture 第一条。
+  it('root.path with trailing slash still matches after normalization (blueprint :85 replace)', () => {
+    // 🔴 This case's root is **locally constructed variant** (both roots in fixture have no trailing slash),
+    //    only path field changed, other fields from fixture first row.
     const trailing: WikiRoot[] = [{ ...roots[0], id: 'trail', path: '/Backup/' }]
     expect(rootForPath(trailing, '/Backup/notes')?.id).toBe('trail')
-    expect(rootForPath(trailing, '/Backup/')?.id).toBe('trail') // 精确相等那一支
+    expect(rootForPath(trailing, '/Backup/')?.id).toBe('trail') // Exact match branch
     expect(rootForPath(trailing, '/Backup2/x')).toBeNull()
-    // ⚠️ 蓝本只对 `startsWith` 那一支做归一化,精确相等比的是**原始** path ⇒ 不带斜杠的写法不命中。
+    // ⚠️ Blueprint only normalizes `startsWith` branch, exact match compares **original** path ⇒ without-slash format doesn't match.
     expect(rootForPath(trailing, '/Backup')).toBeNull()
   })
 
-  it('空 roots / null / undefined → null(蓝本 :83 的 `roots || []`)', () => {
+  it('Empty roots / null / undefined → null (blueprint :83 `roots || []`)', () => {
     expect(rootForPath([], '/DATA/x')).toBeNull()
     expect(rootForPath(null, '/DATA/x')).toBeNull()
     expect(rootForPath(undefined, '/DATA/x')).toBeNull()
   })
 
-  it('数组里的 null / 无 path 项被跳过而不是抛错(蓝本 :84 的运行时防御)', () => {
+  it('null / missing path in array skipped without error (blueprint :84 runtime defense)', () => {
     const dirty = [null, { ...roots[0], path: '' }, undefined, roots[0]]
     expect(rootForPath(dirty, '/DATA/x')?.id).toBe(DATA)
   })
 
-  it('返回的是数组里的同一份 root 对象(T6 要用 `root.id` 发 rescan)', () => {
+  it('Returned object is same root object from array (T6 uses `root.id` to send rescan)', () => {
     expect(rootForPath(roots, '/DATA/Downloads')).toBe(roots[0])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// renderWikiMarkdown —— 蓝本 `:94-96`
-// 🔴 治理 §9.15:**XSS 用例归 T7 的组件层**(挂载 WikiView 后查真实 DOM)。
-//    本块只钉「就是转发」,且**全程不 mock** `renderMarkdown`。
+// renderWikiMarkdown — blueprint `:94-96`
+// 🔴 Governance §9.15: **XSS cases belong to component layer T7** (mount WikiView and
+//    check real DOM). This block only pins "just forwards", and **throughout does not**
+//    **mock** `renderMarkdown`.
 // ═══════════════════════════════════════════════════════════════════════════
 describe('renderWikiMarkdown', () => {
-  it('🔴 就是转发 renderMarkdown —— 逐个输入的输出与直调完全相同', () => {
+  it('🔴 Just forwards renderMarkdown — output for each input identical to direct call', () => {
     const inputs = [
       '# Title\n\n- item **bold**\n',
       '',
@@ -513,7 +527,7 @@ describe('renderWikiMarkdown', () => {
     }
   })
 
-  it('Vue2 spec 承接:渲染出的确实是 markdown 结构,空串仍是空串', () => {
+  it('Vue2 spec inherit: rendered output truly has markdown structure, empty string still empty string', () => {
     const html = renderWikiMarkdown('# Title\n\n- item **bold**\n')
     expect(html).toContain('<h1>')
     expect(html).toContain('<li>')
@@ -523,22 +537,23 @@ describe('renderWikiMarkdown', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 「自动上膛」守卫(治理 §9.19 / 计划书 T3-3)
+// 🔴 "Auto-prime" guard (governance §9.19 / plan T3-3)
 //
-// `views/WikiView.vue` 由 **T6** 建,现在还不存在 ⇒ 本块**现在走惰性分支**
-// (断言仍被执行,不是 `it.skip` / `it.todo`);T6 一建文件立刻上膛,
-// 强制它 `import ... from '../util/wikiViewHelpers'`。
+// `views/WikiView.vue` built by **T6**, doesn't exist yet ⇒ this block **currently takes lazy branch**
+// (assertions still execute, not `it.skip` / `it.todo`); once T6 creates the file, immediately
+// primes it, forces it to `import ... from '../util/wikiViewHelpers'`.
 //
-// §9.19 跨刀冲突论证:**不冲突** —— 治理 §5.1 的相对路径表原文就写了
-// 「`views/WikiView.vue` → helpers:`import { buildWikiTree, trailFor, opToType,
-// parseTs, rootForPath, renderWikiMarkdown } from '../util/wikiViewHelpers'`」,
-// 且计划书 T6 的范围就是「逐字移植 WikiView 并写 script imports」
-// ⇒ 本守卫不向 T6 索要任何它无权写的东西(与 P5e 的 T5↔T6 冲突形成对照:
-// 那次是守卫索要 T6 无权写的 markup,靠裁定 R25 才解开)。
+// §9.19 cross-task conflict argument: **no conflict** — governance §5.1 relative path spec
+// already stated ""`views/WikiView.vue` → helpers: `import { buildWikiTree, trailFor, opToType,
+// parseTs, rootForPath, renderWikiMarkdown } from '../util/wikiViewHelpers'`"",
+// and plan T6 scope is "verbatim port WikiView and write script imports"
+// ⇒ this guard doesn't demand anything from T6 it lacks authority to write (contrast with
+// P5e T5↔T6 conflict: that time guard demanded T6-unauthorized markup, took ruling R25 to unlock).
 //
-// 🔴 谓词禁用裸子串(承裁定 **R19**:T2 就因 `includes('<style')` 命中注释而误诊)——
-// 本块的谓词**先剥注释、再行首锚定到 import 语句**,并配「注释里写了但没真 import」
-// 的偏态用例。RED 探针(临时建 WikiView.vue → 报红 → 删除还原 → 转绿)见任务报告。
+// 🔴 Predicate bans bare substring (per ruling **R19**: T2 misfired because `includes('<style')`
+// hit comment) — this block's predicate **strips comments first, then anchors line-start to
+// import statement**, with "written in comment but not truly imported" edge case.
+// RED probe (temporarily build WikiView.vue → red → delete restore → green) in task report.
 // ═══════════════════════════════════════════════════════════════════════════
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const VIEWS_DIR = resolve(__dirname, '../views')
@@ -546,10 +561,12 @@ const WIKI_VIEW = resolve(VIEWS_DIR, 'WikiView.vue')
 const HELPERS_SPEC = '../util/wikiViewHelpers'
 
 /**
- * 把注释内容换成**等量空格**、保留换行(保行版,承 P5e §9 「报行号的断言用保行版」)。
- * 覆盖 `<!-- -->`(模板)· `/* *​/`(script)· 整行 `//`。
- * 🔴 `//` 只处理**整行**行注释 —— 行内的 `//` 要区分字符串里的 `https://`,得不偿失
- * (与 `ParserTest.test.ts:159` 的既定口径同源;`knowledgeStyles.test.ts:2047` 也是整行口径)。
+ * Replace comment content with **equal amount of spaces**, preserve line breaks (line-preserving
+ * version per P5e §9 "assertions reporting line numbers use line-preserving version").
+ * Covers `<!-- -->`(template) · `/* *​/`(script) · entire-line `//`.
+ * 🔴 `//` only handles **entire-line** line comments — distinguishing inline `//` from `https://`
+ * in strings not worth the effort (same stance as `ParserTest.test.ts:159`;
+ * `knowledgeStyles.test.ts:2047` also entire-line only).
  */
 function blankComments(src: string): string {
   return src
@@ -558,11 +575,11 @@ function blankComments(src: string): string {
 }
 
 /**
- * 「这份源码里有没有一条**真的** import 语句从 `spec` 取东西」。
- * 行首锚定,两种书写形态各一条分支:
- *   ① 单行:`import { a, b } from '<spec>'`
- *   ② 多行:`import {\n  a,\n} from '<spec>'` —— from 子句独占一行、以 `}` 开头
- * 允许可选的 `.ts` 后缀。
+ * "Does this source have **real** import statement importing from `spec`".
+ * Line-start anchored, two writing forms each have one branch:
+ *   ① Single-line: `import { a, b } from '<spec>'`
+ *   ② Multi-line: `import {\n  a,\n} from '<spec>'` — from clause takes own line, starts with `}`
+ * Optional `.ts` suffix allowed.
  */
 function importsModule(src: string, spec: string): boolean {
   const escaped = spec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -573,33 +590,34 @@ function importsModule(src: string, spec: string): boolean {
   return re.test(blankComments(src))
 }
 
-describe('T3 自动上膛守卫 —— 若 views/WikiView.vue 存在,则它必须 import ../util/wikiViewHelpers', () => {
-  // 🔴 防空转①:路径基座必须是真的。少了这条,「文件还不存在」那一支会退化成
-  // 「什么都没测」,而且路径写错(少一层 `..`、目录改名)永远发现不了。
-  it('防空转① —— views 目录存在且已有 .vue 文件(否则「文件不存在」这一支毫无意义)', () => {
+describe('T3 auto-prime guard — if views/WikiView.vue exists, it must import ../util/wikiViewHelpers', () => {
+  // 🔴 Vacuum-guard ①: path base must be real. Without this, "file doesn't exist" branch
+  // degenerates to "tests nothing", and path errors (missing `..`, dir renamed) never discovered.
+  it('Vacuum-guard ① — views directory exists and has .vue files (else "file not exist" branch is vacuous)', () => {
     const vues = readdirSync(VIEWS_DIR).filter((f: string) => f.endsWith('.vue'))
-    expect(vues.length, 'views 目录里一个 .vue 都没有 —— 路径基座写错了?').toBeGreaterThan(0)
+    expect(vues.length, 'no .vue files in views directory — path base wrong?').toBeGreaterThan(0)
     expect(vues).toContain('SearchView.vue')
   })
 
-  // 🔴 防空转②:谓词在**真实文件**上双向都有判别力(不是恒 true / 恒 false)。
-  //   正例取自本仓真有该 import 的既有视图,不是靠注释文字撑着(裁定 R19 的教训)。
-  it('防空转② —— 谓词在真实文件上双向可分辨(SearchView 真 import searchAggregate,但没 import wikiViewHelpers)', () => {
+  // 🔴 Vacuum-guard ②: predicate has discriminative power in both directions on **real files**
+  // (not always true / always false). Positive example from this repo's real view with that import,
+  // not propped up by comment text (lesson of ruling R19).
+  it('Vacuum-guard ② — predicate discriminates on real files (SearchView truly imports searchAggregate, doesn\'t import wikiViewHelpers)', () => {
     const src = readFileSync(resolve(VIEWS_DIR, 'SearchView.vue'), 'utf8')
-    expect(src.length, 'SearchView.vue 读出来是空的 —— node:fs 读法失效了').toBeGreaterThan(0)
+    expect(src.length, 'SearchView.vue read as empty — node:fs method broken?').toBeGreaterThan(0)
     expect(importsModule(src, '../util/searchAggregate')).toBe(true)
     expect(importsModule(src, HELPERS_SPEC)).toBe(false)
   })
 
-  // 🔴 防空转③:多行 import 形态也必须被认出来(T6 很可能写成多行 —— 蓝本就是多行)。
-  it('防空转③ —— 多行 import 形态在真实文件上被认出(IndexedFilesView 的 `} from \'reka-ui\'`)', () => {
+  // 🔴 Vacuum-guard ③: multi-line import form must also be recognized (T6 very likely writes multi-line — blueprint is multi-line).
+  it('Vacuum-guard ③ — multi-line import form recognized on real file (IndexedFilesView with `} from \'reka-ui\'`)', () => {
     const src = readFileSync(resolve(VIEWS_DIR, 'IndexedFilesView.vue'), 'utf8')
     expect(src.length).toBeGreaterThan(0)
     expect(importsModule(src, 'reka-ui')).toBe(true)
   })
 
-  // 🔴 两种偏态(裁定 R19:注释里写了但没真 import ⇒ 必须判假)。
-  it('🔴 偏态 A —— 注释里写了 import 语句但没真 import ⇒ 判假(裸子串谓词会在这里误判)', () => {
+  // 🔴 Two edge cases (ruling R19: written in comment but no real import ⇒ must be false).
+  it('🔴 Edge case A — import statement written in comment but no real import ⇒ false (bare-substring predicate misfires here)', () => {
     const commentOnly = [
       '<script setup lang="ts">',
       "// import { buildWikiTree } from '../util/wikiViewHelpers'",
@@ -611,11 +629,11 @@ describe('T3 自动上膛守卫 —— 若 views/WikiView.vue 存在,则它必�
       '<template><!-- import x from \'../util/wikiViewHelpers\' --></template>',
     ].join('\n')
     expect(importsModule(commentOnly, HELPERS_SPEC)).toBe(false)
-    // 对照:裸子串谓词在同一份源码上会判真 —— 这正是 R19 要防的形态。
+    // Control: bare-substring predicate on same source would be true — this is exactly the form R19 protects against.
     expect(commentOnly.includes(HELPERS_SPEC)).toBe(true)
   })
 
-  it('🔴 偏态 B —— 真 import(单行 / 多行 / 带 .ts 后缀 / 双引号)一律判真', () => {
+  it('🔴 Edge case B — real import (single-line / multi-line / with .ts suffix / double quote) all true', () => {
     const single = `<script setup lang="ts">\nimport { buildWikiTree } from '${HELPERS_SPEC}'\n</script>`
     const multi = `<script setup lang="ts">\nimport {\n  buildWikiTree,\n  trailFor,\n} from '${HELPERS_SPEC}'\n</script>`
     const withExt = `<script setup lang="ts">\nimport { parseTs } from '${HELPERS_SPEC}.ts'\n</script>`
@@ -624,11 +642,11 @@ describe('T3 自动上膛守卫 —— 若 views/WikiView.vue 存在,则它必�
     for (const src of [single, multi, withExt, dq, typeOnly]) {
       expect(importsModule(src, HELPERS_SPEC)).toBe(true)
     }
-    // 错模块名不许蒙混过关。
+    // Wrong module name must not slip through.
     expect(importsModule(single, '../util/wikiViewHelpersX')).toBe(false)
   })
 
-  it('🔴 本体条件断言:WikiView.vue 不存在 ⇒ 惰性通过(非 skip/todo);一旦存在则必须真 import', () => {
+  it('🔴 Primary condition assertion: WikiView.vue absent ⇒ lazy pass (not skip/todo); once exists must truly import', () => {
     let exists = true
     try {
       statSync(WIKI_VIEW)
@@ -636,45 +654,46 @@ describe('T3 自动上膛守卫 —— 若 views/WikiView.vue 存在,则它必�
       exists = false
     }
     if (!exists) {
-      // 惰性分支:断言仍被执行到,只是判据真空成立。T6 建文件的那一刻本条自动上膛。
-      expect(exists, 'WikiView.vue 尚未创建(T6 的活)—— 本条处于「上膛待发」状态').toBe(false)
+      // Lazy branch: assertion still executes, just criterion vacuously true. Moment T6 creates file, this case auto-primes.
+      expect(exists, 'WikiView.vue not yet created (T6 task) — this case in "primed standby" state').toBe(false)
       return
     }
     const src = readFileSync(WIKI_VIEW, 'utf8')
-    expect(src.length, 'WikiView.vue 读出来是空的 —— node:fs 读法失效了').toBeGreaterThan(0)
+    expect(src.length, 'WikiView.vue read as empty — node:fs method broken?').toBeGreaterThan(0)
     expect(
       importsModule(src, HELPERS_SPEC),
-      `WikiView.vue 没有从 ${HELPERS_SPEC} import —— 治理 §5.1 要求 buildWikiTree / trailFor / ` +
-        'opToType / parseTs / rootForPath / renderWikiMarkdown 全部走 util,不许在 .vue 里重写一份',
+      `WikiView.vue doesn't import from ${HELPERS_SPEC} — governance §5.1 requires buildWikiTree / trailFor / ` +
+        'opToType / parseTs / rootForPath / renderWikiMarkdown all via util, not rewritten in .vue',
     ).toBe(true)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴🔴 SP8-P5f **Task 6 追加**(裁定 **R22** —— T3 评审的 Important I-1 派给本刀)
+// 🔴🔴 SP8-P5f **Task 6 addition** (ruling **R22** — Important I-1 from T3 review assigned to this blade)
 //
-// ⚠️ 本文件对 T6 是**极窄解禁:只许新增,既有每一行零改动**(裁定 R22)。
-//    🔴 **`wikiViewHelpers.ts` 产品码一个字都没动** —— 评审已逐字核为**正确**,
-//    缺的从来是守卫(「产品代码对、守卫为零」家族第 N 次)。
+// ⚠️ This file to T6 is **extremely narrow allowance: additions only, zero changes to existing lines**
+// (ruling R22). 🔴 **`wikiViewHelpers.ts` product code untouched** — review verified every byte as
+// **correct**, what's missing was always the guard ("product code right, guard zero" nth instance).
 //
-// 【补什么】`buildWikiTree` 的「**同名开头兄弟目录**」拓扑。
-//   评审实证:把 `findParent` 换成「**最长字符串前缀、不做 `'/'` 边界判断**」的错实现,
-//   **既有 49 条全绿** —— 零判别力。真实后果:`/DATA/Media` 与 `/DATA/MediaBackup`
-//   会被**错挂成父子**(后者变成前者的子节点),Wiki 左树的层级从此是错的。
-//   ⚠️ `rootForPath` 有一模一样的 `/DATA2` 边界守卫(本文件上面那条
-//   「非前缀但同名开头」用例),**`buildWikiTree` 这一侧此前是空的**。
+// [What to add] `buildWikiTree` "**same-prefix sibling directories**" topology.
+//   Review evidence: replace `findParent` with "**longest string prefix, no `'/'` boundary check**"
+//   wrong implementation, **all 49 existing cases still green** — zero discriminative power.
+//   Real consequence: `/DATA/Media` and `/DATA/MediaBackup` **wrongly hung as parent-child**
+//   (latter becomes child of former), Wiki left tree levels thenceforth wrong.
+//   ⚠️ `rootForPath` has identical `/DATA2` boundary guard (case above "non-prefix but same-prefix"),
+//   **`buildWikiTree` side previously empty**.
 //
-// 【为什么现有四条拓扑抓不到】fixture 的 normal / crossLevel / missingParent /
-//   duplicate / unsorted 五组里**没有任何一对同名开头的兄弟** ——
-//   `/DATA` vs `/DATA/Documents` 是真父子;`/u/a` vs `/u/b` 前缀互不包含。
-//   「最长字符串前缀」的错实现在这五组上与正确实现**同解**。
+// [Why existing four topologies can't catch it] fixture normal / crossLevel / missingParent /
+//   duplicate / unsorted five groups have **no pair of same-prefix siblings** —
+//   `/DATA` vs `/DATA/Documents` are true parent-child; `/u/a` vs `/u/b` prefixes don't contain.
+//   "Longest string prefix" wrong implementation **same result as correct** on these five groups.
 //
-// 【样本出处】🔴 **本文件就地构造**(不是 `p5f-fixtures` 里的样本)——
-//   路径由裁定 R22 指定(`/DATA/Media` + `/DATA/MediaBackup`),用本文件既有的
-//   `flatNode()` 按共享包 `WikiTreeNode` 形状造,**已在 T6 报告里显式申报**。
-//   先例:上面 `rootForPath` 的「root.path 带尾斜杠」那条同样是就地构造的变体。
+// [Sample source] 🔴 **locally constructed in this file** (not sample from `p5f-fixtures`) —
+//   paths specified by ruling R22 (`/DATA/Media` + `/DATA/MediaBackup`), constructed with this
+//   file's existing `flatNode()` per shared package `WikiTreeNode` shape, **explicitly declared in T6 report**.
+//   Precedent: `rootForPath` case above "root.path with trailing slash" also locally constructed variant.
 //
-// 【判据】把 `findParent` 换成下面这个错实现 → **本组必须报红**:
+// [Criterion] replace `findParent` with this wrong implementation → **this group must red**:
 //   ```ts
 //   function findParent(byPath, path) {
 //     let best = null
@@ -684,34 +703,34 @@ describe('T3 自动上膛守卫 —— 若 views/WikiView.vue 存在,则它必�
 //     return best ? byPath[best] : null
 //   }
 //   ```
-//   (RED 输出与 `md5sum` 还原确认贴在 `p5f-task-6-report.md` §7。)
+//   (RED output and `md5sum` restore confirm in `p5f-task-6-report.md` §7.)
 // ═══════════════════════════════════════════════════════════════════════════
-describe('buildWikiTree —— 🔴 同名开头的兄弟目录不许被错挂成父子(裁定 R22)', () => {
-  // `/DATA/MediaBackup` 以 `/DATA/Media` 为**字符串前缀**,但**不是**它的子目录
-  // (`/DATA/Media` 后面紧跟的是 `B` 而不是 `/`)。正确的父是 `/DATA`。
+describe('buildWikiTree — 🔴 sibling directories with same prefix must not be wrongly hung as parent-child (ruling R22)', () => {
+  // `/DATA/MediaBackup` is **string prefix** of `/DATA/Media`, but **not** its subdirectory
+  // (after `/DATA/Media` comes `B` not `/`). Correct parent is `/DATA`.
   const siblings = [
     flatNode('/DATA', { level: 'space' }),
     flatNode('/DATA/Media', { level: 'project' }),
     flatNode('/DATA/MediaBackup', { level: 'project' }),
   ]
 
-  it('🔴 /DATA/MediaBackup 的父是 /DATA,**不是** /DATA/Media', () => {
+  it('🔴 Parent of /DATA/MediaBackup is /DATA, **not** /DATA/Media', () => {
     const { roots, byPath } = buildWikiTree(siblings)
     expect(roots.map((r) => r.path)).toEqual(['/DATA'])
-    // 两个都是 /DATA 的直接子节点(字典序:Media < MediaBackup)。
+    // Both are direct children of /DATA (lexicographic: Media < MediaBackup).
     expect(byPath['/DATA'].children.map((c) => c.path)).toEqual([
       '/DATA/Media',
       '/DATA/MediaBackup',
     ])
-    // 🔴 判别点:错实现会把 MediaBackup 塞进 Media 的 children 里。
+    // 🔴 Discriminant: wrong implementation stuffs MediaBackup into Media's children.
     expect(
       byPath['/DATA/Media'].children,
-      '/DATA/MediaBackup 被错挂成 /DATA/Media 的子节点 —— findParent 丢了 "/" 边界判断',
+      '/DATA/MediaBackup wrongly hung as /DATA/Media child — findParent lost "/" boundary check',
     ).toEqual([])
     expect(byPath['/DATA/MediaBackup'].children).toEqual([])
   })
 
-  it('🔴 各自的真子目录仍然挂对(边界判断不是靠「一律不挂」蒙对的)', () => {
+  it('🔴 Each one\'s true subdirectories still hung correctly (boundary check not tricked by "never hang")', () => {
     const deeper = [
       ...siblings,
       flatNode('/DATA/Media/Movies', { level: 'project' }),
@@ -722,50 +741,52 @@ describe('buildWikiTree —— 🔴 同名开头的兄弟目录不许被错挂�
     expect(byPath['/DATA/MediaBackup'].children.map((c) => c.path)).toEqual([
       '/DATA/MediaBackup/2026',
     ])
-    // 反向:Movies 不许跑到 MediaBackup 底下,2026 也不许跑到 Media 底下。
+    // Reverse: Movies mustn't go under MediaBackup, 2026 mustn't go under Media.
     expect(byPath['/DATA/Media'].children.map((c) => c.path)).not.toContain('/DATA/MediaBackup/2026')
     expect(byPath['/DATA/MediaBackup'].children.map((c) => c.path)).not.toContain('/DATA/Media/Movies')
     expect(byPath['/DATA'].children.map((c) => c.path)).toEqual(['/DATA/Media', '/DATA/MediaBackup'])
   })
 
-  it('🔴 同名开头但**父缺位**时不许攀附兄弟:只有 /DATA/Media 与 /DATA/MediaBackup(无 /DATA)', () => {
+  it('🔴 Same-prefix but **parent missing** must not attach to sibling: only /DATA/Media and /DATA/MediaBackup (no /DATA)', () => {
     const noParent = [
       flatNode('/DATA/Media', { level: 'project' }),
       flatNode('/DATA/MediaBackup', { level: 'project' }),
     ]
     const { roots, byPath } = buildWikiTree(noParent)
-    // 两个都没有在表里的祖先 ⇒ **各自成根**,且 name 退化成全路径(蓝本 `:34`)。
+    // Neither has ancestors in table ⇒ **each becomes root**, name degenerates to full path (blueprint `:34`).
     expect(roots.map((r) => r.path)).toEqual(['/DATA/Media', '/DATA/MediaBackup'])
     expect(roots.map((r) => r.name)).toEqual(['/DATA/Media', '/DATA/MediaBackup'])
     expect(byPath['/DATA/Media'].children).toEqual([])
   })
 
-  it('🔴 单字符差的同名开头(/a 与 /ab)同样不许挂成父子', () => {
+  it('🔴 Single-char diff same-prefix (/a vs /ab) also must not hang as parent-child', () => {
     const { roots, byPath } = buildWikiTree([flatNode('/a'), flatNode('/ab'), flatNode('/a/b')])
     expect(roots.map((r) => r.path)).toEqual(['/a', '/ab'])
     expect(byPath['/a'].children.map((c) => c.path)).toEqual(['/a/b'])
-    expect(byPath['/ab'].children, '/ab 被错挂成 /a 的子节点或反之').toEqual([])
+    expect(byPath['/ab'].children, '/ab wrongly hung as /a child or vice versa').toEqual([])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 SP8-P5f **Task 6 追加 · 订正块**(裁定 **R22** 的 Minor M-1)——「反转不删」
+// 🔴 SP8-P5f **Task 6 addition · correction block** (ruling **R22** Minor M-1) — "reverse not delete"
 //
-// 被订正的对象:上面 `rootForPath` 那条
-// 「root.path 带尾斜杠时归一化后仍能匹配」用例末尾的结论
-// —— 「蓝本只对 `startsWith` 那一支做归一化,精确相等比的是**原始** path
-//     ⇒ 不带斜杠的写法不命中」。
-// 🔴 **结论本身不变**(照抄蓝本、不记账、不改产品码);变的是**理由**。
+// Subject of correction: case above in `rootForPath`
+// "root.path with trailing slash still matches after normalization"
+// — conclusion: "blueprint only normalizes `startsWith` branch, exact match compares
+// **original** path ⇒ without-slash format doesn't match".
+// 🔴 **Conclusion itself unchanged** (copy blueprint, don't record, don't change product code);
+// what changes is **reason**.
 //
-// ~~T3 给的理由(数据层,**有保质期**):「本机 fixture 的两个 root 都不带尾斜杠
-//   ⇒ 不影响实际。」~~
-// 🔴 **订正为(后端层,无保质期)**:后端**根本存不下带尾斜杠的 root path** ——
-//   `NimoOS-Wiki/service/roots/manager.go` 的 `Create()` 在落库之前先跑
-//   `args.Path = filepath.Clean(args.Path)`,而 Go 的 `filepath.Clean` 会把结尾的
-//   `/` 全部剥掉(实测:`"/DATA/"` → `"/DATA"`、`"/DATA//"` → `"/DATA"`、
-//   `"/Backup///"` → `"/Backup"`)。
-//   ⇒ `wikiRoots` 里**不可能**出现带尾斜杠的 `path`,与「本机 fixture 长什么样」无关,
-//     也不会因为将来换一份 fixture / 换一台设备而失效。
-// 🔴 两条独立口径的原始输出(承 **R21**:不许只贴一条)见 `p5f-task-6-report.md` §8。
-// 🔴 本块**只是注释**:上面那条用例的断言一行未动,产品码一行未动。
+// ~~T3's reason (data layer, **time-limited**): "both roots in local fixture have no trailing slash
+//   ⇒ doesn't affect practice."~~
+// 🔴 **Corrected to (backend layer, no time limit)**: backend **cannot store root path with
+// trailing slash** — `NimoOS-Wiki/service/roots/manager.go` `Create()` runs
+// `args.Path = filepath.Clean(args.Path)` before storage, Go's `filepath.Clean` strips all
+// trailing `/` (real test: `"/DATA/"` → `"/DATA"`, `"/DATA//"` → `"/DATA"`,
+// `"/Backup///"` → `"/Backup"`).
+//   ⇒ `wikiRoots` can **never** have path with trailing slash, regardless of "what local
+// fixture looks like", and won't become invalid switching fixtures/devices in future.
+// 🔴 Original output from two independent measurements (per **R21**: not allowed single result)
+// in `p5f-task-6-report.md` §8.
+// 🔴 This block **comment-only**: above case's assertions unchanged, product code unchanged.
 // ═══════════════════════════════════════════════════════════════════════════

@@ -27,7 +27,7 @@ import TerminalPane from './TerminalPane.vue'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 describe('TerminalPane', () => {
-  it('挂载即连接;断开后显示重连按钮,点击再连', async () => {
+  it('mount and connect; show reconnect button when disconnected, click to reconnect', async () => {
     const w = mount(TerminalPane, { props: { containerId: 'c1' }, global: { plugins: [i18n] } })
     await nextTick()
     expect(connectMock).toHaveBeenCalledTimes(1)
@@ -39,7 +39,7 @@ describe('TerminalPane', () => {
     expect(connectMock).toHaveBeenCalledTimes(2)
   })
 
-  it('卸载时关闭 socket 并释放 xterm 实例', async () => {
+  it('unmount closes socket and releases xterm instance', async () => {
     const w = mount(TerminalPane, { props: { containerId: 'c2' }, global: { plugins: [i18n] } })
     await nextTick()
     w.unmount()
@@ -47,7 +47,7 @@ describe('TerminalPane', () => {
     expect(termMock.dispose).toHaveBeenCalled()
   })
 
-  it('全屏按钮切换 fullscreen 类', async () => {
+  it('fullscreen button toggles fullscreen class', async () => {
     const w = mount(TerminalPane, { props: { containerId: 'c3' }, global: { plugins: [i18n] } })
     await nextTick()
     expect(w.find('.term-wrap').classes()).not.toContain('fullscreen')

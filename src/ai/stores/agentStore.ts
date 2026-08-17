@@ -7,12 +7,13 @@ import { i18n } from '../../i18n'
 import { useAiTheme, type AiTheme } from './aiTheme'
 import type { AgentBlock, AgentStats, AttachmentRef, StreamActions } from '../types'
 
-// SP8-P2a Task 4 —— THEME_KEY 与主题状态搬到 `./aiTheme`(应用级共享,
-// Agent 页与设置页同源)。原因见该文件头注释。这里不再本地定义。
-// agentStore.js:626,638,650 —— 已选模型持久化 key(逐字对齐)。
+// SP8-P2a Task 4 — THEME_KEY and theme state moved to `./aiTheme` (app-level shared,
+// Agent page and Settings page share source). See that file's header comment for rationale.
+// This file no longer defines it locally.
+// agentStore.js:626,638,650 — selected model persistence key (verbatim alignment).
 const MODEL_KEY = 'nimoos.ai.agent.selectedModel'
 
-/** agentStore.js 里的模型选择器条目(local/cloud 归一化)。 */
+/** Model selector entries from agentStore.js (local/cloud normalized). */
 export interface AgentModel {
   key: string
   source: 'local' | 'cloud'
@@ -25,20 +26,22 @@ export interface AgentModel {
 }
 
 /**
- * F2 修复(review)—— ThinkingBar/AgentTopbar 的强度档位闭合枚举,四档字面量。
- * 自然归属于本文件(ThinkingState 就住在这里),供 ThinkingBar.vue/AgentTopbar.vue
- * 的 props 类型复用,不必各自发明一份。
+ * F2 fix (review) — ThinkingBar/AgentTopbar thinking intensity level closed enum,
+ * four literal states. Naturally belongs in this file (ThinkingState lives here),
+ * reusable for ThinkingBar.vue/AgentTopbar.vue props types without each inventing their own.
  *
- * `ThinkingState.level` 本身**不**收窄成这个联合类型:`loadSessionThinking` 把
- * `service.ai.getSessionThinking()` 的返回值(共享包 NimoOS-Service/src/ai.ts
- * 里类型是裸 `string`,外部契约——服务端可能返回任意历史/未来字符串)直接赋给
- * `thinking.value.level`;把字段收窄成 `ThinkingLevel` 会让这行赋值类型报错,
- * 牵连到共享包的返回类型或需要额外的运行时校验/兜底,超出这两个组件的范围。
- * 因此这里只收窄组件层的 props 类型,store 侧维持 `string` 不变。
+ * `ThinkingState.level` itself is **not** narrowed to this union type: `loadSessionThinking`
+ * directly assigns the return value of `service.ai.getSessionThinking()` (in shared package
+ * NimoOS-Service/src/ai.ts, the type is bare `string`; external contract — backend may
+ * return any historical/future string) to `thinking.value.level`; narrowing the field to
+ * `ThinkingLevel` would cause a type error on this assignment, which would then either
+ * entail changes to the shared package's return type or require additional runtime validation/
+ * fallback, both beyond the scope of these two components. Therefore we only narrow the
+ * component-level props type here, and keep the store side as `string`.
  */
 export type ThinkingLevel = 'low' | 'medium' | 'high' | 'max'
 
-/** agentStore.js:34,46-52 —— thinking 强度状态(无 ThinkingBar UI,只留状态)。 */
+/** agentStore.js:34,46-52 — thinking intensity state (no ThinkingBar UI, state only). */
 export interface ThinkingState {
   enabled: boolean
   level: string
@@ -47,13 +50,13 @@ export interface ThinkingState {
   defaults: { enabled: boolean; level: string }
 }
 
-/** agentStore.js:54 —— 会话已授权的可见资源。stream 注入的条目没有 id(见 dispatchEvent 'visible_resource_added')。 */
+/** agentStore.js:54 — session's authorized visible resources. Stream-injected entries have no id (see dispatchEvent 'visible_resource_added'). */
 export interface VisibleResource { id?: string | number; path: string; kind: string; has_agent_md?: boolean; [k: string]: unknown }
-/** agentStore.js:56 —— staged 项;loose 项(无 batch_id/staged_id)不可单项回滚。 */
+/** agentStore.js:56 — staged items; loose items (no batch_id/staged_id) cannot be reverted singly. */
 export interface StagedItem { seq: number; staged_id?: string | number; batch_id?: string | number | null; op: string; path: string; dst_path?: string | null; size_bytes?: number; snapshot_missing?: boolean; [k: string]: unknown }
 export interface StagedGroup { run_id: string | number; created_at: number; items: StagedItem[]; [k: string]: unknown }
 
-/** send() 接受的 payload 形态 —— agentStore.js:295-301。 */
+/** Payload shapes accepted by send() — agentStore.js:295-301. */
 export interface SendPayload {
   text: string
   attachmentIds?: string[]
@@ -63,8 +66,9 @@ export interface SendPayload {
 }
 
 /**
- * agentStore.js:8-26 —— 把 enabled provider 下 favorite 的模型拍平成选择器条目。
- * 导出供单测直接验证(与 Vue2 对齐,便于独立测试这段纯函数)。
+ * agentStore.js:8-26 — flatten favorite models under enabled providers into selector entries.
+ * Exported for unit tests to verify directly (aligns with Vue2, enables independent testing
+ * of this pure function).
  */
 export function buildCloudModelList(providers: unknown): AgentModel[] {
   const out: AgentModel[] = []
@@ -87,7 +91,7 @@ export function buildCloudModelList(providers: unknown): AgentModel[] {
   return out
 }
 
-/** agentStore.js:337-348 —— 把 selectedModel key 拆成 { source, modelName }。 */
+/** agentStore.js:337-348 — decompose selectedModel key into { source, modelName }. */
 function parseModelKey(key: string): { source: string; modelName: string } {
   const idx = key.indexOf(':')
   const source = key.slice(0, idx)
@@ -97,34 +101,36 @@ function parseModelKey(key: string): { source: string; modelName: string } {
   return { source, modelName: idx2 >= 0 ? rest.slice(idx2 + 1) : rest }
 }
 
-/** @deprecated 名字保留以免动到既有 import;实体是 `AiTheme`。 */
+/** @deprecated Name kept to avoid disturbing existing imports; the entity is `AiTheme`. */
 export type AgentTheme = AiTheme
 
-/** 会话条目。字段随后端演进(id 归一化见 createSession),这里只声明当前用到的部分。 */
+/** Session entry. Fields evolve with backend (id normalization see createSession); only declares currently-used fields. */
 export interface AgentSession {
   id: string | number
   title?: string | null
   [key: string]: unknown
 }
 
-/** 1a 阶段消息按 RAW 装载(migrateLegacyMessages 留给 1b 的 streaming 切片接手)。 */
+/** Phase 1a messages load as RAW (migrateLegacyMessages left for phase 1b streaming slice to handle). */
 export type AgentMessage = Record<string, unknown>
 
 /**
- * SP8-P1a Task 2 —— AI Agent 会话/历史/主题切片(Pinia 工厂)。
+ * SP8-P1a Task 2 — AI Agent session/history/theme slice (Pinia factory).
  *
- * 工厂形态是硬约束:Photos 区后续要实例化一个受限 profile 的 agent
- * (`useAgentStore('photos')`),每个 agentType 各自拥有一份独立 store
- * (Pinia 按 `ai-agent-${agentType}` 这个 id 去重,同类型第二次调用拿回同一实例)。
+ * Factory form is a hard constraint: the Photos area will later instantiate an agent with
+ * a restricted profile (`useAgentStore('photos')`), and each agentType maintains its own
+ * independent store (Pinia deduplicates by the `ai-agent-${agentType}` id; a second call
+ * of the same type gets back the same instance).
  *
- * 数据取数口径(与 Vue2 src/views/AI/Agent/store/agentStore.js 对齐):
- * Vue2 里 `ai.xxx()` 返回的是 axios 原始响应(`resp`),`resp.data` 才是 HTTP body;
- * 而 `@nimotech/nimoos-service` 的 `service.ai.*` 已经在包内做过这一层 axios 解包,
- * 直接把 `resp.data`(body)吐给调用方——即本文件里的每个 `body` 变量,已经等价于
- * Vue2 代码里的局部变量 `resp.data`。blueprint 里这几个 action 全部只做**单层**取数
- * (`(resp && resp.data) || resp || fallback`,即 `resp.data` 本身就是数组/对象,没有
- * Go `Result{Data}` 信封二次拆包——这几个端点是 Python agent 子服务直出的裸 JSON),
- * 所以本文件里对应地写成 `body || fallback`,不再多一层 `.data`。
+ * Data retrieval baseline (aligns with Vue2 src/views/AI/Agent/store/agentStore.js):
+ * In Vue2, `ai.xxx()` returns the raw axios response (`resp`), and `resp.data` is the HTTP body;
+ * but `@nimotech/nimoos-service`'s `service.ai.*` already unwraps that axios layer inside the
+ * package and hands the caller `resp.data` (body) directly — so each `body` variable in this
+ * file is already equivalent to the local variable `resp.data` in Vue2 code. The blueprint
+ * actions all do **single-level** data extraction (`(resp && resp.data) || resp || fallback`,
+ * i.e., `resp.data` itself is already an array/object with no secondary unwrap of a Go
+ * `Result{Data}` envelope — these endpoints are raw JSON straight from the Python agent
+ * microservice), so this file correspondingly writes `body || fallback`, no extra `.data` layer.
  */
 export function useAgentStore(agentType?: string) {
   const storeId = `ai-agent-${agentType ?? 'general'}`
@@ -133,17 +139,18 @@ export function useAgentStore(agentType?: string) {
     const sessions = ref<AgentSession[]>([])
     const activeSessionId = ref<string | number | null>(null)
     const messages = ref<AgentMessage[]>([])
-    // 1a 阶段恒 false——streaming(send/attach)是 1b 的事,这里没有任何路径会翻它。
+    // Phase 1a always false — streaming (send/attach) is phase 1b's business; no code path here flips it.
     const busy = ref(false)
-    // SP8-P2a Task 4(D1)—— 主题不再是本 store 的私有 ref,而是应用级共享 store 的
-    // 转出。对外签名(store.theme / store.toggleTheme)完全不变,故 AgentPage /
-    // AgentTopbar / 既有测试的调用点一行都不用改。
+    // SP8-P2a Task 4(D1) — theme is no longer a private ref of this store, but exposed from
+    // the app-level shared store. External signature (store.theme / store.toggleTheme) unchanged,
+    // so AgentPage / AgentTopbar / existing test call sites need no changes.
     const aiTheme = useAiTheme()
     const leftCollapsed = ref(false)
-    // agentStore.js:37 —— 默认展开(与 Vue2 对齐)。1a 阶段曾写死 true(右侧面板尚未
-    // 实现,收起更直白);本期(1c-2)右栏 shell 即将挂载,改回 Vue2 的默认值。
+    // agentStore.js:37 — defaults to expanded (aligns with Vue2). Phase 1a was hardcoded to true
+    // (right panel not yet implemented, collapsed is more straightforward); this period (1c-2)
+    // right-column shell is about to mount, reverting to Vue2's default.
     const rightCollapsed = ref(false)
-    // agentStore.js:38 —— 右栏当前激活的 tab,tab 选择不持久化(与 theme/selectedModel 不同)。
+    // agentStore.js:38 — right-column currently active tab; tab selection is not persisted (unlike theme/selectedModel).
     const rightTab = ref<'activity' | 'context' | 'system' | 'resources'>('activity')
     // Streaming-primitive state (SP8-P1b Task 4/7) — verbatim port target of
     // Vue2 store/agentStore.js:34,39-40. Narrowed now that the transport
@@ -165,32 +172,32 @@ export function useAgentStore(agentType?: string) {
       providerType: '',
       defaults: { enabled: true, level: 'medium' },
     })
-    // agentStore.js:53 —— 正在重生成标题的会话(null|{id,background})。对象而非布尔:
-    // 顶栏要靠 background 区分"自动补标题"(不锁标题输入框)和"手动点 sparkle"(锁)。
+    // agentStore.js:53 — session being retitled (null|{id,background}). Object, not boolean:
+    // the top bar uses `background` to distinguish "auto-supplement title" (don't lock input) from "manual sparkle click" (lock).
     const regeneratingTitleFor = ref<{ id: string | number; background: boolean } | null>(null)
-    // agentStore.js:60 —— 待consume一次的技能挂号(X-Skill-Id),1c(?skill=)接入前先留位。
+    // agentStore.js:60 — skill registration awaiting single consume (X-Skill-Id); placeholder before 1c (?skill=) integration.
     const pendingSkillId = ref<string | null>(null)
 
-    // ── 1c:资源 / 附件 / 暂存区(agentStore.js:54-59)──
+    // ── 1c: resources / attachments / staging area (agentStore.js:54-59) ──
     const visibleResources = ref<VisibleResource[]>([])
     const attachments = ref<Record<string, unknown>[]>([])
     const stagedChanges = ref<StagedGroup[]>([])
     const committing = ref(false)
-    /** 三种键命名空间共用一张表:raw run_id / raw batch_id / 'item:'+staged_id(agentStore.js:59)。 */
+    /** Three key namespaces share one table: raw run_id / raw batch_id / 'item:'+staged_id (agentStore.js:59). */
     const reverting = ref<Record<string, boolean>>({})
 
-    /** agentStore.js:160-164 —— 装载会话列表,body 非数组时兜底空数组。 */
+    /** agentStore.js:160-164 — load session list; fallback to empty array if body is not an array. */
     async function loadSessions() {
       const body = await service.ai.listAgentSessions()
       sessions.value = Array.isArray(body) ? (body as AgentSession[]) : []
     }
 
     /**
-     * agentStore.js:166-183 —— 新建会话。
-     * id 归一化必须保留:Python agent 建会话时返回 `{ session_id, ... }`,
-     * 而列表接口返回的会话形态是 `{ id, ... }`——统一收敛到 `id` 字段,
-     * 后续 store/UI 只认一种形状。受限 profile(如 Photos)在这里带上
-     * `agent_type`;默认 store 不传 body,落在 'general' profile 上。
+     * agentStore.js:166-183 — create session. ID normalization must be preserved: Python agent
+     * returns `{ session_id, ... }` when creating a session, but the list endpoint returns
+     * sessions as `{ id, ... }` — converge both to the `id` field so store/UI sees one shape.
+     * Restricted profiles (e.g., Photos) pass `agent_type` here; default store passes no body,
+     * landing on the 'general' profile.
      */
     async function createSession() {
       const body = await service.ai.createAgentSession(
@@ -205,41 +212,43 @@ export function useAgentStore(agentType?: string) {
       sessions.value.unshift(session)
       activeSessionId.value = session.id
       messages.value = []
-      // Vue2 缺陷修复(项目 2026-07-27 移植纪律「界面照 Vue2、逻辑照正确」)——见下方
-      // clearActivitySteps() 的注释。这里与 `messages.value = []` 同一处会话边界清理。
+      // Vue2 defect fix (project porting discipline 2026-07-27: "visual per Vue2, logic per correctness")
+      // — see clearActivitySteps() comment below. This is session-boundary cleanup alongside `messages.value = []`.
       clearActivitySteps()
     }
 
-    /** agentStore.js:185-192 —— 删除会话;只有删的是当前会话才清 activeSessionId + messages。 */
+    /** agentStore.js:185-192 — delete session; only clears activeSessionId + messages if deleting the current session. */
     async function deleteSession(id: string | number) {
       await service.ai.deleteAgentSession(id)
       sessions.value = sessions.value.filter((s) => s.id !== id)
       if (activeSessionId.value === id) {
         activeSessionId.value = null
         messages.value = []
-        // Vue2 缺陷修复,同 createSession —— 见 clearActivitySteps() 注释。
+        // Vue2 defect fix, same as createSession — see clearActivitySteps() comment.
         clearActivitySteps()
       }
     }
 
     /**
-     * Vue2 缺陷修复(项目 2026-07-27 移植纪律:界面照 Vue2,逻辑照正确)。
+     * Vue2 defect fix (project porting discipline 2026-07-27: "visual per Vue2, logic per correctness").
      *
-     * Vue2 `store/agentStore.js` 里 `activitySteps` 声明于 :39、push 于 :128、原地
-     * patch 于 :137-140,**全文件没有任何一处清空它**;切会话(:246-293)、新建会话
-     * (:166-183)、删除当前会话(:185-192)都不重置。后果是可复现的错误行为:上一个
-     * 会话跑过的运行步骤会残留在右栏 Activity tab —— 用户切到另一个会话后,Activity
-     * 里显示的还是上一段对话的步骤,看起来像"新会话正在跑/跑过这些东西"。
+     * In Vue2 `store/agentStore.js`, `activitySteps` is declared at :39, pushed at :128, and
+     * patched in-place at :137-140, **never cleared anywhere in the entire file**; switching
+     * sessions (:246-293), creating a session (:166-183), or deleting the current session
+     * (:185-192) all skip the reset. The consequence is reproducible buggy behavior: activity
+     * steps from a previous session linger in the right-column Activity tab — when the user
+     * switches to another session, Activity still shows steps from the previous conversation,
+     * looking like "the new session is running/has run these things."
      *
-     * 这里按「逻辑照正确」在三个**会话边界**上清空它,与 messages / visibleResources /
-     * attachments / stagedChanges 这些同类"每会话状态"走同一条路径、同一个时机,
-     * 不另起一套。
+     * Here, per "logic per correctness," we clear it at three **session boundaries** and walk
+     * the same code path and timing as peer "per-session state" like messages / visibleResources /
+     * attachments / stagedChanges, rather than introducing a separate mechanism.
      */
     function clearActivitySteps() {
       activitySteps.value = []
     }
 
-    /** agentStore.js:194-208 —— 乐观更新标题,API 失败回滚到旧值。 */
+    /** agentStore.js:194-208 — optimistically update title; rollback to old value if API fails. */
     async function setSessionTitle(id: string | number, title: string) {
       const trimmed = (title || '').trim()
       if (!trimmed) return
@@ -257,37 +266,38 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:246-293 —— 切 activeSessionId + 拉消息列表 + attach 尾巴。
-     * 三域装载已在此完成(1c-1):资源/附件/暂存区。
-     * legacy 消息迁移 `migrateLegacyMessages`
-     * (Task 3)在此接入——历史消息装载后立刻跑一遍旧 block 形态迁移
-     * (run_command→terminal 等),再赋值给 messages。
+     * agentStore.js:246-293 — switch activeSessionId + pull message list + attach tail.
+     * Three-domain load completed here (1c-1): resources/attachments/staging area.
+     * Legacy message migration `migrateLegacyMessages` (Task 3) connects here — after loading
+     * historical messages, immediately run a migration pass over old block shapes (run_command→
+     * terminal, etc.), then assign to messages.
      *
-     * attach 尾巴与 Vue2 有意的一处偏差:Vue2 里 attachAgentStream(...).then(...) 是
-     * fire-and-forget(不 await),这里改成 `await` —— 让 selectSession() 在 attach
-     * 结果落定后才 resolve,行为更好测试/推理,busy 语义不变(命中运行中的流→保持
-     * busy 到 dispatchEvent 看到 done;未命中→立刻清 busy)。
+     * Attach tail intentionally differs from Vue2: in Vue2 attachAgentStream(...).then(...) is
+     * fire-and-forget (no await); here it's changed to `await` — lets selectSession() resolve
+     * only after attach result settles, making behavior easier to test/reason about. busy
+     * semantics unchanged (hits running stream → stay busy until dispatchEvent sees done; miss
+     * → immediately clear busy).
      */
     async function selectSession(id: string | number) {
-      // 切会话前先掐掉上一个会话的在途流,防止其事件混进新会话。
+      // Before switching session, abort the previous session's in-flight stream to prevent its events leaking into the new session.
       if (abortController.value) {
         abortController.value.abort()
         abortController.value = null
       }
       activeSessionId.value = id
-      // Vue2 缺陷修复 —— 见 clearActivitySteps() 注释。必须在 await 之前、紧挨着
-      // activeSessionId 切换:此后 attach 的 replay 事件才是新会话自己的步骤。
+      // Vue2 defect fix — see clearActivitySteps() comment. Must be before the await, immediately after
+      // activeSessionId switch: subsequently, attach's replay events belong to the new session's steps.
       clearActivitySteps()
       const body = await service.ai.listAgentMessages(id)
       const raw = Array.isArray(body) ? (body as AgentMessage[]) : []
       messages.value = migrateLegacyMessages(raw as any) as unknown as AgentMessage[]
 
-      // agentStore.js:259-265 —— 并发装载,单个失败不阻断整条切换。
+      // agentStore.js:259-265 — concurrent loading; individual failure doesn't block the entire switch.
       await Promise.allSettled([loadVisibleResources(), loadAttachments(), loadStagedChanges()])
 
-      // 乐观置 busy,直到 attach 回报为止。send() 会在 busy 上守卫,防止
-      // "刚切换会话就手快发送" 和一次 replay 的 user_message 事件赛跑,
-      // 造成重复的 user 轮次。
+      // Optimistically set busy until attach reports back. send() guards on busy to prevent
+      // "switching session then quick send" from racing with a replay user_message event,
+      // which would create duplicate user turns.
       const ctl = new AbortController()
       abortController.value = ctl
       busy.value = true
@@ -296,47 +306,46 @@ export function useAgentStore(agentType?: string) {
         // eslint-disable-next-line no-console
         console.warn('[agentStore] attachAgentStream error', error)
       }
-      // 竞态守卫:mid-await 期间若又发生了一次 selectSession(会替换掉
-      // abortController),就不要再动 busy/abortController——那是新调用的事。
+      // Race guard: if another selectSession happens mid-await (replacing abortController),
+      // don't touch busy/abortController — that's the new call's responsibility.
       if (abortController.value === ctl) {
         abortController.value = null
-        // 未命中(204/非 ok)→ 清 busy。命中且带 replay 的话,dispatchEvent
-        // 早已看到 'done' 并调过 setStreamingDone();若命中但流仍在跑(还没
-        // done),继续保持 busy。
+        // Miss (204/not ok) → clear busy. Hit with replay → dispatchEvent already saw 'done' and called
+        // setStreamingDone(); if hit but stream still running (no done yet), keep busy.
         if (!attached) busy.value = false
       }
     }
 
     /**
-     * Agent.vue:80,90-96 —— localStorage > matchMedia(prefers-color-scheme: dark) > 'light'。
-     * SP8-P2a Task 4(D1)—— 装载逻辑本体搬到 `./aiTheme` 的 `hydrateTheme()`(设置页
-     * 需要同一段逻辑,不能只属于本 store)。这里保留同名函数纯做委托,外部调用点
-     * (`AgentPage.vue` 的 `store.initTheme()`)不用改。
+     * Agent.vue:80,90-96 — localStorage > matchMedia(prefers-color-scheme: dark) > 'light'.
+     * SP8-P2a Task 4(D1) — load-logic body moved to `./aiTheme`'s `hydrateTheme()` (Settings page
+     * needs the same logic, can't be store-only). This function stays as pure delegation;
+     * external call site (`AgentPage.vue`'s `store.initTheme()`) needs no changes.
      */
     function initTheme() {
       aiTheme.hydrateTheme()
     }
 
     /**
-     * agentStore.js:152-154 + Agent.vue:117-119 —— 翻转并写回同一 localStorage key。
-     * SP8-P2a Task 4(D1)—— 翻转逻辑本体搬到 `./aiTheme` 的 `toggleTheme()`,使
-     * Agent 页与设置页翻转同一份状态。
+     * agentStore.js:152-154 + Agent.vue:117-119 — toggle and write back to same localStorage key.
+     * SP8-P2a Task 4(D1) — toggle-logic body moved to `./aiTheme`'s `toggleTheme()` so
+     * Agent page and Settings page toggle the same state.
      */
     function toggleTheme() {
       aiTheme.toggleTheme()
     }
 
-    /** agentStore.js:156 —— 翻转左侧会话列表折叠态。 */
+    /** agentStore.js:156 — toggle left session list collapsed state. */
     function toggleLeft() {
       leftCollapsed.value = !leftCollapsed.value
     }
 
-    /** agentStore.js:157 —— 翻转右侧面板折叠态。 */
+    /** agentStore.js:157 — toggle right panel collapsed state. */
     function toggleRight() {
       rightCollapsed.value = !rightCollapsed.value
     }
 
-    /** agentStore.js:158 —— 切换右侧面板当前激活的 tab。 */
+    /** agentStore.js:158 — switch right panel's currently active tab. */
     function setRightTab(tab: 'activity' | 'context' | 'system' | 'resources') {
       rightTab.value = tab
     }
@@ -347,7 +356,7 @@ export function useAgentStore(agentType?: string) {
     // needed here — no delete-key semantics in these 9); splice(i,1,next)
     // kept as-is (still the correct array-replacement idiom in Vue3/Pinia).
 
-    /** agentStore.js:64-71 —— 压入一条 user 消息。 */
+    /** agentStore.js:64-71 — push a user message. */
     function pushUserMessage(text: string, attachmentRefs: AttachmentRef[] = []) {
       messages.value.push({
         id: `u${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -357,7 +366,7 @@ export function useAgentStore(agentType?: string) {
       })
     }
 
-    /** agentStore.js:73-80 —— 起一条空 assistant 消息,进入 streaming。 */
+    /** agentStore.js:73-80 — start an empty assistant message and enter streaming. */
     function startAssistant() {
       messages.value.push({
         id: `a${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -367,7 +376,7 @@ export function useAgentStore(agentType?: string) {
       })
     }
 
-    /** agentStore.js:82-86 —— 往最后一条 assistant 消息追加一个 block。 */
+    /** agentStore.js:82-86 — append a block to the last assistant message. */
     function appendBlock(block: AgentBlock) {
       const last = messages.value[messages.value.length - 1] as Record<string, unknown> | undefined
       if (!last || last.role !== 'assistant') return
@@ -375,9 +384,9 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:88-104 —— 反向查找最后一条 assistant 消息里第一个匹配
-     * predicate 的 block,合并 patch 后用 splice(i,1,next) 整体替换。
-     * 命中返回 true,否则 false。
+     * agentStore.js:88-104 — reverse-search the last assistant message for the first block
+     * matching the predicate, merge the patch, and wholly replace with splice(i,1,next).
+     * Returns true on hit, false otherwise.
      */
     function patchBlock(
       predicate: (b: AgentBlock) => boolean,
@@ -399,7 +408,7 @@ export function useAgentStore(agentType?: string) {
       return false
     }
 
-    /** agentStore.js:106-113 —— 结束 streaming:最后一条 assistant 消息 streaming=false,busy=false。 */
+    /** agentStore.js:106-113 — end streaming: last assistant message streaming=false, busy=false. */
     function setStreamingDone() {
       const idx = messages.value.length - 1
       const last = messages.value[idx] as Record<string, unknown> | undefined
@@ -409,12 +418,12 @@ export function useAgentStore(agentType?: string) {
       busy.value = false
     }
 
-    /** agentStore.js:115 —— 直接置 busy。 */
+    /** agentStore.js:115 — directly set busy. */
     function setBusy(value: boolean) {
       busy.value = !!value
     }
 
-    /** agentStore.js:117-125 —— 把 partial 合并进最后一条 assistant 消息的 stats。 */
+    /** agentStore.js:117-125 — merge partial into the last assistant message's stats. */
     function patchAssistantStats(partial: Partial<AgentStats>) {
       const idx = messages.value.length - 1
       const last = messages.value[idx] as Record<string, unknown> | undefined
@@ -425,7 +434,7 @@ export function useAgentStore(agentType?: string) {
       })
     }
 
-    /** agentStore.js:127-134 —— 压入一条 running 状态的活动步骤。 */
+    /** agentStore.js:127-134 — push an activity step with running state. */
     function pushActivityStep({ name }: { name: string }) {
       activitySteps.value.push({
         id: `s${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -435,7 +444,7 @@ export function useAgentStore(agentType?: string) {
       })
     }
 
-    /** agentStore.js:136-150 —— 反向找到最后一个 running 步骤,标记为 success 并记时长。无 running 步骤时静默(仅 debug log)。 */
+    /** agentStore.js:136-150 — reverse-find the last running step, mark it success, and record duration. Silent if no running step (debug log only). */
     function markRunningStepDone() {
       for (let i = activitySteps.value.length - 1; i >= 0; i--) {
         const step = activitySteps.value[i]
@@ -453,9 +462,9 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:702-720 —— 流式 staged 项入组。按 run_id 归组(不存在则新建,
-     * created_at 用**秒**浮点以对齐服务端 unix 秒);组内按 (seq, path) 对去重,
-     * 命中则就地替换保位置。无上限、不排序、新组追加在末尾。
+     * agentStore.js:702-720 — stream staged items into groups. Group by run_id (create if absent;
+     * created_at uses **seconds** as float to align with backend unix seconds); deduplicate within
+     * group by (seq, path) pair; on hit, replace in-place. No limit, unsorted, new groups append to end.
      */
     function appendStagedChange(item: Record<string, unknown>) {
       const runId = item.run_id as string | number
@@ -463,24 +472,21 @@ export function useAgentStore(agentType?: string) {
       if (!group) {
         group = { run_id: runId, created_at: Date.now() / 1000, items: [] }
         stagedChanges.value.push(group)
-        // P1c2 debt 2(1c-1 final review, 2026-07-27, verified with a real
-        // @vue/reactivity probe — see agentStore.p1c.test.ts "flush:sync 侦听器
-        // 需同步看到 length=1"): `stagedChanges.value.push(group)` above pushes
-        // the *raw* object built two lines up. The push itself does trigger
-        // Vue's reactivity (dependents tracking `stagedChanges`/its length get
-        // notified), but the pushed element only becomes a tracked reactive
-        // proxy lazily, the first time something reads it back out of the
-        // array. Continuing to mutate the local `group` reference below
-        // (`group.items.push(...)`) operates on the raw target directly,
-        // bypassing the proxy's set trap — no trigger() fires for that
-        // mutation. Today this happens to "work" because rendering/most
-        // consumers re-read the array on a later microtask anyway, but a
-        // `flush: 'sync'` watcher already tracking `items.length` (the kind
-        // the staged-changes UI landing later this phase will need, to react
-        // to streamed items immediately) would never observe the item being
-        // added. Fix: re-read the proxied element back out of the array and
-        // mutate *that* reference from here on, so every subsequent write
-        // goes through the reactive proxy and notifies its trackers.
+        // P1c2 debt 2 (1c-1 final review, 2026-07-27, verified with a real @vue/reactivity
+        // probe — see agentStore.p1c.test.ts "flush:sync watcher needs to sync-see length=1"):
+        // `stagedChanges.value.push(group)` above pushes the *raw* object built two lines up.
+        // The push itself triggers Vue's reactivity (dependents tracking `stagedChanges`/its
+        // length get notified), but the pushed element only becomes a tracked reactive proxy
+        // lazily, the first time something reads it back out of the array. Continuing to
+        // mutate the local `group` reference below (`group.items.push(...)`) operates on
+        // the raw target directly, bypassing the proxy's set trap — no trigger() fires for
+        // that mutation. Today this happens to "work" because rendering/most consumers
+        // re-read the array on a later microtask anyway, but a `flush: 'sync'` watcher
+        // already tracking `items.length` (the kind the staged-changes UI landing later
+        // this phase will need, to react to streamed items immediately) would never observe
+        // the item being added. Fix: re-read the proxied element back out of the array and
+        // mutate *that* reference from here on, so every subsequent write goes through the
+        // reactive proxy and notifies its trackers.
         group = stagedChanges.value[stagedChanges.value.length - 1]
       }
       const existingIdx = group.items.findIndex((x) => x.seq === item.seq && x.path === item.path)
@@ -488,19 +494,19 @@ export function useAgentStore(agentType?: string) {
       else group.items.push(item as unknown as StagedItem)
     }
 
-    /** agentStore.js:722-726 —— 仅按 path 去重(不看 id),浅拷贝入列。 */
+    /** agentStore.js:722-726 — deduplicate by path only (ignore id), shallow-copy into list. */
     function appendVisibleResource(vr: { id?: string | number; path: string; kind: string }) {
       if (!visibleResources.value.some((r) => r.path === vr.path)) visibleResources.value.push({ ...vr })
     }
 
-    /** agentStore.js:728-732 —— 按 path 整表过滤。 */
+    /** agentStore.js:728-732 — filter entire table by path. */
     function removeVisibleResourceFromList(path: string) {
       visibleResources.value = visibleResources.value.filter((r) => r.path !== path)
     }
 
-    // ── 1c:可见资源(agentStore.js:734-758)──
+    // ── 1c: visible resources (agentStore.js:734-758) ──
 
-    /** 无会话直接清空、不发请求;有会话则整表覆盖。**不 try/catch** —— 由 selectSession 的 allSettled 兜。 */
+    /** No session: clear directly, no request. Has session: overwrite entire table. **No try/catch** — selectSession's allSettled handles it. */
     async function loadVisibleResources() {
       if (!activeSessionId.value) { visibleResources.value = []; return }
       const body = await service.ai.listVisibleResources(activeSessionId.value)
@@ -508,9 +514,9 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:743-752 —— 无会话先懒建会话;服务端返回值优先、参数兜底。
-     * **错误必须原样冒泡**:composer 靠 e.response.status===409 + detail 里的
-     * "gitignore" 判定要不要 force 重试。
+     * agentStore.js:743-752 — if no session, lazily create one; server return value takes
+     * precedence, parameters fallback. **Errors must bubble as-is**: composer relies on
+     * e.response.status===409 + "gitignore" in detail to decide whether to force-retry.
      */
     async function addVisibleResource(path: string, kind = 'folder', force = false) {
       if (!activeSessionId.value) await createSession()
@@ -519,7 +525,7 @@ export function useAgentStore(agentType?: string) {
       appendVisibleResource({ id: data.id, path: data.path || path, kind: data.kind || kind })
     }
 
-    /** agentStore.js:754-758 —— 先抓本地条目拿 path,成功后按 path 移除(id 未知则不动本地)。 */
+    /** agentStore.js:754-758 — grab local entry for path first, then remove by path on success (don't touch local if id unknown). */
     async function removeVisibleResource(resId: string | number) {
       const target = visibleResources.value.find((r) => r.id === resId)
       await service.ai.removeVisibleResource(activeSessionId.value as string | number, resId)
@@ -527,28 +533,28 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * P1c2 debt 1 —— 无 id 的 chip 也能删。Vue2 里没有这个动作:chip 的 stream
-     * 注入形态 `{path, kind}`(dispatchEvent.ts:311 的 'visible_resource_added'
-     * 分支,与 Vue2 `agentStream.js:539-542` 逐字一致)从来不带 id,所以 Vue2
-     * 的 removeChip 点 × 直接 `removeVisibleResource(undefined)`,打到
-     * `/visible-resources/undefined`,失败后走既有的 `catch { toastError(e) }`
-     * ——即"注定失败但用户能看见错误提示"。这个仓库此前(1c-1)的移植版本更保守:
-     * `id === undefined` 时直接 no-op 返回,不发任何请求——结果是用户点 × 完全
-     * 没有反应,连报错都没有,比 Vue2 还差。
+     * P1c2 debt 1 — remove chips without id too. Vue2 has no such action: chip stream-injected
+     * form `{path, kind}` (dispatchEvent.ts:311's 'visible_resource_added' branch, verbatim
+     * with Vue2 `agentStream.js:539-542`) never carries id, so Vue2's removeChip clicking ×
+     * directly calls `removeVisibleResource(undefined)`, hitting `/visible-resources/undefined`,
+     * and on failure walks existing `catch { toastError(e) }` — "destined to fail but user sees
+     * error." This repo's prior port (1c-1) was more conservative: when `id === undefined`,
+     * directly return no-op, no request sent — result: user clicks × and gets nothing, not even
+     * an error message, worse than Vue2.
      *
-     * 正确做法:服务端列表永远带 id,只是本地缓存的这一条(agent 中途自己走
-     * appendVisibleResource 加进来的)还没有。先 `loadVisibleResources()` 刷新
-     * 一次拿到服务端权威列表(带 id),按 path 找:
-     *   - 找到 → 说明这条资源确实还在,服务端也认这个 path,按 id 走正常的
-     *     `removeVisibleResource` 删除路径(同时保持了它"删除后本地按 path
-     *     移除"的既有行为)。
-     *   - 没找到 → 说明服务端已经没有这条了(可能是另一条路径先删过、或者
-     *     一次竞态),这时再对已经不存在的东西发删除请求没有意义,直接
-     *     `removeVisibleResourceFromList(path)` 把本地这条也清掉,保持前后端
-     *     一致——不算错误,不需要冒泡。
-     * 失败(仅可能来自 loadVisibleResources 或 removeVisibleResource 内部的
-     * removeVisibleResource 请求本身)原样冒泡给调用方——composer 侧仍然走
-     * 既有的 toastError,与"有 id"那条路径一致。
+     * Correct approach: server list always carries id; only this locally-cached entry (agent
+     * added via appendVisibleResource mid-way) may not. First `loadVisibleResources()` to
+     * refresh and get the server's authoritative list (with ids), then search by path:
+     *   - Found — this resource is indeed still there, server recognizes this path, proceed
+     *     with `removeVisibleResource` by id (maintains the existing behavior of "after removal,
+     *     clear local by path").
+     *   - Not found — server no longer has this (another path may have deleted it first, or
+     *     a race), no point sending a delete request for something that doesn't exist; directly
+     *     call `removeVisibleResourceFromList(path)` to clear the local entry too, keeping
+     *     frontend and backend in sync — not an error, no bubble needed.
+     * Failures (only from loadVisibleResources or removeVisibleResource's internal request)
+     * bubble as-is to caller — composer side still walks existing toastError, consistent
+     * with the "has id" path.
      */
     async function removeVisibleResourceByPath(path: string): Promise<void> {
       await loadVisibleResources()
@@ -560,9 +566,9 @@ export function useAgentStore(agentType?: string) {
       }
     }
 
-    // ── 1c:附件(agentStore.js:760-777)──
+    // ── 1c: attachments (agentStore.js:760-777) ──
 
-    /** 与 Vue2 一致:**吞错并清空**(不同于 loadVisibleResources 会抛)。 */
+    /** Consistent with Vue2: **swallow error and clear** (unlike loadVisibleResources which throws). */
     async function loadAttachments() {
       if (!activeSessionId.value) { attachments.value = []; return }
       try {
@@ -571,23 +577,23 @@ export function useAgentStore(agentType?: string) {
       } catch { attachments.value = [] }
     }
 
-    /** agentStore.js:773-777 —— 抛错时本地列表不动。 */
+    /** agentStore.js:773-777 — leave local list unchanged on error. */
     async function removeAttachment(aid: string | number) {
       if (!activeSessionId.value) return
       await service.ai.deleteAttachment(activeSessionId.value, aid)
       attachments.value = attachments.value.filter((a) => a.id !== aid)
     }
 
-    // ── 1c:暂存区(agentStore.js:779-847)──
+    // ── 1c: staging area (agentStore.js:779-847) ──
 
-    /** 无会话直接清空、不发请求;有会话则整表覆盖。 */
+    /** No session: clear directly, no request. Has session: overwrite entire table. */
     async function loadStagedChanges() {
       if (!activeSessionId.value) { stagedChanges.value = []; return }
       const body = await service.ai.listStagedChanges(activeSessionId.value)
       stagedChanges.value = (body as StagedGroup[]) || []
     }
 
-    /** 成功即清空整表;失败保留列表、错误冒泡;committing 一定在 finally 复位。 */
+    /** On success, clear entire table; on failure, keep list and bubble error; committing always resets in finally. */
     async function commitStagedAll() {
       if (!activeSessionId.value) return
       committing.value = true
@@ -597,7 +603,7 @@ export function useAgentStore(agentType?: string) {
       } finally { committing.value = false }
     }
 
-    /** agentStore.js:799-810 —— 整轮回滚;**不看响应状态**,成功即丢整组。 */
+    /** agentStore.js:799-810 — revert entire run; **ignores response status**, discards entire group on success. */
     async function revertStagedRun(runId: string | number) {
       if (!activeSessionId.value) return
       const key = String(runId)
@@ -609,8 +615,8 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:812-828 —— 批量回滚。status ∈ ok|partial → 就地剪掉该 batch 的项
-     * 并丢掉变空的组;其余(conflict/nothing_to_revert/snapshot_missing)→ 整表重拉。
+     * agentStore.js:812-828 — batch revert. status ∈ ok|partial → trim batch items in-place
+     * and discard empty groups; others (conflict/nothing_to_revert/snapshot_missing) → reload entire table.
      */
     async function revertStagedBatch(batchId: string | number) {
       if (!activeSessionId.value) return
@@ -628,7 +634,7 @@ export function useAgentStore(agentType?: string) {
       } finally { delete reverting.value[key] }
     }
 
-    /** agentStore.js:830-847 —— 单项回滚:复数端点 + 单元素数组;reverting 键前缀 'item:'。 */
+    /** agentStore.js:830-847 — single-item revert: plural endpoint + single-element array; reverting key prefix 'item:'. */
     async function revertStagedItem(stagedId: string | number) {
       if (!activeSessionId.value) return
       const revertKey = 'item:' + stagedId
@@ -646,12 +652,12 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * 把这份 store 的流式 primitive 装订成一个 `StreamActions`,喂给
-     * Task 6 transport(runAgentRun/attachAgentStream)→ Task 5 reducer
-     * (dispatchEvent)。1c 补上 appendStagedChange/appendVisibleResource/
-     * removeVisibleResourceFromList —— reducer 里这三个可选链调用不再 no-op。
-     * `_lastNimoosSearchQuery` 是 tool_call/tool_result 之间传递 query 文本的
-     * 可变载体,每次调用都给一份新的空字符串起点。
+     * Bind this store's streaming primitives into a `StreamActions` object, fed to
+     * Task 6 transport (runAgentRun/attachAgentStream) → Task 5 reducer (dispatchEvent).
+     * Phase 1c adds appendStagedChange/appendVisibleResource/removeVisibleResourceFromList —
+     * these three optional-chain calls in the reducer are no longer no-ops.
+     * `_lastNimoosSearchQuery` is a mutable carrier for passing query text between tool_call/
+     * tool_result; each call gets a fresh empty-string starting point.
      */
     function createStreamActions(): StreamActions {
       return {
@@ -672,10 +678,10 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:599-645 —— 并行拉 local(ollama)模型 + cloud provider 列表,
-     * 拍平成统一的选择器条目;之前存在 localStorage 里的选择若仍在新列表中就沿用,
-     * 否则本地模型优先兜底(没有本地模型再退 list[0]),兜底发生时记一条
-     * lastFallbackNotice 供 1c 的提示 UI 使用。
+     * agentStore.js:599-645 — fetch local (ollama) models + cloud provider list in parallel,
+     * flatten to unified selector entries; if previous localStorage selection still exists in
+     * new list, reuse it; otherwise fallback to local models first (if no local, fallback to
+     * list[0]); when fallback occurs, record in lastFallbackNotice for phase 1c's hint UI.
      */
     async function loadAvailableModels() {
       const [modelsResp, providersResp] = await Promise.allSettled([
@@ -686,10 +692,10 @@ export function useAgentStore(agentType?: string) {
       const list: AgentModel[] = []
 
       if (modelsResp.status === 'fulfilled') {
-        // 单层取数:共享包已剥掉 axios 那层,`body` 即 HTTP body,而
-        // `GET /v1/ai/models`(route/v2/models.go:30)直出裸数组 —— 见本文件 :120-127
-        // 的口径。此处原先多写了一层 `.data`,是全文件唯一违反该口径的地方,
-        // 直接导致顶栏 ModelPicker 恒为空态。
+        // Single-level data extraction: shared package already unwrapped the axios layer, `body` is
+        // the HTTP body; `GET /v1/ai/models` (route/v2/models.go:30) outputs raw array directly —
+        // see this file's baseline at :120-127. Previously had an extra `.data` layer here, the only
+        // place violating that baseline in the whole file, directly causing the top bar ModelPicker to always be empty.
         const body = modelsResp.value
         const arr = Array.isArray(body) ? (body as Record<string, unknown>[]) : []
         for (const m of arr) {
@@ -705,9 +711,10 @@ export function useAgentStore(agentType?: string) {
       }
 
       if (providersResp.status === 'fulfilled') {
-        // 同上:`GET /v1/ai/providers`(route/v2/providers.go:95)亦直出裸数组,
-        // 且后端只把 favorite 模型嵌进每个 provider 的 `models` 字段驱动 ModelPicker。
-        // buildCloudModelList 自带 Array.isArray 守卫,非数组入参安全退化为空列表。
+        // Same as above: `GET /v1/ai/providers` (route/v2/providers.go:95) also outputs raw array
+        // directly, and backend only embeds favorite models in each provider's `models` field to drive
+        // ModelPicker. buildCloudModelList carries its own Array.isArray guard, non-array input safely
+        // degrades to empty list.
         list.push(...buildCloudModelList(providersResp.value))
       }
 
@@ -734,7 +741,7 @@ export function useAgentStore(agentType?: string) {
       }
     }
 
-    /** agentStore.js:647-652 —— 切换选中模型(必须是列表里已有的 key),持久化 + 刷新 thinking 状态。 */
+    /** agentStore.js:647-652 — switch selected model (must be a key already in list), persist + refresh thinking state. */
     function selectModel(key: string) {
       if (!availableModels.value.some((m) => m.key === key)) return
       selectedModel.value = key
@@ -743,23 +750,25 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:656-660 —— 拉用户级 thinking 默认值。**吞错保留硬编码兜底**(有意
-     * 保留,非疏漏):defaults 初始值已经是产品定的兜底(enabled:true, level:'medium'),
-     * 接口失败时没有必要打断——ThinkingBar 用兜底值渲染,用户仍能正常切强度。
+     * agentStore.js:656-660 — fetch user-level thinking defaults. **Swallow error and keep
+     * hardcoded fallback** (intentional, not an oversight): defaults' initial value is already
+     * the product's fallback (enabled:true, level:'medium'); no need to break on API failure —
+     * ThinkingBar renders with the fallback, user can still switch intensity normally.
      */
     async function loadThinkingDefaults() {
       try {
         const d = await service.ai.getThinkingDefaults()
         thinking.value.defaults = d as { enabled: boolean; level: string }
-      } catch { /* 保留硬编码兜底 —— 与 Vue2 agentStore.js:656-660 逐字一致 */ }
+      } catch { /* Keep hardcoded fallback — verbatim with Vue2 agentStore.js:656-660 */ }
     }
 
     /**
-     * agentStore.js:663-669 —— 无 sessionId 直接返回,不发请求。`service.ai.getSessionThinking`
-     * 已经把"本会话无覆盖"归一成 `null`(见 NimoOS-Service/src/ai.ts:183-198)并且自己吞掉了
-     * 请求异常,这里只需要处理 `null` 时回落到 `thinking.defaults` 的浅拷贝;只写
-     * enabled/level 两个字段,不碰 supportsThinking/providerType(那两个只由
-     * updateThinkingForModel 维护)。
+     * agentStore.js:663-669 — if no sessionId, return directly without requesting.
+     * `service.ai.getSessionThinking` already normalizes "no override for this session" to `null`
+     * (see NimoOS-Service/src/ai.ts:183-198) and swallows request exceptions itself; here we only
+     * handle `null` by falling back to a shallow copy of `thinking.defaults`; write only enabled/
+     * level fields, don't touch supportsThinking/providerType (those are maintained only by
+     * updateThinkingForModel).
      */
     async function loadSessionThinking(sessionId: string | number | null | undefined) {
       if (!sessionId) return
@@ -770,10 +779,11 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:671-677 —— **先乐观改本地状态,再对有会话的情况发 patch**;patch
-     * 失败**不回滚**本地状态(有意保留 Vue2 语义,非疏漏——ThinkingBar 就是要立刻响应
-     * 用户点按,失败只会在下一次成功的 patch/loadSessionThinking 时被纠正,不做即时回滚
-     * UI 抖动)。无会话(尚未建会话)时只改本地,不发请求。
+     * agentStore.js:671-677 — **optimistically update local state first, then patch if session exists**;
+     * patch failure **does not rollback** local state (intentionally preserves Vue2 semantics, not an
+     * oversight — ThinkingBar must respond to user clicks immediately; failure is corrected only on
+     * the next successful patch/loadSessionThinking, no immediate rollback to avoid UI jitter).
+     * No session (not yet created): update local only, no request.
      */
     async function setThinkingEnabled(enabled: boolean) {
       thinking.value.enabled = enabled
@@ -784,7 +794,7 @@ export function useAgentStore(agentType?: string) {
       }
     }
 
-    /** agentStore.js:680-686 —— 同 setThinkingEnabled,改的是 level。同样不回滚。 */
+    /** agentStore.js:680-686 — same as setThinkingEnabled, but updates level. Also doesn't rollback. */
     async function setThinkingLevel(level: string) {
       thinking.value.level = level
       if (activeSessionId.value) {
@@ -794,7 +804,7 @@ export function useAgentStore(agentType?: string) {
       }
     }
 
-    /** agentStore.js:689-698 —— 按选中模型刷新 thinking.supportsThinking/providerType。 */
+    /** agentStore.js:689-698 — refresh thinking.supportsThinking/providerType based on selected model. */
     function updateThinkingForModel() {
       const sel = availableModels.value.find((m) => m.key === selectedModel.value)
       if (!sel) {
@@ -807,19 +817,20 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:210-244 —— 逐字港 regenerateTitle:解析 selectedModel key 拿到
-     * model 名 + providerType,POST 重生成,成功且 title 非空才写回 sessions[idx],
-     * 失败**只 console.warn 吞掉,promise 仍 resolve**(agentStore.js:238-240,
-     * 有意如此 —— 顶栏 sparkle 按钮和 send() 首轮自动补标题都靠"这个 action 从不
-     * reject"这一点才能用 fire-and-forget 的方式调用,不必额外套 try/catch)。
+     * agentStore.js:210-244 — verbatim port of regenerateTitle: parse selectedModel key for
+     * model name + providerType, POST to regenerate; only write back to sessions[idx] if success
+     * and title non-empty; on failure **console.warn and swallow, promise still resolves**
+     * (agentStore.js:238-240, intentional — top bar sparkle button and send()'s first-turn
+     * auto-supplement rely on "this action never rejects" to call fire-and-forget without extra
+     * try/catch).
      *
-     * model key 解析复用模块顶部的 parseModelKey,但 Vue2 这里(agentStore.js:214-215)
-     * 独有一处防御:key 里完全没有冒号时直接返回,不尝试解析。已核对
-     * parseModelKey 对这个畸形输入**不等价**——它会把无冒号的 key 整段回退成
-     * modelName(而不是返回空串触发下面的 `!modelName` 兜底),所以这里补上 Vue2 的
-     * guard 再委托 parseModelKey 做实际拆分;cloud 分支缺第二个冒号时的容错
-     * (`secondColon < 0 ? rest : rest.slice(...)`)parseModelKey 本身就有,等价,
-     * 不需要另外补。
+     * Model key parsing reuses parseModelKey from module top, but Vue2 here (agentStore.js:214-215)
+     * has unique defense: if key has no colon at all, return immediately without attempting parse.
+     * Verified: parseModelKey is **not equivalent** for this malformed input — it would degrade the
+     * no-colon key entirely to modelName (not return empty string triggering the `!modelName` fallback
+     * below), so here we add Vue2's guard then delegate parseModelKey for actual split; cloud branch's
+     * fallback when missing second colon (`secondColon < 0 ? rest : rest.slice(...)`) parseModelKey
+     * already has, equivalent, no extra needed.
      */
     async function regenerateTitle(
       id: string | number,
@@ -852,26 +863,26 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:413-419 —— send() 首轮发送成功后台自动补标题。1b 阶段曾裁剪出
-     * 一份独立实现(没有 regeneratingTitleFor 这类 UI 状态);1c-2 补齐完整
-     * regenerateTitle 后,这里改为纯委托,不再重复解析 model key —— 两份实现不并存。
-     * Vue2 调用处是 `actions.regenerateTitle(id, {background:true}).catch(()=>{})`
-     * (fire-and-forget),对应本文件 send() finally 里的调用点同样不 await、外挂
-     * `.catch(() => {})`。
+     * agentStore.js:413-419 — auto-supplement title in background after send()'s first-turn success.
+     * Phase 1b once carved out an independent implementation (no UI state like regeneratingTitleFor);
+     * after 1c-2 completes full regenerateTitle, this becomes pure delegation, no repeated model key
+     * parsing — two implementations don't coexist. Vue2 call site is
+     * `actions.regenerateTitle(id, {background:true}).catch(()=>{})` (fire-and-forget); correspondingly,
+     * this file's send() finally call site also doesn't await, and attaches `.catch(() => {})`.
      */
     async function autoTitleFirstTurn(id: string | number): Promise<void> {
       return regenerateTitle(id, { background: true })
     }
 
     /**
-     * agentStore.js:295-421 —— 发一轮消息。字符串 payload 视为纯文本(向后兼容);
-     * busy 守卫防止重复发送;等待上一次 stop() 触发的 pendingCancel 落定,让服务端
-     * 每会话锁先释放掉;无选中模型时直接落一个错误 tool block;否则新建
-     * AbortController → (无会话则先建)→ push user+assistant 消息 → 解析模型 key
-     * (local:<name> / cloud:<id>:<name>)→ 算 providerType → 拼 extraHeaders
-     * (X-Skill-Id 消费一次 + X-Agent-Provider-Id)→ 调 Task 6 runAgentRun,onError
-     * 落一个 error tool block(dual-shape:RAW error 或 {status,body},统一
-     * JSON.stringify 兜底渲染,与 Vue2 一致)→ finally 收尾 busy + 首轮自动补标题。
+     * agentStore.js:295-421 — send a message turn. String payload treated as plain text (backward-
+     * compatible); busy guard prevents duplicate sends; wait for previous stop()'s pendingCancel to settle,
+     * letting backend per-session lock release first; if no selected model, drop an error tool block
+     * directly; otherwise create AbortController → (create session if needed) → push user+assistant
+     * messages → parse model key (local:<name> / cloud:<id>:<name>) → compute providerType → assemble
+     * extraHeaders (X-Skill-Id consumed once + X-Agent-Provider-Id) → call Task 6 runAgentRun; onError
+     * drops an error tool block (dual-form: RAW error or {status,body}, all fallback to JSON.stringify
+     * rendering, consistent with Vue2) → finally wrap-up busy + first-turn auto-supplement title.
      */
     async function send(payload: string | SendPayload): Promise<void> {
       const isObj = typeof payload === 'object' && payload !== null
@@ -882,10 +893,10 @@ export function useAgentStore(agentType?: string) {
       const contextAlbum = (isObj ? payload.contextAlbum : null) ?? null
 
       if (busy.value) return
-      // 等待最近一次 stop() 触发的取消完成,让服务端的 per-session 锁先释放,
-      // 否则紧接着的 /run 会 409 agent_busy。
+      // Wait for the most recent stop()'s cancellation to complete, let backend's per-session lock release first,
+      // or the next /run will 409 agent_busy.
       if (pendingCancel.value) {
-        try { await pendingCancel.value } catch { /* 已在 stop() 里吞过 */ }
+        try { await pendingCancel.value } catch { /* already swallowed in stop() */ }
       }
       const wasFirstTurn = messages.value.length === 0
       let errorOccurred = false
@@ -915,16 +926,16 @@ export function useAgentStore(agentType?: string) {
 
         const key = selectedModel.value
         const { source, modelName } = parseModelKey(key)
-        // 发具体的 provider_type(deepseek/openai/qwen/anthropic/ollama),不发粗粒度
-        // "cloud" —— Python agent 靠它套 provider 专属设置(如 DeepSeek 需要
-        // parallel_tool_calls=False,防止 asyncio.gather 里兄弟 tool call 被取消时 400)。
+        // Send specific provider_type (deepseek/openai/qwen/anthropic/ollama), not coarse-grained
+        // "cloud" — Python agent uses it to apply provider-specific settings (e.g., DeepSeek needs
+        // parallel_tool_calls=False to prevent 400 when sibling tool calls in asyncio.gather get cancelled).
         const sel = availableModels.value.find((m) => m.key === key)
         const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
 
         const extraHeaders: Record<string, string> = {}
         if (pendingSkillId.value) {
           extraHeaders['X-Skill-Id'] = pendingSkillId.value
-          pendingSkillId.value = null // 消费一次
+          pendingSkillId.value = null // consume once
         }
         if (sel?.source === 'cloud' && sel?.providerId) {
           extraHeaders['X-Agent-Provider-Id'] = String(sel.providerId)
@@ -946,9 +957,9 @@ export function useAgentStore(agentType?: string) {
           (abortController.value as AbortController).signal,
           createStreamActions(),
           (err: unknown) => {
-            // onError 是双形态:非 abort 的 fetch rejection(RAW error)或
-            // { status, body }(!ok)。两种形态都统一 JSON.stringify 兜底渲染
-            // 到 ERROR 区块——与 Vue2 agentStore.js:381-390 逐字对齐。
+            // onError is dual-form: non-abort fetch rejection (RAW error) or { status, body } (!ok).
+            // Both forms fallback to JSON.stringify rendering to ERROR block — verbatim with
+            // Vue2 agentStore.js:381-390.
             errorOccurred = true
             appendBlock({
               type: 'tool',
@@ -960,7 +971,7 @@ export function useAgentStore(agentType?: string) {
           },
           extraHeaders,
         )
-        // 刷新附件:刚上传的草稿此刻服务端已带上 message_id,应显示为"已发送"。
+        // Refresh attachments: just-uploaded drafts now have message_id on backend, should show as "sent".
         loadAttachments().catch(() => {})
       } catch (e) {
         errorOccurred = true
@@ -982,7 +993,7 @@ export function useAgentStore(agentType?: string) {
         if (wasFirstTurn && !aborted && !errorOccurred && activeSessionId.value) {
           const sess = sessions.value.find((s) => s.id === activeSessionId.value)
           if (sess && (!sess.title || String(sess.title).trim() === '')) {
-            // agentStore.js:416-417 —— fire-and-forget,吞掉任何 rejection。
+            // agentStore.js:416-417 — fire-and-forget, swallow any rejection.
             autoTitleFirstTurn(activeSessionId.value).catch(() => {})
           }
         }
@@ -990,23 +1001,21 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:423-489 —— `/init` 斜杠命令的执行体:让 agent 为某个目录生成
-     * agent.md。与 send() 的关键差异(逐字对齐 Vue2,不是疏漏):
-     * 1) user/assistant 两条消息直接 `messages.value.push`,不走
-     *    pushUserMessage/startAssistant(user 消息内容固定为 `[/init] <target>`,
-     *    不是原始输入文本)。
-     * 2) payload 用 `kind: 'init', init_target: target`,**不带 thinking 字段**。
-     * 3) finally **不做首轮自动补标题**(Vue2 sendInit 就没有这段)。
-     * message 文本是发给后端的英文提示词模板,不是 UI 文案,不 i18n。
+     * agentStore.js:423-489 — execution body for `/init` slash command: let agent generate
+     * agent.md for a directory. Key differences from send() (verbatim with Vue2, not oversights):
+     * 1) Both user/assistant messages `messages.value.push` directly, skip pushUserMessage/startAssistant
+     *    (user message content fixed as `[/init] <target>`, not raw input text).
+     * 2) Payload uses `kind: 'init', init_target: target`, **no thinking field**.
+     * 3) finally **does not auto-supplement title** (Vue2 sendInit has no such step).
+     * Message text is English prompt template for backend, not UI copy, not i18n.
      *
-     * 一处**有意偏离** Vue2 逐字顺序:Vue2 源码里两条消息是在 `createSession()`
-     * *之前* push 的(agentStore.js:426-436 先 push,441 才 `await
-     * actions.createSession()`)。但 `createSession()` 会整体覆盖
-     * `messages.value = []`(见上方 createSession),这意味着"无会话时调用
-     * sendInit"会把刚 push 的两条消息立刻冲掉——这是 Vue2 自身的潜在 bug(send()
-     * 就没有这个问题,因为 send() 是先 createSession() 再 push)。这里改成与
-     * send() 一致的顺序:先确保会话存在,再 push 两条消息,payload/校验/收尾
-     * 逻辑其余部分保持逐字对齐。
+     * One **intentional deviation** from Vue2 verbatim order: in Vue2 source, both messages push
+     * *before* `createSession()` (agentStore.js:426-436 push first, 441 then `await
+     * actions.createSession()`). But `createSession()` wholly overwrites `messages.value = []`
+     * (see createSession above), meaning "calling sendInit when no session" immediately wipes the
+     * two just-pushed messages — this is a potential Vue2 bug (send() lacks this because send() calls
+     * createSession() first then pushes). Here, we reorder to match send(): ensure session exists
+     * first, then push both messages; rest of payload/validation/wrap-up logic maintains verbatim alignment.
      */
     async function sendInit(target: string): Promise<void> {
       const message = `Please generate agent.md for ${target}.`
@@ -1059,8 +1068,8 @@ export function useAgentStore(agentType?: string) {
           extraHeaders,
         )
       } catch (e) {
-        // 安全网:与 send() 一致。Vue2 agentStore.js:423-490 无此守卫,是潜在缺陷
-        // (错误会被静默吞掉)。这里补齐确保错误 block 总有宿主 assistant 消息。
+        // Safety net: consistent with send(). Vue2 agentStore.js:423-490 lacks this guard, a potential defect
+        // (errors silently swallowed). Here we ensure error block always has a host assistant message.
         const last = messages.value[messages.value.length - 1] as Record<string, unknown> | undefined
         if (!last || last.role !== 'assistant') {
           startAssistant()
@@ -1079,12 +1088,12 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:491-511 —— 中止当前流。POST /cancel(而非只 abort 请求)有两个理由:
-     * 1) 服务端的 agent task 与请求本身是分离的,只 abort fetch 留任务继续跑,还占着
-     *    per-session 锁 —— 下一次 send() 会 409 agent_busy。
-     * 2) /cancel 会等任务真正终止才响应,给了一个 send() 可以等的同步点。
-     * cancel 的 promise 挂在 pendingCancel 上供 send()/continueRun() 等待;UI 自己可以
-     * 立刻切回非 busy(setStreamingDone 已经做了)。
+     * agentStore.js:491-511 — abort the current stream. POST /cancel (not just abort request)
+     * for two reasons: 1) backend agent task is separate from the request; aborting fetch only
+     * leaves the task running, still holding per-session lock — next send() will 409 agent_busy.
+     * 2) /cancel waits for task to truly terminate before responding, giving send() a sync point to wait on.
+     * Cancel's promise hangs on pendingCancel for send()/continueRun() to await; UI itself can
+     * immediately switch back to non-busy (setStreamingDone already does it).
      */
     async function stop(): Promise<void> {
       const sid = activeSessionId.value
@@ -1099,7 +1108,7 @@ export function useAgentStore(agentType?: string) {
       setStreamingDone()
     }
 
-    /** agentStore.js:513-517 —— 委托给 service 层,confirm_id 缺失时直接抛错。 */
+    /** agentStore.js:513-517 — delegate to service layer; throw directly if confirm_id missing. */
     async function confirmAgentAction(confirmId: string, confirmed: boolean, remember = false): Promise<void> {
       if (!activeSessionId.value) return
       if (!confirmId) throw new Error('confirm_id missing')
@@ -1136,16 +1145,16 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
-     * agentStore.js:519-597 —— 继续一个因 max_turns 而暂停的 run。busy 守卫 + 等
-     * pendingCancel 落定,与 send() 同一套节奏。先把最近一张未继续的 max_turns 卡
-     * 标记为 resumed=true(幂等:防止 busy 恢复后或 run-stream 重连回放时被误点
-     * 重复触发)。onError 这里只做 console.warn,不落 error tool block —— 与
-     * Vue2 continueRun 的错误处理方式一致(比 send() 更轻)。
+     * agentStore.js:519-597 — continue a run paused by max_turns. Busy guard + wait for
+     * pendingCancel to settle, same cadence as send(). First mark the most recent un-continued
+     * max_turns card as resumed=true (idempotent: prevent misclick double-trigger after busy
+     * recovers or run-stream reconnect replays). onError here only console.warn, no error tool
+     * block — consistent with Vue2 continueRun error handling (lighter than send()).
      */
     async function continueRun(): Promise<void> {
       if (busy.value) return
       if (pendingCancel.value) {
-        try { await pendingCancel.value } catch { /* 已吞过 */ }
+        try { await pendingCancel.value } catch { /* already swallowed */ }
       }
       if (!activeSessionId.value || !selectedModel.value) return
 
@@ -1208,8 +1217,8 @@ export function useAgentStore(agentType?: string) {
       activeSessionId,
       messages,
       busy,
-      // SP8-P2a Task 4(D1)—— 必须是 computed,不能写成 `aiTheme.theme`(裸值是取值
-      // 那一刻的快照,会丢响应性,详见 aiTheme.ts 头注释与本任务报告 Step 6 的 RED 验证)。
+      // SP8-P2a Task 4(D1) — must be computed, not `aiTheme.theme` (bare value is snapshot at read-time,
+      // loses reactivity; see aiTheme.ts header comment and this task report Step 6 RED verification).
       theme: computed(() => aiTheme.theme),
       leftCollapsed,
       rightCollapsed,

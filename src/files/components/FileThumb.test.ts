@@ -7,7 +7,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` } },
 }))
 
-// fake IntersectionObserver:observe 时立即回报 intersecting
+// Mock IntersectionObserver: immediately report intersecting on observe
 beforeEach(() => {
   ;(globalThis as any).IntersectionObserver = class {
     cb: (entries: { isIntersecting: boolean }[]) => void

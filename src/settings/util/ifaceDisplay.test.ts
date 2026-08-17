@@ -12,59 +12,59 @@ function row(p: Partial<MergedIface>): MergedIface {
   }
 }
 
-describe('ifaceTypeKey —— 对位 Vue2 getIfaceTypeName(SettingsPanel.vue:2178-2188)', () => {
-  it('虚拟口优先(先判 isVirtual,再判名字)', () => {
+describe('ifaceTypeKey — maps to Vue2 getIfaceTypeName (SettingsPanel.vue:2178-2188)', () => {
+  it('virtual interfaces take priority (checks isVirtual first, then the name)', () => {
     expect(ifaceTypeKey(row({ name: 'docker0', isVirtual: true, type: 'bridge' }))).toBe('settingsNetTypeVirtual')
     expect(ifaceTypeKey(row({ name: 'wlx00', isVirtual: true }))).toBe('settingsNetTypeVirtual')
   })
 
-  it('wl / wlan 前缀 → 按 wireless.mode 分 Wi-Fi / 热点 / Wi-Fi+热点', () => {
+  it('wl / wlan prefix → split by wireless.mode into Wi-Fi / hotspot / Wi-Fi+hotspot', () => {
     expect(ifaceTypeKey(row({ name: 'wlp1s0' }))).toBe('settingsNetTypeWifi')
     expect(ifaceTypeKey(row({ name: 'wlp1s0', wireless: { mode: 'client' } }))).toBe('settingsNetTypeWifi')
     expect(ifaceTypeKey(row({ name: 'wlp1s0', wireless: { mode: 'ap' } }))).toBe('settingsNetTypeHotspot')
     expect(ifaceTypeKey(row({ name: 'wlan0', wireless: { mode: 'concurrent' } }))).toBe('settingsNetTypeWifiHotspot')
   })
 
-  it('大写网卡名也认(Vue2 先 toLowerCase)', () => {
+  it('uppercase interface names are also recognized (Vue2 does toLowerCase first)', () => {
     expect(ifaceTypeKey(row({ name: 'WLP1S0' }))).toBe('settingsNetTypeWifi')
   })
 
-  it('type=thunderbolt → Thunderbolt;其余一律以太网', () => {
+  it('type=thunderbolt → Thunderbolt; everything else is Ethernet', () => {
     expect(ifaceTypeKey(row({ name: 'thunderbolt0', type: 'thunderbolt' }))).toBe('settingsNetTypeThunderbolt')
     expect(ifaceTypeKey(row({ name: 'enp2s0', type: 'ethernet' }))).toBe('settingsNetTypeEthernet')
     expect(ifaceTypeKey(row({ name: 'enp4s0', type: '' }))).toBe('settingsNetTypeEthernet')
   })
 })
 
-describe('formatSpeed / speedLabel —— 对位 Vue2 formatSpeed(:2236)+ 模板 L514-516', () => {
-  it('≥1000 换 Gbps(整除时不留小数,Vue2 是裸除法)', () => {
+describe('formatSpeed / speedLabel — maps to Vue2 formatSpeed (:2236) + template L514-516', () => {
+  it('≥1000 switches to Gbps (no decimals when evenly divisible, Vue2 uses raw division)', () => {
     expect(formatSpeed(1000)).toBe('1 Gbps')
     expect(formatSpeed(2500)).toBe('2.5 Gbps')
     expect(formatSpeed(10000)).toBe('10 Gbps')
   })
-  it('<1000 用 Mbps', () => {
+  it('<1000 uses Mbps', () => {
     expect(formatSpeed(100)).toBe('100 Mbps')
     expect(formatSpeed(1)).toBe('1 Mbps')
   })
-  it('0 / 负数 / NaN → 空串(模板靠 v-if 隐藏整个标签)', () => {
+  it('0 / negative / NaN → empty string (the template hides the whole label via v-if)', () => {
     expect(formatSpeed(0)).toBe('')
     expect(formatSpeed(-1)).toBe('')
     expect(formatSpeed(Number.NaN)).toBe('')
   })
-  it('maxSpeed 更大时显示「协商速率 / 上限」', () => {
+  it('shows "negotiated rate / cap" when maxSpeed is larger', () => {
     expect(speedLabel(1000, 2500)).toBe('1 Gbps / 2.5 Gbps')
   })
-  it('maxSpeed 不大于 speed 时只显示 speed(本机 1000/1000 就是这条)', () => {
+  it('shows only speed when maxSpeed is not greater than speed (this device\'s 1000/1000 is this case)', () => {
     expect(speedLabel(1000, 1000)).toBe('1 Gbps')
     expect(speedLabel(1000, 0)).toBe('1 Gbps')
   })
-  it('speed 为 0 时整体空串(down 的口不显示速率标签)', () => {
+  it('empty string overall when speed is 0 (a down interface shows no speed label)', () => {
     expect(speedLabel(0, 1000)).toBe('')
   })
 })
 
-describe('wirelessModeKey —— 对位 Vue2 wirelessModeLabel(:2190)', () => {
-  it('三种模式各自的 key,未知/无线为空 → 空串', () => {
+describe('wirelessModeKey — maps to Vue2 wirelessModeLabel (:2190)', () => {
+  it('the key for each of the three modes; unknown/no wireless → empty string', () => {
     expect(wirelessModeKey({ mode: 'client' })).toBe('settingsNetModeClient')
     expect(wirelessModeKey({ mode: 'ap' })).toBe('settingsNetModeAp')
     expect(wirelessModeKey({ mode: 'concurrent' })).toBe('settingsNetModeHybrid')
@@ -73,8 +73,8 @@ describe('wirelessModeKey —— 对位 Vue2 wirelessModeLabel(:2190)', () => {
   })
 })
 
-describe('signalBar —— 对位 Vue2 signalIconHtml(WifiForm.vue:110-118)', () => {
-  it('5 档阈值逐字照抄(用绝对值分档)', () => {
+describe('signalBar — maps to Vue2 signalIconHtml (WifiForm.vue:110-118)', () => {
+  it('the 5-tier thresholds copied verbatim (tiers by absolute value)', () => {
     expect(signalBar(0)).toBe(SIGNAL_BARS[4])   // >=0 -> full bars
     expect(signalBar(-45)).toBe(SIGNAL_BARS[4]) // measured: NIMO_Network
     expect(signalBar(-50)).toBe(SIGNAL_BARS[4]) // boundary: <=50
@@ -85,13 +85,13 @@ describe('signalBar —— 对位 Vue2 signalIconHtml(WifiForm.vue:110-118)', ()
     expect(signalBar(-80)).toBe(SIGNAL_BARS[1]) // boundary
     expect(signalBar(-95)).toBe(SIGNAL_BARS[0])
   })
-  it('五个字符就是 Vue2 的那五个(signalBars.js 逐字)', () => {
+  it('the five characters are exactly Vue2\'s five (signalBars.js verbatim)', () => {
     expect(SIGNAL_BARS).toEqual(['▁', '▂', '▃', '▄', '▅'])
   })
 })
 
-describe('switchTargetKey —— 确认框里的目标模式名(Vue2 labels 表 :2200-2204)', () => {
-  it('三个目标各自的 key', () => {
+describe('switchTargetKey — target mode name shown in the confirmation dialog (Vue2 labels table :2200-2204)', () => {
+  it('the key for each of the three targets', () => {
     expect(switchTargetKey('ap')).toBe('settingsNetTargetAp')
     expect(switchTargetKey('client')).toBe('settingsNetTargetClient')
     expect(switchTargetKey('concurrent')).toBe('settingsNetTargetHybrid')

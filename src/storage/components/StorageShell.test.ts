@@ -24,25 +24,25 @@ async function mountShell(path: string) {
 }
 
 describe('StorageShell', () => {
-  it('渲染标题、三个页签和 slot 内容', async () => {
+  it('renders the title, three tabs, and slot content', async () => {
     const { w } = await mountShell('/storage')
     expect(w.find('.st-title').exists()).toBe(true)
     expect(w.findAll('.st-tab')).toHaveLength(3)
     expect(w.find('.probe').text()).toBe('body')
   })
-  it('当前路由的页签带 active', async () => {
+  it('the tab for the current route gets active', async () => {
     const { w } = await mountShell('/storage/drives')
     const tabs = w.findAll('.st-tab')
     expect(tabs[0].classes()).not.toContain('active')
     expect(tabs[1].classes()).toContain('active')
     expect(tabs[2].classes()).not.toContain('active')
   })
-  it('RAID 详情页(startsWith)也高亮 RAID 页签', async () => {
+  it('the RAID detail page (startsWith) also highlights the RAID tab', async () => {
     const { w } = await mountShell('/storage/raid/9')
     const tabs = w.findAll('.st-tab')
     expect(tabs[2].classes()).toContain('active')
   })
-  it('回主页按钮 push /', async () => {
+  it('the home button pushes /', async () => {
     const { w, router } = await mountShell('/storage')
     await w.find('.st-home').trigger('click')
     await flushPromises()

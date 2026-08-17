@@ -1,17 +1,18 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentSidebar.vue(143 行)。
-  差异(1a 裁剪 + New-UI 适配):
-  - 删除确认:Buefy `$buefy.dialog.confirm` → New-UI `AlertDialog`(destructive)。
-    reka-ui 的 AlertDialogAction 点击时 update:open(false) 先于 confirm 事件派发,
-    所以 open 与待删 id 打包在同一个 ref 里,v-model:open 只改 .open,confirm
-    处理器读 .id 之后再 emit——参照 src/apps/views/InstalledAppsPage.vue:25-70
-    记录的 SP5-P1 CRITICAL 教训。
-  - `$EventBus` 的 avatar-changed 订阅整段删除(1c 再补,见下方模板注释)。
+  1:1 port from Vue2 src/views/AI/Agent/shell/AgentSidebar.vue (143 lines).
+  Differences (1a trim + New-UI adaptation):
+  - Delete confirmation: Buefy `$buefy.dialog.confirm` → New-UI `AlertDialog` (destructive).
+    Reka-ui's AlertDialogAction emits update:open(false) before the confirm event, so open and
+    the to-be-deleted id are bundled in the same ref; v-model:open only changes .open, and the
+    confirm handler reads .id before emitting — see the SP5-P1 CRITICAL lesson recorded in
+    src/apps/views/InstalledAppsPage.vue:25-70.
+  - `$EventBus` avatar-changed subscription removed entirely (to be added back in 1c; see
+    template comment below).
   - `$store.state.access_token` → `localStorage.getItem('access_token')`;
-    `$store.state.user` → New-UI 目前没有专门的响应式 user store,session store
-    只是把登录/状态响应体原样落 `localStorage['user']`(与 access_token 同款
-    落盘方式,见 src/stores/session.ts:USER),这里直接同口径读取解析,不额外
-    发一次 service.users 请求。
+    `$store.state.user` → New-UI currently has no dedicated reactive user store; the session
+    store simply persists the login/status response body as-is to `localStorage['user']` (same
+    persistence method as access_token; see src/stores/session.ts:USER), so here we directly
+    read and parse using the same channel without making an additional service.users request.
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'

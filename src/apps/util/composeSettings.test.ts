@@ -78,28 +78,28 @@ describe('parseSettings', () => {
     expect(m.services[0].restart).toBe('unless-stopped')
     expect(m.services[0].environment).toEqual([{ a: 'FOO', b: 'bar' }])
   })
-  it('command 解析:数组逐项映射为 token,commandDirty 初始 false', () => {
+  it('command parsing: array items mapped to tokens, commandDirty initially false', () => {
     const m = parseSettings(FIXTURE, 'zh_cn')
     expect(m.services[0].commandTokens).toEqual(['--verbose'])
     expect(m.services[0].commandDirty).toBe(false)
   })
-  it('command 解析:字符串保守展示为单 token,commandDirty 初始 false', () => {
+  it('command parsing: string conservatively displayed as single token, commandDirty initially false', () => {
     const y = 'services:\n  a:\n    image: x\n    command: echo "hello world"\n'
     const m = parseSettings(y, 'zh_cn')
     expect(m.services[0].commandTokens).toEqual(['echo "hello world"'])
     expect(m.services[0].commandDirty).toBe(false)
   })
-  it('command 解析:缺省为空 tokens', () => {
+  it('command parsing: default to empty tokens', () => {
     const m = parseSettings('services:\n  a:\n    image: x\n', 'zh_cn')
     expect(m.services[0].commandTokens).toEqual([])
   })
-  it('network 解析:network_mode 优先于 networks,networkDirty 初始 false', () => {
+  it('network parsing: network_mode takes precedence over networks, networkDirty initially false', () => {
     const y = 'services:\n  a:\n    image: x\n    network_mode: host\n    networks: [other]\n'
     const m = parseSettings(y, 'zh_cn')
     expect(m.services[0].network).toBe('host')
     expect(m.services[0].networkDirty).toBe(false)
   })
-  it('network 解析:无 network_mode 时取 networks 首个元素/key,都缺省则空串', () => {
+  it('network parsing: when network_mode is absent, take first element/key of networks, defaults to empty string if both absent', () => {
     expect(parseSettings('services:\n  a:\n    image: x\n    networks: [mynet, other]\n', 'zh_cn').services[0].network).toBe('mynet')
     expect(parseSettings('services:\n  a:\n    image: x\n    networks:\n      mynet: {}\n      other: {}\n', 'zh_cn').services[0].network).toBe('mynet')
     expect(parseSettings('services:\n  a:\n    image: x\n', 'zh_cn').services[0].network).toBe('')
@@ -107,13 +107,13 @@ describe('parseSettings', () => {
 })
 
 describe('command/network dirty-flag build (D5)', () => {
-  it('command 未编辑原样保留(string 形式不被改写)', () => {
+  it('command unedited remains unchanged (string form not rewritten)', () => {
     const yml = 'name: a\nservices:\n  a:\n    image: x\n    command: echo "hello world"\n'
     const m = parseSettings(yml, 'zh_cn')
     const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { command: unknown }> }
     expect(out.services.a.command).toBe('echo "hello world"')
   })
-  it('command 编辑后写数组形式', () => {
+  it('command after editing written as array form', () => {
     const yml = 'name: a\nservices:\n  a:\n    image: x\n'
     const m = parseSettings(yml, 'zh_cn')
     m.services[0].commandTokens = ['redis-server', '--appendonly', 'yes']
@@ -121,7 +121,7 @@ describe('command/network dirty-flag build (D5)', () => {
     const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { command: unknown }> }
     expect(out.services.a.command).toEqual(['redis-server', '--appendonly', 'yes'])
   })
-  it('command 编辑为空 tokens 时删除 command', () => {
+  it('command edited to empty tokens, delete command', () => {
     const yml = 'name: a\nservices:\n  a:\n    image: x\n    command: ["--verbose"]\n'
     const m = parseSettings(yml, 'zh_cn')
     m.services[0].commandTokens = []
@@ -129,20 +129,20 @@ describe('command/network dirty-flag build (D5)', () => {
     const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { command?: unknown }> }
     expect(out.services.a.command).toBeUndefined()
   })
-  it('network 未编辑不写回(原 network_mode 保留)', () => {
+  it('network unedited not written back (original network_mode preserved)', () => {
     const yml = 'name: a\nservices:\n  a:\n    image: x\n    network_mode: host\n'
     const m = parseSettings(yml, 'zh_cn')
     const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { network_mode?: string }> }
     expect(out.services.a.network_mode).toBe('host')
   })
-  it('network 选 host 写 network_mode', () => {
+  it('network choose host, write network_mode', () => {
     const yml = 'name: a\nservices:\n  a:\n    image: x\n'
     const m = parseSettings(yml, 'zh_cn')
     m.services[0].network = 'host'; m.services[0].networkDirty = true
     const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { network_mode?: string }> }
     expect(out.services.a.network_mode).toBe('host')
   })
-  it('network 选自定义网络写 networks 并 merge 顶层', () => {
+  it('network choose custom network, write networks and merge top-level', () => {
     const yml = 'name: a\nservices:\n  a:\n    image: x\n'
     const m = parseSettings(yml, 'zh_cn')
     m.services[0].network = 'mynet'; m.services[0].networkDirty = true
@@ -150,7 +150,7 @@ describe('command/network dirty-flag build (D5)', () => {
     expect(out.services.a.networks).toEqual(['mynet'])
     expect(out.networks).toHaveProperty('mynet')
   })
-  it('network 选自定义网络时顶层已有同名定义则保留原样(??= merge 语义)', () => {
+  it('network choose custom network, if top-level has same-name definition then preserve original (??= merge semantics)', () => {
     const yml = 'name: a\nservices:\n  a:\n    image: x\nnetworks:\n  mynet:\n    external: true\n'
     const m = parseSettings(yml, 'zh_cn')
     m.services[0].network = 'mynet'; m.services[0].networkDirty = true
@@ -160,16 +160,16 @@ describe('command/network dirty-flag build (D5)', () => {
 })
 
 describe('rewriteImageTag', () => {
-  it('替换已有 tag', () => {
+  it('replace existing tag', () => {
     expect(rewriteImageTag('linuxserver/syncthing:1.23.0', 'latest')).toBe('linuxserver/syncthing:latest')
   })
-  it('无 tag 时追加', () => {
+  it('append when no tag', () => {
     expect(rewriteImageTag('redis', 'stable')).toBe('redis:stable')
   })
-  it('registry 带端口且无 tag 时追加(不误判端口为 tag)', () => {
+  it('registry with port and no tag, append (not mistaking port for tag)', () => {
     expect(rewriteImageTag('myregistry:5000/redis', 'stable')).toBe('myregistry:5000/redis:stable')
   })
-  it('registry 带端口且有 tag 时只替换 tag 段', () => {
+  it('registry with port and existing tag, only replace tag segment', () => {
     expect(rewriteImageTag('myregistry:5000/redis:1.2', 'stable')).toBe('myregistry:5000/redis:stable')
   })
 })
@@ -222,7 +222,7 @@ describe('parseMemoryToMB / minMemoryMB', () => {
   })
 })
 
-describe('ports pass-through (P4 挂账修复)', () => {
+describe('ports pass-through (P4 outstanding fix)', () => {
   const yml = `name: crafty
 services:
   crafty:
@@ -235,7 +235,7 @@ services:
         published: 19132-19140
         protocol: udp
 `
-  it('认不出的条目进 portsExtra,认得出的进 ports', () => {
+  it('unrecognized items go to portsExtra, recognized items go to ports', () => {
     const m = parseSettings(yml, 'zh_cn')
     const svc = m.services[0]
     expect(svc.ports).toEqual([{ published: '8443', target: '8443', protocol: 'tcp' }])
@@ -245,7 +245,7 @@ services:
       { target: 19132, published: '19132-19140', protocol: 'udp' },
     ])
   })
-  it('buildYaml 原样写回 portsExtra,不塌陷不丢失', () => {
+  it('buildYaml writes back portsExtra as-is, does not collapse or lose', () => {
     const m = parseSettings(yml, 'zh_cn')
     const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { ports: unknown[] }> }
     const ports = out.services.crafty.ports
@@ -255,7 +255,7 @@ services:
     // editable rows still serialize normally
     expect(ports).toContainEqual({ target: 8443, published: '8443', protocol: 'tcp' })
   })
-  it('用户编辑可编辑行不影响透传条目', () => {
+  it('user editing editable rows does not affect pass-through items', () => {
     const m = parseSettings(yml, 'zh_cn')
     m.services[0].ports[0].published = '9443'
     const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { ports: unknown[] }> }
@@ -263,7 +263,7 @@ services:
     expect(out.services.crafty.ports).toContainEqual('25500-25600:25500-25600')
   })
 
-  it('长格式 protocol 非 tcp/udp(如 sctp)→ 原样透传,不被夹成 tcp 可编辑行', () => {
+  it('long-format protocol not tcp/udp (e.g. sctp) → pass-through as-is, not converted to tcp editable row', () => {
     const y = `name: x
 services:
   x:
@@ -282,17 +282,17 @@ services:
   })
 })
 
-describe('command 保守写回(P6 修复:string 不再塌成单元素 exec 数组)', () => {
-  it('string command 解析时标记 commandWasString', () => {
+describe('command conservative write-back (P6 fix: string no longer collapses to single-element exec array)', () => {
+  it('string command marked commandWasString during parsing', () => {
     const m = parseSettings('services:\n  app:\n    image: redis\n    command: redis-server --appendonly yes\n', 'zh_cn')
     expect(m.services[0].commandWasString).toBe(true)
     expect(m.services[0].commandTokens).toEqual(['redis-server --appendonly yes'])
   })
-  it('数组 command 标记为 false', () => {
+  it('array command marked as false', () => {
     const m = parseSettings('services:\n  app:\n    image: redis\n    command: ["redis-server", "--appendonly"]\n', 'zh_cn')
     expect(m.services[0].commandWasString).toBe(false)
   })
-  it('原 string + 编辑后仍单 token → 写回 string(不是单元素数组)', () => {
+  it('original string + still single token after editing → write back as string (not single-element array)', () => {
     const yml = 'services:\n  app:\n    image: redis\n    command: redis-server --appendonly yes\n'
     const m = parseSettings(yml, 'zh_cn')
     m.services[0].commandTokens = ['redis-server --appendonly no']
@@ -300,7 +300,7 @@ describe('command 保守写回(P6 修复:string 不再塌成单元素 exec 数�
     const doc = YAML.parse(buildYaml(yml, m))
     expect(doc.services.app.command).toBe('redis-server --appendonly no')
   })
-  it('原 string + 编辑成多 token → 正常写数组', () => {
+  it('original string + edited to multiple tokens → write array normally', () => {
     const yml = 'services:\n  app:\n    image: redis\n    command: redis-server\n'
     const m = parseSettings(yml, 'zh_cn')
     m.services[0].commandTokens = ['redis-server', '--appendonly', 'yes']
@@ -310,19 +310,19 @@ describe('command 保守写回(P6 修复:string 不再塌成单元素 exec 数�
   })
 })
 
-describe('多网络防护(P6 修复:networksMultiple 时 buildYaml 不动网络)', () => {
+describe('multiple networks protection (P6 fix: when networksMultiple, buildYaml does not touch networks)', () => {
   const MULTI = 'services:\n  app:\n    image: x\n    networks:\n      - net_a\n      - net_b\n'
-  it('多网络解析时标记 networksMultiple', () => {
+  it('multiple networks marked networksMultiple during parsing', () => {
     expect(parseSettings(MULTI, 'zh_cn').services[0].networksMultiple).toBe(true)
   })
-  it('单网络/network_mode 标记为 false', () => {
+  it('single network/network_mode marked as false', () => {
     expect(parseSettings('services:\n  app:\n    image: x\n    networks: [net_a]\n', 'zh_cn').services[0].networksMultiple).toBe(false)
     expect(parseSettings('services:\n  app:\n    image: x\n    network_mode: host\n', 'zh_cn').services[0].networksMultiple).toBe(false)
   })
-  it('dict 形式多网络同样标记', () => {
+  it('dict-format multiple networks marked the same', () => {
     expect(parseSettings('services:\n  app:\n    image: x\n    networks:\n      net_a: {}\n      net_b: {}\n', 'zh_cn').services[0].networksMultiple).toBe(true)
   })
-  it('即使 networkDirty 被误置 true,多网络服务的 networks 也原样保留(带刹车)', () => {
+  it('even if networkDirty is mistakenly set to true, multi-network service networks remain unchanged (with brake)', () => {
     const m = parseSettings(MULTI, 'zh_cn')
     m.services[0].network = 'bridge'
     m.services[0].networkDirty = true
@@ -332,7 +332,7 @@ describe('多网络防护(P6 修复:networksMultiple 时 buildYaml 不动网络)
   })
 })
 
-describe('mode:ingress 容忍(后端 GET yaml 归一化产物,Crafty 验收实锤)', () => {
+describe('mode:ingress tolerance (backend GET yaml normalization result, Crafty acceptance verified)', () => {
   const yml = `name: crafty
 services:
   crafty:
@@ -347,12 +347,12 @@ services:
         protocol: tcp
         mode: host
 `
-  it('mode:ingress 的单端口进可编辑行,mode:host 进透传', () => {
+  it('mode:ingress single port goes to editable rows, mode:host goes to pass-through', () => {
     const m = parseSettings(yml, 'zh_cn')
     expect(m.services[0].ports).toEqual([{ published: '8111', target: '8443', protocol: 'tcp' }])
     expect(m.services[0].portsExtra).toEqual([{ target: 25565, published: '25565', protocol: 'tcp', mode: 'host' }])
   })
-  it('重建时省略 mode(ingress 即默认,同义),mode:host 原样保留', () => {
+  it('omit mode when rebuilding (ingress is default, same meaning), mode:host preserved as-is', () => {
     const m = parseSettings(yml, 'zh_cn')
     const out = YAML.parse(buildYaml(yml, m)) as { services: Record<string, { ports: unknown[] }> }
     expect(out.services.crafty.ports).toContainEqual({ target: 8443, published: '8111', protocol: 'tcp' })

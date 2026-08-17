@@ -1,8 +1,9 @@
 import { ref } from 'vue'
 
-// 模块级单例(useDock/useAddPanel 同款):AreaShell(☰ 钮)与各区 Sidebar(files/apps)(抽屉/遮罩)
-// 以及三个页面(Files/Shares/Drop)共享同一份状态。
-// matchMedia 不存在时(jsdom)isNarrow 恒 false,一切退化为桌面常驻侧栏。
+// Module-level singleton (same as useDock/useAddPanel): AreaShell (☰ button) and each
+// section's Sidebar (files/apps) (drawer/overlay) and the three pages (Files/Shares/Drop)
+// share the same state. When matchMedia does not exist (jsdom), isNarrow is always false,
+// everything degrades to a permanently resident desktop sidebar.
 const isNarrow = ref(false)
 const open = ref(false)
 let mq: MediaQueryList | null = null
@@ -10,7 +11,7 @@ let inited = false
 
 function onChange(e: MediaQueryListEvent | { matches: boolean }) {
   isNarrow.value = e.matches
-  if (!e.matches) open.value = false // 离开窄屏清零抽屉态,桌面恒常驻
+  if (!e.matches) open.value = false // When leaving narrow screen, reset drawer state; desktop always resident
 }
 
 function init() {

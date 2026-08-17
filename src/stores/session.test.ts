@@ -56,47 +56,48 @@ describe('useSessionStore', () => {
   })
 })
 
-describe('SP8-P2b Task 2 —— user / isAdmin 读口', () => {
+describe('SP8-P2b Task 2 -- user / isAdmin read side', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
   })
 
-  it('localStorage 里有 admin 用户时 user 能读回、isAdmin 为 true', () => {
+  it('when localStorage has an admin user, user reads back and isAdmin is true', () => {
     localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
     const s = useSessionStore()
     expect(s.user?.username).toBe('nimo')
     expect(s.isAdmin).toBe(true)
   })
 
-  it('非 admin 角色 isAdmin 为 false', () => {
+  it('isAdmin is false for a non-admin role', () => {
     localStorage.setItem('user', JSON.stringify({ username: 'guest', role: 'user' }))
     const s = useSessionStore()
     expect(s.isAdmin).toBe(false)
   })
 
-  it('localStorage 无 user 时 user 为 null、isAdmin 为 false(不抛)', () => {
+  it('when localStorage has no user, user is null and isAdmin is false (no throw)', () => {
     const s = useSessionStore()
     expect(s.user).toBeNull()
     expect(s.isAdmin).toBe(false)
   })
 
-  it('localStorage 里是坏 JSON 时也不抛,退化成 null', () => {
+  it('bad JSON in localStorage does not throw either, degrades to null', () => {
     localStorage.setItem('user', '{不是 JSON')
     const s = useSessionStore()
     expect(s.user).toBeNull()
     expect(s.isAdmin).toBe(false)
   })
 
-  it('user 不是对象(比如存了字符串)时也退化成 null', () => {
+  it('degrades to null when user is not an object (e.g. a stored string)', () => {
     localStorage.setItem('user', '"nimo"')
     const s = useSessionStore()
     expect(s.user).toBeNull()
   })
 
-  // final review Fix 7 —— 证明同一个 store 实例内 setUser 之后 user/isAdmin 立刻重算
-  // (不依赖整页重载)。Login.vue:44 用的是 router.push,不是整页刷新,所以这条必须成立。
-  it('同一实例内 setUser 之后 user / isAdmin 立刻更新,不需要重新拿实例或刷新页面', () => {
+  // final review Fix 7 -- proves that within the same store instance, user/isAdmin recompute
+  // immediately after setUser (without relying on a full page reload). Login.vue:44 uses
+  // router.push, not a full page refresh, so this must hold.
+  it('after setUser within the same instance, user / isAdmin update immediately without re-fetching the instance or reloading the page', () => {
     const s = useSessionStore()
     expect(s.user).toBeNull()
     expect(s.isAdmin).toBe(false)
@@ -105,7 +106,7 @@ describe('SP8-P2b Task 2 —— user / isAdmin 读口', () => {
     expect(s.user).toEqual({ username: 'nimo', role: 'admin' })
     expect(s.isAdmin).toBe(true)
 
-    // 模拟同一会话里登出又登录成另一个非管理员账号(无整页重载)
+    // simulate logging out and back in as a different, non-admin account within the same session (no full page reload)
     s.clear()
     s.setUser({ username: 'guest', role: 'user' })
     expect(s.user).toEqual({ username: 'guest', role: 'user' })

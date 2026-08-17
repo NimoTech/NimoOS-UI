@@ -1,9 +1,9 @@
-// 1:1 逐字港 Vue2 src/views/AI/Agent/shell/ModelPicker.vue 的纯计算逻辑
-// (computed: localModels/cloudModels/cloudGroups 与 methods.formatSize),
-// 拆成独立纯函数供 ModelPicker.vue 和单测直接调用。
+// 1:1 character-for-character port of Vue2 src/views/AI/Agent/shell/ModelPicker.vue's pure computation logic
+// (computed: localModels/cloudModels/cloudGroups and methods.formatSize),
+// split into standalone pure functions for ModelPicker.vue and unit tests to call directly.
 import type { AgentModel } from '../stores/agentStore'
 
-/** Vue2 ModelPicker.vue:82-83 —— 按 source 拆成两组,保持原顺序。 */
+/** Vue2 ModelPicker.vue:82-83 —— split into two groups by source, preserving original order. */
 export function splitModels(list: AgentModel[]): { local: AgentModel[]; cloud: AgentModel[] } {
   return {
     local: list.filter((m) => m.source === 'local'),
@@ -12,22 +12,22 @@ export function splitModels(list: AgentModel[]): { local: AgentModel[]; cloud: A
 }
 
 export interface CloudGroup {
-  // F6 修复(review)—— 原声明为非 optional `string | number`,但实际值来自
-  // `AgentModel.providerId?: string | number | undefined`,此前靠 `as string
-  // | number` 断言掩盖了这个事实。Vue2 ModelPicker.vue:92-97 对缺 providerId 的
-  // 模型**不跳过**——`pid = m.providerId`(undefined)当对象 key 用时被隐式转成
-  // 字符串 `"undefined"`,同 providerId 缺失的模型仍会被分进（同一个）组,只是
-  // 组名是 undefined。跳过这类模型会改变 Vue2 的分组行为,所以这里选择如实放宽
-  // 声明类型以匹配运行时,而不是在边界处过滤/替换。
+  // F6 fix (review) —— original declaration was non-optional `string | number`, but actual value comes from
+  // `AgentModel.providerId?: string | number | undefined`, previously hidden this fact via `as string
+  // | number` assertion. Vue2 ModelPicker.vue:92-97 does **not skip** models lacking providerId ——
+  // `pid = m.providerId`(undefined) when used as object key is implicitly converted to string `"undefined"`,
+  // models with missing providerId still get grouped into the (same) group, just the group name is
+  // undefined. Skipping such models would change Vue2's grouping behavior, so here chose to truthfully
+  // loosen the declared type to match runtime, rather than filter/replace at the boundary.
   providerId: string | number | undefined
   providerName?: string
   models: AgentModel[]
 }
 
 /**
- * Vue2 ModelPicker.vue:84-100 —— query 非空时**只按 displayName** 过滤(不搜索
- * providerName),然后按 provider 首次出现的顺序分组(index 表记录每个
- * providerId 第一次出现时分配到的组下标)。
+ * Vue2 ModelPicker.vue:84-100 —— when query is non-empty, **filter by displayName only** (do not search
+ * providerName), then group by the order of first provider appearance (index table records the group
+ * index assigned when each providerId first appears).
  */
 export function cloudGroups(cloud: AgentModel[], query: string): CloudGroup[] {
   const q = query.trim().toLowerCase()
@@ -46,7 +46,7 @@ export function cloudGroups(cloud: AgentModel[], query: string): CloudGroup[] {
   return byProvider
 }
 
-/** Vue2 ModelPicker.vue:113-118 —— >=1GB 显示一位小数的 GB,否则取整 MB,0/undefined 返回空串。 */
+/** Vue2 ModelPicker.vue:113-118 —— show one decimal place GB if >=1GB, otherwise round MB, 0/undefined returns empty string. */
 export function formatModelSize(bytes?: number): string {
   if (!bytes) return ''
   const gb = bytes / 1024 / 1024 / 1024

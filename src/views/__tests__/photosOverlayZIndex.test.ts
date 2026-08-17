@@ -24,7 +24,7 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 function read(rel: string): string {
   const text = fs.readFileSync(path.join(SRC, rel), 'utf8')
-  expect(text.length, `${rel} 读到空内容,取数方式失效了`).toBeGreaterThan(0)
+  expect(text.length, `${rel} read as empty -- the way this file is loaded has stopped working`).toBeGreaterThan(0)
   return text
 }
 
@@ -71,11 +71,11 @@ describe('Fix-8 round 2: sibling-of-.app overlays keep an explicit z-index above
   for (const { name, selector, files } of OVERLAYS) {
     it(`${name} declares position:fixed with an explicit numeric z-index >= ${MIN_Z}`, () => {
       const bodies = files.flatMap((f) => ruleBodies(read(f), selector))
-      expect(bodies.length, `找不到规则 ${selector} in ${files.join(', ')}`).toBeGreaterThan(0)
+      expect(bodies.length, `rule ${selector} not found in ${files.join(', ')}`).toBeGreaterThan(0)
       for (const body of bodies) {
-        expect(body, `${selector} 缺 position:fixed`).toMatch(/position\s*:\s*fixed/)
+        expect(body, `${selector} is missing position:fixed`).toMatch(/position\s*:\s*fixed/)
         const m = /z-index\s*:\s*(-?\d+)/.exec(body)
-        expect(m, `${selector} 缺显式数值 z-index(或退化成 auto)——正是 F8 round 2 假说描述的失效形状`).not.toBeNull()
+        expect(m, `${selector} has no explicit numeric z-index (or degraded to auto) -- exactly the failure shape the F8 round 2 hypothesis describes`).not.toBeNull()
         expect(Number(m?.[1])).toBeGreaterThanOrEqual(MIN_Z)
       }
     })

@@ -15,7 +15,7 @@ beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => { document.body.innerHTML = '' })
 
 describe('ShareLinkDialog', () => {
-  it('open 时渲染 host+name 的 UNC/SMB 路径', async () => {
+  it('renders UNC/SMB paths of host+name when open', async () => {
     Object.defineProperty(window, 'location', { value: { hostname: '10.0.0.5' }, writable: true })
     mount(ShareLinkDialog, {
       props: { open: true, name: 'Docs' },

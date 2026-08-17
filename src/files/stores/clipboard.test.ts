@@ -16,7 +16,7 @@ describe('clipboard store', () => {
     expect(c.hasPasteData).toBe(true)
   })
 
-  it('operate(move) 写 type:move', () => {
+  it('operate(move) writes type:move', () => {
     const c = useClipboardStore()
     c.operate('move', [{ path: '/DATA/x', is_dir: false }])
     expect(c.operateObject?.type).toBe('move')
@@ -34,10 +34,10 @@ describe('clipboard store', () => {
     ])
   })
 
-  it('isCut 仅在 move 且路径匹配时为 true;copy 永不灰显', () => {
+  it('isCut is true only when move and path matches; copy never grays out', () => {
     const c = useClipboardStore()
     c.operate('copy', [{ path: '/DATA/a', is_dir: false }])
-    expect(c.isCut('/DATA/a')).toBe(false) // copy 不算 cut
+    expect(c.isCut('/DATA/a')).toBe(false) // copy does not count as cut
     c.operate('move', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
     expect(c.isCut('/DATA/a')).toBe(true)
     expect(c.isCut('/DATA/c')).toBe(false)
@@ -50,7 +50,7 @@ describe('clipboard store', () => {
     expect(store.isCut('/DATA/other')).toBe(false)
   })
 
-  it('clear 清空,hasPasteData 变 false', () => {
+  it('clear empties, hasPasteData becomes false', () => {
     const c = useClipboardStore()
     c.operate('move', [{ path: '/DATA/a', is_dir: false }])
     c.clear()

@@ -1,5 +1,5 @@
-/* 文件夹选择器的纯 helper。1:1 移植 Vue2
- * NimoOS-UI/src/components/common/folderBrowser.js(34 行)。
+/* Pure helpers for the folder picker. 1:1 port of Vue2
+ * NimoOS-UI/src/components/common/folderBrowser.js (34 lines).
  */
 import type { FolderEntry } from '@nimotech/nimoos-service'
 import type { FolderCandidate } from './folderPermissions'
@@ -13,9 +13,10 @@ export function dirEntries(content: FolderEntry[] | null | undefined): { name: s
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-/** 选择器的根层。候选来自 Wiki 服务(LocalStorage 支撑的卷);候选为空或取不到时
- *  选择器仍必须可用,所以回退到 NimoOS 的固定布局。
- *  ⚠️ SP9-P4 的快照恒空 → 真机上看到的就是这三个回退根。 */
+/** Root layer for the picker. Candidates come from the Wiki service (volumes backed by LocalStorage);
+ *  when candidates are empty or unavailable, the picker must still work, so it falls back to
+ *  NimoOS's fixed layout.
+ *  ⚠️ The SP9-P4 snapshot is always empty → what you see on a real device is exactly these three fallback roots. */
 export function pickerRoots(candidates: FolderCandidate[] | null | undefined): PickerRoot[] {
   const cands = candidates || []
   if (cands.length) {

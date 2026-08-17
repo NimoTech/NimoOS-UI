@@ -75,14 +75,14 @@ describe('Welcome.vue', () => {
     expect((password.element as HTMLInputElement).type).toBe('password')
   })
 
-  it('点击英文按钮即时切换语言', async () => {
+  it('clicking the English button switches the language immediately', async () => {
     const w = await mountWelcome()
     await w.find('.welcome-go').trigger('click')
     await w.find('.welcome-lang-en').trigger('click')
     expect(setLocale).toHaveBeenCalledWith('en_us')
   })
 
-  it('创建成功后以选中语言持久化', async () => {
+  it('persists the chosen language after successful account creation', async () => {
     const w = await mountWelcome()
     await w.find('.welcome-go').trigger('click')
     await w.find('.welcome-lang-en').trigger('click')

@@ -24,27 +24,27 @@ beforeEach(() => {
 })
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
-describe('PowerFlow 按钮与确认', () => {
-  it('渲染关机与重启两个按钮', () => {
+describe('PowerFlow buttons and confirmation', () => {
+  it('renders both the shutdown and restart buttons', () => {
     const w = mountIt()
     expect(w.find('.pf-shutdown').exists()).toBe(true)
     expect(w.find('.pf-restart').exists()).toBe(true)
   })
 
-  it('两个按钮都有无障碍名(纯图标按钮)', () => {
+  it('both buttons have accessible names (icon-only buttons)', () => {
     const w = mountIt()
     expect(w.find('.pf-shutdown').attributes('aria-label')).toBe('关机')
     expect(w.find('.pf-restart').attributes('aria-label')).toBe('重启')
   })
 
-  it('点关机先弹确认,**未确认前不下发**(对位 Vue2 power() 只是开确认框)', async () => {
+  it('clicking shutdown opens the confirmation first — **nothing is sent before confirming** (matches Vue2, where power() only opens the confirm dialog)', async () => {
     const w = mountIt()
     await w.find('.pf-shutdown').trigger('click')
     expect(w.findAllComponents(AlertDialog)[0].props('open')).toBe(true)
     expect(powerCalls).toEqual([])
   })
 
-  it('确认关机才 PUT off,并显示 shutting 浮层', async () => {
+  it('confirming shutdown sends PUT off and shows the shutting overlay', async () => {
     const w = mountIt()
     await w.find('.pf-shutdown').trigger('click')
     w.findAllComponents(AlertDialog)[0].vm.$emit('confirm')
@@ -53,7 +53,7 @@ describe('PowerFlow 按钮与确认', () => {
     expect(w.text()).toContain('正在关机')
   })
 
-  it('取消关机:不下发、无浮层', async () => {
+  it('canceling shutdown: nothing sent, no overlay', async () => {
     const w = mountIt()
     await w.find('.pf-shutdown').trigger('click')
     w.findAllComponents(AlertDialog)[0].vm.$emit('update:open', false)
@@ -62,7 +62,7 @@ describe('PowerFlow 按钮与确认', () => {
     expect(w.text()).not.toContain('正在关机')
   })
 
-  it('确认重启才 PUT restart', async () => {
+  it('confirming restart sends PUT restart', async () => {
     const w = mountIt()
     await w.find('.pf-restart').trigger('click')
     w.findAllComponents(AlertDialog)[1].vm.$emit('confirm')
@@ -71,7 +71,7 @@ describe('PowerFlow 按钮与确认', () => {
     expect(w.text()).toContain('正在重启')
   })
 
-  it('power 接口报错也照样进浮层(Vue2 .catch(()=>{}) —— 关机请求常常来不及回响应)', async () => {
+  it('the overlay still shows even if the power API errors out (Vue2 .catch(()=>{}) — shutdown requests often never get a response back in time)', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'power').mockRejectedValueOnce(new Error('boom'))
     const w = mountIt()
@@ -85,7 +85,7 @@ describe('PowerFlow 按钮与确认', () => {
   // buttons remain keyboard-reachable (during the "restart timeout" phase, tabbing over
   // and pressing Enter could really shut the machine down). No focus trap (separate
   // effort) — just disable the buttons: both must be disabled when phase !== 'idle'.
-  it('非 idle 相位下电源按钮禁用,防止浮层下被键盘触发(评审 fix round 2)', async () => {
+  it('power buttons are disabled outside the idle phase, to prevent keyboard activation behind the overlay (review fix round 2)', async () => {
     const w = mountIt()
     await w.find('.pf-shutdown').trigger('click')
     w.findAllComponents(AlertDialog)[0].vm.$emit('confirm')
@@ -100,8 +100,8 @@ describe('PowerFlow 按钮与确认', () => {
 // component that only takes a phase prop) — no need to add test-only production hooks
 // like __setPhase on PowerFlow.
 
-describe('PowerFlow 清理', () => {
-  it('卸载时停掉相位机的定时器', async () => {
+describe('PowerFlow cleanup', () => {
+  it('stops the phase-machine timer on unmount', async () => {
     const w = mountIt()
     await w.find('.pf-shutdown').trigger('click')
     w.findAllComponents(AlertDialog)[0].vm.$emit('confirm')

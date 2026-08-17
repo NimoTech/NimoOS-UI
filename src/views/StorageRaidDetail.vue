@@ -28,32 +28,40 @@ const { t } = useI18n()
 
 const idStr = computed(() => String(route.params.id))
 
-// 先 loadRaid() 拿阵列名/level(list 视图可能未跑过),再拉本阵列的 status/usage 详情。
+// First call loadRaid() to get the array name/level (the list view may not have run yet),
+// then pull this array's status/usage details.
 //
-// 必须先 clearRaidDetail():这两次请求是串行的,期间页面渲染的还是 store 里**上一次**
-// 的快照。换完盘再点进详情页会看到换盘前那一帧(空槽位 + 故障盘,4 行成员),
-// 看起来像替换没生效(2026-07-28 实盘验收发现)。
+// Must call clearRaidDetail() first: these two requests are sequential, and during that
+// window the page still renders the store's **previous** snapshot. Clicking into the detail
+// page right after replacing a disk would show the pre-replace frame (empty slot + faulty
+// disk, 4 member rows), looking as though the replacement didn't take effect (found during
+// 2026-07-28 real-device acceptance testing).
 function reloadDetail() {
   store.clearRaidDetail()
   store.loadRaid().then(() => store.loadRaidDetail(idStr.value))
 }
 onMounted(reloadDetail)
-// :id 变化时组件实例被路由复用、onMounted 不会再跑 —— 没有这个 watcher,从一个阵列
-// 详情页跳到另一个阵列详情页会一直显示前一个阵列的数据(P3 遗留台账项)。
+// When :id changes, the component instance is reused by the router and onMounted doesn't run
+// again -- without this watcher, navigating from one array's detail page to another's would
+// keep showing the previous array's data (a P3 leftover ledger item).
 watch(idStr, reloadDetail)
 
-// 换盘弹窗的候选盘来自 store.availDisks,而它只由 loadDrives() 填充。
-// Vue2 的 RAID 区是一整个无路由面板,availableDisks 由父面板统一加载后当 prop
-// 传给 RaidReplaceDisk(RaidTab.vue:50),所以弹窗永远有数据。New-UI 把详情页拆成
-// 独立路由后漏了这次加载:直接打开/刷新 /storage/raid/:id 时 availDisks 为空,
-// 「更换硬盘」下拉框只剩占位项、无法选盘(2026-07-28 实盘验收发现)。
-// 先逛过存储卷/物理硬盘/创建页再进来反而有数据,所以这个缺口很容易漏检。
-// 用 useDiskHotplug 而非裸 loadDrives():它 mount 即加载,并在磁盘热插拔时刷新候选盘
-// —— 与 StorageRaidCreate.vue:33 同一模式。
+// The replace-disk dialog's candidate disks come from store.availDisks, which is only
+// populated by loadDrives(). Vue2's RAID section is one big routeless panel where
+// availableDisks is loaded once by the parent panel and passed as a prop to RaidReplaceDisk
+// (RaidTab.vue:50), so the dialog always has data. New-UI splitting the detail page into its
+// own route missed this load: opening/refreshing /storage/raid/:id directly leaves availDisks
+// empty, so the "replace disk" dropdown only has a placeholder item and no disk can be picked
+// (found during 2026-07-28 real-device acceptance testing). Visiting the volumes/physical
+// disks/create page first before coming here happens to already have the data, which is why
+// this gap is easy to miss. Uses useDiskHotplug rather than a bare loadDrives(): it loads on
+// mount and refreshes the candidate disks on disk hotplug -- the same pattern as
+// StorageRaidCreate.vue:33.
 useDiskHotplug(() => store.loadDrives())
 
-// 只认属于当前路由 :id 的那份快照。清空 + watcher 已经覆盖了主要路径,这一道是
-// 兜底:任何"store 里存着别的阵列的数据"的时机都不会被渲染出来。
+// Only recognizes the snapshot that belongs to the current route :id. The clear + watcher
+// above already cover the main path; this is a fallback: any moment where "the store holds
+// another array's data" simply never gets rendered.
 const detail = computed(() => {
   const d = store.raidDetail
   return d && String(d.array.id) === idStr.value ? d : null
@@ -67,14 +75,18 @@ const flags = computed(() => resolveRaidState(array.value, status.value))
 const severity = computed(() => raidSeverity(flags.value))
 const labelKey = computed(() => raidStateLabelKey(flags.value))
 
-// 收回成员盘任务是否属于本阵列。它必须与 isRebuilding **并联**当轮询开关:
-// --re-add 后头几秒内核把盘登记成 spare、rebuild_pct 还是 -1,不算重建态,
-// 只挂 isRebuilding 会一拍都不发请求,spare→recovering 过渡永远观察不到。
+// Whether the member-disk reclaim task belongs to this array. It must be **OR'd** with
+// isRebuilding as the polling switch: in the first few seconds after --re-add, the kernel
+// registers the disk as spare with rebuild_pct still -1, which doesn't count as rebuilding --
+// gating solely on isRebuilding would never fire a single request, and the
+// spare -> recovering transition would never be observed.
 const reclaimActive = computed(() => store.reclaimTask?.arrayId === idStr.value)
 
-// 重建中/收回进行中时 5000ms 单飞重拉详情(活体进度);否则不发请求。
-// 收回任务在场时额外拉一次列表:reclaimTask 的完成判定挂在 loadRaid → syncReclaimTask
-// 上,而本页平时只刷 raidDetail —— 不带上 loadRaid,停在详情页时任务永远收不了口。
+// While rebuilding/reclaiming is in progress, single-flight reload the detail every 5000ms
+// (live progress); otherwise no request is sent. When a reclaim task is present, also pull the
+// list once: the reclaim task's completion check hangs off loadRaid -> syncReclaimTask, while
+// this page normally only refreshes raidDetail -- without also calling loadRaid, the task
+// would never get closed out while sitting on the detail page.
 useGuardedPoll(async () => {
   await store.loadRaidDetail(idStr.value)
   if (reclaimActive.value) await store.loadRaid()
@@ -96,7 +108,7 @@ const donutStyle = computed(() => ({
 
 const info = computed(() => levelInfo(array.value.level))
 
-// 状态色沿用 RaidCard.vue 的 severity → token 映射(rc-badge 同款语义)
+// State color follows RaidCard.vue's severity -> token mapping (same semantics as rc-badge)
 function severityToken(sev: string): string {
   if (sev === 'danger') return '--remove-fg'
   if (sev === 'info') return '--accent'
@@ -117,9 +129,12 @@ const filesystem = computed(() => {
 })
 const uuid = computed(() => array.value.uuid || '—')
 const chunk = computed(() => (array.value.chunk_kb ? `${array.value.chunk_kb} KB` : '—'))
-// 重建剩余时间:优先 rebuild_eta_seconds(增量同步时内核的 rebuild_finish 按已拷贝
-// 字节算、会膨胀到几周),每 5 秒交替时长/完成时刻;老后端回退内核原始串。
-// etaText 是自足整句,详情表里占满一行,不配 key 列。
+// Rebuild time remaining: prefers rebuild_eta_seconds (during incremental sync the kernel's
+// rebuild_finish is computed from bytes copied so far and can balloon to weeks), alternating
+// every 5 seconds between duration and completion time; falls back to the kernel's raw string
+// for older backends.
+// etaText is a self-contained sentence that takes up a full row in the detail table, with no
+// paired key column.
 const { etaText } = useRaidEta(() => status.value)
 const rebuildSpeed = computed(() => strField(status.value, 'rebuild_speed'))
 
@@ -133,23 +148,30 @@ const btrfsCachedAtLabel = computed(() => {
 const showBtrfsRows = computed(() => filesystem.value === 'btrfs' && btrfsFreeBytes.value > 0)
 
 const members = computed(() => status.value?.members || [])
-// 可收回的成员盘(后端仅在 degraded 且盘已插回时下发,见 service 包 RaidStatus 注释)。
-// 非空即挂「收回成员盘」横幅 —— 摆在成员列表(换盘入口)之前:收回本阵列自己的盘是
-// 便宜且正确的补救,换盘要清掉一块盘,不应让用户先看到破坏性的那条路。
+// Reclaimable member disks (the backend only sends these when degraded and the disk has been
+// plugged back in, see the service package's RaidStatus comment). If non-empty, show the
+// "reclaim member disk" banner -- placed before the member list (the replace-disk entry
+// point): reclaiming this array's own disk is the cheap, correct fix, whereas replacing wipes
+// a disk, so users shouldn't see the destructive path first.
 const reattachable = computed(() => status.value?.reattachable_members || [])
 async function onReclaim() {
   await store.reclaimRaidMembers(idStr.value)
-  // toast/看板/详情刷新都在 store action 里;留在本页看成员行进入重建 —— 轮询由
-  // reclaimActive 顶着(上方 useGuardedPoll),不依赖 isRebuilding。
+  // The toast/dashboard-card/detail-refresh all live in the store action; staying on this
+  // page to watch the member row go into rebuilding is handled by reclaimActive keeping the
+  // polling alive (useGuardedPoll above), independent of isRebuilding.
 }
-// 表头计数用"有设备路径的行"而不是总行数:空槽位占位行不是一块盘,数进去会把
-// 3 盘阵列在降级时写成 MEMBER DISKS (4)(见 raidView.ts memberDiskCount)。
+// The header count uses "rows with a device path" rather than the total row count: an empty
+// slot placeholder row isn't a disk, and counting it would make a 3-disk array read MEMBER
+// DISKS (4) when degraded (see raidView.ts memberDiskCount).
 const diskCount = computed(() => memberDiskCount(members.value))
-// 但只写盘数又会出现"表头 (3)、下面 4 行"、看着像数错了。所以有空槽位时把两个数
-// 都写出来(3 块 + 1 个空槽位 = 4 行,对得上);没有空槽位时不提,保持简洁。
-// 只数**合并之后**还剩下的空槽位行:单块掉盘会被合并进坏盘那一行,不再算作空槽位,
-// 表头因此回到简洁的「成员磁盘 (3)」并与 3 行对得上。RAID 6 双故障无法唯一配对、
-// 不合并,那时才需要把空槽位数写出来(见 raidView.ts mergeVacatedSlot)。
+// But writing only the disk count then produces "header (3), 4 rows below", which looks like a
+// miscount. So when there's an empty slot, write both numbers out (3 disks + 1 empty slot = 4
+// rows, which checks out); when there's no empty slot, say nothing and keep it simple.
+// Only count the empty-slot rows remaining **after merging**: a single dropped disk gets
+// merged into the faulty-disk row and no longer counts as an empty slot, so the header goes
+// back to the simple "member disks (3)" that matches 3 rows. RAID 6's double-fault case can't
+// be uniquely paired and isn't merged, which is when the empty-slot count needs to be spelled
+// out (see raidView.ts mergeVacatedSlot).
 const emptySlotCount = computed(() => mergeVacatedSlot(members.value).filter((m) => !m.path).length)
 const membersTitle = computed(() => {
   const n = diskCount.value
@@ -172,23 +194,28 @@ async function onDelete() {
   }
 }
 
-// 换盘(P4 T7 + 2026-08-11 serial 语义):RaidMemberList 的 faulty/空槽位行 emit
-// replace-disk(diskPath) → 本视图用 findReplaceTarget 识别被换的盘(在位 faulty 盘按
-// 实时 path;拔掉的盘按 serial,陈旧缓存路径不当身份)→ 开弹窗;弹窗 emit
-// confirm({newDiskPath, wipeResidue}) 才真正调 store(store 调用留在视图,不在弹窗内)。
+// Replace disk (P4 T7 + 2026-08-11 serial semantics): RaidMemberList's faulty/empty-slot rows
+// emit replace-disk(diskPath) -> this view uses findReplaceTarget to identify the disk being
+// replaced (a still-present faulty disk is identified by its live path; an unplugged disk by
+// its serial, since a stale cached path isn't a reliable identity) -> opens the dialog; the
+// dialog's confirm({newDiskPath, wipeResidue}) is what actually calls the store (the store
+// call lives in the view, not inside the dialog).
 const replaceOpen = ref(false)
 const replaceTarget = ref<ReplaceTarget | null>(null)
 function onReplaceRequested(diskPath: string) {
   const live = members.value
   const rows = (array.value.member_disks || []) as RaidMemberDiskRow[]
-  // 用户点的是某一行:该行是在位 faulty 盘时按它建 target(多盘同时故障时不至于
-  // 换错盘);空槽位行(diskPath 为空)或找不到时退回 findReplaceTarget 的通用识别。
+  // The user clicked a specific row: if that row is a still-present faulty disk, build the
+  // target from it (so that with multiple simultaneous faults, the wrong disk doesn't get
+  // replaced); for an empty-slot row (diskPath is empty) or when not found, fall back to
+  // findReplaceTarget's general-purpose identification.
   const clicked = diskPath ? live.find((m) => m.path === diskPath && m.state === 'faulty') : undefined
   const target = clicked
     ? { path: clicked.path, serial: clicked.serial || '', label: clicked.path }
     : findReplaceTarget(live, rows)
   if (!target) {
-    // status 没拉到,或什么都不缺、不故障 —— 硬开弹窗只会让用户"替换"一个空白
+    // status wasn't fetched yet, or nothing is missing/faulty -- forcing the dialog open
+    // would only let the user "replace" a blank
     useToast().show(t('raidReplaceNoTarget'))
     return
   }
@@ -206,10 +233,13 @@ async function onReplace(payload: { newDiskPath: string; wipeResidue: boolean })
   })
   if (!ok) return
   replaceOpen.value = false
-  // 提交成功即退回列表页看进度(用户指定):重建是长活儿(真实硬盘可达数小时),
-  // 列表页有换盘看板卡 + 5 秒轮询,比停在详情页干等更合适。
-  // store.replaceTask 已在 replaceRaidDisk 里建立,若重建已完成则那一拍就已撤掉,
-  // 列表页不会闪一张已完成的卡。
+  // On successful submit, go back to the list page to watch progress (user-specified):
+  // rebuilding is a long-running task (real disks can take hours), and the list page has the
+  // replace-disk dashboard card + 5-second polling, which suits waiting better than sitting on
+  // the detail page.
+  // store.replaceTask is already established inside replaceRaidDisk; if the rebuild has
+  // already finished by that point it's already been torn down, so the list page won't flash
+  // an already-completed card.
   router.push('/storage/raid')
 }
 </script>
@@ -250,13 +280,16 @@ async function onReplace(payload: { newDiskPath: string; wipeResidue: boolean })
         @confirm="onReplace"
       />
 
-      <!-- 详情未就绪时显示加载态,而不是拿 fallbackArray 渲染一个"名称空、级别 0"的空壳。
-           detail 为空只发生在两处:进页面/换 :id 后清空等重拉,以及 store 里存的是别的
-           阵列的数据。两种情况都不该把不属于本页的内容摆出来。 -->
+      <!-- Show the loading state when detail isn't ready yet, instead of rendering an empty
+           shell with "empty name, level 0" using fallbackArray. detail is empty in exactly two
+           cases: entering the page/switching :id and waiting for the cleared-then-reloaded
+           data, or the store holding another array's data. Neither case should display content
+           that doesn't belong to this page. -->
       <div v-if="!detail" class="rd-loading">{{ t('storageLoading') }}</div>
 
       <template v-else>
-      <!-- 收回成员盘横幅:置于两栏(含成员列表的换盘入口)之前,主色调、非破坏性 -->
+      <!-- Reclaim member disk banner: placed before the two columns (which include the member
+           list's replace-disk entry point), uses the accent color, non-destructive -->
       <RaidReclaimCard
         v-if="reattachable.length"
         :members="reattachable"
@@ -292,10 +325,12 @@ async function onReplace(payload: { newDiskPath: string; wipeResidue: boolean })
             <div class="rd-row"><span class="rd-key">{{ t('raidLevelWrite') }}</span><span class="rd-val">{{ t(info.writeSpeedKey) }}</span></div>
           </div>
 
-          <!-- v-if="detail" 门:SnapshotPanel 只在 raidDetail(array.uuid 真正加载完)后才挂载。
-               Vue2(RaidDetailPanel.vue)靠父级 v-if="selectedRaid" 保证同款前提;这里若不设
-               v-if,子组件 onMounted 早于本页 onMounted(Vue3 生命周期子先父后),快照面板会
-               带着占位 uuid=''首次加载并再也不会重试,永远落"不支持"态。 -->
+          <!-- v-if="detail" gate: SnapshotPanel only mounts after raidDetail (array.uuid) has
+               actually finished loading. Vue2 (RaidDetailPanel.vue) relies on the parent's
+               v-if="selectedRaid" to guarantee the same precondition; without this v-if here,
+               the child's onMounted would run before this page's onMounted (Vue3's lifecycle
+               runs child before parent), and the snapshot panel would do its first load with
+               the placeholder uuid='' and never retry, permanently landing on "unsupported". -->
           <SnapshotPanel v-if="detail" :volume-uuid="array.uuid ?? ''" />
         </div>
 
@@ -310,7 +345,8 @@ async function onReplace(payload: { newDiskPath: string; wipeResidue: boolean })
               <span class="rd-key">{{ t('raidDetailState') }}</span>
               <span class="rd-val" :style="{ color: `var(${severityToken(severity)})` }">{{ t(labelKey) }}</span>
             </div>
-            <!-- 重建 ETA 是自足整句(剩余约 X / 预计…完成 交替),不走 key/value 两列 -->
+            <!-- Rebuild ETA is a self-contained sentence (alternates between "~X remaining" and
+                 "estimated to finish at..."), doesn't use the key/value two-column layout -->
             <div v-if="flags.isRebuilding && etaText" class="rd-row"><span class="rd-val" style="color: var(--accent)">{{ etaText }}</span></div>
             <div v-if="rebuildSpeed" class="rd-row"><span class="rd-key">{{ t('raidRebuildSpeed') }}</span><span class="rd-val" style="color: var(--accent)">{{ rebuildSpeed }}</span></div>
             <div v-if="showBtrfsRows" class="rd-row"><span class="rd-key">{{ t('raidBtrfsFreeEst') }}</span><span class="rd-val">{{ fmtSize(btrfsFreeBytes) }}</span></div>

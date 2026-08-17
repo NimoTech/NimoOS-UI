@@ -5,8 +5,8 @@ import { service } from '@nimotech/nimoos-service'
 import Dialog from '../../components/ui/Dialog.vue'
 import { useToast } from '../../stores/toast'
 
-// Google Drive BYO:用户填自己 Google Cloud 项目的 OAuth 凭据,换取授权 URL。
-// client_secret 只进 POST body,绝不进 URL/日志/toast。
+// Google Drive BYO: user fills in their own Google Cloud project's OAuth credentials to get an authorization URL.
+// client_secret only goes into the POST body, never into URL/logs/toast.
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'auth-url', url: string): void }>()
 const { t } = useI18n()
@@ -15,7 +15,7 @@ const toast = useToast()
 const clientId = ref('')
 const clientSecret = ref('')
 const connecting = ref(false)
-// 指引页现在随本应用发布(public/guide/,构建后落在 /app/guide/),不再依赖 Vue2 留在站点根的那份
+// Guide page is now shipped with this app (public/guide/, lands in /app/guide/ after build), no longer depends on the one Vue2 left at the site root
 const guideUrl = window.location.origin + import.meta.env.BASE_URL + 'guide/google-drive.html'
 
 watch(() => props.open, (o) => {
@@ -79,7 +79,7 @@ async function connect() {
 </template>
 
 <style scoped>
-/* 表单皮肤与 NetworkStorageDialog 同款(scoped 各自持有,P2a 已接受的重复) */
+/* Form skin is the same as NetworkStorageDialog (each scoped separately, P2a accepted duplication) */
 .gdrive-form { display: flex; flex-direction: column; gap: 8px; min-width: 340px; }
 .gdrive-hint { font-size: 13px; color: var(--fg-muted); margin: 0 0 6px; line-height: 1.5; }
 .gdrive-hint a { color: var(--accent); text-decoration: underline; }

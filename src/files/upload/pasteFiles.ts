@@ -1,11 +1,13 @@
-// Ctrl+V 粘贴上传:从 ClipboardEvent.clipboardData 提取 File。截图 blob 天生无
-// 文件名(或被浏览器给统一占位名 image.png——保留会导致每次粘贴互相撞名),按
-// baseName+秒级时间戳生成默认名;复制的真实文件保留原名。纯逻辑,无 Vue/store
-// 依赖(对齐 dropEntries.ts)。剪贴板不携带目录结构,relativePath 恒为文件名。
+// Ctrl+V paste upload: extract File from ClipboardEvent.clipboardData. Screenshot blobs
+// have no filename by default (or browsers assign unified placeholder names like image.png—
+// keeping them causes collisions on every paste). Generate default names using baseName+
+// second-level timestamp; keep original names for copied real files. Pure logic, no
+// Vue/store dependencies (aligned with dropEntries.ts). Clipboard doesn't carry directory
+// structure; relativePath is always the filename.
 
 export interface PastedFile { file: File; relativePath: string }
 
-// 各浏览器给剪贴板图片的统一占位名(Chrome/Firefox: image.png 等)
+// Unified placeholder names browsers assign to clipboard images (Chrome/Firefox: image.png, etc.)
 const PLACEHOLDER_RE = /^image\.(png|jpe?g|gif|webp|bmp)$/i
 
 const MIME_EXT: Record<string, string> = {

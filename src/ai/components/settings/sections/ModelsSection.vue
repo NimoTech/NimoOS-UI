@@ -1,43 +1,41 @@
 <!--
-  SP8-P2a Task 9 —— 1:1 移植自 Vue2
-  `src/views/AI/Settings/sections/ModelsSection.vue`(222 行)。三张卡:
+  SP8-P2a Task 9 — 1:1 port from Vue2
+  `src/views/AI/Settings/sections/ModelsSection.vue` (222 lines). Three cards:
 
-    1. 已装模型:卡头(标题 + 计数 + 刷新)· 下载进度横幅(每个
-       store.hfImportJobs 条目一条,四态:downloading / creating model /
-       success / error)· 加载中 / 空态 / 表格(名称 / 体积 / 删除)
-    2. 从 Ollama 拉取:输入框 + 拉取按钮 + 在途提示
-    3. 从 HuggingFace 导入 GGUF:搜索框 + 仓库结果列表 + 选中仓库的文件列表
+    1. Installed models: card header (title + count + refresh) · download progress banners (one per
+       store.hfImportJobs entry, four states: downloading / creating model /
+       success / error) · loading / empty / table (name / size / delete)
+    2. Pull from Ollama: input + pull button + in-progress hint
+    3. Import GGUF from HuggingFace: search box + repo result list + file list for selected repo
 
-  【Buefy → New-UI 替换】
-  - $buefy.dialog.confirm(删模型)→ 共享 AlertDialog,destructive。
-    reka-ui 的 AlertDialogAction 点击时先派发 update:open(false) 再派发
-    confirm——deleteDlg 把 open 与待删 name 打包在同一个 ref、v-model:open
-    只改 .open,confirm 处理器仍能读到正确的 name(同
-    AgentSidebar.vue:111-120 的既定手法,及其头注释引用的
-    InstalledAppsPage.vue:25-70 SP5-P1 教训)。
-  - $buefy.toast.open({type:'is-success'}) → toast.show(msg)(info 档)。
-  - type:'is-danger' → toast.show(msg, 1500, 'danger')。
+  【Buefy → New-UI replacement】
+  - $buefy.dialog.confirm (delete model) → shared AlertDialog, destructive.
+    reka-ui AlertDialogAction emits update:open(false) then confirm on click —
+    deleteDlg packs open and target name in same ref; v-model:open only changes .open,
+    confirm handler still reads correct name (same pattern as AgentSidebar.vue:111-120,
+    and lesson from InstalledAppsPage.vue:25-70 SP5-P1 noted in its header).
+  - $buefy.toast.open({type:'is-success'}) → toast.show(msg) (info tier).
+  - type:'is-danger' → toast.show(msg, 1500, 'danger').
 
-  【结构调整,非行为改动】formatSize/etaLabel 原是 Vue2 组件 methods,抽成独立
-  纯函数 formatModelSize/formatEtaSeconds(../../../util/formatModelSize.ts),
-  这样能精确单测 GB/MB 边界、sec/min/hr 边界、0/null/undefined —— 抽出只是让
-  测试够到边界,行为逐字未变。
+  【Structure refactoring, not behavior change】 formatSize/etaLabel were Vue2 component methods,
+  extracted to pure functions formatModelSize/formatEtaSeconds (../../../util/formatModelSize.ts).
+  This allows precise unit testing of GB/MB boundary, sec/min/hr boundary, 0/null/undefined —
+  extraction just enables boundary tests; behavior unchanged verbatim.
 
-  【i18n 结构差】etaLabel 原是 Vue2 组件内的 `this.$t('{n} sec' | '{n} min' |
-  '{n} hr', {n})`;纯函数只返回 { unit, n } 结构体(不持地化文本,与 P1c2
-  formatDuration 同款),本组件里再按 unit 挑 aiCfgEtaSec/Min/Hr 三个键过 t()。
+  【i18n structure differs】 etaLabel was Vue2 component's `this.$t('{n} sec' | '{n} min' |
+  '{n} hr', {n})`; pure function returns just { unit, n } struct (no localized text,
+  same as P1c2 formatDuration). This component picks aiCfgEtaSec/Min/Hr keys per unit then calls t().
 
-  【观察项,照搬不改,settingsStore.ts:218-224 已登记】pullingModels[name] 在
-  store 的 finally 里立即删除,"拉取中" 提示实际只在 HTTP 请求在途的那一瞬间
-  显示,与文案宣称的"后台运行中"语义不符。后端 POST /pull 是否同步阻塞未知,
-  这里不擅自改。
+  【Observation item, copied unchanged, noted in settingsStore.ts:218-224】
+  pullingModels[name] deleted immediately in store finally block; "pulling" hint actually only
+  shows for an instant while HTTP request is in flight, not matching "running in background"
+  semantics. Unknown if backend POST /pull is sync-blocking; not changing here.
 
-  【AlertDialog 需要 title,Buefy 原调用没有】共享 AlertDialog 组件要求
-  title/confirmText/cancelText 三个必填 prop,而 Vue2 的
-  `$buefy.dialog.confirm({message, type})` 没有单独的标题概念(Buefy 自带默认
-  外观)。这不是在修 Vue2 的 bug,是接一个更严格的共享原语时必须补的参数——
-  照 AgentSidebar.vue:192-200 的先例,title 与 confirmText 都复用「删除」这个
-  动作名(aiCfgDelete),不新造一个通用「确认」文案。
+  【AlertDialog needs title, Buefy original call had none】 Shared AlertDialog component requires
+  title/confirmText/cancelText three mandatory props; Vue2's `$buefy.dialog.confirm({message, type})`
+  had no separate title concept (Buefy default look). Not fixing a Vue2 bug, but required
+  parameter when adopting stricter shared primitive — following precedent from AgentSidebar.vue:192-200,
+  title and confirmText both reuse "Delete" action name (aiCfgDelete), not creating generic "Confirm" text.
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
@@ -59,14 +57,14 @@ function formatSize(bytes: number | null | undefined): string {
   return formatModelSize(bytes)
 }
 
-/** ModelsSection.vue:176-180 `etaLabel` —— 纯函数分档 + 本组件挑 i18n 键。 */
+/** ModelsSection.vue:176-180 `etaLabel` — pure function splits into tiers + this component picks i18n key. */
 function etaLabel(secs: number): string {
   const { unit, n } = formatEtaSeconds(secs)
   const key = unit === 'sec' ? 'aiCfgEtaSec' : unit === 'min' ? 'aiCfgEtaMin' : 'aiCfgEtaHr'
   return t(key, { n })
 }
 
-// ── 删除模型确认(见文件头「Buefy → New-UI 替换」说明)──
+// ── Delete model confirmation (see header "Buefy → New-UI replacement" note) ──
 const deleteDlg = ref<{ open: boolean; name: string | null }>({ open: false, name: null })
 
 function requestDelete(name: string) {
@@ -84,7 +82,7 @@ async function onDeleteConfirm() {
   }
 }
 
-// ── 从 Ollama 拉取(ModelsSection.vue:195-204)──
+// ── Pull from Ollama (ModelsSection.vue:195-204) ──
 async function onPull() {
   const name = store.pullModelInput.trim()
   if (!name) return
@@ -96,7 +94,7 @@ async function onPull() {
   }
 }
 
-// ── HuggingFace 搜索 / 导入(ModelsSection.vue:205-219)──
+// ── HuggingFace search / import (ModelsSection.vue:205-219) ──
 async function onSearch() {
   try {
     await store.searchHF()
@@ -122,7 +120,7 @@ async function onImport(file: string) {
       <p class="set-desc">{{ t('aiCfgModelsDesc') }}</p>
     </div>
 
-    <!-- 已装模型 -->
+    <!-- Installed models -->
     <div class="sk-section">
       <div class="sk-section-body">
         <div class="set-cardhead">

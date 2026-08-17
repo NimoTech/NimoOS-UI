@@ -1,57 +1,68 @@
 <script setup lang="ts">
-// SP7-P7a-T5: SmartViewCreateDialog.vue —— 智能视图创建弹窗(本期最大的单个组件)。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosSmartViewsView.vue:42-182(模板)、
-// :359-436(方法,含 SV_QUICK_TEMPLATES/inferChips 已被 T1 抽到 smartViewSuggest.ts)、
-// photos-smartview.scss:659-1013 + 574-605(.sv-toggle-row/.sv-switch,brief 读区间
-// 没盖到,回源核实际定义补读)移植。宿主挂载点:PhotosSmartViews.vue(T4)。
+// SP7-P7a-T5: SmartViewCreateDialog.vue — Smart view creation dialog (largest single
+// component this sprint).
+// Ported section-by-section from Vue2 NimoOS-UI src/views/Photos/PhotosSmartViewsView.vue:42-182
+// (template), :359-436 (methods, SV_QUICK_TEMPLATES/inferChips moved to smartViewSuggest.ts in T1),
+// photos-smartview.scss:659-1013 + 574-605 (.sv-toggle-row/.sv-switch, brief didn't cover
+// these ranges, went back to source to read actual definitions). Host mount point:
+// PhotosSmartViews.vue (T4).
 //
-// 常驻挂载 + prop 显隐(本组件不会因 v-if 卸载重建),因此一切"打开时应重置/联动"的逻辑
-// 必须挂在 `watch(() => props.open)`,不能用 onMounted(本区第三次同型「持久挂载坑」——
-// 前两次是 P2 的 isMoving 自隐与视频 startMs 锚点)。
+// Persistent mount + prop-driven visibility (component never unmounts/remounts due to v-if),
+// so all "reset/sync on open" logic must live in `watch(() => props.open)`, not onMounted
+// (third same-pattern trap in this section—first two: P2's isMoving self-hide and video
+// startMs anchor).
 //
-// ── 回源核对与偏离登记(逐条见 task-5-report.md,这里只留代码旁必须就近可见的几条)──
+// ── Source verification and deviation entries (full details in task-5-report.md,
+//    keeping only entries that must be visible near code here) ──
 //
-// 1) `.sv-modal-icon` 尺寸:brief 结构规格第 2 条写"28×28",回源 scss:690-691 实际是
-//    32×32——以真源为准,brief 这条记错了。
-// 2) `.sv-modal-icon` 背景由 Vue2 的写死紫渐变
-//    (linear-gradient(135deg, var(--accent), var(--accent-hi)))改成 var(--accent) 实底后,
-//    前景满足"背景确为 --accent 饱和实底"的条件,合法使用 --on-accent(brief 控制器补充
-//    2 点名的那处)。
-// 3) `--on-accent` 在本组件其实还合法用于两处,不止 brief 说的"唯一"(fix round 1 · I3
-//    评审逐处核实,实现不用改,只改了论证依据——原注释误引了本分支不存在的文件):
-//    a) [Fix-5, 2026-08-14 撤销] `.sv-switch[data-on="true"]::after` 这一处的 --on-accent
-//       用法已被撤销,详见样式块 .sv-switch[data-on="true"]::after 自己的注释——parity 自己
-//       的开关滑块两态同色(photos-smartview.scss:786-789 只挪位置、不改背景),这里当初
-//       套「叠在纯色 accent 实底上就合法」的论证虽然自洽,却漏查了 Vue2 真值本就不随状态
-//       变色,结果做出了一个 owner 截图实测复现的真 bug(开关打开后滑块变深紫/深蓝)。
-//    b) `.sv-btn-primary`(background: var(--accent); color: var(--on-accent))——
-//       与本仓既有 primary 按钮先例同构:`ClusterActionDialog.vue:320`、
-//       `MergeReviewDialog.vue:262`(这两个文件在本分支真实存在,已核实)。
-//    brief Step1 那句"其余压照片的元素本组件没有"实际是在说"没有其余压在照片/渐变之上
-//    需要 theme-exception 钉死浅色的前景"——本组件确实没有任何元素叠在照片(仅
-//    `.sv-preview-grid img` 是纯图,无覆盖文字)或渐变之上,这条没问题;但把该句解读成
-//    "全组件只允许一处 --on-accent"过窄,不构成词面上的矛盾,只是该句本身未穷举。
-//    已在报告里登记这条与 brief 的出入。
-// 4) 窄屏断点:brief 写"Vue2 零 @media,≤768px 是偏离新增"——回源 scss:1018-1022 实际
-//    已有 `@media (max-width: 760px)`(改 grid-template-columns:1fr + .sv-modal-side 的
-//    border-left→border-top),brief 这条也记错了(不是偏离,是 1:1 移植;只是断点数字
-//    对齐本仓同类文件 PhotosSmartViews.vue 已用的 768,而不是 Vue2 字面的 760,这一点是
-//    真正的偏离,已登记)。brief 建议再加的 `.sv-modal` 宽度 min(100% - 24px, …)覆盖是
-//    多余的——Vue2 的 max-width:100% + 外层 scrim 的 40px/24px padding 已经让弹窗在窄屏下
-//    天然收缩,不需要额外覆盖,故未添加。
-// 5) `--text-1/2/3/4` 四档映射(brief 的 token 映射表只给了 --surface/--line/scrim/
-//    投影,没提文字四档):这里取 --fg / --fg-muted / --fg-faint / --fg-subtle(按深色
-//    主题不透明度从高到低排列,--fg-faint 已有既有先例 PersonPlacesTab.vue:201 等),
-//    text-1→fg,text-2→fg-muted,text-3→fg-faint,text-4→fg-subtle。
-// 6) `--font-display`(Vue2 用于预览计数大字号)本仓没有对应 token,纯排版选择、非颜色,
-//    直接省略、继承 --font,不新增 token。
-// 7) fix round 1 · M1(此前未申报的偏离,补登记):**Esc 关闭这个浮层是 net-new**——
-//    Vue2 这个弹窗完全没有 Esc 处理。document 级监听 + watch(open) 挂/摘的写法照
-//    `AlbumPickerDialog.vue`(该文件在本分支真实存在)的既有范式,但"给这个弹窗加 Esc"
-//    这件事本身在 Vue2 找不到对应,是本任务主动补的浮层可用性基线(同 Global Constraints
-//    §「浮层 Esc 一律 document 级监听」的通例要求),不是照搬,已补测试用例钉住。
+// 1) `.sv-modal-icon` size: brief spec clause 2 says "28×28", source scss:690-691 actually
+//    32×32—source is authoritative, brief got this one wrong.
+// 2) `.sv-modal-icon` background changed from Vue2's hard-coded purple gradient
+//    (linear-gradient(135deg, var(--accent), var(--accent-hi))) to var(--accent) solid,
+//    foreground now meets precondition "background is --accent solid saturated", can legally
+//    use --on-accent (brief controller addendum point 2).
+// 3) `--on-accent` actually legal in two more places, not just brief's "only one"
+//    (fix round 1 · I3 review verified each location, no code change, only reasoning—original
+//    comment mistakenly cited non-existent file in this branch):
+//    a) [Fix-5, reverted 2026-08-14] the --on-accent usage at
+//       `.sv-switch[data-on="true"]::after` has been reverted — see that rule's own comment
+//       in the style block. Parity's own switch knob is one colour in both states
+//       (photos-smartview.scss:786-789 only moves it, never touches the background); the
+//       "legal because it sits on a solid accent fill" argument made here was self-consistent
+//       but never checked that Vue2's real value does not change with state, and the result
+//       was a genuine bug the owner reproduced in a screenshot (the knob darkened once the
+//       switch was turned on).
+//    b) `.sv-btn-primary` (background: var(--accent); color: var(--on-accent))—structurally
+//       matches existing primary button precedent in this repo: ClusterActionDialog.vue:320,
+//       MergeReviewDialog.vue:262 (both files exist and verified in this branch).
+//    Brief Step1's phrase "no other elements layered over photos" actually means "no other
+//    elements stacked over photos/gradients needing theme-exception pinned light foreground"—
+//    component indeed has no elements stacked over photos (only `.sv-preview-grid img` is bare
+//    image, no overlay text) or gradients, that part checks out; reading it as "only one
+//    --on-accent allowed in whole component" is too narrow, not a strict contradiction, just
+//    incomplete enumeration. Logged this deviation from brief in the report.
+// 4) Narrow screen breakpoint: brief says "Vue2 zero @media, ≤768px is deviation/new"—source
+//    scss:1018-1022 already has `@media (max-width: 760px)` (changes grid-template-columns:1fr +
+//    .sv-modal-side border-left→border-top), brief got this wrong too (not deviation, straight
+//    port; only the breakpoint number differs—768 aligns with other similar files in this repo
+//    like PhotosSmartViews.vue vs Vue2 literal 760, that difference is real deviation, logged).
+//    Brief's suggested extra `.sv-modal` width min(100% - 24px, …) override is redundant—Vue2's
+//    max-width:100% + outer scrim 40px/24px padding already shrink dialog naturally on narrow
+//    screens, no extra override needed, not added.
+// 5) `--text-1/2/3/4` four-tier mapping (brief token map only gave --surface/--line/scrim/shadow,
+//    didn't mention text tiers): using --fg / --fg-muted / --fg-faint / --fg-subtle (ordered by
+//    dark theme opacity high-to-low, --fg-faint already has precedent PersonPlacesTab.vue:201
+//    etc), text-1→fg, text-2→fg-muted, text-3→fg-faint, text-4→fg-subtle.
+// 6) `--font-display` (Vue2 used for preview count large font) no equivalent token in this repo,
+//    pure typography choice not color, just omitted, inherits --font, no new token added.
+// 7) fix round 1 · M1 (previously undeclared deviation, retroactively logged): **Escape closes
+//    this overlay is net-new**—Vue2's dialog has zero Escape handling. Document-level listener +
+//    watch(open) attach/detach follows AlbumPickerDialog.vue (exists in this branch) pattern,
+//    but adding Escape to this dialog itself is not ported from Vue2, proactively added as
+//    overlay usability baseline (per Global Constraints "overlay Escape always via document
+//    listener"), not a straight port, added test case to pin it down.
 //
-// 详见 task-5-report.md 的完整节点清点表 + 删码验证 + i18n 回源结论。
+// Full node inventory + deleted-code verification + i18n source conclusions in task-5-report.md.
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -82,8 +93,8 @@ const { t, locale } = useI18n()
 const store = usePhotosSmartViews()
 const toast = useToast()
 
-// BCP-47 转换(本仓既定写法,照 SmartViewCard.vue:38 等既有先例):本仓 locale 标识是
-// 'zh_cn'/'en_us'(下划线),裸传 toLocaleString 会抛 RangeError。
+// BCP-47 conversion (this repo's standard pattern, per SmartViewCard.vue:38 precedent):
+// this repo's locale is 'zh_cn'/'en_us' (underscore), bare pass to toLocaleString throws RangeError.
 const localeTag = computed(() => locale.value.replace('_', '-'))
 
 interface Draft {
@@ -96,7 +107,8 @@ interface Draft {
   includeVideos: boolean
 }
 
-// 照 Vue2 _emptyDraft :359-365 逐字段核对:默认阈值 80、live 默认 true。
+// Per Vue2 _emptyDraft :359-365 field-by-field verification: default threshold 80,
+// live defaults to true.
 function emptyDraft(): Draft {
   return { name: '', desc: '', customChip: '', chips: [], thresh: 80, live: true, includeVideos: false }
 }
@@ -111,11 +123,11 @@ const descInputRef = ref<HTMLTextAreaElement | null>(null)
 
 const templates: readonly QuickTemplate[] = SV_QUICK_TEMPLATES
 
-// 照 Vue2 suggestedChips computed :308-310。
+// Per Vue2 suggestedChips computed :308-310.
 const suggestedChips = computed(() => inferChips(draft.desc).filter((c) => !draft.chips.includes(c)))
 
-// 照 Vue2 threshMuted computed :315-318(连注释一起照搬):空表单不算"阈值失效"，滑块
-// 保持可拖动。
+// Per Vue2 threshMuted computed :315-318 (comment included as-is): empty form doesn't count
+// as "threshold inactive", slider stays draggable.
 const threshMuted = computed(
   () => !store.preview.thresholdActive && (draft.chips.length > 0 || draft.desc.trim().length > 0),
 )
@@ -126,13 +138,13 @@ const threshMuted = computed(
 // option before typing a name: the host field keeps being the single source of truth.
 const effectiveName = computed(() => (props.embedded ? props.initialName : draft.name).trim())
 
-// 照 Vue2 canSubmit computed :319-322,name 判据换成 effectiveName(Task 4)。
+// Per Vue2 canSubmit computed :319-322, name criterion changed to effectiveName (Task 4).
 const canSubmit = computed(
   () => effectiveName.value.length > 0 && (draft.chips.length > 0 || draft.desc.trim().length > 0),
 )
 
-// 照 Vue2 refreshPreview 的调用形态,description 在送出前 trim(Vue2 :372 在 store 方法
-// 内部 trim,这里同样在唯一的触发口处理,不在每个调用点各自 trim)。
+// Per Vue2 refreshPreview call pattern, description gets trimmed before sending (Vue2
+// :372 trims inside store method, here same at the single call site, not at every call point).
 function triggerPreview(): void {
   store.refreshPreview({
     conds: [...draft.chips],
@@ -167,18 +179,20 @@ function onRootClick(): void {
   if (!props.embedded) dismiss()
 }
 
-// 浮层 Esc 走 document 级监听 + watch(open) 挂/摘(P4 血泪，AlbumPickerDialog.vue 既有
-// 范式)。本组件只有一层浮层，没有"多浮层同开"的早退顾虑。
+// Overlay Escape via document-level listener + watch(open) attach/detach (P4 hard-learned,
+// AlbumPickerDialog.vue existing pattern). This component has one overlay only, no
+// "multiple overlays open" early-return concern.
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   dismiss()
 }
 
-// 控制器补充 1 的核心:open 变真时重置 draft + 聚焦 + refreshPreview，必须挂在
-// watch(() => props.open) 而不是 onMounted——本组件是常驻挂载、靠 v-if 显隐，onMounted
-// 只在组件创建时跑一次，第二次打开不会重新触发。
-// 关闭时（控制器补充 3 的路径 ①，store 已加 cancelPreview）：清掉尚未触发的防抖定时器 +
-// 让已在途的响应作废，避免关闭后姗姗来迟的响应覆盖下一次打开的预览。
+// Controller addendum 1 core: on open→true, reset draft + focus + refreshPreview, must live
+// in watch(() => props.open) not onMounted—component persistent mount via v-if visibility,
+// onMounted runs once at creation, second open won't retrigger.
+// On close (controller addendum 3 path ①, store already added cancelPreview): clear any
+// pending debounce timer + invalidate in-flight responses, prevent late-arriving response
+// overwriting next open's preview.
 watch(
   () => props.open,
   (isOpen) => {
@@ -201,15 +215,16 @@ watch(
   },
   { immediate: true },
 )
-// fix round 1 · M7:组件真的被卸载时(如离开路由,宿主 v-if 掉整个页面),弹窗若还开着
-// 且已排好的 300ms 防抖预览请求尚未触发/尚在途,不清的话会成为孤儿请求照常发出
-// (Vue2 靠整页 beforeDestroy 里的 clearTimeout 兜住,New-UI 这里补同等效果)。
+// fix round 1 · M7: when component truly unmounts (e.g., leaving route, host v-if removes
+// whole page), if dialog still open and queued 300ms debounce preview request hasn't fired/
+// in-flight, not clearing it creates orphan request that fires anyway (Vue2 relied on
+// clearTimeout in page-level beforeDestroy, New-UI adds equivalent here).
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocumentKeydown)
   store.cancelPreview()
 })
 
-// 照 Vue2 addChip :392-397。
+// Per Vue2 addChip :392-397.
 function addChip(c: string): void {
   const v = (c || '').trim()
   if (!v || draft.chips.includes(v)) return
@@ -217,21 +232,23 @@ function addChip(c: string): void {
   triggerPreview()
 }
 
-// 照 Vue2 removeChip :398-401。
+// Per Vue2 removeChip :398-401.
 function removeChip(c: string): void {
   draft.chips = draft.chips.filter((x) => x !== c)
   triggerPreview()
 }
 
-// 照 Vue2 addCustom :402-406(含"调两次 refreshPreview"这个字面行为——addChip 内部一次、
-// 这里再一次；由于 store.refreshPreview 只是重置防抖定时器，调两次无害，照搬不去重）。
+// Per Vue2 addCustom :402-406 (includes literal "call refreshPreview twice"—once inside
+// addChip, once here; store.refreshPreview just resets debounce timer so double-call harmless,
+// ported as-is, no dedup).
 function addCustom(): void {
   addChip(draft.customChip)
   draft.customChip = ''
   triggerPreview()
 }
 
-// 照 Vue2 onChipKey :407-412：只有逗号触发（回车走模板的 @keydown.enter.prevent 单独绑定）。
+// Per Vue2 onChipKey :407-412: only comma triggers (Enter uses template @keydown.enter.prevent
+// binding separately).
 function onChipKey(e: KeyboardEvent): void {
   if (e.key === ',') {
     e.preventDefault()
@@ -239,27 +256,28 @@ function onChipKey(e: KeyboardEvent): void {
   }
 }
 
-// fix round 1 · I1:阈值滑块抽成 PhotosThreshSlider.vue(T8/T14 复用),它 emit 的是
-// 已经转成 number 的值,这里不再自己从 Event 里取 target.value。
+// fix round 1 · I1: threshold slider extracted to PhotosThreshSlider.vue (shared by T8/T14),
+// it emits already-converted number value, don't extract target.value from Event here.
 function onThreshInput(v: number): void {
   draft.thresh = v
   triggerPreview()
 }
 
-// 照 Vue2 :127:live 开关变更不触发 refreshPreview（确认过不是漏写，照搬不补）。
+// Per Vue2 :127: live toggle change doesn't trigger refreshPreview (verified not an
+// oversight, ported as-is, no change).
 function toggleLive(): void {
   draft.live = !draft.live
 }
 
-// 照 Vue2 :134:includeVideos 开关变更触发 refreshPreview。
+// Per Vue2 :134: includeVideos toggle change triggers refreshPreview.
 function toggleIncludeVideos(): void {
   draft.includeVideos = !draft.includeVideos
   triggerPreview()
 }
 
-// 照 Vue2 useTemplate :413-419，但 desc 推断改用 T1 的 descEn（英文原文）而不是 descKey
-// （i18n 键名）——POOL 的 kw 是英文关键词，拿键名/中文译文匹配恒不中，这是 T1 已查实的
-// 关键契约，不是随意选择。
+// Per Vue2 useTemplate :413-419, but desc inference changed to use T1's descEn
+// (English original text) instead of descKey (i18n key)—POOL keywords are English, matching
+// against key/Chinese translation always fails, verified key contract from T1, not arbitrary.
 function useTemplate(row: QuickTemplate): void {
   draft.name = t(row.labelKey)
   draft.desc = t(row.descKey)
@@ -268,13 +286,14 @@ function useTemplate(row: QuickTemplate): void {
   triggerPreview()
 }
 
-// 照 Vue2 confirmCreate :420-436,但两处刻意不照搬(均已登记):
-//  1) id 生成/传递已下沉到 store.createSmartView（T2 fix round 1 · C1），这里不再自己
-//     拼 'sv-' + Date.now().toString(36)。
-//  2) 失败时 Vue2 是未处理的 rejection（弹窗照关、界面无提示）；这里 catch → toast 且
-//     弹窗不关，让用户看得到失败、能重试（同 AlbumPickerDialog.vue submitCreate 的既定
-//     处理原则）。
-// description 的 `|| undefined` 照搬 Vue2 :431（后端 omitempty 语义，空描述不传字段）。
+// Per Vue2 confirmCreate :420-436, but intentionally not ported in two places (both logged):
+//  1) id generation/passing sunk into store.createSmartView (T2 fix round 1 · C1), don't
+//     self-concatenate 'sv-' + Date.now().toString(36).
+//  2) on failure Vue2 leaves rejection unhandled (dialog closes, UI silent); here catch → toast
+//     and keep dialog open, user sees failure and can retry (same principle as
+//     AlbumPickerDialog.vue submitCreate).
+// description's `|| undefined` as-is from Vue2 :431 (backend omitempty semantics, don't send
+// field for empty description).
 async function confirm(): Promise<void> {
   if (!canSubmit.value || store.createBusy) return
   try {
@@ -294,13 +313,13 @@ async function confirm(): Promise<void> {
     }
   } catch (e) {
     console.error('[smart-view-create-dialog] confirm', e)
-    // 复用既有通用键，本任务不新增 i18n 键（brief 硬约束）。
+    // Reuse existing generic key, don't add new i18n key (brief hard requirement).
     toast.show(t('photosAlbumCreateFailed'))
   }
 }
 
-// 缩略图一律走共享包生成器，不手拼 URL；智能视图口径固定 'large'(照 Vue2
-// `size=large` 查询参数 / SmartViewCard.vue 的既有先例)。
+// Thumbnails always via shared service generator, don't hand-concatenate URL; smart view
+// always uses 'large' size (per Vue2 `size=large` query param / SmartViewCard.vue precedent).
 function thumbUrl(seed: string): string {
   return service.photos.thumbnailUrl(seed, 'large')
 }
@@ -491,13 +510,14 @@ function thumbUrl(seed: string): string {
 </template>
 
 <style scoped>
-/* token 映射(brief 结构规格第 7 条 + 本组件自行补的 --text-N 四档,理由见文件头注释 5):
-   --surface-1→--popup-bg / --surface-2→--chip-bg / --surface-3→--chip-bg-hi;
-   --line→--card-border;--text-1→--fg / --text-2→--fg-muted / --text-3→--fg-faint /
-   --text-4→--fg-subtle;--accent-hi(文字/图标色)→--accent-text;scrim 用 Dialog.vue 的
-   --overlay-bg/--overlay-blur;投影一律 --card-shadow-hi;Vue2 半透明 accent 描边/底色
-   (本仓无该 alpha 通道 token,Global Constraints §33)按三档 accent-soft 家族就近取
-   (低→--accent-soft,中→--accent-soft-2,高→--accent-soft-bd)。 */
+/* Token mapping (brief spec clause 7 + component's own --text-N four-tier, rationale in
+   file header comment 5): --surface-1→--popup-bg / --surface-2→--chip-bg / --surface-3→
+   --chip-bg-hi; --line→--card-border; --text-1→--fg / --text-2→--fg-muted / --text-3→
+   --fg-faint / --text-4→--fg-subtle; --accent-hi (text/icon color)→--accent-text; scrim
+   uses Dialog.vue's --overlay-bg/--overlay-blur; shadows all --card-shadow-hi; Vue2's
+   semi-transparent accent border/background (this repo no alpha channel token, Global
+   Constraints §33) use three-tier accent-soft family (low→--accent-soft, mid→--accent-soft-2,
+   high→--accent-soft-bd). */
 .sv-modal-scrim {
   position: fixed;
   inset: 0;
@@ -523,18 +543,16 @@ function thumbUrl(seed: string): string {
   overflow: hidden;
 }
 /* SP15-P2b Task 4 embedded mode (Vue2 photos-smartview.scss's `.sv-modal-embed-host` /
-   `.sv-modal.sv-modal-embedded` -- this file names the wrapper class `.sv-embed-host`
-   instead, a cosmetic naming difference registered here, not a structural one; the
-   modifier class on .sv-modal itself keeps Vue2's literal name).
-   This wrapper removes itself from the box model so the host panel's flex column hands
-   the remaining height straight to .sv-modal, instead of this style-less div being sized
-   by its content and then clipped. */
+   `.sv-modal.sv-modal-embedded` -- this file names wrapper class `.sv-embed-host`
+   instead, cosmetic naming difference registered here, not structural; modifier class on
+   .sv-modal itself keeps Vue2's literal name).
+   This wrapper removes itself from box model so host panel's flex column hands remaining
+   height straight to .sv-modal, instead of this style-less div sized by content then clipped. */
 .sv-embed-host { display: contents; }
-/* Strip only the standalone chrome (fixed width, radius, border, shadow, viewport-relative
-   max-height) -- the host already provides those. The flex column and overflow:hidden stay,
-   because .sv-modal-body / .sv-modal-form / .sv-modal-side rely on them for their own
-   scrolling; without flex:1;min-height:0 a short viewport clips the submit button out of
-   reach. */
+/* Strip only standalone chrome (fixed width, radius, border, shadow, viewport-relative
+   max-height)—host already provides those. Flex column and overflow:hidden stay, because
+   .sv-modal-body / .sv-modal-form / .sv-modal-side rely on them for own scrolling; without
+   flex:1;min-height:0 short viewport clips submit button out of reach. */
 .sv-modal.sv-modal-embedded {
   width: auto;
   max-width: none;
@@ -554,7 +572,8 @@ function thumbUrl(seed: string): string {
   padding: 18px 20px 16px;
   border-bottom: 1px solid var(--line);
 }
-/* 偏离登记(文件头注释 1):Vue2 scss:690-691 是 32×32,不是 brief 写的 28×28——照真源。 */
+/* Deviation entry (file header comment 1): Vue2 scss:690-691 is 32×32, not brief's 28×28—
+   source is authoritative. */
 .sv-modal-icon {
   width: 32px;
   height: 32px;
@@ -562,7 +581,7 @@ function thumbUrl(seed: string): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 唯一登记为"deliberate icon 改法"的 --on-accent 用法(文件头注释 2)。 */
+  /* Only --on-accent use registered as "deliberate icon change" (file header comment 2). */
   background: var(--accent);
   color: var(--on-accent);
   box-shadow: var(--card-shadow-hi);
@@ -570,8 +589,9 @@ function thumbUrl(seed: string): string {
 .sv-modal-head-text { flex: 1; min-width: 0; }
 .sv-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-1); }
 .sv-modal-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
-/* Vue2 全局 .icon-btn(32×32,见 photos.scss)在本仓不存在(scoped 孤岛),照本弹窗其余
-   26-28px 尺度的按钮定一份等价 scoped 版本(同 PlaceSpotDialog.vue:257 的既有先例)。 */
+/* Vue2 global .icon-btn (32×32, see photos.scss) doesn't exist in this repo (scoped island),
+   define scoped equivalent per this dialog's other 26-28px button scale (same as
+   PlaceSpotDialog.vue:257 precedent). */
 .icon-btn {
   flex: none;
   width: 28px;
@@ -613,7 +633,8 @@ function thumbUrl(seed: string): string {
 .sv-field { display: flex; flex-direction: column; gap: 6px; }
 .sv-field-label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--text-2); }
 .sv-field-hint { font-size: 10.5px; color: var(--text-4); font-weight: 400; }
-/* Vue2 内联 style="margin-top:6px"(:103/:116)→ 具名类,逐属性对照,不是裸字面量丢弃。 */
+/* Vue2 inline style="margin-top:6px" (:103/:116) → named class, property-by-property match,
+   not bare literal dropped. */
 .sv-hint-spaced { margin-top: 6px; }
 .sv-input {
   width: 100%;
@@ -720,8 +741,8 @@ function thumbUrl(seed: string): string {
 }
 
 .sv-thresh-val { margin-left: auto; color: var(--accent-hi); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
-/* fix round 1 · I1:.sv-slider/.sv-slider-marks 的真实样式已下沉到
-   PhotosThreshSlider.vue(scoped 但作用于该组件自己渲染的元素,不需要在这里重复)。 */
+/* fix round 1 · I1: .sv-slider/.sv-slider-marks actual styles sunk to PhotosThreshSlider.vue
+   (scoped but act on elements it renders, no need to repeat here). */
 
 .sv-toggles { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 2px 12px; }
 .sv-toggle-row {
@@ -737,11 +758,12 @@ function thumbUrl(seed: string): string {
 .sv-toggle-row .label { flex: 1; color: var(--text-1); }
 .sv-toggle-row .desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .sv-toggle-clickable { cursor: pointer; user-select: none; }
-/* fix round 1 · M1(SmartViewSidePanel.vue task-8 评审同批发现,控制器授权连本文件
-   一起补):Vue2 的 `.sv-switch` 有两份规则叠级联——本区 scss 读取区间没盖到
-   `photos.scss:2819-2820` 的低优先级裸 `.sv-switch`,它声明了 `transition: background
-   0.15s` 与 `::after` 的投影,未被高优先级的 `photos-smartview.scss:584-600` 覆盖,照样
-   合并生效。补齐这两条,与 SmartViewSidePanel.vue 保持一致。 */
+/* fix round 1 · M1 (SmartViewSidePanel.vue task-8 review same batch finding, controller
+   approved adding to this file too): Vue2's `.sv-switch` has two rule layers stacking—range
+   in this scss didn't cover `photos.scss:2819-2820` low-priority bare `.sv-switch` declaring
+   `transition: background 0.15s` and `::after` shadow, not overridden by high-priority
+   `photos-smartview.scss:584-600`, still merges in. Adding both to stay consistent with
+   SmartViewSidePanel.vue. */
 .sv-switch {
   position: relative;
   width: 32px;
@@ -770,8 +792,8 @@ function thumbUrl(seed: string): string {
   border-radius: 50%;
   background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
   transition: all 0.2s;
-  /* 投影是纯粗黑阴影,用 color-mix 复刻 Vue2 原值(纯黑、约 30% 不透明度的投影),不写
-     字面颜色函数,同 SmartViewSidePanel.vue 已立的先例。 */
+  /* Shadow is pure black rough shadow, use color-mix to match Vue2 original (pure black, ~30%
+     opacity shadow), don't use literal color function, same precedent as SmartViewSidePanel.vue. */
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
 /* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle has
@@ -857,14 +879,16 @@ function thumbUrl(seed: string): string {
   transition: all 0.12s;
 }
 .sv-template-row:hover { border-color: var(--accent); background: var(--accent-soft); }
-/* fix round 1 · I2:Vue2 :164 给这 5 个模板行的 sparkles 图标显式传了
-   color="var(--accent-hi)"(Vue2 PhotosIcon.vue 把 color prop 落到 :stroke)——是 accent
-   色,不是继承 .sv-template-row 自己的 color:var(--text-1)(前景白/深)。之前误用
-   stroke="currentColor" 让图标继承了容器的前景色而不是 accent,同文件另两处 sparkles
-   (.sv-suggest-head/.sv-preview-head)之所以碰巧对,是因为那两条规则自己的 color 就是
-   --accent-text,唯独这里的容器 color 是 --fg,currentColor 刚好继承错。Vue2 hover 态
-   (scss:955-958)只改 border-color/background,不改图标色,故 hover 态也应保持 accent——
-   这里直接给 svg 定死 color,不随容器 hover 变化,天然覆盖两态。 */
+/* fix round 1 · I2: Vue2 :164 explicitly passes color="var(--accent-hi)" to these 5 template
+   rows' sparkles icons (Vue2 PhotosIcon.vue maps color prop to :stroke)—is accent color, not
+   inherited from .sv-template-row's own color:var(--text-1) (foreground light/dark). Earlier
+   mistakenly used stroke="currentColor" making icon inherit container foreground instead of
+   accent; other two sparkles in file (.sv-suggest-head/.sv-preview-head) happened to work
+   because those rules' own color is already the accent text tier, only this one has a plain
+   foreground container color, so currentColor inherited the wrong value. Vue2 hover
+   (scss:955-958) only changes border-color/background, not icon color, so hover should also
+   stay accent—pin svg color here explicitly, doesn't follow container hover, naturally covers
+   both states. */
 .sv-template-row svg { margin-top: 2px; flex-shrink: 0; color: var(--accent-hi); }
 .sv-template-row .t-label { font-size: 12px; font-weight: 500; }
 .sv-template-row .t-desc { font-size: 10.5px; color: var(--text-3); margin-top: 1px; line-height: 1.35; }
@@ -891,8 +915,8 @@ function thumbUrl(seed: string): string {
   transition: background 0.15s;
 }
 .sv-btn-ghost:hover { background: var(--surface-3); }
-/* --on-accent 合法用法之三(文件头注释 3b):同本仓既有 primary 按钮先例
-   ClusterActionDialog.vue:320 / MergeReviewDialog.vue:262。 */
+/* --on-accent legal use case #3 (file header comment 3b): matches existing primary button
+   precedent in this repo ClusterActionDialog.vue:320 / MergeReviewDialog.vue:262. */
 .sv-btn-primary {
   height: 36px;
   padding: 0 18px;
@@ -921,11 +945,13 @@ function thumbUrl(seed: string): string {
 .sv-modal-enter-from, .sv-modal-leave-to { opacity: 0; }
 .sv-modal-enter-from .sv-modal, .sv-modal-leave-to .sv-modal { transform: translateY(8px) scale(0.98); opacity: 0; }
 
-/* 窄屏(文件头注释 4):Vue2 真实已有 @media (max-width: 760px)(scss:1018-1022,不是
-   brief 说的"零 @media"),这里 1:1 搬运两条真实变化(单列 + 側栏 border 换边),断点
-   数字对齐本仓同类文件 PhotosSmartViews.vue 已用的 768(与 Vue2 字面 760 的出入已登记)。 */
+/* Narrow screen (file header comment 4): Vue2 already has @media (max-width: 760px)
+   (scss:1018-1022, not brief's "zero @media"), here straight-port two real changes (single
+   column + side border flip), breakpoint number aligns with this repo's other similar files
+   PhotosSmartViews.vue already at 768 (deviation from Vue2 literal 760 logged). */
 @media (max-width: 768px) {
   .sv-modal-body { grid-template-columns: 1fr; }
   .sv-modal-side { border-left: 0; border-top: 1px solid var(--line); }
 }
+
 </style>

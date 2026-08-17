@@ -159,13 +159,16 @@
 //     been ported as a plain .sv-action-btn, reading as a third neutral chip next to
 //     "Add photos" and "Select"). Substitute rule and specificity note at the CSS.
 //
-// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
-// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
-// ——`collapsed` 改用共享 composable useSidebarCollapse()。内层滚动链已经完整
-// (`.sv-detail-main`/`.sv-detail-side` 两个网格格子各自 overflow-y:auto,复用
-// PhotosSmartViewDetail.vue 的骨架,SP15-P1-T7),换壳不影响滚动行为。已知遗留(同
-// PhotosAlbums.vue 的换壳注释,不逐页重复):移动端窄屏下没有 AreaShell 的 hamburger
-// 入口去开侧栏抽屉,brief 明确本任务不越权补,详见 task-2-report.md。
+// Plan C Task 2 (shared re-shell): the shell moves from AreaShell + a `.photos-layout` flex row
+// to Photos.vue's Vue2 structure `.photos-root[themeClass] > .app[data-collapsed] >
+// PhotosSidebar + main.main` — `collapsed` now comes from the shared composable
+// useSidebarCollapse(). The inner scroll chain is already complete (`.sv-detail-main` and
+// `.sv-detail-side` are two grid cells each with overflow-y:auto, reusing
+// PhotosSmartViewDetail.vue's skeleton, SP15-P1-T7), so the re-shell does not change scroll
+// behaviour. Known leftover (same as PhotosAlbums.vue's own re-shell comment, not repeated per
+// page): on narrow mobile viewports there is no AreaShell hamburger entry point to open the
+// sidebar drawer; the brief states this task must not overreach and fix it — see
+// task-2-report.md.
 import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -1100,7 +1103,8 @@ async function doDelete(): Promise<void> {
    (+`.trash-btn-cta-danger`) -- PhotosMomentDetail.vue:127-141, not `.sv-confirm-*` at all. Same
    cross-page dialog-idiom fork Task 3 originally flagged; T5 already migrated the sibling
    SmartViewDetail page's own copy of this pattern, and this task (the plan's dedicated
-   "四毛玻璃弹层类名激活确认" sweep) finishes the third and last page. Renamed the template's
+   "four frosted-glass dialog class-name activations" sweep) finishes the third and last page.
+   Renamed the template's
    classes to match (see its own comment); the entire local `.sv-confirm-*` cluster this replaces
    (scrim/panel/icon/title/body/foot/cancel/ok, this repo's own --overlay-bg/--popup-bg/
    --card-border/--fg tokens) is deleted outright -- parity's own self-contained rule

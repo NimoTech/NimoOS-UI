@@ -1,7 +1,8 @@
-// Task 9: Photos.vue 灯箱接线——照 Photos.integration.test.ts 的 mock/mount 套路
-// (svc.photos hoisted mock、useMessageBus mock),补齐 useLightbox 单例所需的
-// service.photos.recordView/getAsset/getAssetOcr/listFavoriteIds(PhotoLightbox
-// 真实挂载后 openAt/hydrateDetail/reconcileFav 会真的调它们)。
+// Task 9: Photos.vue lightbox wiring — follows Photos.integration.test.ts's mock/mount
+// pattern (svc.photos hoisted mock, useMessageBus mock), filling in the
+// service.photos.recordView/getAsset/getAssetOcr/listFavoriteIds that the useLightbox
+// singleton needs (once PhotoLightbox is really mounted, openAt/hydrateDetail/reconcileFav
+// really call them).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -28,7 +29,7 @@ const svc = vi.hoisted(() => ({
     listFavoriteIds: vi.fn().mockResolvedValue([]),
     favorite: vi.fn().mockResolvedValue(undefined),
     unfavorite: vi.fn().mockResolvedValue(undefined),
-    // Task 9: 灯箱「加入相册」→ AlbumPickerDialog 真实挂载,走 usePhotosAlbums()。
+    // Task 9: the lightbox's "add to album" -> AlbumPickerDialog is really mounted, going through usePhotosAlbums().
     listAlbums: vi.fn().mockResolvedValue([]),
     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
     // Task 8: delete-toast Undo restores through the trash store's real
@@ -39,7 +40,7 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// jsdom 无媒体栈(PhotoLightbox 起播位续播用得到)。
+// jsdom has no media stack (PhotoLightbox uses this for resuming playback position).
 ;(HTMLMediaElement.prototype as unknown as { play: () => Promise<void> }).play = vi.fn(() => Promise.resolve())
 ;(HTMLMediaElement.prototype as unknown as { pause: () => void }).pause = vi.fn()
 
@@ -96,8 +97,8 @@ afterEach(() => {
   lb.__resetForTest()
 })
 
-describe('Photos.vue 灯箱接线', () => {
-  it('点开一张图 → 灯箱打开,翻页集 = 当前 tab(默认 photo)过滤后的集合', async () => {
+describe('Photos.vue lightbox wiring', () => {
+  it('opening a photo -> the lightbox opens, the paging set = the collection filtered by the current tab (default photo)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [
@@ -106,7 +107,7 @@ describe('Photos.vue 灯箱接线', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    // 默认 tab='photo':只有 a、c 是非视频、非 OCR 的静图,b 是视频被滤掉。
+    // Default tab='photo': only a and c are non-video, non-OCR stills; b is a video and gets filtered out.
     const tile = w.find('.tile')
     expect(tile.exists()).toBe(true)
     await tile.trigger('click')
@@ -119,7 +120,7 @@ describe('Photos.vue 灯箱接线', () => {
     expect(lb.list.value.map((p) => p.id)).not.toContain('b')
   })
 
-  it('tab=video 时打开某视频 → 翻页集只含 isVideo', async () => {
+  it('opening a video while tab=video -> the paging set only contains isVideo items', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [
@@ -144,7 +145,7 @@ describe('Photos.vue 灯箱接线', () => {
     expect(lb.list.value.every((p) => p.isVideo)).toBe(true)
   })
 
-  it('灯箱 emit delete(id) → store.deleteAssets(["id"]) + photosToast(trash+Undo)', async () => {
+  it('the lightbox emits delete(id) -> store.deleteAssets(["id"]) + photosToast(trash+Undo)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     const photosToast = usePhotosToast()
@@ -165,7 +166,7 @@ describe('Photos.vue 灯箱接线', () => {
     await w.vm.$nextTick()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a'])
-    // PhotoLightbox 自己在 doDelete 里已经 close 了,Photos.vue 不重复关。
+    // PhotoLightbox already closes itself inside doDelete; Photos.vue doesn't close it again.
     expect(lb.open.value).toBe(false)
 
     // Task 8: same Photos-private toast + Undo as the batch-delete path
@@ -190,8 +191,8 @@ describe('Photos.vue 灯箱接线', () => {
     expect(photosToast.toasts.value).toHaveLength(0)
   })
 
-  // Task 9: 灯箱 emit add-to-album(id) → Photos.vue 打开 AlbumPickerDialog,assetIds=[id]。
-  it('灯箱「加入相册」→ picker 打开且 assetIds=[当前项 id]', async () => {
+  // Task 9: the lightbox emits add-to-album(id) -> Photos.vue opens AlbumPickerDialog, assetIds=[id].
+  it('lightbox "add to album" -> the picker opens with assetIds=[the current item id]', async () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Solo', assetCount: 0 }])
     const w = await mountPhotos()
     const store = useTimelineStore()
@@ -209,7 +210,7 @@ describe('Photos.vue 灯箱接线', () => {
     await w.vm.$nextTick()
 
     expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
-    // 灯箱本身不因加入相册而关闭(照 Vue2:emit 后由宿主开面板,灯箱保持打开)。
+    // The lightbox itself doesn't close because of adding to an album (matching Vue2: after the emit, the host opens the panel and the lightbox stays open).
     expect(lb.open.value).toBe(true)
 
     const item = w.find('[data-test="album-picker-item"]')

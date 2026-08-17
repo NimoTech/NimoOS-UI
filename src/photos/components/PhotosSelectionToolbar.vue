@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Plan B Task 7 (D19 顶部悬浮胶囊重刻): P1 gave this a Files-style rectangular top bar
+// Plan B Task 7 (D19 floating top pill rebuild): P1 gave this a Files-style rectangular top bar
 // (`.selection-toolbar`/`.sel-btn`, own <style scoped>); this task replaces that with
 // Vue2 pixel parity — a floating, top-anchored glass pill. Classes/values now come
 // entirely from src/photos/styles/vue2-parity/photos.scss:444-468 (`.photos-root
@@ -9,7 +9,7 @@
 // The `bar-in` entrance keyframes + `backdrop-filter: blur(20px) saturate(160%)` glass
 // look live in that stylesheet, not here.
 //
-// B-scope button set (owner-registered, see Global 交底): count + Add to Album +
+// B-scope button set (owner-registered, see Global handoff notes): count + Add to Album +
 // Delete(data-danger) + close(x). Vue2's Favorite (star, data-ai fill) and Ask Nimo
 // (data-ai="true") buttons are NOT rendered — ledger 二-8 upheld the favorite cut,
 // Ask Nimo is Plan G's, not this plan's. Emits stay exactly `clear`/`delete`/

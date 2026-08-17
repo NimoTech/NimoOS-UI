@@ -1,15 +1,18 @@
-// SP8-P2a Task 5 —— settingsStore 测试。逐条对应 brief Step 1 的 36 条用例清单
-// (Models / 下载轮询 / Providers / Policy / Services status / D2 重置 六组)。
+// SP8-P2a Task 5 — settingsStore tests. Each corresponds to the 36 test cases
+// in brief Step 1's list (Models / download polling / Providers / Policy /
+// Services status / D2 reset – six groups).
 //
-// mock 与 beforeEach 骨架取自 brief,但 `const ai = {...}` 改用 `vi.hoisted()`
-// 包一层——brief 原样骨架(`const ai = {...}` 后紧跟 `vi.mock(...)`)在本仓实测
-// 会报 "Cannot access 'ai' before initialization":`vi.mock` 调用被 vitest
-// 提升到文件最顶部,而 ESM 里所有 import 语句(含下面的
-// `import { useSettingsStore } from './settingsStore'`)本身也会被提升到所有
-// 非 import 语句之前执行——于是 `import './settingsStore'` 触发的 mock 工厂
-// 会在 `const ai = {...}` 真正赋值之前就跑,踩中 TDZ。`vi.hoisted()` 是本仓
-// `agentStore.test.ts:4-19` 已经用来解决同一问题的既定写法,这里照搬那个先例,
-// 而不是 brief 里那段实测会炸的骨架。
+// Mock and beforeEach skeleton taken from brief, but `const ai = {...}` wrapped
+// with `vi.hoisted()` — brief's original skeleton (`const ai = {...}` followed
+// by `vi.mock(...)`) fails in practice with "Cannot access 'ai' before
+// initialization": `vi.mock` is hoisted by vitest to the file top, and in ESM
+// all import statements (including the `import { useSettingsStore } from
+// './settingsStore'` below) are also hoisted before all non-import statements —
+// so the mock factory triggered by `import './settingsStore'` runs before
+// `const ai = {...}` is truly assigned, hitting the TDZ. `vi.hoisted()` is the
+// established pattern already used in this repo's `agentStore.test.ts:4-19` to
+// solve this same problem; replicating that precedent here rather than brief's
+// skeleton that fails in practice.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
@@ -48,7 +51,7 @@ beforeEach(() => {
 })
 
 describe('settingsStore — Models', () => {
-  it('1. loadModels 把 body 直接放进 installedModels(裸数组,未多剥一层 .data)', async () => {
+  it('1. loadModels puts body directly into installedModels (bare array, no extra .data unpacking)', async () => {
     const store = useSettingsStore()
     const raw = [{ name: 'llama3:8b', size_bytes: 123 }]
     ai.listModels.mockResolvedValue(raw)
@@ -56,33 +59,34 @@ describe('settingsStore — Models', () => {
     expect(store.installedModels).toEqual(raw)
   })
 
-  it('2. loadModels 在 finally 里放下 modelsLoading,即使请求 reject', async () => {
+  it('2. loadModels sets modelsLoading false in finally, even if request rejects', async () => {
     const store = useSettingsStore()
     ai.listModels.mockRejectedValue(new Error('boom'))
     await expect(store.loadModels()).rejects.toThrow('boom')
     expect(store.modelsLoading).toBe(false)
   })
 
-  it('3. pullModel 空白输入直接返回,不发请求', async () => {
+  it('3. pullModel with blank input returns immediately, does not send request', async () => {
     const store = useSettingsStore()
     store.pullModelInput = '   '
     await store.pullModel()
     expect(ai.pullModel).not.toHaveBeenCalled()
   })
 
-  it('4. pullModel 成功后清空 pullModelInput,pullingModels 在 finally 后为空', async () => {
+  it('4. pullModel clears pullModelInput on success, pullingModels empty after finally', async () => {
     const store = useSettingsStore()
     ai.pullModel.mockResolvedValue(undefined)
     store.pullModelInput = 'llama3:8b'
     const p = store.pullModel()
-    // 观察项(settingsStore.js:58-68):请求在途期间 pullingModels 短暂为真——
-    // 这条断言钉住"最终会被清空"这个现状,不代表提示语义准确。
+    // Observation item (settingsStore.js:58-68): while request is in flight,
+    // pullingModels is briefly true — this assertion pins down "will eventually
+    // be cleared"; does not mean the hint semantics are accurate.
     await p
     expect(store.pullModelInput).toBe('')
     expect(store.pullingModels).toEqual({})
   })
 
-  it('5. deleteModel 成功后重新拉一次 listModels', async () => {
+  it('5. deleteModel re-fetches listModels after success', async () => {
     const store = useSettingsStore()
     ai.deleteModel.mockResolvedValue(undefined)
     ai.listModels.mockResolvedValue([])
@@ -90,13 +94,13 @@ describe('settingsStore — Models', () => {
     expect(ai.listModels).toHaveBeenCalledTimes(1)
   })
 
-  it('6. searchHF 空白 query 不发请求;非空时先清空结果再请求', async () => {
+  it('6. searchHF with blank query does not send request; non-blank clears results first then requests', async () => {
     const store = useSettingsStore()
     store.hfQuery = '   '
     await store.searchHF()
     expect(ai.searchHFModels).not.toHaveBeenCalled()
 
-    // 预置陈旧状态,证明 searchHF 会先清空再请求
+    // Pre-set stale state to prove searchHF clears first then requests
     store.hfResults = [{ id: 'stale/repo' }]
     store.hfSelectedRepo = 'stale/repo'
     store.hfFiles = ['stale.gguf']
@@ -115,7 +119,7 @@ describe('settingsStore — Models', () => {
     expect(store.hfResults).toEqual([{ id: 'qwen/Qwen2.5' }])
   })
 
-  it('7. selectHFRepo 设置 repo 并清空 hfFiles', () => {
+  it('7. selectHFRepo sets repo and clears hfFiles', () => {
     const store = useSettingsStore()
     store.hfFiles = ['a.gguf', 'b.gguf']
     store.selectHFRepo('qwen/Qwen2.5')
@@ -123,14 +127,14 @@ describe('settingsStore — Models', () => {
     expect(store.hfFiles).toEqual([])
   })
 
-  it('8. loadHFFiles 无选中 repo 时不发请求', async () => {
+  it('8. loadHFFiles does not send request when no repo is selected', async () => {
     const store = useSettingsStore()
     store.hfSelectedRepo = null
     await store.loadHFFiles()
     expect(ai.listHFFiles).not.toHaveBeenCalled()
   })
 
-  it('9. importHF 无选中 repo 时不发请求;有则调 importHFModel 后 startImportJob', async () => {
+  it('9. importHF does not send request when no repo selected; if selected, calls importHFModel then startImportJob', async () => {
     const store = useSettingsStore()
     await store.importHF('model.gguf')
     expect(ai.importHFModel).not.toHaveBeenCalled()
@@ -141,17 +145,17 @@ describe('settingsStore — Models', () => {
     expect(ai.importHFModel).toHaveBeenCalledWith('qwen/Qwen2.5', 'model.gguf')
     expect(store.hfImportJobs['model.gguf']).toBeTruthy()
     expect(store.hfImportJobs['model.gguf'].status).toBe('downloading')
-    // 清理定时器,避免污染下一个用例
+    // Clean up timer to avoid polluting next test
     store.dismissImportJob('model.gguf')
   })
 })
 
-describe('settingsStore — 下载进度轮询', () => {
+describe('settingsStore — download progress polling', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
 
-  it('10. startImportJob 建条目,状态 downloading,_timer 非 null', () => {
+  it('10. startImportJob creates entry with status downloading, _timer non-null', () => {
     const store = useSettingsStore()
     store.startImportJob('qwen/Qwen2.5', 'model.gguf')
     const job = store.hfImportJobs['model.gguf']
@@ -160,7 +164,7 @@ describe('settingsStore — 下载进度轮询', () => {
     store.dismissImportJob('model.gguf')
   })
 
-  it('11. 推进 2000ms 后拉一次 getImportStatus,把 completed/total/status 写回条目', async () => {
+  it('11. after advancing 2000ms, fetches getImportStatus once, writes completed/total/status back to entry', async () => {
     const store = useSettingsStore()
     ai.getImportStatus.mockResolvedValue({ completed: 100, total: 1000, status: 'downloading' })
     store.startImportJob('qwen/Qwen2.5', 'model.gguf')
@@ -173,7 +177,7 @@ describe('settingsStore — 下载进度轮询', () => {
     store.dismissImportJob('model.gguf')
   })
 
-  it('12. 速度与 ETA:completed 增长 → speed > 0;speed 极小时 etaSecs 为 null', async () => {
+  it('12. speed and ETA: completed growth → speed > 0; when speed very small, etaSecs is null', async () => {
     const store = useSettingsStore()
     ai.getImportStatus
       .mockResolvedValueOnce({ completed: 0, total: 1000, status: 'downloading' })
@@ -183,37 +187,37 @@ describe('settingsStore — 下载进度轮询', () => {
         status: 'downloading',
       })
     store.startImportJob('qwen/Qwen2.5', 'model.gguf')
-    // 第一次轮询:completed 未变化(0 → 0),speed 应仍为极小/0,故 etaSecs 为 null
+    // First poll: completed unchanged (0 → 0), speed should remain very small/0, so etaSecs is null
     await vi.advanceTimersByTimeAsync(2000)
     const jobAfterFirst = store.hfImportJobs['model.gguf']
     expect(jobAfterFirst.etaSecs).toBeNull()
 
-    // 第二次轮询:completed 从 0 跳到 10MB,两秒内增长 → speed > 0
+    // Second poll: completed jumps from 0 to 10MB, growth in two seconds → speed > 0
     await vi.advanceTimersByTimeAsync(2000)
     const jobAfterSecond = store.hfImportJobs['model.gguf']
     expect(jobAfterSecond.speed).toBeGreaterThan(0)
     store.dismissImportJob('model.gguf')
   })
 
-  it('13. status success → 清定时器 + 重拉 listModels;再推进 3000ms → 条目被移除', async () => {
+  it('13. status success → clear timer + re-fetch listModels; advance 3000ms more → entry removed', async () => {
     const store = useSettingsStore()
     ai.getImportStatus.mockResolvedValue({ completed: 1000, total: 1000, status: 'success' })
     ai.listModels.mockResolvedValue([{ name: 'model.gguf' }])
     store.startImportJob('qwen/Qwen2.5', 'model.gguf')
     await vi.advanceTimersByTimeAsync(2000)
     expect(ai.listModels).toHaveBeenCalledTimes(1)
-    expect(store.hfImportJobs['model.gguf']).toBeTruthy() // 尚未到 3000ms dismiss
+    expect(store.hfImportJobs['model.gguf']).toBeTruthy() // not yet 3000ms for dismiss
 
     await vi.advanceTimersByTimeAsync(3000)
     expect(store.hfImportJobs['model.gguf']).toBeUndefined()
 
-    // 对照组:定时器确已被清——继续推进不会再触发 getImportStatus
+    // Control group: timer is indeed cleared — advancing further does not trigger getImportStatus again
     const callsBefore = ai.getImportStatus.mock.calls.length
     await vi.advanceTimersByTimeAsync(10000)
     expect(ai.getImportStatus.mock.calls.length).toBe(callsBefore)
   })
 
-  it('14. status error → 清定时器,条目保留(用户要能看到错误)', async () => {
+  it('14. status error → clear timer, keep entry (user must see error)', async () => {
     const store = useSettingsStore()
     ai.getImportStatus.mockResolvedValue({ completed: 50, total: 1000, status: 'error', error: 'disk full' })
     store.startImportJob('qwen/Qwen2.5', 'model.gguf')
@@ -223,23 +227,23 @@ describe('settingsStore — 下载进度轮询', () => {
     expect(job.status).toBe('error')
     expect(job.error).toBe('disk full')
 
-    // 对照组:定时器确已被清——继续推进不会再触发 getImportStatus
+    // Control group: timer is indeed cleared — advancing further does not trigger getImportStatus again
     const callsBefore = ai.getImportStatus.mock.calls.length
     await vi.advanceTimersByTimeAsync(10000)
     expect(ai.getImportStatus.mock.calls.length).toBe(callsBefore)
     store.dismissImportJob('model.gguf')
   })
 
-  it('15. getImportStatus 抛 404 → 清定时器 + 移除条目;抛非 404 → 条目保留、定时器继续(对照组)', async () => {
+  it('15. getImportStatus throws 404 → clear timer + remove entry; throws non-404 → keep entry, timer continues (control)', async () => {
     const store = useSettingsStore()
 
-    // 分支 A:404
+    // Branch A: 404
     ai.getImportStatus.mockRejectedValueOnce({ response: { status: 404 } })
     store.startImportJob('qwen/Qwen2.5', 'gone.gguf')
     await vi.advanceTimersByTimeAsync(2000)
     expect(store.hfImportJobs['gone.gguf']).toBeUndefined()
 
-    // 分支 B(对照组):非 404 错误 → 条目保留、定时器继续触发下一轮
+    // Branch B (control): non-404 error → keep entry, timer continues triggering next round
     ai.getImportStatus.mockRejectedValue({ response: { status: 500 } })
     store.startImportJob('qwen/Qwen2.5', 'flaky.gguf')
     await vi.advanceTimersByTimeAsync(2000)
@@ -251,7 +255,7 @@ describe('settingsStore — 下载进度轮询', () => {
     store.dismissImportJob('flaky.gguf')
   })
 
-  it('16. dismissImportJob / cancelImportJob 都清定时器并移除条目;cancelImportJob 的 cancelImport 失败被吞掉', async () => {
+  it('16. dismissImportJob / cancelImportJob both clear timer and remove entry; cancelImportJob failures swallowed', async () => {
     const store = useSettingsStore()
     ai.getImportStatus.mockResolvedValue({ completed: 0, total: 1000, status: 'downloading' })
 
@@ -268,7 +272,7 @@ describe('settingsStore — 下载进度轮询', () => {
 })
 
 describe('settingsStore — Providers', () => {
-  it('17. showProviderForm(p) 编辑态不回填 api_key', () => {
+  it('17. showProviderForm(p) edit mode does not pre-fill api_key', () => {
     const store = useSettingsStore()
     store.showProviderForm({ id: 1, name: 'OpenAI', base_url: 'https://api.openai.com/v1', api_key: 'sk-xxx' })
     expect(store.providerForm.data.api_key).toBe('')
@@ -276,7 +280,7 @@ describe('settingsStore — Providers', () => {
     expect(store.providerForm.data.base_url).toBe('https://api.openai.com/v1')
   })
 
-  it('18. showProviderForm() 无参 → 全空表单 + editing === null', () => {
+  it('18. showProviderForm() with no args → all-empty form + editing === null', () => {
     const store = useSettingsStore()
     store.showProviderForm({ id: 1, name: 'OpenAI', base_url: 'https://api.openai.com/v1' })
     store.showProviderForm()
@@ -290,7 +294,7 @@ describe('settingsStore — Providers', () => {
     })
   })
 
-  it('19. applyProviderPreset 覆盖 name/base_url/default_model/protocol,不动 api_key', () => {
+  it('19. applyProviderPreset overwrites name/base_url/default_model/protocol, leaves api_key alone', () => {
     const store = useSettingsStore()
     store.showProviderForm()
     store.providerForm.data.api_key = 'sk-untouched'
@@ -307,11 +311,11 @@ describe('settingsStore — Providers', () => {
     expect(store.providerForm.data.api_key).toBe('sk-untouched')
   })
 
-  it('20. saveProvider name 或 base_url 空白 → 抛错且不发请求(两条),消息走 i18n', async () => {
+  it('20. saveProvider with blank name or base_url → throw error and don\'t send requests, message uses i18n', async () => {
     const store = useSettingsStore()
-    // 评审 Important(Task 5 fix)—— e.message 会被 ProvidersSection.vue:175-182
-    // 原样弹给用户,必须走 i18n,不能是硬编码英文。默认 locale 是 zh_cn,断言
-    // 中文译文,而不只是"抛了个什么错"。
+    // Review Important (Task 5 fix) — e.message will be shown verbatim to user by
+    // ProvidersSection.vue:175-182, must use i18n, cannot be hardcoded English.
+    // Default locale is zh_cn, assert Chinese translation, not just "threw some error".
     const expectedMessage = '名称和 Base URL 为必填项'
 
     store.showProviderForm()
@@ -328,7 +332,7 @@ describe('settingsStore — Providers', () => {
     expect(ai.updateProvider).not.toHaveBeenCalled()
   })
 
-  it('21. saveProvider 编辑态且 api_key 为空 → payload 里不含 api_key 键', async () => {
+  it('21. saveProvider in edit mode with blank api_key → payload has no api_key key', async () => {
     const store = useSettingsStore()
     ai.updateProvider.mockResolvedValue(undefined)
     ai.listProviders.mockResolvedValue([])
@@ -339,7 +343,7 @@ describe('settingsStore — Providers', () => {
     expect(payload).not.toHaveProperty('api_key')
   })
 
-  it('22. saveProvider 编辑态且 api_key 非空 → payload 含 api_key', async () => {
+  it('22. saveProvider in edit mode with non-empty api_key → payload contains api_key', async () => {
     const store = useSettingsStore()
     ai.updateProvider.mockResolvedValue(undefined)
     ai.listProviders.mockResolvedValue([])
@@ -350,7 +354,7 @@ describe('settingsStore — Providers', () => {
     expect(payload).toHaveProperty('api_key', 'sk-new')
   })
 
-  it('23. saveProvider 成功后收起表单 + 重拉 listProviders', async () => {
+  it('23. saveProvider collects form after success + re-fetches listProviders', async () => {
     const store = useSettingsStore()
     ai.createProvider.mockResolvedValue(undefined)
     ai.listProviders.mockResolvedValue([{ id: 1, name: 'OpenAI', base_url: 'https://api.openai.com/v1' }])
@@ -362,7 +366,7 @@ describe('settingsStore — Providers', () => {
     expect(ai.listProviders).toHaveBeenCalledTimes(1)
   })
 
-  it('24. toggleProvider 成功 → 就地替换那一项的 enabled,其它项不动', async () => {
+  it('24. toggleProvider success → replace that item\'s enabled in-place, others untouched', async () => {
     const store = useSettingsStore()
     store.providers = [
       { id: 1, name: 'A', base_url: 'u1', enabled: false },
@@ -374,19 +378,20 @@ describe('settingsStore — Providers', () => {
     expect(store.providers[1]).toEqual({ id: 2, name: 'B', base_url: 'u2', enabled: true })
   })
 
-  it('25. toggleProvider 失败 → providers 回滚到调用前的快照且重新抛出', async () => {
+  it('25. toggleProvider failure → providers rollback to pre-call snapshot and re-throw', async () => {
     const store = useSettingsStore()
     const before = [
       { id: 1, name: 'A', base_url: 'u1', enabled: false },
       { id: 2, name: 'B', base_url: 'u2', enabled: true },
     ]
     store.providers = before.map((p) => ({ ...p }))
-    // 生产代码里 `providers.value` 只在 `ai.updateProvider` 成功之后才被 splice
-    // 改动,所以若请求一开始就 reject,catch 里的回滚行其实是在把 providers
-    // 赋回一个内容本就没变过的数组——这样测不出回滚行被删掉。要让这条断言真正
-    // 有判别力,必须在请求"在途"期间制造一次外部改动(例如另一处并发操作、或
-    // loadProviders 的刷新撞车),再让请求失败,断言 catch 把 providers 拉回
-    // **调用前**的快照、而不是停在这次在途期间的外部改动上。
+    // In production code, `providers.value` is only spliced after `ai.updateProvider`
+    // succeeds, so if the request rejects immediately, the catch rollback is actually
+    // reassigning to an array that never changed — can't detect if rollback is deleted.
+    // For this assertion to be truly discriminative, must create an external mutation
+    // while request is "in-flight" (e.g., concurrent operation elsewhere, or
+    // loadProviders refresh collision), then let request fail, assert that catch
+    // pulls providers back to **pre-call** snapshot, not left at the in-flight mutation.
     let rejectUpdate: (e: unknown) => void = () => {}
     ai.updateProvider.mockImplementation(
       () =>
@@ -404,7 +409,7 @@ describe('settingsStore — Providers', () => {
     expect(store.providers).toEqual(before)
   })
 
-  it('26. loadProviderModels 失败 → loading 置回 false、保留上次的 models,且重新抛出', async () => {
+  it('26. loadProviderModels failure → set loading back to false, keep previous models, re-throw', async () => {
     const store = useSettingsStore()
     store.providerModels[1] = { loading: false, models: [{ name: 'gpt-4o', source: 'auto', favorite: true }] }
     ai.listProviderModels.mockRejectedValue(new Error('down'))
@@ -413,7 +418,7 @@ describe('settingsStore — Providers', () => {
     expect(store.providerModels[1].models).toEqual([{ name: 'gpt-4o', source: 'auto', favorite: true }])
   })
 
-  it('27. toggleModelFavorite 只翻目标项、其余项原样,且只带 name/favorite 两字段', async () => {
+  it('27. toggleModelFavorite flips only target item, others unchanged, sends only name/favorite fields', async () => {
     const store = useSettingsStore()
     store.providerModels[1] = {
       loading: false,
@@ -431,7 +436,7 @@ describe('settingsStore — Providers', () => {
     ])
   })
 
-  it('28. addManualModel 对已存在的同名模型直接返回、不发请求', async () => {
+  it('28. addManualModel with existing same-name model returns directly, no request', async () => {
     const store = useSettingsStore()
     store.providerModels[1] = {
       loading: false,
@@ -441,7 +446,7 @@ describe('settingsStore — Providers', () => {
     expect(ai.updateProviderModels).not.toHaveBeenCalled()
   })
 
-  it('29. removeManualModel 只删 source===manual 的同名项;同名但非 manual 的保留(对照组)', async () => {
+  it('29. removeManualModel deletes only same-name items where source===manual; same-name non-manual kept (control)', async () => {
     const store = useSettingsStore()
     store.providerModels[1] = {
       loading: false,
@@ -454,7 +459,7 @@ describe('settingsStore — Providers', () => {
     ai.updateProviderModels.mockResolvedValue([])
     await store.removeManualModel(1, 'gpt-4o')
     const payload = ai.updateProviderModels.mock.calls[0][1]
-    // manual 的 gpt-4o 被删,auto 的 gpt-4o 保留(对照组:证明过滤是精确按 source 判断,不是按 name 一刀切)
+    // manual gpt-4o is deleted, auto gpt-4o is kept (control: proves filtering is exact by source, not blanket by name)
     expect(payload).toEqual([
       { name: 'gpt-4o', favorite: false },
       { name: 'other', favorite: false },
@@ -463,7 +468,7 @@ describe('settingsStore — Providers', () => {
 })
 
 describe('settingsStore — Policy', () => {
-  it('30. updatePolicyField 乐观更新:先改本地再发请求', async () => {
+  it('30. updatePolicyField optimistic update: change local first, then send request', async () => {
     const store = useSettingsStore()
     store.policy = { allow_remote: false, default_backend: 'local', escalation_prompt: false }
     let localValueAtCallTime: boolean | undefined
@@ -476,7 +481,7 @@ describe('settingsStore — Policy', () => {
     expect(store.policy?.allow_remote).toBe(true)
   })
 
-  it('31. updatePolicyField 失败 → 回滚到旧对象且重新抛出', async () => {
+  it('31. updatePolicyField failure → rollback to old object and re-throw', async () => {
     const store = useSettingsStore()
     const original = { allow_remote: false, default_backend: 'local', escalation_prompt: false }
     store.policy = { ...original }
@@ -485,7 +490,7 @@ describe('settingsStore — Policy', () => {
     expect(store.policy).toEqual(original)
   })
 
-  it('32. updatePolicyField 在 policy 为 null 时先填默认值再改', async () => {
+  it('32. updatePolicyField when policy is null, fill defaults first then modify', async () => {
     const store = useSettingsStore()
     store.policy = null
     ai.updatePolicy.mockResolvedValue(undefined)
@@ -499,7 +504,7 @@ describe('settingsStore — Policy', () => {
 })
 
 describe('settingsStore — Services status', () => {
-  it('33. loadServicesStatus 成功 → 三个布尔用 ?? false 归一', async () => {
+  it('33. loadServicesStatus success → three booleans normalized with ?? false', async () => {
     const store = useSettingsStore()
     ai.getServicesStatus.mockResolvedValue({ ollama: {} })
     await store.loadServicesStatus()
@@ -508,7 +513,7 @@ describe('settingsStore — Services status', () => {
     expect(store.servicesStatus.agent).toBe(false)
   })
 
-  it('34. loadServicesStatus 整体失败被吞掉,三组状态全部落到关闭默认值', async () => {
+  it('34. loadServicesStatus overall failure swallowed, all three status groups fall to off defaults', async () => {
     const store = useSettingsStore()
     ai.getServicesStatus.mockRejectedValue(new Error('down'))
     await expect(store.loadServicesStatus()).resolves.toBeUndefined()
@@ -519,7 +524,7 @@ describe('settingsStore — Services status', () => {
 })
 
 describe('settingsStore — D2 resetTransientUi', () => {
-  it('35. resetTransientUi 把 activeSection / providerForm / hf 搜索四态复位', () => {
+  it('35. resetTransientUi resets activeSection / providerForm / hf search four states', () => {
     const store = useSettingsStore()
     store.setActiveSection('providers')
     store.showProviderForm({ id: 1, name: 'OpenAI', base_url: 'u' })
@@ -539,7 +544,7 @@ describe('settingsStore — D2 resetTransientUi', () => {
     expect(store.hfFiles).toEqual([])
   })
 
-  it('36. resetTransientUi 不动 hfImportJobs / installedModels / providers / policy(对照组)', () => {
+  it('36. resetTransientUi leaves alone hfImportJobs / installedModels / providers / policy (control)', () => {
     const store = useSettingsStore()
     store.installedModels = [{ name: 'llama3:8b' }]
     store.providers = [{ id: 1, name: 'OpenAI', base_url: 'u' }]

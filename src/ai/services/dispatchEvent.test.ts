@@ -1,12 +1,13 @@
-// 1:1 移植目标:Vue2 src/views/AI/Agent/services/agentStream.js:260-562(dispatchEvent
-// 18-case switch)+ 47-52(endThinkingStreaming)+ 57-62(endMessageStreaming)。
+// 1:1 port target: Vue2 src/views/AI/Agent/services/agentStream.js:260-562 (dispatchEvent
+// 18-case switch) + 47-52 (endThinkingStreaming) + 57-62 (endMessageStreaming).
 //
-// Vue2 侧 __tests__/agentStream.spec.js 只覆盖了 mapper 家族(migrateLegacyMessages/
-// buildPhotoGridBlock/buildSemanticSearchBlock —— 已在 Task 3 streamMappers.test.ts
-// 移植),并不存在针对 dispatchEvent reducer 本身的现成测试。本文件是新写的 reducer
-// 测试,逐条对照 agentStream.js 实现和 brief 的 18-case 清单编写,而非"移植"一个不存在
-// 的文件。fake actions 的 patchBlock 语义与 New-UI 真实 store(agentStore.ts:190-209)
-// 一致:倒序查找最近一条匹配 block,找到则用 splice 整体替换并返回 true。
+// Vue2's __tests__/agentStream.spec.js only covered the mapper family (migrateLegacyMessages/
+// buildPhotoGridBlock/buildSemanticSearchBlock — already ported in Task 3 streamMappers.test.ts),
+// there was no existing test for the dispatchEvent reducer itself. This file is a newly written
+// reducer test, written line-by-line per the agentStream.js implementation and the brief's
+// 18-case list, not a "port" of a non-existent file. The fake actions' patchBlock semantics
+// match the New-UI real store (agentStore.ts:190-209): reverse-search for the most recent
+// matching block, and if found, splice-replace it entirely and return true.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { dispatchEvent } from './dispatchEvent'
 import type { AgentBlock, StreamActions } from '../types'

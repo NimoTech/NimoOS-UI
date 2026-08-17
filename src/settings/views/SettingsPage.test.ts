@@ -8,19 +8,23 @@ import zhSp9 from '../../i18n/zh_cn.sp9'
 import SettingsPage from './SettingsPage.vue'
 import { LAST_TAB_KEY } from '../util/lastTab'
 
-// P1 起 general 骨架被真实内容替换(LanguageRow 等用 Pinia store,UpdateRow/SwitchRow
-// 用 toast store),挂载整页需要一个 active Pinia —— 之前 general 只是纯骨架不需要。
-// service 也必须 mock:未调用 initService() 时 `service.sys` 这个 getter 本身就同步抛错
-// (不是 promise reject),UsbAutoMountRow 的 Promise.allSettled 只包住了 .then() 链,
-// 包不住取属性阶段的同步抛出,会变成未处理异常炸穿整个测试文件。这里只关心路由/外壳层面
-// 的断言,与 GeneralPanel.integration.test.ts 的详细行为断言不重复。
+// Since P1, the general skeleton has been replaced with real content (LanguageRow etc. use the
+// Pinia store, UpdateRow/SwitchRow use the toast store), so mounting the whole page needs an
+// active Pinia — previously general was a bare skeleton and didn't need one.
+// service must also be mocked: without calling initService(), the `service.sys` getter itself
+// throws synchronously (not a promise rejection), and UsbAutoMountRow's Promise.allSettled only
+// wraps the .then() chain — it can't catch a synchronous throw at property-access time, which
+// becomes an unhandled exception that blows up the whole test file. This file only cares about
+// routing/shell-level assertions, and doesn't duplicate the detailed behaviour assertions in
+// GeneralPanel.integration.test.ts.
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     users: {
       getCustomStorage: async () => ({}),
       setCustomStorage: async () => {},
-      // AccountPanel 的 avatarSrc computed 在挂载时求值;缺这行会在用例结束后
-      // 抛 unhandled TypeError,表现为「3078 例全绿但进程退出码 1」。
+      // AccountPanel's avatarSrc computed is evaluated at mount time; missing this line throws
+      // an unhandled TypeError after the test finishes, which manifests as "all 3078 tests
+      // green but process exit code 1".
       avatarPath: (v: number, t: string | null) => `/v1/users/avatar?${t ? `token=${t}&` : ''}v=${v}`,
     },
     sys: {
@@ -70,31 +74,31 @@ describe('SettingsPage', () => {
     setActivePinia(createPinia())
   })
 
-  it('按 :tab 渲染对应骨架', async () => {
+  it('renders the matching skeleton based on :tab', async () => {
     const { w } = await mountPage('network')
     expect(w.find('.set-section-title').text()).toBe('网络')
   })
 
-  it('切 tab 时内容跟着换', async () => {
+  it('content switches along with the tab', async () => {
     const { w, router } = await mountPage('network')
     await router.push('/settings/apps')
     await flushPromises()
     expect(w.find('.set-section-title').text()).toBe('应用')
   })
 
-  it('进入时把当前 tab 写进记忆', async () => {
+  it('writes the current tab to memory on entry', async () => {
     await mountPage('apps')
     expect(localStorage.getItem(LAST_TAB_KEY)).toBe('apps')
   })
 
-  it('切 tab 后记忆跟着更新', async () => {
+  it('memory updates along with the tab switch', async () => {
     const { router } = await mountPage('apps')
     await router.push('/settings/terminal')
     await flushPromises()
     expect(localStorage.getItem(LAST_TAB_KEY)).toBe('terminal')
   })
 
-  it('点 rail 项跳到对应路由', async () => {
+  it('clicking a rail item navigates to the matching route', async () => {
     const { w, router } = await mountPage('general')
     const item = w.findAll('.set-rail-item').find((i) => i.attributes('data-tab') === 'apps')!
     await item.trigger('click')
@@ -102,28 +106,28 @@ describe('SettingsPage', () => {
     expect(router.currentRoute.value.path).toBe('/settings/apps')
   })
 
-  it('general 页内的 developer 入口跳到 /settings/developer', async () => {
+  it('the developer entry on the general page navigates to /settings/developer', async () => {
     const { w, router } = await mountPage('general')
     await w.find('.set-dev-entry').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/settings/developer')
   })
 
-  it('developer 的返回按钮跳回 /settings/general', async () => {
+  it('developer\'s back button navigates back to /settings/general', async () => {
     const { w, router } = await mountPage('developer')
     await w.find('.set-back').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/settings/general')
   })
 
-  it('用户块跳到 /settings/account', async () => {
+  it('the user block navigates to /settings/account', async () => {
     const { w, router } = await mountPage('general')
     await w.find('.set-user').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/settings/account')
   })
 
-  it('非法 :tab 直接挂载时兜底渲染 general(不空白)', async () => {
+  it('falls back to rendering general when mounted directly with an invalid :tab (not blank)', async () => {
     const { w } = await mountPage('nope')
     expect(w.find('.set-section-title').text()).toBe('通用')
   })

@@ -1,4 +1,4 @@
-// 真实路径拼接(仅操作真实路径;虚拟↔真实转换在 pathUtils)。
+// Real path concatenation (operates on real paths only; virtual ↔ real conversion is in pathUtils).
 export function joinPath(parentReal: string, name: string): string {
   const base = parentReal.replace(/\/+$/, '')
   return (base === '' ? '' : base) + '/' + name

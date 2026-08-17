@@ -1,13 +1,15 @@
 <script setup lang="ts">
-// 从 NAS 选头像 —— 对位 Vue2 AccountPanel state 6(:763-846)。
-// 两个视图:存储卡网格(nasView='storages')与目录浏览(nasView='browse')。
-// **整块只读**:storage.list / raid.list / folder.getList / <img> 取 /v1/image,可放心在真机点。
+// Pick avatar from NAS — maps to Vue2 AccountPanel state 6 (:763-846).
+// Two views: storage card grid (nasView='storages') and directory browsing (nasView='browse').
+// **Entirely read-only**: storage.list / raid.list / folder.getList / <img> fetches /v1/image, safe to click on a real device.
 //
-// 🔧 plan C11:Vue2 选中图片后走 axios arraybuffer → Blob → createObjectURL,只为嗅探 mime,
-// 而那个 mime **模板里零引用**(死代码)→ 这里直接把 /v1/image?...&type=original 当 <img src>
-// (同源,cropper 能用),少一层内存拷贝、也不产生需要 revoke 的 objectURL。
-// 🔧 Vue2 loadNasFolder 查的是 `res.data?.success === 200`(v1 信封),而共享包 folder.getList
-// 已经 unwrap 过、直接给 FolderListing → **不要再查 success**,失败由 axios reject。
+// 🔧 plan C11: after picking an image, Vue2 goes axios arraybuffer → Blob → createObjectURL, purely to
+// sniff the mime type, and that mime type **has zero references in the template** (dead code) → here
+// we use /v1/image?...&type=original directly as the <img src> (same-origin, works with the cropper),
+// saving a layer of memory copying and producing no objectURL that needs revoking.
+// 🔧 Vue2's loadNasFolder checks `res.data?.success === 200` (v1 envelope), but the shared package's
+// folder.getList has already unwrapped it and hands back FolderListing directly → **don't check
+// success again**, failures come through as an axios reject.
 import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -35,9 +37,11 @@ const nasPath = ref('')
 const nasRootPath = ref('')
 const displayNames = ref<Record<string, string>>({})
 
-// 就地代际守卫(不抽公共 helper,plan C8)。列目录 ~百毫秒级,而用户点面包屑 / 上一层 /
-// 目录都能在途时再发一次 —— 「前一次还在飞、后一次已回来」是真实路径,用 seq 区分同一组件的
-// 前后两次请求(alive 布尔区分不了这个)。
+// Inline generation guard (not extracted into a shared helper, plan C8). Listing a directory takes
+// ~hundreds of milliseconds, and the user clicking a breadcrumb / up a level / a directory can all
+// fire another request while one is in flight — "the previous one is still in flight, the next one
+// has come back" is a genuine path, so seq is used to distinguish two requests from the same
+// component (a boolean `alive` can't tell them apart).
 let alive = true
 let seq = 0
 onUnmounted(() => {
@@ -48,26 +52,30 @@ async function loadStorages() {
   storagesLoading.value = true
   error.value = ''
   try {
-    // Vue2 :278-281 用 $api.storage.list()(**无参**,不是 AppsPanel 的 {system:'show'})+
-    // raid.list() 单独 catch 成空 —— RAID 取不到不该拖垮整屏。照抄。
+    // Vue2 :278-281 calls $api.storage.list() (**no arguments**, not AppsPanel's {system:'show'}) +
+    // raid.list() catches its own failure into an empty array — RAID being unreachable shouldn't take
+    // down the whole screen. Copied as-is.
     const [rawStorage, rawRaid] = await Promise.all([
       service.storage.list(),
       service.raid.list().catch(() => [] as unknown[]),
     ])
     if (!alive) return
-    // displayNames:只映射**非根**挂载点(它们的名字就是卷 label)。
-    // ⚠️ 为什么不把根卷的 label 映射到 "/DATA"(AppsPanel.vue:87-95 是那么做的):
-    // Vue2 的 displayNames 来自专用端点 `GET /v2/nimoos/local_storage/display_names`,
-    // 不是从卷 label 派生的。2026-08-01 实测该端点在本机返回
-    //   {"data":{"/DATA":"NimoOS-HD"},"message":""}   ← 注意信封只有 data+message,**没有 success**
-    // 也就是说 `/DATA` 的真实显示名**正好等于** Vue2 写死的兜底值 'NimoOS-HD'。
-    // 而 local_storage 域按 SP6 定案不进共享包、本期(spec §5.7)也只补 users 域 →
-    // 这里不发那个请求,让 /DATA 走 buildNasStorages 里的 'NimoOS-HD' 兜底,真机效果逐字一致。
-    // ⚠️ `/DATA` 必须**种进 map**,不能只靠 buildNasStorages 里的兜底:面包屑走的是
-    // nasBreadcrumbs → toVirtualPath(nasRootPath, displayNames),它没有那个兜底,
-    // /DATA 不在 map 里时面包屑会显示成 `DATA` 而 Vue2 真机显示 `NimoOS-HD`(1:1 不符)。
-    // 这里种的就是上面 curl 到的真实值。
-    // 遗留:若用户把系统盘改过名,这张卡与面包屑会显示 'NimoOS-HD' 而不是自定义名(债务)。
+    // displayNames: only maps **non-root** mount points (their name is the volume label).
+    // ⚠️ Why we don't map the root volume's label to "/DATA" (AppsPanel.vue:87-95 does that):
+    // Vue2's displayNames comes from a dedicated endpoint `GET /v2/nimoos/local_storage/display_names`,
+    // not derived from the volume label. Tested live on the device on 2026-08-01, that endpoint returns
+    //   {"data":{"/DATA":"NimoOS-HD"},"message":""}   ← note the envelope is only data+message, **no success**
+    // In other words, `/DATA`'s real display name **exactly equals** Vue2's hardcoded fallback value 'NimoOS-HD'.
+    // And the local_storage domain, per the SP6 decision, doesn't go into the shared package, and this
+    // period (spec §5.7) only fills in the users domain → so we don't send that request here, and let
+    // /DATA fall back to buildNasStorages' 'NimoOS-HD', matching the real device's behavior byte for byte.
+    // ⚠️ `/DATA` must be **seeded into the map**, not left to buildNasStorages' fallback alone: the
+    // breadcrumbs go through nasBreadcrumbs → toVirtualPath(nasRootPath, displayNames), which has no
+    // such fallback — when /DATA isn't in the map, the breadcrumb would show `DATA` while Vue2 on the
+    // real device shows `NimoOS-HD` (a 1:1 mismatch).
+    // What's seeded here is the real value curl'd above.
+    // Leftover: if the user has renamed the system disk, this card and the breadcrumb will show
+    // 'NimoOS-HD' instead of the custom name (debt).
     const map: Record<string, string> = { '/DATA': 'NimoOS-HD' }
     for (const v of mapVolumes(rawStorage)) {
       if (!v.mountPoint || v.mountPoint === '/') continue
@@ -120,7 +128,7 @@ function backToStorages() {
 
 function up() {
   const target = nasNavigateUpTarget(nasPath.value, nasRootPath.value)
-  if (!target) return // 已在根,Vue2 :348 也是直接 return,不发请求
+  if (!target) return // already at root; Vue2 :348 also just returns directly, no request sent
   openFolder(target)
 }
 
@@ -141,7 +149,7 @@ defineExpose({ backToStorages, openFolder, view })
 
 <template>
   <div class="set-acc-nas">
-    <!-- ── 存储卡网格 (Vue2 L766-789) ── -->
+    <!-- ── Storage card grid (Vue2 L766-789) ── -->
     <template v-if="view === 'storages'">
       <p v-if="storagesLoading" class="set-fp-empty">…</p>
       <p v-else-if="error" class="set-danger">{{ error }}</p>
@@ -156,7 +164,7 @@ defineExpose({ backToStorages, openFolder, view })
       </div>
     </template>
 
-    <!-- ── 目录浏览 (Vue2 L792-844) ── -->
+    <!-- ── Directory browsing (Vue2 L792-844) ── -->
     <template v-else>
       <div class="set-nas-toolbar">
         <button
@@ -164,7 +172,7 @@ defineExpose({ backToStorages, openFolder, view })
           data-test="nas-back" @click="backToStorages"
         >‹</button>
         <div class="set-nas-crumbs" data-test="nas-crumbs">
-          <!-- Vue2 :803 的 `i < len-1 &&` 守卫照抄:最后一段不可点 -->
+          <!-- Copies Vue2 :803's `i < len-1 &&` guard: the last segment is not clickable -->
           <span
             v-for="(c, i) in crumbs" :key="c.path" class="set-nas-crumb"
             :class="{ active: i === crumbs.length - 1 }" data-test="nas-crumb"
@@ -185,9 +193,10 @@ defineExpose({ backToStorages, openFolder, view })
           v-for="it in items" :key="it.path" class="set-nas-item" type="button"
           data-test="nas-item" @click="onItemClick(it)"
         >
-          <!-- 这里是**类型标记**(不是操作按钮),保留彩色 emoji:Vue2 用的也是彩色 mdi 图标
-               (folder 橙、image 紫)。⚠️ headless 截图里会显示成空方框(缺 emoji 字形),
-               真实浏览器正常 —— 已列进验收清单。 -->
+          <!-- This is a **type marker** (not an action button), keeping the colored emoji: Vue2 also
+               used colored mdi icons (orange for folder, purple for image). ⚠️ Shows as an empty box in
+               headless screenshots (missing emoji glyph), fine in a real browser — already listed in the
+               acceptance checklist. -->
           <span class="set-nas-item-icon" aria-hidden="true">{{ it.is_dir ? '📁' : '🖼' }}</span>
           <span class="set-nas-item-name">{{ it.name }}</span>
         </button>

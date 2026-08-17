@@ -24,8 +24,9 @@ vi.mock('../composables/useMessageBus', () => ({
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 const Stub = defineComponent({ render: () => null })
 
-// RaidDriveBay/RaidMatrix 内部逻辑已在各自测试里覆盖(T3/T4);这里只 stub 掉,
-// 聚焦向导编排(选盘→选级别→确认→body 组装→task 接线)。
+// RaidDriveBay/RaidMatrix's internal logic is already covered by their own tests (T3/T4);
+// here they are just stubbed out, focusing on wizard orchestration (choose drives -> choose
+// level -> confirm -> body assembly -> task wiring).
 const RaidDriveBayStub = defineComponent({
   props: { disks: { type: Array, default: () => [] }, modelValue: { type: Array, default: () => [] } },
   emits: ['update:modelValue'],
@@ -93,13 +94,13 @@ describe('StorageRaidCreate', () => {
     document.body.innerHTML = ''
   })
 
-  it('无可用盘 → 空态提示 + 下一步按钮禁用', async () => {
+  it('no drives available -> empty-state prompt + next button disabled', async () => {
     const { w } = await mountReady([])
     expect(w.find('.rcv-nodisk').exists()).toBe(true)
     expect(w.find('.rcv-next').attributes('disabled')).toBeDefined()
   })
 
-  it('选 3 盘 + 级别 5 + btrfs + 快照勾选(默认)→ 确认 → createRaid 收到逐字 body', async () => {
+  it('select 3 drives + level 5 + btrfs + snapshot checked (default) -> confirm -> createRaid receives the exact body', async () => {
     const { w, router } = await mountReady()
     const store = useStorageStore()
     const task: RaidTask = {
@@ -132,13 +133,14 @@ describe('StorageRaidCreate', () => {
       chunk_kb: 512,
       filesystem: 'btrfs',
       enable_snapshots: true,
-      wipe_raid_residue: false, // 无 residue 盘时不带清除授权
+      wipe_raid_residue: false, // no wipe authorization when there are no residue drives
     })
     expect(startCreateTaskSpy).toHaveBeenCalledWith(task)
     expect(pushSpy).toHaveBeenCalledWith('/storage/raid')
   })
 
-  // ── RAID 残留(2026-08-11):residue 盘可选,但确认页点名清除 + 请求带 wipe_raid_residue ──
+  // ── RAID residue (2026-08-11): residue drives are selectable, but the confirm page calls out
+  // the wipe + the request carries wipe_raid_residue ──
   const RESIDUE = {
     role: 'residue' as const, array_name: 'zimaos:fc5616382c017331', array_uuid: 'u', level: 'raid5',
     registered: false, active: false,
@@ -146,7 +148,7 @@ describe('StorageRaidCreate', () => {
   }
   const DISK_R = { path: '/dev/sdr', name: 'sdr', model: 'WD-Blue', size: 1000, needFormat: true, serial: 's-r', raid: RESIDUE }
 
-  it('选中 residue 盘 → 确认弹窗列出将被清除的残留(path + 阵列名),body 带 wipe_raid_residue:true', async () => {
+  it('selecting a residue drive -> the confirm dialog lists the residue that will be wiped (path + array name), body carries wipe_raid_residue:true', async () => {
     document.body.innerHTML = ''
     const { w } = await mountReady([DISK_A, DISK_B, DISK_R])
     const store = useStorageStore()
@@ -159,9 +161,10 @@ describe('StorageRaidCreate', () => {
     await w.find('.rcv-confirm').trigger('click')
     await w.vm.$nextTick()
 
-    // 确认弹窗经 reka-ui Portal Teleport 到 body(同目录 Dialog 测试同款教训)
+    // The confirm dialog is teleported to body via reka-ui's Portal (same lesson learned from
+    // the Dialog test in this directory)
     const warn = document.body.querySelector('.rcv-residue-warn')
-    expect(warn, '残留清除警告未渲染').not.toBeNull()
+    expect(warn, 'residue-wipe warning did not render').not.toBeNull()
     expect(warn!.textContent).toContain('/dev/sdr')
     expect(warn!.textContent).toContain('zimaos:fc5616382c017331')
 
@@ -170,7 +173,7 @@ describe('StorageRaidCreate', () => {
     expect(createRaidSpy).toHaveBeenCalledWith(expect.objectContaining({ wipe_raid_residue: true }))
   })
 
-  it('未选 residue 盘 → 确认弹窗不渲染残留警告', async () => {
+  it('no residue drive selected -> the confirm dialog does not render the residue warning', async () => {
     document.body.innerHTML = ''
     const { w } = await mountReady()
     await selectDisks(w, [DISK_A, DISK_B, DISK_C])
@@ -179,11 +182,11 @@ describe('StorageRaidCreate', () => {
     await setName(w, 'MyArray4')
     await w.find('.rcv-confirm').trigger('click')
     await w.vm.$nextTick()
-    expect(document.body.querySelector('.rcv-dialog-create'), '确认弹窗未渲染').not.toBeNull()
+    expect(document.body.querySelector('.rcv-dialog-create'), 'confirm dialog did not render').not.toBeNull()
     expect(document.body.querySelector('.rcv-residue-warn')).toBeNull()
   })
 
-  it('切 ext4 → 快照复选框隐藏,enable_snapshots 强制 false', async () => {
+  it('switching to ext4 -> snapshot checkbox hidden, enable_snapshots forced to false', async () => {
     const { w } = await mountReady()
     const store = useStorageStore()
     const task: RaidTask = {
@@ -211,23 +214,23 @@ describe('StorageRaidCreate', () => {
     )
   })
 
-  it('盘数 < 所选级别 min → 确认按钮禁用', async () => {
+  it('drive count < selected level min -> confirm button disabled', async () => {
     const { w } = await mountReady([DISK_A, DISK_B, DISK_C])
-    // 只选 3 盘,但(经由 stub 的 RaidMatrix)强选级别 6(min 4)—— 3 < 4
+    // Only 3 drives selected, but (via the stubbed RaidMatrix) level 6 is force-selected (min 4) — 3 < 4
     await selectDisks(w, [DISK_A, DISK_B, DISK_C])
     await selectLevel(w, 6)
     expect(w.find('.rcv-next').attributes('disabled')).toBeDefined()
   })
 
-  it('选盘变化 → selectedLevel 自动设为 recommendRaidLevel(盘数)(Vue2 watcher 逐字对齐)', async () => {
+  it('drive selection changes -> selectedLevel automatically set to recommendRaidLevel(drive count) (matches the Vue2 watcher verbatim)', async () => {
     const DISK_D = { path: '/dev/sdd', name: 'sdd', model: 'WD-Blue', size: 1000, needFormat: false, serial: 's-d' }
     const { w } = await mountReady([DISK_A, DISK_B, DISK_C, DISK_D])
     await selectDisks(w, [DISK_A, DISK_B, DISK_C, DISK_D])
-    // recommendRaidLevel(4) === 10(偶数盘);未手动选级别时 watcher 自动拉到推荐级别。
+    // recommendRaidLevel(4) === 10 (an even drive count); when no level has been manually chosen, the watcher automatically pulls it to the recommended level.
     expect(w.find('[data-level="10"]').classes()).toContain('rcv-lv-card--selected')
   })
 
-  it('阵列名与已有阵列重名 → canCreate 为 false + 错误文案渲染;改唯一名 → 恢复可提交', async () => {
+  it('array name duplicates an existing array -> canCreate is false + error copy renders; changing to a unique name -> submittable again', async () => {
     const { w } = await mountReady()
     const store = useStorageStore()
     const existing: RaidArray = { id: 1, name: 'Taken', level: 5, state: 'active' }

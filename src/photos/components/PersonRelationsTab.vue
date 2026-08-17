@@ -1,35 +1,37 @@
 <script setup lang="ts">
-// Task 13 (SP7-P5 人物): PersonRelationsTab.vue —— 人物详情页「关系」tab
-// (关系图区 + 共现列表 + Nimo's read 洞察卡)。逐段照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosPersonDetail.vue:187-227(整个 v-if="tab==='graph'" 块)、
-// :530-536(sortedRelations/relMax)、:571-585(nimoRead 拼句)移植;样式段照
-// photos-people.scss:502-568(关系图区+共现列表)与 :647-682(洞察卡)。
+// Task 13 (SP7-P5 people): PersonRelationsTab.vue — people detail page "relations" tab
+// (relation graph area + co-appearance list + Nimo's read insight card). Line-by-line port from
+// Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:187-227 (entire v-if="tab==='graph'"
+// block), :530-536 (sortedRelations/relMax), :571-585 (nimoRead sentence assembly); styles from
+// photos-people.scss:502-568 (relation graph + co-appearance list) and :647-682 (insight card).
 //
-// 段落标题(协调者裁定,同 T12):Vue2 的两处 .detail-section-title(:189-192
-// 关系图、:202 共同出现)都在 v-if="tab==='graph'" 块内,是这个 tab 自己的一
-// 部分,不是容器负责的东西——容器(T14)只切 tab。
+// Section title (coordinator decision, same as T12): Vue2's two .detail-section-title instances
+// (:189-192 relation graph, :202 co-appearance) both live inside v-if="tab==='graph'" block,
+// are part of this tab itself, not container responsibility — container (T14) only switches tab.
 //
-// 补齐 affordance(brief 明确要求,非 Vue2 行为):PersonRelGraph 的
-// open-person(点卫星节点跳转)在这里原样透传给父级;Vue2 关系图节点本不可点,
-// 这条补齐已在 PersonRelGraph.vue 顶部登记。
+// Affordance complement (brief explicitly requires, not Vue2 behavior): PersonRelGraph's
+// open-person (click satellite node to jump) passes through here to parent unchanged; Vue2
+// relation graph nodes are not clickable; this complement already recorded at top of PersonRelGraph.vue.
 //
-// nimoRead 拼句的纯函数部分已挪到 peopleView.ts 的 nimoReadParts(T13 新增,
-// 见该文件注释),这里只做 t(key, params) 解析 + 空格拼接(照 :584
-// `parts.join(' ')`),以及 v-html 的安全加固(见下方 escapeHtml 注释)。
+// nimoRead sentence assembly's pure function part already moved to peopleView.ts's nimoReadParts
+// (T13 new addition, see that file's comments); here only does t(key, params) resolution + space
+// joining (follows :584 `parts.join(' ')`), plus v-html hardening (see escapeHtml comment below).
 //
 // Task 8 (Plan D): the insight card's bottom "Dig deeper" button (Vue2 :228-230 `.nimo-btn`,
 // $emit('ask-nimo', ...)) was previously deferred to SP8 and unrendered; now added back per Vue2.
 // The click is a no-op — wiring the real Ask Nimo call belongs to Plan G.
 //
-// v-html 安全性(brief 给的两个选项之间的取舍,已在报告里详细说明):brief 建议
-// 「低成本的话改用 <i18n-t> 具名插槽把 <b> 做成 slot」。这里改用另一条更低成本、
-// 同样能关闭风险的路径——在拼句前对每个插值参数(人名/地名,均来自后端/用户输入)
-// 做 HTML 转义,再 v-html 拼好的字符串。转义后字符串里唯一残留的 "<b>"/"</b>"
-// 只可能来自我们自己写的翻译模板,不可能来自数据,XSS 风险已闭合,且不依赖
-// vue-i18n 富插值 slot 的动态插槽名机制(那条路径对 5 个不同 key、不同参数集
-// 要各自处理 bold/非 bold 参数分流,复杂度明显更高)。Vue2 对同样的参数是
-// 完全不转义的裸插值(:576 `$t('...<b>{other}</b>.', {..., other: top.name})`),
-// 所以这里已经比 Vue2 更安全,不是"同等风险搬过来"。
+// v-html security (tradeoff between two brief options, detailed in report): brief suggests "if low
+// cost, switch to <i18n-t> named slots to make <b> a slot". Here using another lower-cost path
+// that equally closes the risk — before assembling sentence, HTML-escape each interpolation
+// parameter (person name / place name, both from backend / user input), then v-html the assembled
+// string. After escaping, the only remaining "<b>"/"</b>" in the string can only come from our own
+// translation template, never from data; XSS risk is closed, and doesn't depend on vue-i18n rich
+// interpolation slot's dynamic slot-name mechanism (that path would need separate handling for
+// bold/non-bold parameter branching for 5 different keys with different parameter sets, much higher
+// complexity). Vue2 uses completely unescaped raw interpolation for the same parameters (:576
+// `$t('...<b>{other}</b>.', {..., other: top.name})`), so here is already safer than Vue2, not
+// "same risk carried over".
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonRelGraph from './PersonRelGraph.vue'
@@ -48,23 +50,24 @@ const emit = defineEmits<{ (e: 'open-person', id: string | number): void }>()
 
 const { t } = useI18n()
 
-// Vue2 :530-532 sortedRelations —— 按 count 降序,不改变 props.relations 本身
-// (nimoReadParts 需要读原始顺序的 relations[0],见下方 nimoReadHtml)。
+// Vue2 :530-532 sortedRelations — descending by count, does not mutate props.relations itself
+// (nimoReadParts needs to read original order's relations[0], see nimoReadHtml below).
 const sortedRelations = computed(() => [...props.relations].sort((a, b) => b.count - a.count))
 
-// Vue2 :533-536 relMax。评审登记的一处正确性修正(非照抄 bug,按项目"移植纪律"
-// 约定改正确逻辑并注释登记):Vue2 在 relations 非空但全部 count===0 时会算出
-// Math.max(...[0,0])===0,导致条形宽度 `0/0*100%` = NaN%(浏览器会忽略这个非法
-// 内联样式值,视觉上退化成"没有宽度设置"而不是崩溃,但仍是坏值)。这里在
-// Math.max 调用里也补上 ,1 兜底,与 PersonRelGraph 的 maxCount 用同一招——
-// 对真实数据(count 从不为 0,否则这条关系压根不会被收进 relations)没有任何
-// 行为差异,只堵住这一个理论上的除零缺口。
+// Vue2 :533-536 relMax. Review-recorded correctness fix (not copying bug; per project "port
+// discipline" convention, correcting logic and recording in comment): Vue2 when relations is
+// non-empty but all count===0 computes Math.max(...[0,0])===0, leading to bar width `0/0*100%`
+// = NaN% (browser ignores this invalid inline style value, visually degrades to "no width set"
+// rather than crash, but still bad value). Here also add ,1 fallback in Math.max call, same
+// technique as PersonRelGraph's maxCount — no behavior difference for real data (count is never 0,
+// else this relation wouldn't be in relations at all), just plugs this one theoretical divide-by-zero
+// gap.
 const relMax = computed(() =>
   props.relations.length ? Math.max(...props.relations.map((r) => r.count), 1) : 1,
 )
 
-// escapeHtml 见脚本头部的 v-html 安全性说明。只转义 HTML 特殊字符,不做多余
-// 的规则化 —— 转义后的文本原样交给 vue-i18n 的 t() 做插值。
+// escapeHtml — see v-html security explanation at script top. Only escapes HTML special
+// characters, no extra normalization — escaped text goes as-is to vue-i18n's t() for interpolation.
 function escapeHtml(v: unknown): string {
   return String(v ?? '')
     .replace(/&/g, '&amp;')
@@ -74,13 +77,14 @@ function escapeHtml(v: unknown): string {
     .replace(/'/g, '&#39;')
 }
 
-// Vue2 :571-585 nimoRead。person 为 null 时 Vue2 也是直接返回空串
-// (:572 `if (!this.person) return ''`)。
+// Vue2 :571-585 nimoRead. When person is null Vue2 also directly returns empty string
+// (:572 `if (!this.person) return ''`).
 const nimoReadHtml = computed(() => {
   if (!props.person) return ''
-  // 用户验收新增:未命名人物现在能进详情页,而洞察卡的句子模板全部带 {name} 槶位,裸
-  // person.name 会渲染成「 的照片还不够多…」这种前置空格残句(Vue2 同病,但它进不来所以
-  // 不可达)。兜底口径与同期的 PersonPlacesTab.vue:51 完全一致 —— 都用 photosPersonThisPerson。
+  // User acceptance new: unnamed people can now enter detail page, and insight card sentence
+  // templates all have {name} placeholder; bare person.name would render as " photos not enough..."
+  // with leading space artifact (Vue2 same issue, but it can't get here so unreachable). Fallback
+  // language exactly matches same-period PersonPlacesTab.vue:51 — both use photosPersonThisPerson.
   const name = props.person.name.trim() || t('photosPersonThisPerson')
   const parts = nimoReadParts(name, props.relations, props.places)
   return parts
@@ -137,7 +141,9 @@ function onDigDeeper(): void {}
 
       <div class="rel-insight-card" style="margin-top: 18px">
         <div class="hd"><span class="orb" :style="{ backgroundImage: `url(${nimoLogoUrl})` }" /> {{ t('photosPersonNimoRead') }}</div>
-        <!-- eslint-disable-next-line vue/no-v-html -- 插值参数已在 nimoReadHtml 里逐个转义,残留的 <b> 只可能来自翻译模板本身,见脚本区注释 -->
+        <!-- eslint-disable-next-line vue/no-v-html -- interpolation params already escaped
+             individually in nimoReadHtml, remaining <b> can only come from translation template
+             itself, see script section comment -->
         <p class="insight-text" data-test="insight-text" v-html="nimoReadHtml" />
         <!-- Task 8 (Plan D): the "Dig deeper" button — Vue2 :228-230, click is a no-op
              (onDigDeeper), wiring belongs to Plan G. -->

@@ -1,7 +1,7 @@
 <template>
   <main class="home-screen">
     <HomeTopbar @add="addPanel.openLib" />
-    <!-- ≤720px:只读手机启动器;否则桌面网格。数据生命周期(下方 onMounted)与分支无关 -->
+    <!-- ≤720px: read-only phone launcher; otherwise the desktop grid. Data lifecycle (onMounted below) is independent of the branch -->
     <MobileHome v-if="isMobile" />
     <DesktopContextMenu v-else>
       <GridCanvas ref="canvas" :cell="cell" :gap="gap" :cols="cols" :rows="rows" />
@@ -54,7 +54,7 @@ const dockEl = computed(() => dock.value?.root ?? null)
 
 const { cols, rows, cell, gap, relayout } = useGridMeasure(gridEl, dockEl)
 const isMobile = useIsMobile()
-// gridEl 只在 onMounted 捕获一次;从手机断点切回桌面时 GridCanvas 才挂载,需重新捕获再量
+// gridEl is captured only once in onMounted; GridCanvas only mounts when switching back from the phone breakpoint to desktop, so it must be recaptured and re-measured
 watch(isMobile, async (mobile) => {
   if (mobile) return
   await nextTick()
@@ -63,7 +63,7 @@ watch(isMobile, async (mobile) => {
 })
 watch(() => live.gpu, () => reconcileGpu(layout, live))
 
-const DIMS = { cols: 12, rows: 8 } // 与 useAddPanel 同一套固定网格(响应式网格是既有 defer 项)
+const DIMS = { cols: 12, rows: 8 } // same fixed grid as useAddPanel (a responsive grid is an existing deferred item)
 
 let onResize: (() => void) | null = null
 let stopParallax: (() => void) | null = null
@@ -84,7 +84,7 @@ function refreshApps() {
     // never reach removal at all (#125 review finding 1).
     if (apps.kvmAvailable === false) layout.evict('vm', { force: true })
     layout.autoPin(apps.desktopDecls(), DIMS, apps.stoppedDesktopKeys())
-    // 统一清扫:已卸载/已删除的应用(含手动固定、LinkApp),缺席满宽限期后磁贴移除
+    // Unified sweep: uninstalled/removed apps (including manually pinned tiles, LinkApp) have their tiles removed once absent past the full grace period
     layout.sweepGone(Object.keys(apps.apps))
   }).catch((e) => console.warn('[home] appgrid', e))
 }
@@ -104,10 +104,10 @@ onMounted(async () => {
   onFocus = () => refreshApps()
   window.addEventListener('focus', onFocus)
 
-  // docker daemon 事件推送:destroy 立即清位,其余去抖刷新(轮询仍是兜底)
+  // docker daemon event push: destroy evicts immediately, everything else debounces a refresh (polling still backstops it)
   containerEventBridge = createContainerEventHandler({ evict: (k) => layout.evict(k), refresh: refreshApps })
   offContainerEvents = useMessageBus().on(CONTAINER_EVENT, containerEventBridge.handle)
-  // 卸载完成 = 明确的应用消失信号:立即清位(含手动固定磁贴),不等宽限期
+  // Uninstall complete = an unambiguous app-gone signal: evict immediately (including manually pinned tiles), without waiting for the grace period
   offUninstallEvents = useMessageBus().on(APP_UNINSTALL_END, createUninstallEndHandler({
     evictForce: (k) => layout.evict(k, { force: true }),
     refresh: refreshApps,
@@ -129,13 +129,13 @@ onUnmounted(() => {
 
 <style scoped>
 .home-screen { min-height: 100vh; padding: 24px 24px 12px; box-sizing: border-box; }
-/* 手机启动器整页只上下滚。body 全局 overflow:hidden(桌面整屏设计),
-   所以滚动容器必须是 .home-screen 自己:锁高到视口、内部纵向滚。 */
+/* The phone launcher page only scrolls vertically. body has global overflow:hidden (desktop full-screen design),
+   so the scroll container must be .home-screen itself: lock its height to the viewport, scroll vertically inside. */
 @media (max-width: 720px) {
   .home-screen {
     padding: 12px 8px 0;
     height: 100dvh;
-    min-height: 0; /* 覆盖桌面的 min-height:100vh,否则手机上容器被撑回 100vh、底部藏进浏览器工具条 */
+    min-height: 0; /* overrides the desktop's min-height:100vh, otherwise on phone the container gets stretched back to 100vh and the bottom hides behind the browser toolbar */
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;

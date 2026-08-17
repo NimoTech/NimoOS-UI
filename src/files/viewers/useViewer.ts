@@ -2,15 +2,16 @@ import { ref, type Ref } from 'vue'
 import { getPanelType, type PanelType } from './panelMap'
 import type { FileEntry } from '../stores/files'
 
-// 模块级单例状态
+// Module-level singleton state
 const open = ref(false)
 const panelType = ref<PanelType | null>(null)
 const currentItem = ref<FileEntry | null>(null)
 const list = ref<FileEntry[]>([])
 
-// ── 历史集成:预览开着时按"返回"应只关预览,而不是让路由退到上级目录还盖着预览层。
-// 打开时 pushState 压一条同 URL 的记录(hash 路由不变,vue-router 视为无导航);
-// 返回键 pop 掉它 → onPop 只关预览;X/ESC 关闭 → history.back() 吃掉这条记录。
+// ── History integration: when preview is open, pressing "back" should only close the preview,
+// not navigate the route back to parent directory while the preview overlay stays.
+// On open, pushState adds a same-URL history entry (hash route unchanged, vue-router sees no nav);
+// back button pops it → onPop only closes preview; X/ESC closing → history.back() consumes this entry.
 let pushedHistory = false
 
 function onPop(): void {
@@ -46,7 +47,7 @@ function close(): void {
   if (pushedHistory) {
     pushedHistory = false
     window.removeEventListener('popstate', onPop)
-    window.history.back() // 消耗 openItem 压入的记录,历史栈保持干净
+    window.history.back() // consume the entry pushed by openItem, keep history stack clean
   }
 }
 

@@ -87,7 +87,7 @@ describe('StorePage', () => {
     push.mockClear(); replace.mockClear()
   })
 
-  it('进区拉目录+Featured;渲染卡片网格与已装徽章', async () => {
+  it('Enter area, fetch catalog + Featured; render card grid with installed badge', async () => {
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
     expect(svc.appstore.listApps).toHaveBeenCalledWith({})               // catalog
@@ -98,14 +98,14 @@ describe('StorePage', () => {
     expect(w.text()).toContain('已安装') // jellyfin ∈ installed
   })
 
-  it('目录为空 → 空态提示(非报错,spec §7.5)', async () => {
+  it('Catalog is empty → empty state hint (not an error, spec §7.5)', async () => {
     svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
     expect(w.text()).toContain('没有找到应用')
   })
 
-  it('加载失败 → 错误态 + 重试按钮,点击重拉', async () => {
+  it('Load fails → error state + retry button, click to reload', async () => {
     svc.appstore.listApps.mockRejectedValue(new Error('boom'))
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -116,7 +116,7 @@ describe('StorePage', () => {
     expect(w.findAll('.store-card')).toHaveLength(2)
   })
 
-  it('搜索输入 250ms 防抖后 replace 路由 query(前端过滤,深链)', async () => {
+  it('Search input debounced 250ms then replace route query (frontend filtering, deep link)', async () => {
     vi.useFakeTimers()
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -127,7 +127,7 @@ describe('StorePage', () => {
     vi.useRealTimers()
   })
 
-  it('组件卸载后清理防抖定时器——不应在卸载后(如已跳转详情页)仍触发 replace', async () => {
+  it('Clean up debounce timer after component unmount — should not trigger replace after unmount (e.g., already navigated to detail page)', async () => {
     vi.useFakeTimers()
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -138,7 +138,7 @@ describe('StorePage', () => {
     vi.useRealTimers()
   })
 
-  it('?search= 生效时前端过滤;点卡片进详情', async () => {
+  it('When ?search= takes effect, frontend filtering; click card to go to detail', async () => {
     routeQuery.search = 'jelly'
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -148,14 +148,14 @@ describe('StorePage', () => {
     expect(push).toHaveBeenCalledWith({ name: 'apps-store-detail', params: { id: 'jellyfin' } })
   })
 
-  it('点分类 chip → replace query;?category= 变化由 watch 重拉(后端参数)', async () => {
+  it('Click category chip → replace query; ?category= changes are reloaded by watch (backend parameter)', async () => {
     routeQuery.category = 'Media'
     mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
     expect(svc.appstore.listApps).toHaveBeenCalledWith({ category: 'Media' })
   })
 
-  it('Featured 带只在 无搜索+全部分类+全部来源 时显示', async () => {
+  it('Featured strip only shows when there is no search + all categories + all sources', async () => {
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
     expect(w.find('.featured-strip').exists()).toBe(true)
@@ -167,7 +167,7 @@ describe('StorePage', () => {
     expect(w2.find('.featured-strip').exists()).toBe(false)
   })
 
-  it('点卡片安装钮走真实链路:dry_run→install→出现安装中%', async () => {
+  it('Click card install button, follow real path: dry_run→install→show installing %', async () => {
     svc.appstore.getAppCompose.mockResolvedValue('services: {}')
     svc.compose.install.mockResolvedValue(undefined)
     const w = await mountPage()
@@ -180,7 +180,7 @@ describe('StorePage', () => {
     w.unmount()
   })
 
-  it('带 before_install 的应用:先弹须知,确认后才安装', async () => {
+  it('App with before_install: show notice first, only install after confirmation', async () => {
     // the fixture's list gives this app tips.before_install.zh_cn
     svc.appstore.getAppCompose.mockResolvedValue('services: {}')
     const w = await mountPage({ withTips: true })

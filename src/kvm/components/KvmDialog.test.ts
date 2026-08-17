@@ -33,19 +33,19 @@ const mk = async (props: Record<string, unknown> = {}, slots: Record<string, str
 afterEach(() => { w?.unmount(); w = null; document.body.innerHTML = '' })
 
 describe('KvmDialog', () => {
-  it('open 时把标题与默认插槽渲染到 body(teleport)', async () => {
+  it('When open, renders title and default slot to body (teleport)', async () => {
     await mk()
     expect(document.body.textContent).toContain('创建新虚拟机')
     expect(document.body.querySelector('.probe')).not.toBeNull()
     expect(document.body.querySelector('.create-vm-body')).not.toBeNull()
   })
 
-  it('open=false 时不渲染任何内容', async () => {
+  it('When open=false, renders nothing', async () => {
     await mk({ open: false })
     expect(document.body.querySelector('.create-vm-modal')).toBeNull()
   })
 
-  it('点关闭按钮 emit update:open=false,且带 aria-label', async () => {
+  it('Clicking close button emits update:open=false and has aria-label', async () => {
     const wr = await mk()
     const btn = document.body.querySelector('.create-vm-close') as HTMLButtonElement
     expect(btn.getAttribute('aria-label')).toBeTruthy()
@@ -54,18 +54,18 @@ describe('KvmDialog', () => {
     expect(wr.emitted('update:open')).toEqual([[false]])
   })
 
-  it('没传 footer 插槽时不渲染 create-vm-foot(创建/设置弹窗有脚,快照 tab 没有)', async () => {
+  it('Without footer slot, does not render create-vm-foot (create/settings dialogs have footers, but snapshot tabs do not)', async () => {
     await mk()
     expect(document.body.querySelector('.create-vm-foot')).toBeNull()
   })
 
-  it('传了 footer 与 tabs 插槽时各自渲染到位', async () => {
+  it('With footer and tabs slots, each renders in its place', async () => {
     await mk({}, { footer: '<button class="f">保存</button>', tabs: '<div class="t">tabs</div>' })
     expect(document.body.querySelector('.create-vm-foot .f')).not.toBeNull()
     expect(document.body.querySelector('.t')).not.toBeNull()
   })
 
-  it('zBase 落到遮罩与内容的 z-index 上(OSSelector 要叠在创建弹窗之上)', async () => {
+  it('zBase applies to overlay and content z-index (OSSelector must stack above the create dialog)', async () => {
     await mk({ zBase: 920 })
     const overlay = document.body.querySelector('.kvm-dialog-overlay') as HTMLElement
     const content = document.body.querySelector('.kvm-dialog-content') as HTMLElement

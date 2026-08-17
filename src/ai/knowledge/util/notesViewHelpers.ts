@@ -1,21 +1,23 @@
-// SP8-P5d Task 3 —— 1:1 移植自 Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/notesViewHelpers.js`(50 行)。
+// SP8-P5d Task 3 —— 1:1 ported from Vue2
+// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/notesViewHelpers.js`(50 lines).
 //
-// 🔴 K40:`NOTE_TYPES[*].color` 从蓝本的色字面量渐变改成 `var(--grad-note-*)` 字符串——
-// 这四个 token 已在 T2 的 `knowledge.scss` 两档里声明(见附录 B §B.1 / K39)。
-// `color-guard.test.ts` 的 glob 只有 `../**/*.vue` 与 `../**/*.css`,压根不扫 `.ts` →
-// 这四个渐变在任何既有守卫下都是裸奔的。配套的 `notesViewHelpers.test.ts` 补了一条
-// 定向断言(四个值必须形如 `var(--…)`,零 `#`/`rgb(`/`rgba(`/具名色)+ RED 探针,
-// 这是「产品代码对、守卫为零」的预防式堵法,不是事后补(附录 B §B.5)。
+// 🔴 K40: `NOTE_TYPES[*].color` changed from original color-literal gradients to
+// `var(--grad-note-*)` strings —— these four tokens already declared in T2's `knowledge.scss`
+// both tiers (see Appendix B §B.1 / K39). `color-guard.test.ts` glob is only `../**/*.vue` and
+// `../**/*.css`, never scans `.ts` → these four gradients are unguarded. Accompanying
+// `notesViewHelpers.test.ts` adds targeted assertion (four values must be `var(--…)` form,
+// zero `#`/`rgb(`/`rgba(`/named colors) + RED probe; this is preventive blocking for
+// "product code correct, guard zero" case, not post-hoc (Appendix B §B.5).
 //
-// 附录 A §A.4 落地口径:蓝本 `NOTE_TYPES`/`NOTE_SOURCES` 的 `labelKey` 字段值是英文
-// 原串(`'Note item'`/`'Summary'`/…),Vue2 里被直接当 i18n key 用($t(labelKey))——
-// 「英文原串即 key」是 Vue2 的巧合,New-UI 的键名是 T1 已建的 aiKb* 家族,不成立
-// (与 P5b N14 同一个坑)。本仓 `labelKey` 字段的值改写成 New-UI 键名,消费方
-// (NotesView/NoteEditPane,T6/T7)用 `$t(m.labelKey)` 渲染。
+// Appendix A §A.4 implementation scope: original `NOTE_TYPES`/`NOTE_SOURCES` `labelKey` field
+// values are English strings (`'Note item'`/`'Summary'`/…), used directly as i18n keys in Vue2
+// ($t(labelKey)) —— "English string is key" is Vue2 coincidence, New-UI key names are T1's
+// pre-built aiKb* family, doesn't hold (same trap as P5b N14). This repo's `labelKey` field
+// values rewritten to New-UI key names; consumers (NotesView/NoteEditPane, T6/T7) render
+// via `$t(m.labelKey)`.
 //
-// `relativeTime` 不在组件 setup 上下文里 → 必须用 `i18n.global.t(...)`,不许改用
-// `useI18n()`(不在组件 setup 上下文里会抛)。先例 `indexedFilesView.ts:31/51-58`。
+// `relativeTime` not in component setup context → must use `i18n.global.t(...)`, not
+// `useI18n()` (throws outside setup context). Precedent: `indexedFilesView.ts:31/51-58`.
 
 import { i18n } from '../../../i18n'
 
@@ -26,8 +28,8 @@ export interface NoteTypeMeta {
 }
 
 /**
- * 蓝本 :5-10 —— 四种笔记类型的展示元数据(图标 + 渐变)。
- * K40:color 是 `var(--grad-note-*)` token 引用,不是色字面量。
+ * Original :5-10 —— display metadata for four note types (icon + gradient).
+ * K40: color is `var(--grad-note-*)` token reference, not color literal.
  */
 export const NOTE_TYPES: Record<string, NoteTypeMeta> = {
   note: { labelKey: 'aiKbNoteTypeNote', icon: 'edit', color: 'var(--grad-note-note)' },
@@ -36,7 +38,7 @@ export const NOTE_TYPES: Record<string, NoteTypeMeta> = {
   digest: { labelKey: 'aiKbNoteTypeDigest', icon: 'file', color: 'var(--grad-note-digest)' },
 }
 
-/** 蓝本 :12-14 —— 未知 / 未传 type 都兜底到 `NOTE_TYPES.note`。 */
+/** Original :12-14 —— unknown / missing type both fallback to `NOTE_TYPES.note`. */
 export function noteTypeMeta(type: string | undefined | null): NoteTypeMeta {
   return (type && NOTE_TYPES[type]) || NOTE_TYPES.note
 }
@@ -46,14 +48,14 @@ export interface NoteSourceMeta {
   icon: string
 }
 
-/** 蓝本 :16-20 —— 三种笔记来源的展示元数据。 */
+/** Original :16-20 —— display metadata for three note sources. */
 export const NOTE_SOURCES: Record<string, NoteSourceMeta> = {
   human: { labelKey: 'aiKbNoteSrcHuman', icon: 'user' },
   agent: { labelKey: 'aiKbNoteSrcAgent', icon: 'bot' },
   pipeline: { labelKey: 'aiKbNoteSrcPipeline', icon: 'sparkle' },
 }
 
-/** 蓝本 :22-24 —— 未知 / 未传 createdBy 都兜底到 `NOTE_SOURCES.human`。 */
+/** Original :22-24 —— unknown / missing createdBy both fallback to `NOTE_SOURCES.human`. */
 export function noteSourceMeta(createdBy: string | undefined | null): NoteSourceMeta {
   return (createdBy && NOTE_SOURCES[createdBy]) || NOTE_SOURCES.human
 }
@@ -64,10 +66,11 @@ export interface StatusBadge {
 }
 
 /**
- * 蓝本 :26-30 —— draft/archived 各出一个徽标,curated 及其它状态不出徽标(null)。
- * 🔴 全仓零生产消费者(协调者已 grep 核实:蓝本模板里徽标是内联 `kn-badge` 标记,
- * 只有 Vue2 `__tests__/notesView.spec.js` 引用这个函数)—— 依据治理 §4.3,
- * 照抄导出 + 照抄下面对应的 3 条用例,**不许因为「没人用」就删**(K7 同族:反转不删)。
+ * Original :26-30 —— draft/archived each emit a badge, curated and other states don't (null).
+ * 🔴 Zero production consumers across repo (coordinator verified via grep: original template
+ * uses inline `kn-badge` markup, only Vue2 `__tests__/notesView.spec.js` calls this) ——
+ * per governance §4.3, copy export + copy 3 corresponding test cases below, **never delete
+ * "because unused"** (K7 family: invert not delete).
  */
 export function statusBadge(note: { status?: string | null }): StatusBadge | null {
   if (note.status === 'draft') return { label: 'AI draft', tone: 'warn' }
@@ -81,8 +84,8 @@ export interface FilterableNote {
 }
 
 /**
- * 蓝本 :32-38 —— `status`:`''` = 全部,`'active'` = 非 archived(draft+curated 都算),
- * 其余 = 精确匹配。`type` 与 `status` 两个筛选条件各自独立生效(逻辑 AND)。
+ * Original :32-38 —— `status`: `''` = all, `'active'` = non-archived (draft+curated count),
+ * others = exact match. `type` and `status` filters apply independently (AND logic).
  */
 export function applyFilters<T extends FilterableNote>(
   list: T[],
@@ -96,14 +99,14 @@ export function applyFilters<T extends FilterableNote>(
 }
 
 /**
- * 蓝本 :40-49 —— `updated_at` 来自 agent 服务是 unix **秒**,不是毫秒(蓝本注释 :41)。
- * 五档:`d<60` 刚刚 · `d<3600` N 分钟前 · `d<86400` N 小时前 · `d<86400*30` N 天前 ·
- * 否则 `toLocaleDateString()`(本地日期,不接 i18n)。
- * 🔴 K42:相对时间用的 4 个键(`aiKbJustNow`/`aiKbRelMinAgo`/`aiKbRelHrAgo`/
- * `aiKbRelDaysAgo`)是本期新建/复用的 `aiKb*` 键,占位符全是 `{n}`,不复用既有
- * `aiKbMinAgo`/`aiKbHrAgo`/`aiKbDaysAgo`(占位符是 `{m}`/`{h}`/`{d}`,复用会渲染出
- * 字面量 `{n}`)。
- * 🔴 不在组件 setup 上下文里 → 用 `i18n.global.t(...)`,不许 `useI18n()`(会抛)。
+ * Original :40-49 —— `updated_at` from agent service is unix **seconds**, not ms (original
+ * comment :41). Five tiers: `d<60` just now, `d<3600` N min ago, `d<86400` N hr ago,
+ * `d<86400*30` N days ago, else `toLocaleDateString()` (local date, no i18n).
+ * 🔴 K42: 4 keys for relative time (`aiKbJustNow`/`aiKbRelMinAgo`/`aiKbRelHrAgo`/
+ * `aiKbRelDaysAgo`) are new/repurposed `aiKb*` keys, placeholders all `{n}`; don't reuse
+ * existing `aiKbMinAgo`/`aiKbHrAgo`/`aiKbDaysAgo` (placeholders `{m}`/`{h}`/`{d}`, reuse
+ * renders literal `{n}`).
+ * 🔴 Not in component setup context → use `i18n.global.t(...)`, no `useI18n()` (throws).
  */
 export function relativeTime(unixSec: number | null | undefined): string {
   if (!unixSec) return ''

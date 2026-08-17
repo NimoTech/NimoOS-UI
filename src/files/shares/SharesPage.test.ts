@@ -6,12 +6,14 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import zh from '../../i18n/zh_cn'
 import SharesPage from './SharesPage.vue'
 
-// SharesPage 经 FilesSidebar 读取 useRoute()/useRouter(),shares.load()/files.loadRoots() 打
-// service.samba / service.storage.list —— 都需要 mock,否则 vue-router 注入会抛错、onMounted 会打真实网络。
+// SharesPage reads useRoute()/useRouter() via FilesSidebar, calling shares.load()/files.loadRoots(),
+// which eventually hit service.samba / service.storage.list — all need to be mocked, otherwise
+// vue-router injection will throw and onMounted will make real network calls.
 //
-// storageList 是一个受控的 deferred:onMounted 里 files.loadRoots() 首次调用会挂在它上不 resolve,
-// 用来模拟深链场景「loadRoots() 还没跑完用户就点了前往」的真实竞态,而不是让 mock 立即 resolve 把
-// 竞态窗口”测没了”。
+// storageList is a controlled deferred: the first call to files.loadRoots() in onMounted will
+// hang on it without resolving. This is used to simulate the real race condition in a deep-link
+// scenario "loadRoots() hasn't finished running when the user clicks 'goto'" rather than letting
+// the mock resolve immediately and thus "testing away" the race-condition window.
 const { listShares, storageList, resolveStorage } = vi.hoisted(() => {
   let resolveFn!: (v: unknown) => void
   const pending = new Promise((resolve) => { resolveFn = resolve })
@@ -45,7 +47,7 @@ const testRouter = createRouter({
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-describe('SharesPage — 「前往」防 /DATA 泄漏', () => {
+describe('SharesPage — prevent /DATA leakage from "goto" action', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
     localStorage.clear()
@@ -55,26 +57,26 @@ describe('SharesPage — 「前往」防 /DATA 泄漏', () => {
     await testRouter.isReady()
   })
 
-  it('loadRoots() 未 resolve 时点「前往」不会立刻用 raw real path 跳转;resolve 后才带 /NimoOS-HD 跳转', async () => {
-    // /storage 请求还悬而未决(还没调用 resolveStorage()),模拟 disks/displayNames 仍为空的深链窗口。
-    storageList.mockReturnValueOnce(new Promise(() => {})) // onMounted 的 loadRoots() 调用:永久 pending,不干扰下面的可控 pending
+  it('Clicking "goto" before loadRoots() resolves does not immediately navigate with raw real path; navigates with /NimoOS-HD only after resolve', async () => {
+    // /storage request is still pending (resolveStorage() hasn't been called yet), simulating a deep-link window where disks/displayNames are still empty.
+    storageList.mockReturnValueOnce(new Promise(() => {})) // loadRoots() call in onMounted: permanent pending, doesn't interfere with the controlled pending below
     const pushSpy = vi.spyOn(testRouter, 'push')
 
     const w = mount(SharesPage, { global: { plugins: [i18n, testRouter] } })
-    await flushPromises() // shares.load() 完成,ShareRow 渲染出来;上面那次 loadRoots() 仍卡在 pending
+    await flushPromises() // shares.load() completes, ShareRow renders; the earlier loadRoots() call is still stuck in pending
 
     const gotoBtn = w.findAll('.share-act').find((b) => b.text() === zh.filesShareGoto)
     expect(gotoBtn).toBeTruthy()
 
-    await gotoBtn!.trigger('click') // onGoto: disks 为空 → await files.loadRoots()(第二次调用,命中下面可控的 pending promise)
+    await gotoBtn!.trigger('click') // onGoto: disks is empty → await files.loadRoots() (second call, hits the controlled pending promise below)
     await flushPromises()
 
-    // 竞态被正确挡住:loadRoots() 还没 resolve,不能已经跳转到裸 real path。
+    // Race condition is correctly blocked: loadRoots() hasn't resolved yet, cannot have already navigated to bare real path.
     expect(pushSpy).not.toHaveBeenCalled()
 
     resolveStorage()([{ type: 'hdd', children: [{ mount_point: '/', label: 'NimoOS-HD' }] }])
     await flushPromises()
-    await flushPromises() // loadDisks -> rebuildDisplayNames -> onGoto 继续 -> goVirtual 是多跳 await 链,多 flush 一轮更稳
+    await flushPromises() // loadDisks -> rebuildDisplayNames -> onGoto continues -> goVirtual is a multi-hop await chain, extra flush for stability
 
     expect(pushSpy).toHaveBeenCalledTimes(1)
     const pushedPath = pushSpy.mock.calls[0][0] as string

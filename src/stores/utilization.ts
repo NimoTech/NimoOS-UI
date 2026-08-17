@@ -18,7 +18,7 @@ export const useUtilizationStore = defineStore('utilization', () => {
     data.value = await service.sys.getUtilization()
   }
 
-  // socket 原始消息(sys_* JSON 串)→ 同一 Utilization 结构原地刷新
+  // raw socket message (sys_* JSON strings) -> refreshes the same Utilization struct in place
   function applySocket(raw: unknown) {
     data.value = parseUtil(raw as Record<string, unknown>)
   }

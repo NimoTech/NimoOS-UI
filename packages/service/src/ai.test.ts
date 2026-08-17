@@ -20,8 +20,8 @@ function recorder(dataFor?: (verb: string, url: string) => unknown) {
   return { http, calls }
 }
 
-describe('createAi — agent 会话核心组', () => {
-  it('URL+动词表驱动断言(全部方法各调一次)', async () => {
+describe('createAi — agent session core group', () => {
+  it('URL+verb table driven assertions (all methods called once)', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
 
@@ -76,37 +76,37 @@ describe('createAi — agent 会话核心组', () => {
     ])
   })
 
-  it('createAgentSession 无参默认发空 body {}', async () => {
+  it('createAgentSession with no args defaults to sending empty body {}', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).createAgentSession()
     expect(calls[0].body).toEqual({})
   })
 
-  it('createAgentSession 透传自定义 body', async () => {
+  it('createAgentSession passes through custom body', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).createAgentSession({ title: 'Hi' })
     expect(calls[0].body).toEqual({ title: 'Hi' })
   })
 
-  it('confirmAgentAction body 为 snake_case,remember 默认 false', async () => {
+  it('confirmAgentAction body is snake_case, remember defaults to false', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).confirmAgentAction('s1', 'c1', true)
     expect(calls[0].body).toEqual({ confirm_id: 'c1', confirmed: true, remember: false })
   })
 
-  it('confirmAgentAction remember 显式传 true', async () => {
+  it('confirmAgentAction remember explicitly passed true', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).confirmAgentAction('s1', 'c1', false, true)
     expect(calls[0].body).toEqual({ confirm_id: 'c1', confirmed: false, remember: true })
   })
 
-  it('confirmAgentAction 不传 extra 时,body 与今天逐字相同', async () => {
+  it('confirmAgentAction without extra, body matches exactly', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).confirmAgentAction('s1', 'c1', true)
     expect(calls[0].body).toEqual({ confirm_id: 'c1', confirmed: true, remember: false })
   })
 
-  it('confirmAgentAction 把 extra 展开进 body(elicitation 的 action/content 走这里)', async () => {
+  it('confirmAgentAction spreads extra into body (elicitation action/content goes here)', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).confirmAgentAction('s1', 'c1', true, false, { action: 'accept', content: { name: 'Ada' } })
     expect(calls[0].body).toEqual({
@@ -115,7 +115,7 @@ describe('createAi — agent 会话核心组', () => {
     })
   })
 
-  it('cancelAgentRun / commitStagedChanges / revertStagedRun 发空 body {}', async () => {
+  it('cancelAgentRun / commitStagedChanges / revertStagedRun send empty body {}', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.cancelAgentRun('s1')
@@ -130,14 +130,14 @@ describe('createAi — agent 会话核心组', () => {
     expect(calls[0].body).toEqual({ title: 'New Title' })
   })
 
-  it('regenerateAgentSessionTitle 带 X-Agent-Provider-Type 头 + body {model}', async () => {
+  it('regenerateAgentSessionTitle carries X-Agent-Provider-Type header + body {model}', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).regenerateAgentSessionTitle('s1', 'gpt-4', 'openai')
     expect(calls[0].body).toEqual({ model: 'gpt-4' })
     expect(calls[0].cfg?.headers).toEqual({ 'X-Agent-Provider-Type': 'openai' })
   })
 
-  it('listFsEntries 把 showIgnored 布尔转 0|1 塞进 params', async () => {
+  it('listFsEntries converts showIgnored boolean to 0|1 and puts it in params', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.listFsEntries('/DATA')
@@ -146,7 +146,7 @@ describe('createAi — agent 会话核心组', () => {
     expect((calls[1].cfg?.params as Record<string, unknown>)).toEqual({ path: '/DATA', show_ignored: 1 })
   })
 
-  it('addVisibleResource body {path,kind,force},kind/force 有默认值', async () => {
+  it('addVisibleResource body {path,kind,force}, kind/force have defaults', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.addVisibleResource('s1', '/DATA/x')
@@ -155,7 +155,7 @@ describe('createAi — agent 会话核心组', () => {
     expect(calls[1].body).toEqual({ path: '/DATA/y', kind: 'file', force: true })
   })
 
-  it('revertStagedBatch body {batch_id};revertStagedItems body {staged_ids}', async () => {
+  it('revertStagedBatch body {batch_id}; revertStagedItems body {staged_ids}', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.revertStagedBatch('s1', 'b1')
@@ -166,25 +166,25 @@ describe('createAi — agent 会话核心组', () => {
     expect(calls[1].url).toBe('/ai/agent/sessions/s1/revert')
   })
 
-  it('getContextUsage 把 session_id/model 塞进 params', async () => {
+  it('getContextUsage puts session_id/model in params', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).getContextUsage('s1', 'gpt-4')
     expect((calls[0].cfg?.params as Record<string, unknown>)).toEqual({ session_id: 's1', model: 'gpt-4' })
   })
 
-  it('attachmentRawUrl 有 token 时附加 URL 编码后的 ?token=', () => {
+  it('attachmentRawUrl appends URL-encoded ?token= when token is present', () => {
     const ai = createAi({} as AxiosInstance, () => 'a b+c')
     expect(ai.attachmentRawUrl('s1', 'att1')).toBe(
       `/v1/ai/agent/sessions/s1/attachments/att1/raw?token=${encodeURIComponent('a b+c')}`,
     )
   })
 
-  it('attachmentRawUrl 无 token 时不带 query', () => {
+  it('attachmentRawUrl has no query when token is absent', () => {
     const ai = createAi({} as AxiosInstance, () => null)
     expect(ai.attachmentRawUrl('s1', 'att1')).toBe('/v1/ai/agent/sessions/s1/attachments/att1/raw')
   })
 
-  it('uploadAttachment 发 multipart FormData,onUploadProgress 换算百分比', async () => {
+  it('uploadAttachment sends multipart FormData, onUploadProgress calculates percentage', async () => {
     let cfg: { headers?: Record<string, string>; onUploadProgress?: (e: { loaded: number; total?: number }) => void } | undefined
     let body: unknown
     const http = {
@@ -209,7 +209,7 @@ describe('createAi — agent 会话核心组', () => {
     expect(res).toEqual({ id: 'att1' })
   })
 
-  it('uploadAttachment 不传 onProgress 也不炸', async () => {
+  it('uploadAttachment does not crash without onProgress', async () => {
     const http = {
       post: async (_u: string, _b: unknown, c: unknown) => {
         ;(c as { onUploadProgress?: (e: { loaded: number; total?: number }) => void }).onUploadProgress?.({ loaded: 1, total: 100 })
@@ -220,32 +220,32 @@ describe('createAi — agent 会话核心组', () => {
     await expect(createAi(http, () => null).uploadAttachment('s1', file)).resolves.toEqual({})
   })
 
-  it('getSessionThinking:有值时归一化 enabled/level', async () => {
+  it('getSessionThinking: normalizes enabled/level when value is present', async () => {
     const http = { get: async () => ({ data: { thinking_enabled: 1, thinking_level: 'high' } }) } as unknown as AxiosInstance
     expect(await createAi(http, () => null).getSessionThinking('s1')).toEqual({ enabled: true, level: 'high' })
   })
 
-  it('getSessionThinking:thinking_enabled 为 null 字段 → null', async () => {
+  it('getSessionThinking: thinking_enabled null field → null', async () => {
     const http = { get: async () => ({ data: { thinking_enabled: null } }) } as unknown as AxiosInstance
     expect(await createAi(http, () => null).getSessionThinking('s1')).toBeNull()
   })
 
-  it('getSessionThinking:空 body → null', async () => {
+  it('getSessionThinking: empty body → null', async () => {
     const http = { get: async () => ({ data: null }) } as unknown as AxiosInstance
     expect(await createAi(http, () => null).getSessionThinking('s1')).toBeNull()
   })
 
-  it('getSessionThinking:请求抛错 → null', async () => {
+  it('getSessionThinking: request throws → null', async () => {
     const http = { get: async () => { throw new Error('boom') } } as unknown as AxiosInstance
     expect(await createAi(http, () => null).getSessionThinking('s1')).toBeNull()
   })
 
-  it('getSessionThinking:level 缺省回落 medium', async () => {
+  it('getSessionThinking: level defaults to medium', async () => {
     const http = { get: async () => ({ data: { thinking_enabled: true } }) } as unknown as AxiosInstance
     expect(await createAi(http, () => null).getSessionThinking('s1')).toEqual({ enabled: true, level: 'medium' })
   })
 
-  it('所有方法统一返回 res.data(信封原样,不 unwrap)', async () => {
+  it('all methods uniformly return res.data (envelope as-is, no unwrap)', async () => {
     const envelope = { success: 200, message: '', data: { foo: 'bar' } }
     const http = { get: async () => ({ data: envelope }) } as unknown as AxiosInstance
     expect(await createAi(http, () => null).listAgentSessions()).toEqual(envelope)
@@ -253,7 +253,7 @@ describe('createAi — agent 会话核心组', () => {
 })
 
 describe('createAi — models / providers / policy / blacklist / services-status', () => {
-  it('URL+动词表驱动断言(全部方法各调一次)', async () => {
+  it('URL+verb table driven assertions (all methods called once)', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
 
@@ -310,19 +310,19 @@ describe('createAi — models / providers / policy / blacklist / services-status
     expect(calls[0].body).toEqual({ name: 'llama3' })
   })
 
-  it('deleteModel 对名字做 encodeURIComponent', async () => {
+  it('deleteModel applies encodeURIComponent to name', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).deleteModel('a b/c.gguf')
     expect(calls[0].url).toBe(`/ai/models/${encodeURIComponent('a b/c.gguf')}`)
   })
 
-  it('searchHFModels 把 q 塞进 params', async () => {
+  it('searchHFModels puts q in params', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).searchHFModels('llama')
     expect((calls[0].cfg?.params as Record<string, unknown>)).toEqual({ q: 'llama' })
   })
 
-  it('listHFFiles 把 repo 塞进 params', async () => {
+  it('listHFFiles puts repo in params', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).listHFFiles('org/repo')
     expect((calls[0].cfg?.params as Record<string, unknown>)).toEqual({ repo: 'org/repo' })
@@ -334,20 +334,20 @@ describe('createAi — models / providers / policy / blacklist / services-status
     expect(calls[0].body).toEqual({ repo: 'org/repo', filename: 'model.gguf' })
   })
 
-  it('getImportStatus 把 filename 塞进 params', async () => {
+  it('getImportStatus puts filename in params', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).getImportStatus('model.gguf')
     expect((calls[0].cfg?.params as Record<string, unknown>)).toEqual({ filename: 'model.gguf' })
   })
 
-  it('cancelImport 把 filename 编码后拼进 query 字符串本身(而非 params)', async () => {
+  it('cancelImport encodes filename and concatenates it into the query string itself (not params)', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).cancelImport('a b.gguf')
     expect(calls[0].url).toBe('/ai/models/hf/import/cancel?filename=a%20b.gguf')
     expect(calls[0].cfg).toBeUndefined()
   })
 
-  it('createProvider / updateProvider 透传 body', async () => {
+  it('createProvider / updateProvider pass through body', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.createProvider({ name: 'p1', base_url: 'https://x' })
@@ -356,7 +356,7 @@ describe('createAi — models / providers / policy / blacklist / services-status
     expect(calls[1].body).toEqual({ name: 'p1b' })
   })
 
-  it('refreshProviderModels 发空 body {}', async () => {
+  it('refreshProviderModels sends empty body {}', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).refreshProviderModels(1)
     expect(calls[0].body).toEqual({})
@@ -368,7 +368,7 @@ describe('createAi — models / providers / policy / blacklist / services-status
     expect(calls[0].body).toEqual({ models: ['m1', 'm2'] })
   })
 
-  it('updatePolicy 透传 body', async () => {
+  it('updatePolicy passes through body', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).updatePolicy({ allow_network: true })
     expect(calls[0].body).toEqual({ allow_network: true })
@@ -380,7 +380,7 @@ describe('createAi — models / providers / policy / blacklist / services-status
     expect(calls[0].body).toEqual({ pattern: 'rm -rf' })
   })
 
-  it('本组方法也统一返回 res.data(信封原样,不 unwrap)', async () => {
+  it('this group of methods also uniformly return res.data (envelope as-is, no unwrap)', async () => {
     const envelope = { success: 200, message: '', data: { foo: 'bar' } }
     const http = { get: async () => ({ data: envelope }) } as unknown as AxiosInstance
     expect(await createAi(http, () => null).listModels()).toEqual(envelope)
@@ -388,7 +388,7 @@ describe('createAi — models / providers / policy / blacklist / services-status
 })
 
 describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
-  it('URL+动词表驱动断言(全部方法各调一次)', async () => {
+  it('URL+verb table driven assertions (all methods called once)', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
 
@@ -447,7 +447,7 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     ])
   })
 
-  it('getSkill/updateSkill/deleteSkill 对 id 做 encodeURIComponent', async () => {
+  it('getSkill/updateSkill/deleteSkill applies encodeURIComponent to id', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.getSkill('a b/c')
@@ -459,7 +459,7 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(calls[2].url).toBe(`/ai/skills/${enc}`)
   })
 
-  it('createSkill / updateSkill 透传 body', async () => {
+  it('createSkill / updateSkill pass through body', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.createSkill({ name: 'Sk' })
@@ -468,26 +468,26 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(calls[1].body).toEqual({ name: 'Sk2' })
   })
 
-  it('getSkillFile: id 编码,path 段不编码原样拼接(与 Vue2 一致)', async () => {
+  it('getSkillFile: id is encoded, path segments are not encoded and concatenated as-is (consistent with Vue2)', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.getSkillFile('a b', 'dir/file name.md')
     expect(calls[0].url).toBe(`/ai/skills/${encodeURIComponent('a b')}/files/dir/file name.md`)
   })
 
-  it('exportSkillURL 有 token 时附加编码后的 ?token=', () => {
+  it('exportSkillURL appends encoded ?token= when token is present', () => {
     const ai = createAi({} as AxiosInstance, () => 'a b+c')
     expect(ai.exportSkillURL('s1')).toBe(
       `/v1/ai/skills/s1/export?token=${encodeURIComponent('a b+c')}`,
     )
   })
 
-  it('exportSkillURL 无 token 时不带 query;id 做 encodeURIComponent', () => {
+  it('exportSkillURL has no query when token is absent; id is encodeURIComponent', () => {
     const ai = createAi({} as AxiosInstance, () => null)
     expect(ai.exportSkillURL('a b')).toBe(`/v1/ai/skills/${encodeURIComponent('a b')}/export`)
   })
 
-  it('testMCPServer body {} + config timeout 135000 透传', async () => {
+  it('testMCPServer body {} + config timeout 135000 passes through', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).testMCPServer(1)
     expect(calls[0].body).toEqual({})
@@ -500,7 +500,7 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(calls[0].body).toEqual({ command_line: 'npx foo --bar' })
   })
 
-  it('createMCPServer / updateMCPServer 透传 body', async () => {
+  it('createMCPServer / updateMCPServer pass through body', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.createMCPServer({ name: 'm1' })
@@ -509,13 +509,13 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(calls[1].body).toEqual({ name: 'm1b' })
   })
 
-  it('createMCPToken 透传 body', async () => {
+  it('createMCPToken passes through body', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).createMCPToken({ name: 't1' })
     expect(calls[0].body).toEqual({ name: 't1' })
   })
 
-  it('createChannelInstance 透传 body;setChannelInstanceEnabled body {enabled}', async () => {
+  it('createChannelInstance passes through body; setChannelInstanceEnabled body {enabled}', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.createChannelInstance({ type: 'telegram' })
@@ -530,7 +530,7 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(calls[0].body).toEqual({ instance_id: 1 })
   })
 
-  it('setChannelBindingModel body {model};setChannelBindingDownloadDir body {download_dir}', async () => {
+  it('setChannelBindingModel body {model}; setChannelBindingDownloadDir body {download_dir}', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.setChannelBindingModel(1, 'gpt-4')
@@ -539,15 +539,15 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(calls[1].body).toEqual({ download_dir: '/DATA/x' })
   })
 
-  it('本组方法也统一返回 res.data(信封原样,不 unwrap)', async () => {
+  it('this group of methods also uniformly return res.data (envelope as-is, no unwrap)', async () => {
     const envelope = { success: 200, message: '', data: { foo: 'bar' } }
     const http = { get: async () => ({ data: envelope }) } as unknown as AxiosInstance
     expect(await createAi(http, () => null).listSkills()).toEqual(envelope)
   })
 })
 
-describe('createAi — user-settings / memory / observability / search 知识库组', () => {
-  it('URL+动词表驱动断言(全部方法各调一次)', async () => {
+describe('createAi — user-settings / memory / observability / search knowledge base group', () => {
+  it('URL+verb table driven assertions (all methods called once)', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
 
@@ -624,7 +624,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     ])
   })
 
-  it('putThinkingDefaults / putSearchSettings / parserControl / parserReindexFiles 透传 body', async () => {
+  it('putThinkingDefaults / putSearchSettings / parserControl / parserReindexFiles pass through body', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.putThinkingDefaults({ level: 'high' })
@@ -659,7 +659,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     expect(calls[0].body).toEqual({ enabled: true, compaction_enabled: false, context_window: 16000 })
   })
 
-  it('nimoosSearch body {name:"nimoos_search", arguments:{query, sources, top_k}},topK 默认 20', async () => {
+  it('nimoosSearch body {name:"nimoos_search", arguments:{query, sources, top_k}}, topK defaults to 20', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.nimoosSearch('fish')
@@ -669,7 +669,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     })
   })
 
-  it('nimoosSearch 显式传 sources/topK 时透传', async () => {
+  it('nimoosSearch passes through when sources/topK are explicitly provided', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).nimoosSearch('fish', { sources: ['files'], topK: 5 })
     expect(calls[0].body).toEqual({
@@ -678,7 +678,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     })
   })
 
-  it('searchText 透传 body;searchChunk 把 params 塞进 query params', async () => {
+  it('searchText passes through body; searchChunk puts params into query params', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.searchText({ query: 'fish', top_k: 10 })
@@ -687,7 +687,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     expect(calls[1].cfg?.params).toEqual({ file_id: 'f1', kind: 'body', chunk_no: 3, window: 2 })
   })
 
-  it('parserFiles/parserJobs 把 params 塞进 query params', async () => {
+  it('parserFiles/parserJobs puts params into query params', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.parserFiles({ root_id: 1, sort: 'indexed_at' })
@@ -696,7 +696,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     expect(calls[1].cfg?.params).toEqual({ status: 'failed', limit: 5 })
   })
 
-  it('parserFolders 不传 params 时不带 query;传参时塞进 params', async () => {
+  it('parserFolders has no query when params are not provided; puts params when provided', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.parserFolders()
@@ -705,7 +705,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     expect(calls[1].cfg?.params).toEqual({ limit: 20 })
   })
 
-  it('parserRetryJobs 无参默认发空 body {};parserClearFailedJobs 发空 body {}', async () => {
+  it('parserRetryJobs with no args defaults to empty body {}; parserClearFailedJobs sends empty body {}', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.parserRetryJobs()
@@ -714,13 +714,13 @@ describe('createAi — user-settings / memory / observability / search 知识库
     expect(calls[1].body).toEqual({})
   })
 
-  it('parserRetryJobs 透传自定义 body', async () => {
+  it('parserRetryJobs passes through custom body', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).parserRetryJobs({ file_ids: ['f1', 'f2'] })
     expect(calls[0].body).toEqual({ file_ids: ['f1', 'f2'] })
   })
 
-  it('patchParserAllowlistExtensions / addParserAllowlistFolder 透传 body', async () => {
+  it('patchParserAllowlistExtensions / addParserAllowlistFolder pass through body', async () => {
     const { http, calls } = recorder()
     const ai = createAi(http, () => null)
     await ai.patchParserAllowlistExtensions({ ext: '.pdf', enabled: true })
@@ -729,7 +729,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     expect(calls[1].body).toEqual({ root_id: 1, path_glob: '*.md', action: 'deny' })
   })
 
-  it('parserTestAnalyze 发 multipart FormData + Content-Type 头 + 120s 超时', async () => {
+  it('parserTestAnalyze sends multipart FormData + Content-Type header + 120s timeout', async () => {
     let cfg: { headers?: Record<string, string>; timeout?: number } | undefined
     let body: unknown
     const http = {
@@ -750,7 +750,7 @@ describe('createAi — user-settings / memory / observability / search 知识库
     expect(res).toEqual({ chunks: [] })
   })
 
-  it('本组方法也统一返回 res.data(信封原样,不 unwrap)', async () => {
+  it('this group of methods also uniformly return res.data (envelope as-is, no unwrap)', async () => {
     const envelope = { success: 200, message: '', data: { foo: 'bar' } }
     const http = { get: async () => ({ data: envelope }) } as unknown as AxiosInstance
     expect(await createAi(http, () => null).getThinkingDefaults()).toEqual(envelope)

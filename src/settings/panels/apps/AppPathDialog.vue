@@ -1,25 +1,25 @@
 <script setup lang="ts">
-// 设置 · 应用 —— 更改数据存储位置的迁移弹窗。对位 Vue2 components/settings/AppPathModal.vue(951 行)。
-// 6 步:select(选分区) → browse(选目录) → confirm(确认) → migrating(进度) → done | error。
+// Settings · Apps — the migration dialog for changing the data storage location. Ports Vue2 components/settings/AppPathModal.vue (951 lines).
+// 6 steps: select (pick partition) → browse (pick directory) → confirm (confirm) → migrating (progress) → done | error.
 //
-// ⛔ 破坏性:POST /v1/sys/migrate 会停 docker + 全部容器、rsync 数据、换锚点软链、
-//    **删掉旧数据**(NimoOS/service/migrate.go:454/597/777-820)。开发机上一次都没真跑过 ——
-//    而且本机只有一个分区,availableVolumes 恒为空,界面上根本走不到 select 之后。债务 D22。
+// ⛔ Destructive: POST /v1/sys/migrate stops docker + all containers, rsyncs data, swaps the anchor symlink,
+//    and **deletes the old data** (NimoOS/service/migrate.go:454/597/777-820). Never actually run for real on the dev machine —
+//    and this machine only has one partition, so availableVolumes is always empty and the UI can never get past select. Debt D22.
 //
-// 移植纪律(登记):
-//  ① 不写 localStorage(Vue2 在 done 时写 app_data_path / app_images_path / user_database_path
-//     三个键,全仓无读者 → New-UI 不读也不写,判据同 Task 2 appPaths.ts 的①)。
-//  ② **轮询失败不静默**:Vue2 pollStatus 的 catch 只 console.error,job 丢失(实测返回
-//     HTTP 400 {"success":4000,"message":"job not found"})时会无限轮询下去。这里连续
-//     失败 MAX_POLL_FAILS 次就停表 + 进 error 步骤 + 显示后端原文(见 poll() 里的 catch)。
-// 照抄的 Vue2 形态(不要"优化"):轮询 200ms;migrating 步骤不给关闭按钮 —— 且不仅隐藏按钮,
-//   onDialogUpdateOpen 还拦掉 Esc/遮罩点击发来的关闭请求,防止用户中途真的关掉弹窗
-//   (Vue2 只是没画按钮,遮罩/Esc 能否关掉未验证过;这里干脆两处都堵,免得半路关窗但迁移
-//   仍在后端跑,状态跟界面脱节)。
+// Porting discipline (on record):
+//  ① Don't write to localStorage (Vue2 writes app_data_path / app_images_path / user_database_path
+//     on done — three keys with no readers anywhere in the repo → New-UI neither reads nor writes them, same criterion as Task 2 appPaths.ts's ①).
+//  ② **Polling failure is not silent**: Vue2's pollStatus catch only does console.error, so if the job is lost (observed to return
+//     HTTP 400 {"success":4000,"message":"job not found"}) it polls forever. Here, after MAX_POLL_FAILS consecutive
+//     failures we stop the timer + move to the error step + show the backend's raw message (see the catch in poll()).
+// Vue2 shape copied verbatim (don't "optimize"): polls every 200ms; the migrating step has no close button — and it's not just the button hidden,
+//   onDialogUpdateOpen also blocks close requests coming from Esc/overlay clicks, to prevent the user from actually closing the dialog mid-migration
+//   (Vue2 just didn't render the button; whether the overlay/Esc could still close it was never verified — here we simply block both, so the dialog
+//   can't be closed halfway while the migration is still running on the backend and the state drifts out of sync with the UI).
 //
-// 弹窗内报错一律内联 .set-danger,不用 toast(toast z-index 60 会被弹窗遮罩 1000 + 毛玻璃压住
-// 糊掉,同 NetworkIfaceConfigDialog 的移植纪律 #8)。删除成功后不再弹 toast(同一个坑,索性
-// 不装:静默刷新列表,视觉上已经能看到文件夹消失)。
+// Errors inside the dialog are always shown inline via .set-danger, never via toast (toast z-index 60 gets smothered by the dialog overlay 1000 + frosted glass,
+// same as NetworkIfaceConfigDialog's porting discipline #8). No toast on successful delete either (same pitfall, so we simply
+// skip it: silently refresh the list — the folder disappearing is already visible).
 import { ref, computed, nextTick, onUnmounted, watch, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type FolderEntry, type MigrateStatus } from '@nimotech/nimoos-service'
@@ -53,11 +53,11 @@ const MAX_POLL_FAILS = 5
 
 type Step = 'select' | 'browse' | 'confirm' | 'migrating' | 'done' | 'error'
 
-// ── 分区选择 ──────────────────────────────────────────────────────────────
+// ── Partition selection ──────────────────────────────────────────────────────────────
 const step = ref<Step>('select')
 const selectedKey = ref<string | null>(null)
 
-/** uuid 优先,md RAID 之类没有 uuid 的设备回退挂载点(对位 Vue2 partKey :470)。 */
+/** uuid takes priority; devices without a uuid, like md RAID, fall back to the mount point (ports Vue2 partKey :470). */
 function partKey(v: StorageVolume): string {
   return v.uuid || v.mountPoint
 }
@@ -65,8 +65,8 @@ function partitionName(v: StorageVolume): string {
   return props.displayNames[v.mountPoint] || v.name
 }
 
-// 复用 Task2 appPaths.ts 的最长前缀匹配(评审 Important #1:别在这里重写一份 ——
-// 这段算法在 Task2 因边界缺陷返工过两轮,留两份拷贝下次只会改到一份)。
+// Reuses Task2 appPaths.ts's longest-prefix match (review Important #1: don't rewrite a copy here —
+// this algorithm went through two rounds of rework in Task2 for edge-case bugs; keeping two copies means only one gets fixed next time).
 const currentVolume = computed<StorageVolume | null>(() => volumeForPath(props.currentPath, props.volumes))
 const currentDiskName = computed(() => {
   if (currentVolume.value) return partitionName(currentVolume.value)
@@ -80,17 +80,17 @@ const selectedVolume = computed<StorageVolume | null>(
   () => props.volumes.find((v) => partKey(v) === selectedKey.value) ?? null,
 )
 
-// ── 浏览目录 ──────────────────────────────────────────────────────────────
+// ── Browse directory ──────────────────────────────────────────────────────────────
 const browseRoot = ref('')
 const browsePath = ref('')
 const browseItems = ref<FolderEntry[]>([])
 const browseLoading = ref(false)
 const browseError = ref('')
-// 目标路径:进入 confirm 步骤时把 browsePath 定格在这里,后续 confirm/migrating/done 步骤
-// 都读这个而不是活的 browsePath(浏览步骤已经离开,browsePath 不会再变,但语义上分开更清楚)。
+// Target path: freeze browsePath into this when entering the confirm step; the subsequent confirm/migrating/done steps
+// all read this instead of the live browsePath (the browse step has already been left, so browsePath won't change again, but keeping them separate is clearer semantically).
 const targetPath = ref('')
 
-let browseGen = 0 // 目录切换的过期守卫(newui-async-stale-guard 同款代际计数器,就地写不抽 helper)
+let browseGen = 0 // Staleness guard for directory switches (same generation-counter pattern as newui-async-stale-guard, written inline instead of extracted into a helper)
 
 const browseFolders = computed(() => filterBrowseFolders(browseItems.value, props.type, props.currentPath))
 const browseCrumbsList = computed(() => browseCrumbs(browseRoot.value, browsePath.value, props.displayNames))
@@ -103,7 +103,7 @@ async function loadBrowseItems(path: string) {
   browseError.value = ''
   try {
     const listing = await service.folder.getList(path)
-    if (gen !== browseGen) return // 迟到的结果:目录已经切走,丢弃
+    if (gen !== browseGen) return // Late result: the directory has already been switched away from, discard
     browseItems.value = listing.content ?? []
   } catch (e) {
     if (gen !== browseGen) return
@@ -123,8 +123,8 @@ function enterBrowseStep() {
 
 function navigateTo(path: string) {
   if (!path.startsWith(browseRoot.value)) return
-  // 离开当前目录:新建/重命名的行内输入框如果还开着,直接放弃(不当成失焦提交,
-  // 否则在还没输完的情况下导航会顺手把半成品名字发出去)。
+  // Leaving the current directory: if the new-folder/rename inline input is still open, just discard it (don't treat it as a blur-submit,
+  // otherwise navigating mid-edit would send off a half-finished name).
   newFolderEscCancelled = true
   newFolderMode.value = false
   newFolderError.value = ''
@@ -142,7 +142,7 @@ function confirmBrowsePath() {
   step.value = 'confirm'
 }
 
-// ── 新建文件夹(行内) ─────────────────────────────────────────────────────
+// ── New folder (inline) ─────────────────────────────────────────────────────
 const newFolderMode = ref(false)
 const newFolderName = ref('')
 const newFolderError = ref('')
@@ -186,17 +186,18 @@ function onNewFolderBlur() {
   void submitNewFolder()
 }
 
-// ── 行内重命名 ────────────────────────────────────────────────────────────
+// ── Inline rename ────────────────────────────────────────────────────────────
 const renamingPath = ref<string | null>(null)
 const renameValue = ref('')
 const renameSubmitting = ref(false)
 const renameInputEl = ref<HTMLInputElement | null>(null)
 let renameEscCancelled = false
 
-// 用函数式 ref 而不是字符串 ref:字符串 ref 只要出现在 v-for 作用域里,Vue 就会把它收集成
-// 数组(即使 v-if 保证同一时刻只有一个真正渲染),.value 就变成 [inputEl] 而不是 inputEl 本身,
-// 后面的 .focus() 会报"不是函数"——这是评审 Important #2 逼出写路径测试后才现出来的真实缺陷,
-// 不是测试的问题,已按函数式 ref 改正(Vue 官方文档明确建议:v-for 里想要单个引用用函数 ref)。
+// Use a function ref instead of a string ref: a string ref that appears inside a v-for scope gets collected
+// into an array by Vue (even though v-if guarantees only one is actually rendered at a time), so .value ends up
+// being [inputEl] instead of inputEl itself, and the .focus() call below throws "not a function" — this is a real bug
+// that only surfaced once review Important #2 forced a write-path test to be added, not a test problem, and has been fixed with a function ref
+// (the official Vue docs explicitly recommend a function ref when you want a single reference inside a v-for).
 function setRenameInputEl(el: Element | ComponentPublicInstance | null) {
   renameInputEl.value = (el as HTMLInputElement) ?? null
 }
@@ -237,7 +238,7 @@ function onRenameBlur() {
   void submitRename()
 }
 
-// ── 删除(二次确认) ───────────────────────────────────────────────────────
+// ── Delete (double-confirm) ───────────────────────────────────────────────────────
 const deleteTarget = ref<FolderEntry | null>(null)
 const deleteConfirmOpen = ref(false)
 function askDelete(folder: FolderEntry) {
@@ -256,7 +257,7 @@ async function performDelete() {
   }
 }
 
-// ── 迁移与轮询 ────────────────────────────────────────────────────────────
+// ── Migration and polling ────────────────────────────────────────────────────────
 const jobId = ref<string | null>(null)
 const jobStatus = ref<MigrateStatus>({
   id: '', type: '', status: '', phase: '', stopping_apps: 0, progress: 0, processed_size: 0, total_size: 0,
@@ -283,16 +284,16 @@ async function poll() {
       stopPolling()
       jobError.value = job.error || t('settingsMigFailed')
       step.value = 'error'
-      // 评审 Important #2:Vue2 pollStatus 的 done/error 两支都会 $emit('finish', job) ——
-      // 失败时后端可能已经把锚点换了一半(NimoOS/service/migrate.go:777-820 的 rollback
-      // rename failed 分支明确写着"CRITICAL: manual intervention required"),界面若不
-      // 重新拉一次路径,会继续显示迁移前的旧路径直到用户手动刷新。父组件 onDialogFinish
-      // 只是重取 getSystemPaths,幂等,重复调用无害。
+      // Review Important #2: both the done/error branches of Vue2's pollStatus call $emit('finish', job) —
+      // on failure the backend may have already swapped the anchor halfway (the rollback
+      // rename-failed branch in NimoOS/service/migrate.go:777-820 explicitly logs "CRITICAL: manual intervention required"),
+      // and if the UI doesn't re-fetch the paths it will keep showing the pre-migration old path until the user manually refreshes. The parent component's onDialogFinish
+      // just re-fetches getSystemPaths, which is idempotent, so calling it again is harmless.
       emit('finish')
     }
   } catch (e) {
-    // 移植纪律 ②:Vue2 这里只 console.error,job 丢失时会无限轮询下去 —— 连续失败
-    // MAX_POLL_FAILS 次即停表 + 报错,不静默。
+    // Porting discipline ②: Vue2 here only does console.error, so if the job is lost it polls forever — after
+    // MAX_POLL_FAILS consecutive failures we stop the timer + report the error, no silence.
     pollFails++
     if (pollFails >= MAX_POLL_FAILS) {
       stopPolling()
@@ -323,12 +324,12 @@ const doneDestPaths = computed(() => {
   return jobStatus.value.new_path ? [jobStatus.value.new_path] : []
 })
 
-// ── 生命周期 ──────────────────────────────────────────────────────────────
+// ── Lifecycle ──────────────────────────────────────────────────────────────
 onUnmounted(() => stopPolling())
 
 watch(() => props.open, (isOpen) => {
   if (isOpen) return
-  // 关闭即复位:下次打开不带上一次的脏状态(定时器必须先停,同 NetworkIfaceConfigDialog 教训)。
+  // Reset on close: don't carry stale state from last time into the next open (the timer must be stopped first, same lesson as NetworkIfaceConfigDialog).
   stopPolling()
   step.value = 'select'
   selectedKey.value = null
@@ -341,7 +342,7 @@ watch(() => props.open, (isOpen) => {
 })
 
 function onDialogUpdateOpen(v: boolean) {
-  if (!v && step.value === 'migrating') return // migrating 步骤:Esc / 遮罩点击也一律拦下
+  if (!v && step.value === 'migrating') return // migrating step: Esc / overlay clicks are also blocked
   emit('update:open', v)
 }
 </script>
@@ -358,7 +359,7 @@ function onDialogUpdateOpen(v: boolean) {
         >×</button>
       </div>
 
-      <!-- Step 1: 选分区 -->
+      <!-- Step 1: pick partition -->
       <template v-if="step === 'select'">
         <div class="set-mig-status">
           <div class="set-mig-status-card">
@@ -388,7 +389,7 @@ function onDialogUpdateOpen(v: boolean) {
         </div>
       </template>
 
-      <!-- Step 2: 浏览目录 -->
+      <!-- Step 2: browse directory -->
       <template v-else-if="step === 'browse'">
         <div class="set-mig-crumbrow">
           <button
@@ -457,7 +458,7 @@ function onDialogUpdateOpen(v: boolean) {
         </div>
       </template>
 
-      <!-- Step 3: 确认 -->
+      <!-- Step 3: confirm -->
       <template v-else-if="step === 'confirm'">
         <p class="set-mig-confirm-route">
           {{ currentDiskName }} → {{ selectedVolume ? partitionName(selectedVolume) : '' }}
@@ -475,7 +476,7 @@ function onDialogUpdateOpen(v: boolean) {
         </div>
       </template>
 
-      <!-- Step 4: 迁移中 -->
+      <!-- Step 4: migrating -->
       <template v-else-if="step === 'migrating'">
         <div v-if="jobStatus.phase === 'stopping_services'" class="set-mig-progress-wrap">
           <p class="set-mig-progress-title">{{ t('settingsMigStopping') }}</p>
@@ -503,7 +504,7 @@ function onDialogUpdateOpen(v: boolean) {
         </div>
       </template>
 
-      <!-- Step 5: 完成 -->
+      <!-- Step 5: done -->
       <template v-else-if="step === 'done'">
         <div class="set-mig-result">
           <p class="set-mig-result-title">{{ t('settingsMigDone') }}</p>
@@ -511,7 +512,7 @@ function onDialogUpdateOpen(v: boolean) {
         </div>
       </template>
 
-      <!-- Step 6: 失败 -->
+      <!-- Step 6: error -->
       <template v-else-if="step === 'error'">
         <div class="set-mig-result">
           <p class="set-mig-result-title">{{ t('settingsMigFailed') }}</p>
@@ -563,9 +564,9 @@ function onDialogUpdateOpen(v: boolean) {
 .set-mig { display: flex; flex-direction: column; gap: 14px; min-width: min(480px, 88vw); }
 .set-mig-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .set-mig-title { margin: 0; font-size: 15px; font-weight: 600; }
-/* 头部 × 按钮:曾与页脚"关闭"主按钮共用 .set-mig-close 类名,scoped 选择器优先级
-   与 .set-btn.primary 同为 (0,2,0)、按源序在构建产物里胜出,导致页脚主按钮被这条
-   透明背景/细字号样式吃掉、渲染成一段裸文字(评审 Important #1)。改用独立类名拆开。 */
+/* Header × button: used to share the .set-mig-close class name with the footer's "Close" primary button;
+   the scoped selector specificity is (0,2,0), same as .set-btn.primary, and wins by source order in the build output,
+   causing the footer primary button to be swallowed by this transparent-background/small-font-size style and rendered as a bare line of text (review Important #1). Split into its own class name. */
 .set-mig-x {
   border: none; background: transparent; color: var(--fg-muted); font-size: 20px; line-height: 1;
   cursor: pointer; padding: 2px 8px; border-radius: 8px;

@@ -15,8 +15,8 @@
         <span class="dock-ic ic-all"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span><span class="dock-label">{{ (isMobile ? sheetOpen : dock.expanded.value) ? t('dockDone') : t('dockAllApps') }}</span>
       </button>
     </div>
-    <!-- 手机端"全部应用":多行平铺抽屉(桌面端仍是横向 more 区展开)。
-         Teleport 到 body:.dock 的 backdrop-filter 会把内部 fixed 的定位基准劫持成 Dock 自身。 -->
+    <!-- Mobile "all apps": multi-row grid drawer (desktop still expands horizontally in more zone).
+         Teleport to body: .dock's backdrop-filter would hijack fixed positioning base to Dock itself. -->
     <Teleport to="body">
       <div v-if="isMobile && sheetOpen" class="allapps-overlay" @click.self="sheetOpen = false">
         <div class="allapps-sheet" role="dialog" :aria-label="t('dockAllApps')" @click="sheetOpen = false">
@@ -47,7 +47,7 @@ const dock = useDock()
 const apps = useAppsStore()
 const root = ref<HTMLElement | null>(null)
 
-// ── 手机端:固定 5 个位(4 常用 + 全部应用),全部应用弹多行抽屉 ────────────────
+// ── Mobile: fixed 5 slots (4 favorites + all apps), all apps pops multi-row drawer ────────────────
 const isMobile = useIsMobile()
 const sheetOpen = ref(false)
 const favVisible = computed(() => (isMobile.value ? dock.favKeys.value.slice(0, 4) : dock.favKeys.value))
@@ -57,7 +57,7 @@ function onToggle() {
   dock.toggleExpanded()
 }
 
-// ── magnification ────────────────────────────────────────────────────────────
+// ── Magnification ────────────────────────────────────────────────────────────
 function onMove(e: PointerEvent) {
   if (drag.active) return // skip mag while dragging
   root.value?.querySelectorAll<HTMLElement>('.dock-app:not(.dock-dragging) .dock-ic').forEach((ic) => {
@@ -67,7 +67,7 @@ function onMove(e: PointerEvent) {
 }
 function reset() { root.value?.querySelectorAll<HTMLElement>('.dock-ic').forEach((ic) => ic.style.setProperty('--mag', '1')) }
 
-// ── drag state ───────────────────────────────────────────────────────────────
+// ── Drag state ───────────────────────────────────────────────────────────────
 const DRAG_THRESHOLD = 5
 
 interface DragState {
@@ -105,8 +105,8 @@ function onDragStart(e: PointerEvent) {
   if (!btn) return
   const key = btn.dataset.app!
 
-  // 此处刻意不 setPointerCapture:capture 生效期间 click 会派发给 nav 而不是图标,
-  // 展开态点击就打不开应用了。越过拖动阈值后才接管(见 onDragMove)。
+  // Intentionally not calling setPointerCapture: during capture, click is dispatched to nav
+  // instead of icon, expanded state clicks can't open apps. Only take over after crossing drag threshold (see onDragMove).
 
   const ic = btn.querySelector<HTMLElement>('.dock-ic')
   const icRect = ic?.getBoundingClientRect() ?? btn.getBoundingClientRect()
@@ -138,7 +138,7 @@ function onDragMove(e: PointerEvent) {
   if (!drag.active) {
     if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return
     drag.active = true
-    // 真拖动才把指针抓给 nav,拖动中指针离开子元素也不丢事件(纯点击不走到这里)
+    // Only real drag captures pointer for nav, pointer can leave child elements during drag without losing events (pure click doesn't reach here)
     root.value?.setPointerCapture(drag.pointerId)
     // hide the source element while dragging
     const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
@@ -258,7 +258,7 @@ defineExpose({ root })
   background: var(--dock-bg); box-shadow: var(--dock-shadow); backdrop-filter: var(--blur);
 }
 .dock-main { display: flex; align-items: flex-end; }
-/* gap 随图标尺寸等比（0.3×64px≈19px,2026-07-18 用户嫌挤上调）；≤720px 媒体查询固定 8px 兜底 */
+/* Gap scales proportionally with icon size (0.3×64px≈19px, adjusted 2026-07-18 for tighter spacing); ≤720px media query caps at 8px */
 .dock-zone { display: flex; align-items: flex-end; gap: calc(var(--app-size, 64px) * 0.3); }
 /* "More apps" zone: collapses to zero width, expands on .expanded */
 .dock-more {
@@ -268,7 +268,7 @@ defineExpose({ root })
 .dock.expanded .dock-more { max-width: 82vw; opacity: 1; overflow: visible; pointer-events: auto; }
 .dock-sep { width: 1px; align-self: stretch; margin: 4px 10px; background: var(--dock-border); }
 .dock-toggle { margin-left: 10px; }
-/* drag ghost — mapped from prototype .dock-ph (dashed placeholder) */
+/* Drag ghost — mapped from prototype .dock-ph (dashed placeholder) */
 .dock-ghost {
   position: absolute; pointer-events: none; z-index: 100; opacity: .85;
   align-self: flex-end;
@@ -290,12 +290,12 @@ defineExpose({ root })
   .dock-main { justify-content: center; }
   .dock-zone { gap: 8px; }
   .dock.expanded .dock-more { flex-wrap: wrap; justify-content: center; }
-  /* .dock-label lives in DockApp.vue scoped, so we target it via :deep。
-     只隐藏 Dock 条上的标签——全部应用抽屉(.allapps-sheet)里要显示应用名 */
+  /* .dock-label lives in DockApp.vue scoped, so we target it via :deep.
+     Only hide labels on Dock bar — all-apps drawer (.allapps-sheet) must show app names */
   .dock-main :deep(.dock-label) { display: none; }
 }
 
-/* ── 手机端"全部应用"抽屉:玻璃底板,4 列多行平铺,超高内部滚动 ── */
+/* ── Mobile "all apps" drawer: glass backdrop, 4-column multi-row grid, scroll-within tall ── */
 .allapps-overlay {
   position: fixed; inset: 0; z-index: 60;
   background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);

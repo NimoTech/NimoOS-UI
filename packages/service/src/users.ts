@@ -32,102 +32,102 @@ export function createUsers(http: AxiosInstance) {
       return unwrap<UserStatus>(res.data)
     },
 
-    // ── SP9-P4:account tab 的 users 域补全 ───────────────────────────────
-    // 信封层数逐个写死,禁自动探测(P1 已证实同一前缀下层数按端点不同)。
-    // 下面 3 个 GET 在 2026-08-01 真机 curl 实证:**全部是标准信封
-    // {success,message,data}**。
+    // ── SP9-P4: users domain completion for the account tab ───────────────────────────────
+    // Envelope depth is hardcoded per endpoint; auto-detection is forbidden (P1 proved depth varies per endpoint under the same prefix).
+    // The 3 GETs below were verified via curl on a real device 2026-08-01: **all use the standard envelope
+    // {success,message,data}**.
 
-    /** GET /v1/users/current —— 当前登录用户。标准信封,已实证。 */
+    /** GET /v1/users/current — the currently logged-in user. Standard envelope, verified. */
     async getUserInfo(): Promise<UserInfo> {
       const res = await http.get('/users/current')
       return unwrap<UserInfo>(res.data)
     },
 
-    /** GET /v1/users/members —— 全部非本人用户(admin only)。标准信封,已实证:
-     *  本机返回 data:[]。非 admin 调用 → HTTP 400 + success:10011。
-     *  ⚠️ 后端只隐藏调用者本人、**不隐藏其它管理员**(user.go:694-697)。 */
+    /** GET /v1/users/members — all users except the caller (admin only). Standard envelope, verified:
+     *  this machine returns data:[]. Non-admin call → HTTP 400 + success:10011.
+     *  ⚠️ The backend hides only the caller themselves and does **not hide other admins** (user.go:694-697). */
     async getMembers(): Promise<MemberInfo[]> {
       const res = await http.get('/users/members')
       const d = unwrap<MemberInfo[] | null>(res.data)
       return Array.isArray(d) ? d : []
     },
 
-    /** GET /v1/users/members/{id}/folders —— 某成员的显式文件夹授权(admin only)。
-     *  标准信封,已实证。⚠️ 不存在的 id 也返回 200 + [](后端无存在性守卫);
-     *  id 非数字 → HTTP 400 + success:4000。 */
+    /** GET /v1/users/members/{id}/folders — a member's explicit folder grants (admin only).
+     *  Standard envelope, verified. ⚠️ A nonexistent id also returns 200 + [] (backend has no existence guard);
+     *  non-numeric id → HTTP 400 + success:4000. */
     async getMemberFolders(memberId: number | string): Promise<UserFolderPermission[]> {
       const res = await http.get(`/users/members/${memberId}/folders`)
       const d = unwrap<UserFolderPermission[] | null>(res.data)
       return Array.isArray(d) ? d : []
     },
 
-    /** PUT /v1/users/current —— 改用户资料。
-     *  ⚠️ **未经 curl 实证**(写端点,SP9-P4 一律不发)。类型依据 Go struct
-     *  UserDBModel(service/model/o_user.go:15-25)+ handler user.go:338-371:
-     *  空字段会被后端用当前值补齐,username 撞已有用户 → HTTP 400 + success:10002。
-     *  ⚠️ **无消费方** —— Vue2 那个入口(AccountPanel state 2「更改用户名」)全仓零调用,
-     *  是死代码。按 spec §5.7 只做域补全。 */
+    /** PUT /v1/users/current — update user profile.
+     *  ⚠️ **Not verified via curl** (write endpoint; SP9-P4 sends none of those). Types are based on the Go struct
+     *  UserDBModel (service/model/o_user.go:15-25) + handler user.go:338-371:
+     *  empty fields are backfilled by the backend with current values; username colliding with an existing user → HTTP 400 + success:10002.
+     *  ⚠️ **No consumers** — the Vue2 entry point (AccountPanel state 2 "change username") has zero calls repo-wide,
+     *  it is dead code. Included only for domain completeness per spec §5.7. */
     async setUserInfo(data: Partial<UserInfo>): Promise<UserInfo> {
       const res = await http.put('/users/current', data)
       return unwrap<UserInfo>(res.data)
     },
 
-    /** PUT /v1/users/current/password —— 改当前用户密码。
-     *  ⚠️ **未经 curl 实证,且开发机上一次都没发过**:后端 user.go:403 会
-     *  osuser.SetOSUserPassword → /usr/sbin/chpasswd **写 /etc/shadow**,而 SSH 与
-     *  Web 登录都读 /etc/shadow —— 这就是机主的登录凭据,改错不可撤销
-     *  (还会异步同步 Samba 密码,user.go:409-413)。调用方必须确认是用户主动操作。
-     *  旧密码错 → HTTP 400 + success:10014;后端设置失败 → HTTP 500。 */
+    /** PUT /v1/users/current/password — change the current user's password.
+     *  ⚠️ **Not verified via curl, and never once sent on the dev machine**: backend user.go:403 runs
+     *  osuser.SetOSUserPassword → /usr/sbin/chpasswd which **writes /etc/shadow**, and both SSH and
+     *  web login read /etc/shadow — this is the owner's login credential; a wrong change is irreversible
+     *  (it also syncs the Samba password asynchronously, user.go:409-413). Callers must confirm the user initiated this.
+     *  Wrong old password → HTTP 400 + success:10014; backend set failure → HTTP 500. */
     async changePassword(oldPassword: string, password: string): Promise<void> {
       await http.put('/users/current/password', { old_password: oldPassword, password })
     },
 
-    /** PUT /v1/users/avatar —— 上传头像。body 是 { file: "<dataURL>" }。
-     *  ⚠️ **未经 curl 实证**。后端 user.go:261 只 strip `data:image/png;base64,` 这一种前缀
-     *  → **必须传 PNG dataURL**(canvas.toDataURL() 无参默认就是)。
-     *  ⚠️ 后端 user.go:270 是 `log.Fatal(err)`(std log)—— 图片解码失败会 os.Exit(1)
-     *  打死 UserService,内存密钥对重生 → **全集群 JWT 立即失效、所有人需重新登录**
-     *  (systemd Restart=always/100ms,服务本身会自动拉起)。不要拿非 PNG 试探。 */
+    /** PUT /v1/users/avatar — upload avatar. Body is { file: "<dataURL>" }.
+     *  ⚠️ **Not verified via curl**. Backend user.go:261 strips only the `data:image/png;base64,` prefix
+     *  → **a PNG dataURL is mandatory** (canvas.toDataURL() with no args is one by default).
+     *  ⚠️ Backend user.go:270 is `log.Fatal(err)` (std log) — an image decode failure does os.Exit(1),
+     *  killing UserService; the in-memory keypair regenerates → **all cluster JWTs invalidate immediately, everyone must re-login**
+     *  (systemd Restart=always/100ms, the service itself restarts automatically). Do not probe with non-PNG data. */
     async saveAvatar(dataUrl: string): Promise<void> {
       await http.put('/users/avatar', { file: dataUrl })
     },
 
-    /** GET /v1/users/avatar 的 URL(给 <img src> 用,不是请求方法)。
-     *  ⚠️ `<img>` 挂不了 Authorization 头,所以 token 走 query string ——
-     *  NimoOS-Common/utils/jwt/jwt_helper.go:51-57 的 TokenLookupFuncs 明确
-     *  「Authorization 头优先,否则取 c.QueryParam("token")」,2026-08-01 实测
-     *  ?token=fake → 401,证明这条腿是活的。
-     *  `v` 是缓存击穿版本号(后端已 no-store,但浏览器对 <img> 仍会复用)。
-     *  ⚠️ 本机实测该端点 **404** —— DB avatar 为空串且两个兜底 svg 都不存在,
-     *  消费方必须有 @error 兜底。 */
+    /** URL of GET /v1/users/avatar (for <img src>, not a request method).
+     *  ⚠️ `<img>` cannot carry an Authorization header, so the token goes in the query string —
+     *  TokenLookupFuncs in NimoOS-Common/utils/jwt/jwt_helper.go:51-57 explicitly does
+     *  "Authorization header first, otherwise c.QueryParam(\"token\")"; measured 2026-08-01,
+     *  ?token=fake → 401, proving this leg is live.
+     *  `v` is a cache-busting version number (backend already sends no-store, but browsers still reuse <img>).
+     *  ⚠️ Measured on this machine the endpoint returns **404** — DB avatar is an empty string and neither fallback svg exists,
+     *  so consumers must have an @error fallback. */
     avatarPath(version: number, token: string | null): string {
       const t = token ? `token=${encodeURIComponent(token)}&` : ''
       return `/v1/users/avatar?${t}v=${version}`
     },
 
-    /** POST /v1/users/members —— 建子用户(admin only)。
-     *  ⚠️ **未经 curl 实证**。后端 user.go:845-870 会真 useradd(shell /bin/false,
-     *  无 SSH/终端)+ chpasswd 写 /etc/shadow + setfacl 封系统盘 + 建数据目录。
-     *  只能靠 deleteUser 撤,而那个会 userdel + os.RemoveAll 数据目录。
-     *  密码 < 6 位 → HTTP 400 + success:10013;用户名已存在 → success:10002。 */
+    /** POST /v1/users/members — create a sub-user (admin only).
+     *  ⚠️ **Not verified via curl**. Backend user.go:845-870 really runs useradd (shell /bin/false,
+     *  no SSH/terminal) + chpasswd writing /etc/shadow + setfacl sealing the system disk + creating the data directory.
+     *  Only reversible via deleteUser, which does userdel + os.RemoveAll of the data directory.
+     *  Password < 6 chars → HTTP 400 + success:10013; username already exists → success:10002. */
     async createMember(username: string, password: string): Promise<MemberInfo> {
       const res = await http.post('/users/members', { username, password })
       return unwrap<MemberInfo>(res.data)
     },
 
-    /** DELETE /v1/users/{id} —— 删用户(admin only)。
-     *  ⚠️ **未经 curl 实证,不可撤销**:后端 user.go:656-672 撤全部 setfacl → 删权限表
-     *  → 删 DB 行 → userdel → **os.RemoveAll(该用户数据目录)**。
-     *  后端有守卫:id=="1" 或 id==调用者自己 → HTTP 400 + success:4000。 */
+    /** DELETE /v1/users/{id} — delete a user (admin only).
+     *  ⚠️ **Not verified via curl, irreversible**: backend user.go:656-672 revokes all setfacl → deletes permission table rows
+     *  → deletes the DB row → userdel → **os.RemoveAll(the user's data directory)**.
+     *  Backend guard: id=="1" or id==the caller themselves → HTTP 400 + success:4000. */
     async deleteUser(id: number | string): Promise<void> {
       await http.delete(`/users/${id}`)
     },
 
-    /** POST /v1/users/members/{id}/folders —— 给成员授权一个文件夹(admin only)。
-     *  ⚠️ **未经 curl 实证**。后端 user.go:766-774:写 user_folder_permissions 表
-     *  (**upsert** —— 同 user+path 只更新 permission,不会重复插)+ 真 setfacl 改该目录 ACL。
-     *  ⚠️ **NimoOS core 启动时只读打开这张表做文件区权限判定**,授错会影响文件可见性。
-     *  permission 非 'read'/'write' 会被后端静默回落成 'read';path 会过 filepath.Clean。 */
+    /** POST /v1/users/members/{id}/folders — grant a member one folder (admin only).
+     *  ⚠️ **Not verified via curl**. Backend user.go:766-774: writes the user_folder_permissions table
+     *  (**upsert** — same user+path only updates permission, never inserts duplicates) + really runs setfacl on that directory's ACL.
+     *  ⚠️ **NimoOS core opens this table read-only at startup for file-area permission checks**; a wrong grant affects file visibility.
+     *  permission other than 'read'/'write' is silently downgraded to 'read' by the backend; path goes through filepath.Clean. */
     async grantMemberFolder(
       memberId: number | string,
       path: string,
@@ -137,10 +137,10 @@ export function createUsers(http: AxiosInstance) {
       return unwrap<UserFolderPermission>(res.data)
     },
 
-    /** DELETE /v1/users/members/{id}/folders?perm_id={permId} —— 撤销授权(admin only)。
-     *  ⚠️ **未经 curl 实证**。perm_id 走 **query string**(后端 user.go:791 读 QueryParam,
-     *  不是 body)。缺 perm_id / 非数字 → HTTP 400。删表行 + setfacl -x;
-     *  可以用 grantMemberFolder 重建,但新行的 id 会变。 */
+    /** DELETE /v1/users/members/{id}/folders?perm_id={permId} — revoke a grant (admin only).
+     *  ⚠️ **Not verified via curl**. perm_id goes in the **query string** (backend user.go:791 reads QueryParam,
+     *  not the body). Missing / non-numeric perm_id → HTTP 400. Deletes the table row + setfacl -x;
+     *  can be recreated with grantMemberFolder, but the new row's id will differ. */
     async revokeMemberFolder(memberId: number | string, permId: number | string): Promise<void> {
       await http.delete(`/users/members/${memberId}/folders?perm_id=${permId}`)
     },

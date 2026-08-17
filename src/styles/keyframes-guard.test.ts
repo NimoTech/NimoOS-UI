@@ -141,13 +141,13 @@ const allSources: Array<{ rel: string; text: string }> = [
   ...vueUnscopedFiles,
 ]
 
-describe('全局 @keyframes 名称唯一性守卫(防 pulse 与 theme.css 同名劫持复发)', () => {
-  it('至少扫描到了预期的几处来源(守卫不能悄悄扫空)', () => {
+describe('global @keyframes name-uniqueness guard (prevents a recurrence of pulse hijacking theme.css)', () => {
+  it('scanned at least the expected number of sources (the guard must not silently scan nothing)', () => {
     expect(cssFiles.length).toBeGreaterThan(0)
     expect(parityFiles.length).toBeGreaterThan(0)
   })
 
-  it('所有非 scoped 来源里的 @keyframes 名称全局唯一(任何重名即判定为冲突/劫持风险)', () => {
+  it('@keyframes names are globally unique across non-scoped sources (any duplicate name counts as a collision / hijack risk)', () => {
     const byName = new Map<string, KeyframeHit[]>()
     for (const { rel, text } of allSources) {
       for (const hit of extractKeyframes(text, rel)) {
@@ -164,15 +164,15 @@ describe('全局 @keyframes 名称唯一性守卫(防 pulse 与 theme.css 同名
     for (const [name, hits] of byName) {
       if (hits.length < 2) continue
       offenders.push(
-        `  @keyframes ${name} 在以下文件中被重复定义(同名必须全局唯一;若为不同内容,后加载的会静默覆盖先加载的):\n` +
+        `  @keyframes ${name} is defined more than once in the following files (a name must be globally unique; when the bodies differ, whichever loads last silently overrides the earlier one):\n` +
           hits.map((h) => `    - ${h.file}`).join('\n'),
       )
     }
 
     expect(
       offenders,
-      `\n发现 @keyframes 名称冲突(不同文件用同一个名字定义了不同的动画 —— 这正是本条守卫要防的
-Critical#1 复发:parity 的 pulse 曾经就是这样劫持了 theme.css 的全局 pulse / AiWidget 的轨道呼吸动画):\n${offenders.join(
+      `\nFound @keyframes name collisions (different files define different animations under the same name — this is exactly what this guard exists to prevent
+Recurrence of Critical#1: parity's pulse once hijacked theme.css's global pulse / AiWidget's orb breathing animation this same way):\n${offenders.join(
         '\n',
       )}`,
     ).toEqual([])

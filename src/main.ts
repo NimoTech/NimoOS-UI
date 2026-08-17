@@ -4,6 +4,7 @@ import { initService } from '@nimotech/nimoos-service'
 import App from './App.vue'
 import { router } from './router'
 import { i18n } from './i18n'
+import { initialLocale } from './i18n/locale'
 import { useSessionStore } from './stores/session'
 import { makeAuthFailHandler } from './router/onAuthFail'
 import { applyTheme, initialTheme } from './stores/theme'
@@ -33,10 +34,10 @@ initService({
     () => session.clear(),
     () => { window.location.href = '/app/#/login' },
   ),
-  getLang: () => {
-    const l = (navigator.language || 'en').toLowerCase().replace('-', '_')
-    return localStorage.getItem('lang') || l
-  },
+  // Same resolution as the UI's own locale, so the language we ask the backend for
+  // is the language on screen. It used to forward navigator.language raw (en_gb,
+  // fr_fr…), which is a locale this app does not ship and the UI never rendered.
+  getLang: () => initialLocale(),
 })
 
 app.use(i18n)

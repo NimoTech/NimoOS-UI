@@ -1,22 +1,26 @@
 <!--
-  SP7-P8a-T3: 设置页存储卡。
-  回源坐标:Vue2 PhotosSettings.vue:39-126(模板)、:299-331(capGB/freeGB/usedGB/
-  prunableBytes/scanIntervalOptions/breakdown/pctOf)、:382(fmt)、:405-457
-  (fmtBytes/clearCache/rescanNow/setScanInterval)。
+  SP7-P8a-T3: Settings page storage card.
+  Source coordinates: Vue2 PhotosSettings.vue:39-126 (template), :299-331 (capGB/freeGB/usedGB/
+  prunableBytes/scanIntervalOptions/breakdown/pctOf), :382 (fmt), :405-457
+  (fmtBytes/clearCache/rescanNow/setScanInterval).
 
-  卡片自己不弹 toast —— @toast 事件统一由 T5 的容器承接,同 Vue2 把 toast 状态放在容器
-  PhotosSettings.vue、showToast() 定义在 :487-491 一致。
+  Card doesn't emit toast itself — @toast event is uniformly received by the container (T5);
+  same as Vue2 placing toast state in the container PhotosSettings.vue, showToast() defined at
+  :487-491.
 
-  接口边界记录(brief 的 Consumes 列表没点名,这里显式登记给 T5/T4 的实现者看):
-  - `about`/`deviceName` 直接读 store.about?.deviceName,不在本卡调用 fetchAbout()——
-    Vue2 mounted() 里 loadAbout() 与 loadStorage() 是同一个组件的两个并列调用,拆分后
-    "谁取 about" 没有强制归属;由本卡的姐妹组件(T5 容器,footer 也要 about.version)
-    统一取一次更省一次网络往返。取数完成前显示 Vue2 同款兜底 'NAS'。
-  - retentionDays/scanIntervalMinutes 同理不在本卡调用 fetchRetention()/fetchScanInterval()
-    (brief 的 Consumes 列表也没点这两个 action 名)——假定 T5 在挂载整页时统一取一次;
-    在那之前直接读 store 默认值(30/1440),取数落地后随 store 响应式更新。
-  - fetchStorage() **有**在 Consumes 列表里点名,所以本卡自己在 mounted 时调用一次
-    (与 Vue2 loadStorage() 对应),不依赖 T5。
+  Interface boundary record (brief's Consumes list doesn't name these, explicitly registered here
+  for T5/T4 implementers):
+  - `about`/`deviceName` read directly from store.about?.deviceName, card doesn't call fetchAbout()
+    — in Vue2 mounted(), loadAbout() and loadStorage() are two parallel calls in the same component;
+    after splitting, "who fetches about" has no mandatory owner; by sister component (T5 container,
+    footer also needs about.version) fetching once together saves one network round-trip. Before data
+    completes, show Vue2's same fallback 'NAS'.
+  - retentionDays/scanIntervalMinutes similarly not called via fetchRetention()/fetchScanInterval()
+    in this card (brief's Consumes list doesn't name these two action names) — assume T5 fetches once
+    when mounting the whole page; before that read store defaults (30/1440); after data lands, update
+    reactively with store.
+  - fetchStorage() **is** named in Consumes list, so card calls it once on mounted (corresponds to
+    Vue2's loadStorage()), does not depend on T5.
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
@@ -51,18 +55,21 @@ const SEG_LABEL_KEYS: Record<StorageSegKey, string> = {
 
 const RETENTION_OPTIONS = [7, 15, 30, 60, 90] as const
 
-// Vue2 PhotosSettings.vue:304-311 的 scanIntervalOptions:6h/12h/24h/7d 这四个 label 在源里
-// 是裸字面量、从不过 $t(只有 off 那一档过 $t('scan_interval_off'))——它们是时长单位缩写
-// (小时/天),不是需要按语言翻译的自然语言句子,故照搬为字面量,不新增/复用 i18n key
-// (task-3-brief.md 的 ruling #1)。
+// Vue2 PhotosSettings.vue:304-311's scanIntervalOptions: the four labels 6h/12h/24h/7d are bare
+// literals in source, never pass through $t (only the off tier goes through $t('scan_interval_off'))
+// — they are time-unit abbreviations (hours/days), not natural language sentences that need
+// language translation; copied as literals, no new i18n keys added/reused (task-3-brief.md ruling #1).
 //
-// 终审 Minor 7(不改行为,仅登记):retention(:186,photosSettingsRetentionDay)译成了
-// 「{n} 天」,这里的扫描间隔挡位却保留 6h/12h/24h/7d 字面量——zh 下两组相邻分段控件因此
-// 一个读「7 天 | 15 天 | 30 天 …」、一个读「关闭 | 6h | 12h | 24h | 7d」,Vue2 原本两组
-// 内部风格一致(都是 7d…/Off 6h…字面量)。两种做法各自都说得通(retention 走 $t 是本期
-// 刻意登记的选择,见上一段注释链;scan 保留单位缩写也有它的理由),但相邻不一致本身没被
-// 登记过——写在这里存证,是决策而非疏漏。是否统一,留给机主上机验收时拍板(不在本波修复
-// 范围)。
+// Final review Minor 7 (behavior unchanged, just registering): retention (:186,
+// photosSettingsRetentionDay) translates to '{n} days', but here the scan interval tiers keep
+// 6h/12h/24h/7d literals — in zh these two adjacent segment controls therefore read one as
+// '7 days | 15 days | 30 days …' and the other as 'off | 6h | 12h | 24h | 7d'; Vue2 originally
+// had consistent internal style in both groups (both 7d.../Off 6h... literals). Both approaches
+// make sense individually (retention via $t is this phase's deliberate choice, see previous comment
+// chain; scan keeping unit abbreviations also has its reason), but adjacent inconsistency itself
+// was never registered — writing here for record, is a decision not an oversight. Whether to unify
+// is left for the operator to decide on live acceptance (not in this wave's fix scope).
+
 const scanIntervalOptions = computed(() => [
   { min: 0, label: t('photosSettingsScanIntervalOff') },
   { min: 360, label: '6h' },
@@ -74,10 +81,11 @@ const scanIntervalOptions = computed(() => [
 async function selectRetention(d: number): Promise<void> {
   const ok = await store.setRetention(d)
   if (!ok) {
-    // Vue2 :254-262 的 retention watcher 失败时走 $buefy.toast(与本卡 showToast 完全不同的
-    // 提示组件,New-UI 没有等价物),不是 showToast(icon,...) 调用,所以源里没有一个可以照搬
-    // 的 icon 名。按语义最接近的既有 showToast 调用类比——":274-279" features 保存失败同样是
-    // "设置保存失败"场景,用的是 'shield' —— 这里同样取 'shield'。
+    // Vue2's :254-262 retention watcher failure goes through $buefy.toast (completely different
+    // from this card's showToast component, New-UI has no equivalent), not a showToast(icon,...)
+    // call, so there's no icon name to copy from source. By semantic analogy to the closest existing
+    // showToast call — ":274-279" features save failure is also a 'settings save failed' scenario,
+    // uses 'shield' — here also use 'shield'.
     emit('toast', { icon: 'shield', text: t('photosSettingsRetentionFailed') })
   }
 }
@@ -85,10 +93,12 @@ async function selectRetention(d: number): Promise<void> {
 async function selectScanInterval(min: number): Promise<void> {
   const ok = await store.setScanInterval(min)
   if (!ok) {
-    // Vue2 :447-457 的失败分支同样走 $buefy.toast,文案还复用了 retention 的
-    // "Failed to save retention"(拷贝失误,不是本卡引入的新缺陷)。T2 没有为 scanInterval
-    // 单开一个失败文案键,本任务文件清单不含 i18n(不能新增/改键),故沿用同一个已存在的键,
-    // 与 Vue2 的实际文案选择保持一致——真正的修法是给 i18n 补一个专属键,挂账留给后续任务。
+    // Vue2's :447-457 failure branch also goes through $buefy.toast; text also reuses retention's
+    // 'Failed to save retention' (copy error, not a new defect introduced by this card). T2 didn't
+    // create a dedicated failure text key for scanInterval; this task's file list doesn't include
+    // i18n (can't add/change keys); so use the same existing key, keeping consistent with Vue2's
+    // actual text choice — the real fix is adding a dedicated i18n key, deferring to later tasks.
+
     emit('toast', { icon: 'shield', text: t('photosSettingsRetentionFailed') })
   }
 }
@@ -104,7 +114,8 @@ async function clearCache(): Promise<void> {
     const freed = await store.pruneCache()
     cleared.value = true
     emit('toast', { icon: 'trash', text: t('photosSettingsCacheClearedToast', { size: fmtBytes(freed) }) })
-    // Vue2 :423 —— 清完必须重拉一次 storage,否则容量条/大数字不会反映刚清出的空间。
+    // Vue2 :423 — must refetch storage after clearing, otherwise capacity bar/large numbers won't
+    // reflect the freed space.
     await store.fetchStorage()
     clearTimeout(clearedTimer)
     clearedTimer = setTimeout(() => { cleared.value = false }, 2000)
@@ -123,8 +134,9 @@ async function rescanNow(): Promise<void> {
     await store.triggerScan()
     emit('toast', { icon: 'check', text: t('photosSettingsRescanStarted') })
   } catch {
-    // Vue2 :441 同样的拷贝缺陷("Failed to start rebuild",不是重扫专属文案),原因同上
-    // selectScanInterval 的注释——沿用 Vue2 实际选择的既有键,不新增。
+    // Vue2 :441 same copy defect ('Failed to start rebuild', not dedicated to rescan text); reason
+    // same as selectScanInterval comment above — use the existing key from Vue2's actual choice,
+    // no new key added.
     emit('toast', { icon: 'trash', text: t('photosSettingsRebuildStartFailed') })
   } finally {
     scanBusy.value = false
@@ -312,12 +324,14 @@ onMounted(() => {
 }
 .seg-btn:hover { background: var(--chip-bg-hi); }
 .seg-btn[data-active="true"] { background: var(--accent); color: var(--on-accent); }
-/* 本区已栽四次的坑:基类 `.seg-btn:hover`(优先级 2:一个类 + 一个伪类)与变体
-   `.seg-btn[data-active="true"]`(优先级 2:一个类 + 一个属性选择器)相等——同优先级下
-   源码顺序在.seg-btn:hover之后声明的[data-active]规则平时能压住,但鼠标一进按钮触发
-   `.seg-btn:hover`,若没有专门的 [data-active]:hover 规则,两条同优先级规则的胜负会变得
-   脆弱(依赖书写顺序而非语义)。变体必须自带 :hover 规则,用第三个选择器把优先级明确
-   抬高到 3,不依赖 tie-break。 */
+/* Pit already stumbled into four times in this area: base class `.seg-btn:hover` (specificity 2:
+   one class + one pseudo-class) and variant `.seg-btn[data-active="true"]` (specificity 2: one
+   class + one attribute selector) are equal — at the same specificity, the [data-active] rule
+   declared after .seg-btn:hover in source order can normally win, but when mouse enters the button
+   and triggers `.seg-btn:hover`, without a dedicated [data-active]:hover rule, the outcome of two
+   same-specificity rules becomes fragile (depends on source order, not semantics). Variant must
+   carry its own :hover rule, use a third selector to explicitly raise specificity to 3, not rely
+   on tie-break. */
 .seg-btn[data-active="true"]:hover { background: var(--accent); color: var(--on-accent); }
 
 .psc-btn {

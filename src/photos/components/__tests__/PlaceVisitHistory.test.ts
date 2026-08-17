@@ -1,9 +1,9 @@
-// P6b-T6: PlaceVisitHistory.vue —— 地点详情面板的"到访记录"时间线段。
-// 覆盖 task-6-brief.md「Step 1: 写失败测试」必含清单:结构清点 / current 分流 /
-// visit-stats 三条 v-if 语义 / save-trip 不冒泡(@click.stop) / open-photo 的 D9 主守卫
-// (list = 那一条 visit 自己的 thumbs)/ 段头 .more 单复数 / 最后一条竖线隐藏(程序化)/
-// keyframes pulseDot 存在(程序化)/ 颜色合规(三处 current 规则只用 --place-current-trip,
-// 不含字面 rgba(/#)。
+// P6b-T6: PlaceVisitHistory.vue — Visit history timeline on the place detail panel.
+// Covers task-6-brief.md "Step 1: write failing tests" required list: structure audit / current branching /
+// three visit-stats v-if semantics / save-trip non-bubbling (@click.stop) / open-photo D9 main guard
+// (list = that visit's own thumbs) / section header .more singular/plural / last vertical line hidden (programmatic) /
+// keyframes pulseDot exists (programmatic) / color compliance (three current rules use only --place-current-trip,
+// no literal rgba(/#).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -17,9 +17,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
 }))
 
 import PlaceVisitHistory from '../PlaceVisitHistory.vue'
-// 原始源码文本(Vite `?raw`):最后一条竖线隐藏 / keyframes / 颜色合规三组断言都只能读
-// <style> 原文判定(jsdom 不做级联样式计算),同 PlaceDetailPanel.test.ts / PlaceInsights.test.ts
-// 的既有先例。
+// Raw source text (Vite `?raw`): last vertical line hidden / keyframes / color compliance three assertion groups
+// can only read <style> original text (jsdom does not compute cascading styles), same as existing precedent
+// in PlaceDetailPanel.test.ts / PlaceInsights.test.ts.
 import placeVisitHistoryRaw from '../PlaceVisitHistory.vue?raw'
 import { extractStyleBlock } from './cssCascade'
 
@@ -47,9 +47,9 @@ beforeEach(() => {
   thumbnailUrl.mockImplementation((id: string | number, size: string) => `mock://thumb/${id}/${size}`)
 })
 
-// ── 结构清点(brief 结构规格 1-2)────────────────────────────────────────────
-describe('结构清点', () => {
-  it('段落恒渲染(无 v-if),visits 两条 → 2 个 .visit-card,每条含五个子结构', () => {
+// ── structure audit (brief structure spec 1-2)────────────────────────────────────────────
+describe('structure audit', () => {
+  it('section always renders (no v-if), two visits → 2 .visit-card, each contains five child structures', () => {
     const w = mountHistory([visit(), visit({ current: true, when: 'Jul 2026' })])
     expect(w.find('.detail-section').exists()).toBe(true)
     const cards = w.findAll('.visit-card')
@@ -64,7 +64,7 @@ describe('结构清点', () => {
     }
   })
 
-  it('visits 为空数组 → 段落仍渲染(标题在),没有任何 .visit-card', () => {
+  it('when visits is empty array → section still renders (title present), no .visit-card', () => {
     const w = mountHistory([], 0)
     expect(w.find('.detail-section').exists()).toBe(true)
     expect(w.find('h4').exists()).toBe(true)
@@ -72,9 +72,9 @@ describe('结构清点', () => {
   })
 })
 
-// ── current 分流(brief 必含用例)───────────────────────────────────────────
-describe('current 条 vs 非 current 条', () => {
-  it('current=true:.visit-card 有 .is-current、.visit-dot data-current="true"、出现 .visit-pill 文案"本次旅行"、不出现 .visit-len', () => {
+// ── current branching (brief required cases)───────────────────────────────────────────
+describe('current vs non-current', () => {
+  it('current=true: .visit-card has .is-current, .visit-dot data-current="true", shows .visit-pill with "本次旅行" text, no .visit-len', () => {
     const w = mountHistory([visit({ current: true })])
     const card = w.find('.visit-card')
     expect(card.classes()).toContain('is-current')
@@ -85,7 +85,7 @@ describe('current 条 vs 非 current 条', () => {
     expect(card.find('.visit-len').exists()).toBe(false)
   })
 
-  it('current=false:.visit-card 无 .is-current、.visit-dot data-current="false"、不出现 .visit-pill、.visit-len 文案含天数', () => {
+  it('current=false: .visit-card no .is-current, .visit-dot data-current="false", no .visit-pill, .visit-len text contains day count', () => {
     const w = mountHistory([visit({ current: false, days: 9 })])
     const card = w.find('.visit-card')
     expect(card.classes()).not.toContain('is-current')
@@ -97,43 +97,43 @@ describe('current 条 vs 非 current 条', () => {
   })
 })
 
-// ── .visit-stats 三条 v-if 语义(brief 必含用例)────────────────────────────
+// ── .visit-stats three v-if semantics (brief required cases)────────────────────────────
 describe('.visit-stats', () => {
-  it('照片数在 <b> 里', () => {
+  it('photo count in <b> tag', () => {
     const w = mountHistory([visit({ photos: 42 })])
     const b = w.find('.visit-stats b')
     expect(b.exists()).toBe(true)
     expect(b.text()).toBe('42')
   })
 
-  it('faces 非空 → 出现"与" + join后的名字', () => {
+  it('faces non-empty → shows "与" + joined names', () => {
     const w = mountHistory([visit({ faces: ['小明', '小红'] })])
     const stats = w.find('.visit-stats')
     expect(stats.text()).toContain('与')
     expect(stats.text()).toContain('小明 · 小红')
   })
 
-  it('faces 为空数组 → 不出现"与",也不出现名字拼接', () => {
+  it('faces is empty array → no "与", no name concatenation', () => {
     const w = mountHistory([visit({ faces: [] })])
     const stats = w.find('.visit-stats')
     expect(stats.text()).not.toContain('与')
   })
 
-  it('spots 为 0(falsy)→ 地点数不出现(照 Vue2 v-if="v.spots" 的语义)', () => {
+  it('spots is 0 (falsy) → place count does not appear (per Vue2 v-if="v.spots" semantics)', () => {
     const w = mountHistory([visit({ spots: 0 })])
     expect(w.find('.visit-stats').text()).not.toContain('个地点')
   })
 
-  it('spots 非 0 → 出现地点数', () => {
+  it('spots non-0 → place count appears', () => {
     const w = mountHistory([visit({ spots: 5 })])
     expect(w.find('.visit-stats').text()).toContain('5')
     expect(w.find('.visit-stats').text()).toContain('个地点')
   })
 })
 
-// ── save-trip 不冒泡(brief 必含用例,钉 @click.stop)────────────────────────
-describe('保存旅行按钮', () => {
-  it('点击 → emit save-trip 带该 visit 对象,且事件不冒泡到 .visit-card', async () => {
+// ── save-trip non-bubbling (brief required case, pin @click.stop)────────────────────────
+describe('save trip button', () => {
+  it('click → emit save-trip with that visit object, event does not bubble to .visit-card', async () => {
     const v = visit({ when: 'Apr 2026' })
     const w = mountHistory([v])
     const cardEl = w.find('.visit-card').element
@@ -145,9 +145,9 @@ describe('保存旅行按钮', () => {
   })
 })
 
-// ── open-photo 的 D9 主守卫(brief 必含用例)────────────────────────────────
-describe('缩略图点击 —— D9 主守卫', () => {
-  it('点某条第 2 张缩略图 → emit open-photo 带 (thumbs[1], 该条自己的 thumbs),不是别条的、不是单张', async () => {
+// ── open-photo D9 main guard (brief required case)────────────────────────────────
+describe('thumbnail click — D9 main guard', () => {
+  it('click 2nd thumbnail of a visit → emit open-photo with (thumbs[1], that visit\'s own thumbs), not another\'s, not single', async () => {
     const vA = visit({ when: 'Mar 2026', thumbs: ['a1', 'a2', 'a3'] })
     const vB = visit({ when: 'Jul 2026', thumbs: ['b1', 'b2', 'b3'] })
     const w = mountHistory([vA, vB])
@@ -162,9 +162,9 @@ describe('缩略图点击 —— D9 主守卫', () => {
   })
 })
 
-// ── 段头 .more 单复数(brief 必含用例)──────────────────────────────────────
-describe('段头 .more', () => {
-  it('是静态文本(不是 button),trips=1 → 单数键', () => {
+// ── section header .more singular/plural (brief required case)──────────────────────────────────────
+describe('section header .more', () => {
+  it('is static text (not button), trips=1 → singular key', () => {
     const w = mountHistory([], 1)
     const more = w.find('h4 .more')
     expect(more.exists()).toBe(true)
@@ -173,7 +173,7 @@ describe('段头 .more', () => {
     expect(more.text()).toContain('次旅行')
   })
 
-  it('trips=3 → 复数键(中文两键同值,用英文 locale 复核真的换了键)', () => {
+  it('trips=3 → plural key (Chinese both keys same value, verify with en_us locale that key actually changed)', () => {
     const wZh = mountHistory([], 3)
     expect(wZh.find('h4 .more').text()).toContain('3')
 
@@ -185,12 +185,12 @@ describe('段头 .more', () => {
   })
 })
 
-// ── 评审 I1:「保存旅行」按钮的图标必须是 album glyph(Vue2 PhotosIcon.vue
-// name="album"),此前误画成了 image glyph(rect rx=2 + circle + 斜线)。──────────
-describe('图标 glyph 回源(评审 I1)', () => {
-  it('.visit-save-btn 是 album glyph(rect rx="3" + 折线),不是 image glyph', () => {
+// ── Review I1: "save trip" button icon must be album glyph (Vue2 PhotosIcon.vue
+// name="album"), previously mistakenly drawn as image glyph (rect rx=2 + circle + diagonal line).──────────
+describe('icon glyph source (review I1)', () => {
+  it('.visit-save-btn is album glyph (rect rx="3" + polyline), not image glyph', () => {
     const m = /class="visit-save-btn"[\s\S]*?>([\s\S]*?)<\/button>/.exec(placeVisitHistoryRaw)
-    expect(m, '未找到 .visit-save-btn').not.toBeNull()
+    expect(m, '.visit-save-btn not found').not.toBeNull()
     expect(m![1]).toContain('rx="3"')
     expect(m![1]).toContain('M3 14l5-4 4 3 3-2 6 5')
     expect(m![1]).not.toContain('M21 15l-5-5L5 21')
@@ -198,22 +198,22 @@ describe('图标 glyph 回源(评审 I1)', () => {
   })
 })
 
-// ── 程序化样式断言(brief 必含用例)─────────────────────────────────────────
-describe('样式块 —— 最后一条竖线隐藏 / keyframes / 颜色合规', () => {
+// ── programmatic style assertions (brief required cases)─────────────────────────────────────────
+describe('style block — last vertical line hidden / keyframes / color compliance', () => {
   const style = extractStyleBlock(placeVisitHistoryRaw)
 
-  it('含 .visit-card:last-child 规则,其 .visit-rail::before 为 display: none', () => {
+  it('contains .visit-card:last-child rule, its .visit-rail::before is display: none', () => {
     const re = /\.visit-card:last-child\s+\.visit-rail::before\s*\{([^}]*)\}/
     const m = re.exec(style)
-    expect(m, '未找到 .visit-card:last-child .visit-rail::before 规则').not.toBeNull()
+    expect(m, '.visit-card:last-child .visit-rail::before rule not found').not.toBeNull()
     expect(m![1]).toMatch(/display\s*:\s*none/)
   })
 
-  it('含 @keyframes pulseDot', () => {
+  it('contains @keyframes pulseDot', () => {
     expect(style).toMatch(/@keyframes\s+pulseDot\s*\{/)
   })
 
-  it('三处 current 相关规则都引用 --place-current-trip,且不含字面 rgba(/#', () => {
+  it('three current-related rules all reference --place-current-trip, no literal rgba(/#', () => {
     const blocks = [
       /\.visit-dot\[data-current="true"\]\s*\{([^}]*)\}/,
       /\.visit-pill\s*\{([^}]*)\}/,
@@ -221,7 +221,7 @@ describe('样式块 —— 最后一条竖线隐藏 / keyframes / 颜色合规',
     ]
     for (const re of blocks) {
       const m = re.exec(style)
-      expect(m, `未找到规则:${re}`).not.toBeNull()
+      expect(m, `rule not found: ${re}`).not.toBeNull()
       const body = m![1]
       expect(body).toContain('--place-current-trip')
       expect(body).not.toMatch(/rgba\(/)

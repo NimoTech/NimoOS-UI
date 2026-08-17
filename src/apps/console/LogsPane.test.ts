@@ -16,7 +16,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('LogsPane', () => {
-  it('挂载后拉日志展示;卸载停止轮询', async () => {
+  it('after mount fetch and display logs; after unmount stop polling', async () => {
     const w = mount(LogsPane, { props: { appId: 'a1' }, global: { plugins: [i18n] } })
     await flushPromises()
     expect(logsMock).toHaveBeenCalledWith('a1', { lines: 1000 })
@@ -27,7 +27,7 @@ describe('LogsPane', () => {
     expect(logsMock).not.toHaveBeenCalled()
   })
 
-  it('手动刷新按钮触发再拉', async () => {
+  it('manual refresh button triggers fetch again', async () => {
     const w = mount(LogsPane, { props: { appId: 'a1' }, global: { plugins: [i18n] } })
     await flushPromises()
     logsMock.mockClear()
@@ -36,14 +36,14 @@ describe('LogsPane', () => {
     expect(logsMock).toHaveBeenCalledTimes(1)
   })
 
-  it('无日志时显示空态文案', async () => {
+  it('show empty state copy when no logs', async () => {
     logsMock.mockResolvedValue('')
     const w = mount(LogsPane, { props: { appId: 'a1' }, global: { plugins: [i18n] } })
     await flushPromises()
     expect(w.find('[data-test="logs-pre"]').text()).toBe('暂无日志')
   })
 
-  it('日志按纯文本渲染 —— HTML 不被解释(Vue2 v-html 隐患的回归锁)', async () => {
+  it('logs rendered as plain text — HTML not interpreted (Vue2 v-html hazard regression lock)', async () => {
     logsMock.mockResolvedValue('<img src=x onerror=alert(1)>')
     const w = mount(LogsPane, { props: { appId: 'a' }, global: { plugins: [i18n] } })
     await flushPromises()

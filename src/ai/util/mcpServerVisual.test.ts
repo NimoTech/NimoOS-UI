@@ -5,34 +5,34 @@ import { SKILL_COLOR_IDS } from '../components/settings/skills/SkillTile.vue'
 const PALETTE = ['blue', 'purple', 'pink', 'orange', 'green', 'teal', 'slate']
 
 describe('serverColor', () => {
-  it('与 SkillTile 的色板逐字相同(复用同一套 --grad-sk-* token)', () => {
+  it('Palette is identical to SkillTile verbatim (reuses the same set of --grad-sk-* tokens)', () => {
     expect([...SKILL_COLOR_IDS]).toEqual(PALETTE)
   })
 
-  it('同名同色(确定性哈希)', () => {
+  it('Same name, same color (deterministic hash)', () => {
     expect(serverColor('context7')).toBe(serverColor('context7'))
   })
 
-  it('返回值永远落在色板内', () => {
+  it('Return value always falls within the palette', () => {
     for (const n of ['a', 'brave', 'notion', '中文名', 'x'.repeat(200), '@scope/pkg']) {
       expect(PALETTE).toContain(serverColor(n))
     }
   })
 
-  // 判别力:如果实现写死返回 'blue',这条会红。
-  it('不同名字能落到至少 3 种不同颜色', () => {
+  // Discriminative power: if the implementation hardcodes return 'blue', this test will fail.
+  it('Different names map to at least 3 different colors', () => {
     const names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l']
     expect(new Set(names.map(serverColor)).size).toBeGreaterThanOrEqual(3)
   })
 
-  it('空名 / null / undefined 回落 blue(Vue2 String(name || "") 的行为)', () => {
+  it('Empty name / null / undefined falls back to blue (Vue2 String(name || "") behavior)', () => {
     expect(serverColor('')).toBe('blue')
     expect(serverColor(null)).toBe('blue')
     expect(serverColor(undefined)).toBe('blue')
   })
 
-  // 钉住 Vue2 的确切哈希(h = h*31 + charCode,>>> 0),换算法会红。
-  it('逐字复刻 Vue2 的哈希取值', () => {
+  // Pin down Vue2's exact hash (h = h*31 + charCode, >>> 0); changing the algorithm will fail this test.
+  it('Exactly replicate Vue2\'s hash calculation', () => {
     expect(serverColor('brave')).toBe(PALETTE[hash('brave') % 7])
     expect(serverColor('notion')).toBe(PALETTE[hash('notion') % 7])
     function hash(s: string) {
@@ -44,12 +44,12 @@ describe('serverColor', () => {
 })
 
 describe('transportLabel', () => {
-  it('大写化', () => {
+  it('Uppercase conversion', () => {
     expect(transportLabel('http')).toBe('HTTP')
     expect(transportLabel('sse')).toBe('SSE')
     expect(transportLabel('stdio')).toBe('STDIO')
   })
-  it('空 / null / undefined → 空串(Vue2 String(t || "") 的行为)', () => {
+  it('Empty / null / undefined → empty string (Vue2 String(t || "") behavior)', () => {
     expect(transportLabel('')).toBe('')
     expect(transportLabel(null)).toBe('')
     expect(transportLabel(undefined)).toBe('')
@@ -57,7 +57,7 @@ describe('transportLabel', () => {
 })
 
 describe('SERVER_GLYPH', () => {
-  it('是 drive —— AgentIcon 里必须存在这个图标名', () => {
+  it('Is drive — this icon name must exist in AgentIcon', () => {
     expect(SERVER_GLYPH).toBe('drive')
   })
 })

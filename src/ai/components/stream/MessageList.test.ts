@@ -17,7 +17,7 @@ describe('MessageList', () => {
     setActivePinia(createPinia())
   })
 
-  it('按 role 分发到 UserMessage/AssistantMessage,并打上 data-block/data-role', () => {
+  it('distributes by role to UserMessage/AssistantMessage, tags with data-block/data-role', () => {
     const messages = [
       { id: 'm1', role: 'user', content: '第一条较长一点的用户消息内容' },
       { id: 'm2', role: 'assistant', blocks: [{ type: 'md', text: '**回复**' }] },
@@ -34,7 +34,7 @@ describe('MessageList', () => {
     expect(w.html()).toContain('<strong>回复</strong>')
   })
 
-  it('busy 且最后一条不是 assistant 时显示 Thinking 占位', () => {
+  it('shows Thinking placeholder when busy and last message is not assistant', () => {
     const messages = [{ id: 'm1', role: 'user', content: '用户较长一点的问题描述文本' }]
     const w = mount(MessageList, {
       props: { messages, busy: true },
@@ -43,7 +43,7 @@ describe('MessageList', () => {
     expect(w.find('.thinking').exists()).toBe(true)
   })
 
-  it('busy 但最后一条已是 assistant 时不显示 Thinking 占位', () => {
+  it('does not show Thinking placeholder when busy but last message is already assistant', () => {
     const messages = [
       { id: 'm1', role: 'user', content: '用户较长一点的问题描述文本' },
       { id: 'm2', role: 'assistant', blocks: [] },

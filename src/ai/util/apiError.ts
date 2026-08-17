@@ -1,23 +1,23 @@
-// SP8-P2b Task 4 —— 后端错误消息提取。
+// SP8-P2b Task 4 — Backend error message extraction.
 //
-// Vue2 的 7 个设置分区里各自手写同一段兜底链(例:BlacklistSection.vue:80-84、
-// McpTokensSection.vue:186、ChannelsSection.vue:210),本期收成一处。取值顺序与
-// 优先级与 Vue2 逐条对齐:response.data.message → response.data(字符串直用/
-// 对象 JSON 序列化) → error.message → 调用方给的兜底文案。
+// Vue2 had 7 settings sections, each manually writing the same fallback chain (e.g.: BlacklistSection.vue:80-84、
+// McpTokensSection.vue:186、ChannelsSection.vue:210), this period consolidates them into one place. Value order and
+// priority align line-by-line with Vue2: response.data.message → response.data(string direct use /
+// object JSON serialization) → error.message → fallback copy provided by caller.
 //
-// 只服务本期新写的 6 个分区。**不回头改 New-UI 既有的 5 处内联写法**
+// Serves only the 6 new sections written this period. **Do NOT go back to change the 5 existing inline implementations**
 // (AgentComposer.vue / GoogleDriveAuthDialog.vue / NetworkStorageDialog.vue /
-// files/stores/shares.ts / apps/composables/useInstallFlow.ts)——那属无关重构。
-// 【SP8-P2b 验收第 3 轮改动,用户 2026-07-30 拍板】原实现有两处问题,一起修:
-//   ① 只认 Go 服务的 `message`。Python agent(`:8282`,FastAPI)把错误放在 **`detail`**,
-//      于是 detail 全部掉进下面那条「对象就 JSON.stringify」兜底。
-//   ② 那条 JSON.stringify 兜底(承自 Vue2 BlacklistSection.vue:82)会把整个响应体糊到
-//      界面上 —— 用户在 Channels 添加机器人失败时看到的正是 `{"detail":"bot token rejected"}`。
-// 故:补 `detail` 提取,并**删掉 JSON.stringify**(认不出就继续往下走,最终落调用方的
-// 本地化兜底文案)。有意偏离 Vue2,已在 apiError.test.ts 与台账登记。
-// 注意:本函数返回的仍可能是**后端英文原文**(如 FastAPI 的 detail)。要保证界面全本地化的
-// 调用点,应改用「后端串 → i18n 键」的映射(先例:channelsFormat.ts 的 addBotErrorKey),
-// 不要直接把本函数的返回值当成面向用户的最终文案。
+// files/stores/shares.ts / apps/composables/useInstallFlow.ts) —— that would be unrelated refactoring.
+// [SP8-P2b Acceptance round 3 changes, user approved 2026-07-30] Original implementation had two issues, fixing both:
+//   ① Only recognized Go service `message`. Python agent(`:8282`,FastAPI) puts errors in **`detail`**,
+//      so detail entirely fell into the "object then JSON.stringify" fallback below.
+//   ② That JSON.stringify fallback (inherited from Vue2 BlacklistSection.vue:82) echoes the entire response body to
+//      the UI —— what the user saw when adding a bot to Channels failed was exactly `{"detail":"bot token rejected"}`.
+// Therefore: add `detail` extraction, and **delete JSON.stringify**(if not recognized, continue down, ultimately falling to caller's
+// localized fallback copy). Intentionally diverging from Vue2, already logged in apiError.test.ts and ledger.
+// Note: the function may still return **backend English original text**(e.g., FastAPI's detail). To ensure the UI is fully localized at
+// call sites, should instead use "backend string → i18n key" mapping (precedent: channelsFormat.ts's addBotErrorKey),
+// do not directly treat the return value of this function as final copy for end users.
 export function apiErrorMessage(e: unknown, fallback: string): string {
   const data = (e as { response?: { data?: unknown } } | null | undefined)?.response?.data
 
@@ -26,7 +26,7 @@ export function apiErrorMessage(e: unknown, fallback: string): string {
     if (typeof msg === 'string' && msg) return msg
     const detail = (data as { detail?: unknown }).detail
     if (typeof detail === 'string' && detail) return detail
-    // 认不出的对象:**不**序列化回显,继续往下走
+    // Unrecognized objects: **do not** serialize back to display, continue down
   }
   if (typeof data === 'string' && data) return data
 

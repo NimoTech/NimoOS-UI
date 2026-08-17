@@ -1,10 +1,13 @@
-// 抽自 T5 AlbumPickerDialog.vue(:110-120)与 T7 PhotosAlbums.vue 的逐字重复 409 判定——
-// 相册"创建重名"这个语义在多处新建流程里都会遇到(T5 加入相册面板内联新建、T7 相册列表
-// 新建、T8 详情页改名、T10 收藏存为相册),抽成共享 util 避免三处四处各自维护一份。
+// Extracted from the verbatim-duplicated 409 check in T5 AlbumPickerDialog.vue (:110-120) and
+// T7 PhotosAlbums.vue — the "album create with duplicate name" semantics come up in several
+// creation flows (T5's add-to-album panel inline create, T7's album list create, T8's detail
+// page rename, T10's save favorites as album), so this was extracted into a shared util instead
+// of each of the three/four call sites maintaining its own copy.
 //
-// 判断 409(重名):`e?.response?.status === 409` 或 message 含 409——对未知形状的异常安全,
-// 不假设 e 一定带 response/message,避免二次抛错。message 兜底是 T5 修过的既有行为,原样保留
-// (不是新加的宽松化)。
+// Detects 409 (duplicate name): `e?.response?.status === 409` or the message contains 409 — safe
+// against unknown exception shapes, doesn't assume e always has a response/message, avoiding a
+// secondary throw. The message fallback is pre-existing behavior fixed in T5, kept as-is
+// (not a newly added laxness).
 export function isConflict(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
   const response = (e as { response?: unknown }).response
@@ -15,15 +18,18 @@ export function isConflict(e: unknown): boolean {
   return /\b409\b/.test(String(message ?? ''))
 }
 
-// Task 14(SP7-P5 人物):404 判定,与 isConflict 同一套形状容忍策略。
-// 唯一用途是「设为关键照片」——后端用 404 专门表达"这张照片里没有这个人的脸",
-// 需要与其它失败区分成两句不同文案(照 Vue2 PhotosPersonDetail.vue:656-660)。
-// P8a-T10:isConflict 已加词边界(`/\b409\b/`),与本函数的 `/\b404\b/` 对齐——两者都不会把
-// 4090/1409/4040/1404 这类含 409/404 的字串误判成冲突/未找到。回源实测 isConflict 的 live
-// 调用点有 5 处(AlbumPickerDialog.vue:143、PhotosFavorites.vue:114、PhotosAlbumDetail.vue:204、
-// PhotosPersonDetail.vue:484、PhotosAlbums.vue:145),均为「message 兜底」分支的收紧,不影响
-// `response.status === 409` 主判定路径。形状容忍策略(不假设 e 一定带 response/message)两者
-// 一致,那部分确实同款。
+// Task 14 (SP7-P5 people): 404 detection, sharing the same shape-tolerance strategy as isConflict.
+// Its only use is "set as key photo" — the backend uses 404 specifically to mean "this photo
+// has no face for this person", which needs to be distinguished from other failures with a
+// different message (per Vue2 PhotosPersonDetail.vue:656-660).
+// P8a-T10: isConflict already got a word boundary (`/\b409\b/`), aligned here with this
+// function's `/\b404\b/` — neither will misjudge a string containing 4090/1409/4040/1404 as a
+// conflict/not-found. Traced back to source: isConflict has 5 live call sites
+// (AlbumPickerDialog.vue:143, PhotosFavorites.vue:114, PhotosAlbumDetail.vue:204,
+// PhotosPersonDetail.vue:484, PhotosAlbums.vue:145), all tightening the "message fallback"
+// branch, without affecting the main `response.status === 409` detection path. The
+// shape-tolerance strategy (not assuming e always has a response/message) is identical between
+// the two — that part really is the same.
 export function isNotFound(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
   const response = (e as { response?: unknown }).response

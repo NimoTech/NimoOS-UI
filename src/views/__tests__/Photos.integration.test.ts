@@ -1,4 +1,4 @@
-// Task 8: 时间线集成——Photos.vue 填充 + socket 任务事件 + 完成 toast + 批量删除。
+// Task 8: timeline integration — Photos.vue populated data + socket task events + completion toast + batch delete.
 // Ports the socket connect-resync / task-done semantics from Vue2 NimoOS-UI
 // src/views/Photos/PhotosTimeline.vue:78-91 (sockets{connect,'nimoos.photos.task.progress'})
 // and :315-335 (mounted: createTaskDoneCoalescer wiring), simplified per
@@ -22,8 +22,9 @@ const svc = vi.hoisted(() => ({
     previewUrl: vi.fn((id: string | number) => `mock://preview/${id}`),
     spriteUrl: vi.fn((id: string | number) => `mock://sprite/${id}`),
     spriteMeta: vi.fn(),
-    // Task 9: Photos.vue 现在真的挂了 <PhotoLightbox>(v-if="lb.open.value" 内部门控,
-    // 平时不渲染),但点开一张图会真的触发 useLightbox().openAt → 下列三件套。
+    // Task 9: Photos.vue now really mounts <PhotoLightbox> (gated internally by
+    // v-if="lb.open.value", normally not rendered), but opening a photo really triggers
+    // useLightbox().openAt -> the three calls below.
     originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
     liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
     recordView: vi.fn().mockResolvedValue(undefined),
@@ -32,8 +33,8 @@ const svc = vi.hoisted(() => ({
     listFavoriteIds: vi.fn().mockResolvedValue([]),
     favorite: vi.fn().mockResolvedValue(undefined),
     unfavorite: vi.fn().mockResolvedValue(undefined),
-    // Task 9: 选择工具栏/灯箱「加入相册」→ AlbumPickerDialog 真实挂载,内部走
-    // usePhotosAlbums()(listAlbums/batchAddToAlbum),不是 stub。
+    // Task 9: selection toolbar / lightbox "add to album" -> AlbumPickerDialog is really
+    // mounted, going through usePhotosAlbums() internally (listAlbums/batchAddToAlbum), not a stub.
     listAlbums: vi.fn().mockResolvedValue([]),
     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
     // Task 8: delete-toast Undo restores through the trash store's real
@@ -71,11 +72,13 @@ function makeRouter() {
   })
 }
 
-// fix round 1(P7b-T4 评审必修 1):不另建 createI18n(...) 实例——vitest.setup.ts 已把
-// src/i18n 的单例装进 config.global.plugins,对每次 mount 生效;这里之前另建的
-// createI18n 与它重复安装,刷出一批 `[Vue warn]` component/directive already
-// registered。拆掉后 locale 依赖全局单例的 initialLocale() 回落 zh_cn(jsdom 下
-// localStorage 无 'lang' 键),下面断言中文文案的用例不受影响。
+// fix round 1 (P7b-T4 review-mandatory fix 1): don't build a separate createI18n(...)
+// instance — vitest.setup.ts already installs the singleton from src/i18n into
+// config.global.plugins, which applies to every mount; the separately built createI18n
+// here duplicated that install, flooding output with `[Vue warn]` component/directive
+// already registered. After removing it, locale falls back through the global singleton's
+// initialLocale() to zh_cn (under jsdom, localStorage has no 'lang' key) — the cases below
+// asserting on Chinese copy are unaffected.
 async function mountPhotos() {
   const router = makeRouter()
   router.push('/photos')
@@ -91,9 +94,10 @@ function handlerFor(event: string): (props: unknown, raw: unknown) => void {
   return call[1] as (props: unknown, raw: unknown) => void
 }
 
-// fix round 1(P7b-T4 必修 2/3):asset() 补上 EXIF 字段(仍然全部可选,原有零参调用
-// 如 asset('a') / asset('b', { mimeType: 'video/mp4' }) 不受影响)——供下方
-// P7b-T4 EXIF 筛选描述块的夹具使用。
+// fix round 1 (P7b-T4 mandatory fix 2/3): asset() gets EXIF fields added (still all
+// optional, so existing calls with no extra args like asset('a') / asset('b', { mimeType:
+// 'video/mp4' }) are unaffected) — for use by the fixtures in the P7b-T4 EXIF filtering
+// describe block below.
 function asset(
   id: string,
   opts: Partial<{ mimeType: string; takenAt: string; placeName: string; make: string; model: string }> = {},
@@ -109,8 +113,9 @@ function asset(
   }
 }
 
-// P7b-T4 夹具:两个月份跨两个年份。2023-06 三张(全都命中 years:['2023']),
-// 2024-01 两张(全都不命中 —— 筛完整月清空,验证「空月份被丢掉」)。
+// P7b-T4 fixture: two months spanning two years. 2023-06 has three (all match
+// years:['2023']), 2024-01 has two (none match — the whole month gets emptied by the
+// filter, verifying that "empty months get dropped").
 function seedTimeline(store: ReturnType<typeof useTimelineStore>) {
   store.timelineGroups = [
     {
@@ -156,7 +161,7 @@ afterEach(() => {
 })
 
 describe('Photos.vue integration', () => {
-  it('渲染 store.timelineGroups 换算出的月份分组网格', async () => {
+  it('renders the month-grouped grid computed from store.timelineGroups', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [
@@ -170,7 +175,7 @@ describe('Photos.vue integration', () => {
     expect(w.text()).toContain('June 2026')
   })
 
-  it('顶部标题区显示 photosCountSummary(photoCount/videoCount)', async () => {
+  it('the header title area shows photosCountSummary (photoCount/videoCount)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [
@@ -182,7 +187,7 @@ describe('Photos.vue integration', () => {
     expect(w.text()).toContain('1 个视频')
   })
 
-  it('tab 切换(toolbar update:tab)在网格内过滤生效', async () => {
+  it('tab switching (toolbar update:tab) takes effect as filtering inside the grid', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [
@@ -208,7 +213,7 @@ describe('Photos.vue integration', () => {
     expect(w.findAll('.tile')).toHaveLength(2)
   })
 
-  it('批量删除:top PhotosSelectionToolbar delete → store.deleteAssets → photosToast(trash+Undo) → 清空 selected', async () => {
+  it('batch delete: top PhotosSelectionToolbar delete -> store.deleteAssets -> photosToast(trash+Undo) -> selected cleared', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     const photosToast = usePhotosToast()
@@ -271,7 +276,7 @@ describe('Photos.vue integration', () => {
   // sibling (P1 layout) to living INSIDE `.photos-grid-slot`, as a sibling of PhotosGrid's
   // `.content` root — Vue2 pixel parity floats `.selectbar` (position:absolute, top:50px)
   // over the grid/scrubber area it belongs to, not over the toolbar row above it.
-  it('选择栏挂载在 .photos-grid-slot 内(与 PhotosGrid 同级),不再是 PhotosToolbar 的上一个兄弟', async () => {
+  it('the selection bar mounts inside .photos-grid-slot (as a sibling of PhotosGrid), no longer a preceding sibling of PhotosToolbar', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
@@ -297,10 +302,11 @@ describe('Photos.vue integration', () => {
     expect(w.find('.selectbar').exists()).toBe(false)
   })
 
-  // Task 9: 选择工具栏「加入相册」→ AlbumPickerDialog(open=true, assetIds=已选中)→
-  // 选相册项 → service.batchAddToAlbum(albumId, ids) 真被调 → selection 清空(照 Vue2
-  // pickAlbum:587-595 结尾 this.selected = [])。
-  it('选择工具栏「加入相册」→ picker 打开且 assetIds=已选中;选相册后清空 selection', async () => {
+  // Task 9: selection toolbar "add to album" -> AlbumPickerDialog (open=true,
+  // assetIds=selected) -> picking an album item -> service.batchAddToAlbum(albumId, ids) is
+  // really called -> selection cleared (following Vue2 pickAlbum:587-595's ending
+  // this.selected = []).
+  it('selection toolbar "add to album" -> picker opens with assetIds=selected; clears selection after picking an album', async () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 1, name: 'Trip', assetCount: 0 }])
     const w = await mountPhotos()
     const store = useTimelineStore()
@@ -327,10 +333,10 @@ describe('Photos.vue integration', () => {
     await w.vm.$nextTick()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(1, ['a', 'b'])
-    expect(w.find('.selectbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
+    expect(w.find('.selectbar').exists()).toBe(false) // selected cleared -> toolbar disappears
   })
 
-  it('socket connect → 重同步 fetchTasks/fetchIndexStatus/fetchTimeline', async () => {
+  it('socket connect -> resync fetchTasks/fetchIndexStatus/fetchTimeline', async () => {
     await mountPhotos()
     const store = useTimelineStore()
     const fetchTasks = vi.spyOn(store, 'fetchTasks').mockResolvedValue(undefined)
@@ -355,7 +361,7 @@ describe('Photos.vue integration', () => {
     expect(ingestSpy).toHaveBeenCalledWith(raw)
   })
 
-  it('index 任务 done 转换 → coalescer(2600ms) → notify photosIndexedToast', async () => {
+  it('index task done transition -> coalescer(2600ms) -> notify photosIndexedToast', async () => {
     vi.useFakeTimers()
     const w = await mountPhotos()
     const store = useTimelineStore()
@@ -373,7 +379,7 @@ describe('Photos.vue integration', () => {
     void w
   })
 
-  it('非 index 类型任务 done → 通用 "{label} completed" 简版文案', async () => {
+  it('non-index task type done -> generic "{label} completed" simplified copy', async () => {
     vi.useFakeTimers()
     await mountPhotos()
     const toast = useToast()
@@ -388,7 +394,7 @@ describe('Photos.vue integration', () => {
     expect(showSpy.mock.calls[0][0]).toContain('Face scan')
   })
 
-  it('同一任务重复收到 done 不重复触发 toast(状态未再翻转)', async () => {
+  it('receiving done for the same task again does not re-trigger a toast (state hasn\'t flipped again)', async () => {
     vi.useFakeTimers()
     await mountPhotos()
     const toast = useToast()
@@ -401,14 +407,16 @@ describe('Photos.vue integration', () => {
 
     progress(undefined, { id: 't1', type: 'index', status: 'done', current: 5, total: 5 })
     await vi.advanceTimersByTimeAsync(2600)
-    expect(showSpy).toHaveBeenCalledTimes(1) // 仍是 1 次,未再入队
+    expect(showSpy).toHaveBeenCalledTimes(1) // still 1 call, not re-enqueued
   })
 
-  // P8a-T10(P1 挂账,onTaskProgress 头部注释记的已知边界):fetchIndexStatus 的 idle 对账会把
-  // done 的 index 任务从 store.tasks 里摘掉;若之后又收到一条迟到的重复 done 事件,旧的
-  // `wasDone = store.tasks.find(...).status === 'done'` 判断因为任务已经不在列表里而失效
-  // (find 返回 undefined),会把这条迟到事件误判成"第一次看到",再次 toast。
-  it('P8a-T10:index 任务被 idle 对账摘除后,迟到的重复 done 事件不二次 toast', async () => {
+  // P8a-T10 (a P1 ledger item, a known edge case recorded in onTaskProgress's header
+  // comment): fetchIndexStatus's idle reconciliation strips done index tasks out of
+  // store.tasks; if a late duplicate done event arrives afterward, the old
+  // `wasDone = store.tasks.find(...).status === 'done'` check breaks because the task is no
+  // longer in the list (find returns undefined), misjudging the late event as "seen for the
+  // first time" and toasting again.
+  it('P8a-T10: after an index task is stripped by idle reconciliation, a late duplicate done event doesn\'t toast a second time', async () => {
     vi.useFakeTimers()
     await mountPhotos()
     const store = useTimelineStore()
@@ -420,15 +428,15 @@ describe('Photos.vue integration', () => {
     await vi.advanceTimersByTimeAsync(2600)
     expect(showSpy).toHaveBeenCalledTimes(1)
 
-    // 复现 timeline.ts fetchIndexStatus 的 idle 对账效果(:118-120):直接把这条任务从列表摘掉。
+    // Reproduce timeline.ts fetchIndexStatus's idle reconciliation effect (:118-120): directly strip this task out of the list.
     store.tasks = store.tasks.filter((t) => t.id !== 't1')
 
     progress(undefined, { id: 't1', type: 'index', status: 'done', current: 5, total: 5 })
     await vi.advanceTimersByTimeAsync(2600)
-    expect(showSpy).toHaveBeenCalledTimes(1) // 仍是 1 次——不能因为任务已被摘除就二次宣布
+    expect(showSpy).toHaveBeenCalledTimes(1) // still 1 call — the task being stripped shouldn't cause a second announcement
   })
 
-  it('unmount 时取消 coalescer 的挂起计时器与 socket 订阅', async () => {
+  it('cancels the coalescer\'s pending timer and the socket subscription on unmount', async () => {
     vi.useFakeTimers()
     const w = await mountPhotos()
     const toast = useToast()
@@ -441,9 +449,11 @@ describe('Photos.vue integration', () => {
     expect(showSpy).not.toHaveBeenCalled()
   })
 
-  // P1 时是空 handler;P2(Task 9)起真的接了灯箱 —— 细节(翻页集按 tab 过滤/删除/toast)
-  // 见专门的 Photos.lightbox.test.ts,这里只做冒烟:点开不炸、灯箱状态确实翻转。
-  it('点开一张图 → 灯箱打开(P2 已接线)', async () => {
+  // Was an empty handler at P1; really wired up the lightbox starting at P2 (Task 9) — see
+  // the dedicated Photos.lightbox.test.ts for details (paging set filtered by tab/delete/
+  // toast), this is just a smoke test: opening a photo doesn't blow up, lightbox state
+  // really flips.
+  it('opening a photo -> lightbox opens (wired up at P2)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
@@ -457,19 +467,23 @@ describe('Photos.vue integration', () => {
   })
 })
 
-// SP7-P7a-T16: 顶部搜索框恒显示,提交非空词 → 跳转 /photos/search(结构规格 22)。
-// Task 4(顶栏重刻):搜索框从独立的 `<PhotosSearchBar>` 挪进了 `<PhotosTopbar>` 内的
-// `.topbar .search`(Vue2 topbar 原生结构),选择器同步改为 `.topbar .search input`——
-// 非空词提交/路由跳转的逻辑本身(onSearchSubmit)没有变,只是发出提交事件的组件变了。
-// fix round 1(owner 裁决 ledger-六-2):空串 Enter 的行为改了——PhotosTopbar 现在照 Vue2
-// submitSearch 的空串守卫,空串不 emit,onSearchSubmit 压根不会被调,见下方最后一例。
-describe('Photos.vue 搜索框接线(T16;Task 4 起接线对象是 PhotosTopbar)', () => {
-  it('顶部渲染 PhotosTopbar 的搜索框(.topbar .search input)', async () => {
+// SP7-P7a-T16: the top search box always shows; submitting a non-empty term -> navigates
+// to /photos/search (structural spec 22).
+// Task 4 (topbar rewrite): the search box moved out of a standalone `<PhotosSearchBar>` and
+// into `.topbar .search` inside `<PhotosTopbar>` (Vue2's native topbar structure); the
+// selector was updated to `.topbar .search input` accordingly — the non-empty-term
+// submit/route-navigation logic itself (onSearchSubmit) hasn't changed, only the component
+// that emits the submit event has.
+// fix round 1 (owner ruling ledger-六-2): the behavior for an empty-string Enter changed —
+// PhotosTopbar now follows Vue2 submitSearch's empty-string guard, doesn't emit on an empty
+// string, so onSearchSubmit never gets called at all, see the last case below.
+describe('Photos.vue search box wiring (T16; wiring target since Task 4 is PhotosTopbar)', () => {
+  it('the top renders PhotosTopbar\'s search box (.topbar .search input)', async () => {
     const w = await mountPhotos()
     expect(w.find('.topbar .search input').exists()).toBe(true)
   })
 
-  it('提交非空词 → router.push 到 /photos/search 带 q', async () => {
+  it('submitting a non-empty term -> router.push to /photos/search with q', async () => {
     const w = await mountPhotos()
     const router = w.vm.$router
     const pushSpy = vi.spyOn(router, 'push')
@@ -478,10 +492,11 @@ describe('Photos.vue 搜索框接线(T16;Task 4 起接线对象是 PhotosTopbar)
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'sunset' } })
   })
 
-  // fix round 1 · Important(owner 裁决 ledger-六-2,覆盖第一版"提交空串仍导航"的选择):
-  // 时间线顶栏空串 Enter = 无动作,不再跳转——PhotosTopbar 组件层已经不 emit
-  // search-submit,onSearchSubmit 根本不会被调用,router.push 完全没被调过。
-  it('提交空串 → 不跳转(ledger-六-2,PhotosTopbar 空串不 emit)', async () => {
+  // fix round 1 · Important (owner ruling ledger-六-2, overriding the first version's choice
+  // to "still navigate on empty-string submit"): the timeline topbar's empty-string Enter =
+  // no action, no longer navigates — the PhotosTopbar component layer no longer emits
+  // search-submit, so onSearchSubmit never gets called, router.push is never called at all.
+  it('submitting an empty string -> doesn\'t navigate (ledger-六-2, PhotosTopbar doesn\'t emit on empty string)', async () => {
     const w = await mountPhotos()
     const router = w.vm.$router
     const pushSpy = vi.spyOn(router, 'push')
@@ -490,13 +505,15 @@ describe('Photos.vue 搜索框接线(T16;Task 4 起接线对象是 PhotosTopbar)
   })
 })
 
-// Task 4:折叠按钮从 T3 遗留的"无入口"状态(见 task-3-report.md Concerns#4)真正接上——
-// 点击顶栏的折叠 icon-btn → Photos.vue 的 `collapsed` ref 翻转 → `.app[data-collapsed]`
-// 跟着变(Vue2 PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`同款)。
-describe('Photos.vue 折叠按钮接线(Task 4)', () => {
-  it('点击顶栏折叠按钮 → .app[data-collapsed] 翻转', async () => {
-    // 初始值不锚定具体的 'true'/'false'(取决于 localStorage 持久化态,本文件其它用例
-    // 不清 localStorage,跨用例可能被前一个用例写脏)——只锚定"点一次必翻一次"。
+// Task 4: the collapse button, left over from T3 as a "no entry point" state (see
+// task-3-report.md Concerns#4), is really wired up now — clicking the topbar's collapse
+// icon-btn -> flips Photos.vue's `collapsed` ref -> `.app[data-collapsed]` follows along
+// (matching Vue2 PhotosTimeline.vue:965's `@toggle="collapsed = !collapsed"`).
+describe('Photos.vue collapse button wiring (Task 4)', () => {
+  it('clicking the topbar collapse button -> .app[data-collapsed] flips', async () => {
+    // The initial value isn't pinned to a specific 'true'/'false' (it depends on the
+    // localStorage-persisted state, and other cases in this file don't clear localStorage,
+    // so it could be left dirty by a previous case across cases) — only pin "must flip once per click".
     const w = await mountPhotos()
     const app = w.get('.app')
     const before = app.attributes('data-collapsed')
@@ -514,10 +531,10 @@ describe('Photos.vue 折叠按钮接线(Task 4)', () => {
 // panelLeft button wired only to `collapsed` (Task 4) — a flag the drawer's own isNarrow/
 // open state never reads, so on mobile there was no way to open the sidebar at all. Fix:
 // route the same button to the drawer's toggle() when isNarrow is true.
-describe('Photos.vue 折叠按钮接线 —— 窄屏走抽屉(final-review 修复项 6)', () => {
+describe('Photos.vue collapse button wiring — narrow screens go through the drawer (final-review fix item 6)', () => {
   afterEach(() => { __resetSidebarDrawerForTest() })
 
-  it('窄屏(isNarrow=true):点击顶栏按钮打开抽屉,不动 .app[data-collapsed]', async () => {
+  it('narrow screen (isNarrow=true): clicking the topbar button opens the drawer, doesn\'t touch .app[data-collapsed]', async () => {
     const drawer = useSidebarDrawer()
     drawer.isNarrow.value = true
     const w = await mountPhotos()
@@ -530,7 +547,7 @@ describe('Photos.vue 折叠按钮接线 —— 窄屏走抽屉(final-review 修�
     expect(app.attributes('data-collapsed')).toBe(before)
   })
 
-  it('桌面态(isNarrow=false):点击顶栏按钮仍走 collapsed 翻转,不碰抽屉', async () => {
+  it('desktop state (isNarrow=false): clicking the topbar button still goes through the collapsed flip, doesn\'t touch the drawer', async () => {
     const drawer = useSidebarDrawer()
     drawer.isNarrow.value = false
     const w = await mountPhotos()
@@ -542,20 +559,23 @@ describe('Photos.vue 折叠按钮接线 —— 窄屏走抽屉(final-review 修�
   })
 })
 
-// SP7-P7b-T4: 时间线页 EXIF 筛选接线——FilterBar 挂进 PhotosToolbar#after-tabs,
-// 三处同源逻辑(gridMonths 网格数据源 / filteredCount 顶栏计数 / onOpenTile 灯箱翻页集)
-// 全部改用 EXIF 筛后的月份集合;FilterBar 自身的 facet 源 (:photos) 恒取全库
-// store.allPhotos,不随 gridMonths 收窄——照 Vue2 PhotosTimeline.vue facet 源是
-// displayMonths 而非过滤后的 gridMonths 同一约束。
-// fix round 1(评审必修 1):原先并行新建的 Photos.test.ts 已并入本文件,复用本文件
-// 现成的 mountPhotos()/svc mock 脚手架,不再另起一套。
-describe('P7b-T4: EXIF 筛选接线', () => {
-  it('工具栏 after-tabs 槽位里挂着 PhotosFilterBar', async () => {
+// SP7-P7b-T4: timeline page EXIF filtering wiring — FilterBar mounts into
+// PhotosToolbar#after-tabs; three same-source logic paths (gridMonths grid data source /
+// filteredCount header count / onOpenTile lightbox paging set) all switch to the
+// EXIF-filtered month set; FilterBar's own facet source (:photos) always takes the
+// full-library store.allPhotos, not narrowed by gridMonths — matching the same constraint
+// as Vue2 PhotosTimeline.vue, whose facet source is displayMonths rather than the filtered
+// gridMonths.
+// fix round 1 (review-mandatory fix 1): the Photos.test.ts previously created in parallel
+// has been merged into this file, reusing this file's existing mountPhotos()/svc mock
+// scaffolding instead of starting a separate one.
+describe('P7b-T4: EXIF filtering wiring', () => {
+  it('PhotosFilterBar is mounted in the toolbar after-tabs slot', async () => {
     const w = await mountPhotos()
     expect(w.findComponent(PhotosFilterBar).exists()).toBe(true)
   })
 
-  it('FilterBar 的 facet 源是全库 allPhotos,不随已生效的筛选收窄', async () => {
+  it('FilterBar facet source is the full-library allPhotos, not narrowed by the active filter', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -564,7 +584,7 @@ describe('P7b-T4: EXIF 筛选接线', () => {
 
     const bar = w.findComponent(PhotosFilterBar)
     const before = (bar.props('photos') as unknown[]).length
-    expect(before).toBe(5) // 全库:2023-06 三张 + 2024-01 两张
+    expect(before).toBe(5) // full library: three in 2023-06 + two in 2024-01
 
     await bar.vm.$emit('update:filter', { years: ['2023'], places: [], cameras: [] })
     await w.vm.$nextTick()
@@ -572,7 +592,7 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     expect((w.findComponent(PhotosFilterBar).props('photos') as unknown[]).length).toBe(before)
   })
 
-  it('筛选生效后网格只拿到命中的照片,且空月份被丢掉', async () => {
+  it('once the filter takes effect the grid only gets matching photos, and empty months are dropped', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -585,14 +605,15 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     await w.vm.$nextTick()
 
     const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: unknown[] }>
-    // 2024-01 整月不命中 years:['2023'],月份本身应被丢掉——只剩 2023-06 一个月。
+    // The whole 2024-01 month doesn't match years:['2023'], so the month itself should be
+    // dropped — leaving only the 2023-06 month.
     expect(months).toHaveLength(1)
     expect(months.every((m) => m.photos.length > 0)).toBe(true)
-    // 2023-06 三张全命中(它们的 takenAt 都在 2023 年),2024-01 的两张全部消失。
+    // All three in 2023-06 match (their takenAt is all in 2023), and both in 2024-01 disappear.
     expect(months.flatMap((m) => m.photos)).toHaveLength(3)
   })
 
-  it('D20:顶栏计数跟着 EXIF 筛选减', async () => {
+  it('D20: header count decreases along with the EXIF filter', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -612,9 +633,10 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     expect(countAfter).toBe(3)
   })
 
-  // fix round 1(评审必修 2):锁住 onOpenTile 翻页集必须用 gridMonths(EXIF 筛后)而
-  // 不是 store.months——否则灯箱能翻到被筛掉的照片。变异验证见 task-4-report.md。
-  it('筛选生效后点开一张图 → 灯箱翻页集同样只含命中的照片(与网格同源)', async () => {
+  // fix round 1 (review-mandatory fix 2): pin down that onOpenTile's paging set must use
+  // gridMonths (EXIF-filtered), not store.months — otherwise the lightbox can page to
+  // photos that were filtered out. See task-4-report.md for the mutation verification.
+  it('once the filter takes effect, opening a photo -> the lightbox paging set also only contains matching photos (same source as the grid)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -639,9 +661,10 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     expect(ids).not.toContain('b2')
   })
 
-  // fix round 1(评审必修 3):补 cameras 维度的贯通(此前四条都只筛 years)——
-  // camera 值形如 "Sony · A7",过滤谓词按 split('·')[0].trim() 匹配。
-  it('cameras 维度贯通:按 make·model 拆分匹配,命中月份保留、不命中月份被丢掉', async () => {
+  // fix round 1 (review-mandatory fix 3): add end-to-end coverage for the cameras dimension
+  // (the previous four cases only filtered on years) — the camera value looks like
+  // "Sony · A7", and the filter predicate matches on split('·')[0].trim().
+  it('cameras dimension end-to-end: matches by splitting make·model, matching months are kept and non-matching months are dropped', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -654,7 +677,7 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     await w.vm.$nextTick()
 
     const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: Array<{ id: string }> }>
-    // 只有 2024-01(Sony · A7)命中,2023-06(Canon · EOS R5)被丢掉。
+    // Only 2024-01 (Sony · A7) matches; 2023-06 (Canon · EOS R5) is dropped.
     expect(months).toHaveLength(1)
     const ids = months.flatMap((m) => m.photos).map((p) => p.id)
     expect(ids.sort()).toEqual(['b1', 'b2'])

@@ -4,13 +4,14 @@ import { buildSearchView } from './buildSearchView'
 import { deriveDegrade } from './degrade'
 import type { DegradeState, SearchView } from './types'
 
-// 搜索请求的生命周期。组件只管渲染,不碰请求。
+// Lifecycle of search requests. Component only manages rendering, does not touch requests.
 //
-// ⚠️ 过期守卫(就地 epoch,不抽公共 guard):用户改词后再搜,先发的请求可能后回来。
-//    没有守卫 → 旧结果覆盖新结果 / 旧请求的失败把已经成功的界面打成 error。
-//    reset() 同样递增 epoch,让在途结果作废(关掉面板后不许再往里写)。
-// ⚠️ 失败时**不写 view** —— spec §7.8 底线:AI 不可达要显示「搜索服务不可用 + 重试」,
-//    绝不能退化成一个看起来像「没搜到」的空列表。
+// ⚠️ stale guard (local epoch, not extracted to common guard): user changes query and searches again,
+//    earlier request may arrive later. Without guard → old result overwrites new / old request's failure
+//    sets already-successful UI to error state. reset() also increments epoch, invalidating in-flight results
+//    (must not write to panel after closing).
+// ⚠️ on failure, **do not write view** —— spec §7.8 bottom line: when AI is unreachable, show
+//    "search service unavailable + retry", never degrade to what looks like "no results found".
 
 export type SearchState = 'idle' | 'searching' | 'done' | 'error'
 

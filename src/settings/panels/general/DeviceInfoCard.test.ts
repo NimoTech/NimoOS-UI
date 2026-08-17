@@ -18,7 +18,7 @@ import DeviceInfoCard from './DeviceInfoCard.vue'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
 
 describe('DeviceInfoCard', () => {
-  it('渲染 NimoOS 标题、版本号与 logo', async () => {
+  it('renders the NimoOS title, version, and logo', async () => {
     const w = mount(DeviceInfoCard, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(w.find('.dic-title').text()).toBe('NimoOS')
@@ -26,7 +26,7 @@ describe('DeviceInfoCard', () => {
     expect(w.find('img.set-logo').exists()).toBe(true)
   })
 
-  it('版本拉不到时回退 v1.0.0(对位 Vue2:90)', async () => {
+  it('falls back to v1.0.0 when the version fetch fails (matches Vue2:90)', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'hardwareInfo').mockRejectedValueOnce(new Error('boom'))
     const w = mount(DeviceInfoCard, { global: { plugins: [i18n] } })
@@ -34,7 +34,7 @@ describe('DeviceInfoCard', () => {
     expect(w.find('.dic-version').text()).toBe('NimoOS v1.0.0')
   })
 
-  it('点「设备信息」按钮打开弹窗', async () => {
+  it('clicking the "Device Info" button opens the dialog', async () => {
     const w = mount(DeviceInfoCard, { global: { plugins: [i18n] } })
     await flushPromises()
     expect(w.findComponent({ name: 'DeviceInfoDialog' }).props('open')).toBe(false)

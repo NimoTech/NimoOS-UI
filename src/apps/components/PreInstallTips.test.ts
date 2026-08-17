@@ -8,7 +8,7 @@ import PreInstallTips from './PreInstallTips.vue'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 describe('PreInstallTips', () => {
-  it('markdown 渲染 + 点继续 emit confirm(portal 到 body,attachTo 真 DOM)', async () => {
+  it('markdown rendering + clicking continue emits confirm (portal to body, attachTo real DOM)', async () => {
     const w = mount(PreInstallTips, {
       props: { open: true, text: '先配置 **端口**' },
       global: { plugins: [i18n] },

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// 对位 Vue2 SettingsPanel.vue L119-135。
-// **做样子(政策三 / 债务 D6)**:Vue2 从 @/assets/lang 动态枚举出 31 种语言;
-// New-UI 目前只有 zh_cn / en_us 两个 locale 文件,所以只列 2 项 —— 归 roadmap §5 的 i18n 全量收口。
-// 写入走 locale store 的 persist()(它内部已改接 systemConfig 串行队列),
-// 不在这里自己 patch lang —— 两条路径都写同一个字段必然打架。
+// Mirrors Vue2 SettingsPanel.vue L119-135.
+// **Placeholder (policy 3 / debt D6)**: Vue2 dynamically enumerates 31 languages from @/assets/lang;
+// New-UI currently only has two locale files (zh_cn / en_us), so only 2 entries are listed here -- tracked under roadmap §5's full i18n closeout.
+// Writes go through the locale store's persist() (internally now routed through the systemConfig serial queue),
+// don't patch lang directly here -- both paths writing the same field would inevitably race.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { LOCALES, useLocaleStore, type Locale } from '../../../stores/locale'

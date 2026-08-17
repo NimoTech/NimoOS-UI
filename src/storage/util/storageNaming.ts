@@ -1,5 +1,5 @@
-// 存储 / RAID 创建时的默认名称计算(移植自 Vue2 utils/storageNaming.js,语义逐字一致)。
-// RAID 阵列名与存储(分区)名共享同一命名空间,调用方需把两类已存在的名字合并后传入。
+// Default name computation for storage / RAID creation (ported from Vue2 utils/storageNaming.js, semantics identical verbatim).
+// RAID array names and storage (partition) names share the same namespace, so callers must merge both existing-name lists before passing them in.
 
 export const DEFAULT_STORAGE_NAME = 'Main-storage'
 

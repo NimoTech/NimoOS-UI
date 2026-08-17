@@ -24,7 +24,7 @@ describe('SelectionToolbar', () => {
     expect(w.emitted('delete')).toBeTruthy()
   })
 
-  it('复制/剪切按钮 emit copy/cut', async () => {
+  it('Copy/cut buttons emit copy/cut', async () => {
     const wrapper = mount(SelectionToolbar, {
       props: { count: 2, allSelected: false, canShare: false },
       global: { plugins: [i18n] },
@@ -35,7 +35,7 @@ describe('SelectionToolbar', () => {
     expect(wrapper.emitted('cut')).toBeTruthy()
   })
 
-  it('渲染下载按钮并 emit download', async () => {
+  it('Render download button and emit download', async () => {
     const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false, canShare: false }, global: { plugins: [i18n] } })
     const btn = wrapper.find('.sel-download')
     expect(btn.exists()).toBe(true)

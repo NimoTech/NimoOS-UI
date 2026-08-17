@@ -1,24 +1,24 @@
 <script setup lang="ts">
-// Task 13 (SP7-P5 人物): PersonRelGraph.vue —— 关系图(SVG 力导图)。逐字照搬
-// Vue2 NimoOS-UI src/views/Photos/PhotosRelGraph.vue(94 行)的全部几何数值:
-// viewBox 0 0 760 400、center {x:380,y:200}、中心圈 r=34(clip r=31、图片
-// 62x62)、中心光晕 r=90、卫星角度 (i/n)*2π-π/2、距离 100+(1-count/maxCount)*110、
-// 节点半径 18+strength*10(外环+2)、连线宽 1+strength*2.2、连线不透明度
-// 0.20+strength*0.55、计数胶囊 28x16 rx=8 在连线中点、名字字号 13/11。
-// maxCount = Math.max(...counts, 1) 防除零(全部 count 为 0 时 strength=0,
-// 不产生 0/0=NaN)。
+// Task 13 (SP7-P5 people): PersonRelGraph.vue — relationship graph (SVG force-directed graph). Copied verbatim
+// all geometric values from Vue2 NimoOS-UI src/views/Photos/PhotosRelGraph.vue (94 lines):
+// viewBox 0 0 760 400, center {x:380,y:200}, center circle r=34 (clip r=31, image
+// 62x62), center glow r=90, satellite angle (i/n)*2π-π/2, distance 100+(1-count/maxCount)*110,
+// node radius 18+strength*10 (outer ring +2), line width 1+strength*2.2, line opacity
+// 0.20+strength*0.55, count pill 28x16 rx=8 at line midpoint, name font size 13/11.
+// maxCount = Math.max(...counts, 1) guards against division by zero (when all counts are 0, strength=0,
+// doesn't produce 0/0=NaN).
 //
-// 颜色改造(本任务最大的坑,登记原因):SVG presentation attribute(fill=""/
-// stroke="" 直接写在元素上)不认 CSS var() —— Vue2 因此把 6 处颜色硬编码成字面
-// 十六进制(:5,6,13,18,20,25,38)。这里把这 6 处全部改成 class,颜色规则写进
-// scoped 样式块的 CSS 属性(CSS 里的 fill/stroke 认 var(),presentation
-// attribute 不认,是两条不同的解析路径)。Vue2 已经对文字用了这招
-// (class="rg-name",:33,48),这里是把同一招扩展到全部颜色。几何量
-// (stroke-width/stroke-opacity/r/坐标)不是颜色,继续留在 attribute 上。
+// Color refactoring (biggest pitfall in this task, logged reason): SVG presentation attribute (fill=""/
+// stroke="" written directly on elements) doesn't recognize CSS var() — Vue2 therefore hard-coded 6 color locations as literal
+// hex (:5,6,13,18,20,25,38). Here we change all 6 locations to classes, color rules written into
+// scoped style block's CSS properties (fill/stroke in CSS recognizes var(), presentation
+// attribute doesn't, they're two different parsing paths). Vue2 already used this trick for text
+// (class="rg-name", :33,48), here we extend the same trick to all colors. Geometric quantities
+// (stroke-width/stroke-opacity/r/coordinates) are not colors, stay on attributes.
 //
-// 补齐 affordance(brief 明确要求,非 Vue2 行为):Vue2 关系图节点不可点,跳转
-// 入口只在共现列表/横条。这里给卫星节点(不含中心)加 click → emit
-// open-person,登记为主动补齐而非移植缺陷。
+// Fill in affordance (explicitly required by brief, not Vue2 behavior): Vue2 relationship graph nodes aren't clickable, navigation
+// entry is only in co-occurrence list/bar. Here we add click → emit
+// open-person to satellite nodes (excluding center), logged as proactive supplement not ported gap.
 //
 // Task 6 (Plan D, PR 137 gap-close): three behaviors ported from Vue2 NimoOS-UI commit
 // 03245590 (PhotosRelGraph.vue) that were missing here —
@@ -63,8 +63,8 @@ const { t } = useI18n()
 
 const MAX_GRAPH_NODES = 12
 
-// 常量,不必是 computed —— Vue2 :65 也是纯字面量 computed,这里保留同名局部量
-// 方便下面的公式照抄参照 Vue2 变量名。
+// Constants, don't need to be computed — Vue2 :65 is also a pure literal computed, we keep the same-name local value
+// for convenience so the formulas below can copy-paste Vue2 variable names.
 const center = { x: 380, y: 200 }
 
 const centerName = computed(() => props.person?.name || t('photosPersonUnnamedTitle'))
@@ -86,13 +86,13 @@ interface NodePos {
   strength: number
 }
 
-// Vue2 :68-85 positions computed —— 按 count 降序排列后按角度/距离公式摆放。
+// Vue2 :68-85 positions computed — sort by count descending, then position by angle/distance formula.
 // Task 6: truncate to MAX_GRAPH_NODES after sorting (Vue2 :73 `.slice(0, MAX_GRAPH_NODES)`) —
 // prevents a person with a lot of relations from squashing the graph into an unreadable knot.
 const positions = computed<NodePos[]>(() => {
   if (props.relations.length === 0) return []
   const sorted = [...props.relations].sort((a, b) => b.count - a.count).slice(0, MAX_GRAPH_NODES)
-  const maxCount = Math.max(...sorted.map((r) => r.count), 1) // 防除零(brief 硬约束)
+  const maxCount = Math.max(...sorted.map((r) => r.count), 1) // guard against division by zero (brief hard constraint)
   return sorted.map((rel, i) => {
     const angle = (i / sorted.length) * Math.PI * 2 - Math.PI / 2
     const dist = 100 + (1 - rel.count / maxCount) * 110
@@ -227,9 +227,9 @@ function thumbUrl(pos: NodePos): string {
 </template>
 
 <style scoped>
-/* 颜色一律走 CSS class(SVG presentation attribute 不认 var(),见脚本区顶部
-   注释)。几何量(stroke-width/stroke-opacity/r/坐标)不是颜色,留在模板的
-   attribute 上,不搬进这里。 */
+/* Colors all go through CSS classes (SVG presentation attribute doesn't recognize var(), see top of script
+   comment). Geometric quantities (stroke-width/stroke-opacity/r/coordinates) are not colors, stay in template
+   attributes, not moved here. */
 /* Task 5 (Plan D) shadowing cleanup: `.rg-name`/`.rg-name-dim` duplicated parity's own
    `.rel-graph-wrap svg .rg-name`/`.rg-name-dim` rules (this SVG only ever renders inside
    `.rel-graph-wrap`, per PersonRelationsTab.vue's template) and have been deleted — parity

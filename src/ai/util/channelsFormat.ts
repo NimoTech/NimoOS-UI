@@ -1,28 +1,34 @@
-// SP8-P2b Task 11 —— 1:1 取自 Vue2 src/views/AI/Settings/sections/ChannelsSection.vue
-// 的 bindingLabel(:304-307)与 pairInstructions computed(:185-190),以及模板里
-// channelsBotTokenTail 的 split/join 填充(:29,`$t('channelsBotTokenTail').split('{tail}').join(inst.token_tail)`)。
+// SP8-P2b Task 11 — 1:1 taken from Vue2 src/views/AI/Settings/sections/ChannelsSection.vue
+// bindingLabel (:304-307) and pairInstructions computed (:185-190), plus template
+// channelsBotTokenTail split/join fill (:29, `$t('channelsBotTokenTail').split('{tail}').join(inst.token_tail)`).
 //
-// 抽成纯函数与 Task 9(mcpConnect.ts)同理:Vue2 既有测试直调 methods/computed 借 this,
-// <script setup> 没有 methods 对象可借。**但与 Task 9 不同的是**:NimoOS-UI 的
-// ChannelsSection.spec.js(读至 2026-07-28)对 bindingLabel/pairInstructions 没有任何
-// 直接断言 —— genCode 测试的注释显式承认「{bot}/{code} substitution is not asserted
-// here」。因此本文件的 7 个测试例并非承接自 spec.js 的既有断言,而是 brief 直接依据
-// Vue2 源码行为新写的(见 Task 11 report 的「承接断言」一节,如实申报为 0/7)。
+// Extracted to pure function same as Task 9 (mcpConnect.ts): Vue2's existing tests call
+// methods/computed directly via this, <script setup> has no methods object to borrow.
+// **But unlike Task 9**: NimoOS-UI's ChannelsSection.spec.js (read through 2026-07-28)
+// has no direct assertions on bindingLabel/pairInstructions — genCode test comment
+// explicitly admits "{bot}/{code} substitution is not asserted here". So this file's 7 test
+// examples don't inherit from spec.js's existing assertions, but are newly written by brief
+// based on Vue2 source behavior (see Task 11 report "assertion inheritance" section,
+// honestly declared as 0/7).
 //
-// 三个函数都不碰 i18n —— 文案模板由调用方 t() 出来再传进来,这样纯函数可脱离
-// vue-i18n 测试。Task 12(消费方)决定采用**方案二:自行 split/join + 转义大括号**
-// (与 Task 9 的 buildMcpInstruction / Task 10 的 aiCfgMcpInstructionTemplate 同一机制,
-// 而非方案一 vue-i18n 命名插值 t(key, {bot, code})):
-//   - i18n 值里的 `{bot}`/`{code}`/`{tail}` 必须转义成 `{'{'}bot{'}'}` 等,否则
-//     vue-i18n v9 在 t(key) 不传 params 时会把裸 `{bot}` 当命名插值解析、找不到值就吃掉
-//     变成空串(Task 10 教训,已在 mcpConnect.ts/McpTokensSection.vue 验证过)。
-//   - `channelsPairInstructions` 的字面 `@` 同样要转义成 `{'@'}`(vue-i18n 链接语法),
-//     所以完整转义后是 `{'@'}{'{'}bot{'}'}`。
-//   - 转义之后 t() 解析出来的字符串,才是这里 fillPairInstructions/fillTokenTail 的
-//     template 参数——它必须**逐字包含** `{bot}`/`{code}`/`{tail}` 这几个裸子串,
-//     再交给本文件的 split/join 做「组件自己的」二次替换。
-// 这一决定的落地(转义 i18n 值)不在本任务范围内——Task 12 消费者负责加键并转义,
-// 这里只声明并对齐机制,避免 Task 12 走回 vue-i18n 命名插值那条会被吃空的路。
+// Three functions all avoid touching i18n — copy template is t()'d by caller then passed in,
+// so pure function can test independently of vue-i18n. Task 12 (consumer) decided to use
+// **approach two: self split/join + escape braces** (same mechanism as Task 9's
+// buildMcpInstruction / Task 10's aiCfgMcpInstructionTemplate, not approach one vue-i18n
+// named interpolation t(key, {bot, code})):
+//   - i18n values' `{bot}`/`{code}`/`{tail}` must escape to `{'{'}bot{'}'}` etc., else
+//     vue-i18n v9 when t(key) without params treats bare `{bot}` as named interpolation,
+//     can't find value and eats it to empty (Task 10 lesson, verified in
+//     mcpConnect.ts/McpTokensSection.vue).
+//   - `channelsPairInstructions`'s literal `@` likewise must escape to `{'@'}` (vue-i18n
+//     link syntax), so complete escape is `{'@'}{'{'}bot{'}'}'.
+//   - After escape, the string t() parses is the template parameter for
+//     fillPairInstructions/fillTokenTail here — it must **literally contain** bare
+//     `{bot}`/`{code}`/`{tail}` substrings, then passed to this file's split/join for
+//     "component's own" second replacement.
+// This decision's landing (escaping i18n values) is outside this task scope — Task 12's
+// consumer adds keys and escapes, here only declare and align mechanism, prevent Task 12
+// from falling back to vue-i18n named interpolation path that gets eaten empty.
 export interface ChannelBinding {
   id: string | number
   external_username?: string
@@ -33,34 +39,38 @@ export interface ChannelBinding {
   download_dir?: string
 }
 
-/** 对齐 Vue2 ChannelsSection.vue:304 bindingLabel。 */
+/** Align with Vue2 ChannelsSection.vue:304 bindingLabel. */
 export function bindingLabel(b: ChannelBinding, noLabelText: string): string {
   if (b.external_username) return `@${b.external_username}`
   return b.external_user_id || noLabelText
 }
 
-/** 对齐 Vue2 ChannelsSection.vue:185 pairInstructions computed。 */
+/** Align with Vue2 ChannelsSection.vue:185 pairInstructions computed. */
 export function fillPairInstructions(template: string, bot: string, code: string): string {
   return template.split('{bot}').join(bot).split('{code}').join(code)
 }
 
-/** 对齐 Vue2 ChannelsSection.vue:29 模板里 channelsBotTokenTail 的 split/join。 */
+/** Align with Vue2 ChannelsSection.vue:29 template channelsBotTokenTail split/join. */
 export function fillTokenTail(template: string, tail: string): string {
   return template.split('{tail}').join(tail)
 }
 
 /**
- * 【SP8-P2b 验收第 3 轮,用户 2026-07-30 拍板】添加机器人失败 → 本地化文案的 i18n **键**。
+ * SP8-P2b acceptance round 3, user decided 2026-07-30: add bot failure → localized copy
+ * i18n **key**.
  *
- * 起因:界面上直接出现了后端原文 `{"detail":"bot token rejected"}`。用户要求换成人看得懂的
- * 话、不许回显 JSON、并且要多语言。
+ * Cause: UI showed backend original `{"detail":"bot token rejected"}` directly. User
+ * demanded human-readable copy, no JSON echo, and multi-language.
  *
- * 做法与本档其余函数同一分工:**纯函数不碰 vue-i18n**,只把后端错误归一成键,调用方 t() 出
- * 当前语言的文案。后端 `NimoOS-AI/agent/main.py:417-424` 这个接口只有三种 422 detail,逐一
- * 映射;**认不出的一律落通用兜底键,后端原文永不回显**(这正是缺陷成因,不能留后门)。
+ * Approach shares same role as rest of this file: **pure function avoids vue-i18n**, only
+ * unifies backend error to key, caller uses t() for current language copy. Backend
+ * `NimoOS-AI/agent/main.py:417-424` this interface has three 422 details only, mapped one-by-one;
+ * **unrecognized ones all fall back to generic key, backend original never displayed**
+ * (this is what caused the defect, can't leave a backdoor).
  *
- * 同时读 `detail`(FastAPI)与 `message`(Go 服务)两种形状 —— 该接口现在走 Python agent,
- * 但同一入口未来可能改由 Go 侧代理,两种都认不增加成本。匹配前统一小写去空白。
+ * Read both `detail` (FastAPI) and `message` (Go service) shapes — this interface is Python agent
+ * now, but same entrypoint may later be proxied by Go side, recognizing both adds no cost.
+ * Lowercase and trim whitespace before matching.
  */
 export function addBotErrorKey(e: unknown): string {
   const data = (e as { response?: { data?: unknown } } | null | undefined)?.response?.data

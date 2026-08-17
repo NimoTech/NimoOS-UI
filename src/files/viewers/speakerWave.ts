@@ -1,19 +1,21 @@
-// 音频波形 × 说话人:纯函数(竖条归属 / 颜色 token 映射 / 过滤谓词)。
-// 设计:docs/superpowers/specs/2026-07-13-new-ui-audio-speaker-waveform-design.md §3/§4/§7
+// Waveform × speakers: pure functions (bar assignment / color token mapping / filter predicate).
+// Design: docs/superpowers/specs/2026-07-13-new-ui-audio-speaker-waveform-design.md §3/§4/§7
 import { parseTimestamp } from './audioTranscripts'
 
-/** 说话人序号 → 颜色 token(5 色循环,token 定义在 theme.css,两套主题都有值)。 */
+/** Speaker index → color token (5-color cycle, token defined in theme.css, both themes have values). */
 export function speakerToken(idx: number): string {
   return `var(--spk-${(idx % 5) + 1})`
 }
 
 /**
- * 每根竖条的时间窗 [a,b) 内,取「累计覆盖时长最大」的说话人;时长打平时取全局分段数少的一方
- * (给短插话一点存在感)。窗口内无人 → null。
- * 早期版本是「窗口内出现即候选、全局段数最少者优先」——那是为大段合并的段落数据设计的;
- * 换成按说话轮次拆分的细粒度标注后,每个窗口内会出现三五个说话人,少数优先会让插话
- * 刷满整条进度条、话最多的人反而一根竖条都分不到,故改为按时长占比归属。
- * duration<=0(元数据未就绪)→ 全 null,调用方在 loadedmetadata 后靠响应式重算。
+ * For each bar's time window [a,b), assign speaker with largest cumulative coverage duration;
+ * on tie, assign to globally fewer-segment speaker (gives short interjections some presence).
+ * No speakers in window → null.
+ * Early version was "any appearance in window is candidate, fewest segments globally wins" — designed
+ * for coarse merged segment data. After switching to fine-grained speaker-turn-split annotation,
+ * each window has 3–5 speakers; fewest-first would fill progress bar with brief interjections,
+ * while most-talking speaker gets no bars, so switched to cumulative coverage duration assignment.
+ * duration<=0 (metadata not ready) → all null, caller reactively recalculates after loadedmetadata.
  */
 export function barSpeakers(
   segments: { t: string; speaker?: string }[],
@@ -22,7 +24,7 @@ export function barSpeakers(
 ): (string | null)[] {
   const out = new Array<string | null>(Math.max(0, n)).fill(null)
   if (!(duration > 0) || n <= 0) return out
-  // 段区间 [start,end):end = 下一段起始,最后一段到 duration。无 speaker 的段不参与归属。
+  // Segment interval [start,end): end = next segment start, last segment to duration. Segments without speaker don't participate.
   const spans: { start: number; end: number; speaker: string }[] = []
   const freq = new Map<string, number>()
   for (let i = 0; i < segments.length; i++) {
@@ -58,10 +60,12 @@ export function barSpeakers(
 }
 
 /**
- * 单段过滤谓词:picked = 当前选中的说话人集合(master-checkbox 语义:全选=全显,
- * 空集=全不选=隐藏所有带说话人的段;传 null 表示本音频无说话人数据,不做说话人过滤),
- * 与 highlightsOnly AND 叠加。
- * MediaViewer 的转录行过滤与波形 .dim 判断共用同一 picked 集合,保证两处口径一致。
+ * Single segment filter predicate: picked = currently selected speakers set (master-checkbox
+ * semantics: all selected = show all, empty set = all unselected = hide all segments with speaker;
+ * pass null means this audio has no speaker data, skip speaker filtering), ANDed with
+ * highlightsOnly.
+ * MediaViewer's transcript row filtering and waveform .dim logic share the same picked set
+ * to ensure consistent logic in both places.
  */
 export function segMatches(
   seg: { speaker?: string; highlight?: boolean },
@@ -74,8 +78,9 @@ export function segMatches(
 }
 
 /**
- * 每个段落(按原始索引) → 所属章节序号。段落起始时间落在 [章节k.t, 章节k+1.t) 即属 k;
- * 早于第一章 → -1;chapters 空 → 全 -1。chapters/segments 均要求按时间升序(既有前提)。
+ * Each segment (by original index) → its chapter index. Segment start time in [chapter k.t, chapter k+1.t)
+ * assigns to k; before first chapter → -1; chapters empty → all -1.
+ * Both chapters/segments must be in chronological order (existing precondition).
  */
 export function segChapterIndex(segments: { t: string }[], chapters: { t: string }[]): number[] {
   const starts = chapters.map((c) => parseTimestamp(c.t))
@@ -91,8 +96,9 @@ export function segChapterIndex(segments: { t: string }[], chapters: { t: string
 }
 
 /**
- * 每根竖条(按中点时间) → 所属章节序号;duration<=0 / chapters 空 → 全 -1(长度 max(0,n))。
- * 章节区间远长于竖条(~25s/根),中点采样即可,不需要说话人那套少数优先逻辑。
+ * Each bar (by midpoint time) → its chapter index; duration<=0 / chapters empty → all -1 (length max(0,n)).
+ * Chapter intervals are much longer than bars (~25s/bar), midpoint sampling suffices,
+ * no need for speaker's minority-first logic.
  */
 export function barChapterIndex(chapters: { t: string }[], duration: number, n: number): number[] {
   const out = new Array<number>(Math.max(0, n)).fill(-1)

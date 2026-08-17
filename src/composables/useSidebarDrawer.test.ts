@@ -23,7 +23,7 @@ describe('useSidebarDrawer', () => {
     mqMatches = false
   })
 
-  it('窄屏初始:isNarrow 反映 matchMedia.matches', () => {
+  it('Narrow screen init: isNarrow reflects matchMedia.matches', () => {
     mqMatches = true
     stubMatchMedia()
     const d = useSidebarDrawer()
@@ -31,7 +31,7 @@ describe('useSidebarDrawer', () => {
     expect(d.open.value).toBe(false)
   })
 
-  it('toggle/close 开合抽屉', () => {
+  it('toggle/close: toggle drawer open/close', () => {
     mqMatches = true
     stubMatchMedia()
     const d = useSidebarDrawer()
@@ -41,7 +41,7 @@ describe('useSidebarDrawer', () => {
     expect(d.open.value).toBe(false)
   })
 
-  it('拉宽离开窄屏 → open 强制归 false', () => {
+  it('Widen to exit narrow screen → open forced to false', () => {
     mqMatches = true
     stubMatchMedia()
     const d = useSidebarDrawer()
@@ -51,7 +51,7 @@ describe('useSidebarDrawer', () => {
     expect(d.open.value).toBe(false)
   })
 
-  it('多次调用共享同一状态(模块单例)', () => {
+  it('Multiple calls share the same state (module singleton)', () => {
     mqMatches = true
     stubMatchMedia()
     const a = useSidebarDrawer()
@@ -60,11 +60,11 @@ describe('useSidebarDrawer', () => {
     expect(b.open.value).toBe(true)
   })
 
-  it('无 matchMedia(jsdom 裸环境)退化为桌面态且不抛错', () => {
-    // 不 stub —— jsdom 默认没有 window.matchMedia
+  it('No matchMedia (bare jsdom environment) degrades to desktop mode and does not throw', () => {
+    // Do not stub — jsdom has no window.matchMedia by default
     const d = useSidebarDrawer()
     expect(d.isNarrow.value).toBe(false)
-    d.toggle() // 不应抛错
+    d.toggle() // Should not throw
     expect(d.open.value).toBe(true)
   })
 })

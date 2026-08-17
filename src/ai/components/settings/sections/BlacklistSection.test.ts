@@ -8,8 +8,8 @@ import BlacklistSection from './BlacklistSection.vue'
 import { useSettingsStore } from '../../../stores/settingsStore'
 import { useToast } from '../../../../stores/toast'
 
-// 用真 zh_cn 语言包(不用手写 i18n 子集)——P1c2 记账里 ContextTab/AgentTopbar 用
-// 手写子集导致「键名拼错抓不到」,本期起改用真包。
+// Use real zh_cn locale (don't hand-write i18n subset) — P1c2 accounting shows ContextTab/AgentTopbar
+// hand-written subset caused "key name typo can't be found", from this phase onward use real package.
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 function mountSection() {
@@ -19,7 +19,7 @@ function mountSection() {
 describe('BlacklistSection', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.restoreAllMocks() })
 
-  it('挂载时拉一次列表', async () => {
+  it('loads list once on mount', async () => {
     const store = useSettingsStore()
     const spy = vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     mountSection()
@@ -27,7 +27,7 @@ describe('BlacklistSection', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('挂载时列表接口失败不抛、不弹 toast（Vue2 mounted 就是静默吞）', async () => {
+  it('list API failure on mount does not throw, no toast (Vue2 mounted silently swallows)', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockRejectedValue(new Error('boom'))
     const toast = useToast()
@@ -37,18 +37,18 @@ describe('BlacklistSection', () => {
     expect(show).not.toHaveBeenCalled()
   })
 
-  it('内置 pattern 全部渲染成只读 chip，计数与数组长度一致', async () => {
+  it('built-in patterns all render as read-only chips, count matches array length', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     const w = mountSection()
     await nextTick()
     const chips = w.findAll('.fs-chip')
-    expect(chips.length).toBe(27)          // BUILTIN 数组长度,见组件常量
+    expect(chips.length).toBe(27)          // BUILTIN array length, see component constant
     expect(chips[0].text()).toContain('**/.ssh/**')
     expect(w.find('.sk-section-hint').text()).toBe('27')
   })
 
-  it('自定义 pattern 为空时显示空态', async () => {
+  it('shows empty state when custom patterns are empty', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     store.blacklist = []
@@ -58,7 +58,7 @@ describe('BlacklistSection', () => {
     expect(w.findAll('.fs-userrow')).toHaveLength(0)
   })
 
-  it('有自定义 pattern 时逐行渲染', async () => {
+  it('renders line-by-line when custom patterns exist', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     store.blacklist = [{ id: 1, pattern: '/DATA/private/**' }, { id: 2, pattern: '*.bak' }] as never
@@ -70,7 +70,7 @@ describe('BlacklistSection', () => {
     expect(w.find('.fs-empty').exists()).toBe(false)
   })
 
-  it('输入为空时添加按钮禁用', async () => {
+  it('add button is disabled when input is empty', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     const w = mountSection()
@@ -80,7 +80,7 @@ describe('BlacklistSection', () => {
     expect(w.find('.set-addbtn').attributes('disabled')).toBeUndefined()
   })
 
-  it('添加成功后清空输入框', async () => {
+  it('clears input after successful add', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     const add = vi.spyOn(store, 'addBlacklist').mockResolvedValue(undefined)
@@ -90,11 +90,11 @@ describe('BlacklistSection', () => {
     await input.setValue('  *.tmp  ')
     await w.find('.set-addbtn').trigger('click')
     await nextTick()
-    expect(add).toHaveBeenCalledWith('*.tmp')      // 前后空格被 trim
+    expect(add).toHaveBeenCalledWith('*.tmp')      // leading/trailing spaces trimmed
     expect((input.element as HTMLInputElement).value).toBe('')
   })
 
-  it('回车也能添加（Vue2 @keydown.enter）', async () => {
+  it('can also add with Enter key (Vue2 @keydown.enter)', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     const add = vi.spyOn(store, 'addBlacklist').mockResolvedValue(undefined)
@@ -106,7 +106,7 @@ describe('BlacklistSection', () => {
     expect(add).toHaveBeenCalledWith('*.tmp')
   })
 
-  it('只有空格的输入不发请求', async () => {
+  it('whitespace-only input does not make request', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     const add = vi.spyOn(store, 'addBlacklist').mockResolvedValue(undefined)
@@ -118,7 +118,7 @@ describe('BlacklistSection', () => {
     expect(add).not.toHaveBeenCalled()
   })
 
-  it('添加失败弹 danger toast，用后端 message，且输入不清空', async () => {
+  it('add failure shows danger toast, uses backend message, input not cleared', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     vi.spyOn(store, 'addBlacklist').mockRejectedValue({ response: { data: { message: 'pattern 非法' } } })
@@ -133,7 +133,7 @@ describe('BlacklistSection', () => {
     expect((w.find('.set-input').element as HTMLInputElement).value).toBe('[[[')
   })
 
-  it('添加失败且后端没给消息时用兜底文案', async () => {
+  it('uses fallback text when add fails and backend has no message', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     vi.spyOn(store, 'addBlacklist').mockRejectedValue({})
@@ -147,7 +147,7 @@ describe('BlacklistSection', () => {
     expect(show).toHaveBeenCalledWith('添加失败', 3000, 'danger')
   })
 
-  it('添加过程中按钮禁用并显示「添加中…」', async () => {
+  it('button disabled and shows "Adding..." during add process', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     let release: () => void = () => {}
@@ -166,7 +166,7 @@ describe('BlacklistSection', () => {
     expect(w.find('.set-addbtn').text()).toBe('+ 添加')
   })
 
-  it('点删除按钮按 id 调 store', async () => {
+  it('clicking delete button calls store by id', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     const rm = vi.spyOn(store, 'removeBlacklist').mockResolvedValue(undefined)
@@ -177,7 +177,7 @@ describe('BlacklistSection', () => {
     expect(rm).toHaveBeenCalledWith(7)
   })
 
-  it('删除失败弹 danger toast', async () => {
+  it('delete failure shows danger toast', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     vi.spyOn(store, 'removeBlacklist').mockRejectedValue(new Error('删不掉'))
@@ -195,7 +195,7 @@ describe('BlacklistSection', () => {
   // the bare noun t('aiCfgDelete')「删除」(brief's original choice, superseded by final
   // review in favor of aiCfgDeleteFailed「删除失败」, matching McpTokensSection.vue:146 /
   // ChannelsSection.vue:223,276).
-  it('删除失败且后端无 message 时兜底「删除失败」（而非「删除」）', async () => {
+  it('when delete fails and backend has no message, fallback to "Delete failed" (not "Delete")', async () => {
     const store = useSettingsStore()
     vi.spyOn(store, 'loadBlacklist').mockResolvedValue(undefined)
     vi.spyOn(store, 'removeBlacklist').mockRejectedValue({})

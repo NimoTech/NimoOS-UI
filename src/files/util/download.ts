@@ -1,9 +1,10 @@
-// 下载纯逻辑:端点选择 + 过期预刷新判定。DOM 副作用见 iframeDownload.ts。
+// Download pure logic: endpoint selection + expiry pre-refresh determination. DOM side effects see iframeDownload.ts.
 
 export type DownloadPlan = { kind: 'file'; path: string } | { kind: 'batch'; files: string }
 
-// 移植 Vue2 getFileUrl:单个非目录 → /v3/file;单目录 或 多选 → /v1/batch(zip),files 逗号连接。
-// 传入的 path 必须是真实路径(含 /DATA),与后端契约一致。
+// Port from Vue2 getFileUrl: single non-directory → /v3/file; single directory or
+// multi-select → /v1/batch(zip), files comma-separated.
+// Passed-in path must be a real path (including /DATA), consistent with backend contract.
 export function planDownload(entries: { path: string; is_dir: boolean }[]): DownloadPlan {
   if (entries.length === 1 && !entries[0].is_dir) {
     return { kind: 'file', path: entries[0].path }

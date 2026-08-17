@@ -18,7 +18,7 @@ describe('AssistantMessage', () => {
     copyText.mockReset()
   })
 
-  it('复制失败(copyText reject)时不抛错、不弹 aiCopied toast(降级=静默,与 Vue2 行为一致)', async () => {
+  it('on copy failure (copyText reject), does not throw error, does not show aiCopied toast (degradation = silent, matches Vue2 behavior)', async () => {
     copyText.mockRejectedValue(new Error('insecure context'))
     const msg = { id: 'm1', blocks: [{ type: 'md', text: 'hello' }], streaming: false }
     const w = mount(AssistantMessage, { props: { msg }, global: { plugins: [i18n] } })
@@ -32,7 +32,7 @@ describe('AssistantMessage', () => {
     expect(toast.toasts.some((t) => t.text === '已复制')).toBe(false)
   })
 
-  it('连续的 thinking+tool block 经 groupBlocks 合并渲染成一个 ProcessStrip,后续 md block 走 BlockRenderer', () => {
+  it('consecutive thinking+tool blocks merged via groupBlocks render as single ProcessStrip, subsequent md blocks go through BlockRenderer', () => {
     const msg = {
       id: 'm2',
       blocks: [

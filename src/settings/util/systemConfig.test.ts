@@ -8,7 +8,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
       getCustomStorage: async () => { store.getCalls++; return store.blob },
       setCustomStorage: async (_k: string, data: unknown) => {
         store.setCalls.push(data)
-        // 真实后端语义:整块覆写
+        // Real backend semantics: overwrite the whole blob
         store.blob = JSON.parse(JSON.stringify(data))
       },
     },
@@ -27,22 +27,22 @@ beforeEach(() => {
 })
 
 describe('readSystemConfig', () => {
-  it('服务端空值时给默认值', async () => {
+  it('falls back to defaults when the server value is empty', async () => {
     store.blob = ''
     expect(await readSystemConfig()).toEqual(SYSTEM_DEFAULTS)
   })
 
-  it('服务端返回 JSON 字符串也能解(后端确实会这样返)', async () => {
+  it('parses when the server returns a JSON string (the backend really does this)', async () => {
     store.blob = JSON.stringify({ timezone: 'Asia/Shanghai' })
     expect((await readSystemConfig()).timezone).toBe('Asia/Shanghai')
   })
 
-  it('坏 JSON 不抛,退回默认值', async () => {
+  it('does not throw on bad JSON, falls back to defaults', async () => {
     store.blob = '{不是 json'
     expect(await readSystemConfig()).toEqual(SYSTEM_DEFAULTS)
   })
 
-  it('服务端字段覆盖默认值,未知字段原样保留', async () => {
+  it('server fields override defaults, unknown fields pass through unchanged', async () => {
     store.blob = { rss_switch: true, some_future_key: 42 }
     const c = await readSystemConfig()
     expect(c.rss_switch).toBe(true)
@@ -50,7 +50,7 @@ describe('readSystemConfig', () => {
     expect(c.some_future_key).toBe(42)
   })
 
-  it('请求失败时降级到默认值而不是抛(设置页不能因此白屏)', async () => {
+  it('degrades to defaults instead of throwing when the request fails (the settings page must not white-screen over this)', async () => {
     store.blob = undefined
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.users, 'getCustomStorage').mockRejectedValueOnce(new Error('boom'))
@@ -58,32 +58,32 @@ describe('readSystemConfig', () => {
   })
 })
 
-describe('patchSystemConfig 串行性(纪律 #3:丢写竞态)', () => {
-  it('并发 patch 不同字段,两个都留在最终结果里', async () => {
+describe('patchSystemConfig serialization (discipline #3: lost-write race)', () => {
+  it('concurrent patches to different fields both survive in the final result', async () => {
     store.blob = {}
     const [a, b] = await Promise.all([
       patchSystemConfig({ timezone: 'UTC' }),
       patchSystemConfig({ rss_switch: true }),
     ])
-    // 后完成的那次看到的是合并后的全量
+    // Whichever patch finishes last sees the merged full result
     const last = b.timezone ? b : a
     expect(last.timezone).toBe('UTC')
     expect(last.rss_switch).toBe(true)
     expect(store.blob).toMatchObject({ timezone: 'UTC', rss_switch: true })
   })
 
-  it('串行队列内每次都重新读,不用调用方传进来的旧快照', async () => {
+  it('each entry in the serialized queue re-reads instead of using the caller-supplied stale snapshot', async () => {
     store.blob = { timezone: 'UTC' }
     await Promise.all([
       patchSystemConfig({ rss_switch: true }),
       patchSystemConfig({ recommend_switch: false }),
     ])
-    // 两次 patch 各读一次(2)+ 无额外读
+    // Each of the two patches reads once (2) — no extra reads
     expect(store.getCalls).toBe(2)
     expect(store.blob).toMatchObject({ timezone: 'UTC', rss_switch: true, recommend_switch: false })
   })
 
-  it('三个开关连点(模拟用户快速拨)不丢任何一个', async () => {
+  it('three toggles flipped in quick succession (simulating a fast-clicking user) lose none of them', async () => {
     store.blob = {}
     await Promise.all([
       patchSystemConfig({ rss_switch: true }),
@@ -93,7 +93,7 @@ describe('patchSystemConfig 串行性(纪律 #3:丢写竞态)', () => {
     expect(store.blob).toMatchObject({ rss_switch: true, recommend_switch: false, disk_standby: '30m' })
   })
 
-  it('队列中一次失败不卡死后续(否则一次网络抖动会让设置页永久失灵)', async () => {
+  it('one failure in the queue does not jam up subsequent patches (otherwise a single network blip would permanently break the settings page)', async () => {
     store.blob = {}
     const svc = await import('@nimotech/nimoos-service')
     const spy = vi.spyOn(svc.service.users, 'setCustomStorage').mockRejectedValueOnce(new Error('boom'))
@@ -102,7 +102,7 @@ describe('patchSystemConfig 串行性(纪律 #3:丢写竞态)', () => {
     await expect(patchSystemConfig({ timezone: 'UTC' })).resolves.toMatchObject({ timezone: 'UTC' })
   })
 
-  it('patch 不会把未知字段洗掉', async () => {
+  it('patch does not wipe out unknown fields', async () => {
     store.blob = { some_future_key: 'keep me' }
     await patchSystemConfig({ timezone: 'UTC' })
     expect(store.blob).toMatchObject({ some_future_key: 'keep me', timezone: 'UTC' })

@@ -1,9 +1,9 @@
-// Task 13 (SP7-P5 人物): PersonRelGraph.vue —— SVG 力导关系图。逐字照搬 Vue2
-// NimoOS-UI src/views/Photos/PhotosRelGraph.vue(94 行)的几何数值,颜色改走
-// scoped CSS class(SVG presentation attribute 不认 var(),见组件顶部注释)。
+// Task 13 (SP7-P5 Person): PersonRelGraph.vue — SVG force-directed relation graph. Copied character-by-character
+// geometric values from Vue2 NimoOS-UI src/views/Photos/PhotosRelGraph.vue (94 lines), colors changed to use
+// scoped CSS class (SVG presentation attributes don't recognize var(), see component top comment).
 //
-// 补齐 affordance(brief 明确要求,Vue2 关系图节点本不可点):点卫星节点
-// emit open-person,是本组件唯一比 Vue2 多出来的行为,不是缺陷。
+// Add affordance (explicitly required by brief, Vue2 relation graph nodes not clickable): clicking satellite nodes
+// emit open-person, is the only behavior this component adds beyond Vue2, not a defect.
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
@@ -34,12 +34,12 @@ function mountGraph(props: { relations: PersonRelation[]; person: Person | null 
 }
 
 describe('PersonRelGraph.vue', () => {
-  it('relations 为空 → 不渲染 <svg>(照 Vue2 :2 的 v-if)', () => {
+  it('relations is empty → does not render <svg> (follows Vue2 :2 v-if)', () => {
     const w = mountGraph({ relations: [], person: P() })
     expect(w.find('svg').exists()).toBe(false)
   })
 
-  it('viewBox 与画布尺寸逐字照搬 Vue2 :2(0 0 760 400,width 100%,height 400)', () => {
+  it('viewBox and canvas size copied character-by-character from Vue2 :2 (0 0 760 400, width 100%, height 400)', () => {
     const w = mountGraph({ relations: [{ personId: 1, name: 'A', count: 5 }], person: P() })
     const svg = w.get('svg')
     expect(svg.attributes('viewBox')).toBe('0 0 760 400')
@@ -47,7 +47,7 @@ describe('PersonRelGraph.vue', () => {
     expect(svg.attributes('height')).toBe('400')
   })
 
-  it('3 个关系 → 3 条连线(.rg-edge)+ 3 个卫星节点(.rg-node)', () => {
+  it('3 relations → 3 edge lines (.rg-edge) + 3 satellite nodes (.rg-node)', () => {
     const relations: PersonRelation[] = [
       { personId: 1, name: 'A', count: 30 },
       { personId: 2, name: 'B', count: 20 },
@@ -58,7 +58,7 @@ describe('PersonRelGraph.vue', () => {
     expect(w.findAll('.rg-node')).toHaveLength(3)
   })
 
-  it('中心圈几何逐字照搬 Vue2 :25-33(r=34,clip r=31,图片 62x62,光晕 r=90)', () => {
+  it('Center circle geometry copied character-by-character from Vue2 :25-33 (r=34, clip r=31, image 62x62, glow r=90)', () => {
     const w = mountGraph({ relations: [{ personId: 1, name: 'A', count: 5 }], person: P() })
     const centerRing = w.get('.rg-center-ring')
     expect(centerRing.attributes('cx')).toBe('380')
@@ -81,7 +81,7 @@ describe('PersonRelGraph.vue', () => {
     expect(img.attributes('y')).toBe(String(200 - 31))
   })
 
-  it('中心头像 href 走 personFaceThumbnailUrl(person.id, person.coverFaceId),不手拼 URL', () => {
+  it('Center avatar href uses personFaceThumbnailUrl(person.id, person.coverFaceId), do not manually construct URL', () => {
     const w = mountGraph({
       relations: [{ personId: 1, name: 'A', count: 5 }],
       person: P({ id: 'me', coverFaceId: 'cover1' }),
@@ -94,27 +94,27 @@ describe('PersonRelGraph.vue', () => {
   // person, which was the pre-fix (wrong) behavior — Vue2's own centerName computed
   // (`(this.person && this.person.name) || this.$t('Unnamed person')`) has ALWAYS fallen back
   // to the Unnamed-person copy here, never an empty string. Updated to match Vue2 truth.
-  it('中心名字取自 person.name,person 为 null 时兜底为 Unnamed person(照 Vue2 centerName,不崩)', () => {
+  it('center name comes from person.name and falls back to Unnamed person when person is null (per Vue2 centerName, no crash)', () => {
     const w = mountGraph({ relations: [{ personId: 1, name: 'A', count: 5 }], person: null })
     expect(w.get('.rg-name.rg-center-name').text()).toBe('未命名人物')
     expect(w.get('.rg-center-img').attributes('href')).toBe('')
   })
 
-  it('节点半径公式 18+strength*10(外环+2),按 count 降序排列后 strength=count/maxCount', () => {
-    // count 30 是最大值 → maxCount=30,strength=1 → nodeRadius=28,外环 r=30。
-    // count 15 → strength=0.5 → nodeRadius=23,外环 r=25。
+  it('Node radius formula 18+strength*10 (outer ring +2), after sorting by count descending, strength=count/maxCount', () => {
+    // count 30 is max value → maxCount=30, strength=1 → nodeRadius=28, outer ring r=30.
+    // count 15 → strength=0.5 → nodeRadius=23, outer ring r=25.
     const relations: PersonRelation[] = [
       { personId: 1, name: 'A', count: 15 },
       { personId: 2, name: 'B', count: 30 },
     ]
     const w = mountGraph({ relations, person: P() })
     const rings = w.findAll('.rg-node-ring')
-    // positions 内部先按 count 降序排序,B(30)排第一。
+    // positions internally sorted by count descending first, B(30) ranks first.
     expect(rings[0].attributes('r')).toBe('30')
     expect(rings[1].attributes('r')).toBe('25')
   })
 
-  it('全部 count 相同(含全为 0)时不产生 NaN —— maxCount 兜底 1(防除零)', () => {
+  it('When all count are the same (including all zeros) do not produce NaN — maxCount defaults to 1 (prevent division by zero)', () => {
     const relations: PersonRelation[] = [
       { personId: 1, name: 'A', count: 0 },
       { personId: 2, name: 'B', count: 0 },
@@ -122,7 +122,7 @@ describe('PersonRelGraph.vue', () => {
     const w = mountGraph({ relations, person: P() })
     const rings = w.findAll('.rg-node-ring')
     for (const ring of rings) {
-      expect(ring.attributes('r')).toBe('20') // 18 + 0*10 + 2 外环
+      expect(ring.attributes('r')).toBe('20') // 18 + 0*10 + 2 outer ring
       expect(Number.isNaN(Number(ring.attributes('cx')))).toBe(false)
       expect(Number.isNaN(Number(ring.attributes('cy')))).toBe(false)
     }
@@ -131,10 +131,10 @@ describe('PersonRelGraph.vue', () => {
     expect(Number.isNaN(Number(edge.attributes('stroke-opacity')))).toBe(false)
   })
 
-  it('连线宽度/不透明度公式(1+strength*2.2 / 0.20+strength*0.55),计数胶囊在连线中点', () => {
+  it('Edge width/opacity formula (1+strength*2.2 / 0.20+strength*0.55), count pill at edge midpoint', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: 'A', count: 10 }]
     const w = mountGraph({ relations, person: P() })
-    // 单个关系,maxCount=10,strength=1。
+    // Single relation, maxCount=10, strength=1.
     const edge = w.get('.rg-edge')
     expect(edge.attributes('stroke-width')).toBe(String(1 + 1 * 2.2))
     expect(edge.attributes('stroke-opacity')).toBe(String(0.2 + 1 * 0.55))
@@ -154,7 +154,7 @@ describe('PersonRelGraph.vue', () => {
     expect(pill.attributes('rx')).toBe('8')
   })
 
-  it('卫星节点头像 href 走 personFaceThumbnailUrl(personId, coverFaceId)', () => {
+  it('Satellite node avatar href uses personFaceThumbnailUrl(personId, coverFaceId)', () => {
     const relations: PersonRelation[] = [{ personId: 42, name: 'A', coverFaceId: 'faceA', count: 10 }]
     const w = mountGraph({ relations, person: P() })
     expect(w.get('.rg-node-img').attributes('href')).toBe('mock://face/42?v=faceA')
@@ -166,13 +166,13 @@ describe('PersonRelGraph.vue', () => {
   // coverage only checked centerName's Unnamed fallback and the initial-glyph fallback; the
   // satellite NAME LABEL (`.rg-name-dim` text, the `pos.name || t('photosPersonUnnamedTitle')`
   // hunk) had no assertion of its own.
-  it('name 为空的卫星节点 → 名字标签(.rg-name-dim)渲染 Unnamed person 兜底文案', () => {
+  it('a satellite node with an empty name → its name label (.rg-name-dim) renders the Unnamed person fallback copy', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: '', count: 5 }]
     const w = mountGraph({ relations, person: P() })
     expect(w.get('.rg-name-dim').text()).toBe('未命名人物')
   })
 
-  it('点卫星节点 → emit open-person 带 personId(补齐 affordance,Vue2 无此行为)', async () => {
+  it('Clicking satellite node → emit open-person with personId (fill in affordance, Vue2 has no such behavior)', async () => {
     const relations: PersonRelation[] = [
       { personId: 101, name: 'A', count: 10 },
       { personId: 102, name: 'B', count: 5 },
@@ -182,10 +182,10 @@ describe('PersonRelGraph.vue', () => {
     expect(w.emitted('open-person')).toEqual([[102]])
   })
 
-  it('模板里不出现任何裸颜色字面量(十六进制或 rgba()/hsla() 函数式,兜底断言,防照搬漏改)', () => {
-    // 评审 Important 修正:原正则只认十六进制,漏了函数式颜色 —— Vue2 源码里
-    // 恰好就有一处 fill="rgba(255,255,255,0.8)"(PhotosRelGraph.vue:20,已改成
-    // .rg-pill-text class),说明这条路径真实存在过,必须一起堵上。
+  it('Template contains no bare color literals (hex or rgba()/hsla() functions, fallback assertion to prevent missed rewrites)', () => {
+    // Review correction (Important): the original regex only matched hex, missed function-form colors — Vue2 source
+    // happens to have one instance fill="rgba(255,255,255,0.8)" (PhotosRelGraph.vue:20, changed to
+    // .rg-pill-text class), indicating this path existed in practice and must be blocked together.
     const relations: PersonRelation[] = [{ personId: 1, name: 'A', count: 10 }]
     const w = mountGraph({ relations, person: P() })
     expect(w.html()).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\s*\(/)
@@ -199,8 +199,8 @@ describe('PersonRelGraph.vue', () => {
 // implementation: cap test found 3 <image>s not 13, initial test found no `.rg-avatar-initial`
 // text at all, empty-state test found no `.rg-empty` element — see task-6-report.md for the
 // captured RED output).
-describe('PersonRelGraph.vue — PR#137 移植:节点上限 / 头像首字母兜底 / 空态', () => {
-  it('relations 超过 12 个时只渲染 12 个卫星节点 + 1 个中心(共 13 个 <image>,照 Vue2 tests/photosRelGraph.test.js "caps rendered nodes at 12")', () => {
+describe('PersonRelGraph.vue — PR#137 port: node cap / avatar initial fallback / empty state', () => {
+  it('with more than 12 relations only 12 satellite nodes plus 1 centre render (13 <image> in total, per Vue2 tests/photosRelGraph.test.js "caps rendered nodes at 12")', () => {
     const relations: PersonRelation[] = Array.from({ length: 20 }, (_, i) => ({
       personId: `p${i}`, name: `P${i}`, count: 20 - i,
     }))
@@ -208,7 +208,7 @@ describe('PersonRelGraph.vue — PR#137 移植:节点上限 / 头像首字母兜
     expect(w.findAll('image')).toHaveLength(13)
   })
 
-  it('每个头像下方(中心 + 卫星)都渲染首字母兜底 <text>(照 Vue2 tests/photosRelGraph.test.js "draws an initial-letter fallback under every avatar")', () => {
+  it('an initial-letter fallback <text> renders under every avatar, centre and satellites alike (per Vue2 tests/photosRelGraph.test.js "draws an initial-letter fallback under every avatar")', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: 'Zoe', count: 3 }]
     const w = mountGraph({ relations, person: P({ name: 'Amy' }) })
     const initials = w.findAll('.rg-avatar-initial').map((x) => x.text())
@@ -216,7 +216,7 @@ describe('PersonRelGraph.vue — PR#137 移植:节点上限 / 头像首字母兜
     expect(initials).toContain('A') // center node initial
   })
 
-  it('relations 为空时渲染 .rg-empty 空态,文案为 photosPersonRelGraphEmptyTitle/Sub(照 Vue2 tests/photosRelGraph.test.js "renders empty state when no co-appearances")', () => {
+  it('with no relations, the .rg-empty empty state renders with the photosPersonRelGraphEmptyTitle/Sub copy (per Vue2 tests/photosRelGraph.test.js "renders empty state when no co-appearances")', () => {
     const w = mountGraph({ relations: [], person: P() })
     expect(w.find('svg').exists()).toBe(false)
     const empty = w.get('.rg-empty')

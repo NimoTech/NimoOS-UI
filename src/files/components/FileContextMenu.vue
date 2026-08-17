@@ -22,15 +22,15 @@ const single = computed(() => props.selectedCount <= 1)
 const operable = computed(() => (props.entry ? canOperate(props.entry) : false))
 const favorited = computed(() => (props.entry ? favorites.isFavorite(props.entry.path) : false))
 const alreadyShared = computed(() => (props.entry ? isAlreadyShared(props.entry) : false))
-// 只读快照:第一道防线,把写入相关的菜单项从各自 show* computed 里裁掉(而不是在模板上
-// 再叠一层条件),避免两处判断漂移。
+// Read-only snapshot: first defense line, remove write-related menu items from their
+// respective show* computed properties (not stacking another condition in the template) to avoid drift in two places.
 const inSnapshot = computed(() => browse.isSnapshotView)
 
-// 单项操作(多选时隐藏,与复制路径/重命名一致);收藏仅对文件夹
+// Single-item operation (hidden when multiple are selected, consistent with copy path/rename); favorite is for folders only
 const showCopyPath = computed(() => single.value && !inSnapshot.value)
 const showRename = computed(() => single.value && operable.value && !inSnapshot.value)
 const showFavorite = computed(() => single.value && !!props.entry?.is_dir && !inSnapshot.value)
-// 共享仅对文件夹,且未共享(已共享的走「共享」列表页取消,不重复弹入口 → 避免后端 SHARE_ALREADY_EXISTS)
+// Sharing is for folders only and not already shared (already-shared items are cancelled from the "shares" list page, no duplicate entry → avoid backend SHARE_ALREADY_EXISTS)
 const showShare = computed(() => single.value && !!props.entry?.is_dir && !alreadyShared.value && !inSnapshot.value)
 // Same gating as Vue2 ContextMenu.vue:96 -- single selection, image file, and
 // hidden in the read-only snapshot view.
@@ -38,9 +38,9 @@ const showSetWallpaper = computed(() => single.value && !inSnapshot.value && can
 const showCopy = computed(() => !inSnapshot.value)
 const showCut = computed(() => operable.value && !inSnapshot.value)
 const showDelete = computed(() => operable.value && !inSnapshot.value)
-// 单选、快照态才出现的「恢复到原位置」——恢复文案是单条路径,多选不适用
+// "Restore to original location" appears only for single selection in snapshot view — restore text is a single path, not applicable for multiple selections
 const showRestoreOriginal = computed(() => inSnapshot.value && single.value)
-// 分割线只在"删除之上确实有其它项"时出现(否则只剩删除会出现悬空分割线)
+// Separator appears only when "there are other items above delete" (otherwise only delete remains and a dangling separator appears)
 const showSeparator = computed(
   () => showDelete.value
     && (showCopyPath.value || showRename.value || showFavorite.value || showShare.value || showSetWallpaper.value),
@@ -53,7 +53,7 @@ function fire(action: string) { emit('action', action, props.entry) }
   <ContextMenu>
     <slot />
     <template #menu>
-      <!-- 空白区菜单 -->
+      <!-- Blank area menu -->
       <template v-if="entry === null">
         <ContextMenuItem v-if="!inSnapshot" class="ui-ctx-item ctx-new-folder" @select="fire('new-folder')">{{ t('filesNewFolder') }}</ContextMenuItem>
         <ContextMenuItem v-if="!inSnapshot" class="ui-ctx-item ctx-new-file" @select="fire('new-file')">{{ t('filesNewFile') }}</ContextMenuItem>
@@ -67,7 +67,7 @@ function fire(action: string) { emit('action', action, props.entry) }
         <ContextMenuItem v-if="!inSnapshot" class="ui-ctx-item ctx-upload-file" @select="fire('upload-file')">{{ t('filesCtxUploadFile') }}</ContextMenuItem>
         <ContextMenuItem v-if="!inSnapshot" class="ui-ctx-item ctx-upload-folder" @select="fire('upload-folder')">{{ t('filesCtxUploadFolder') }}</ContextMenuItem>
       </template>
-      <!-- 文件/文件夹项菜单 -->
+      <!-- File/folder item menu -->
       <template v-else>
         <ContextMenuItem v-if="showRestoreOriginal" class="ui-ctx-item ctx-restore-original" @select="fire('restore-original')">{{ t('snapBrowseRestoreToOriginal') }}</ContextMenuItem>
         <ContextMenuItem class="ui-ctx-item ctx-download" @select="fire('download')">{{ t('filesCtxDownload') }}</ContextMenuItem>

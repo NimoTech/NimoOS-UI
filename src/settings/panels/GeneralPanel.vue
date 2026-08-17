@@ -1,14 +1,15 @@
 <script setup lang="ts">
-// general 页装配。行顺序逐条对位 Vue2 SettingsPanel.vue L65-324,不许改序。
-// 两处**有意不做**(见计划 §实测校正):
-//   - 顶部 Premium 推广条(L67-73):用户 2026-07-31 拍板不做,授权偏离 #6
-//     (Vue2 侧那个 Upgrade Now 按钮本来也没有任何 @click)
-//   - 「显示其他 Docker 容器应用」开关行(L239-245):Vue2 恒不渲染,债务 D15
-// 「开发者模式」入口行沿用 P0 已有的实现(Vue2 L315,常驻可见、无开关门控)。
+// General tab assembly. Row order corresponds exactly to Vue2 SettingsPanel.vue L65-324 — do not reorder.
+// Two things **deliberately not done** (see plan §real-machine-test corrections):
+//   - The Premium promo banner at the top (L67-73): the user decided on 2026-07-31 not to
+//     build it, authorized deviation #6 (the Vue2-side "Upgrade Now" button never had any @click anyway)
+//   - The "Show other Docker container apps" switch row (L239-245): Vue2 never renders it, debt D15
+// The "Developer mode" entry row reuses P0's existing implementation (Vue2 L315, always visible, no gating switch).
 //
-// 说明:本页会打一次 /sys/hardware(此处 + DeviceInfoCard + UsbAutoMountRow 各自也打一次)。
-// Vue2 也是多处各拉一次(SettingsPanel.getHardwareInfo + DeviceInfoPanel.fetchHardwareInfo),
-// 且这是本机的廉价读接口 —— 不为此引入缓存层(YAGNI)。
+// Note: this page fires /sys/hardware once (here + DeviceInfoCard + UsbAutoMountRow each fire it
+// separately too). Vue2 also pulls it separately in multiple places
+// (SettingsPanel.getHardwareInfo + DeviceInfoPanel.fetchHardwareInfo), and it's a cheap local
+// read endpoint — no caching layer introduced for this (YAGNI).
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type HardwareInfo } from '@nimotech/nimoos-service'
@@ -27,7 +28,7 @@ import '../styles/settings.css'
 const { t } = useI18n()
 const emit = defineEmits<{ 'open-tab': [tab: string] }>()
 
-// 固件更新行的副标题用 hardware.version(Vue2 L254),不是 os_version 的 current_version
+// The firmware update row's subtitle uses hardware.version (Vue2 L254), not os_version's current_version
 const hwVersion = ref('')
 onMounted(async () => {
   try {
@@ -70,7 +71,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* 开发者入口行样式沿用 P0 原样,不改 */
+/* Developer entry row style reuses P0 as-is, unchanged */
 .set-dev-entry {
   display: flex;
   align-items: center;

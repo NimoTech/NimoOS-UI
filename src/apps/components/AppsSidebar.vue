@@ -8,10 +8,10 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 
-// 抽屉态:必须解构(嵌套 ref 在模板里不自动解包,drawer.isNarrow 恒真值是坑)
+// Drawer state: must destructure (nested refs are not auto-unwrapped in templates, drawer.isNarrow always being truthy is a trap)
 const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
 
-// 路由变化后抽屉自动收起;桌面态 close 是 no-op
+// Close drawer automatically when route changes; on desktop, close is a no-op
 watch(() => route.fullPath, () => closeDrawer())
 
 function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
@@ -28,7 +28,7 @@ const nav = [
   { name: 'apps-sources', labelKey: 'appsNavSources', to: '/apps/sources' },
 ]
 
-/** 商店详情(apps-store-detail)也高亮「应用商店」;自定义安装同款前缀匹配预留给未来子路由——子路由归属父导航项 */
+/** Store details (apps-store-detail) also highlight 'App Store'; custom install uses prefix matching reserved for future sub-routes — sub-routes belong to parent nav items */
 function isActive(n: { name: string }): boolean {
   const cur = String(route.name ?? '')
   if (n.name === 'apps-store') return cur.startsWith('apps-store')
@@ -40,7 +40,7 @@ function isActive(n: { name: string }): boolean {
 <template>
   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
   <aside class="apps-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
-    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏走顶栏,抽屉内不重复 -->
+    <!-- Desktop: back home button + title integrated into sidebar glass panel (AreaShell top bar hidden at same time); narrow screens use top bar, no duplication in drawer -->
     <div v-if="!isNarrow" class="side-top">
       <h1 class="side-app-title">{{ t('appsTitle') }}</h1>
       <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('areaBackHome') }}</button>
@@ -60,7 +60,7 @@ function isActive(n: { name: string }): boolean {
 </template>
 
 <style scoped>
-/* 与 FilesSidebar 同一壳形态(玻璃面板 + 窄屏抽屉)。第二次出现:第三区(SP6)时抽 AreaSidebar。 */
+/* Same shell layout as FilesSidebar (glass panel + narrow-screen drawer). Second occurrence: extract to AreaSidebar during region 3 (SP6). */
 .apps-sidebar {
   flex: 0 0 220px; align-self: stretch; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 18px;

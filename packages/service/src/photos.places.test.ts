@@ -17,18 +17,18 @@ function capture(data: unknown = []) {
 }
 const noToken = () => null
 
-describe('photos 地点', () => {
-  it('listAssetsByPlace 条件参数:spotKey 与 spot_lat/lon 成对才带(对齐 Vue2 注释:质心钉住精确 spot 簇)', async () => {
+describe('photos places', () => {
+  it('listAssetsByPlace conditional params: spotKey and spot_lat/lon are only included as a pair (matches Vue2 comment: centroid pins down the precise spot cluster)', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.listAssetsByPlace('cn-hz')
     expect(calls[0]).toMatchObject({ url: '/photos/assets', params: { place_key: 'cn-hz', limit: 500 } })
     await p.listAssetsByPlace('cn-hz', 's1', 100, 30.2, 120.1)
     expect(calls[1].params).toEqual({ place_key: 'cn-hz', limit: 100, spot_key: 's1', spot_lat: 30.2, spot_lon: 120.1 })
-    await p.listAssetsByPlace('cn-hz', '', 100, 30.2, 120.1) // 无 spotKey 时坐标不带
+    await p.listAssetsByPlace('cn-hz', '', 100, 30.2, 120.1) // coordinates are omitted when there is no spotKey
     expect(calls[2].params).toEqual({ place_key: 'cn-hz', limit: 100 })
   })
-  it('详情/封面候选/封面设复位', async () => {
+  it('detail / cover candidates / set and reset cover', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.listPlaces({ q: '杭' })
@@ -42,7 +42,7 @@ describe('photos 地点', () => {
     expect(calls[3]).toMatchObject({ method: 'put', url: '/photos/places/cn-hz/cover', body: { assetId: 'a1' } })
     expect(calls[4]).toMatchObject({ method: 'delete', url: '/photos/places/cn-hz/cover' })
   })
-  it('spot 命名:set 走 PUT 体,reset 走 DELETE 且 spotKey 在请求体(api.delete(url,data) 语义)', async () => {
+  it('spot naming: set goes through a PUT body, reset goes through DELETE with spotKey in the request body (api.delete(url,data) semantics)', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.setSpotName('cn-hz', 's1', '西湖')
@@ -51,7 +51,7 @@ describe('photos 地点', () => {
     expect(calls[1].method).toBe('delete')
     expect((calls[1].cfg as { data?: unknown })?.data).toEqual({ spotKey: 's1' })
   })
-  it('createPlaceAlbum 默认 from/to 空串', async () => {
+  it('createPlaceAlbum defaults from/to to empty strings', async () => {
     const { http, calls } = capture()
     await createPhotos(http, noToken).createPlaceAlbum('cn-hz', { name: '杭州行' })
     expect(calls[0]).toMatchObject({ method: 'post', url: '/photos/places/cn-hz/album', body: { name: '杭州行', from: '', to: '' } })

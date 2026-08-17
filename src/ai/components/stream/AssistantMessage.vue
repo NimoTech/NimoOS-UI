@@ -1,7 +1,7 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/stream/AssistantMessage.vue,
-  1b 接回 groupBlocks/ProcessStrip(1a 版本是 `v-for="b in msg.blocks"` 直接过 BlockRenderer 的占位)。
-  footer 只保 Copy 按钮;Regenerate/Read-aloud 记 1c 账。
+  1:1 port from Vue2 src/views/AI/Agent/stream/AssistantMessage.vue;
+  1b re-adds groupBlocks/ProcessStrip (1a version was `v-for="b in msg.blocks"` directly through
+  BlockRenderer placeholder). Footer only keeps Copy button; Regenerate/Read-aloud recorded in 1c.
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
@@ -41,8 +41,8 @@ const toast = useToast()
 
 const toolCount = computed(() => (props.msg.blocks || []).filter((b) => b.type === 'tool').length)
 
-// 1b: groupBlocks 把连续的 thinking/tool block 合并成一个 ProcessStrip 条目
-// (`__process: true`),其余 block 原样直通 BlockRenderer。
+// 1b: groupBlocks merges consecutive thinking/tool blocks into a ProcessStrip entry
+// (`__process: true`), other blocks pass through BlockRenderer as-is.
 const renderItems = computed(() => groupBlocks(props.msg.blocks ?? []))
 
 function isProcessGroup(item: AgentBlockLike | ProcessGroup): item is ProcessGroup {
@@ -53,9 +53,10 @@ const statsLine = computed(() => {
   const s = props.msg.stats
   if (!s) return ''
   const parts: string[] = []
-  // 注意:Vue2 原句 `TTFT {ms}` / `Duration {ms}` 不在本期 i18n key 映射表内
-  // (Task 4 才建 ai* key 集,且本任务禁止单边加 locale key),故此处保留英文
-  // 字面标签,不经 t() —— 视觉文案与 Vue2 一致,只是暂不接入 i18n。
+  // Note: Vue2 original sentence `TTFT {ms}` / `Duration {ms}` is not in this phase's i18n key mapping
+  // table (ai* key set created in Task 4, and this task forbids single-sided locale key additions),
+  // so English literal labels are kept here, not passed through t() — visual copy matches Vue2,
+  // just not hooked into i18n yet.
   if (s.ttftMs != null) parts.push(`TTFT ${formatMs(s.ttftMs)}`)
   if (s.outputTokens != null) parts.push(`${s.outputTokens} tok`)
   if (s.tokensPerSec != null) parts.push(`${s.tokensPerSec} tok/s`)
@@ -72,7 +73,7 @@ async function copy() {
     await copyText(text)
     toast.show(t('aiCopied'))
   } catch {
-    /* 静默:与 Vue2 行为一致,复制失败无反馈 */
+    /* Silent: matches Vue2 behavior, no feedback on copy failure */
   }
 }
 </script>

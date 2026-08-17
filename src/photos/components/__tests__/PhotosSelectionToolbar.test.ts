@@ -53,8 +53,8 @@ describe('PhotosSelectionToolbar', () => {
     expect(w.emitted('add-to-album')).toBeUndefined()
   })
 
-  // 加入相册按钮位于 count 与 delete 之间、非 danger,click 只 emit add-to-album(回归)。
-  it('「加入相册」位于 count 与 delete 之间、非 danger、click 只 emit add-to-album', async () => {
+  // The "Add to Album" button sits between count and delete, non-danger; click only emits add-to-album (regression).
+  it('"Add to Album" sits between count and delete, non-danger, click only emits add-to-album', async () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     const btns = w.findAll('.selectbar-btn')
     expect(btns[0]!.attributes('data-test')).toBe('selectbar-add-album')

@@ -15,11 +15,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     folder: { getList: vi.fn() },
-    // AddMountMenu(子组件)onMounted 里调用 service.driver.listDrivers();mounts store 的
-    // ejectCloud/loadMounts 走 service.cloud —— 均需 mock 以避免未处理拒绝的控制台告警。
+    // AddMountMenu (child component) calls service.driver.listDrivers() in onMounted; mounts store's
+    // ejectCloud/loadMounts use service.cloud — both need mock to avoid unhandled rejection console warnings.
     driver: { listDrivers: vi.fn().mockResolvedValue([]) },
     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
-    // FilesSidebar 的 onMounted 拉磁盘用量(SP12-T9),同样要 mock 掉才没有告警。
+    // FilesSidebar's onMounted pulls disk usage (SP12-T9), also needs mock to avoid warnings.
     storage: { list: vi.fn().mockResolvedValue([]) },
     raid: { list: vi.fn().mockResolvedValue([]), getStatus: vi.fn() },
   },
@@ -130,8 +130,8 @@ describe('FilesSidebar', () => {
     expect(localStorage.getItem('nimoos:location-default')).toBe('/mnt/b')
   })
 
-  describe('云盘授权分流(P5b Google BYO)', () => {
-    it('Google Drive → 开 BYO 表单框,不直接 window.open', async () => {
+  describe('cloud auth branching (P5b Google BYO)', () => {
+    it('Google Drive → opens BYO form dialog, does not directly window.open', async () => {
       seedFiles()
       const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
       const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
@@ -142,7 +142,7 @@ describe('FilesSidebar', () => {
       openSpy.mockRestore()
     })
 
-    it('Dropbox → 照旧直接 window.open 授权窗(不开表单框)', async () => {
+    it('Dropbox → as before, directly window.open auth window (does not open form dialog)', async () => {
       seedFiles()
       const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
       const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
@@ -156,7 +156,7 @@ describe('FilesSidebar', () => {
       openSpy.mockRestore()
     })
 
-    it('表单 emit auth-url → 经 buildAuthUrl 替换 ${HOST} 后 window.open', async () => {
+    it('form emits auth-url → after buildAuthUrl replaces ${HOST}, window.open', async () => {
       seedFiles()
       const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
       const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
@@ -171,15 +171,15 @@ describe('FilesSidebar', () => {
     })
   })
 
-  // SP12-T9:侧栏原本只有图标+名字,没有任何用量显示。
-  describe('磁盘容量悬浮窗', () => {
+  // SP12-T9: sidebar originally only had icon + name, no usage display at all.
+  describe('disk capacity tooltip', () => {
     function seedUsage() {
       const usage = useDiskUsageStore()
       usage.details = { '/DATA': { space: { used: 4, total: 10, avail: 6 }, raid: null } }
       return usage
     }
 
-    it('只有拿到用量的磁盘才出现 ⋮ 把手', async () => {
+    it('only disks with usage data show ⋮ handle', async () => {
       const files = seedFiles()
       files.disks = [
         { name: 'NimoOS-HD', path: '/DATA', usb: false },
@@ -191,7 +191,7 @@ describe('FilesSidebar', () => {
       expect(w.findAll('.side-dots').length).toBe(1)
     })
 
-    it('悬停打开、移出关闭', async () => {
+    it('hover opens, move out closes', async () => {
       seedFiles()
       seedUsage()
       const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
@@ -204,7 +204,7 @@ describe('FilesSidebar', () => {
       expect(w.find('.disk-tip').exists()).toBe(false)
     })
 
-    it('点 ⋮ 不导航', async () => {
+    it('clicking ⋮ does not navigate', async () => {
       seedFiles()
       seedUsage()
       const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })

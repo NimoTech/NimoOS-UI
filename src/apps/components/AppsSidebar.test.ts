@@ -21,7 +21,7 @@ describe('AppsSidebar', () => {
     routeState.name = 'apps'; routeState.fullPath = '/apps'
   })
 
-  it('渲染区标题、回主页键与「已装应用」导航项(当前路由高亮)', async () => {
+  it('renders section title, home button and "installed apps" nav item (current route highlighted)', async () => {
     const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
     expect(w.text()).toContain('应用')
     const item = w.get('.side-item')
@@ -31,7 +31,7 @@ describe('AppsSidebar', () => {
     expect(push).toHaveBeenCalledWith('/')
   })
 
-  it('商店导航项存在;详情路由也高亮商店项(startsWith)', async () => {
+  it('store nav item exists; detail route also highlights store item (startsWith)', async () => {
     routeState.name = 'apps-store-detail'
     routeState.fullPath = '/apps/store/jellyfin'
     const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
@@ -45,7 +45,7 @@ describe('AppsSidebar', () => {
     expect(push).toHaveBeenCalledWith('/apps/store')
   })
 
-  it('自定义安装导航项存在,当前路由为其前缀时高亮并可跳转', async () => {
+  it('custom install nav item exists, highlights and navigates when current route is its prefix', async () => {
     routeState.name = 'apps-custom'
     routeState.fullPath = '/apps/custom'
     const w = mount(AppsSidebar, { global: { plugins: [i18n] } })
@@ -59,7 +59,7 @@ describe('AppsSidebar', () => {
     expect(push).toHaveBeenCalledWith('/apps/custom')
   })
 
-  it('商店源导航项存在,当前路由为其时高亮并可跳转', async () => {
+  it('app store sources nav item exists, highlights and navigates when current route matches', async () => {
     routeState.name = 'apps-sources'
     routeState.fullPath = '/apps/sources'
     const w = mount(AppsSidebar, { global: { plugins: [i18n] } })

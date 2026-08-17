@@ -10,7 +10,7 @@ import { useI18n } from 'vue-i18n'
 import SkeletonWidget from '../components/SkeletonWidget.vue'
 import { useUtilization } from '../composables/useUtilization'
 const { t } = useI18n()
-useUtilization() // onMounted: REST 首屏 + socket 订阅
+useUtilization() // onMounted: REST first-screen fetch + socket subscription
 </script>
 
 <style scoped>

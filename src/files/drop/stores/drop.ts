@@ -1,4 +1,5 @@
-// 引擎↔UI 唯一桥:引擎回调在此落成响应式状态;引擎模块自身不 import Vue/Pinia。
+// Engine↔UI single bridge: engine callbacks land here as reactive state; the engine module itself
+// does not import Vue/Pinia.
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { refreshAccessToken } from '@nimotech/nimoos-service'
@@ -25,7 +26,7 @@ export const useDropStore = defineStore('drop', () => {
 
   let server: ServerConnection | null = null
   let manager: PeersManager | null = null
-  let receivingCount: Record<string, number> = {} // 对端 text 报的「将收 N 个」
+  let receivingCount: Record<string, number> = {} // "Will receive N" count reported via text message by peer
   // Devices the user aimed a send at. Gates the "cannot connect" message: a
   // dial the page made on its own is not something to interrupt the user
   // about (see onPeerUnreachable).
@@ -34,8 +35,9 @@ export const useDropStore = defineStore('drop', () => {
     arg ? i18n.global.t(key, arg) : i18n.global.t(key)
 
   function onVisibility() { if (!document.hidden) void server?.connect() }
-  // 硬关标签/刷新兜底(spec §5):非永久断开,不调 destroy()(见 serverConnection.suspend 注释)——
-  // pagehide 也在 bfcache 导航时触发,onVisibility 复活连接的路径与 Vue2 一致。
+  // Hard close tab/refresh fallback (spec §5): non-permanent disconnect, do not call destroy()
+  // (see serverConnection.suspend comment) — pagehide also fires on bfcache navigation, and
+  // onVisibility's reconnection path matches Vue2.
   function onPageHide() { server?.suspend() }
 
   function handleServerMessage(msg: ServerMessage) {
@@ -56,7 +58,7 @@ export const useDropStore = defineStore('drop', () => {
         break
       case 'display-name':
         selfId.value = msg.message.id
-        localStorage.setItem('peerid', msg.message.id) // 与 Vue2 同键,同设备新旧页身份一致
+        localStorage.setItem('peerid', msg.message.id) // same key as Vue2, same-device old/new pages keep consistent identity
         selfName.value = { deviceName: msg.message.deviceName, displayName: msg.message.displayName }
         upsertSelf(msg.message)
         break
@@ -75,11 +77,11 @@ export const useDropStore = defineStore('drop', () => {
       name: { model: 'desktop', deviceName: m?.deviceName ?? selfName.value?.deviceName ?? '', displayName: m?.displayName ?? selfName.value?.displayName ?? '' },
       rtcSupported: true,
     }
-    peers.value = [self, ...rest] // self 置顶,UI 恒在第一个位
+    peers.value = [self, ...rest] // self pinned first, UI always has it at position 0
   }
 
   function init() {
-    if (server) return // 幂等守卫(P3b 教训:单例 store × 组件 remount)
+    if (server) return // idempotency guard (P3b lesson: singleton store × component remount)
     server = new ServerConnection({
       getToken: () => localStorage.getItem('access_token'),
       getPeerId: () => localStorage.getItem('peerid') ?? '',

@@ -8,7 +8,7 @@ import { ALL } from '../stores/appstore'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 describe('CategoryBar', () => {
-  it('首 chip=全部;后端分类带 count;当前项高亮;点击 emit select(name)', async () => {
+  it('first chip is All; backend categories include count; current item is highlighted; clicking emits select(name)', async () => {
     const w = mount(CategoryBar, {
       props: { categories: [{ id: 1, name: 'Media', count: 3 }], current: 'Media' },
       global: { plugins: [i18n] },

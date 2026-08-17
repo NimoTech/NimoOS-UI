@@ -7,27 +7,28 @@ const mountCard = (text: string) =>
   mount(LogsCard, { props: { text }, global: { plugins: [i18n] } })
 
 describe('LogsCard', () => {
-  it('日志以纯文本渲染,不当 HTML(移植纪律:Vue2 是 v-html)', () => {
+  it('renders logs as plain text, not HTML (porting discipline: Vue2 uses v-html)', () => {
     const w = mountCard('<img src=x onerror=alert(1)> hello')
     expect(w.find('[data-test="logs-pre"]').element.querySelector('img')).toBeNull()
     expect(w.find('[data-test="logs-pre"]').text()).toContain('<img src=x onerror=alert(1)>')
   })
-  it('空文本时显示加载提示', () => {
+  it('shows a loading hint when text is empty', () => {
     expect(mountCard('').find('[data-test="logs-pre"]').text()).toBe('正在拉取系统日志...')
   })
-  it('全屏按钮切换 class', async () => {
+  it('fullscreen button toggles the class', async () => {
     const w = mountCard('log')
     await w.find('.set-logs-fs').trigger('click')
     expect(w.find('.set-logs-wrap').classes()).toContain('is-fullscreen')
   })
-  it('日志复用应用控制台同一套展示壳(LogConsole),而非自成一套外观', () => {
+  it('logs reuse the same display shell as the app console (LogConsole), rather than a separate look of its own', () => {
     const w = mountCard('log')
-    // 复用证据:深色控制台底类名 .log-console / .log-console-pre 出现(LogsPane 同款),
-    // 而不是本期已废弃的 .set-logs 独立外观类。
+    // Evidence of reuse: the dark console base class names .log-console / .log-console-pre
+    // show up (same as LogsPane), rather than the standalone .set-logs class this iteration
+    // has already retired.
     expect(w.find('.log-console').exists()).toBe(true)
     expect(w.find('[data-test="logs-pre"]').classes()).toContain('log-console-pre')
   })
-  it('tools 具名插槽内容渲染在工具条里(与全屏按钮同排)', () => {
+  it('tools named-slot content renders in the toolbar (same row as the fullscreen button)', () => {
     const w = mount(LogsCard, {
       props: { text: 'log' },
       slots: { tools: '<a data-test="dl" href="/x">下载日志</a>' },

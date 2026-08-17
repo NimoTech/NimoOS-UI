@@ -13,12 +13,12 @@ describe('EmptyState', () => {
     setActivePinia(createPinia())
   })
 
-  it('渲染四张建议卡', () => {
+  it('renders four suggestion cards', () => {
     const w = mount(EmptyState, { global: { plugins: [i18n] } })
     expect(w.findAll('.suggest-card').length).toBe(4)
   })
 
-  it('点击一张卡:调用 store.send(prompt)(useProvidedAgentStore 无祖先 provide 时回退到默认 store)', async () => {
+  it('clicking a card: calls store.send(prompt) (useProvidedAgentStore falls back to default store when no ancestor provides)', async () => {
     const store = useAgentStore()
     const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
     const w = mount(EmptyState, { global: { plugins: [i18n] } })

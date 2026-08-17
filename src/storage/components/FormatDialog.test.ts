@@ -7,7 +7,7 @@ beforeEach(() => {
 })
 
 describe('FormatDialog', () => {
-  it('open 时渲染 name 插值消息与密码框,确认键无密码时禁用', async () => {
+  it('renders the name-interpolated message and password field on open; confirm is disabled without a password', async () => {
     const w = mount(FormatDialog, { props: { open: true, name: 'Storage1' } })
     await w.vm.$nextTick()
     const msg = document.body.querySelector<HTMLParagraphElement>('.fd-msg')
@@ -17,7 +17,7 @@ describe('FormatDialog', () => {
     const okBtn = document.body.querySelector<HTMLButtonElement>('.fd-btn.danger')
     expect(okBtn?.disabled).toBe(true)
   })
-  it('输入密码点确认 emit confirm(password)', async () => {
+  it('typing a password and clicking confirm emits confirm(password)', async () => {
     const w = mount(FormatDialog, { props: { open: true, name: 'Storage1' } })
     await w.vm.$nextTick()
     const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
@@ -27,7 +27,7 @@ describe('FormatDialog', () => {
     document.body.querySelector<HTMLButtonElement>('.fd-btn.danger')!.click()
     expect(w.emitted('confirm')![0]).toEqual(['secret'])
   })
-  it('回车提交 emit confirm(password)', async () => {
+  it('pressing Enter submits and emits confirm(password)', async () => {
     const w = mount(FormatDialog, { props: { open: true, name: 'A' } })
     await w.vm.$nextTick()
     const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
@@ -37,14 +37,14 @@ describe('FormatDialog', () => {
     input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }))
     expect(w.emitted('confirm')![0]).toEqual(['secret'])
   })
-  it('busy 时确认与取消按钮均禁用', async () => {
+  it('disables both confirm and cancel buttons while busy', async () => {
     const w = mount(FormatDialog, { props: { open: true, name: 'A', busy: true } })
     await w.vm.$nextTick()
     const btns = document.body.querySelectorAll<HTMLButtonElement>('.fd-btn')
     expect(btns.length).toBeGreaterThan(0)
     expect(Array.from(btns).every((b) => b.disabled)).toBe(true)
   })
-  it('busy 时回车不提交', async () => {
+  it('does not submit on Enter while busy', async () => {
     const w = mount(FormatDialog, { props: { open: true, name: 'A', busy: true } })
     await w.vm.$nextTick()
     const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
@@ -54,7 +54,7 @@ describe('FormatDialog', () => {
     input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }))
     expect(w.emitted('confirm')).toBeUndefined()
   })
-  it('弹窗关闭时清空密码(取消后明文不驻留,不重新打开也须已清空)', async () => {
+  it('clears the password when the dialog closes (plaintext must not linger after cancel, even without reopening)', async () => {
     const w = mount(FormatDialog, { props: { open: true, name: 'A' } })
     await w.vm.$nextTick()
     const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
@@ -63,8 +63,9 @@ describe('FormatDialog', () => {
     await w.vm.$nextTick()
     await w.setProps({ open: false })
     await w.vm.$nextTick()
-    // 故意不重新打开:只有「关闭本身清空」这条路径被实现时此断言才通过——
-    // 旧的 `if (o) password.value = ''` 实现在此处仍残留明文 'secret'。
+    // Deliberately does not reopen: this assertion only passes when the "clearing on
+    // close itself" code path is implemented — the old `if (o) password.value = ''`
+    // implementation still leaves the plaintext 'secret' here.
     expect(document.body.querySelector<HTMLInputElement>('.fd-input')!.value).toBe('')
   })
 })

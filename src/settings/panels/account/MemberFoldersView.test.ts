@@ -26,7 +26,8 @@ const MEMBER = { id: 3, username: 'alice', role: 'user', folder_count: 1, create
 const PERM_R = { id: 11, user_id: 3, path: '/DATA/Downloads', permission: 'read', created_at: '2026-07-01T10:20:30Z' }
 const PERM_W = { id: 12, user_id: 3, path: '/DATA/Docs', permission: 'write', created_at: '2026-07-02T10:20:30Z' }
 
-// ⚠️ 花括号、不要链式返回 mock(会被当 teardown 回调 → Unknown Error,本期栽过)
+// ⚠️ Use braces, don't return a chained mock (it gets treated as a teardown callback →
+// Unknown Error — this bit us during this milestone)
 beforeEach(() => {
   setActivePinia(createPinia())
   getMemberFolders.mockReset()
@@ -40,7 +41,7 @@ beforeEach(() => {
 let mountedWrappers: Array<{ unmount: () => void }> = []
 afterEach(() => {
   for (const w of mountedWrappers) {
-    try { w.unmount() } catch { /* 已 unmount 过 */ }
+    try { w.unmount() } catch { /* already unmounted */ }
   }
   mountedWrappers = []
   document.body.innerHTML = ''
@@ -62,8 +63,8 @@ async function openGrantAndFill(w: ReturnType<typeof mountView>, path: string, p
   if (perm) await w.find('[data-test="acc-perm-permission"]').setValue(perm)
 }
 
-describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
-  it('顶部说明由三段拼成:前缀 + 成员名 + 后缀(Vue2 :850-852)', async () => {
+describe('MemberFoldersView — parity with Vue2 state 5 (:849-901)', () => {
+  it('the intro line is assembled from three parts: prefix + member name + suffix (Vue2 :850-852)', async () => {
     const w = mountView()
     await flush()
     const txt = w.find('[data-test="acc-perm-intro"]').text()
@@ -72,14 +73,14 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(txt).toContain(zh.settingsAccSystemDiskBlocked.trim())
   })
 
-  it('挂载即按 member.id 取授权列表;空列表 → 显示「未授权任何文件夹」', async () => {
+  it('fetches the permission list by member.id on mount; empty list → shows "no folders granted"', async () => {
     const w = mountView()
     await flush()
     expect(getMemberFolders).toHaveBeenCalledWith(3)
     expect(w.find('[data-test="acc-perm-empty"]').text()).toBe(zh.settingsAccNoFoldersGranted)
   })
 
-  it('取列表失败 → 显示错误行,而不是伪装成「未授权任何文件夹」(plan C14)', async () => {
+  it('fetching the list fails → shows an error row instead of masquerading as "no folders granted" (plan C14)', async () => {
     getMemberFolders.mockImplementation(async () => { throw new Error('boom') })
     const w = mountView()
     await flush()
@@ -87,7 +88,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(w.find('[data-test="acc-perm-empty"]').exists()).toBe(false)
   })
 
-  it('每行渲染等宽路径 + 权限徽标 + 时间', async () => {
+  it('each row renders a monospace path + permission badge + timestamp', async () => {
     getMemberFolders.mockResolvedValue([PERM_R])
     const w = mountView()
     await flush()
@@ -97,7 +98,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(row.find('.set-mem-meta').text()).toContain(formatMemberDate(PERM_R.created_at))
   })
 
-  it('write 渲染成「读写」,其它值(含后端理论上不该出现的)都走「只读」分支', async () => {
+  it('write renders as "Read/write"; any other value (including ones the backend shouldn\'t send) goes through the "Read-only" branch', async () => {
     getMemberFolders.mockResolvedValue([PERM_W, { ...PERM_R, id: 13, permission: 'weird' }])
     const w = mountView()
     await flush()
@@ -105,17 +106,17 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(badges).toEqual([zh.settingsAccReadWrite, zh.settingsAccReadOnly])
   })
 
-  it('点「添加文件夹」展开表单:路径输入 placeholder 与 Vue2 逐字一致,权限默认只读', async () => {
+  it('clicking "Add folder" expands the form: the path input\'s placeholder matches Vue2 verbatim, permission defaults to read-only', async () => {
     const w = mountView()
     await flush()
     await w.find('[data-test="acc-perm-add"]').trigger('click')
     expect(w.find('[data-test="acc-perm-path"]').attributes('placeholder')).toBe('/DATA/Downloads')
     expect((w.find('[data-test="acc-perm-permission"]').element as HTMLSelectElement).value).toBe('read')
-    // Vue2 :875 的 v-if="!showGrantFolder" —— 表单打开时「添加」按钮消失
+    // Vue2 :875's v-if="!showGrantFolder" — the "Add" button disappears once the form is open
     expect(w.find('[data-test="acc-perm-add"]').exists()).toBe(false)
   })
 
-  it('输入框与下拉都包在 .set-net-field 里(C7)', async () => {
+  it('both the input and the dropdown are wrapped in .set-net-field (C7)', async () => {
     const w = mountView()
     await flush()
     await w.find('[data-test="acc-perm-add"]').trigger('click')
@@ -123,7 +124,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(w.find('[data-test="acc-perm-permission"]').element.closest('.set-net-field')).not.toBeNull()
   })
 
-  it('路径为空或只有空白 → 内联报错,不发请求', async () => {
+  it('an empty or whitespace-only path → inline error, no request sent', async () => {
     const w = mountView()
     await flush()
     await openGrantAndFill(w, '   ')
@@ -133,7 +134,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(grantMemberFolder).not.toHaveBeenCalled()
   })
 
-  it('授权成功:路径经过 trim,默认权限 read,关表单 + 重新取列表 + toast', async () => {
+  it('grant succeeds: the path is trimmed, default permission is read, the form closes + the list is re-fetched + a toast shows', async () => {
     const { useToast } = await import('../../../stores/toast')
     const w = mountView()
     await flush()
@@ -146,7 +147,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(useToast().msg).toBe(zh.settingsAccFolderGranted)
   })
 
-  it('选了「读写」时第三个参数是 write', async () => {
+  it('when "Read/write" is selected, the third argument is write', async () => {
     const w = mountView()
     await flush()
     await openGrantAndFill(w, '/DATA/Docs', 'write')
@@ -155,7 +156,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(grantMemberFolder).toHaveBeenCalledWith(3, '/DATA/Docs', 'write')
   })
 
-  it('授权失败 → 内联报错优先后端 message,表单不关', async () => {
+  it('grant fails → the inline error prefers the backend message, the form stays open', async () => {
     grantMemberFolder.mockImplementation(async () => {
       throw Object.assign(new Error('req'), { response: { data: { message: '路径不存在' } } })
     })
@@ -168,7 +169,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(w.find('[data-test="acc-perm-form"]').exists()).toBe(true)
   })
 
-  it('授权在途时提交按钮 disabled(B6:断属性)', async () => {
+  it('the submit button is disabled while the grant is in flight (B6: attribute assertion)', async () => {
     let resolve!: (v: unknown) => void
     grantMemberFolder.mockReturnValue(new Promise((r) => { resolve = r }))
     const w = mountView()
@@ -181,7 +182,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     await flush()
   })
 
-  it('点撤销弹确认框,文案含该路径,确认键是 .ui-btn.danger(B4:查 document)', async () => {
+  it('clicking revoke pops a confirm dialog whose text includes the path; the confirm button is .ui-btn.danger (B4: querying document)', async () => {
     getMemberFolders.mockResolvedValue([PERM_R])
     const w = mountView()
     await flush()
@@ -191,7 +192,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(document.querySelector('.ui-btn.danger')).not.toBeNull()
   })
 
-  it('⛔ 不点确认时 revokeMemberFolder 一次都不会被调用', async () => {
+  it('⛔ revokeMemberFolder is never called when confirm is not clicked', async () => {
     getMemberFolders.mockResolvedValue([PERM_R])
     const w = mountView()
     await flush()
@@ -200,7 +201,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(revokeMemberFolder).not.toHaveBeenCalled()
   })
 
-  it('点确认后按 (memberId, permId) 撤销 + 重新取列表 + toast', async () => {
+  it('clicking confirm revokes by (memberId, permId) + re-fetches the list + shows a toast', async () => {
     const { useToast } = await import('../../../stores/toast')
     getMemberFolders.mockResolvedValue([PERM_R])
     const w = mountView()
@@ -214,7 +215,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(useToast().msg).toBe(zh.settingsAccAccessRevoked)
   })
 
-  it('撤销失败 → 面板级 toast 提示失败', async () => {
+  it('revoke fails → a panel-level toast reports the failure', async () => {
     const { useToast } = await import('../../../stores/toast')
     getMemberFolders.mockResolvedValue([PERM_R])
     revokeMemberFolder.mockImplementation(async () => { throw new Error('nope') })
@@ -227,7 +228,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     expect(useToast().msg).toBe(zh.settingsAccRevokeFailed)
   })
 
-  it('授权后重新取数在途时,前一次的旧结果不许覆盖新结果(代际守卫的真实路径)', async () => {
+  it('while a re-fetch after a grant is in flight, the previous stale result must not overwrite the newer result (the generation guard\'s real-world path)', async () => {
     let resolveFirst!: (v: unknown) => void
     getMemberFolders
       .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r }))
@@ -236,7 +237,7 @@ describe('MemberFoldersView —— 对位 Vue2 state 5(:849-901)', () => {
     await openGrantAndFill(w, '/DATA/Downloads')
     await w.find('[data-test="acc-perm-submit"]').trigger('click')
     await flush()
-    resolveFirst([]) // 旧结果:空列表
+    resolveFirst([]) // Stale result: empty list
     await flush()
     expect(w.findAll('[data-test="acc-perm-row"]')).toHaveLength(1)
   })

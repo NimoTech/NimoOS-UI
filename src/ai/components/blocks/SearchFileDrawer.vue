@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/SearchFileDrawer.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/SearchFileDrawer.vue -->
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'

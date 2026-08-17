@@ -82,29 +82,29 @@ function relOf(path: string): string {
 const toastRaw = Object.entries(files).find(([p]) => relOf(p) === TOAST)?.[1] ?? ''
 const toastZ = Math.max(...zIndexes(styleText(TOAST, toastRaw)))
 
-describe('浮层层级约定(THEMING.md §8): toast 高于所有模态遮罩', () => {
+describe('Convention guard (THEMING.md §8): toasts must be above all modal scrims', () => {
   // 🔴 Data-validity gate (added in SP8-P6-T3): the repo-wide assertion above becomes **vacuously
   // true** whenever it reads empty content. This repo already spun idle once because of that
   // (css/scss via `?raw` were all empty strings; the guard only saw .vue yet stayed green).
   // This test pins "stylesheets were actually read, and z-index can actually be scanned", so
   // hollowing-out turns red immediately instead of passing silently.
-  it('取数有效:.vue 与 .css/.scss 都读到了非空内容,且扫得出 z-index', () => {
+  it('Data validity: .vue and .css/.scss were both read with non-empty content, and z-index was successfully scanned', () => {
     const nonEmpty = (pred: (r: string) => boolean) =>
       Object.entries(files).filter(([p, v]) => pred(relOf(p)) && typeof v === 'string' && v.length > 0)
     const vues = nonEmpty((r) => r.endsWith('.vue'))
     const sheets = nonEmpty((r) => r.endsWith('.css') || r.endsWith('.scss'))
-    expect(vues.length, '.vue 一个都没读到,取数方式失效了').toBeGreaterThan(100)
-    expect(sheets.length, '独立样式表一个都没读到(`?raw` 恒空的老坑)').toBeGreaterThan(5)
+    expect(vues.length, 'No .vue files were read, data reading method failed').toBeGreaterThan(100)
+    expect(sheets.length, 'Standalone stylesheets not read at all (old pitfall: `?raw` always empty)').toBeGreaterThan(5)
     const sheetZ = sheets.flatMap(([p, v]) => zIndexes(styleText(relOf(p), v)))
-    expect(sheetZ.length, '独立样式表里一个 z-index 都没扫到,守卫等于空转').toBeGreaterThan(0)
+    expect(sheetZ.length, 'No z-index scanned from standalone stylesheets, the guard is doing nothing').toBeGreaterThan(0)
   })
 
-  it('AppToast .toast-stack 的 z-index 能被读出且是最高档', () => {
+  it('AppToast .toast-stack z-index can be read and is the highest tier', () => {
     expect(Number.isFinite(toastZ)).toBe(true)
     expect(toastZ).toBeGreaterThan(0)
   })
 
-  it('全仓任何其它 z-index 都严格低于 toast', () => {
+  it('All other z-indexes in the repo are strictly below toast', () => {
     const offenders: string[] = []
     for (const [path, src] of Object.entries(files)) {
       const rel = relOf(path)
@@ -115,8 +115,8 @@ describe('浮层层级约定(THEMING.md §8): toast 高于所有模态遮罩', (
     }
     expect(
       offenders,
-      `\n以下浮层与 toast 同层或更高,toast 会被它们(多带 backdrop-filter)压住而读不到。\n`
-        + `按 docs/THEMING.md §8 的阶梯下调这些值,不要抬高 toast:\n${offenders.join('\n')}`,
+      `\nThe following layers are at the same level or higher than toast; toast will be hidden under them (many with backdrop-filter).\n`
+        + `Lower these values per the hierarchy in docs/THEMING.md §8; do not raise the toast:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 
@@ -131,15 +131,15 @@ describe('浮层层级约定(THEMING.md §8): toast 高于所有模态遮罩', (
   it.each([
     ['src/photos/styles/vue2-parity/photos-people.scss', '.person-dialog-scrim'],
     ['src/photos/styles/vue2-parity/photos-people.scss', '.cad-overlay'],
-  ])('%s 的 %s 低于 toast', (rel, selector) => {
+  ])('%s %s is below toast', (rel, selector) => {
     const src = Object.entries(files).find(([p]) => relOf(p) === rel)?.[1]
-    expect(src, `${rel} 未被 glob 收到`).toBeTruthy()
+    expect(src, `${rel} not collected by glob`).toBeTruthy()
     const css = styleText(rel, src as string)
     // Take the z-index from the rule block containing this selector.
     const block = new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(css)
-    expect(block, `${rel} 里找不到 ${selector} 规则块`).toBeTruthy()
+    expect(block, `Cannot find ${selector} rule block in ${rel}`).toBeTruthy()
     const z = zIndexes((block as RegExpExecArray)[1])
-    expect(z.length, `${selector} 规则块里没有 z-index`).toBe(1)
+    expect(z.length, `No z-index in ${selector} rule block`).toBe(1)
     expect(z[0]).toBeLessThan(toastZ)
   })
 })

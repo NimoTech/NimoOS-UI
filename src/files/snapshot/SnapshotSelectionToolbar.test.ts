@@ -9,15 +9,15 @@ const mountIt = (props = {}) =>
   mount(SnapshotSelectionToolbar, { props: { count: 2, restoring: false, ...props }, global: { plugins: [i18n] } })
 
 describe('SnapshotSelectionToolbar', () => {
-  it('只有恢复与下载两个动词(没有删除/剪切/复制/共享)', () => {
+  it('Only restore and download verbs (no delete/cut/copy/share)', () => {
     const w = mountIt()
     expect(w.find('.snap-sel-restore').exists()).toBe(true)
     expect(w.find('.snap-sel-download').exists()).toBe(true)
-    expect(w.findAll('button')).toHaveLength(3) // 恢复 + 下载 + 取消选择
+    expect(w.findAll('button')).toHaveLength(3) // restore + download + clear selection
     expect(w.text()).not.toContain('删除')
   })
-  it('显示选中数量', () => { expect(mountIt({ count: 3 }).text()).toContain('3') })
-  it('点击分别 emit restore / download / clear', async () => {
+  it('Show count of selected items', () => { expect(mountIt({ count: 3 }).text()).toContain('3') })
+  it('Clicking respectively emits restore / download / clear', async () => {
     const w = mountIt()
     await w.find('.snap-sel-restore').trigger('click')
     await w.find('.snap-sel-download').trigger('click')
@@ -26,7 +26,7 @@ describe('SnapshotSelectionToolbar', () => {
     expect(w.emitted('download')).toHaveLength(1)
     expect(w.emitted('clear')).toHaveLength(1)
   })
-  it('恢复在途时禁用且不 emit', async () => {
+  it('Disabled and does not emit when restore is in progress', async () => {
     const w = mountIt({ restoring: true })
     expect(w.find('.snap-sel-restore').attributes('disabled')).toBeDefined()
     await w.find('.snap-sel-restore').trigger('click')

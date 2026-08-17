@@ -4,62 +4,70 @@ import { useI18n } from 'vue-i18n'
 import type { RaidMemberDisk } from '@nimotech/nimoos-service'
 import { memberRow, mirrorPairs, mergeVacatedSlot, type MemberRowView } from '../util/raidView'
 
-// 后端在重建期间会给某些成员挂 rebuild_pct(RaidDetailPanel.vue L163),
-// 但共享包 RaidMemberDisk 尚未声明该可选字段(见 NimoOS-Service/src/raid.ts)——
-// 本地扩一层类型即可,不改共享包。
+// The backend attaches rebuild_pct to some members during a rebuild (RaidDetailPanel.vue L163),
+// but the shared package's RaidMemberDisk hasn't declared this optional field yet (see
+// NimoOS-Service/src/raid.ts) — just extending the type locally is enough, no need to change the shared package.
 export type RaidMember = RaidMemberDisk & { rebuild_pct?: number }
 
-// isDegraded:复用父视图(StorageRaidDetail.vue)既有的 resolveRaidState().isDegraded 计算结果,
-// 不在本组件内重复推导阵列级 degraded 状态(该判定跨 members 之外还看 array.state/isRebuilding 互斥,
-// 详见 raidView.ts resolveRaidState)。
+// isDegraded: reuse the parent view's (StorageRaidDetail.vue) existing resolveRaidState().isDegraded
+// result, rather than re-deriving array-level degraded state inside this component (that
+// determination also weighs array.state/isRebuilding mutual exclusivity beyond just members —
+// see raidView.ts resolveRaidState).
 const props = defineProps<{ level: number; members: RaidMember[]; isDegraded?: boolean }>()
 const emit = defineEmits<{ (e: 'replace-disk', diskPath: string): void }>()
 const { t } = useI18n()
 
-// 一次掉盘被 mdadm 报成两行(腾空的槽位 + 被踢出槽位的坏盘)。配对唯一时合并成一行,
-// 详见 raidView.ts mergeVacatedSlot —— 合并后 3 盘阵列坏 1 块就是 3 行,不再像 4 块盘。
+// A single drive dropping out is reported by mdadm as two rows (the vacated slot + the drive
+// kicked out of the slot). When the pairing is unique they're merged into one row — see
+// raidView.ts mergeVacatedSlot — after merging, a 3-disk array with 1 bad disk shows 3 rows, not what looks like 4 disks.
 const rows = computed<MemberRowView[]>(() => mergeVacatedSlot(props.members))
 
 const pairGroups = computed<MemberRowView[][]>(() =>
   props.level === 10 ? mirrorPairs(rows.value) : [],
 )
-// 不占槽位、进不了任何镜像对的行(被弹出且未被合并的故障盘、闲置热备,或老后端
-// 根本不报 slot 时的全部行)—— 平铺在镜像对之后,而不是塞进错误的对里或凭空消失。
-// 老后端(无 slot)下 pairGroups 为空、leftover = 全部行,自然退回平铺渲染。
+// Rows that don't occupy a slot and can't enter any mirror pair (an ejected-and-unmerged faulty
+// disk, an idle hot spare, or every row when an older backend doesn't report slot at all) — laid
+// out flat after the mirror pairs, rather than being stuffed into the wrong pair or disappearing
+// silently. With an older backend (no slot), pairGroups is empty and leftover = all rows, so it
+// naturally falls back to flat rendering.
 const leftoverRows = computed<MemberRowView[]>(() => {
   if (props.level !== 10) return []
   const paired = new Set(pairGroups.value.flat())
   return rows.value.filter((m) => !paired.has(m))
 })
 
-// 走 memberRow(详情行专用映射),不是 memberSquare(卡片方块专用):后者把
-// removed 与 faulty 同归红色 fail,详情行照抄会把空槽位标成「故障」。详见
-// raidView.ts memberSquare/memberRow 的注释。
+// Goes through memberRow (mapping dedicated to detail rows), not memberSquare (dedicated to card
+// squares): the latter groups removed and faulty together into the failure tier, and copying that
+// into the detail row would mislabel an empty slot as "faulty". See the comments on
+// raidView.ts memberSquare/memberRow.
 function dotStyle(state: string) {
   return { background: `var(${memberRow(state).token})` }
 }
-// labelKey 为空(未知态)时回退原始 state 字符串,与 Vue2 memberStateLabel 兜底一致
+// When labelKey is empty (unknown state), fall back to the raw state string — matches Vue2 memberStateLabel's fallback
 function labelFor(m: MemberRowView): string {
   const row = memberRow(m.state)
   return row.labelKey ? t(row.labelKey) : m.state
 }
-// path 为空只发生在 removed 空槽位(后端 pkg/mdadm ParseDetail 对 mdadm --detail
-// 的 "-  0  0  N  removed" 行产出 Path=""、Number=槽位号)。Vue2 此处渲染空白,
-// 读起来像一行残缺的幽灵盘 —— 不照抄,改显示槽位号,说明"这个位置的盘不在了"。
+// path is empty only for a removed empty slot (the backend's pkg/mdadm ParseDetail produces
+// Path="", Number=slot number for mdadm --detail's "-  0  0  N  removed" line). Vue2 renders
+// this blank, which reads like a broken ghost-disk row — not replicated; show the slot number
+// instead, to say "the disk that was in this position is gone."
 function pathFor(m: MemberRowView): string {
-  // 合并行:同时说清"哪个槽位空了"和"是哪块盘坏了"
+  // Merged row: state clearly both "which slot is empty" and "which disk went bad"
   if (m.vacatedSlot != null) return `${t('raidMemberSlot', { n: m.vacatedSlot })} · ${m.path}`
   return m.path || t('raidMemberSlot', { n: m.number })
 }
-// 合并行的状态文案额外点出"已弹出",解释槽位为什么空着(原本是靠单独一行说明的)
+// The merged row's status text additionally calls out "ejected," explaining why the slot is empty (originally explained via a separate row)
 function labelForRow(m: MemberRowView): string {
   if (m.vacatedSlot != null) return t('raidMemberFaultyEjected')
   return labelFor(m)
 }
-// faulty 在位盘照旧;空槽位(removed,path 为空)也给替换入口 —— 物理拔掉的盘
-// 没有 faulty 行,只剩这条占位行,不给入口用户就永远换不了盘(Vue2 的替换入口挂在
-// 阵列级,天然覆盖这种情况;New-UI 挂在成员行上,须补上)。emit 的 path 为空串,
-// 由父视图(StorageRaidDetail)用 findReplaceTarget 按 serial 识别被拔的盘。
+// An in-place faulty disk keeps its replace entry as before; an empty slot (removed, path empty)
+// also gets a replace entry — a physically pulled disk has no faulty row, only this placeholder
+// row remains, and without an entry point the user could never replace it (Vue2's replace entry
+// point lives at the array level and naturally covers this case; New-UI's lives on the member
+// row, so it must be added here). The emitted path is an empty string, and the parent view
+// (StorageRaidDetail) uses findReplaceTarget to identify the pulled disk by serial.
 function showReplace(m: MemberRowView): boolean {
   if (!props.isDegraded) return false
   return m.state === 'faulty' || (m.state === 'removed' && !m.path)

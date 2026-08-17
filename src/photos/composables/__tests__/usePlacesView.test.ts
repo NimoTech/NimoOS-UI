@@ -1,9 +1,10 @@
-// usePlacesView 的视图变换与手势测试。Ported from Vue2 NimoOS-UI
-// src/views/Photos/PhotosPlacesView.vue:561-735(整段)。
+// usePlacesView view transformation and gesture tests. Ported from Vue2 NimoOS-UI
+// src/views/Photos/PhotosPlacesView.vue:561-735(complete section).
 //
-// jsdom 里 getBoundingClientRect 恒返回全 0,必须为每个测试显式 mock 出可控矩形
-// (见 mockSvg helper,来自 brief)。requestAnimationFrame 不是 timer,不能用
-// vi.useFakeTimers() 驱动 —— 改用假 raf(收集回调,手动 flush 并控制 now)。
+// In jsdom, getBoundingClientRect always returns all zeros. Must explicitly mock
+// a controllable rectangle for each test (see mockSvg helper, from brief).
+// requestAnimationFrame is not a timer and cannot be driven by vi.useFakeTimers() —
+// use fake rAF instead (collect callbacks, flush manually, control now).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { ref } from 'vue'
 import { usePlacesView, type PlacesView } from '../usePlacesView'
@@ -11,7 +12,7 @@ import { MAX_SCALE, type Pin, type Place } from '../../util/placesMap'
 import { MAP_W, MAP_H, project } from '../../util/worldMap'
 import * as placesMapModule from '../../util/placesMap'
 
-// ---- mockSvg：来自 brief，1200×400 对 1000×500 → fit=min(1.2,0.8)=0.8,
+// ---- mockSvg: from brief, 1200×400 vs 1000×500 → fit=min(1.2,0.8)=0.8,
 // ox=(1200-800)/2=200, oy=(400-400)/2=0. ----
 function mockSvg(width: number, height: number, left = 0, top = 0): SVGSVGElement {
   const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
@@ -47,7 +48,7 @@ function makePin(overrides: Partial<Pin> = {}): Pin {
   }
 }
 
-// ---- 假 rAF：收集回调、手动 flush、支持 cancel。不用 vi.useFakeTimers()。----
+// ---- Fake rAF: collect callbacks, flush manually, support cancel. Do not use vi.useFakeTimers(). ----
 let pending: Map<number, FrameRequestCallback>
 let cancelled: Set<number>
 let idCounter: number
@@ -98,30 +99,30 @@ function makeOpts(svg: SVGSVGElement | null = mockSvg(1200, 400), wrap: HTMLElem
 }
 
 describe('usePlacesView', () => {
-  describe('svgPoint —— letterbox 换算', () => {
-    it('1200×400 的 svg(fit=0.8, ox=200, oy=0):点(200,0)→viewBox(0,0)', () => {
+  describe('svgPoint — letterbox conversion', () => {
+    it('1200×400 svg (fit=0.8, ox=200, oy=0): point (200,0) → viewBox(0,0)', () => {
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400)))
       const p = pv.svgPoint(200, 0)
       expect(p.x).toBeCloseTo(0)
       expect(p.y).toBeCloseTo(0)
     })
 
-    it('1200×400 的 svg:点(1000,400)→viewBox(1000,500)', () => {
+    it('1200×400 svg: point (1000,400) → viewBox(1000,500)', () => {
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400)))
       const p = pv.svgPoint(1000, 400)
       expect(p.x).toBeCloseTo(1000)
       expect(p.y).toBeCloseTo(500)
     })
 
-    it('svgEl 为 null → 地图正中 (500, 250)', () => {
+    it('svgEl is null → map center (500, 250)', () => {
       const pv = usePlacesView(makeOpts(null))
       const p = pv.svgPoint(999, 999)
       expect(p).toEqual({ x: MAP_W / 2, y: MAP_H / 2 })
     })
   })
 
-  describe('applyZoom —— 定点缩放', () => {
-    it('定点缩放不变量:锚点对应的世界坐标缩放前后不变(4 组随机 scale/anchor)', () => {
+  describe('applyZoom — fixed-point zoom', () => {
+    it('Fixed-point zoom invariant: anchor point world coordinates unchanged before/after scale (4 random scale/anchor pairs)', () => {
       const cases: Array<[number, number, number, PlacesView]> = [
         [3, 400, 250, { tx: 0, ty: 0, scale: 1 }],
         [5, 120, 80, { tx: 30, ty: -40, scale: 2 }],
@@ -141,7 +142,7 @@ describe('usePlacesView', () => {
       }
     })
 
-    it('钳制:传 0.1 → scale 变 1;传 999 → 变 MAX_SCALE', () => {
+    it('Clamping: 0.1 → scale becomes 1; 999 → becomes MAX_SCALE', () => {
       const pv = usePlacesView(makeOpts())
       pv.applyZoom(0.1, 500, 250)
       expect(pv.view.value.scale).toBe(1)
@@ -149,7 +150,7 @@ describe('usePlacesView', () => {
       expect(pv.view.value.scale).toBe(MAX_SCALE)
     })
 
-    it('已在 MAX_SCALE 再传更大值:view 对象引用不变(early return 生效)', () => {
+    it('Already at MAX_SCALE with larger value: view object reference unchanged (early return takes effect)', () => {
       const pv = usePlacesView(makeOpts())
       pv.applyZoom(999, 500, 250)
       expect(pv.view.value.scale).toBe(MAX_SCALE)
@@ -160,7 +161,7 @@ describe('usePlacesView', () => {
   })
 
   describe('zoomFrac', () => {
-    it('scale=1 → 0;scale=MAX_SCALE → 1;scale=8.5 → 0.5', () => {
+    it('scale=1 → 0; scale=MAX_SCALE → 1; scale=8.5 → 0.5', () => {
       const pv = usePlacesView(makeOpts())
       pv.view.value = { tx: 0, ty: 0, scale: 1 }
       expect(pv.zoomFrac.value).toBeCloseTo(0)
@@ -172,76 +173,76 @@ describe('usePlacesView', () => {
   })
 
   describe('visibleCenterVb', () => {
-    it('hasDetailPanel() 返 false → x === MAP_W/2', () => {
+    it('hasDetailPanel() returns false → x === MAP_W/2', () => {
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => false))
       expect(pv.visibleCenterVb()).toEqual({ x: MAP_W / 2, y: MAP_H / 2 })
     })
 
-    it('hasDetailPanel() 返 true、wrap 宽 1000 → panelFrac=0.42, x=290', () => {
+    it('hasDetailPanel() returns true, wrap width 1000 → panelFrac=0.42, x=290', () => {
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
       const c = pv.visibleCenterVb()
       expect(c.x).toBeCloseTo(290)
       expect(c.y).toBeCloseTo(MAP_H / 2)
     })
 
-    it('hasDetailPanel() 返 true、wrap 宽 500 → panelFrac 钳到 0.55, x=225', () => {
+    it('hasDetailPanel() returns true, wrap width 500 → panelFrac clamped to 0.55, x=225', () => {
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(500), () => true))
       const c = pv.visibleCenterVb()
       expect(c.x).toBeCloseTo(225)
     })
 
-    it('wrapEl 为 null → panelFrac 恒 0(即便 hasDetailPanel 返 true)', () => {
+    it('wrapEl is null → panelFrac always 0 (even if hasDetailPanel returns true)', () => {
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), null, () => true))
       expect(pv.visibleCenterVb()).toEqual({ x: MAP_W / 2, y: MAP_H / 2 })
     })
   })
 
-  describe('animateView —— easeOutCubic 缓动', () => {
-    it('起点/中途(精确 easeOutCubic 值)/终点', () => {
+  describe('animateView — easeOutCubic easing', () => {
+    it('start/midpoint (exact easeOutCubic value)/endpoint', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(1000)
       const pv = usePlacesView(makeOpts())
       pv.view.value = { tx: 0, ty: 0, scale: 1 }
 
       pv.animateView({ tx: 100, ty: 200, scale: 5 }, 420)
-      expect(pending.size).toBe(1) // 已排一帧,尚未执行
+      expect(pending.size).toBe(1) // one frame queued, not yet executed
 
-      // t=0 → k = ease(0) = 0 → 停在起点
+      // t=0 → k = ease(0) = 0 → stay at start
       flushRaf(1000)
       expect(pv.view.value).toEqual({ tx: 0, ty: 0, scale: 1 })
 
-      // t=210(半程) → ease(0.5) = 1-(1-0.5)^3 = 1-0.125 = 0.875(精确值,
-      // 防止 ease 被换成线性——线性会给 0.5,和 0.875 可辨)
+      // t=210 (halfway) → ease(0.5) = 1-(1-0.5)^3 = 1-0.125 = 0.875 (exact value,
+      // prevent ease from being replaced with linear — linear would give 0.5, differs from 0.875)
       nowSpy.mockReturnValue(1210)
       flushRaf(1210)
       expect(pv.view.value.scale).toBeCloseTo(1 + (5 - 1) * 0.875)
       expect(pv.view.value.tx).toBeCloseTo(0 + 100 * 0.875)
       expect(pv.view.value.ty).toBeCloseTo(0 + 200 * 0.875)
 
-      // t=420(到点) → k 钳到 1 → 精确等于 target,且不再排新帧(_raf 置 null)
+      // t=420 (reached) → k clamped to 1 → exactly equals target, no more new frames (_raf set to null)
       nowSpy.mockReturnValue(1420)
       flushRaf(1420)
       expect(pv.view.value).toEqual({ tx: 100, ty: 200, scale: 5 })
       expect(pending.size).toBe(0)
 
-      // 再推一帧也不应该有任何变化(证明没有多排一帧)
+      // pushing another frame should produce no changes (proves no extra frame was queued)
       nowSpy.mockReturnValue(9999)
       flushRaf(9999)
       expect(pv.view.value).toEqual({ tx: 100, ty: 200, scale: 5 })
     })
 
-    it('超过 duration 后 k 钳到 1,不会外插超过 target', () => {
+    it('After exceeding duration, k clamped to 1, no extrapolation beyond target', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts())
       pv.view.value = { tx: 0, ty: 0, scale: 1 }
       pv.animateView({ tx: 100, ty: 0, scale: 5 }, 420)
-      nowSpy.mockReturnValue(100000) // 远超 duration
+      nowSpy.mockReturnValue(100000) // far exceeds duration
       flushRaf(100000)
       expect(pv.view.value).toEqual({ tx: 100, ty: 0, scale: 5 })
     })
 
-    it('animateView 期间调 applyZoom → 在途缓动被取消(cancel 被调用,后续推帧不再改 view)', () => {
+    it('Call applyZoom during animateView → in-flight easing cancelled (cancel called, subsequent frames no longer change view)', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts())
@@ -255,37 +256,38 @@ describe('usePlacesView', () => {
 
       const afterApplyZoom = { ...pv.view.value }
       nowSpy.mockReturnValue(50000)
-      flushRaf(50000) // 无待执行回调,应为 no-op
+      flushRaf(50000) // no pending callbacks, should be no-op
       expect(pv.view.value).toEqual(afterApplyZoom)
     })
 
-    it('连续调用两次 animateView(不经 applyZoom):第一次的在途 rAF 必须被第二次的 stopViewAnim() 取消', () => {
-      // 这条测试专门盯 animateView 自己开头那句 stopViewAnim()(constraint 3 /
-      // 删码清单④)—— 上面 "期间调 applyZoom" 那条测的是 applyZoom 自己的
-      // stopViewAnim,两处是不同的代码行,必须分开测,否则删掉 animateView
-      // 开头的 stopViewAnim() 不会让任何测试变红。
+    it('Call animateView twice consecutively (without applyZoom): first in-flight rAF must be cancelled by second stopViewAnim()', () => {
+      // This test specifically targets the stopViewAnim() at the start of animateView
+      // (constraint 3 / delete checklist ④) — the "call applyZoom during" test above
+      // tests applyZoom's own stopViewAnim, these are different code lines and must be
+      // tested separately, otherwise deleting the stopViewAnim() at the start of
+      // animateView would not cause any test to fail.
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(1000)
       const pv = usePlacesView(makeOpts())
       pv.view.value = { tx: 0, ty: 0, scale: 1 }
 
-      pv.animateView({ tx: 100, ty: 100, scale: 5 }, 420) // raf id 1
+      pv.animateView({ tx: 100, ty: 100, scale: 5 }, 420) // rAF id 1
       expect(pending.size).toBe(1)
       expect(cancelSpy).not.toHaveBeenCalled()
 
-      pv.animateView({ tx: -50, ty: -50, scale: 2 }, 420) // 必须取消 id 1,排 id 2
+      pv.animateView({ tx: -50, ty: -50, scale: 2 }, 420) // must cancel id 1, queue id 2
       expect(cancelSpy).toHaveBeenCalledTimes(1)
-      expect(pending.size).toBe(1) // 只剩第二次排的那一帧,不是两帧并存
+      expect(pending.size).toBe(1) // only the second queued frame remains, not both
 
       nowSpy.mockReturnValue(1420)
       flushRaf(1420)
-      // 必须精确等于第二次的 target,不能被第一次的轨迹污染
+      // must exactly equal second target, must not be polluted by first trajectory
       expect(pv.view.value).toEqual({ tx: -50, ty: -50, scale: 2 })
     })
   })
 
   describe('centerOn / zoomBy / setScale / reset', () => {
-    it('centerOn 把世界点放到可见中心,scale 被钳到 [1, MAX_SCALE]', () => {
+    it('centerOn places world point at visible center, scale clamped to [1, MAX_SCALE]', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => false))
@@ -298,7 +300,7 @@ describe('usePlacesView', () => {
       expect(pv.view.value).toEqual({ tx: 200, ty: 100, scale: 3 })
     })
 
-    it('reset() 回到 {tx:0, ty:0, scale:1}(Vue2 handleReset)', () => {
+    it('reset() returns to {tx:0, ty:0, scale:1} (Vue2 handleReset)', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts())
@@ -309,12 +311,13 @@ describe('usePlacesView', () => {
       expect(pv.view.value).toEqual({ tx: 0, ty: 0, scale: 1 })
     })
 
-    // ── P6b-T8(P6a 接缝二):hasDetailPanel 换真实状态后,panelFrac 首次真正生效——
-    // 这四条钉的是 centerOn/zoomBy/setScale/autoPanTo 四条消费通路真的走了它(既有的
-    // visibleCenterVb 算术用例本身已覆盖 panelFrac 的计算,这里只补"消费方确实用了新
-    // 结果"这一层)。wrapEl 宽 1000 → panelFrac = min(0.55, 420/1000) = 0.42 →
-    // c = { x: 1000*(1-0.42)/2 = 290, y: 250 }(与 visibleCenterVb 既有用例的手算值一致)。
-    it('centerOn(wx,wy,2) 在 hasDetailPanel()=true 下,推完动画帧后 tx === 290 - wx*2', () => {
+    // ── P6b-T8 (P6a seam two): after hasDetailPanel switches to real state, panelFrac takes effect for the first time —
+    // these four tests pin down that centerOn/zoomBy/setScale/autoPanTo four consumption paths
+    // really use it (existing visibleCenterVb arithmetic tests already cover panelFrac
+    // calculation; this just adds "consumer actually uses the new result" layer).
+    // wrapEl width 1000 → panelFrac = min(0.55, 420/1000) = 0.42 →
+    // c = { x: 1000*(1-0.42)/2 = 290, y: 250 } (consistent with existing visibleCenterVb test hand-calc).
+    it('centerOn(wx,wy,2) with hasDetailPanel()=true: after animation frame, tx === 290 - wx*2', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
@@ -322,16 +325,16 @@ describe('usePlacesView', () => {
       pv.centerOn(100, 50, 2)
       nowSpy.mockReturnValue(420)
       flushRaf(420)
-      // c = {x:290, y:250};tx = 290 - 100*2 = 90;ty = 250 - 50*2 = 150。
-      // toBeCloseTo(不是 toEqual/toBe):panelFrac = min(0.55, 420/1000) 的浮点除法
-      // 带来微小尾差,同 usePlacesView.test.ts 既有 visibleCenterVb 用例的精度口径。
+      // c = {x:290, y:250}; tx = 290 - 100*2 = 90; ty = 250 - 50*2 = 150.
+      // toBeCloseTo (not toEqual/toBe): panelFrac = min(0.55, 420/1000) floating-point
+      // division brings small trailing error, same precision standard as existing usePlacesView.test.ts visibleCenterVb test.
       expect(pv.view.value.tx).toBeCloseTo(90)
       expect(pv.view.value.ty).toBeCloseTo(150)
       expect(pv.view.value.scale).toBe(2)
       expect(pv.view.value.tx).toBeCloseTo(290 - 100 * 2)
     })
 
-    it('zoomBy(2) 从 scale 1 起:锚点是 (290,250),tx 与"面板关闭时锚点 500"的结果不同且等于手算值', () => {
+    it('zoomBy(2) from scale 1: anchor is (290,250), tx differs from "panel closed anchor 500" result and equals hand-calc value', () => {
       const pvOpen = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
       pvOpen.view.value = { tx: 0, ty: 0, scale: 1 }
       pvOpen.zoomBy(2)
@@ -348,7 +351,7 @@ describe('usePlacesView', () => {
       expect(pvOpen.view.value.tx).not.toBeCloseTo(pvClosed.view.value.tx, 5)
     })
 
-    it('setScale(4):锚点是 (290,250),tx 与"面板关闭时锚点 500"的结果不同且等于手算值', () => {
+    it('setScale(4): anchor is (290,250), tx differs from "panel closed anchor 500" result and equals hand-calc value', () => {
       const pvOpen = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
       pvOpen.view.value = { tx: 0, ty: 0, scale: 1 }
       pvOpen.setScale(4)
@@ -367,7 +370,7 @@ describe('usePlacesView', () => {
   })
 
   describe('autoPanTo', () => {
-    it('传含 lon/lat 的 place → 该点最终落在可见中心(推完动画帧)', () => {
+    it('Pass place with lon/lat → that point ends up at visible center (after animation frame)', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => false))
@@ -388,9 +391,10 @@ describe('usePlacesView', () => {
       expect(pv.view.value.ty).toBeCloseTo(25)
     })
 
-    // P6b-T8:hasDetailPanel()=true 下,最终该点落在可见中心 x=290(不是 500)——用
-    // "该世界点映射回屏幕坐标恰好等于可见中心"这个不变量核验,而不是重复断言 tx 本身。
-    it('hasDetailPanel()=true 下,该点最终落在 x=290(不是 500)', () => {
+    // P6b-T8: with hasDetailPanel()=true, that point ends up at visible center x=290 (not 500) —
+    // verify using the invariant "that world point mapped back to screen coords exactly equals visible center",
+    // not repeating assertions on tx itself.
+    it('With hasDetailPanel()=true: that point ends up at x=290 (not 500)', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => true))
@@ -401,19 +405,20 @@ describe('usePlacesView', () => {
       pv.autoPanTo(place)
       nowSpy.mockReturnValue(420)
       flushRaf(420)
-      // c = {x:290, y:250};scale = max(1, 1.8) = 1.8;tx = 290 - 250*1.8 = -160;
-      // ty = 250 - 125*1.8 = 25(y 不受 panelFrac 影响,同 visibleCenterVb 既有用例)。
+      // c = {x:290, y:250}; scale = max(1, 1.8) = 1.8; tx = 290 - 250*1.8 = -160;
+      // ty = 250 - 125*1.8 = 25 (y unaffected by panelFrac, same as existing visibleCenterVb test).
       expect(pv.view.value.scale).toBeCloseTo(1.8)
       expect(pv.view.value.tx).toBeCloseTo(-160)
       expect(pv.view.value.ty).toBeCloseTo(25)
-      // 该世界点映射回屏幕坐标:tx + wx*scale,必须精确落在可见中心 x=290,而不是
-      // hasDetailPanel 恒假时的 500——这才是"该点最终落在可见中心"这句话的真实含义。
+      // That world point mapped back to screen coords: tx + wx*scale, must land exactly
+      // at visible center x=290, not 500 when hasDetailPanel is always false — this is the real
+      // meaning of "that point ends up at visible center".
       const screenX = pv.view.value.tx + proj.x * pv.view.value.scale
       expect(screenX).toBeCloseTo(290)
       expect(screenX).not.toBeCloseTo(500)
     })
 
-    it('传 null/undefined → view 完全不变、不排 rAF', () => {
+    it('Pass null/undefined → view completely unchanged, no rAF queued', () => {
       const pv = usePlacesView(makeOpts())
       pv.view.value = { tx: 7, ty: 8, scale: 2 }
       const before = pv.view.value
@@ -424,7 +429,7 @@ describe('usePlacesView', () => {
       expect(rafSpy).not.toHaveBeenCalled()
     })
 
-    it('scale 至少 1.8:当前 1 时升到 1.8;当前 3 时保持 3', () => {
+    it('scale at least 1.8: if current 1, upgrade to 1.8; if current 3, keep 3', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const place = makePlace({ lon: 0, lat: 0 })
@@ -450,7 +455,7 @@ describe('usePlacesView', () => {
   })
 
   describe('zoomToCluster', () => {
-    it('共点成员(splitScaleFor 返 MAX_SCALE)→ 目标 scale 为 MAX_SCALE', () => {
+    it('Colocated members (splitScaleFor returns MAX_SCALE) → target scale is MAX_SCALE', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => false))
@@ -463,7 +468,7 @@ describe('usePlacesView', () => {
       expect(pv.view.value.scale).toBeCloseTo(MAX_SCALE)
     })
 
-    it('可裂开的簇 → 目标 scale > 当前', () => {
+    it('Splittable cluster → target scale > current', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => false))
@@ -476,14 +481,15 @@ describe('usePlacesView', () => {
       expect(pv.view.value.scale).toBeGreaterThan(1)
     })
 
-    it('mock 裂解阈值 = currentScale 时 +0.01 生效且未被钳制', () => {
-      // 评审 I2:已代数证明 +0.01 对任意合法 currentScale ∈ [1, MAX_SCALE] 恒不可观测
-      // ——splitScaleFor 的「可裂」分支恒返回 >= currentScale * 1.04(严格大于
-      // currentScale + 0.01),「裂不开」分支恒返回 MAX_SCALE 并被 centerOn 自己的
-      // clamp 夹回 MAX_SCALE。这条用例用 vi.spyOn 把 splitScaleFor 钉死在
-      // currentScale 本身——这是真实链路里 splitScaleFor 永远不会返回的值(最小也是
-      // currentScale + 0.04),只是为了给"删掉 +0.01"这个删码动作制造一个能观测到差异
-      // 的靶子,不代表任何用户可达到的真实场景/可观测行为。
+    it('Mock split threshold = currentScale when +0.01 takes effect and is not clamped', () => {
+      // Review I2: algebraically proven that +0.01 is never observable for any valid
+      // currentScale ∈ [1, MAX_SCALE] — the "splittable" branch of splitScaleFor always
+      // returns >= currentScale * 1.04 (strictly greater than currentScale + 0.01),
+      // the "unsplittable" branch always returns MAX_SCALE and is clamped back to MAX_SCALE
+      // by centerOn's own clamp. This test uses vi.spyOn to pin splitScaleFor to currentScale
+      // itself — a value it would never return in the real path (minimum is currentScale + 0.04),
+      // just to create a target where the "delete +0.01" deletion action produces observable
+      // differences, not representing any real scenario/observable behavior a user can reach.
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const splitSpy = vi.spyOn(placesMapModule, 'splitScaleFor').mockReturnValue(10)
@@ -497,7 +503,7 @@ describe('usePlacesView', () => {
       splitSpy.mockRestore()
     })
 
-    it('已在 MAX_SCALE、共点簇(自然场景):不抛且最终钳回 MAX_SCALE', () => {
+    it('Already at MAX_SCALE, colocated cluster (natural scenario): no throw, finally clamped back to MAX_SCALE', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts(mockSvg(1200, 400), mockWrap(1000), () => false))
@@ -512,7 +518,7 @@ describe('usePlacesView', () => {
   })
 
   describe('onWheel', () => {
-    it('deltaY<0 放大(factor=1.18),deltaY>0 缩小(factor=1/1.18),preventDefault 被调用,锚点是指针位置', () => {
+    it('deltaY<0 zoom in (factor=1.18), deltaY>0 zoom out (factor=1/1.18), preventDefault called, anchor is pointer position', () => {
       const svg = mockSvg(1200, 400)
       const pv = usePlacesView(makeOpts(svg))
       pv.view.value = { tx: 0, ty: 0, scale: 2 }
@@ -526,7 +532,7 @@ describe('usePlacesView', () => {
       pv.onWheel(wheelIn)
       expect(prevented).toHaveBeenCalledTimes(1)
       expect(pv.view.value.scale).toBeCloseTo(2 * 1.18)
-      // 定点不变量:锚点对应的世界坐标不变
+      // Fixed-point invariant: anchor point's world coords unchanged
       const wxAfter = (vbBefore.x - pv.view.value.tx) / pv.view.value.scale
       const wyAfter = (vbBefore.y - pv.view.value.ty) / pv.view.value.scale
       expect(wxAfter).toBeCloseTo(wxBefore)
@@ -539,8 +545,8 @@ describe('usePlacesView', () => {
     })
   })
 
-  describe('拖拽(pointer capture)', () => {
-    it('down → move(100px)→ tx 增量 = 100 × screenToVbScale(=1.25)', () => {
+  describe('Drag (pointer capture)', () => {
+    it('down → move(100px) → tx delta = 100 × screenToVbScale(=1.25)', () => {
       const svg = mockSvg(1200, 400) // fit=0.8 → screenToVbScale=1/0.8=1.25
       const pv = usePlacesView(makeOpts(svg))
       pv.view.value = { tx: 10, ty: 20, scale: 2 }
@@ -553,11 +559,11 @@ describe('usePlacesView', () => {
       const move = { clientX: 400, clientY: 150, pointerId: 1, target: document.body } as unknown as PointerEvent
       pv.onPointerMove(move)
       expect(pv.view.value.tx).toBeCloseTo(10 + 100 * 1.25)
-      expect(pv.view.value.ty).toBeCloseTo(20) // 未沿 y 移动
-      expect(pv.view.value.scale).toBe(2) // 拖拽不改 scale
+      expect(pv.view.value.ty).toBeCloseTo(20) // did not move along y
+      expect(pv.view.value.scale).toBe(2) // drag does not change scale
     })
 
-    it('onPointerMove 未经 down 时是 no-op', () => {
+    it('onPointerMove without down is no-op', () => {
       const pv = usePlacesView(makeOpts())
       pv.view.value = { tx: 1, ty: 2, scale: 3 }
       const before = pv.view.value
@@ -566,7 +572,7 @@ describe('usePlacesView', () => {
       expect(pv.view.value).toBe(before)
     })
 
-    it('e.target 在 .geo-pin 内时 onPointerDown 直接返回(不 setPointerCapture,后续 move 不改 view)', () => {
+    it('When e.target is inside .geo-pin: onPointerDown returns immediately (no setPointerCapture, subsequent move does not change view)', () => {
       const svg = mockSvg(1200, 400)
       const pv = usePlacesView(makeOpts(svg))
       pv.view.value = { tx: 0, ty: 0, scale: 1 }
@@ -589,7 +595,7 @@ describe('usePlacesView', () => {
       g.remove()
     })
 
-    it('onPointerUp:releasePointerCapture 抛异常不冒泡(try/catch),_drag 已清', () => {
+    it('onPointerUp: releasePointerCapture throws but does not bubble (try/catch), _drag cleared', () => {
       const svg = mockSvg(1200, 400)
       svg.releasePointerCapture = vi.fn(() => {
         throw new Error('boom')
@@ -606,12 +612,12 @@ describe('usePlacesView', () => {
       const before = pv.view.value
       const move = { clientX: 500, clientY: 500, pointerId: 1, target: document.body } as unknown as PointerEvent
       pv.onPointerMove(move)
-      expect(pv.view.value).toBe(before) // _drag 已清,move 是 no-op
+      expect(pv.view.value).toBe(before) // _drag cleared, move is no-op
     })
   })
 
   describe('dispose', () => {
-    it('取消在途 rAF', () => {
+    it('Cancel in-flight rAF', () => {
       const nowSpy = vi.spyOn(performance, 'now')
       nowSpy.mockReturnValue(0)
       const pv = usePlacesView(makeOpts())

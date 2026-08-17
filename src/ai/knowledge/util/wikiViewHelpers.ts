@@ -1,54 +1,58 @@
-// SP8-P5f Task 3 —— 1:1 移植自 Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/wikiViewHelpers.js`(95 行)。
+// SP8-P5f Task 3 —— 1:1 ported from Vue2
+// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/wikiViewHelpers.js`(95 lines).
 //
-// Wiki 导航页(`/ai/knowledge/wiki`)的纯函数。`GET /wiki/tree` 回的是**扁平**目录节点表,
-// 树在前端拼(蓝本文件头注释原话),因此 `buildWikiTree` 是本页的核心。
+// Pure functions for the Wiki navigation page (`/ai/knowledge/wiki`). `GET /wiki/tree` returns
+// a **flat** directory node list; the tree is assembled on the frontend (as stated in the
+// original file's header comment), so `buildWikiTree` is the core of this page.
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// 🔴 零 `any`(承 K41 / 治理 §5.1)—— 三个窄接口的**字段依据**(= 蓝本哪一行读了它):
+// 🔴 Zero `any` types (from K41 / governance §5.1) — **field justification** for three
+// narrow interfaces (= which line in the original reads it):
 //
-// ① 扁平节点(`buildWikiTree` 的入参元素)= 共享包 `WikiTreeNode`
-//    (`@nimotech/nimoos-service`,`store.loadWikiTree()` 的出口形状,camelCase,
-//     归一化在 `NimoOS-Service/src/wiki.ts:102 normalizeTreeNode`,治理 N46)。
-//    · `path`      —— 本文件 `:20`(`typeof n.path === 'string' && n.path`)、`:26`(`byPath[n.path]`)、
-//                     `:28`(`baseName(n.path)`)、`:34`(`t.name = n.path`)
-//    · `aiLabel`   —— 蓝本 `WikiView.vue:191`(`selTreeNode.aiLabel`)
-//    · `lastModified` —— 蓝本 `WikiView.vue:193`(`parseTs(selTreeNode.lastModified)`)
-//    · `level` / `userNotesUpdatedAt` —— 本期两个消费方都**不读**,但它们是 `/tree` 响应的
-//      既有字段(见 `p5f-fixtures/wiki-tree.CONSTRUCTED.json` 的 `built_from`),
-//      随 `{ ...n }` 原样带进树节点 ⇒ 用共享包类型整体承接,不在本文件里删字段。
+// ① Flat node (element in `buildWikiTree` input) = shared package `WikiTreeNode`
+//    (`@nimotech/nimoos-service`, output shape of `store.loadWikiTree()`, camelCase,
+//     normalized at `NimoOS-Service/src/wiki.ts:102 normalizeTreeNode`, governance N46).
+//    · `path`      —— this file `:20`(`typeof n.path === 'string' && n.path`), `:26`(`byPath[n.path]`),
+//                     `:28`(`baseName(n.path)`), `:34`(`t.name = n.path`)
+//    · `aiLabel`   —— original `WikiView.vue:191`(`selTreeNode.aiLabel`)
+//    · `lastModified` —— original `WikiView.vue:193`(`parseTs(selTreeNode.lastModified)`)
+//    · `level` / `userNotesUpdatedAt` —— both consumers this round **do not read**, but they are
+//      existing fields in the `/tree` response (see `p5f-fixtures/wiki-tree.CONSTRUCTED.json`
+//      `built_from`), carried as-is in tree nodes via `{ ...n }` ⇒ use shared package type
+//      wholesale, do not drop fields in this file.
 //
-// ② 树节点(`buildWikiTree` 的出参元素)= 扁平节点 + `name` + `children`
-//    · `name`     —— 本文件 `:28` 写、蓝本 `WikiView.vue:29`(`item.n.name`)/`:190`/`:51` 读
-//    · `children` —— 本文件 `:29` 写、蓝本 `WikiView.vue:24`(`item.n.children.length`)/
-//                    `:182`(`n.children.forEach`)/`:247` 读
+// ② Tree node (element in `buildWikiTree` output) = flat node + `name` + `children`
+//    · `name`     —— this file `:28` writes, original `WikiView.vue:29`(`item.n.name`)/`:190`/`:51` reads
+//    · `children` —— this file `:29` writes, original `WikiView.vue:24`(`item.n.children.length`)/
+//                    `:182`(`n.children.forEach`)/`:247` reads
 //
-// ③ root(`rootForPath` 的入参元素)= 共享包 `WikiRoot`
-//    (`store.state.wikiRoots` 的出口形状,camelCase,`wiki.ts:85 normalizeRoot`)。
-//    · `path` —— 本文件 `:84`/`:85`/`:87` 读,蓝本 `WikiView.vue:200`(`root.path.replace(...)`)读
-//    · `id`   —— 蓝本 `WikiView.vue:300`(`rescanRoot(root.id)`)读 ⇒ 返回值必须是**完整的 root**,
-//                不能窄成 `{ path }`,否则 T6 拿不到 `id`。
+// ③ root (element in `rootForPath` input) = shared package `WikiRoot`
+//    (output shape of `store.state.wikiRoots`, camelCase, `wiki.ts:85 normalizeRoot`).
+//    · `path` —— this file `:84`/`:85`/`:87` reads, original `WikiView.vue:200`(`root.path.replace(...)`) reads
+//    · `id`   —— original `WikiView.vue:300`(`rescanRoot(root.id)`) reads ⇒ return value must be
+//                **the complete root**, not narrowed to `{ path }`, or T6 cannot get `id`.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { WikiRoot, WikiTreeNode } from '@nimotech/nimoos-service'
 import { renderMarkdown } from '../../markdown/renderMarkdown'
 
-/** 树节点 = 扁平节点原样 + `name` + `children`(蓝本 `:28-29` 的 `{ ...n, name, children }`)。 */
+/** Tree node = flat node as-is + `name` + `children` (original `:28-29` `{ ...n, name, children }`). */
 export interface WikiViewTreeNode extends WikiTreeNode {
   name: string
   children: WikiViewTreeNode[]
 }
 
-/** `buildWikiTree` 的出参 —— 蓝本 `:37` `return { roots, byPath }`。 */
+/** Output of `buildWikiTree` —— original `:37` `return { roots, byPath }`. */
 export interface WikiTreeIndex {
   roots: WikiViewTreeNode[]
-  /** 蓝本 `:24` 原话「byPath is a plain object keyed by path」。 */
+  /** Original `:24` quote: "byPath is a plain object keyed by path". */
   byPath: Record<string, WikiViewTreeNode>
 }
 
 /**
- * 蓝本 `:6-11`。
- * ⚠️ 入参声明成 `unknown`:蓝本 `:7` 的 `typeof p !== 'string'` 是**运行时**防御,
- * 收窄成 `string` 会让那一支永远测不到(Vue2 spec 就有 `baseName('')` / 非字符串两条)。
+ * Original `:6-11`.
+ * ⚠️ Input parameter declared as `unknown`: original `:7` `typeof p !== 'string'` is a
+ * **runtime** guard; narrowing to `string` would make that branch untestable (Vue2 spec
+ * covers both `baseName('')` and non-string cases).
  */
 export function baseName(p: unknown): string {
   if (!p || typeof p !== 'string') return ''
@@ -57,7 +61,7 @@ export function baseName(p: unknown): string {
   return i < 0 ? s : s.slice(i + 1) || s
 }
 
-/* 蓝本 `:13-16` 的原注释:
+/* Original `:13-16` comment:
  * Build a forest from the flat node list. A node's parent is its longest
  * strict path prefix (at a '/' boundary) present in the list; nodes without
  * one become top-level roots and display their full path as the name.
@@ -87,9 +91,11 @@ export function buildWikiTree(
 }
 
 /**
- * 蓝本 `:39-47` —— **模块私有,不导出**(蓝本也没 `export`)。
- * 一级一级往上剥,直到剥到一个**在表里**的祖先;剥到 `i <= 0` 还没命中就是顶层根。
- * ⚠️ 这不是「切一级父目录」—— `/a/b` 缺位时 `/a/b/c` 的父是 `/a`(治理 §9.16-②)。
+ * Original `:39-47` —— **module-private, not exported** (original also has no `export`).
+ * Peel up level by level until finding an ancestor **present in the map**; if we reach
+ * `i <= 0` without a hit, it's a top-level root.
+ * ⚠️ This is not "cut one parent directory" —— when `/a/b` is absent, `/a/b/c`'s parent is
+ * `/a` (governance §9.16-②).
  */
 function findParent(
   byPath: Record<string, WikiViewTreeNode>,
@@ -104,10 +110,10 @@ function findParent(
   }
 }
 
-/* 蓝本 `:49-51` 的原注释:
+/* Original `:49-51` comment:
  * Ancestor chain (paths present in byPath) from root-most down to `path`
  * itself. '/a/b/c' → ['/a', '/a/b', '/a/b/c'] filtered to known nodes.
- * ⚠️ `path` 同样声明成 `unknown`(蓝本 `:53` 的运行时防御)。 */
+ * ⚠️ `path` similarly declared as `unknown` (original `:53` runtime guard). */
 export function trailFor(
   byPath: Record<string, WikiViewTreeNode>,
   path: unknown,
@@ -123,7 +129,7 @@ export function trailFor(
   return trail
 }
 
-/** 蓝本 `:64` 的原注释:Map a wiki file-event op onto the timeline tone used by the kw-change CSS. */
+/** Original `:64` comment: Map a wiki file-event op onto the timeline tone used by the kw-change CSS. */
 export function opToType(op: string): 'add' | 'del' | 'ren' | 'mod' {
   if (op === 'create') return 'add'
   if (op === 'delete') return 'del'
@@ -132,9 +138,9 @@ export function opToType(op: string): 'add' | 'del' | 'ren' | 'mod' {
 }
 
 /**
- * 蓝本 `:72` 的原注释:RFC3339 string (formatTS in the wiki backend; '' when zero) → unix ms.
- * 🔴 返回的是**毫秒**(下游 `fmtAgo(ms)` 吃毫秒,`knowledgeStore.ts:190-199`)——
- * 喂错单位不会报错,只会静默算成 1970(承 P5d-T3 / P5e §9.13 的教训)。
+ * Original `:72` comment: RFC3339 string (formatTS in the wiki backend; '' when zero) → unix ms.
+ * 🔴 Returns **milliseconds** (downstream `fmtAgo(ms)` expects ms, `knowledgeStore.ts:190-199`) ——
+ * feeding wrong units silently calculates to 1970, no error (lesson from P5d-T3 / P5e §9.13).
  */
 export function parseTs(s: string | null | undefined): number {
   if (!s) return 0
@@ -142,7 +148,7 @@ export function parseTs(s: string | null | undefined): number {
   return Number.isFinite(ms) ? ms : 0
 }
 
-/* 蓝本 `:79-81` 的原注释:
+/* Original `:79-81` comment:
  * Find the configured wiki root that owns `path` (longest enabled prefix).
  * roots are the store's camelCase wikiRoots. */
 export function rootForPath(
@@ -159,7 +165,7 @@ export function rootForPath(
   return best
 }
 
-/* 蓝本 `:92-93` 的原注释:
+/* Original `:92-93` comment:
  * Sanitized markdown for .wiki.md bodies — same renderer + DOMPurify pass
  * the Agent chat uses; safe for v-html. */
 export function renderWikiMarkdown(src: string): string {

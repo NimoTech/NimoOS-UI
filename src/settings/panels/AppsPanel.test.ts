@@ -18,7 +18,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   },
 }))
 
-// 真机 fixture(2026-08-01)
+// real-device fixture (2026-08-01)
 const PATHS = {
   app_data: { path: '/DATA/AppData', size: 6037987 },
   database: { path: '/DATA', size: 3554691143 },
@@ -34,7 +34,7 @@ const mountPanel = () => mount(AppsPanel, { global: { plugins: [i18n] }, attachT
 
 describe('AppsPanel', () => {
   beforeEach(() => {
-    setActivePinia(createPinia()) // AppsPanel 用 useToast()(prune 成功/失败提示),同 rows.test.ts 先例
+    setActivePinia(createPinia()) // AppsPanel uses useToast() (prune success/failure notices), same precedent as rows.test.ts
     getSystemPaths.mockReset(); storageList.mockReset(); prune.mockReset()
     getSystemPaths.mockResolvedValue(PATHS); storageList.mockResolvedValue(RAW_STORAGE)
     prune.mockResolvedValue({ containers: null, images: null })
@@ -52,28 +52,28 @@ describe('AppsPanel', () => {
     expect(rows[3].text()).toContain('相册缓存')
   })
 
-  it('路径 chip 经 displayNames 变成虚拟路径', async () => {
+  it('the path chip becomes a virtual path via displayNames', async () => {
     const w = mountPanel()
     await flushPromises()
     expect(w.findAll('.set-app-row')[0].text()).toContain('/NimoOS-HD/AppData')
   })
 
-  it('用户数据库那行的路径带 Vue2 的四目录后缀(1:1)', async () => {
+  it('the user-database row path carries the Vue2 four-directory suffix (1:1)', async () => {
     const w = mountPanel()
     await flushPromises()
     expect(w.findAll('.set-app-row')[2].text()).toContain('/Documents & Downloads & Gallery & Media')
   })
 
-  it('点某行的按钮打开迁移弹窗,并把该行的 type / 路径 / 大小传进去', async () => {
+  it('clicking a row\'s button opens the migration dialog, passing in that row\'s type / path / size', async () => {
     const w = mountPanel()
     await flushPromises()
     await w.findAll('.set-app-act')[0].trigger('click')
     await flushPromises()
     expect(document.body.textContent).toContain('存储位置')
-    expect(document.body.textContent).toContain('没有其他可用的存储')   // 本机单分区
+    expect(document.body.textContent).toContain('没有其他可用的存储')   // this machine has a single partition
   })
 
-  it('Docker 缓存清理必须先过二次确认才发请求', async () => {
+  it('Docker cache cleanup must go through confirmation before sending the request', async () => {
     const w = mountPanel()
     await flushPromises()
     await w.find('.set-app-prune').trigger('click')
@@ -82,7 +82,7 @@ describe('AppsPanel', () => {
     expect(document.body.textContent).toContain('这将删除所有未使用的容器、网络和镜像。确定要继续吗？')
   })
 
-  it('确认后调 prune 并显示成功提示', async () => {
+  it('calls prune after confirming and shows a success notice', async () => {
     const w = mountPanel()
     await flushPromises()
     await w.find('.set-app-prune').trigger('click')
@@ -90,17 +90,21 @@ describe('AppsPanel', () => {
     await (document.querySelector('.ui-btn.danger') as HTMLElement).click()
     await flushPromises()
     expect(prune).toHaveBeenCalledTimes(1)
-    // #8:toast 是 App 级组件,不在 AppsPanel 子树里——断言必须走 pinia store 本身
-    // (同下面 prune 失败那条先例),不能只断言 prune 被调用了事;否则 confirmPrune 里
-    // 那行 toast.show(...) 被删掉,这条用例名不副实地仍然全绿。
+    // #8: toast is an App-level component, not inside the AppsPanel subtree —— the assertion
+    // must go through the pinia store itself (same precedent as the prune-failure case below).
+    // Asserting only that prune was called is not enough; otherwise if the toast.show(...) line
+    // in confirmPrune were deleted, this case would still go green despite no longer testing
+    // what its name claims.
     const toast = useToast()
     expect(toast.msg).toBe(i18n.global.t('settingsAppsDockerCleanDone'))
   })
 
-  it('prune 失败时提示失败文案,不静默', async () => {
-    // toast 是 App 级组件(AppToast.vue,挂在 App.vue 根,不在 AppsPanel 子树里)——
-    // 单独 mount AppsPanel 时 w.text()/document.body 里不会出现 toast 文本,断言必须
-    // 走 pinia store 本身(同 general/rows.test.ts 的既有先例),而不是找不存在的 DOM 节点。
+  it('prune failure shows the failure copy, not silently', async () => {
+    // toast is an App-level component (AppToast.vue, mounted at the App.vue root, not inside
+    // the AppsPanel subtree) —— when mounting AppsPanel in isolation, the toast text never
+    // shows up in w.text()/document.body, so the assertion must go through the pinia store
+    // itself (same existing precedent as general/rows.test.ts), rather than looking for a DOM
+    // node that doesn't exist.
     prune.mockRejectedValue(new Error('docker daemon unreachable'))
     const w = mountPanel()
     await flushPromises()
@@ -112,7 +116,7 @@ describe('AppsPanel', () => {
     expect(toast.msg).toBe(i18n.global.t('settingsAppsDockerCleanFailed'))
   })
 
-  it('清理本地待上传缓存行:UI 在、按钮禁用、带待相册区迁移的标注(政策三"做样子")', async () => {
+  it('clear-local-pending-uploads row: UI is present, button disabled, labeled as pending photos-migration ("just for show" per policy 3)', async () => {
     const w = mountPanel()
     await flushPromises()
     expect(w.text()).toContain('清除本地未完成的上传')
@@ -120,16 +124,19 @@ describe('AppsPanel', () => {
     expect(w.text()).toContain('待相册区迁移完成后启用')
   })
 
-  // 评审 Important #3:取数在途时不能渲染四行 0 值假读数(尤其是「用户数据库」那行,
-  // pathText() 无条件拼四目录后缀,取数没落定时会显示成缺前缀的假路径)。收敛条件选
-  // 「两个接口都落定」——这里让 getSystemPaths 立即落定、storage.list 挂住,验证加载态
-  // 仍然渲染骨架而不是假数据,直到 storage.list 也落定才切换。
+  // Review Important #3: while the fetch is in flight, must not render four rows of fake
+  // zero-value readings (especially the "user database" row, where pathText() unconditionally
+  // appends the four-directory suffix — if the fetch hasn't settled yet, this renders a fake
+  // path missing its prefix). The chosen convergence condition is "both endpoints have
+  // settled" —— here getSystemPaths settles immediately while storage.list hangs, verifying
+  // that the loading state still renders the skeleton instead of fake data, switching over
+  // only once storage.list also settles.
   it('stays on the loading skeleton (no zero-value fake rows) while fetching; renders the real four rows only after both endpoints settle', async () => {
     let resolveStorage!: (v: typeof RAW_STORAGE) => void
     const pendingStorage = new Promise<typeof RAW_STORAGE>((res) => { resolveStorage = res })
     storageList.mockReturnValueOnce(pendingStorage)
     const w = mountPanel()
-    await flushPromises() // getSystemPaths 已落定,storage.list 还挂着
+    await flushPromises() // getSystemPaths has settled, storage.list is still hanging
     expect(w.find('.set-skeleton').exists()).toBe(true)
     expect(w.findAll('.set-app-row')).toHaveLength(0)
 

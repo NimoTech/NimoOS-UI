@@ -1,4 +1,4 @@
-// Task 6 rewrite (网格重刻): the grid's column geometry follows Vue2 photos.scss:315-317
+// Task 6 (grid rewrite): the grid's column geometry follows Vue2 photos.scss:315-317
 // exactly — `.grid[data-density]` is a FIXED column count per density
 // (`repeat(10/7/4, 1fr)`), density-driven, not a viewport/container-width breakpoint. The
 // old SP15-P3 model (`repeat(auto-fill, minmax(Npx, 1fr))`, columns derived from container

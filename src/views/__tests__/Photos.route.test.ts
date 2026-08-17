@@ -40,13 +40,13 @@ function makeRouter() {
 describe('/photos route', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('应用路由表解析 /photos 到 Photos 组件(name=photos)', () => {
+  it('the app route table resolves /photos to the Photos component (name=photos)', () => {
     const match = appRouter.resolve('/photos')
     expect(match.name).toBe('photos')
     expect(match.matched[0]?.components?.default).toBeTruthy()
   })
 
-  it('mount 触发 fetchTimeline/startIndexPoll/fetchTasks;unmount 触发 stopIndexPoll', async () => {
+  it('mount triggers fetchTimeline/startIndexPoll/fetchTasks — unmount triggers stopIndexPoll', async () => {
     const store = useTimelineStore()
     store.fetchTimeline = vi.fn()
     store.startIndexPoll = vi.fn()
@@ -63,7 +63,7 @@ describe('/photos route', () => {
     expect(store.stopIndexPoll).toHaveBeenCalledTimes(1)
   })
 
-  it('mount 触发 usePhotosFavorites().reconcileFavIds()(时间线首屏收藏态 reconcile)', async () => {
+  it('mount triggers usePhotosFavorites().reconcileFavIds() (favorite-state reconcile on the timeline first screen)', async () => {
     const fav = usePhotosFavorites()
     fav.reconcileFavIds = vi.fn()
     const router = makeRouter()

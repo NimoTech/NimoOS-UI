@@ -1,16 +1,18 @@
 import type { AxiosInstance } from 'axios'
 
 /**
- * ai 域 —— agent 会话核心组(sessions / confirm / attachments / staged-changes / thinking)。
+ * AI domain — agent session core group (sessions / confirm / attachments / staged-changes / thinking).
  *
- * 返回值约定与本包其余域(如 appstore.ts)不同:此域的方法**统一返回 `res.data`
- * (HTTP body,信封原样,不做 unwrap)**。原因是 AI 后端由 Go 服务(系统标准
- * `Result{Success,Message,Data}` 壳)与 Python agent 子服务(裸 JSON,无壳)混合拼成,
- * 信封形状并不统一,共享层强行拆壳反而会丢信息或猜错形状。拆壳这件事交给各自消费方
- * (Vue2/Vue3 store)按自己知道的形状去做。
+ * Return value convention differs from the rest of this package (e.g. appstore.ts): this domain's methods
+ * **uniformly return `res.data`** (HTTP body, envelope as-is, no unwrap). The reason is that the AI backend
+ * is a mix of Go service (system standard `Result{Success,Message,Data}` envelope) and Python agent
+ * sub-service (bare JSON, no envelope). Envelope shape is not uniform, and forcing unwrap at the shared layer
+ * would lose information or guess wrong. Leave unwrapping to each consumer (Vue2/Vue3 store) based on their
+ * own shape knowledge.
  *
- * 唯一的例外是 `getSessionThinking`——它的 null 语义("本会话无覆盖,退回用户级默认值")
- * 是调用方直接依赖的契约,这里逐字保留 Vue2 `src/service/ai.js` 里的归一化逻辑。
+ * The only exception is `getSessionThinking`—— its null semantics ("this session has no override, fallback to
+ * user-level default value") is a contract the caller directly depends on. Preserves verbatim the normalization
+ * logic in Vue2 `src/service/ai.js`.
  */
 export function createAi(http: AxiosInstance, getToken: () => string | null) {
   const PREFIX = '/ai'
@@ -115,7 +117,7 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** 浏览器上传的会话附件(multipart)。onProgress 接收 0-100 的整数百分比。 */
+    /** Session attachments uploaded by browser (multipart). onProgress receives integer percentage 0-100. */
     async uploadAttachment(
       sessionId: string | number,
       file: File | Blob,
@@ -144,9 +146,9 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** 同步 URL builder(不走 axios)——供 <img src=...> / 直接下载锚点使用。
-     *  浏览器发这类请求带不上 Authorization 头,故把 token 落进 ?token= 查询参数,
-     *  AI 服务的 JWT 中间件在没有 Authorization 头时接受这个兜底。 */
+    /** Synchronous URL builder (doesn't use axios) — for <img src=...> / direct download anchors.
+     *  Browser requests of this type don't carry Authorization header, so token goes into ?token= query param,
+     *  AI service JWT middleware accepts this fallback when Authorization header is absent. */
     attachmentRawUrl(sessionId: string | number, attachmentId: string | number): string {
       const t = getToken()
       const q = t ? `?token=${encodeURIComponent(t)}` : ''
@@ -186,10 +188,10 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** 归一化逻辑逐字对齐 Vue2 src/service/ai.js:345-357——
-     *  body 空,或 thinking_enabled 为 null/undefined → null(退回用户级默认值);
-     *  否则 {enabled: !!thinking_enabled, level: thinking_level || 'medium'};
-     *  请求异常一律吞掉返回 null。 */
+    /** Normalization logic aligns verbatim with Vue2 src/service/ai.js:345-357 ——
+     *  empty body, or thinking_enabled is null/undefined → null (fallback to user-level default);
+     *  otherwise {enabled: !!thinking_enabled, level: thinking_level || 'medium'};
+     *  swallow all request exceptions and return null. */
     async getSessionThinking(
       sessionId: string | number,
     ): Promise<{ enabled: boolean; level: string } | null> {
@@ -247,7 +249,7 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** filename 拼进 query 字符串本身(而非 axios params),与 Vue2 src/service/ai.js:15 逐字对齐。 */
+    /** filename is concatenated into query string itself (not axios params), aligns verbatim with Vue2 src/service/ai.js:15. */
     async cancelImport(filename: string): Promise<unknown> {
       const res = await http.delete(
         `${PREFIX}/models/hf/import/cancel?filename=${encodeURIComponent(filename)}`,
@@ -355,13 +357,13 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** path 段不做 encodeURIComponent,原样拼接——与 Vue2 src/service/ai.js:191-193 逐字对齐。 */
+    /** path segments are not encodeURIComponent'd, concatenated as-is — aligns verbatim with Vue2 src/service/ai.js:191-193. */
     async getSkillFile(id: string, path: string): Promise<unknown> {
       const res = await http.get(`${PREFIX}/skills/${encodeURIComponent(id)}/files/${path}`)
       return res.data
     },
 
-    /** 同步 URL builder(不走 axios)——同 attachmentRawUrl 套路,token 走 ?token= 兜底。 */
+    /** Synchronous URL builder (doesn't use axios) — same pattern as attachmentRawUrl, token goes to ?token= fallback. */
     exportSkillURL(id: string): string {
       const t = getToken()
       const q = t ? `?token=${encodeURIComponent(t)}` : ''
@@ -578,8 +580,8 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** 首页本地搜索入口——聚合语义/文件名/图片搜索的工具调用包装,与 Vue2
-     *  src/service/ai.js:333-338 逐字对齐。topK 默认 20。 */
+    /** Home page local search entry — tool call wrapper aggregating semantic/filename/image search, aligns verbatim with Vue2
+     *  src/service/ai.js:333-338. topK defaults to 20. */
     async nimoosSearch(
       query: string,
       opts?: { sources?: unknown; topK?: number },
@@ -620,7 +622,7 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** params 可选——real 调用点(parserStore.js:28)会传 {limit}, 也有调用点不传任何参数。 */
+    /** params are optional — real call point (parserStore.js:28) may pass {limit}, some call points don't pass any param. */
     async parserFolders(params?: Record<string, unknown>): Promise<unknown> {
       const res = await http.get(`${PREFIX}/parser/folders`, params ? { params } : undefined)
       return res.data
@@ -683,10 +685,10 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** 小样文件解析测试(ParserTest.vue)。与 Vue2 src/views/AI/Parser/ParserTest.vue:207-219
-     *  逐字对齐——调用方自行组装 multipart FormData(file/query/embed/rerank/ocr/
-     *  target_tokens/overlap_tokens/min_tokens),这里只负责补 multipart 头 + 单独放宽
-     *  到 120s 超时(而非全局默认超时)。 */
+    /** Small sample file parsing test (ParserTest.vue). Aligns verbatim with Vue2 src/views/AI/Parser/ParserTest.vue:207-219
+     *  — caller assembles multipart FormData themselves (file/query/embed/rerank/ocr/
+     *  target_tokens/overlap_tokens/min_tokens), this only adds multipart header + extends
+     *  timeout to 120s separately (not global default timeout). */
     async parserTestAnalyze(body: FormData): Promise<unknown> {
       const res = await http.post(`${PREFIX}/parser/test/analyze`, body, {
         headers: { 'Content-Type': 'multipart/form-data' },

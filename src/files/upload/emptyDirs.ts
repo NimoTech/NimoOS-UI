@@ -1,9 +1,10 @@
 import { service } from '@nimotech/nimoos-service'
 import { joinPath } from '../util/pathOps'
 
-// 为拖拽上传里的空目录补建文件夹。后端 POST /v1/folder 走 MkdirAll,父链自动补齐;
-// 目录已存在时返回业务码 20001(unwrap 抛 Error{code:20001}),对"把文件夹合并进
-// 已有同名文件夹"的上传语义而言就是成功,必须容忍。
+// Create directories for empty dirs in drag-drop uploads. Backend POST /v1/folder uses
+// MkdirAll, parent paths auto-filled. When directory exists, returns code 20001 (unwrap
+// throws Error{code:20001}). For upload semantics of 'merge folder into existing folder
+// with same name', this is success and must be tolerated.
 const DIR_ALREADY_EXISTS = 20001
 
 export async function createEmptyDirs(

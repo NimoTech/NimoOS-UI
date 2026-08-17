@@ -1,8 +1,9 @@
 <script setup lang="ts">
-// 对位 Vue2 SettingsPanel.vue 的两行:
-//   - L249-278「Firmware Update」,数据来自 /sys/os_version(kind='os')
-//   - L281-312「System Update」(源码注释写 App Update),数据来自 /sys/version(kind='app')
-// ⚠️ Vue2 的标签与数据源确实是交叉的,界面 1:1 就照留,别"纠正"标签。
+// Corresponds to two rows in Vue2 SettingsPanel.vue:
+//   - L249-278 "Firmware Update", data from /sys/os_version (kind='os')
+//   - L281-312 "System Update" (source comment says App Update), data from /sys/version (kind='app')
+// ⚠️ Vue2's labels and data sources really are crossed like this — since the UI is a 1:1
+// port, keep it as-is, don't "correct" the labels.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type UpdateCheck } from '@nimotech/nimoos-service'
@@ -30,14 +31,16 @@ const dialogOpen = ref(false)
 const wasDownloading = ref(false)
 
 const label = computed(() => (props.kind === 'os' ? t('settingsFirmwareUpdate') : t('settingsSystemUpdate')))
-// os 行副标题由父组件传 hardware.version(Vue2 L254);app 行用自己的 current_version(L287)
+// The os row's sublabel comes from the parent component's hardware.version (Vue2 L254);
+// the app row uses its own current_version (L287)
 const subLabel = computed(() => `v${props.sub || info.value.current_version || '1.0.0'}`)
 const progress = computed(() => info.value.download_progress ?? 0)
 
 async function fetchInfo(): Promise<UpdateCheck | null> {
   try {
     const res = props.kind === 'app' ? await service.sys.getAppVersion() : await service.sys.getOsVersion()
-    // Vue2 checkVersion/checkAppVersion 的保护:轮询回来的旧进度不许覆盖更大的实时进度
+    // Vue2 checkVersion/checkAppVersion guard: a stale polled-back progress value must
+    // not overwrite a larger, more up-to-date live progress value
     if (res.is_downloading && (info.value.download_progress ?? 0) > (res.download_progress ?? 0)) {
       res.download_progress = info.value.download_progress
     }
@@ -62,7 +65,8 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => { unsub.forEach((f) => f()); unsub = [] })
 
-// 对位 Vue2 showUpdateModal / showAppUpdateModal:先查一次,没更新就只弹提示
+// Corresponds to Vue2 showUpdateModal / showAppUpdateModal: check once first, and if
+// there's no update, just show a toast
 async function check() {
   checking.value = true
   const res = await fetchInfo()
@@ -76,7 +80,8 @@ async function check() {
   dialogOpen.value = true
 }
 
-// 对位 Vue2 showFirmwareDownloadingModal / showAppDownloadingModal:直接进下载态
+// Corresponds to Vue2 showFirmwareDownloadingModal / showAppDownloadingModal: go straight
+// into the downloading state
 function openDownloading() {
   wasDownloading.value = true
   dialogOpen.value = true
@@ -86,10 +91,11 @@ function openDownloading() {
 <template>
   <SettingsRow :label="label" :sub="subLabel">
     <template #control>
-      <!-- is_downloading 优先于 need_update 判断:MessageBus 进度事件只更新
-           is_downloading/download_progress,不会连带把 need_update 也翻成 true
-           (真实后端两者本应一致,但单测/推送时序可能错开一拍),
-           这里让"正在下载"这件事本身盖过"要不要更新"的判断,避免闪烁成"已是最新"。 -->
+      <!-- is_downloading takes priority over need_update: the MessageBus progress event only
+           updates is_downloading/download_progress, it doesn't also flip need_update to true
+           (the real backend keeps the two consistent, but unit tests/push timing can skew
+           them by a tick), so here "currently downloading" overrides the "needs update"
+           check, to avoid a flash of "already up to date". -->
       <button v-if="info.is_downloading" class="set-btn primary ur-progress" type="button" @click="openDownloading">
         {{ t('settingsDownloading') }} {{ progress }}%
       </button>

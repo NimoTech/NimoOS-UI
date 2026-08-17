@@ -7,7 +7,7 @@ beforeEach(() => {
 })
 
 describe('UnmountDialog', () => {
-  it('open 时渲染密码框,确认键无密码时禁用', async () => {
+  it('renders the password field when open; confirm button is disabled without a password', async () => {
     const w = mount(UnmountDialog, { props: { open: true, name: 'Storage1' } })
     await w.vm.$nextTick()
     const input = document.body.querySelector<HTMLInputElement>('.ud-input')
@@ -15,7 +15,7 @@ describe('UnmountDialog', () => {
     const okBtn = document.body.querySelector<HTMLButtonElement>('.ud-btn.danger')
     expect(okBtn?.disabled).toBe(true)
   })
-  it('输入密码点确认 emit confirm(password)', async () => {
+  it('entering a password and clicking confirm emits confirm(password)', async () => {
     const w = mount(UnmountDialog, { props: { open: true, name: 'Storage1' } })
     await w.vm.$nextTick()
     const input = document.body.querySelector<HTMLInputElement>('.ud-input')!
@@ -25,14 +25,14 @@ describe('UnmountDialog', () => {
     document.body.querySelector<HTMLButtonElement>('.ud-btn.danger')!.click()
     expect(w.emitted('confirm')![0]).toEqual(['secret'])
   })
-  it('busy 时确认与取消按钮均禁用', async () => {
+  it('disables both the confirm and cancel buttons while busy', async () => {
     const w = mount(UnmountDialog, { props: { open: true, name: 'A', busy: true } })
     await w.vm.$nextTick()
     const btns = document.body.querySelectorAll<HTMLButtonElement>('.ud-btn')
     expect(btns.length).toBeGreaterThan(0)
     expect(Array.from(btns).every((b) => b.disabled)).toBe(true)
   })
-  it('弹窗关闭时清空密码(P1 债③:取消后明文不驻留,不重新打开也须已清空)', async () => {
+  it('clears the password when the dialog closes (P1 debt item 3: the plaintext must not linger after cancel, even without reopening)', async () => {
     const w = mount(UnmountDialog, { props: { open: true, name: 'A' } })
     await w.vm.$nextTick()
     const input = document.body.querySelector<HTMLInputElement>('.ud-input')!
@@ -41,8 +41,9 @@ describe('UnmountDialog', () => {
     await w.vm.$nextTick()
     await w.setProps({ open: false })
     await w.vm.$nextTick()
-    // 故意不重新打开:只有「关闭本身清空」这条被修复的路径才能让此断言通过——
-    // 旧的 `if (o) password.value = ''` 实现在此处仍残留明文 'secret'。
+    // Deliberately not reopening: only the fixed "clearing on close itself" path
+    // makes this assertion pass — the old `if (o) password.value = ''`
+    // implementation would still leave the plaintext 'secret' here.
     expect(document.body.querySelector<HTMLInputElement>('.ud-input')!.value).toBe('')
   })
 })

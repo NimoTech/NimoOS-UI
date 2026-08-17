@@ -21,7 +21,7 @@ const showThumb = computed(() => isImageEntry(props.entry) && inView.value && !e
 </template>
 
 <style scoped>
-/* 尺寸由父级类名(.tile-icon / .file-icon)给到本组件根元素;这里只管填充与裁切 */
+/* Size determined by parent class (.tile-icon / .file-icon); this handles fill and crop behavior */
 .file-thumb { display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
 .thumb-img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
 .thumb-icon { width: 100%; height: 100%; object-fit: contain; }

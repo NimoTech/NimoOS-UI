@@ -1,12 +1,15 @@
-// Task 8 (SP7-P4 相册): PhotosAlbumDetail.vue —— 相册详情视图。逐段对照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosAlbumDetail.vue(419 行)移植(hero 改名/删除/封面 + edit 多选移除 +
-// 添加照片 + 拖拽排序 + 灯箱)。挂 Pinia + i18n + router(带 /photos/albums/:id),mock 共享包 +
-// useAlbumDragSort 整个组合式(而非 sortablejs 本身——useAlbumDragSort 自己的 Sortable 集成已在
-// useAlbumDragSort.test.ts 里独立验证过;这里只需验证 PhotosAlbumDetail 是否在正确时机调用
-// refresh()/destroy()、把 isDragging() 当点击守卫、onOrder 失败时弹正确 toast——用真 mock 更干净)。
+// Task 8 (SP7-P4 albums): PhotosAlbumDetail.vue — the album detail view. Ported section by
+// section from Vue2 NimoOS-UI src/views/Photos/PhotosAlbumDetail.vue (419 lines) (hero
+// rename/delete/cover + edit multi-select remove + add photos + drag-to-reorder + lightbox).
+// Mounts Pinia + i18n + router (with /photos/albums/:id), mocks the shared package + the whole
+// useAlbumDragSort composable (not sortablejs itself — useAlbumDragSort's own Sortable
+// integration is already independently verified in useAlbumDragSort.test.ts; here we only need
+// to verify PhotosAlbumDetail calls refresh()/destroy() at the right times, treats isDragging()
+// as a click guard, and pops the right toast when onOrder fails — a real mock is cleaner for that).
 //
-// 铁律回归测试贯穿全文件:route.params.id 恒为字符串,与后端可能的数字 id/cover id 交叉验证
-// 值比较(不是对象引用比较)。
+// An invariant regression test runs through the whole file: route.params.id is always a string,
+// and must be cross-checked against the backend's possibly-numeric id/cover id by value
+// (not by object reference).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -34,9 +37,11 @@ const svc = vi.hoisted(() => ({
     liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
     getAsset: vi.fn().mockRejectedValue(new Error('no hydrate in test')),
     getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
-    // usePhotosFavorites() 是 useLightbox.openAt/isFav 的既有依赖(P2/P3 既定行为,非本任务
-    // 新增)——即便本任务不测收藏态,openAt() 内部仍会调用 recordView/listFavoriteIds,缺 mock
-    // 会抛未捕获异常污染测试运行(不影响断言结果,但需堵上,同 PhotosFavorites.test.ts 的前例)。
+    // usePhotosFavorites() is an existing dependency of useLightbox.openAt/isFav (established
+    // P2/P3 behaviour, not new to this task) — even though this task doesn't test favorite
+    // state, openAt() still calls recordView/listFavoriteIds internally, and a missing mock
+    // throws an uncaught exception that pollutes the test run (doesn't affect the assertion
+    // outcome, but still needs plugging, same as the precedent in PhotosFavorites.test.ts).
     recordView: vi.fn().mockResolvedValue(undefined),
     listFavoriteIds: vi.fn().mockResolvedValue([]),
     // T6: the stats rail's Convert-to-Smart-Album menu entry gates on the same AI-feature
@@ -60,7 +65,8 @@ vi.mock('../../photos/composables/useAlbumDragSort', () => ({
   useAlbumDragSort: (opts: DragSortOpts) => useAlbumDragSortSpy(opts),
 }))
 
-// jsdom 无媒体栈(PhotoLightbox 视频起播位续播用得到,同 Photos.lightbox.test.ts 前置)。
+// jsdom has no media stack (PhotoLightbox needs it for resuming video playback at a saved
+// position, same precondition as Photos.lightbox.test.ts).
 ;(HTMLMediaElement.prototype as unknown as { play: () => Promise<void> }).play = vi.fn(() => Promise.resolve())
 ;(HTMLMediaElement.prototype as unknown as { pause: () => void }).pause = vi.fn()
 
@@ -191,7 +197,7 @@ afterEach(() => {
 })
 
 describe('PhotosAlbumDetail.vue', () => {
-  it('铁律回归:route.params.id 字符串 "7" 命中后端数字 id 7 的相册,渲染标题/计数/日期区间', async () => {
+  it('invariant regression: route.params.id string "7" matches the album with backend numeric id 7, renders title/count/date range', async () => {
     const { w } = await mountView('7')
     expect(w.text()).toContain('Trip')
     expect(w.text()).toContain('3')
@@ -205,17 +211,18 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('.sv-header h1 .sv-cond').text()).toBe('May 2026')
   })
 
-  it('albumsLoaded=false(还没加载完)→ 渲染加载骨架,不是"相册不存在"', async () => {
+  it('albumsLoaded=false (still loading) → renders the loading skeleton, not "album not found"', async () => {
     svc.photos.listAlbums.mockImplementation(() => new Promise(() => {}))
     const { w } = await mountView('999')
     expect(w.find('[data-test="album-loading"]').exists()).toBe(true)
     expect(w.find('[data-test="album-not-found"]').exists()).toBe(false)
   })
 
-  // Task 9(P4 遗留收口):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释),
-  // 旧实现下 `!album && !albums.albumsLoaded` 恒真 → 永久停在骨架屏。新增 loadError 分支
-  // 必须拦在骨架分支之前。
-  it('相册列表加载失败时渲染失败态而非永久骨架(P4 遗留)', async () => {
+  // Task 9 (P4 leftover closed out): when fetchAlbums fails, albumsLoaded stays false (see the
+  // comment in albums.ts) — under the old implementation `!album && !albums.albumsLoaded` is
+  // always true, so it gets stuck on the skeleton forever. The new loadError branch must be
+  // checked before the skeleton branch.
+  it('renders a failure state instead of a permanent skeleton when the album list fails to load (P4 leftover)', async () => {
     svc.photos.listAlbums.mockRejectedValueOnce(new Error('net'))
     const { w } = await mountView('7')
     expect(w.find('[data-test="album-load-error"]').exists()).toBe(true)
@@ -223,9 +230,10 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-loading"]').exists()).toBe(false)
   })
 
-  // 变异验证挡门用例①:失败态分支若被挪到骨架分支之后,本用例应变红
-  // (loadError=true 时骨架仍会先命中 v-if,失败态永远出不来)。
-  it('失败态优先于骨架态(loadError 真 + albumsLoaded 假 ⇒ 出失败态,不出骨架)', async () => {
+  // Mutation-testing gate case ①: if the failure-state branch is moved after the skeleton
+  // branch, this case should go red (when loadError=true, the skeleton's v-if would still hit
+  // first, and the failure state would never surface).
+  it('failure state takes priority over the skeleton (loadError true + albumsLoaded false ⇒ shows failure state, not the skeleton)', async () => {
     svc.photos.listAlbums.mockRejectedValueOnce(new Error('net'))
     const { w } = await mountView('999')
     const albums = usePhotosAlbums()
@@ -235,10 +243,11 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-loading"]').exists()).toBe(false)
   })
 
-  // 变异验证挡门用例②的姊妹用例:仍在飞行中(未失败)必须继续走骨架态,不能被
-  // loadError 分支误吞——若 loadError 在成功路径也被误置真,这条与上面那条会一起说明
-  // 分支被合并/语义被破坏。
-  it('正在加载(未失败)仍走骨架态,不出失败态', async () => {
+  // Sibling of mutation-testing gate case ②: still in flight (not yet failed) must still take
+  // the skeleton branch, and must not be swallowed by the loadError branch — if loadError were
+  // ever mistakenly set true on the success path too, this case together with the one above
+  // would reveal the branches had been merged/had their semantics broken.
+  it('still loading (not failed) still shows the skeleton, not the failure state', async () => {
     svc.photos.listAlbums.mockImplementation(() => new Promise(() => {}))
     const { w } = await mountView('999')
     const albums = usePhotosAlbums()
@@ -247,11 +256,13 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-load-error"]').exists()).toBe(false)
   })
 
-  // 评审 Important 1 补的挡门用例(这一条才是真正钉住不变量的那条,不是 store 那条):
-  // 重试本身也失败——失败态必须持续可见,不能落回骨架分支(旧实现的 loadError 上来即清
-  // false 会让骨架分支在 albumsLoaded 仍为假时于重试飞行期短暂命中,见 albums.ts 同批
-  // 修正注释)。
-  it('相册失败态重试仍失败(reject→retry→reject)→ 失败态持续可见,不出现骨架', async () => {
+  // Gate case added for review Important 1 (this is the one that actually pins down the
+  // invariant, not the store one): the retry itself also fails — the failure state must stay
+  // visible and must not fall back to the skeleton branch (under the old implementation
+  // loadError getting cleared to false as soon as the retry starts would let the skeleton
+  // branch briefly hit while albumsLoaded is still false during the retry's flight, see the
+  // matching fix comment in albums.ts).
+  it('album failure state retried and still failing (reject→retry→reject) → failure state stays visible, no skeleton appears', async () => {
     svc.photos.listAlbums.mockRejectedValueOnce(new Error('e1'))
     const { w } = await mountView('999')
     expect(w.find('[data-test="album-load-error"]').exists()).toBe(true)
@@ -265,7 +276,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-loading"]').exists()).toBe(false)
   })
 
-  it('相册失败态的重试按钮重新调 fetchAlbums,成功后失败态消失', async () => {
+  it('the retry button on the album failure state re-calls fetchAlbums; the failure state disappears once it succeeds', async () => {
     svc.photos.listAlbums.mockRejectedValueOnce(new Error('net'))
     const { w } = await mountView('7')
     const albums = usePhotosAlbums()
@@ -282,7 +293,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.text()).toContain('Trip')
   })
 
-  it('fetchAlbums 完成后仍找不到该 id → 渲染"相册不存在"+返回按钮,点击返回 /photos/albums', async () => {
+  it('id still not found once fetchAlbums completes → renders "album not found" + a back button, clicking it goes back to /photos/albums', async () => {
     svc.photos.listAlbums.mockResolvedValue([rawAlbum(1, { name: 'Other' })])
     const { w, router } = await mountView('999')
     expect(w.find('[data-test="album-not-found"]').exists()).toBe(true)
@@ -291,20 +302,20 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
   })
 
-  it('资产加载中且无数据 → 渲染 6 个骨架瓦片', async () => {
+  it('assets still loading with no data yet → renders 6 skeleton tiles', async () => {
     svc.photos.getAlbum.mockImplementation(() => new Promise(() => {}))
     const { w } = await mountView('7')
     expect(w.findAll('.album-tile-skeleton')).toHaveLength(6)
   })
 
-  it('资产非加载且空 → 渲染空态 photosAlbumEmptyTitle/Hint', async () => {
+  it('assets not loading and empty → renders the empty state photosAlbumEmptyTitle/Hint', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [] })
     const { w } = await mountView('7')
     expect(w.text()).toContain('相册是空的')
     expect(w.text()).toContain('点「添加照片」从图库中挑选。')
   })
 
-  it('铁律回归:瓦片 data-id + img src=thumbnailUrl(id,"small");数字 cover 命中字符串 photo id(值比较,非引用)', async () => {
+  it('invariant regression: tile data-id + img src=thumbnailUrl(id,"small"); numeric cover matches string photo id (by value, not reference)', async () => {
     svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip', coverAssetId: 42 })])
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('42'), asset('99')] })
     const { w } = await mountView('7')
@@ -318,7 +329,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(tile99.attributes('data-cover')).toBe('false')
   })
 
-  it('非 edit 点瓦片 → 灯箱打开,list=当前排序后的相册资产;切 taken 后顺序变', async () => {
+  it('clicking a tile outside edit mode → lightbox opens, list = the album assets in their current sort order; order changes after switching to taken', async () => {
     svc.photos.getAlbum.mockResolvedValue({
       assets: [asset('a', { takenAt: '2026-05-01T00:00:00Z' }), asset('b', { takenAt: '2026-06-01T00:00:00Z' })],
     })
@@ -342,7 +353,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(lb.list.value.map((p) => p.id)).toEqual(['b', 'a']) // taken desc: June before May
   })
 
-  it('edit 态点瓦片 → 进选中、不开灯箱;移除按钮 disabled→可用;点它 → removeAssetsFromAlbum(id,[选中ids])+toast+清空选择', async () => {
+  it('clicking a tile in edit mode → selects it, does not open the lightbox; the remove button goes disabled→enabled; clicking it → removeAssetsFromAlbum(id, [selected ids]) + toast + clears the selection', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     const { w } = await mountView('7')
     const albums = usePhotosAlbums()
@@ -369,7 +380,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-remove-selected"]').attributes('disabled')).toBeDefined()
   })
 
-  it('拖拽守卫回归:drag.isDragging()===true 时点瓦片 → 既不开灯箱也不选中', async () => {
+  it('drag guard regression: clicking a tile while drag.isDragging()===true → neither opens the lightbox nor selects it', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     const { w } = await mountView('7')
     await w.find('[data-test="album-edit-toggle"]').trigger('click')
@@ -384,7 +395,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-remove-selected"]').attributes('disabled')).toBeDefined()
   })
 
-  it('点标题 → input 出现;回车改名 → renameAlbum(id,新名) 调用 + toast;input 消失,标题更新', async () => {
+  it('clicking the title → the input appears; pressing Enter renames → calls renameAlbum(id, newName) + toast; the input disappears, the title updates', async () => {
     svc.photos.updateAlbum.mockResolvedValueOnce({ name: 'New Name' })
     const { w } = await mountView('7')
     const albums = usePhotosAlbums()
@@ -407,7 +418,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-title"]').text()).toBe('New Name')
   })
 
-  it('改名抛 409 → 显示重名文案,标题还原为原名', async () => {
+  it('rename throwing 409 → shows the duplicate-name copy, the title reverts to the original name', async () => {
     const err = Object.assign(new Error('conflict'), { response: { status: 409 } })
     svc.photos.updateAlbum.mockRejectedValueOnce(err)
     const { w } = await mountView('7')
@@ -425,7 +436,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-title"]').text()).toBe('Trip')
   })
 
-  it('点 ⋯ → 菜单出现;点删除 → 确认模态;确认 → deleteAlbum 调用 + router.push(/photos/albums)', async () => {
+  it('clicking ⋯ → the menu appears; clicking delete → a confirmation modal; confirming → calls deleteAlbum + router.push(/photos/albums)', async () => {
     const { w, router } = await mountView('7')
     const albums = usePhotosAlbums()
     const deleteSpy = vi.spyOn(albums, 'deleteAlbum')
@@ -447,7 +458,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
   })
 
-  it('⋯ 菜单:document 级点外部关闭', async () => {
+  it('⋯ menu: closes on a document-level outside click', async () => {
     const { w } = await mountView('7')
     await w.find('[data-test="album-more-btn"]').trigger('click')
     await w.vm.$nextTick()
@@ -458,7 +469,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-menu"]').exists()).toBe(false)
   })
 
-  it('删除确认模态:document 级 Esc 关闭(不是模板 @keydown.esc)', async () => {
+  it('delete confirmation modal: closes on a document-level Esc (not the template\'s @keydown.esc)', async () => {
     const { w } = await mountView('7')
     await w.find('[data-test="album-more-btn"]').trigger('click')
     await w.vm.$nextTick()
@@ -471,7 +482,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-delete-confirm"]').exists()).toBe(false)
   })
 
-  it('点星标 → setAlbumCover(id, p.id) 调用 + toast', async () => {
+  it('clicking the star → calls setAlbumCover(id, p.id) + toast', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
     const { w } = await mountView('7')
     const albums = usePhotosAlbums()
@@ -487,7 +498,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(showSpy).toHaveBeenCalled()
   })
 
-  it('右键瓦片(contextmenu)等价于点星标 → setAlbumCover 调用', async () => {
+  it('right-clicking a tile (contextmenu) is equivalent to clicking the star → calls setAlbumCover', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
     const { w } = await mountView('7')
     const albums = usePhotosAlbums()
@@ -658,7 +669,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-edit-toggle"]').attributes('data-open')).toBe('false')
   })
 
-  it('onMounted 调 drag.refresh();edit/sortBy 切换调 drag.refresh();卸载调 drag.destroy()', async () => {
+  it('onMounted calls drag.refresh(); toggling edit/sortBy calls drag.refresh(); unmounting calls drag.destroy()', async () => {
     const { w } = await mountView('7')
     expect(dragMock.refresh).toHaveBeenCalled()
     const afterMount = dragMock.refresh.mock.calls.length
@@ -668,7 +679,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.refresh.mock.calls.length).toBeGreaterThan(afterMount)
     const afterEdit = dragMock.refresh.mock.calls.length
 
-    await w.find('[data-test="album-edit-toggle"]').trigger('click') // edit back to false (可见排序下拉)
+    await w.find('[data-test="album-edit-toggle"]').trigger('click') // edit back to false (sort dropdown becomes visible)
     await w.vm.$nextTick()
     await w.find('[data-test="album-sort-btn"]').trigger('click')
     await w.vm.$nextTick()
@@ -680,7 +691,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.destroy).toHaveBeenCalled()
   })
 
-  it('路由切换(params.id 变化)→ 重新 fetchAlbumAssets + 清空 selected + drag.refresh()', async () => {
+  it('route switch (params.id changes) -> re-runs fetchAlbumAssets + clears selected + drag.refresh()', async () => {
     svc.photos.listAlbums.mockResolvedValue([
       rawAlbum(7, { name: 'Trip' }),
       rawAlbum(8, { name: 'Other' }),
@@ -705,7 +716,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.refresh).toHaveBeenCalled()
   })
 
-  it('Minor 回归:同实例路由切换须清掉未提交的标题编辑草稿(否则相册 7 的草稿名会被提交给相册 8)', async () => {
+  it('Minor regression: switching routes on the same instance must clear an uncommitted title-edit draft (otherwise Album 7\'s draft name gets submitted to Album 8)', async () => {
     svc.photos.listAlbums.mockResolvedValue([
       rawAlbum(7, { name: 'Trip' }),
       rawAlbum(8, { name: 'Other' }),
@@ -714,25 +725,26 @@ describe('PhotosAlbumDetail.vue', () => {
     const albums = usePhotosAlbums()
     const renameSpy = vi.spyOn(albums, 'renameAlbum')
 
-    // 给相册 7 改名,但还没提交(不回车/不 blur)——titleEditing/titleDraft 停在编辑态。
+    // Rename Album 7, but don't commit it yet (no enter/no blur) -- titleEditing/titleDraft stay in the editing state.
     await w.find('[data-test="album-title"]').trigger('click')
     await w.vm.$nextTick()
     await w.find('[data-test="album-title-input"]').setValue('Draft For 7')
     expect(w.find('[data-test="album-title-input"]').exists()).toBe(true)
 
-    // 同一组件实例切到相册 8(hash 路由不销毁重建)。
+    // Switch to Album 8 on the same component instance (hash routing doesn't destroy/recreate it).
     await router.push('/photos/albums/8')
     await flushPromises()
     await w.vm.$nextTick()
 
-    // 编辑态必须已复位——input 消失,标题态回到普通展示态,残留草稿不会在下次 blur/回车时
-    // 被误提交给相册 8。
+    // The editing state must already be reset -- the input disappears, the title reverts to its
+    // normal display state, and the leftover draft won't be mistakenly submitted to Album 8 on
+    // the next blur/enter.
     expect(w.find('[data-test="album-title-input"]').exists()).toBe(false)
     expect(w.find('[data-test="album-title"]').text()).toBe('Other')
     expect(renameSpy).not.toHaveBeenCalled()
   })
 
-  it('onOrder(T4 回调)触发且 store 抛错 → toast photosAlbumOrderFailed', async () => {
+  it('onOrder (T4 callback) fires and the store throws -> toast photosAlbumOrderFailed', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     svc.photos.reorderAlbumAssets.mockRejectedValue(new Error('boom'))
     const { w } = await mountView('7')
@@ -748,11 +760,14 @@ describe('PhotosAlbumDetail.vue', () => {
     void w
   })
 
-  it('评审 Important 2 回归:空相册 edit 态下添加照片,网格从「不存在」变为「存在」时须重新挂载拖拽(gridRef watch)', async () => {
-    // 复现路径:空相册挂载(gridRef 只绑在 v-else 第三分支,骨架/空态两支都拿不到它)→ 进 edit
-    // (watch([edit,sortBy]) 触发过一次 refresh,但此刻 gridRef 仍是 null)→ 添加照片 →
-    // fetchAlbumAssets 回来资产非空 → 模板切到 v-else 分支、gridRef 才第一次有值 → 除非专门
-    // watch(gridRef),否则没有任何现有触发点会在这一刻再调 refresh(),Sortable 永远建不起来。
+  it('review Important 2 regression: adding photos while an empty album is in edit mode, when the grid flips from "absent" to "present", must re-mount the drag integration (gridRef watch)', async () => {
+    // Repro path: an empty album mounts (gridRef is only bound in the v-else third branch,
+    // neither the skeleton nor empty-state branch can get it) -> enter edit
+    // (watch([edit,sortBy]) fires a refresh once, but gridRef is still null at that point) ->
+    // add photos -> fetchAlbumAssets comes back with non-empty assets -> the template switches
+    // to the v-else branch and gridRef gets its first value -> unless there's a dedicated
+    // watch(gridRef), no existing trigger point calls refresh() again at this moment, and
+    // Sortable never gets built.
     const { w } = await mountView('7')
     expect(w.find('[data-test="album-empty"]').exists()).toBe(true)
 
@@ -774,7 +789,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.refresh).toHaveBeenCalled()
   })
 
-  it('灯箱 delete → timeline.deleteAssets([String(id)]) + toast + albums.fetchAlbumAssets 刷新', async () => {
+  it('lightbox delete -> timeline.deleteAssets([String(id)]) + toast + albums.fetchAlbumAssets refreshes', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
     const { w } = await mountView('7')
     const timeline = useTimelineStore()
@@ -799,10 +814,11 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(fetchSpy).toHaveBeenCalledWith('7')
   })
 
-  // Task 9: 灯箱「加入相册」→ 打开 AlbumPickerDialog(assetIds=[当前项 id])。只接灯箱这一处——
-  // edit 工具条的「添加照片」(PhotosLibraryPicker)已有自己的语义,不重复放「加入相册」;
-  // 加到的是别的相册,不需要刷新本相册的资产列表。
-  it('灯箱「加入相册」→ AlbumPickerDialog 打开(不刷新本相册资产)', async () => {
+  // Task 9: lightbox "Add to album" -> opens AlbumPickerDialog (assetIds=[current item's id]).
+  // Only wired up in the lightbox -- the edit toolbar's "Add photos" (PhotosLibraryPicker)
+  // already has its own semantics, don't duplicate "Add to album" there; what gets added goes
+  // to a different album, so this album's asset list doesn't need refreshing.
+  it('lightbox "Add to album" -> AlbumPickerDialog opens (does not refresh this album\'s assets)', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
     svc.photos.batchAddToAlbum.mockClear()
     const { w } = await mountView('7')
@@ -814,14 +830,14 @@ describe('PhotosAlbumDetail.vue', () => {
     await w.vm.$nextTick()
     expect(lb.open.value).toBe(true)
 
-    fetchAssetsSpy.mockClear() // 只关心「加入相册」之后是否多调了一次
+    fetchAssetsSpy.mockClear() // only care whether "add to album" caused an extra call after this point
 
     await w.find('.lb-add-album').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
 
     expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
-    expect(lb.open.value).toBe(true) // 灯箱不因加入相册而关闭
+    expect(lb.open.value).toBe(true) // the lightbox doesn't close just because of adding to an album
 
     const item = w.find('[data-test="album-picker-item"]')
     expect(item.exists()).toBe(true)
@@ -829,14 +845,16 @@ describe('PhotosAlbumDetail.vue', () => {
     await flushPromises()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(7, ['a'])
-    expect(fetchAssetsSpy).not.toHaveBeenCalled() // 加到的是别的相册,不刷新本相册
+    expect(fetchAssetsSpy).not.toHaveBeenCalled() // what got added went to a different album, so this album doesn't refresh
   })
 
-  // 终审必修 1:灯箱在 window 上挂 keydown(PhotoLightbox.vue:144),AlbumPickerDialog 在
-  // document 上挂(:74)。同一次 Esc 冒泡顺序是 document 先于 window——不做任何处理时,
-  // document 监听先关掉选择器,冒泡继续到 window 又把灯箱也关了(T9 设计明确「灯箱本身不
-  // 关闭」,PhotoLightbox.vue:51-52)。断言:选择器关闭,但灯箱仍 open。
-  it('必修1回归:灯箱开着时按 Esc,加入相册选择器随 Esc 关闭,但灯箱不跟着被误关', async () => {
+  // Final-review must-fix 1: the lightbox hangs its keydown on window (PhotoLightbox.vue:144),
+  // while AlbumPickerDialog hangs its on document (:74). For a single Esc press, the bubble order
+  // is document before window -- with no handling, document's listener closes the picker first,
+  // then bubbling continues up to window and closes the lightbox too (T9's design explicitly
+  // says "the lightbox itself must not close", PhotoLightbox.vue:51-52). Assertion: the picker
+  // closes, but the lightbox is still open.
+  it('must-fix-1 regression: pressing Esc while the lightbox is open closes the add-to-album picker via Esc, but the lightbox does not get mistakenly closed along with it', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
     const { w } = await mountView('7')
 
@@ -848,8 +866,9 @@ describe('PhotosAlbumDetail.vue', () => {
     await flushPromises()
     expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
 
-    // bubbles:true——真实用户按键的原生 keydown 默认冒泡到 window;这里显式带上,
-    // 才是复现「document 冒泡先关面板,继续冒泡到 window 又把灯箱关了」的真实路径。
+    // bubbles: true -- a real user keypress's native keydown bubbles to window by default;
+    // making it explicit here is what actually reproduces the real path of "document's bubble
+    // phase closes the panel first, then bubbling continues to window and closes the lightbox too".
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await flushPromises()
     await w.vm.$nextTick()
@@ -858,8 +877,9 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(lb.open.value).toBe(true)
   })
 
-  // 终审 Minor 6:removeSelected 请求飞行期不 disable,连点会对同一批 id 发两轮并发 DELETE。
-  it('Minor 6 回归:连点两次「移除选中」→ removeAssetsFromAlbum 只被调一次(重入守卫)', async () => {
+  // Final-review Minor 6: removeSelected doesn't disable itself while its request is in flight,
+  // so double-clicking fires two concurrent rounds of DELETE against the same batch of ids.
+  it('Minor 6 regression: clicking "Remove selected" twice in a row -> removeAssetsFromAlbum is only called once (re-entrancy guard)', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     let resolveRemove: (() => void) | undefined
     const removeSpy = vi.spyOn(usePhotosAlbums(), 'removeAssetsFromAlbum').mockImplementation(
@@ -874,7 +894,7 @@ describe('PhotosAlbumDetail.vue', () => {
 
     const removeBtn = w.find('[data-test="album-remove-selected"]')
     await removeBtn.trigger('click')
-    await removeBtn.trigger('click') // 第二次点击在第一次未 resolve 前触发
+    await removeBtn.trigger('click') // the second click fires before the first one resolves
     await flushPromises()
 
     expect(removeSpy).toHaveBeenCalledTimes(1)

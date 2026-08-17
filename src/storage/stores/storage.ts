@@ -25,10 +25,12 @@ export const useStorageStore = defineStore('storage', () => {
   // created when the submit succeeds, and on every array-status refresh we check whether the new disk is
   // "active sync"; if so, the replacement counts as done.
   const replaceTask = ref<ReplaceTask | null>(null)
-  // 收回成员盘进行中的任务(reattachable_members 一键收回)。与 replaceTask 同机制:
-  // recover 接口同步返回 readded,增量同步在内核里跑,完成判定靠核对 status.members
-  // (raidView.ts reclaimOutcome)。它同时是列表页/详情页强制轮询的开关 —— --re-add 后
-  // 头几秒盘还是 spare、不算重建态,只挂 isRebuilding 会一拍都不发请求。
+  // Task in progress for reclaiming a member disk (reattachable_members one-click reclaim). Same
+  // mechanism as replaceTask: the recover endpoint returns readded synchronously, the incremental
+  // sync runs in the kernel, and completion is judged by checking status.members (raidView.ts
+  // reclaimOutcome). It's also the switch that forces list/detail page polling — for the first
+  // few seconds after --re-add the disk is still spare and doesn't count as rebuilding, so relying
+  // only on isRebuilding would send zero requests during that window.
   const reclaimTask = ref<ReclaimTask | null>(null)
   let clearTimer: number | undefined
   const loading = ref(false)
@@ -220,8 +222,9 @@ export const useStorageStore = defineStore('storage', () => {
   async function createRaid(body: {
     name: string; level: number; disk_paths: string[]
     chunk_kb: 512; filesystem: 'btrfs' | 'ext4'; enable_snapshots: boolean
-    // 所选盘带外来阵列残留超块(role:"residue")时必须 true(用户已在向导确认页看到
-    // "将清除哪些盘的残留"清单),否则后端 500 拒绝。
+    // Must be true when a selected disk carries a foreign array's leftover superblock
+    // (role:"residue") — the user has already seen the "which disks' residue will be wiped"
+    // list on the wizard's confirmation page — otherwise the backend rejects with 500.
     wipe_raid_residue: boolean
   }): Promise<RaidTask | null> {
     if (raidCreating.value) return null
@@ -295,9 +298,10 @@ export const useStorageStore = defineStore('storage', () => {
 
   function dismissReclaimTask() { reclaimTask.value = null }
 
-  // syncReclaimTask —— 每次刷新阵列状态后核对收回看板任务(结构同 syncReplaceTask)。
-  // 完成 toast 同样分两种:收回的盘全部 active sync 只说明**这一次收回**完成了,
-  // 阵列可能因为别的盘也坏而仍未恢复健康。
+  // syncReclaimTask — reconcile the reclaim dashboard task after every array-status refresh
+  // (same structure as syncReplaceTask). Completion toast likewise splits into two cases: the
+  // reclaimed disks all being active sync only means **this reclaim** finished, the array may
+  // still be unhealthy because another disk is also bad.
   function syncReclaimTask() {
     const task = reclaimTask.value
     if (!task) return
@@ -312,8 +316,8 @@ export const useStorageStore = defineStore('storage', () => {
     useToast().show(healthy ? t('raidReclaimDoneHealthy') : t('raidReclaimDoneStillDegraded'))
   }
 
-  // recover 的 Data 2026-08-12 起是 {state, readded}(NimoOS-LocalStorage PR #22);
-  // 老后端把 state 埋在 data.data.state。这里统一收窄成 {state, readded}。
+  // recover's Data has been {state, readded} since 2026-08-12 (NimoOS-LocalStorage PR #22);
+  // an older backend buries state in data.data.state. Here it's uniformly narrowed to {state, readded}.
   function parseRecoverResult(res: unknown): { state: string; readded: string[] } {
     const r = res as { state?: unknown; readded?: unknown; data?: { data?: { state?: unknown } } } | null | undefined
     const legacy = r?.data?.data?.state
@@ -326,8 +330,9 @@ export const useStorageStore = defineStore('storage', () => {
     return { state, readded }
   }
 
-  // 收回的盘 readded 非空时建立看板任务(须在 loadRaid() **之前**:loadRaid 结束会调
-  // syncReclaimTask,假盘上增量同步可能那一拍就已完成,那一拍必须已经看得见任务)。
+  // Create the dashboard task when reclaimed disks' readded is non-empty (must happen **before**
+  // loadRaid(): loadRaid calls syncReclaimTask when it finishes, and on a fake disk the incremental
+  // sync may already be done by that tick — the task must already be visible by then).
   function startReclaimTask(id: number | string, readded: string[]) {
     if (!readded.length) return
     reclaimTask.value = {
@@ -337,8 +342,9 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  // body 形状见 service 包 RaidReplaceDiskBody:拔掉的盘 old_disk_path 传 ''、靠
-  // old_disk_serial 识别;新盘带 RAID 残留时 wipe_raid_residue 须为 true(弹窗已二次确认)。
+  // See the service package's RaidReplaceDiskBody for the body shape: a pulled disk sends
+  // old_disk_path as '' and is identified via old_disk_serial; when the new disk carries RAID
+  // residue, wipe_raid_residue must be true (the dialog has already double-confirmed this).
   async function replaceRaidDisk(id: number | string, body: RaidReplaceDiskBody): Promise<boolean> {
     if (raidReplacing.value) return false
     raidReplacing.value = true
@@ -352,7 +358,7 @@ export const useStorageStore = defineStore('storage', () => {
       replaceTask.value = {
         arrayId: String(id),
         arrayName: raidArrays.value.find((a) => String(a.id) === String(id))?.name || '',
-        // 拔掉的盘没有可信路径(old_disk_path=''),看板卡展示退回 serial
+        // A pulled disk has no trustworthy path (old_disk_path=''), the dashboard card falls back to showing the serial
         oldPath: body.old_disk_path || body.old_disk_serial,
         newPath: body.new_disk_path,
       }
@@ -383,7 +389,7 @@ export const useStorageStore = defineStore('storage', () => {
       const { state, readded } = parseRecoverResult(await service.raid.recover(id))
       if (state === 'active' || state === 'degraded' || state === 'rebuilding') toast.show(t('raidRecoverSuccess'))
       else toast.show(t('raidRecoverFailed'))
-      // 重新识别也可能顺手收回了成员盘 —— 同样要顶住 spare→recovering 过渡窗口的轮询
+      // Re-detection may also incidentally reclaim member disks — this also needs to sustain polling through the spare→recovering transition window
       startReclaimTask(id, readded)
       return { state, readded }
     } catch (e) {
@@ -396,9 +402,11 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  // 收回成员盘(状态接口报 reattachable_members 时的一键补救):走同一个 recover 端点,
-  // 但文案按"收回"语义给用户交代结果 —— 与阵列失联时的「重新识别」按钮(recoverRaid)
-  // 是两个入口,共用 raidRecovering 单飞守卫,不会同时双发。
+  // Reclaim a member disk (the one-click fix when the status endpoint reports
+  // reattachable_members): goes through the same recover endpoint, but the copy tells the user
+  // the outcome using "reclaim" semantics — a separate entry point from the "re-detect" button
+  // (recoverRaid) shown when the array is unreachable; they share the raidRecovering
+  // single-flight guard, so both can never fire at once.
   async function reclaimRaidMembers(id: number | string): Promise<boolean> {
     if (raidRecovering.value) return false
     raidRecovering.value = true
@@ -410,7 +418,7 @@ export const useStorageStore = defineStore('storage', () => {
         toast.show(t('raidReclaimStarted', { paths: readded.join(', ') }))
         startReclaimTask(id, readded)
       } else {
-        // 后端没找到能收回的盘(比如状态刷新前盘又被拔了)。不算错误,但要告诉用户。
+        // Backend found no disk to reclaim (e.g. the disk was pulled again before the status refreshed). Not an error, but the user must be told.
         toast.show(t('raidReclaimNothing'))
       }
       ok = true
@@ -419,8 +427,8 @@ export const useStorageStore = defineStore('storage', () => {
       toast.show(t('raidReclaimFailed'))
     } finally {
       await loadRaid()
-      // 详情页渲染的是 raidDetail,只有 loadRaidDetail 会更新它(同 replaceRaidDisk
-      // 的教训):不刷,成员列表停在收回前那一帧,轮询开关也从过期数据算。
+      // The detail page renders raidDetail, and only loadRaidDetail updates it (same lesson as
+      // replaceRaidDisk): without a refresh, the member list stays frozen on the pre-reclaim frame, and the polling switch is computed from stale data too.
       if (raidDetail.value && String(raidDetail.value.array.id) === String(id)) {
         await loadRaidDetail(id)
       }

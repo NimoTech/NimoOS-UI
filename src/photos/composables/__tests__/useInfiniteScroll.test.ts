@@ -1,19 +1,19 @@
-// SP7-P7a-T15: useInfiniteScroll —— 无限滚动 sentinel 的 IntersectionObserver 封装。
-// 逐条对应 task-15-brief.md「必含测试清单」A 段 + 结构规格 A.1-A.3。
+// SP7-P7a-T15: useInfiniteScroll — IntersectionObserver wrapper for infinite scroll sentinel.
+// Corresponds line-by-line to task-15-brief.md "required test checklist" section A + struct spec A.1-A.3.
 //
-// 照搬 Vue2 PhotosSearchView.vue :706-721(observeLoadMoreSentinel/teardownLoadMoreObserver)
-// 的语义,做成通用 composable:teardown 先断开;enabled 为假或 target/root 为空只 teardown;
-// 否则 new IntersectionObserver(cb, { root, rootMargin }) + observe(target)。
+// Replicates Vue2 PhotosSearchView.vue :706-721 (observeLoadMoreSentinel/teardownLoadMoreObserver)
+// semantics as a generic composable: teardown first; if enabled is false or target/root is empty,
+// only teardown; otherwise new IntersectionObserver(cb, { root, rootMargin }) + observe(target).
 //
-// Vue2 :607-610 用 `watch(showLoadMoreSentinel) { if (show) this.$nextTick(() =>
-// observe()) else teardown() }`——即"值变化后,等一帧再挂"。这里用 Vue3 的
-// `watch([enabled, target], sync, { flush: 'post' })` 做等价手法:flush:'post' 保证
-// 回调在 DOM/ref 更新之后运行,等价于 Vue2 的 $nextTick。
+// Vue2 :607-610 uses `watch(showLoadMoreSentinel) { if (show) this.$nextTick(() =>
+// observe()) else teardown() }` — i.e., "after value changes, wait one frame then mount".
+// Here we use Vue3's `watch([enabled, target], sync, { flush: 'post' })` for equivalent:
+// flush:'post' ensures callback runs after DOM/ref updates, equivalent to Vue2's $nextTick.
 //
-// jsdom 没有 IntersectionObserver,下面自己 stub 一个:记录每个实例的构造参数、
-// observe/disconnect 调用次数,并暴露一个手动触发回调的钩子(entries[0].isIntersecting)。
-// stub 挂在 globalThis.IntersectionObserver,afterEach 里删除以免渗漏到别的测试文件
-// (P7a 全期教训:IO/ResizeObserver 类全局 stub 不复原会影响同批跑的其他测试)。
+// jsdom has no IntersectionObserver, so we stub one: record constructor params for each instance,
+// observe/disconnect call counts, and expose a manual callback trigger hook (entries[0].isIntersecting).
+// Stub on globalThis.IntersectionObserver, delete in afterEach to prevent leak to other test files
+// (P7a full-period lesson: global stubs of IO/ResizeObserver without restoration affect other tests in same batch).
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h, nextTick, ref, type Ref } from 'vue'
 import { mount } from '@vue/test-utils'
@@ -55,8 +55,9 @@ afterEach(() => {
   delete (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver
 })
 
-// 挂一个最小宿主组件跑 useInfiniteScroll,好让 onUnmounted 有真实组件实例可挂
-// (直接在裸 setup 函数外调用会因为没有 active instance 而静默跳过 onUnmounted)。
+// Mount a minimal host component to run useInfiniteScroll, so onUnmounted has a real component
+// instance to attach to (calling directly outside a bare setup function silently skips onUnmounted
+// due to no active instance).
 function mountHost(opts: {
   enabled: Ref<boolean>
   target: Ref<HTMLElement | null>
@@ -74,7 +75,7 @@ function mountHost(opts: {
 }
 
 describe('useInfiniteScroll', () => {
-  it('enabled=true 且 target/root 都有值 → observe 被调一次,构造参数含 { root, rootMargin }', async () => {
+  it('enabled=true and target/root both have values → observe called once, constructor params contain { root, rootMargin }', async () => {
     const target = document.createElement('div')
     const root = document.createElement('div')
     mountHost({ enabled: ref(true), target: ref(target), root: ref(root), onHit: () => {} })
@@ -84,7 +85,7 @@ describe('useInfiniteScroll', () => {
     expect(instances[0].ctorArgs[1]).toEqual({ root, rootMargin: '200px 0px' })
   })
 
-  it('手动触发 isIntersecting:true → onHit 被调', async () => {
+  it('Manual trigger isIntersecting:true → onHit called', async () => {
     const target = document.createElement('div')
     const root = document.createElement('div')
     let hits = 0
@@ -94,7 +95,7 @@ describe('useInfiniteScroll', () => {
     expect(hits).toBe(1)
   })
 
-  it('手动触发 isIntersecting:false → onHit 不被调', async () => {
+  it('Manual trigger isIntersecting:false → onHit not called', async () => {
     const target = document.createElement('div')
     const root = document.createElement('div')
     let hits = 0
@@ -104,7 +105,7 @@ describe('useInfiniteScroll', () => {
     expect(hits).toBe(0)
   })
 
-  it('enabled 变假 → disconnect 被调、observe 不再新增', async () => {
+  it('enabled becomes false → disconnect called, observe no longer increments', async () => {
     const target = document.createElement('div')
     const root = document.createElement('div')
     const enabled = ref(true)
@@ -114,10 +115,10 @@ describe('useInfiniteScroll', () => {
     enabled.value = false
     await nextTick()
     expect(disconnectTotal).toBe(1)
-    expect(observeTotal).toBe(1) // 没有新增 observe
+    expect(observeTotal).toBe(1) // no new observe
   })
 
-  it('target 从 null 变有值 → 才 observe(首帧 target 为 null 的场景)', async () => {
+  it('target from null to value → then observe (first frame target is null scenario)', async () => {
     const root = document.createElement('div')
     const target = ref<HTMLElement | null>(null)
     mountHost({ enabled: ref(true), target, root: ref(root), onHit: () => {} })
@@ -128,7 +129,7 @@ describe('useInfiniteScroll', () => {
     expect(observeTotal).toBe(1)
   })
 
-  it('enabled 反复 true/false/true → 每次重挂前都 disconnect(observe 与 disconnect 调用次数配平,无泄漏)', async () => {
+  it('enabled alternates true/false/true → disconnect before each remount (observe and disconnect call counts balanced, no leak)', async () => {
     const target = document.createElement('div')
     const root = document.createElement('div')
     const enabled = ref(true)
@@ -140,18 +141,18 @@ describe('useInfiniteScroll', () => {
     await nextTick()
     enabled.value = false
     await nextTick()
-    // 每次挂起前都先 teardown 一次:true→observe(1) / false→disconnect(1)+挂起前teardown(no-op)
-    // / true→disconnect(no-op,已断开)+observe(1) / false→disconnect(1)
-    // 用总量配平表达"无泄漏":每一次真正 observe 过的实例,最终都被 disconnect 过。
+    // Teardown once before each suspend: true→observe(1) / false→disconnect(1)+teardown-before-suspend(no-op)
+    // / true→disconnect(no-op, already disconnected)+observe(1) / false→disconnect(1)
+    // Express "no leak" using total balance: every instance that was observed is eventually disconnected.
     const observedInstances = instances.filter((i) => i.observeCalls > 0)
     for (const inst of observedInstances) {
       expect(inst.disconnectCalls).toBeGreaterThanOrEqual(1)
     }
-    expect(observeTotal).toBe(2) // 两次 true
-    expect(disconnectTotal).toBeGreaterThanOrEqual(2) // 至少两次真正断开(两次 false)
+    expect(observeTotal).toBe(2) // two true
+    expect(disconnectTotal).toBeGreaterThanOrEqual(2) // at least two real disconnects (two false)
   })
 
-  it('组件卸载 → disconnect 被调', async () => {
+  it('Component unmount → disconnect called', async () => {
     const target = document.createElement('div')
     const root = document.createElement('div')
     const w = mountHost({ enabled: ref(true), target: ref(target), root: ref(root), onHit: () => {} })
@@ -161,7 +162,7 @@ describe('useInfiniteScroll', () => {
     expect(disconnectTotal).toBe(1)
   })
 
-  it('rootMargin 可覆写', async () => {
+  it('rootMargin is overridable', async () => {
     const target = document.createElement('div')
     const root = document.createElement('div')
     mountHost({ enabled: ref(true), target: ref(target), root: ref(root), onHit: () => {}, rootMargin: '50px 0px' })

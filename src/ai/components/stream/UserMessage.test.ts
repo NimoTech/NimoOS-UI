@@ -25,7 +25,7 @@ describe('UserMessage', () => {
     vi.clearAllMocks()
   })
 
-  it('纯文本消息(content 字符串,超过 continue-chip 长度阈值)渲染气泡文本', () => {
+  it('plain text message (content string, exceeds continue-chip length threshold) renders bubble text', () => {
     const w = mount(UserMessage, {
       props: { msg: { content: '帮我看看这个文件夹里都有什么内容，顺便整理一下' } },
       global: { plugins: [i18n] },
@@ -34,7 +34,7 @@ describe('UserMessage', () => {
     expect(w.find('.cont-chip').exists()).toBe(false)
   })
 
-  it('短文本且无附件时渲染为 continue chip', () => {
+  it('short text with no attachments renders as continue chip', () => {
     const w = mount(UserMessage, {
       props: { msg: { content: '继续' } },
       global: { plugins: [i18n] },
@@ -43,7 +43,7 @@ describe('UserMessage', () => {
     expect(w.find('.msg-bubble').exists()).toBe(false)
   })
 
-  it('blocks 形态(hydrated history)text 拼接渲染', () => {
+  it('blocks shape (hydrated history) text concatenated rendering', () => {
     const w = mount(UserMessage, {
       props: { msg: { blocks: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }] } },
       global: { plugins: [i18n] },
@@ -51,7 +51,7 @@ describe('UserMessage', () => {
     expect(w.find('.msg-bubble').text()).toBe('a\nb')
   })
 
-  it('optimistic attachments 通过 service.ai.attachmentRawUrl 重建 URL(依赖 store.activeSessionId)', () => {
+  it('optimistic attachments reconstruct URL via service.ai.attachmentRawUrl (depends on store.activeSessionId)', () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-1'
     const w = mount(UserMessage, {
@@ -68,7 +68,7 @@ describe('UserMessage', () => {
     expect(img.attributes('src')).toBe('/v1/ai/attachments/sess-1/att-1/raw?token=t')
   })
 
-  it('hydrated blocks 里的 image/attachment 类型分别落到图片区/文件 chip 区', () => {
+  it('image/attachment types in hydrated blocks fall into image region/file chip region respectively', () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-2'
     const w = mount(UserMessage, {
@@ -87,7 +87,7 @@ describe('UserMessage', () => {
     expect(w.find('.msg-file-chip').attributes('href')).toBe('/v1/ai/attachments/sess-2/doc-1/raw?token=t')
   })
 
-  it('债③——祖先 provide 了受限 profile store(如 photos)时,解析祖先的会话 id,而非硬编码的默认 general store', () => {
+  it('debt③ — when ancestor provided restricted profile store (e.g. photos), resolves ancestor session id, not hardcoded default general store', () => {
     const generalStore = useAgentStore()
     generalStore.activeSessionId = 'general-sess'
     const photosStore = useAgentStore('photos')

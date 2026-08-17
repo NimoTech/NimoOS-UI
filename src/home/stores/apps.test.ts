@@ -42,24 +42,24 @@ describe('useAppsStore', () => {
 })
 
 describe('clampWidgetDecl', () => {
-  it('缺省/非法 → 2×2', () => {
+  it('default/invalid → 2x2', () => {
     expect(clampWidgetDecl(undefined, undefined)).toEqual([2, 2])
     expect(clampWidgetDecl(0, -1)).toEqual([2, 2])
   })
-  it('夹紧 w∈[2,4] h∈[1,4]', () => {
+  it('clamp w in [2,4] h in [1,4]', () => {
     expect(clampWidgetDecl(1, 1)).toEqual([2, 1])
     expect(clampWidgetDecl(9, 9)).toEqual([4, 4])
     expect(clampWidgetDecl(3, 2)).toEqual([3, 2])
   })
-  it('第三参自定义范围:初始尺寸夹进范围', () => {
+  it('third param custom range: initial size clamped to range', () => {
     expect(clampWidgetDecl(2, 2, { min: [3, 2], max: [4, 4] })).toEqual([3, 2])
     expect(clampWidgetDecl(4, 4, { min: [2, 1], max: [3, 2] })).toEqual([3, 2])
     expect(clampWidgetDecl(undefined, undefined, { min: [3, 3], max: [3, 3] })).toEqual([3, 3])
   })
 })
 
-describe('desktop 应用透传', () => {
-  it('setApps 透传 desktop/widget,desktopDecls 只出 desktop 应用', () => {
+describe('desktop app pass-through', () => {
+  it('setApps passes through desktop/widget, desktopDecls returns only desktop apps', () => {
     const store = useAppsStore()
     store.setApps([
       { name: 'my-dl', title: { en_us: '下载器' }, status: 'running', port: '8080', desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
@@ -76,7 +76,7 @@ describe('desktop 应用透传', () => {
     ])
   })
 
-  it('desktopDecls 初始尺寸夹进 label 自定义范围', () => {
+  it('desktopDecls clamps initial size to label custom range', () => {
     const store = useAppsStore()
     store.setApps([
       { name: 'locked', title: { en_us: 'L' }, status: 'running', port: '1', desktop: true,
@@ -85,7 +85,7 @@ describe('desktop 应用透传', () => {
     expect(store.desktopDecls()).toEqual([{ key: 'locked', widget: { w: 3, h: 3 } }])
   })
 
-  it('desktopDecls 排除未运行容器(停止就消失);status 缺省视为运行', () => {
+  it('desktopDecls excludes non-running containers (disappear when stopped); default status is running', () => {
     const store = useAppsStore()
     store.setApps([
       { name: 'up', title: { en_us: 'U' }, status: 'running', desktop: true },
@@ -95,7 +95,7 @@ describe('desktop 应用透传', () => {
     expect(store.desktopDecls().map((d) => d.key)).toEqual(['up', 'no-status'])
   })
 
-  it('stoppedDesktopKeys 只报 exited/dead,restarting/running/缺省不算', () => {
+  it('stoppedDesktopKeys reports only exited/dead, not restarting/running/default', () => {
     const store = useAppsStore()
     store.setApps([
       { name: 'up', status: 'running', desktop: true },
@@ -107,14 +107,14 @@ describe('desktop 应用透传', () => {
     expect(store.stoppedDesktopKeys()).toEqual(['down', 'dead1'])
   })
 
-  it('desktop 应用相对 icon 绝对化到应用自身端口', () => {
+  it('desktop app relative icon absolutized to app own port', () => {
     const store = useAppsStore()
     store.setApps([{ name: 'a', desktop: true, icon: '/icon.png', port: '8080', scheme: 'http' }] as never)
     expect(store.app('a')?.icon).toBe(`http://${window.location.hostname}:8080/icon.png`)
   })
 
   describe('isStopped', () => {
-    it('exited/dead/unknown 容器应用算已停止', () => {
+    it('exited/dead/unknown container apps are considered stopped', () => {
       const s = useAppsStore()
       s.setApps([
         { name: 'a', status: 'exited' },
@@ -125,7 +125,7 @@ describe('desktop 应用透传', () => {
       expect(s.isStopped('b')).toBe(true)
       expect(s.isStopped('c')).toBe(true)
     })
-    it('running / 缺省 status / 系统应用 / LinkApp / 不存在的 key 都不算', () => {
+    it('running / default status / system apps / LinkApp / nonexistent keys are not considered stopped', () => {
       const s = useAppsStore()
       s.setApps([
         { name: 'run', status: 'running' },
@@ -141,10 +141,10 @@ describe('desktop 应用透传', () => {
   })
 })
 
-describe('LinkApp 桌面拼接(setApps 第二参)', () => {
+describe('LinkApp desktop composition (setApps second param)', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('setApps([], links) 追加 LinkApp 项:app_type 透传,order 含之', () => {
+  it('setApps([], links) appends LinkApp items: app_type passed through, included in order', () => {
     const s = useAppsStore()
     s.setApps([], [{ name: 'MyNAS', hostname: 'http://nas.local', icon: '', app_type: 'LinkApp', status: 'running' }])
     expect(s.app('MyNAS')?.app_type).toBe('LinkApp')
@@ -153,7 +153,7 @@ describe('LinkApp 桌面拼接(setApps 第二参)', () => {
     expect(s.order).toContain('MyNAS')
   })
 
-  it('name 与容器应用同名时,容器应用胜出,不被 LinkApp 覆盖', () => {
+  it('when name matches container app, container app wins, not overwritten by LinkApp', () => {
     const s = useAppsStore()
     s.setApps(
       [{ name: 'jellyfin', title: { en_us: 'Jellyfin' }, status: 'running', app_type: 'WebApp' }] as never,
@@ -163,7 +163,7 @@ describe('LinkApp 桌面拼接(setApps 第二参)', () => {
     expect(s.app('jellyfin')?.name).toBe('Jellyfin')
   })
 
-  it('glyph = name 首字符大写(无 icon 时的兜底),icon 为空字符串时落 null', () => {
+  it('glyph = name first char uppercase (fallback when no icon), icon becomes null when empty string', () => {
     const s = useAppsStore()
     s.setApps([], [{ name: 'myapp', hostname: 'http://x', icon: '', app_type: 'LinkApp', status: 'running' }])
     expect(s.app('myapp')?.glyph).toBe('M')
@@ -172,13 +172,13 @@ describe('LinkApp 桌面拼接(setApps 第二参)', () => {
     expect(s.app('myapp')?.system).toBe(false)
   })
 
-  it('icon 有值时透传用户填的 URL', () => {
+  it('when icon has value, pass through user-provided URL', () => {
     const s = useAppsStore()
     s.setApps([], [{ name: 'myapp', hostname: 'http://x', icon: 'http://icon', app_type: 'LinkApp', status: 'running' }])
     expect(s.app('myapp')?.icon).toBe('http://icon')
   })
 
-  it('links 缺省(不传)不影响既有行为', () => {
+  it('links default (not passed) does not affect existing behavior', () => {
     const s = useAppsStore()
     s.setApps([{ name: 'jellyfin', title: { en_us: 'J' }, status: 'running' }] as never)
     expect(s.app('jellyfin')?.name).toBe('J')

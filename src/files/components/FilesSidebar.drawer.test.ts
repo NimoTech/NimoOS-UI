@@ -39,13 +39,13 @@ function mountSidebar() {
 describe('FilesSidebar drawer', () => {
   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetSidebarDrawerForTest() })
 
-  it('桌面态(isNarrow=false):无遮罩、无 is-drawer class', () => {
+  it('Desktop state (isNarrow=false): no scrim, no is-drawer class', () => {
     const w = mountSidebar()
     expect(w.find('.side-scrim').exists()).toBe(false)
     expect(w.find('aside.files-sidebar').classes()).not.toContain('is-drawer')
   })
 
-  it('窄屏 + 打开:出遮罩,aside 带 is-drawer/is-open;点遮罩关闭', async () => {
+  it('Narrow screen + open: scrim appears, aside has is-drawer/is-open; click scrim to close', async () => {
     const d = useSidebarDrawer()
     d.isNarrow.value = true
     d.open.value = true
@@ -60,7 +60,7 @@ describe('FilesSidebar drawer', () => {
     expect(w.find('.side-scrim').exists()).toBe(false)
   })
 
-  it('ESC 关闭抽屉', async () => {
+  it('ESC closes the drawer', async () => {
     const d = useSidebarDrawer()
     d.isNarrow.value = true
     d.open.value = true
@@ -70,16 +70,16 @@ describe('FilesSidebar drawer', () => {
     expect(d.open.value).toBe(false)
   })
 
-  it('路由变化(点导航项)后自动收起', async () => {
+  it('Drawer automatically closes after route change (clicking nav item)', async () => {
     const d = useSidebarDrawer()
     d.isNarrow.value = true
     d.open.value = true
     const w = mountSidebar()
     await nextTick()
-    await w.findAll('.side-item')[0].trigger('click') // 「共享」项 → router.push('/files/shares')
+    await w.findAll('.side-item')[0].trigger('click') // the "shares" item → router.push('/files/shares')
     await testRouter.isReady()
-    await nextTick(); await nextTick() // 等 watch(route.fullPath) 触发
-    await flushPromises() // router.push 的 pending navigation 在本仓库 vue-router 版本下需要一个宏任务才能落定,纯 nextTick 不够(已实测排查)
+    await nextTick(); await nextTick() // Wait for watch(route.fullPath) to fire
+    await flushPromises() // router.push's pending navigation requires a macrotask to settle in this repo's vue-router version; nextTick alone is insufficient (verified through testing)
     expect(d.open.value).toBe(false)
   })
 })

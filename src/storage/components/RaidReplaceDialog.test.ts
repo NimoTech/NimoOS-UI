@@ -8,8 +8,8 @@ import type { DiskRaidInfo } from '@nimotech/nimoos-service'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// attachTo: document.body 挂载(reka-ui Portal Teleport 到 body)——同目录
-// RaidDeleteDialog.test.ts/FormatDialog.test.ts 同款教训:测试间须清空 body。
+// attachTo: document.body mount (reka-ui Portal teleports to body) — same lesson as
+// RaidDeleteDialog.test.ts/FormatDialog.test.ts in this directory: body must be cleared between tests.
 beforeEach(() => {
   document.body.innerHTML = ''
 })
@@ -24,9 +24,9 @@ const disks: CandidateDiskLike[] = [
   { path: '/dev/sdb', size: 2000, serial: 'S-B', raid: RESIDUE },
   { path: '/dev/sdc', size: 3000, serial: 'S-C' },
 ]
-// 在位 faulty 盘:path 可信,label = path
+// In-place faulty disk: path is trustworthy, label = path
 const faultyTarget: ReplaceTarget = { path: '/dev/sdc', serial: 'S-C', label: '/dev/sdc' }
-// 拔掉的盘:path 为空(缓存路径不可信),label = serial
+// Pulled disk: path is empty (cached path is untrustworthy), label = serial
 const pulledTarget: ReplaceTarget = { path: '', serial: 'OLD-4', label: 'OLD-4' }
 
 const flush = () => new Promise((r) => setTimeout(r))
@@ -46,17 +46,17 @@ describe('RaidReplaceDialog', () => {
       attachTo: document.body,
     })
 
-  it('候选盘经 filterReplacementCandidates 过滤:按 serial 排除被换盘自身', async () => {
+  it('candidate disks are filtered through filterReplacementCandidates: excludes the disk being replaced by serial', async () => {
     mountIt()
     await flush()
     const values = Array.from(q<HTMLSelectElement>('.rrd-select')!.options).map((o) => o.value).filter(Boolean)
     expect(values).toEqual(['/dev/sda', '/dev/sdb'])
   })
 
-  it('拔掉的盘(target.path 空):故障盘展示 serial,坐在旧路径上的新盘不被排除', async () => {
+  it('pulled disk (target.path empty): faulty disk shows the serial, and a new disk sitting on the old path is not excluded', async () => {
     mountIt({ target: pulledTarget })
     await flush()
-    // 故障盘展示在 disabled <input> 里,value 不进 textContent,须单独查 .value
+    // The faulty disk is shown inside a disabled <input>; value doesn't end up in textContent, so it must be checked via .value separately
     const input = q<HTMLInputElement>('.rrd-input')!
     expect(input.value).toBe('OLD-4')
     expect(input.disabled).toBe(true)
@@ -64,7 +64,7 @@ describe('RaidReplaceDialog', () => {
     expect(values).toEqual(['/dev/sda', '/dev/sdb', '/dev/sdc'])
   })
 
-  it('未选新盘时确认按钮禁用,选中后启用', async () => {
+  it('confirm button is disabled until a new disk is selected, then enabled', async () => {
     mountIt()
     await flush()
     expect(q<HTMLButtonElement>('.rrd-ok')!.disabled).toBe(true)
@@ -72,7 +72,7 @@ describe('RaidReplaceDialog', () => {
     expect(q<HTMLButtonElement>('.rrd-ok')!.disabled).toBe(false)
   })
 
-  it('选非残留盘确认 → 直接 emit confirm({newDiskPath, wipeResidue:false}),无二次确认', async () => {
+  it('selecting a non-residue disk and confirming → directly emits confirm({newDiskPath, wipeResidue:false}), no second confirmation', async () => {
     const w = mountIt()
     await flush()
     await pick('/dev/sda')
@@ -81,7 +81,7 @@ describe('RaidReplaceDialog', () => {
     expect(w.emitted('confirm')![0]).toEqual([{ newDiskPath: '/dev/sda', wipeResidue: false }])
   })
 
-  it('残留盘选项打警告标 + 选中后显示归属阵列说明', async () => {
+  it('residue disk option gets a warning flag + shows its owning array explanation once selected', async () => {
     mountIt()
     await flush()
     const residueOption = Array.from(q<HTMLSelectElement>('.rrd-select')!.options).find((o) => o.value === '/dev/sdb')!
@@ -91,24 +91,24 @@ describe('RaidReplaceDialog', () => {
     expect(q('.rrd-residue-hint')!.textContent).toContain('zimaos:fc5616382c017331')
   })
 
-  it('选残留盘确认 → 先弹清除确认(点名阵列/创建/最后活动),确认后才 emit wipeResidue:true', async () => {
+  it('selecting a residue disk and confirming → first shows the wipe confirmation (naming the array/created/last-active), only emits wipeResidue:true after confirming', async () => {
     const w = mountIt()
     await flush()
     await pick('/dev/sdb')
     q<HTMLButtonElement>('.rrd-ok')!.click()
     await flush()
-    // 第一步:不 emit,切到清除确认
+    // Step one: does not emit, switches to the wipe confirmation
     expect(w.emitted('confirm')).toBeUndefined()
     const msg = q('.rrd-wipe-msg')!
     expect(msg.textContent).toContain('zimaos:fc5616382c017331')
     expect(msg.textContent).toContain('Thu Aug  6 21:54:49 2026')
     expect(msg.textContent).toContain('Fri Aug  7 00:29:17 2026')
-    // 第二步:清除并重建
+    // Step two: wipe and rebuild
     q<HTMLButtonElement>('.rrd-wipe')!.click()
     expect(w.emitted('confirm')![0]).toEqual([{ newDiskPath: '/dev/sdb', wipeResidue: true }])
   })
 
-  it('清除确认步可取消:回到选盘步,不 emit', async () => {
+  it('the wipe confirmation step can be cancelled: returns to the disk-selection step, no emit', async () => {
     const w = mountIt()
     await flush()
     await pick('/dev/sdb')
@@ -121,7 +121,7 @@ describe('RaidReplaceDialog', () => {
     expect(w.emitted('confirm')).toBeUndefined()
   })
 
-  it('开/关都清空已选新盘与确认步', async () => {
+  it('both opening and closing clear the selected new disk and the confirmation step', async () => {
     const w = mountIt()
     await flush()
     await pick('/dev/sdb')
@@ -134,14 +134,14 @@ describe('RaidReplaceDialog', () => {
     expect(q<HTMLSelectElement>('.rrd-select')!.value).toBe('')
   })
 
-  it('busy 时确认按钮禁用', async () => {
+  it('confirm button is disabled while busy', async () => {
     mountIt({ busy: true })
     await flush()
     await pick('/dev/sda')
     expect(q<HTMLButtonElement>('.rrd-ok')!.disabled).toBe(true)
   })
 
-  it('故障盘只读展示 target.label(在位盘 = 实时 path)', async () => {
+  it('the faulty disk is shown read-only as target.label (an in-place disk = live path)', async () => {
     mountIt()
     await flush()
     const input = q<HTMLInputElement>('.rrd-input')!

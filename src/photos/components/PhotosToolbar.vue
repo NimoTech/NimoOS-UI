@@ -2,27 +2,37 @@
 // Ported (Options API -> <script setup> Composition API, logic unchanged) from
 // Vue2 NimoOS-UI src/views/Photos/PhotosToolbar.vue (49 lines).
 // P1 scope cut (task-7-brief.md): no icon library — tabs/density buttons render as
-// plain text with i18n labels. (`after-tabs` 槽位已由 SP7-P7b-T3 补回。)
+// plain text with i18n labels. (The `after-tabs` slot was later restored by SP7-P7b-T3.)
 //
-// Plan B Task 5 re-skin(2026-08-12,D19 兄弟任务「工具栏 + FilterBar 重刻」):
-// 1) 根类名 `.photos-toolbar` -> `.toolbar`,让 src/photos/styles/vue2-parity/photos.scss
-//    里已经原样搬进来的 `.photos-root .toolbar/.tabs/.tab/.density/.muted-text`
-//    (对应 Vue2 photos.scss:266-289)直接生效——组件自身不再需要一份平行的
-//    <style scoped>(那份是 P1 用通用 app token 写的,数值/配色都跟 Vue2 不是一回事;
-//    parity scss 用的是 .photos-root 自己的本地 token,数值逐字对齐 Vue2)。本组件因此
-//    完全不带 <style> 块,样式全部交给 parity scss(前提:宿主渲染在 .photos-root 之下,
-//    时间线页 Photos.vue:272 与跳库页 PhotosPlaceAssets.vue:173 都满足)。
-// 2) P1 当年因为"没有共享图标库"砍掉了 tab/density 的 icon(见上面那条旧注释),这次连带
-//    补上——本组件按 PhotosFilterChip.vue/PhotosFilterBar.vue 的先例内联 <svg>,不经由
-//    共享的 PhotosIcon.vue 组件(注:T3 已经建了 PhotosIcon.vue,T4/T6/T7 都在消费它——
-//    "本仓不存在共享图标库"这个前提到写这段时已经不成立了;这里是本组件自己按已有先例
-//    选择继续内联,不是因为没有共享组件可用),glyph 逐字符抄自 Vue2 NimoOS-UI
-//    src/views/Photos/PhotosIcon.vue 对应 name 分支(album/ocr/video 用于
-//    tab,compact/comfort/loose 用于密度三档),尺寸/描边照 Vue2 <photos-icon> 调用点
-//    (tab 12px、density 14px,stroke-width 默认 1.6,fill none,颜色随 currentColor 走
-//    .tab/.density button 各自的文字色,与 Vue2 `color` prop 默认值 'currentColor' 一致)。
-//    副作用:堵住了旧文本方案 `label.slice(0, 1)` 在英文语言下 "Compact"/"Comfortable"
-//    首字母皆为 "C" 无法区分的问题(中文"紧凑"/"舒适"首字不撞,该缺陷此前只在英文界面可见)。
+// Plan B Task 5 re-skin (2026-08-12, D19's sibling task "toolbar + FilterBar re-skin"):
+// 1) Root class name `.photos-toolbar` -> `.toolbar`, so that the
+//    `.photos-root .toolbar/.tabs/.tab/.density/.muted-text` rules already ported verbatim
+//    into src/photos/styles/vue2-parity/photos.scss (matching Vue2 photos.scss:266-289) take
+//    effect directly — the component no longer needs a parallel <style scoped> block of its
+//    own (the old one was written in P1 with generic app tokens, whose values/colors don't
+//    match Vue2 at all; the parity scss uses .photos-root's own local tokens, matching Vue2's
+//    values literally). This component therefore carries no <style> block at all — styling
+//    is entirely handed off to the parity scss (on the condition that the host renders under
+//    .photos-root, which both the timeline page Photos.vue:272 and the jump-to-library page
+//    PhotosPlaceAssets.vue:173 satisfy).
+// 2) P1 back then dropped the tab/density icons because "there's no shared icon library" (see
+//    the old comment above) — this task restores them too. Following the precedent set by
+//    PhotosFilterChip.vue/PhotosFilterBar.vue, this component inlines its own <svg> rather
+//    than going through the shared PhotosIcon.vue component (note: T3 had already built
+//    PhotosIcon.vue by this point, and T4/T6/T7 were all already consuming it — so the "no
+//    shared icon library exists in this repo" premise no longer held true by the time this
+//    was written; this is the component deliberately continuing to inline icons following an
+//    existing precedent, not a lack of a shared component to reach for). The glyphs are
+//    copied character-for-character from Vue2 NimoOS-UI src/views/Photos/PhotosIcon.vue's
+//    corresponding name branches (album/ocr/video for the tabs, compact/comfort/loose for the
+//    three density levels); size/stroke follow Vue2's <photos-icon> call sites (12px for
+//    tabs, 14px for density, stroke-width defaulting to 1.6, fill none, color following
+//    currentColor so it tracks each .tab/.density button's own text color — matching Vue2's
+//    `color` prop default of 'currentColor').
+//    Side effect: this closes off the old text-based scheme's problem where
+//    `label.slice(0, 1)` couldn't distinguish "Compact" from "Comfortable" in English (both
+//    start with "C") — the Chinese labels "紧凑"/"舒适" don't collide on their first
+//    character, so this defect was previously only visible in the English UI.
 import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(defineProps<{
@@ -63,9 +73,9 @@ function setDensity(v: string) { emit('update:density', v) }
         {{ t('photosTabVideos') }}
       </button>
     </div>
-    <!-- P7b-T3:EXIF 筛选条(漏斗 + 内联展开的胶囊)挂在标签页之后 —— 位置照 Vue2
-         NimoOS-UI src/views/Photos/PhotosToolbar.vue:15-16。P1 task-7-brief 当年
-         明确砍掉过这个槽位,本期按 P7b 补回。 -->
+    <!-- P7b-T3: the EXIF filter bar (funnel icon + inline-expanding chips) sits after the
+         tabs -- position follows Vue2 NimoOS-UI src/views/Photos/PhotosToolbar.vue:15-16.
+         P1 task-7-brief explicitly dropped this slot back then; this task restores it per P7b. -->
     <slot name="after-tabs" />
     <div style="flex:1"></div>
     <span class="muted-text">{{ t('photosItemsCount', { count: props.count }) }}</span>

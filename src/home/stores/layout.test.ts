@@ -100,14 +100,14 @@ describe('useLayoutStore', () => {
 const DIMS = { cols: 12, rows: 8 }
 const dl = (key: string, widget?: { w: number; h: number }): DesktopAppDecl => ({ key, widget })
 
-describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => {
+describe('sweepGone / evict force (desktop and app list stay in sync after uninstall)', () => {
   // Isolate each test's pinia + localStorage, same as the sibling autoPin describes below —
   // without this, sweepGone's own save()/saveLocal() leak pruned layouts across tests via
   // localStorage, and a later test's loadInitial() silently inherits an earlier test's cuts.
   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); vi.useFakeTimers() })
   afterEach(() => vi.useRealTimers())
 
-  it('手动固定的磁贴:应用消失满宽限期后被清,宽限期内保留', () => {
+  it('manually pinned tiles: removed after grace period, kept during it', () => {
     const s = useLayoutStore(); s.loadInitial()
     s.pin({ kind: 'app', key: 'test-nginx', c: 1, r: 1, w: 1, h: 1 })
     s.sweepGone(['files']) // first absence: only starts the clock
@@ -117,7 +117,7 @@ describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => 
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(false)
   })
 
-  it('仍在应用列表里的磁贴不清,且缺席计时被重置', () => {
+  it('tiles still in app list are not cleared, and absence timer resets', () => {
     const s = useLayoutStore(); s.loadInitial()
     s.pin({ kind: 'app', key: 'jellyfin', c: 1, r: 1, w: 1, h: 1 })
     s.sweepGone([]) // blip: one all-empty round, starts the clock
@@ -127,7 +127,7 @@ describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => 
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'jellyfin')).toBe(true)
   })
 
-  it('evict force 立即清手动固定磁贴(非 seen);缺省仍豁免', () => {
+  it('evict(force) immediately removes manually pinned tiles (not seen); defaults still exempt', () => {
     const s = useLayoutStore(); s.loadInitial()
     s.pin({ kind: 'app', key: 'test-nginx', c: 1, r: 1, w: 1, h: 1 })
     s.evict('test-nginx')
@@ -183,7 +183,7 @@ describe('autoPin', () => {
   })
   afterEach(() => { vi.useRealTimers() })
 
-  it('新应用:图标 1×1 上桌;声明 widget 的再落一块 appwidget', () => {
+  it('new app: icon 1x1 placed on desktop; declared widget also placed as appwidget', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('my-dl', { w: 3, h: 2 })], DIMS)
@@ -193,7 +193,7 @@ describe('autoPin', () => {
     expect(widget).toMatchObject({ w: 3, h: 2 })
   })
 
-  it('已 seen 不重复上桌(含用户手删场景)', () => {
+  it('seen apps do not re-pin (including user manual delete)', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a')], DIMS)
@@ -203,7 +203,7 @@ describe('autoPin', () => {
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
   })
 
-  it('容器消失(缺席满宽限期):桌面项移除 + 清 seen,重来会再次上桌', () => {
+  it('container disappears (absent past grace period): desktop items removed + seen cleared, re-pins when returns', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a', { w: 2, h: 2 }), dl('b')], DIMS)
@@ -219,7 +219,7 @@ describe('autoPin', () => {
     expect(s.items.filter((it) => it.kind === 'app' && it.key === 'a')).toHaveLength(1)
   })
 
-  it('单次缺席(docker 抖动)不清桌,恢复后重置计时', () => {
+  it('single absence (docker blip) does not clear desktop, timer resets on recovery', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a')], DIMS)
@@ -232,7 +232,7 @@ describe('autoPin', () => {
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
   })
 
-  it('删掉最后一个 desktop 应用(decls 全空)也能在宽限期后清理,不再永久残留', () => {
+  it('deleting the last desktop app (decls empty) can still be cleaned up after grace period, no permanent lingering', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
@@ -245,7 +245,7 @@ describe('autoPin', () => {
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).not.toContain('a')
   })
 
-  it('明确停止(stoppedKeys)的应用立即清理,不等宽限期', () => {
+  it('explicitly stopped apps (stoppedKeys) are cleaned up immediately, no grace period', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
@@ -256,14 +256,14 @@ describe('autoPin', () => {
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).not.toContain('a')
   })
 
-  it('seen 持久化到 localStorage', () => {
+  it('seen is persisted to localStorage', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a')], DIMS)
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
   })
 
-  it('桌面满:图标放不下也记 seen,不反复尝试', () => {
+  it('desktop full: icon still recorded in seen even if it does not fit, no retry attempts', () => {
     const s = useLayoutStore()
     // fill the entire 12×8 grid
     const full = [] as never[]
@@ -274,7 +274,7 @@ describe('autoPin', () => {
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
   })
 
-  it('evict 立即移除图标+小组件并清 seen(重新出现可再上桌)', () => {
+  it('evict immediately removes icon + widget and clears seen (can re-pin when reappears)', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('tasklist', { w: 2, h: 2 })], DIMS)
@@ -288,7 +288,7 @@ describe('autoPin', () => {
     expect(s.items.filter((i) => i.key === 'tasklist')).toHaveLength(2)
   })
 
-  it('evict 不误伤其他项且无匹配时不报错', () => {
+  it('evict does not harm other items and does not error when no match', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('other')], DIMS)
@@ -296,7 +296,7 @@ describe('autoPin', () => {
     expect(s.items.filter((i) => i.key === 'other')).toHaveLength(1)
   })
 
-  it('evict 不触碰非 seen 的手动/系统图标', () => {
+  it('evict does not touch manual/system icons not in seen', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     // Manually place a system icon; it never goes through autoPin, so it is not in seen
@@ -307,7 +307,7 @@ describe('autoPin', () => {
     expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
   })
 
-  it('autoPin 不重复添加桌面上已有的同 key app 磁贴(手动 pin 后未进 seen 的场景)', () => {
+  it('autoPin does not duplicate app tile with same key already on desktop (manually pinned before seen)', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.pin({ kind: 'app', key: 'jellyfin', c: 1, r: 1, w: 1, h: 1 }) // manually pinned, not in seen
@@ -318,7 +318,7 @@ describe('autoPin', () => {
   })
 })
 
-describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前范围)', () => {
+describe('autoPin range tightening self-heal (appwidget size clamped to current range)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
@@ -334,7 +334,7 @@ describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前�
     ] as never)
   }
 
-  it('合法用户调整(仍在当前范围内)不被 autoPin 覆盖', () => {
+  it('legitimate user resize (still within current range) not overwritten by autoPin', () => {
     seedWidget('a', 2, 2, { maxw: 4, maxh: 4 })
     const s = useLayoutStore()
     s.replaceAll([])
@@ -346,7 +346,7 @@ describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前�
     expect(w1).toMatchObject({ w: 3, h: 3, c: w0.c, r: w0.r })
   })
 
-  it('容器收紧范围后持久化尺寸超界(需缩小):原地缩小', () => {
+  it('after container tightens range, persisted size exceeds bounds (needs shrink): shrink in place', () => {
     seedWidget('a', 4, 4, { maxw: 4, maxh: 4 })
     const s = useLayoutStore()
     s.replaceAll([])
@@ -359,7 +359,7 @@ describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前�
     expect(w1).toMatchObject({ w: 2, h: 2, c: w0.c, r: w0.r })
   })
 
-  it('容器抬高 min(需放大)且原地无碰撞:原地放大', () => {
+  it('container raises min (needs expand) and no collision in place: expand in place', () => {
     seedWidget('a', 2, 1, { minw: 2, minh: 1, maxw: 4, maxh: 4 })
     const s = useLayoutStore()
     s.replaceAll([])
@@ -372,7 +372,7 @@ describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前�
     expect(w1).toMatchObject({ w: 3, h: 2, c: w0.c, r: w0.r })
   })
 
-  it('放大后原地与邻居冲突:重新找位搬过去', () => {
+  it('after expand, collision with neighbor in place: find new position and move', () => {
     seedWidget('a', 2, 1, { minw: 2, minh: 1, maxw: 4, maxh: 4 })
     const s = useLayoutStore()
     s.replaceAll([])

@@ -2,10 +2,13 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CreateStorageDialog from './CreateStorageDialog.vue'
 
-// AvailDisk 的完整形状(mapAvailDisks 的输出)。disk_type/temperature/power_on_time 取自真机
-// `curl -s http://127.0.0.1/v1/disks` 的 avail 项;health 由 mapAvailDisks 从同响应的 disks 列表补齐
-// (avail 自身恒为空串,后端赋值顺序缺陷 —— 见 storageMap.ts 注释)。本弹窗不读这四个字段,
-// 但类型要求完整,fixture 也按真实形状给,免得日后"手编 fixture 让缺陷全绿"。
+// The complete shape of AvailDisk (mapAvailDisks's output). disk_type/temperature/power_on_time
+// are taken from the `avail` entry of a real device's `curl -s http://127.0.0.1/v1/disks`;
+// health is backfilled by mapAvailDisks from the `disks` list in the same response
+// (avail's own value is always an empty string — a backend assignment-order defect, see the
+// storageMap.ts comment). This dialog doesn't read these four fields, but the type requires them
+// to be complete, so the fixture is also given in the real shape, to avoid a future
+// "hand-written fixture that lets a defect pass green" incident.
 const DISKS = [
   { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: 1e12, needFormat: true, serial: 'S1',
     disk_type: 'HDD', health: 'true', temperature: 38, power_on_time: 1381 },
@@ -18,7 +21,7 @@ beforeEach(() => {
 })
 
 describe('CreateStorageDialog', () => {
-  it('打开时填入默认名并预选第一块盘', async () => {
+  it('fills in the default name and preselects the first disk on open', async () => {
     const w = mount(CreateStorageDialog, {
       props: { open: true, disks: DISKS, defaultName: 'Main-storage1' },
     })
@@ -29,7 +32,7 @@ describe('CreateStorageDialog', () => {
     expect(select.value).toBe('0')
   })
 
-  it('名称输入过滤非法字符(仅 \\w 和连字符)', async () => {
+  it('name input filters out illegal characters (only \\w and hyphen allowed)', async () => {
     const w = mount(CreateStorageDialog, {
       props: { open: true, disks: DISKS, defaultName: 'x' },
     })
@@ -41,7 +44,7 @@ describe('CreateStorageDialog', () => {
     expect(input.value).toBe('abc-d')
   })
 
-  it('need_format 盘显示清空警告;可直连盘显示提示且多出「直接创建」按钮', async () => {
+  it('need_format disk shows a wipe warning; a plug-and-use disk shows a notice and has an extra "Create Directly" button', async () => {
     const w = mount(CreateStorageDialog, {
       props: { open: true, disks: DISKS, defaultName: 'x' },
     })
@@ -54,7 +57,7 @@ describe('CreateStorageDialog', () => {
     )
     expect(document.body.textContent).not.toContain('直接创建')
 
-    // 切到 index1 = 可直连
+    // Switch to index1 = plug-and-use
     const select = document.body.querySelector<HTMLSelectElement>('.cs-select')!
     select.value = '1'
     select.dispatchEvent(new Event('change'))
@@ -67,12 +70,12 @@ describe('CreateStorageDialog', () => {
     expect(document.body.textContent).toContain('直接创建')
   })
 
-  it('确认 emit 完整 payload:格式化按钮 format:true,直连按钮 format:false', async () => {
+  it('confirm emits the full payload: format button → format:true, plug-and-use button → format:false', async () => {
     const w = mount(CreateStorageDialog, {
       props: { open: true, disks: DISKS, defaultName: 'MyVol' },
     })
     await w.vm.$nextTick()
-    // 选 sdc(index1,可直连)
+    // Select sdc (index1, plug-and-use)
     const select = document.body.querySelector<HTMLSelectElement>('.cs-select')!
     select.value = '1'
     select.dispatchEvent(new Event('change'))
@@ -94,7 +97,7 @@ describe('CreateStorageDialog', () => {
     ])
   })
 
-  it('名称为空时提交按钮禁用;busy 时全部按钮禁用且主按钮文案变 storageCreating', async () => {
+  it('submit button is disabled when the name is empty; while busy all buttons are disabled and the primary button label changes to storageCreating', async () => {
     const w = mount(CreateStorageDialog, {
       props: { open: true, disks: DISKS, defaultName: '' },
     })

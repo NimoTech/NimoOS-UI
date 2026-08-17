@@ -1,18 +1,21 @@
 <script setup lang="ts">
-// Wi-Fi 客户端表单。对位 Vue2 WifiForm.vue(135 行)。
+// Wi-Fi client form. Corresponds to Vue2 WifiForm.vue (135 lines).
 //
-// 移植纪律 #1(登记):Vue2 这个组件自己持有 `dnsString`(data),created() 从
-// formData.ipv4.dns 初始化,用户改了**从不回写父层**;而父层 save() 用的是父层自己的
-// dnsString → **高级设置里填的 DNS 保存时被静默丢弃**。这里直接绑父层的 form.dnsText,
-// 不再有第二份。
+// Porting discipline #1 (logged): Vue2 this component holds its own `dnsString` (data),
+// initialized in created() from formData.ipv4.dns; when the user edits it, it is **never
+// written back to the parent** — and the parent's save() uses the parent's own dnsString →
+// **DNS entered in the advanced settings is silently dropped on save**. Here we bind
+// directly to the parent's form.dnsText, so there's no second copy.
 //
-// 移植纪律 #6(登记):Vue2 声明并传入了 clientConnected / clientIpInfo 两个 prop,
-// 但模板里**零处使用**(且 clientConnected 的 computed 返回对象而 prop 声明 Boolean)→
-// 真死代码,不移植(同 PortPanel.vue 先例)。运行时 IP 在列表行里已经有了。
+// Porting discipline #6 (logged): Vue2 declares and passes in two props, clientConnected /
+// clientIpInfo, but the template **uses neither anywhere** (and clientConnected's computed
+// returns an object while the prop is declared as Boolean) → genuinely dead code, not
+// ported (same precedent as PortPanel.vue). Runtime IP is already shown in the list row.
 //
-// 移植纪律 #7(登记):Vue2 `v-for :key="net.ssid"` 在同名 SSID 时 key 重复
-// (实测扫描结果里有 ssid="00:00:00:00:00:00" 这种隐藏 SSID)→ key 用 `bssid || ssid`
-// (手动补进列表的「已连接但没扫到」那条没有 bssid,回落 ssid)。
+// Porting discipline #7 (logged): Vue2's `v-for :key="net.ssid"` produces duplicate keys
+// when SSIDs collide (real scan results include a hidden SSID like
+// ssid="00:00:00:00:00:00") → key uses `bssid || ssid` instead (the manually appended
+// "connected but not scanned" entry has no bssid, so it falls back to ssid).
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WifiScanResult } from '@nimotech/nimoos-service'
@@ -57,7 +60,7 @@ function pick(ssid: string) {
         <span class="set-wifi-ssid">{{ net.ssid }}</span>
         <span v-if="net.connected" class="set-wifi-flag">{{ t('settingsNetConnected') }}</span>
         <span v-else-if="net.secure" class="set-wifi-lock" :aria-label="t('settingsNetSecure')">🔒</span>
-        <!-- 断开按钮用 role=button 的 span:外层整行已经是 <button>,HTML 不允许嵌套 button -->
+        <!-- Disconnect button uses a role=button span: the outer row is already a <button>, and HTML doesn't allow nesting button elements -->
         <span
           v-if="net.connected"
           class="set-btn set-wifi-disconnect"
@@ -71,11 +74,11 @@ function pick(ssid: string) {
 
     <label v-if="form.wireless.ssid" class="set-net-field">
       <span class="set-net-label">{{ t('settingsNetPassword') }}</span>
-      <!-- Vue2 用的是 type="text"(明文,便于用户核对),照留 -->
+      <!-- Vue2 uses type="text" (plaintext, so the user can verify it), kept as-is -->
       <input v-model="form.wireless.password" class="set-input set-net-password" type="text" />
     </label>
 
-    <!-- 高级设置只在 client 模式出现;concurrent 模式用自动默认值(Vue2 L47-48 注释) -->
+    <!-- Advanced settings only appear in client mode; concurrent mode uses automatic defaults (Vue2 L47-48 comment) -->
     <template v-if="form.wireless.mode === 'client'">
       <button class="set-net-adv" type="button" @click="showAdv = !showAdv">
         <span aria-hidden="true">{{ showAdv ? '▾' : '▸' }}</span>{{ t('settingsNetAdvanced') }}
@@ -84,7 +87,7 @@ function pick(ssid: string) {
       <template v-if="showAdv">
         <label class="set-net-field">
           <span class="set-net-label">{{ t('settingsNetZone') }}</span>
-          <!-- client 模式的 zone 只给 无 / WAN 两项(Vue2 L56-59 没有 LAN) -->
+          <!-- client mode's zone only offers None / WAN (Vue2 L56-59 has no LAN) -->
           <select v-model="form.zone" class="set-select set-net-zone">
             <option value="">{{ t('settingsNetZoneNone') }}</option>
             <option value="wan">{{ t('settingsNetZoneWan') }}</option>

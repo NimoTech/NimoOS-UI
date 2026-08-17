@@ -1,19 +1,20 @@
-// 三个 hit 类型不再单独 import:agg.filenames / agg.semantic / agg.images 本来就是
-// FileNameHit[] / SemanticHit[] / ImageHit[],原先那三处 `as XxxHit[]` 是同类型断言(无意义),
-// 删掉断言后这几个名字在本文件里就没有消费方了。
+// The three hit types are no longer separately imported: agg.filenames / agg.semantic / agg.images
+// are already FileNameHit[] / SemanticHit[] / ImageHit[]; the three original `as XxxHit[]` casts
+// were same-type assertions (meaningless); after removing the casts these names have no consumers in this file.
 import type { NormalizedAggregate } from '@nimotech/nimoos-service'
 import { IMAGE_X_GENERIC, VIDEO_X_GENERIC, AUDIO_X_GENERIC } from '../../files/util/fileCategories'
 import { filenameReason, semanticReason, imageReason } from './reasons'
 import type { Reason, ResultCategory, ResultRow, SearchTab, SearchView, SourceBadge } from './types'
 
-// spec §7.3/§7.4/§7.7:把四组互不可比的命中合成一份可渲染的排序列表。
+// spec §7.3/§7.4/§7.7: merge four groups of incomparable hits into one renderable sorted list.
 //
-// ⚠️ 四组分数**不做跨源归一化** —— filenames.match 无上界(实测 2 / 1.5)、
-//    semantic.score 是向量相似度、images.score 是 CLIP 相似度,强行归一只会编出
-//    一个假的可比性(demo 时代那个「98%」就是这么来的)。改用**分层**:层间只比层号,
-//    层内才比分数。
-// ⚠️ 排序必须**稳定** —— 同层同分保持后端返回顺序。Array.prototype.sort 在 V8 上
-//    已是稳定排序,但这里仍显式带上入序 seq 作为最后一级比较键,不依赖引擎实现。
+// WARNING: The four groups of scores are **not cross-source normalized** — filenames.match has no
+//    upper bound (tested 2 / 1.5), semantic.score is vector similarity, images.score is CLIP similarity;
+//    forced normalization would only create fake comparability (that "98%" from the demo era came from this).
+//    Instead use **layering**: only compare layer numbers across layers, only compare scores within layers.
+// WARNING: Sort must be **stable** — same layer, same score preserves backend return order.
+//    Array.prototype.sort on V8 is already stable sort, but we still explicitly include entry order seq
+//    as the final comparison key, not relying on engine implementation.
 
 const LAYER_FILENAME_EXACT = 1
 const LAYER_FILENAME_REST = 2
@@ -46,7 +47,7 @@ function nameOf(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1)
 }
 
-// 累积中的一行。合并靠 realPath 做键。
+// Accumulating row. Merging uses realPath as key.
 interface Draft {
   realPath: string
   name: string
@@ -79,7 +80,7 @@ export function buildSearchView(agg: NormalizedAggregate, query: string): Search
       byPath.set(next.realPath, { ...next, seq: seq++ })
       return
     }
-    // 层号取更靠前的那个;分数跟着被选中的层走(跨层的分数不可比,不能取 max)
+    // Take the earlier layer number; score follows the selected layer (cross-layer scores not comparable, cannot take max)
     if (next.layer < cur.layer || (next.layer === cur.layer && next.score > cur.score)) {
       cur.layer = next.layer
       cur.score = next.score
@@ -90,7 +91,7 @@ export function buildSearchView(agg: NormalizedAggregate, query: string): Search
     cur.fromFilename = cur.fromFilename || next.fromFilename
     cur.fromOcr = cur.fromOcr || next.fromOcr
     cur.isDir = cur.isDir || next.isDir
-    // category 以先到的为准:filenames 先入队,它的 ext 判定比 mime 更贴近用户看到的文件名
+    // category uses first arrival: filenames enters first, its ext determination is closer to what users see in the filename
   }
 
   for (const h of agg.filenames) {
@@ -111,7 +112,7 @@ export function buildSearchView(agg: NormalizedAggregate, query: string): Search
 
   for (const h of agg.semantic) {
     const path = h.paths[0]?.path
-    if (!path) continue // 无路径 → 无法预览/定位,整条丢弃
+    if (!path) continue // No path → cannot preview/locate, discard entire row
     const isOcr = h.kind === 'ocr'
     const layer =
       h.kind === 'body' || h.kind === 'transcript' ? LAYER_SEMANTIC_TEXT

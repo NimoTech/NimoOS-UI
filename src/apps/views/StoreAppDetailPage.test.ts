@@ -78,7 +78,7 @@ describe('StoreAppDetailPage', () => {
     push.mockClear()
   })
 
-  it('进页拉详情+补拉目录(判已装);渲染头部/meta/markdown 描述/截图', async () => {
+  it('Enter page, fetch detail + refetch catalog (check installed); render header/meta/markdown description/screenshots', async () => {
     const w = await mountDetail()
     await flushPromises()
     expect(svc.appstore.getApp).toHaveBeenCalledWith('jellyfin')
@@ -92,7 +92,7 @@ describe('StoreAppDetailPage', () => {
     expect(w.text()).toContain('已安装')     // installed contains jellyfin
   })
 
-  it('未安装 → 点击安装走真实链路:dry_run→install→出现安装中%', async () => {
+  it('Not installed → click install, follow real path: dry_run→install→show installing %', async () => {
     svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
     const w = await mountDetail()
     await flushPromises()
@@ -105,7 +105,7 @@ describe('StoreAppDetailPage', () => {
     expect(w.text()).toContain('0') // percent=0 after track → installing 0%
   })
 
-  it('详情加载失败 → 错误态 + 返回商店', async () => {
+  it('Detail load fails → error state + return to store', async () => {
     svc.appstore.getApp.mockResolvedValue(undefined)
     const w = mount(StoreAppDetailPage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -114,7 +114,7 @@ describe('StoreAppDetailPage', () => {
     expect(push).toHaveBeenCalledWith({ name: 'apps-store' })
   })
 
-  it('点截图开放大层,ESC 关闭', async () => {
+  it('Click screenshot to open lightbox, ESC closes', async () => {
     svc.appstore.getApp.mockResolvedValue(DETAIL)
     const w = mount(StoreAppDetailPage, { attachTo: document.body, global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -127,7 +127,7 @@ describe('StoreAppDetailPage', () => {
     w.unmount()
   })
 
-  it('详情页安装:installing 态显示进度条与百分比', async () => {
+  it('Detail page install: installing state shows progress bar and percentage', async () => {
     svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
     const w = await mountDetail()
     await flushPromises()
@@ -140,7 +140,7 @@ describe('StoreAppDetailPage', () => {
     expect(w.text()).toContain('64')
   })
 
-  it('install-error → 内联错误文案 + 可重试', async () => {
+  it('install-error → inline error message + can retry', async () => {
     svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
     const w = await mountDetail()
     await flushPromises()
@@ -152,7 +152,7 @@ describe('StoreAppDetailPage', () => {
     expect(w.find('.detail-install').exists()).toBe(true) // retry button
   })
 
-  it('架构不兼容:按钮禁用 + 提示文案', async () => {
+  it('Architecture incompatible: button disabled + hint message', async () => {
     localStorage.setItem('arch', 'amd64')
     svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
     const w = await mountDetail({ architectures: ['arm64'] })

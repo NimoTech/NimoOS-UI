@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// 热点(AP)表单。对位 Vue2 HotspotForm.vue(69 行)。
-// 移植纪律 #1(登记):同 WifiForm —— Vue2 这里的 dnsString 也是子组件私有 ref、
-// 保存时被丢掉;这里直接绑父层 form.dnsText。
+// Hotspot (AP) form. Mirrors Vue2 HotspotForm.vue (69 lines).
+// Porting discipline #1 (recorded): same as WifiForm -- the Vue2 dnsString here is also
+// a child-component-private ref, discarded on save; here it binds directly to the parent's form.dnsText.
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { IfaceFormState } from '../../util/ifaceForm'
@@ -27,7 +27,7 @@ const showAdv = ref(false)
 
     <label class="set-net-field">
       <span class="set-net-label">{{ t('settingsNetBand') }}</span>
-      <!-- concurrent 模式频段跟随客户端(后端 watchdog 同步 channel),这里只读展示 —— Vue2 L10-11 -->
+      <!-- In concurrent mode the band follows the client (backend watchdog syncs the channel); read-only display here -- Vue2 L10-11 -->
       <input
         v-if="form.wireless.mode === 'concurrent'"
         class="set-input set-net-band-auto"
@@ -35,7 +35,7 @@ const showAdv = ref(false)
         :value="t('settingsNetBandAuto')"
         disabled
       />
-      <!-- 2.4GHz / 5GHz 是 Vue2 写死的字面量(不是 i18n key),照留 -->
+      <!-- 2.4GHz / 5GHz are hardcoded literals in Vue2 (not i18n keys), kept as-is -->
       <select v-else v-model.number="form.wireless.channel" class="set-select set-net-band">
         <option :value="0">{{ t('settingsNetBandAuto') }}</option>
         <option :value="6">2.4GHz</option>
@@ -48,7 +48,7 @@ const showAdv = ref(false)
     </button>
 
     <template v-if="showAdv">
-      <!-- AP 恒 LAN,只读;concurrent 模式这一行不出现(由 Wi-Fi tab 管 zone)—— Vue2 L27-33 -->
+      <!-- AP is always LAN, read-only; this row doesn't appear in concurrent mode (the Wi-Fi tab manages the zone) -- Vue2 L27-33 -->
       <label v-if="form.wireless.mode === 'ap'" class="set-net-field">
         <span class="set-net-label">{{ t('settingsNetZone') }}</span>
         <select v-model="form.zone" class="set-select set-net-zone" disabled>

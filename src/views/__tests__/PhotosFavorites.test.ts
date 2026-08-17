@@ -1,8 +1,10 @@
-// Task 8 (SP7-P3): PhotosFavorites.vue —— 挂 Pinia + i18n + router stub,mock 共享包
-// 收藏方法(参照 favorites.test.ts 的 mock 形状 + Photos.lightbox.test.ts/
-// Photos.integration.test.ts 的挂载套路)。覆盖 brief 的 5 条测试要点:空态门控、
-// 非空渲染网格+导出按钮启用、点导出→exportZip+toast、grid emit open→灯箱翻页集按 tab
-// 过滤、灯箱 delete→时间线 store.deleteAssets + fav.fetchFavorites 刷新。
+// Task 8 (SP7-P3): PhotosFavorites.vue — mount Pinia + i18n + router stub, mock the
+// shared package's favorite methods (per the mock shape in favorites.test.ts + the
+// mounting playbook from Photos.lightbox.test.ts/Photos.integration.test.ts). Covers
+// the brief's 5 test points: empty-state gating, non-empty grid render + export
+// button enabled, click export -> exportZip+toast, grid emit open -> lightbox paging
+// set filtered by tab, lightbox delete -> timeline store.deleteAssets +
+// fav.fetchFavorites refresh.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -27,14 +29,14 @@ const svc = vi.hoisted(() => ({
     spriteMeta: vi.fn(),
     getAsset: vi.fn().mockRejectedValue(new Error('no hydrate in test')),
     getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
-    // Task 9: 选择工具栏/灯箱「加入相册」→ AlbumPickerDialog 真实挂载。
+    // Task 9: selection toolbar / lightbox "add to album" -> AlbumPickerDialog is really mounted.
     listAlbums: vi.fn().mockResolvedValue([]),
     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// jsdom 无媒体栈(PhotoLightbox 起播位续播用得到,同 Photos.lightbox.test.ts 的前置)。
+// jsdom has no media stack (PhotoLightbox needs this to resume playback position, same precondition as Photos.lightbox.test.ts).
 ;(HTMLMediaElement.prototype as unknown as { play: () => Promise<void> }).play = vi.fn(() => Promise.resolve())
 ;(HTMLMediaElement.prototype as unknown as { pause: () => void }).pause = vi.fn()
 
@@ -101,7 +103,7 @@ afterEach(() => {
 })
 
 describe('PhotosFavorites.vue', () => {
-  it('favoritesLoaded 且列表空 → 渲染空态,不渲染 PhotosGrid', async () => {
+  it('favoritesLoaded true and empty list -> renders empty state, does not render PhotosGrid', async () => {
     const w = await mountView()
     const fav = usePhotosFavorites()
     expect(fav.favoritesLoaded).toBe(true)
@@ -111,10 +113,11 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.fav-export').attributes('disabled')).toBeDefined()
   })
 
-  // Task 9(P3 遗留收口):fetchFavorites 失败时 favoritesLoaded 保持假(见 favorites.ts
-  // 注释),旧实现下 isEmpty 因此恒假 → 落进 v-else 渲染一个空网格,没有任何失败提示。
-  // 新增 loadError 分支必须拦在最前面。
-  it('加载失败时渲染失败态而非空网格(P3 遗留)', async () => {
+  // Task 9 (closing out a P3 leftover): when fetchFavorites fails, favoritesLoaded stays
+  // false (see the comment in favorites.ts), so under the old implementation isEmpty was
+  // therefore always false -> falls into the v-else branch and renders an empty grid, with
+  // no failure indication at all. The new loadError branch must be checked first.
+  it('renders a failure state instead of an empty grid on load failure (P3 leftover)', async () => {
     svc.photos.listFavorites.mockRejectedValueOnce(new Error('network'))
     const w = await mountView()
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
@@ -123,7 +126,7 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.content').exists()).toBe(false)
   })
 
-  it('失败态的重试按钮重新调 fetchFavorites,成功后失败态消失', async () => {
+  it('the failure state\'s retry button re-calls fetchFavorites, and the failure state disappears on success', async () => {
     svc.photos.listFavorites.mockRejectedValueOnce(new Error('network'))
     const w = await mountView()
     const fav = usePhotosFavorites()
@@ -141,16 +144,22 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.content').exists()).toBe(true)
   })
 
-  // 评审 Important 1 补的挡门用例(这一条才是真正钉住不变量的那条,不是 store 那条):
-  // 重试本身也失败——失败态必须持续可见,不能出现"清空态再重新失败"的闪烁,更不能在
-  // in-flight 期间落到网格分支(旧实现的 loadError 上来即清 false 会让这里在重试飞行期
-  // 短暂重演 P3 的裸网格症状,见 favorites.ts 同批修正注释)。
-  // 用受控 promise 卡住重试的 in-flight 窗口——如果 loadError 在进入重试时就被提前清空
-  // (评审纠正前的错误设计),这个窗口里 favoritesLoaded 也还是假,isEmpty 因此为假,会
-  // 落进 v-else 渲染裸网格,原样重演 P3 症状。断言必须卡在 flushPromises 之前才能看见
-  // 这个窗口;等 promise resolve/reject 之后再断言只能看到"最终态",看不见过程,抓不住
-  // 这个缺陷(已在变异验证里踩过一次这个坑,记录见 task-9-report.md 附加修复报告)。
-  it('失败态重试仍失败(reject→retry→reject)→ in-flight 期间与结束后失败态都持续可见,不出现网格', async () => {
+  // A gating case added per review Important 1 (this is the one that actually pins down the
+  // invariant, not the store one): the retry itself also fails — the failure state must stay
+  // visible continuously, with no "clear then fail again" flicker, and must definitely not
+  // fall into the grid branch while in-flight (under the old implementation, loadError got
+  // cleared to false as soon as retry started, which briefly reenacted the P3 bare-grid
+  // symptom during the retry's in-flight window — see the fix comment in favorites.ts from
+  // the same batch).
+  // Use a controlled promise to pin down the retry's in-flight window — if loadError were
+  // cleared as soon as retry starts (the incorrect design that review caught), favoritesLoaded
+  // would still be false in this window, so isEmpty would also be false, falling into the
+  // v-else branch and rendering a bare grid, reenacting the P3 symptom exactly. The assertion
+  // has to be pinned before flushPromises to see this window; asserting only after the promise
+  // resolves/rejects would only show the "final state", not the process, and would miss this
+  // defect (already stepped on once during mutation testing — see the addendum fix report in
+  // task-9-report.md).
+  it('retry after retry still fails (reject->retry->reject) -> failure state stays visible both in-flight and after settling, grid never appears', async () => {
     svc.photos.listFavorites.mockRejectedValueOnce(new Error('e1'))
     const w = await mountView()
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
@@ -162,7 +171,7 @@ describe('PhotosFavorites.vue', () => {
     await w.find('[data-test="fav-retry"]').trigger('click')
     await w.vm.$nextTick()
 
-    // in-flight:重试还没落定,失败态必须继续可见,不能落到网格分支。
+    // In-flight: the retry hasn't settled yet, the failure state must stay visible, must not fall into the grid branch.
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
     expect(w.find('.content').exists()).toBe(false)
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
@@ -171,15 +180,15 @@ describe('PhotosFavorites.vue', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    // 落定后(仍失败):失败态持续可见。
+    // After settling (still failed): the failure state stays visible.
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
     expect(w.find('.content').exists()).toBe(false)
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
   })
 
-  // 关键区分(brief 明确要求的挡门用例):成功但列表为空 —— 必须仍走空态,不能被
-  // loadError 分支误吞。
-  it('确认为零收藏(成功但列表空)仍走空态,不走失败态', async () => {
+  // A key distinction (a gating case explicitly required by the brief): success but an empty
+  // list — must still go to the empty state, must not be swallowed by the loadError branch.
+  it('confirmed zero favorites (success but empty list) still goes to the empty state, not the failure state', async () => {
     const w = await mountView()
     const fav = usePhotosFavorites()
     expect(fav.loadError).toBe(false)
@@ -188,7 +197,7 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(false)
   })
 
-  it('列表非空 → 渲染 PhotosGrid(:months = favoritesMonths),导出按钮启用', async () => {
+  it('non-empty list -> renders PhotosGrid (:months = favoritesMonths), export button enabled', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
     const w = await mountView()
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
@@ -197,7 +206,7 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.fav-export').attributes('disabled')).toBeUndefined()
   })
 
-  it('点导出按钮 → fav.exportZip 被调 + toast', async () => {
+  it('click the export button -> fav.exportZip is called + toast', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a')])
     const w = await mountView()
     const fav = usePhotosFavorites()
@@ -212,12 +221,12 @@ describe('PhotosFavorites.vue', () => {
     expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
   })
 
-  it('PhotosGrid emit open → 灯箱打开,翻页集为 tab 过滤后收藏集(默认 tab=all,不过滤)', async () => {
+  it('PhotosGrid emit open -> lightbox opens, paging set is the favorites filtered by tab (default tab=all, no filtering)', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b', { mimeType: 'video/mp4' }), photo('c')])
     const w = await mountView()
 
     const tiles = w.findAll('.tile')
-    expect(tiles).toHaveLength(3) // 默认 tab='all',全展示(与时间线默认 'photo' 不同)
+    expect(tiles).toHaveLength(3) // Default tab='all', shows everything (unlike the timeline's default of 'photo')
     await tiles[0].trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -227,7 +236,7 @@ describe('PhotosFavorites.vue', () => {
     expect(lb.list.value.map((p) => p.id)).toEqual(['a', 'b', 'c'])
   })
 
-  it('PhoteLightbox emit delete(id) → store.deleteAssets(["id"]) + fav.fetchFavorites 刷新', async () => {
+  it('PhoteLightbox emit delete(id) -> store.deleteAssets(["id"]) + fav.fetchFavorites refresh', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a')])
     const w = await mountView()
     const store = useTimelineStore()
@@ -251,14 +260,16 @@ describe('PhotosFavorites.vue', () => {
     expect(deleteSpy).toHaveBeenCalledWith(['a'])
     expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
     expect(fetchFavSpy).toHaveBeenCalled()
-    expect(lb.open.value).toBe(false) // PhotoLightbox 自己已在 doDelete 里 close
+    expect(lb.open.value).toBe(false) // PhotoLightbox already closes itself inside doDelete
   })
 
-  // 评审 Finding 1:PhotosGrid 接了 :selected/@toggle-select 但没有配套选择工具栏——勾选
-  // 一个框会让整个网格的单击行为切进「继续勾选」分支且无退出入口。补 PhotosSelectionToolbar
-  // (照 Photos.vue 批量删除前例)后,这里验证它确实出现、批量删除落到时间线 store + 收藏
-  // 列表刷新、clear 能退出选择态。
-  it('勾选一个瓦片 → PhotosSelectionToolbar 出现;@delete → 时间线 store.deleteAssets + fav.fetchFavorites + 清空选择', async () => {
+  // Review Finding 1: PhotosGrid wired up :selected/@toggle-select but had no matching
+  // selection toolbar — checking one box would switch the whole grid's click behavior into
+  // a "keep selecting" branch with no exit. After adding PhotosSelectionToolbar (following
+  // the Photos.vue batch-delete precedent), verify here that it actually appears, that batch
+  // delete lands on the timeline store + refreshes the favorites list, and that clear can
+  // exit selection mode.
+  it('checking one tile -> PhotosSelectionToolbar appears; @delete -> timeline store.deleteAssets + fav.fetchFavorites + clears selection', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
     const w = await mountView()
     const store = useTimelineStore()
@@ -286,12 +297,12 @@ describe('PhotosFavorites.vue', () => {
     expect(deleteSpy).toHaveBeenCalledWith(['a'])
     expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
     expect(fetchFavSpy).toHaveBeenCalled()
-    expect(w.find('.selectbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
+    expect(w.find('.selectbar').exists()).toBe(false) // selection cleared -> toolbar disappears
   })
 
-  // Task 9: 选择工具栏「加入相册」→ picker(assetIds=已选中)→ 选相册后清空 selection(收藏
-  // 列表本身不变)。
-  it('选择工具栏「加入相册」→ picker 打开且 assetIds=已选中;选相册后清空 selection', async () => {
+  // Task 9: selection toolbar "add to album" -> picker (assetIds=selected) -> selecting an
+  // album clears selection (the favorites list itself is unchanged).
+  it('selection toolbar "add to album" -> picker opens with assetIds=selected; clears selection after picking an album', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
     svc.photos.listAlbums.mockResolvedValue([{ id: 5, name: 'Trip', assetCount: 0 }])
     const w = await mountView()
@@ -317,8 +328,8 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.selectbar').exists()).toBe(false)
   })
 
-  // Task 9: 灯箱「加入相册」→ picker(assetIds=[当前项 id])。
-  it('灯箱「加入相册」→ picker 打开且 assetIds=[当前项 id]', async () => {
+  // Task 9: lightbox "add to album" -> picker (assetIds=[current item's id]).
+  it('lightbox "add to album" -> picker opens with assetIds=[current item\'s id]', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a')])
     svc.photos.listAlbums.mockResolvedValue([{ id: 6, name: 'Solo', assetCount: 0 }])
     const w = await mountView()
@@ -333,7 +344,7 @@ describe('PhotosFavorites.vue', () => {
     await w.vm.$nextTick()
 
     expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
-    expect(lb.open.value).toBe(true) // 灯箱不因加入相册而关闭
+    expect(lb.open.value).toBe(true) // the lightbox doesn't close just because of adding to an album
 
     const item = w.find('[data-test="album-picker-item"]')
     await item.trigger('click')
@@ -342,7 +353,7 @@ describe('PhotosFavorites.vue', () => {
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(6, ['a'])
   })
 
-  it('选择态下点关闭(x)→ 清空选择,工具栏消失', async () => {
+  it('clicking close (x) while in selection mode -> clears selection, toolbar disappears', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a')])
     const w = await mountView()
 
@@ -355,9 +366,10 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.selectbar').exists()).toBe(false)
   })
 
-  // 评审 Finding 2:PhotosToolbar 的 3 个密度按钮此前没绑 :density/@update:density,是
-  // 死控件。补线后验证点击真的把 density 传给 PhotosGrid(通过 .grid[data-density] 观察)。
-  it('切换密度按钮 → PhotosGrid 的 data-density 跟着变(此前是死控件)', async () => {
+  // Review Finding 2: PhotosToolbar's 3 density buttons previously weren't wired to
+  // :density/@update:density — they were dead controls. After wiring them up, verify that
+  // clicking actually passes density through to PhotosGrid (observed via .grid[data-density]).
+  it('switching the density button -> PhotosGrid\'s data-density follows along (previously a dead control)', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a')])
     const w = await mountView()
 
@@ -370,10 +382,11 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.grid').attributes('data-density')).toBe('compact')
   })
 
-  // Task 10 (SP7-P4 相册,P3 推迟项收口):收藏视图「存为相册」——照 Vue2
-  // PhotosFavoritesView.vue :21-23(入口)/:455-478(openSaveAlbum/confirmSaveAlbum)。
-  describe('存为相册', () => {
-    it('收藏为空 → 「存为相册」按钮 disabled 且点击不触发 openSaveAlbum(模态不出现)', async () => {
+  // Task 10 (SP7-P4 albums, closing out a P3 deferral): the favorites view's "save as
+  // album" — following Vue2 PhotosFavoritesView.vue :21-23 (entry point)/:455-478
+  // (openSaveAlbum/confirmSaveAlbum).
+  describe('Save as album', () => {
+    it('empty favorites -> "save as album" button disabled and clicking doesn\'t trigger openSaveAlbum (no modal)', async () => {
       const wEmpty = await mountView()
       expect(wEmpty.find('.fav-save-album').attributes('disabled')).toBeDefined()
       await wEmpty.find('.fav-save-album').trigger('click')
@@ -385,7 +398,7 @@ describe('PhotosFavorites.vue', () => {
       expect(wFull.find('.fav-save-album').attributes('disabled')).toBeUndefined()
     })
 
-    it('点击「存为相册」→ 模态出现,input 预填含当前年份的默认名,副标题/脚注文案渲染', async () => {
+    it('clicking "save as album" -> modal appears, input is prefilled with a default name containing the current year, subtitle/footnote copy renders', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
       // Task 11 review fix: the subtitle now reads the exact total (favoritesTotal), which
       // comes from favIds once loaded — keep the id list in sync with the loaded page so
@@ -400,13 +413,14 @@ describe('PhotosFavorites.vue', () => {
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
       const input = w.find('[data-test="fav-savealbum-input"]')
       expect((input.element as HTMLInputElement).value).toContain(String(new Date().getFullYear()))
-      // 评审 Important 2:补 Vue2 :267-268 动态副标题(count 反映当前收藏数)与
-      // :279-281 静态脚注 —— T3 键清单当初漏列,本轮授权补齐。
+      // Review Important 2: add Vue2 :267-268's dynamic subtitle (count reflects the current
+      // favorites count) and :279-281's static footnote — the T3 key checklist missed these
+      // at the time; authorized to backfill them in this round.
       expect(w.find('[data-test="fav-savealbum-sub"]').text()).toContain('2')
       expect(w.find('[data-test="fav-savealbum-note"]').text().length).toBeGreaterThan(0)
     })
 
-    it('提交 → albums.saveAsAlbum(name, [收藏 ids]) 被调 + 成功 toast(精确文案)+ 模态关闭', async () => {
+    it('submit -> albums.saveAsAlbum(name, [favorite ids]) is called + success toast (exact copy) + modal closes', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
       const w = await mountView()
       const albums = usePhotosAlbums()
@@ -493,7 +507,7 @@ describe('PhotosFavorites.vue', () => {
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
     })
 
-    it('名称 trim 为空时主按钮 disabled 且点击不触发 saveAsAlbum', async () => {
+    it('primary button disabled when the trimmed name is empty, and clicking doesn\'t trigger saveAsAlbum', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const w = await mountView()
       const albums = usePhotosAlbums()
@@ -510,10 +524,12 @@ describe('PhotosFavorites.vue', () => {
       expect(saveSpy).not.toHaveBeenCalled()
     })
 
-    // 评审 Important 1:补重入守卫回归测试 —— 快速双击确认按钮,第一次 saveAsAlbum 的
-    // await 尚未 resolve 时就发出第二次点击,必须只调用一次(照同期 T7 PhotosAlbums.vue
-    // 的 `creating` 守卫补的同款回归用例写法)。用可控 Promise 制造「未 resolve」窗口。
-    it('确认按钮连点两次(第一次 await 未完成时点第二次)→ saveAsAlbum 只被调用一次', async () => {
+    // Review Important 1: add a re-entrancy guard regression test — quickly double-clicking
+    // the confirm button, firing the second click before the first saveAsAlbum's await
+    // resolves, must result in only one call (following the same regression-case style added
+    // for T7 PhotosAlbums.vue's `creating` guard in the same period). Use a controlled promise
+    // to create the "not yet resolved" window.
+    it('clicking confirm twice in a row (second click before the first await completes) -> saveAsAlbum is called only once', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const w = await mountView()
       const albums = usePhotosAlbums()
@@ -527,11 +543,11 @@ describe('PhotosFavorites.vue', () => {
       await w.find('[data-test="fav-savealbum-input"]').setValue('Trip')
 
       const confirmBtn = w.find('[data-test="fav-savealbum-confirm"]')
-      await confirmBtn.trigger('click') // 第一次点击:进入 await,尚未 resolve
+      await confirmBtn.trigger('click') // First click: enters the await, not yet resolved
       await w.vm.$nextTick()
-      // 守卫生效期间,确认按钮应被禁用(与「名称为空」共用 disabled 绑定的同一条件)。
+      // While the guard is active, the confirm button should be disabled (sharing the same disabled binding condition as "name is empty").
       expect(w.find('[data-test="fav-savealbum-confirm"]').attributes('disabled')).toBeDefined()
-      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click') // 第二次点击:应被短路
+      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click') // Second click: should be short-circuited
       await w.vm.$nextTick()
 
       expect(saveSpy).toHaveBeenCalledTimes(1)
@@ -540,7 +556,7 @@ describe('PhotosFavorites.vue', () => {
       await flushPromises()
     })
 
-    it('saveAsAlbum 抛 409 → 重名 toast,模态仍在且输入内容保留', async () => {
+    it('saveAsAlbum throws 409 -> duplicate-name toast, modal stays open with input content preserved', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const w = await mountView()
       const albums = usePhotosAlbums()
@@ -561,7 +577,7 @@ describe('PhotosFavorites.vue', () => {
       expect((w.find('[data-test="fav-savealbum-input"]').element as HTMLInputElement).value).toBe('Dup')
     })
 
-    it('saveAsAlbum 抛其它错误 → 通用失败 toast,模态仍在', async () => {
+    it('saveAsAlbum throws another error -> generic failure toast, modal stays open', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const w = await mountView()
       const albums = usePhotosAlbums()
@@ -580,7 +596,7 @@ describe('PhotosFavorites.vue', () => {
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
     })
 
-    it('Esc(document 级)→ 模态关闭', async () => {
+    it('Esc (at document level) -> modal closes', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const w = await mountView()
 
@@ -595,17 +611,18 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
-  // Task 15A(SP7-P5 两笔记账收口):hero 统计三卡 —— 照 Vue2 PhotosFavoritesView.vue
-  // :56-84(模板)+ :369-385(byPersonAll/byPlaceAll/byYearAll)。三卡各自的排序键/切片
-  // 数量不同,逐条核。
-  describe('hero 统计三卡', () => {
-    it('收藏为空 → 三卡不渲染(走空态,与 Vue2 :47-53/:54 的 v-if/v-else 分支一致)', async () => {
+  // Task 15A (closing out two ledger entries from SP7-P5): hero stats three cards —
+  // following Vue2 PhotosFavoritesView.vue :56-84 (template) + :369-385
+  // (byPersonAll/byPlaceAll/byYearAll). Each card has its own sort key/slice count,
+  // check them one by one.
+  describe('hero stats three cards', () => {
+    it('empty favorites -> the three cards don\'t render (goes to empty state, consistent with the v-if/v-else branches at Vue2 :47-53/:54)', async () => {
       const w = await mountView()
       expect(w.find('[data-test="fav-empty"]').exists()).toBe(true)
       expect(w.find('.fav-stats').exists()).toBe(false)
     })
 
-    it('有收藏 → 三卡渲染,Top person 值 = 出现最多的人名,Top place 只取逗号前一段', async () => {
+    it('has favorites -> three cards render, Top person value = the name that appears most, Top place only takes the segment before the comma', async () => {
       svc.photos.listFavorites.mockResolvedValue([
         photo('a', { faces: ['Alice', 'Bob'], placeName: 'Paris, France' }),
         photo('b', { faces: ['Alice'], placeName: 'Paris, France' }),
@@ -615,19 +632,19 @@ describe('PhotosFavorites.vue', () => {
       const cards = w.findAll('.fav-stat-card')
       expect(cards).toHaveLength(3)
 
-      // Top person: Alice 出现 2 次 > Bob 1 次
+      // Top person: Alice appears 2 times > Bob's 1 time
       expect(cards[0].find('.value').text()).toBe('Alice')
       expect(cards[0].find('.meta').text()).toContain('2')
 
-      // Top place: "Paris, France" 出现 2 次,主值只取逗号前一段
+      // Top place: "Paris, France" appears 2 times, primary value only takes the segment before the comma
       expect(cards[1].find('.value').text()).toBe('Paris')
       expect(cards[1].find('.meta').text()).toContain('2')
 
-      // By year: 全部 3 张同年(mock photo() 默认 takenAt 2026-07-01)
+      // By year: all 3 photos are the same year (mock photo()'s default takenAt is 2026-07-01)
       expect(cards[2].find('.value').text()).toContain('3')
     })
 
-    it('无 faces → Top person 值 —,meta 走 photosFavNoFaces 文案', async () => {
+    it('no faces -> Top person value is —, meta uses the photosFavNoFaces copy', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
       const w = await mountView()
       const cards = w.findAll('.fav-stat-card')
@@ -635,7 +652,7 @@ describe('PhotosFavorites.vue', () => {
       expect(cards[0].find('.meta').text()).toBe(zh.photosFavNoFaces)
     })
 
-    it('无地点 → Top place 值 —,meta 为空串', async () => {
+    it('no place -> Top place value is —, meta is an empty string', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const w = await mountView()
       const cards = w.findAll('.fav-stat-card')
@@ -643,7 +660,7 @@ describe('PhotosFavorites.vue', () => {
       expect(cards[1].find('.meta').text()).toBe('')
     })
 
-    it('无照片(By year)→ 主值 0,小字 in —', async () => {
+    it('no photos (By year) -> primary value 0, caption text in —', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a', { takenAt: null })])
       const w = await mountView()
       const cards = w.findAll('.fav-stat-card')
@@ -651,7 +668,7 @@ describe('PhotosFavorites.vue', () => {
       expect(cards[2].find('.value').text()).toContain('—')
     })
 
-    it('Top person 条形 = min(4, 人数),首段 data-hi=true;Top place 条形 = min(3, 地点数)', async () => {
+    it('Top person bar = min(4, headcount), first segment has data-hi=true; Top place bar = min(3, place count)', async () => {
       svc.photos.listFavorites.mockResolvedValue([
         photo('a', { faces: ['A', 'B', 'C', 'D', 'E'] }),
         photo('b', { placeName: 'X' }), photo('c', { placeName: 'Y' }), photo('d', { placeName: 'Z' }), photo('e', { placeName: 'W' }),
@@ -660,13 +677,13 @@ describe('PhotosFavorites.vue', () => {
       const cards = w.findAll('.fav-stat-card')
       const personBars = cards[0].findAll('.fav-stat-bar span')
       const placeBars = cards[1].findAll('.fav-stat-bar span')
-      expect(personBars).toHaveLength(4) // byPersonAll.slice(0,4),5 个人名裁到 4
+      expect(personBars).toHaveLength(4) // byPersonAll.slice(0,4), 5 names trimmed down to 4
       expect(personBars[0].attributes('data-hi')).toBe('true')
       expect(personBars[1].attributes('data-hi')).toBeUndefined()
-      expect(placeBars).toHaveLength(3) // byPlaceAll.slice(0,3),4 个地点裁到 3
+      expect(placeBars).toHaveLength(3) // byPlaceAll.slice(0,3), 4 places trimmed down to 3
     })
 
-    it('By year 条形 = 全部年份(不 slice)', async () => {
+    it('By year bar = all years (not sliced)', async () => {
       svc.photos.listFavorites.mockResolvedValue([
         photo('a', { takenAt: '2020-01-01' }), photo('b', { takenAt: '2021-01-01' }),
         photo('c', { takenAt: '2022-01-01' }), photo('d', { takenAt: '2023-01-01' }),
@@ -674,7 +691,7 @@ describe('PhotosFavorites.vue', () => {
       ])
       const w = await mountView()
       const cards = w.findAll('.fav-stat-card')
-      expect(cards[2].findAll('.fav-stat-bar span')).toHaveLength(5) // 5 个年份,不裁
+      expect(cards[2].findAll('.fav-stat-bar span')).toHaveLength(5) // 5 years, not trimmed
     })
   })
 

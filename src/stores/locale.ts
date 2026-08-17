@@ -2,13 +2,12 @@ import { defineStore } from 'pinia'
 import { i18n } from '../i18n'
 import { readSystemConfig, patchSystemConfig } from '../settings/util/systemConfig'
 import { useToast } from './toast'
+import { LOCALES, isLocale, type Locale } from '../i18n/locale'
 
-export const LOCALES = ['zh_cn', 'en_us'] as const
-export type Locale = (typeof LOCALES)[number]
-
-function isLocale(v: unknown): v is Locale {
-  return typeof v === 'string' && (LOCALES as readonly string[]).includes(v)
-}
+// Locale identity lives in i18n/locale.ts (it has to be reachable from i18n/index.ts
+// without importing this store). Re-exported here so existing call sites keep working.
+export { LOCALES, isLocale }
+export type { Locale }
 
 export const useLocaleStore = defineStore('locale', () => {
   function setLocale(lang: Locale) {
@@ -23,17 +22,20 @@ export const useLocaleStore = defineStore('locale', () => {
     } catch (e) { console.warn('[locale] server load failed', e) }
   }
 
-  // 改走 systemConfig 的串行队列:设置页的时区/开关也写这一个 key,
-  // 各自读改写会丢写(移植纪律 #3)。
+  // Routed through systemConfig's serial queue instead: the settings page's timezone/toggles
+  // also write this same key, and independent read-modify-write cycles would lose writes
+  // (porting discipline #3).
   async function persist(lang: Locale): Promise<void> {
     setLocale(lang)
     try {
       await patchSystemConfig({ lang })
     } catch (e) {
-      // 评审 fix round 2 · Important:此前只 console.warn —— 界面已经切换了语言,
-      // 服务端却从没存过,用户毫无感知。persist() 被 LanguageRow.vue 和首次开机
-      // Welcome.vue 的语言选择器两处调用,提示放在 store 里能同时覆盖两处调用方,
-      // 不必改 persist() 的返回契约(不抛出,调用方不用各自 try/catch)。
+      // review fix round 2 · Important: this used to only console.warn -- the UI had already
+      // switched languages, but the server never actually saved it, and the user had no way
+      // of knowing. persist() is called from both LanguageRow.vue and the first-boot
+      // Welcome.vue language picker, so putting the toast in the store covers both call
+      // sites at once, without changing persist()'s return contract (it still doesn't throw,
+      // so callers don't each need their own try/catch).
       console.warn('[locale] server save failed', e)
       const toast = useToast()
       toast.show(i18n.global.t('settingsSaveFailed'))

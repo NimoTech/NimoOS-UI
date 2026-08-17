@@ -1,13 +1,13 @@
-// 地图视图变换与手势。Ported verbatim from Vue2 NimoOS-UI
-// src/views/Photos/PhotosPlacesView.vue:561-735(svgPoint / visibleCenterVb /
+// Map view transformations and gestures. Ported verbatim from Vue2 NimoOS-UI
+// src/views/Photos/PhotosPlacesView.vue:561-735 (svgPoint / visibleCenterVb /
 // applyZoom / stopViewAnim / animateView / centerOn / zoomBy / setScale /
 // onWheel / zoomToCluster / screenToVbScale / onPointerDown|Move|Up /
 // autoPan(→autoPanTo) / handleReset(→reset)).
 //
-// `splitScaleFor` 本身(裂点二分)是 T2 的产物(util/placesMap.ts),这里只是
-// 消费方(zoomToCluster)。`hasDetailPanel()` P6a 恒返 false(详情面板是
-// P6b 的事),但 visibleCenterVb 的 panelFrac 分支照 Vue2 建齐,不因"本期用
-// 不到"而省略。
+// `splitScaleFor` itself (split-point bisection) is T2's product (util/placesMap.ts),
+// here only the consumer (zoomToCluster). `hasDetailPanel()` always returns false in P6a
+// (detail panel is P6b's concern), but visibleCenterVb's panelFrac branch built per Vue2,
+// not omitted just because "this period doesn't use it".
 import { computed, type ComputedRef, type Ref, ref } from 'vue'
 import { MAX_SCALE, splitScaleFor, type Pin, type Place } from '../util/placesMap'
 import { MAP_H, MAP_W, project } from '../util/worldMap'
@@ -20,9 +20,10 @@ export interface PlacesView {
 
 export interface UsePlacesViewOptions {
   svgEl: Ref<SVGSVGElement | null>
-  /** 地图包裹层(算可见中心用)。显式传入 ref,不靠 svgEl.parentElement 推导。 */
+  /** Map wrapper layer (for computing visible center). Explicitly passed ref, not
+   * inferred from svgEl.parentElement. */
   wrapEl: Ref<HTMLElement | null>
-  /** P6a 恒返 false;P6b 接上详情面板后返回真实状态。 */
+  /** P6a always returns false; P6b after detail panel connects returns real state. */
   hasDetailPanel: () => boolean
 }
 
@@ -57,15 +58,16 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
 } {
   const view = ref<PlacesView>({ tx: 0, ty: 0, scale: 1 })
 
-  // zoomFrac: (scale - 1) / (MAX_SCALE - 1) — 未在 Vue2 的这段方法里,是 T7
-  // 接口新加的派生量(供 T11 的缩放条读取),照公式实现。
+  // zoomFrac: (scale - 1) / (MAX_SCALE - 1) — not in Vue2's method section, new derived
+  // quantity added to T7 interface (for T11's zoom slider to read), implemented per
+  // formula.
   const zoomFrac = computed(() => (view.value.scale - 1) / (MAX_SCALE - 1))
 
   let raf: number | null = null
   let drag: DragState | null = null
 
-  // Vue2 :564-576. preserveAspectRatio="xMidYMid meet" 会在 svg 元素内留黑边
-  // (letterbox),必须补偏移才能把屏幕点换算成 viewBox 点。
+  // Vue2 :564-576. preserveAspectRatio="xMidYMid meet" leaves black bars (letterbox)
+  // inside svg element, must offset to convert screen points to viewBox points.
   function svgPoint(clientX: number, clientY: number): { x: number, y: number } {
     const svg = opts.svgEl.value
     if (!svg)
@@ -90,8 +92,9 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     return fit > 0 ? 1 / fit : 1
   }
 
-  // Vue2 :578-583. panelFrac 分支照建:hasDetailPanel() 为 false 或 wrapEl
-  // 缺失时恒 0,为 true 时按包裹层宽度算 420px 详情面板占比(钳到 0.55)。
+  // Vue2 :578-583. panelFrac branch built as-is: when hasDetailPanel() false or wrapEl
+  // absent, always 0; when true, calculate 420px detail panel fraction of wrapper width
+  // (clamped to 0.55).
   function visibleCenterVb(): { x: number, y: number } {
     const wrap = opts.wrapEl.value
     const rect = wrap ? wrap.getBoundingClientRect() : null
@@ -99,7 +102,8 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     return { x: MAP_W * (1 - panelFrac) / 2, y: MAP_H / 2 }
   }
 
-  // Vue2 :597-602. 即时交互(拖拽/滚轮)抢占在途缓动时调用。
+  // Vue2 :597-602. Called when immediate interaction (drag/wheel) preempts in-flight
+  // animation.
   function stopViewAnim(): void {
     if (raf !== null) {
       cancelAnimationFrame(raf)
@@ -107,7 +111,8 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     }
   }
 
-  // Vue2 :585-594. 定点缩放:保持 (vbX, vbY) 对应的世界点不变。
+  // Vue2 :585-594. Zoom about a point: keep world point corresponding to (vbX, vbY)
+  // unchanged.
   function applyZoom(next: number, vbX: number, vbY: number): void {
     stopViewAnim()
     const old = view.value.scale
@@ -119,7 +124,7 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     view.value = { scale: clamped, tx: vbX - wx * clamped, ty: vbY - wy * clamped }
   }
 
-  // Vue2 :605-620. easeOutCubic,~420ms,rAF 驱动。
+  // Vue2 :605-620. easeOutCubic, ~420ms, rAF-driven.
   function animateView(target: PlacesView, duration = 420): void {
     stopViewAnim()
     const start = { ...view.value }
@@ -137,7 +142,7 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     raf = requestAnimationFrame(step)
   }
 
-  // Vue2 :622-626. 把世界点(project() 输出)放到可见中心,走缓动。
+  // Vue2 :622-626. Place world point (project() output) at visible center, animate.
   function centerOn(wx: number, wy: number, scale: number): void {
     const c = visibleCenterVb()
     const clamped = Math.max(1, Math.min(MAX_SCALE, scale))
@@ -161,9 +166,10 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     animateView({ tx: 0, ty: 0, scale: 1 })
   }
 
-  // Vue2 :724-735 autoPan(). 必须从传入的 place 取 lon/lat,绝不读"当前详情"
-  // ——autoPan 在 activeId watcher 里、loadDetail 之前触发,此时详情还是上一个
-  // 地点的(且详情 payload 没有 lon/lat),会平移到错位置或 NaN。
+  // Vue2 :724-735 autoPan(). Must fetch lon/lat from passed place, never from "current
+  // detail" — autoPan fires in activeId watcher before loadDetail, detail at that point
+  // is still the previous place's (and detail payload has no lon/lat), would pan to wrong
+  // position or NaN.
   function autoPanTo(place: Place | null | undefined): void {
     if (!place)
       return
@@ -171,19 +177,20 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     centerOn(x, y, Math.max(view.value.scale, 1.8))
   }
 
-  // Vue2 :661-664。照搬保留 +0.01,但评审 I2 已代数证明:对任意合法
-  // currentScale ∈ [1, MAX_SCALE],这一项恒不可观测,是 Vue2 的死代码——
-  // splitScaleFor 的「可裂」分支恒返回 >= currentScale * 1.04(因 currentScale >= 1,
-  // 即 >= currentScale + 0.04,严格大于 currentScale + 0.01,左支永不胜出);
-  // 「裂不开」分支恒返回 MAX_SCALE,而下面 centerOn 自己的
-  // Math.min(MAX_SCALE, …) 会把两种情形都夹回 MAX_SCALE。保留这一行仅为逐行
-  // 对齐 Vue2,不代表它有任何用户可观测作用。
+  // Vue2 :661-664. Keep +0.01 as-is, but review I2 algebraically proved: for any valid
+  // currentScale ∈ [1, MAX_SCALE], this term is always unobservable, Vue2 dead code —
+  // splitScaleFor's "splittable" branch always returns >= currentScale * 1.04 (because
+  // currentScale >= 1, i.e., >= currentScale + 0.04, strictly > currentScale + 0.01,
+  // left branch never wins); "can't split" branch always returns MAX_SCALE, and below
+  // centerOn's own Math.min(MAX_SCALE, …) clamps both cases back to MAX_SCALE. Keep this
+  // line only for line-by-line Vue2 alignment, no user-observable effect.
   function zoomToCluster(pin: Pin, currentScale: number): void {
     const next = Math.max(currentScale + 0.01, splitScaleFor(pin.members ?? [], currentScale))
     centerOn(pin.x, pin.y, next)
   }
 
-  // Vue2 :635-639. 注册({ passive: false })是 T11 容器的职责,这里只做逻辑。
+  // Vue2 :635-639. Registering ({ passive: false }) is T11 container's responsibility,
+  // only doing logic here.
   function onWheel(e: WheelEvent): void {
     e.preventDefault()
     const vb = svgPoint(e.clientX, e.clientY)
@@ -191,7 +198,7 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     applyZoom(view.value.scale * factor, vb.x, vb.y)
   }
 
-  // Vue2 :701-708. 图钉点击(.geo-pin)不触发平移。
+  // Vue2 :701-708. Pin click (.geo-pin) should not trigger pan.
   function onPointerDown(e: PointerEvent): void {
     const target = e.target as (EventTarget & { closest?: (selector: string) => Element | null }) | null
     if (target && typeof target.closest === 'function' && target.closest('.geo-pin'))
@@ -211,8 +218,8 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     view.value = { scale: view.value.scale, tx: tx + (e.clientX - x) * s, ty: ty + (e.clientY - y) * s }
   }
 
-  // Vue2 :715-723. releasePointerCapture 包 try/catch——丢失的 pointerup 会让
-  // capture 泄漏。
+  // Vue2 :715-723. releasePointerCapture wrapped in try/catch — lost pointerup would
+  // leak capture.
   function onPointerUp(e: PointerEvent): void {
     drag = null
     const svg = opts.svgEl.value
@@ -226,8 +233,8 @@ export function usePlacesView(opts: UsePlacesViewOptions): {
     }
   }
 
-  // Vue2 beforeDestroy :359-361. 只取消在途 rAF,不摘 pointer capture(那是
-  // onPointerUp 的事)。
+  // Vue2 beforeDestroy :359-361. Only cancel in-flight rAF, don't strip pointer
+  // capture (that's onPointerUp's job).
   function dispose(): void {
     stopViewAnim()
   }

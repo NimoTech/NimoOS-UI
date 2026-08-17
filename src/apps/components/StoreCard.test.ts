@@ -8,7 +8,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 const APP = { id: 'jellyfin', title: 'Jellyfin', tagline: '个人媒体系统', icon: 'https://cdn/i.png', thumbnail: '', category: 'Media', architectures: [], tips: undefined }
 
 describe('StoreCard', () => {
-  it('渲染 icon/title/tagline/category;点击 emit open', async () => {
+  it('renders icon/title/tagline/category; click emits open', async () => {
     const w = mount(StoreCard, { props: { app: APP, installed: false }, global: { plugins: [i18n] } })
     expect(w.get('img').attributes('src')).toBe('https://cdn/i.png')
     expect(w.text()).toContain('Jellyfin')
@@ -18,7 +18,7 @@ describe('StoreCard', () => {
     await w.get('.store-card').trigger('click')
     expect(w.emitted('open')).toHaveLength(1)
   })
-  it('未装显示安装按钮;点按钮 emit install 且不冒泡成 open', async () => {
+  it('not installed shows install button; click button emits install and does not bubble to open', async () => {
     const w = mount(StoreCard, { props: { app: APP, installed: false }, global: { plugins: [i18n] } })
     const btn = w.get('.store-install')
     expect(btn.text()).toContain('安装')
@@ -26,7 +26,7 @@ describe('StoreCard', () => {
     expect(w.emitted('install')).toHaveLength(1)
     expect(w.emitted('open')).toBeUndefined()
   })
-  it('installed 显示徽章、无安装按钮;icon 空时渲染占位块不渲染 img', () => {
+  it('installed shows badge, no install button; empty icon renders placeholder block not img', () => {
     const w = mount(StoreCard, {
       props: { app: { ...APP, icon: '' }, installed: true },
       global: { plugins: [i18n] },
@@ -36,7 +36,7 @@ describe('StoreCard', () => {
     expect(w.find('img').exists()).toBe(false)
     expect(w.find('.store-icon-fallback').exists()).toBe(true)
   })
-  it('percent!=null → 安装中禁用钮;!compatible → 禁用;installed 优先', () => {
+  it('percent!=null → installing disables button; !compatible → disables; installed takes precedence', () => {
     const app = { id: 'a', title: 'A', tagline: '', icon: '', thumbnail: '', category: '', architectures: [], tips: undefined }
     let w = mount(StoreCard, { props: { app, installed: false, percent: 42 }, global: { plugins: [i18n] } })
     let btn = w.find('.store-install')

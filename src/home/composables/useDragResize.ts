@@ -70,7 +70,7 @@ export function useDragResize(opts: { cell: Ref<number>; gap: Ref<number>; cols:
   function reset() { active = null; ghost.value = null; previewSize.value = {}; draggingId.value = null; resizingId.value = null }
   function pop(id: string) { poppingId.value = id; setTimeout(() => { if (poppingId.value === id) poppingId.value = null }, 340) }
 
-  // 测试友好:直接提交一次拖拽到 (c,r)
+  // test-friendly: directly commit a single drag to (c,r)
   function commitDragForTest(c: number, r: number) {
     if (!active) return
     active.mode = 'drag'; active.tc = c; active.tr = r; commit()

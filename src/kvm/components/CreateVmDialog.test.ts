@@ -12,13 +12,16 @@ const OS = (over: Partial<SelectedOs> = {}): SelectedOs => ({
   isLocal: false, id: 'alpine-319', name: 'Alpine', path: '/DATA/KVM/isos/alpine-319.iso',
   recommendedVcpu: 1, recommendedMemory: 512, minMemory: 256, minDisk: 2, ...over,
 })
-// 修复(fixture 缺字段,见组件顶部注释「brief 测试代码问题」#2):alpine-319 是 OS()
-// 默认工厂产出的 SelectedOs.id,真实链路里这个 id 一定能在页面级 isos 列表里查到同一条
-// 记录(OsSelector 的 SelectedOs.id 本来就是从 isos 里选出来的那一条)——watch(osTemplate)
-// 靠这条记录才能把 osType/firmware/os 显示名重新推导一致。brief 原稿两处用 OS() 却把
-// isos 留空,导致 osTemplate 联动查不到模板、被迫走「找不到就整段 no-op」分支(1:1 照抄
-// Vue2 :731 的行为),form.os/osType 会停在别处设的值——众测试里只有下面这条按值全等
-// (toEqual)断言到 os/osType,必须补全这条 fixture 才有意义。
+// Fix (fixture missing field, see comment at top of component "brief test code issue" #2):
+// alpine-319 is the default SelectedOs.id produced by the OS() factory. In the real flow,
+// this id must be able to find the same record in the page-level isos list (OsSelector's
+// SelectedOs.id is selected from isos in the first place) — watch(osTemplate) relies on
+// this record to re-derive osType/firmware/os display names consistently. The brief draft
+// used OS() in two places but left isos empty, causing osTemplate linking to fail to find
+// the template and be forced into the "no-op if not found" branch (1:1 mirrors Vue2 :731
+// behavior), leaving form.os/osType stuck at values set elsewhere. Among all tests, only
+// the following one asserts os/osType by full value equality (toEqual), so this fixture
+// must be completed for that test to be meaningful.
 const ISO_ALPINE: KvmISO = {
   id: 'alpine-319', name: 'Alpine', version: '3.19', category: 'linux', size: '60 MB',
   status: 'downloaded', progress: 0, path: '/DATA/KVM/isos/alpine-319.iso',
@@ -26,12 +29,13 @@ const ISO_ALPINE: KvmISO = {
 }
 
 let w: VueWrapper | null = null
-// 修复(brief 测试代码缺陷 #3,已申报):brief 原稿 `mk` 是同步函数,挂载后立刻同步查
-// document.body。本仓库 reka-ui 2.10 的 DialogPortal/DialogContent 首次挂载要等下一个
-// microtask(nextTick)才把内容真正落地到 document.body——Task 1(KvmDialog.test.ts)/
-// Task 2(KvmGlobalSettingsDialog.test.ts)/Task 5(OsSelector.test.ts)都踩过这同一个坑
-// 并改成了 async mk + await nextTick(),这里照同样的写法改,断言内容一个不减、不因此
-// 削弱任何检查。
+// Fix (brief test code defect #3, reported): the brief draft had `mk` as a synchronous
+// function, querying document.body immediately after mounting. The reka-ui 2.10
+// DialogPortal/DialogContent in this repo requires waiting for the next microtask (nextTick)
+// before content actually lands in document.body. Tasks 1 (KvmDialog.test.ts) /
+// Task 2 (KvmGlobalSettingsDialog.test.ts) / Task 5 (OsSelector.test.ts) all hit this same
+// issue and changed it to `async mk + await nextTick()`. Following the same pattern here,
+// no assertion content is reduced, and no checks are weakened.
 const mk = async (props: Record<string, unknown> = {}) => {
   w = mount(CreateVmDialog, {
     props: { open: true, host: HOST, defaults: DEFAULTS, isos: [], selectedOs: null, creating: false, submitError: '', ...props },
@@ -49,13 +53,13 @@ const setVal = async (wr: VueWrapper, sel: string, v: string) => {
 }
 
 describe('CreateVmDialog', () => {
-  it('标题「创建新虚拟机」,ISO 行未选时显示占位文案', async () => {
+  it('shows title "Create New VM" and placeholder text on ISO row when not selected', async () => {
     await mk()
     expect(q('.create-vm-title').textContent).toContain('创建新虚拟机')
     expect(q('.cv-iso-btn').textContent).toContain('选择 ISO 镜像')
   })
 
-  it('CPU 核心格子数 = host.cpuCores(真机 6 个),n<=vcpu 的高亮', async () => {
+  it('CPU core grid count = host.cpuCores (6 on real device), highlights cells where n <= vcpu', async () => {
     const wr = await mk()
     const cells = qa('.cv-cpu-btn')
     expect(cells).toHaveLength(6)
@@ -64,29 +68,29 @@ describe('CreateVmDialog', () => {
     expect(qa('.cv-cpu-btn').filter((c) => c.classList.contains('active')).length).toBe(4)
   })
 
-  it('host.cpuCores=0(settings 还没回来)时不渲染格子(spec §12 #6,不闪 16 个)', async () => {
+  it('does not render grid when host.cpuCores=0 (settings not yet returned, spec §12 #6, avoids flashing 16)', async () => {
     await mk({ host: { ...HOST, cpuCores: 0 } })
     expect(qa('.cv-cpu-btn')).toHaveLength(0)
   })
 
-  it('网络下拉 = NAT + 每张网卡一项「桥接到 xxx」', async () => {
+  it('network dropdown = NAT + one "bridge to xxx" option per network card', async () => {
     await mk()
     const opts = qa('.cv-select-native option').map((o) => o.textContent?.trim())
     expect(opts).toEqual(['NAT', '桥接到 enp2s0', '桥接到 wlp1s0'])
   })
 
-  it('打开时按全局默认预填 vcpu/memory,磁盘用 defaultDiskSize(照 Vue2 :1155-1188)', async () => {
+  it('pre-fills vcpu/memory with global defaults on open, disk with defaultDiskSize (mirrors Vue2 :1155-1188)', async () => {
     await mk()
     expect((q('input[name="memory"]') as HTMLInputElement).value).toBe('2048')
     expect((q('input[name="disk"]') as HTMLInputElement).value).toBe('20')
   })
 
-  it('点 ISO 行 emit open-os-selector', async () => {
+  it('clicking ISO row emits open-os-selector', async () => {
     const wr = await mk(); q('.cv-iso-btn').click(); await wr.vm.$nextTick()
     expect(wr.emitted('open-os-selector')).toHaveLength(1)
   })
 
-  it('选中 OS 后 ISO 行显示 path,并按推荐规格联动 vcpu/memory', async () => {
+  it('after selecting OS, ISO row shows path and vcpu/memory update to recommended specs', async () => {
     const wr = await mk()
     await wr.setProps({ selectedOs: OS({ recommendedVcpu: 4, recommendedMemory: 4096 }) })
     expect(q('.cv-iso-btn').textContent).toContain('/DATA/KVM/isos/alpine-319.iso')
@@ -94,7 +98,7 @@ describe('CreateVmDialog', () => {
     expect(qa('.cv-cpu-btn').filter((c) => c.classList.contains('active')).length).toBe(4)
   })
 
-  it('固件两按钮可切换(与 VM 设置弹窗里的 disabled 版不同)', async () => {
+  it('firmware buttons can toggle (different from disabled version in VM settings dialog)', async () => {
     const wr = await mk()
     const [uefi, bios] = qa('.cv-firmware-btn')
     expect(bios.classList.contains('active')).toBe(true)
@@ -102,18 +106,20 @@ describe('CreateVmDialog', () => {
     expect(qa('.cv-firmware-btn')[0].classList.contains('active')).toBe(true)
   })
 
-  it('「系统版本」下拉只在本地 ISO 时出现(照 Vue2 :476)', async () => {
+  it('OS template dropdown appears only for local ISO (mirrors Vue2 :476)', async () => {
     const wr = await mk()
     expect(qa('select[name="osTemplate"]')).toHaveLength(0)
     await wr.setProps({ selectedOs: OS({ isLocal: true, id: 'local', name: 'custom.iso' }) })
     expect(qa('select[name="osTemplate"]')).toHaveLength(1)
   })
 
-  // 修复(brief 测试代码缺陷 #1,已申报):原稿只 setVal 了 disk,从没填过虚拟机名称——
-  // validateCreateVm 的校验顺序是「名字 → OS → 磁盘下限 → …」(createVmValidate.ts 逐字
-  // 照 Vue2 :1451 起的顺序),名字空着必然先报 kvmErrNoName,断言里期待的磁盘错误文案永远
-  // 到不了、这条用例实际在断言一个从未发生的分支——手误式的「漏了一步 setVal」,补上名字。
-  it('校验失败时内联 .cv-error 显示文案 + 参数,不 emit submit(硬约束 7)', async () => {
+  // Fix (brief test code defect #1, reported): the draft only called setVal for disk, never
+  // filled in the VM name. validateCreateVm's validation order is "name → OS → disk minimum"
+  // (createVmValidate.ts mirrors Vue2 :1451 exactly), so with an empty name it will always
+  // report kvmErrNoName first, and the expected disk error text in the assertion never arrives.
+  // This test was actually asserting an unreachable branch — a typo-style "missed one setVal".
+  // Added the name field.
+  it('validation failure shows error message and params inline in .cv-error, does not emit submit (hard constraint 7)', async () => {
     const wr = await mk({ selectedOs: OS({ minDisk: 2 }) })
     await setVal(wr, 'input[name="name"]', 'x')
     await setVal(wr, 'input[name="disk"]', '4')
@@ -122,12 +128,14 @@ describe('CreateVmDialog', () => {
     expect(wr.emitted('submit')).toBeUndefined()
   })
 
-  // 修复(brief 测试代码缺陷 #2,已申报,见文件头 ISO_ALPINE 注释):补 isos 里的匹配记录,
-  // 且把 vcpu 的期望值从 2 改成 1——OS() 出厂值 recommendedVcpu:1,「选中 OS 后有推荐值
-  // 就覆盖 vcpu/memory」这条规则(watch(selectedOs) 直接读 os.recommendedVcpu)对 vcpu
-  // 和 memory 一视同仁,原稿 memory 按推荐值算对了(512)、vcpu 却手误留了 defaults 的 2,
-  // 两个字段本该同一条规则同一个结果,数值不该不一致。
-  it('校验通过 emit submit,payload 不含 osTemplate / autostart(后端不认,spec §1.15)', async () => {
+  // Fix (brief test code defect #2, reported, see ISO_ALPINE comment at file top): added
+  // matching record in isos, changed expected vcpu from 2 to 1. OS() factory default is
+  // recommendedVcpu:1; the rule "if recommended value exists after OS selection, override
+  // vcpu/memory" (watch(selectedOs) reads os.recommendedVcpu directly) treats vcpu and
+  // memory identically. The draft had memory correct per the recommended value (512) but
+  // vcpu was a typo left at the default 2. Both fields should follow the same rule and
+  // produce the same result, values should not differ.
+  it('validation passes and emits submit, payload excludes osTemplate/autostart (backend does not accept, spec §1.15)', async () => {
     const wr = await mk({ selectedOs: OS(), isos: [ISO_ALPINE] })
     await setVal(wr, 'input[name="name"]', 'p6-throwaway')
     await setVal(wr, 'input[name="disk"]', '8')
@@ -142,7 +150,7 @@ describe('CreateVmDialog', () => {
     expect(payload).not.toHaveProperty('autostart')
   })
 
-  it('选了桥接网卡时 networkMode=bridge、networkInterface=网卡名(照 Vue2 :1478-1479)', async () => {
+  it('when bridge network card selected, networkMode=bridge and networkInterface=card name (mirrors Vue2 :1478-1479)', async () => {
     const wr = await mk({ selectedOs: OS(), isos: [ISO_ALPINE] })
     await setVal(wr, 'input[name="name"]', 'x')
     await setVal(wr, 'input[name="disk"]', '8')
@@ -152,14 +160,16 @@ describe('CreateVmDialog', () => {
     expect(wr.emitted('submit')![0][0]).toMatchObject({ networkMode: 'bridge', networkInterface: 'enp2s0' })
   })
 
-  // 修复(评审 Important,brief 带来的第 4 处缺陷,已申报):原稿挂载时表单是空的
-  // (从没填过 name),`creating` 守卫整行删掉后 validateCreateVm 也会因为「名字为空」
-  // 独立拒绝、同样不 emit submit——`expect(...).toBeUndefined()` 在「守卫存在」和
-  // 「守卫被删」两种情况下都通过,没有判别力,只有 is-loading 那句断言是真有效的。
-  // 改法:先证明同一份合法表单在 creating=false 下确实能提交(排除「表单本身不合法」
-  // 这个混淆因素),再证明 creating=true 时同一份合法表单不提交——此时不提交才能唯一
-  // 归因于这个防重复提交守卫本身。
-  it('creating=true 时主按钮 is-loading 且点不动(防重复提交,用合法表单排除校验失败的混淆)', async () => {
+  // Fix (review Important, defect #4 from brief, reported): the draft had an empty form
+  // on mount (never filled in the name). If the `creating` guard were deleted entirely,
+  // validateCreateVm would independently reject due to "empty name" and also not emit submit.
+  // The `expect(...).toBeUndefined()` passes in both "guard exists" and "guard deleted" cases,
+  // so it has no discriminatory power; only the is-loading assertion is truly effective.
+  // Solution: first prove that the same valid form actually emits on creating=false (ruling
+  // out the "form itself is invalid" confounding factor), then prove that the same valid
+  // form does not emit on creating=true. Only then can non-emission be uniquely attributed
+  // to this duplicate-submit-prevention guard.
+  it('primary button shows is-loading and does not respond when creating=true (duplicate-submit prevention, uses valid form to exclude validation confusion)', async () => {
     const ok = await mk({ selectedOs: OS(), isos: [ISO_ALPINE], creating: false })
     await setVal(ok, 'input[name="name"]', 'x')
     await setVal(ok, 'input[name="disk"]', '8')
@@ -172,28 +182,30 @@ describe('CreateVmDialog', () => {
     await setVal(busy, 'input[name="disk"]', '8')
     const btn = q('.cv-primary-btn') as HTMLButtonElement
     expect(btn.classList.contains('is-loading')).toBe(true)
-    // 用 dispatchEvent 而不是 `.click()`——原生 `disabled` 属性本身就会挡掉
-    // `.click()`(jsdom 与真实浏览器一致的行为,已用最小复现脚本验证),这条守卫
-    // 测的是 `onSubmit()` 内部 `if (props.creating) return` 这道防线,不是
-    // `disabled` 属性本身;必须用能绕开原生拦截的方式触发,才能让这道内部守卫
-    // 真正被测到(评审要求的变异验证见任务报告)。
+    // Using dispatchEvent instead of `.click()` — the native `disabled` attribute itself
+    // blocks `.click()` (jsdom behavior matches real browsers, verified with minimal
+    // repro script). This guard tests the `if (props.creating) return` line inside
+    // `onSubmit()`, not the `disabled` attribute itself. Must use a method that bypasses
+    // the native blocking to actually test this internal guard (mutation validation
+    // required by review, see task report).
     btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await busy.vm.$nextTick()
     expect(busy.emitted('submit')).toBeUndefined()
   })
 
-  it('submitError 由父组件传下来,显示在同一个 .cv-error 位', async () => {
+  it('submitError passed from parent shows in same .cv-error slot', async () => {
     await mk({ submitError: 'domain name already exists' })
     expect(q('.cv-error').textContent).toContain('domain name already exists')
   })
 
-  // 全分支评审修复 B1:本地文件浏览选中的 ISO(isLocal:true,id 落 'local',因为
-  // IsoBrowser 那道 strict 匹配器认不出 'alpine-standard-3.19.1-x86_64.iso' 这个文件名
-  // 不含完整模板 id 'alpine-319')。CreateVmDialog 收到后应该用较宽松的家族前缀匹配器
-  // 再兜底一次,认出家族前缀 'alpine' → 命中 alpine-319 模板,推荐规格生效(vcpu/memory
-  // 被模板覆盖,不是维持 defaults 的 2/2048),osTemplate 是真实模板 id(不是
-  // generic-linux)。
-  it('本地文件浏览选中带家族前缀的 ISO → 家族匹配器命中真实模板,推荐规格生效(B1)', async () => {
+  // Full-branch review fix B1: ISO selected via local file browser (isLocal:true, id
+  // falls to 'local' because IsoBrowser's strict matcher cannot recognize the filename
+  // 'alpine-standard-3.19.1-x86_64.iso' which lacks the complete template id 'alpine-319').
+  // After CreateVmDialog receives it, a more lenient family-prefix matcher should be applied
+  // as a fallback, recognizing the family prefix 'alpine' → matching the alpine-319 template,
+  // recommended specs take effect (vcpu/memory overridden by template, not keeping defaults
+  // of 2/2048), osTemplate is the real template id (not generic-linux).
+  it('local file browser selecting ISO with family prefix → family matcher hits real template, recommended specs take effect (B1)', async () => {
     const wr = await mk({ isos: [ISO_ALPINE] })
     await wr.setProps({
       selectedOs: {
@@ -201,15 +213,15 @@ describe('CreateVmDialog', () => {
         path: '/DATA/alpine-standard-3.19.1-x86_64.iso',
       },
     })
-    // 推荐规格来自 ISO_ALPINE(vcpu:1, memory:512),不是 defaults 的 2/2048。
+    // Recommended specs come from ISO_ALPINE (vcpu:1, memory:512), not defaults of 2/2048.
     expect((q('input[name="memory"]') as HTMLInputElement).value).toBe('512')
     expect(qa('.cv-cpu-btn').filter((c) => c.classList.contains('active')).length).toBe(1)
-    // osTemplate 联动生效的间接证据:「系统版本」下拉选中的是真实模板 id,不是 generic-linux。
+    // Indirect evidence of osTemplate linking taking effect: "OS Version" dropdown has the real template id selected, not generic-linux.
     const osTemplateSelect = q('select[name="osTemplate"]') as HTMLSelectElement
     expect(osTemplateSelect.value).toBe('alpine-319')
   })
 
-  it('重新打开时表单复位(照 Vue2 showCreateVM 每次重建 newVM)', async () => {
+  it('form resets when reopened (mirrors Vue2 showCreateVM rebuilding newVM each time)', async () => {
     const wr = await mk()
     await setVal(wr, 'input[name="name"]', 'dirty')
     await wr.setProps({ open: false }); await wr.setProps({ open: true })

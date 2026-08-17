@@ -1,8 +1,9 @@
-// SP8-P5d Task 3 —— 1:1 移植自 Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/notesViewHelpers.js`。
-// 承接 Vue2 既有 `__tests__/notesView.spec.js`(3 条,治理 §4.3),且比蓝本 spec 更细
-// (逐分支 + 边界两侧,防止「只在档位中段取样、阈值本身改错测不出来」的回归——
-// P5a T6 教训:`fmtAgo` 的 `h < 24` 改成 `h < 48`,16/16 用例仍全绿)。
+// SP8-P5d Task 3 — 1:1 port from Vue2
+// `NimoOS-UI`(main@7a6ee6b7) `src/views/AI/Knowledge/notesViewHelpers.js`.
+// Inherit from Vue2 existing `__tests__/notesView.spec.js` (3 cases, governance §4.3),
+// with finer refinement than blueprint (each branch + both sides of boundaries,
+// preventing "sample only mid-range, threshold change undetectable" regression —
+// P5a T6 lesson: changing `fmtAgo` `h < 24` to `h < 48`, 16/16 cases still green).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   NOTE_TYPES,
@@ -16,14 +17,16 @@ import {
 import { i18n } from '../../../i18n'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// K40 —— NOTE_TYPES[*].color 必须是 var(--grad-note-*) token,零色字面量。
-// color-guard.test.ts 只扫 .vue 与 .css,压根不扫 .ts —— 这四个值在任何既有守卫下
-// 都是裸奔的,这条定向断言是预防式堵法,不是事后补(附录 B §B.5)。
-// 🔴 RED 探针(报告里贴):临时把某个 color 改回蓝本色字面量
-// `linear-gradient(135deg, #5AC8FA, #007AFF)` → 这条断言必须报红,还原后转绿。
+// K40 — NOTE_TYPES[*].color must all be var(--grad-note-*) tokens, zero color literals.
+// color-guard.test.ts only scans .vue and .css, never .ts — these four values are running
+// naked under any existing guard. This targeted assertion is a preventive block, not an
+// after-the-fact patch (Appendix B §B.5).
+// 🔴 RED probe (paste in the report): temporarily change one color back to the blueprint's
+// color literal `linear-gradient(135deg, #5AC8FA, #007AFF)` → this assertion must fail red,
+// then pass green again after reverting.
 // ═══════════════════════════════════════════════════════════════════════════
-describe('K40 — NOTE_TYPES[*].color 全部是 var(--grad-note-*) token', () => {
-  it('四个 color 值逐个形如 var(--grad-note-*)', () => {
+describe('K40 — NOTE_TYPES[*].color are all var(--grad-note-*) tokens', () => {
+  it('each of the four color values matches the shape var(--grad-note-*)', () => {
     expect(NOTE_TYPES.note.color).toBe('var(--grad-note-note)')
     expect(NOTE_TYPES.summary.color).toBe('var(--grad-note-summary)')
     expect(NOTE_TYPES.insight.color).toBe('var(--grad-note-insight)')
@@ -33,7 +36,7 @@ describe('K40 — NOTE_TYPES[*].color 全部是 var(--grad-note-*) token', () =>
     })
   })
 
-  it('反向:四个 color 值序列化后零 # / rgb( / rgba( / hsla( —— 不许有人把 token 改回色字面量', () => {
+  it('inverse: serializing the four color values yields zero # / rgb( / rgba( / hsla( — nobody is allowed to change a token back to a color literal', () => {
     const serialized = JSON.stringify(Object.values(NOTE_TYPES).map((m) => m.color))
     expect(serialized).not.toMatch(/#[0-9a-fA-F]{3,8}/)
     expect(serialized).not.toMatch(/rgba?\(/)
@@ -42,72 +45,75 @@ describe('K40 — NOTE_TYPES[*].color 全部是 var(--grad-note-*) token', () =>
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 附录 A §A.4 —— labelKey 字段值必须是 New-UI 键名,且渲染出真实文案而不是键名本身
-// (P5b N14 同坑:「英文原串即 key」的 Vue2 巧合在 New-UI 不成立)。
+// Appendix A §A.4 — the labelKey field value must be a New-UI key name, and must render the
+// actual copy, not the key name itself (same pitfall as P5b N14: the Vue2 coincidence where
+// "the English source string is the key" doesn't hold in New-UI).
 // ═══════════════════════════════════════════════════════════════════════════
-describe('NOTE_TYPES / NOTE_SOURCES 的 labelKey 渲染出真实文案(不是键名字面量)', () => {
-  it('4 个 NOTE_TYPES.labelKey 渲染出中文文案', () => {
+describe('NOTE_TYPES / NOTE_SOURCES labelKey renders actual copy (not the key literal)', () => {
+  it('the 4 NOTE_TYPES.labelKey values render Chinese copy', () => {
     expect(i18n.global.t(NOTE_TYPES.note.labelKey)).toBe('笔记')
     expect(i18n.global.t(NOTE_TYPES.summary.labelKey)).toBe('摘要')
     expect(i18n.global.t(NOTE_TYPES.insight.labelKey)).toBe('洞见')
     expect(i18n.global.t(NOTE_TYPES.digest.labelKey)).toBe('文摘')
   })
 
-  it('3 个 NOTE_SOURCES.labelKey 渲染出中文文案', () => {
+  it('the 3 NOTE_SOURCES.labelKey values render Chinese copy', () => {
     expect(i18n.global.t(NOTE_SOURCES.human.labelKey)).toBe('手写')
     expect(i18n.global.t(NOTE_SOURCES.agent.labelKey)).toBe('Agent 代写')
     expect(i18n.global.t(NOTE_SOURCES.pipeline.labelKey)).toBe('AI 沉淀')
   })
 
-  it('反向:labelKey 渲染结果不等于键名本身(证明真的走了 i18n 查表,不是巧合返回了键名)', () => {
+  it('inverse: the labelKey render result is not equal to the key itself (proving it actually goes through the i18n lookup, not a coincidence returning the key)', () => {
     expect(i18n.global.t(NOTE_TYPES.note.labelKey)).not.toBe(NOTE_TYPES.note.labelKey)
     expect(i18n.global.t(NOTE_SOURCES.human.labelKey)).not.toBe(NOTE_SOURCES.human.labelKey)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// noteTypeMeta / noteSourceMeta 的兜底分支 —— 未知值 / undefined 都要用例。
+// noteTypeMeta / noteSourceMeta fallback branches — unknown values / undefined both need cases.
 // ═══════════════════════════════════════════════════════════════════════════
 describe('noteTypeMeta', () => {
-  it('已知 type 逐个返回对应元数据', () => {
+  it('each known type returns its corresponding metadata', () => {
     expect(noteTypeMeta('insight')).toBe(NOTE_TYPES.insight)
   })
-  it('未知 type 兜底到 note', () => {
+  it('unknown type falls back to note', () => {
     expect(noteTypeMeta('bogus-type')).toBe(NOTE_TYPES.note)
   })
-  it('undefined / null 都兜底到 note', () => {
+  it('undefined / null both fall back to note', () => {
     expect(noteTypeMeta(undefined)).toBe(NOTE_TYPES.note)
     expect(noteTypeMeta(null)).toBe(NOTE_TYPES.note)
   })
 })
 
 describe('noteSourceMeta', () => {
-  it('已知 createdBy 逐个返回对应元数据', () => {
+  it('each known createdBy returns its corresponding metadata', () => {
     expect(noteSourceMeta('agent')).toBe(NOTE_SOURCES.agent)
   })
-  it('未知 createdBy 兜底到 human', () => {
+  it('unknown createdBy falls back to human', () => {
     expect(noteSourceMeta('bogus-source')).toBe(NOTE_SOURCES.human)
   })
-  it('undefined / null 都兜底到 human', () => {
+  it('undefined / null both fall back to human', () => {
     expect(noteSourceMeta(undefined)).toBe(NOTE_SOURCES.human)
     expect(noteSourceMeta(null)).toBe(NOTE_SOURCES.human)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// statusBadge —— 蓝本 __tests__/notesView.spec.js:6-10。
-// 🔴 全仓零生产消费者(协调者已 grep 核实:蓝本模板里徽标是内联 kn-badge 标记,只有
-// Vue2 __tests__/notesView.spec.js 引用这个函数)—— 依据治理 §4.3,照抄导出 + 照抄
-// 这 3 条用例,故意保留,不因为「没人用」就删(K7 同族:反转不删)。
+// statusBadge — blueprint __tests__/notesView.spec.js:6-10.
+// 🔴 zero production consumers across the whole repo (the coordinator has grep-verified this:
+// the blueprint template's badge is an inline kn-badge marker; only Vue2's
+// __tests__/notesView.spec.js references this function) — per governance §4.3, the export
+// and these 3 cases are copied verbatim and deliberately kept, not deleted just because
+// "nobody uses it" (same family as K7: don't delete on reversal).
 // ═══════════════════════════════════════════════════════════════════════════
-describe('statusBadge(蓝本 spec 原例,零生产消费者、故意保留 —— 治理 §4.3)', () => {
+describe('statusBadge (blueprint spec\'s original cases, zero production consumers, deliberately kept — governance §4.3)', () => {
   it('draft → { label: "AI draft", tone: "warn" }', () => {
     expect(statusBadge({ status: 'draft' })).toEqual({ label: 'AI draft', tone: 'warn' })
   })
   it('archived → { label: "Archived", tone: "muted" }', () => {
     expect(statusBadge({ status: 'archived' })).toEqual({ label: 'Archived', tone: 'muted' })
   })
-  it('curated(以及其它任何状态)→ null(不出徽标)', () => {
+  it('curated (and any other status) → null (no badge)', () => {
     expect(statusBadge({ status: 'curated' })).toBe(null)
     expect(statusBadge({ status: undefined })).toBe(null)
     expect(statusBadge({})).toBe(null)
@@ -115,9 +121,9 @@ describe('statusBadge(蓝本 spec 原例,零生产消费者、故意保留 —�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// applyFilters —— 蓝本 __tests__/notesView.spec.js:12-21。
-// status 三档语义:'' = 全部 · 'active' = 非 archived · 其余 = 精确匹配。
-// type 与 status 两个筛选条件各自独立生效。
+// applyFilters — blueprint __tests__/notesView.spec.js:12-21.
+// status has three-tier semantics: '' = all · 'active' = non-archived · anything else = exact match.
+// The type and status filter conditions each apply independently.
 // ═══════════════════════════════════════════════════════════════════════════
 describe('applyFilters', () => {
   const N = (over: Partial<{ id: string; type: string; status: string }>) => ({
@@ -127,79 +133,84 @@ describe('applyFilters', () => {
     ...over,
   })
 
-  it('type 与 status 两个筛选条件各自独立生效(蓝本 spec 原例)', () => {
+  it('type and status filter conditions each apply independently (blueprint spec\'s original case)', () => {
     const list = [N({ id: 'a', type: 'insight', status: 'draft' }), N({ id: 'b', type: 'note' })]
     expect(applyFilters(list, { type: 'insight', status: '' }).map((n) => n.id)).toEqual(['a'])
     expect(applyFilters(list, { type: '', status: 'draft' }).map((n) => n.id)).toEqual(['a'])
     expect(applyFilters(list, { type: '', status: '' }).length).toBe(2)
   })
 
-  it('status="" 表示全部(不过滤 status)', () => {
+  it('status="" means all (no status filtering)', () => {
     const list = [N({ id: 'a', status: 'draft' }), N({ id: 'b', status: 'archived' }), N({ id: 'c', status: 'curated' })]
     expect(applyFilters(list, { type: '', status: '' }).map((n) => n.id)).toEqual(['a', 'b', 'c'])
   })
 
-  it('status="active" 表示非 archived(draft+curated 都算,蓝本 spec 原例)', () => {
+  it('status="active" means non-archived (draft+curated both count, blueprint spec\'s original case)', () => {
     const list = [N({ id: 'a', status: 'draft' }), N({ id: 'b', status: 'curated' }), N({ id: 'c', status: 'archived' })]
     expect(applyFilters(list, { type: '', status: 'active' }).map((n) => n.id)).toEqual(['a', 'b'])
   })
 
-  it('status 为具体值(非 ""/"active")时是精确匹配', () => {
+  it('when status is a concrete value (not ""/"active") it\'s an exact match', () => {
     const list = [N({ id: 'a', status: 'draft' }), N({ id: 'b', status: 'archived' }), N({ id: 'c', status: 'archived' })]
     expect(applyFilters(list, { type: '', status: 'archived' }).map((n) => n.id)).toEqual(['b', 'c'])
   })
 
-  it('type 为空字符串时不过滤 type(独立于 status 生效)', () => {
+  it('when type is an empty string, type is not filtered (applies independently of status)', () => {
     const list = [N({ id: 'a', type: 'digest' }), N({ id: 'b', type: 'summary' })]
     expect(applyFilters(list, { type: '', status: '' }).map((n) => n.id)).toEqual(['a', 'b'])
   })
 
-  // 🔴 修复轮 1 —— 补「两个条件同时非空(组合筛)」的用例。前面 6 条每条都只让
-  // type/status 其中一个非空,「两个各自测过」不等于「组合起来是 AND 而不是 OR」,
-  // 这是筛选函数的经典漏网点(治理 brief §缺口猎)。
-  it('组合命中:type 与 status 同时非空,只有同时满足两者的那条留下(结果与任一单条件筛都不同)', () => {
+  // 🔴 fix round 1 — adding the case for "both conditions non-empty at the same time (combined
+  // filtering)". Each of the preceding 6 cases only makes one of type/status non-empty;
+  // "each tested individually" doesn't imply "combined they're AND rather than OR" — this is a
+  // classic gap for filter functions (governance brief §gap hunting).
+  it('combined hit: when type and status are both non-empty, only the entry satisfying both survives (the result differs from filtering by either condition alone)', () => {
     const list = [
-      N({ id: 'a', type: 'insight', status: 'draft' }), // 两者都满足
-      N({ id: 'b', type: 'insight', status: 'curated' }), // 只满足 type
-      N({ id: 'c', type: 'note', status: 'draft' }), // 只满足 status
+      N({ id: 'a', type: 'insight', status: 'draft' }), // satisfies both
+      N({ id: 'b', type: 'insight', status: 'curated' }), // satisfies only type
+      N({ id: 'c', type: 'note', status: 'draft' }), // satisfies only status
     ]
-    // 只按 type 筛会拿到 ['a','b'],只按 status 筛会拿到 ['a','c']——组合结果 ['a']
-    // 与两者都不同,证明这条用例真的在验证"两个条件一起生效"而不是巧合等于单条件结果。
+    // Filtering by type alone gets ['a','b'], filtering by status alone gets ['a','c'] — the
+    // combined result ['a'] differs from both, proving this case really verifies "both conditions
+    // apply together" rather than coincidentally matching a single-condition result.
     expect(applyFilters(list, { type: 'insight', status: '' }).map((n) => n.id)).toEqual(['a', 'b'])
     expect(applyFilters(list, { type: '', status: 'draft' }).map((n) => n.id)).toEqual(['a', 'c'])
     expect(applyFilters(list, { type: 'insight', status: 'draft' }).map((n) => n.id)).toEqual(['a'])
   })
 
-  it('组合落空:分别只满足其中一个条件的笔记都不该出现 —— 真正抓「误写成 OR」的那条', () => {
+  it('combined empty: notes that each satisfy only one condition should not appear — the one that actually catches "mistakenly written as OR"', () => {
     const list = [
-      N({ id: 'd', type: 'insight', status: 'curated' }), // 满足 type,不满足 status
-      N({ id: 'e', type: 'note', status: 'draft' }), // 满足 status,不满足 type
+      N({ id: 'd', type: 'insight', status: 'curated' }), // satisfies type, not status
+      N({ id: 'e', type: 'note', status: 'draft' }), // satisfies status, not type
     ]
-    // 若把 applyFilters 内部的 && 误写成 ||,d 和 e 各自会因为"至少一个条件为真"
-    // 被放进结果——正确的 AND 语义下两者都不满足"两个条件同时为真",结果必须为空。
+    // If the && inside applyFilters were mistakenly written as ||, d and e would each get included
+    // in the result because "at least one condition is true" — under the correct AND semantics
+    // neither satisfies "both conditions true at the same time", so the result must be empty.
     expect(applyFilters(list, { type: 'insight', status: 'draft' })).toEqual([])
   })
 
-  it('组合筛纳入 status="active"(非精确匹配)—— 三档语义里它最容易被误写成精确匹配', () => {
+  it('combined filtering includes status="active" (non-exact match) — the tier most likely to be mistakenly written as an exact match among the three-tier semantics', () => {
     const list = [
-      N({ id: 'f', type: 'insight', status: 'draft' }), // type 匹配 + active(非 archived)→ 应命中
-      N({ id: 'g', type: 'insight', status: 'archived' }), // type 匹配但 archived → active 语义应排除
-      N({ id: 'h', type: 'note', status: 'curated' }), // active 但 type 不匹配 → 应排除
+      N({ id: 'f', type: 'insight', status: 'draft' }), // type matches + active (non-archived) → should hit
+      N({ id: 'g', type: 'insight', status: 'archived' }), // type matches but archived → active semantics should exclude
+      N({ id: 'h', type: 'note', status: 'curated' }), // active but type doesn't match → should exclude
     ]
     expect(applyFilters(list, { type: 'insight', status: 'active' }).map((n) => n.id)).toEqual(['f'])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// relativeTime —— 蓝本 :40-49。
-// 🔴 unixSec 是"秒"不是毫秒(蓝本注释 :41)—— 喂毫秒会让所有输入都落进第 5 档,
-// 4 个边界的用例全部"通过"但一个都没真正测到。本文件全程用整数秒运算,规避此坑。
-// 🔴 用 vitest 假时钟(vi.spyOn(Date,'now')),禁真实时间(治理 §9.8)。
-// 4 个边界(60/3600/86400/86400*30 秒)两侧都要用例;第 5 档走
-// toLocaleDateString(),断言用同式比对,不钉死具体字符串(依赖环境 locale/TZ)。
+// relativeTime — blueprint :40-49.
+// 🔴 unixSec is in "seconds", not milliseconds (blueprint comment :41) — feeding it milliseconds
+// would make every input fall into the 5th tier, so all 4 boundary cases would "pass" without
+// actually testing anything. This file does all its arithmetic in whole seconds to avoid that trap.
+// 🔴 Use vitest's fake clock (vi.spyOn(Date,'now')); real wall-clock time is forbidden (governance §9.8).
+// All 4 boundaries (60/3600/86400/86400*30 seconds) need cases on both sides; the 5th tier goes
+// through toLocaleDateString(), whose assertion uses same-expression comparison rather than
+// pinning a literal string (it depends on the environment's locale/TZ).
 // ═══════════════════════════════════════════════════════════════════════════
 describe('relativeTime', () => {
-  // NOW_MS 是 1000 的整数倍,保证 NOW_MS/1000 是精确整数秒,避免浮点误差污染边界判断。
+  // NOW_MS is a multiple of 1000, guaranteeing NOW_MS/1000 is an exact whole number of seconds, avoiding floating-point error contaminating boundary checks.
   const NOW_MS = 1_700_000_000_000
   const NOW_SEC = NOW_MS / 1000
 
@@ -207,61 +218,62 @@ describe('relativeTime', () => {
     vi.restoreAllMocks()
   })
 
-  it('0 / undefined / null 三个早退输入都返回空字符串(蓝本 :42 `if (!unixSec) return \'\'`)', () => {
+  it('0 / undefined / null — all three early-return inputs return an empty string (blueprint :42 `if (!unixSec) return \'\'`)', () => {
     expect(relativeTime(0)).toBe('')
     expect(relativeTime(undefined)).toBe('')
     expect(relativeTime(null)).toBe('')
   })
 
-  it('第 1/2 档边界:d=59 → 刚刚;d=60 → "1 分钟前"(不是"0 分钟前")', () => {
+  it('tier 1/2 boundary: d=59 → 刚刚; d=60 → "1 分钟前" (not "0 分钟前")', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     expect(relativeTime(NOW_SEC - 59)).toBe('刚刚')
     expect(relativeTime(NOW_SEC - 60)).toBe('1 分钟前')
   })
 
-  it('第 1 档中段值:d=30 → 刚刚', () => {
+  it('tier 1 mid-range value: d=30 → 刚刚', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     expect(relativeTime(NOW_SEC - 30)).toBe('刚刚')
   })
 
-  it('第 2/3 档边界:d=3599 → "59 分钟前";d=3600 → "1 小时前"', () => {
+  it('tier 2/3 boundary: d=3599 → "59 分钟前"; d=3600 → "1 小时前"', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     expect(relativeTime(NOW_SEC - 3599)).toBe('59 分钟前')
     expect(relativeTime(NOW_SEC - 3600)).toBe('1 小时前')
   })
 
-  it('第 2 档中段值:d=120 → "2 分钟前"', () => {
+  it('tier 2 mid-range value: d=120 → "2 分钟前"', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     expect(relativeTime(NOW_SEC - 120)).toBe('2 分钟前')
   })
 
-  it('第 3/4 档边界:d=86399 → "23 小时前";d=86400 → "1 天前"', () => {
+  it('tier 3/4 boundary: d=86399 → "23 小时前"; d=86400 → "1 天前"', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     expect(relativeTime(NOW_SEC - 86399)).toBe('23 小时前')
     expect(relativeTime(NOW_SEC - 86400)).toBe('1 天前')
   })
 
-  it('第 3 档中段值:d=7200 → "2 小时前"', () => {
+  it('tier 3 mid-range value: d=7200 → "2 小时前"', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     expect(relativeTime(NOW_SEC - 7200)).toBe('2 小时前')
   })
 
-  it('第 4/5 档边界:d=86400*30-1 → "29 天前";d=86400*30 → 落到 toLocaleDateString() 档', () => {
+  it('tier 4/5 boundary: d=86400*30-1 → "29 天前"; d=86400*30 → falls into the toLocaleDateString() tier', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     expect(relativeTime(NOW_SEC - (86400 * 30 - 1))).toBe('29 天前')
     const unixSec5th = NOW_SEC - 86400 * 30
-    // 🔴 toLocaleDateString() 的输出依赖运行环境 locale/TZ,不许钉死具体字符串,
-    // 用"同式比对"(与产品代码同一条表达式)——这条断言的判别力来自"用了正确的
-    // unixSec*1000 构造 Date"而不是来自具体的日期文本。
+    // 🔴 toLocaleDateString()'s output depends on the runtime environment's locale/TZ, so pinning
+    // a literal string isn't allowed — use "same-expression comparison" (the same expression as the
+    // product code). This assertion's discriminating power comes from "using the correct
+    // unixSec*1000 to construct the Date", not from the specific date text.
     expect(relativeTime(unixSec5th)).toBe(new Date(unixSec5th * 1000).toLocaleDateString())
   })
 
-  it('第 4 档中段值:d=172800(2 天前)→ "2 天前"', () => {
+  it('tier 4 mid-range value: d=172800 (2 days ago) → "2 天前"', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     expect(relativeTime(NOW_SEC - 172800)).toBe('2 天前')
   })
 
-  it('第 5 档(远早于 30 天前)也用同式比对', () => {
+  it('tier 5 (far earlier than 30 days ago) also uses same-expression comparison', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW_MS)
     const unixSecFar = NOW_SEC - 86400 * 400
     expect(relativeTime(unixSecFar)).toBe(new Date(unixSecFar * 1000).toLocaleDateString())

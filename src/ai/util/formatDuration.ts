@@ -1,11 +1,12 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/tabs/ActivityTab.vue:47-52(formatDuration
-// 方法),抽成纯函数供 ActivityTab.vue 消费 + 独立单测。
+// 1:1 Port from Vue2 src/views/AI/Agent/tabs/ActivityTab.vue:47-52 (formatDuration
+// function), extracted as a pure function for ActivityTab.vue to consume + independent unit test.
 //
-// Vue2 原文 falsy 分支直接 `return 'Done'`(未 i18n 的英文字面量)。本期政策
-// (2026-07-27 拍板)是给这类字面量补中文键——但翻译属于渲染层职责,不属于这个
-// 纯函数。所以这里改用 `null` 作为"完成"状态的哨兵值,由调用方
-// (ActivityTab.vue)在渲染时把 `null` 映射成 `t('aiActivityDone')`;毫秒/秒的
-// 数字格式化部分(ms/s 单位)不在本期 i18n 清单里,原样保留字面量后缀。
+// Vue2 original falsy branch returns 'Done' directly (un-i18n'd English literal). Current policy
+// (decided 2026-07-27) is to add Chinese keys for these kinds of literals — but translation is
+// the rendering layer's responsibility, not this pure function's. So here we use `null` as a
+// sentinel for "done" state, which the caller (ActivityTab.vue) maps to `t('aiActivityDone')`
+// at render time; millisecond/second number formatting part (ms/s units) is not in this period's
+// i18n checklist, so we keep the literal suffix as-is.
 export function formatDuration(ms?: number | null): string | null {
   if (!ms && ms !== 0) return null
   if (ms < 1000) return `${Math.max(1, Math.round(ms))}ms`

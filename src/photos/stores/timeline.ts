@@ -55,9 +55,9 @@ function emptyIndexStatus(): IndexStatus {
 // lifecycle, so __resetForTest() must clear it explicitly between tests.
 let _pollTimer: ReturnType<typeof setInterval> | null = null
 
-// P8a-T10(P1 挂账):照 Vue2 module-scope taskTimers + scheduleTaskRemove
-// (store/modules/photos.js:8,50-58)——done 任务的延迟移除计时器,按 id 去重(同 id 再次
-// 调度会先清掉旧的)。同样是模块级单例,__resetForTest() 必须显式清掉。
+// P8a-T10 (P1 pending): follow Vue2 module-scope taskTimers + scheduleTaskRemove
+// (store/modules/photos.js:8,50-58)—delayed-removal timer for done tasks, dedup by id (rescheduling same id clears old first).
+// Also module-level singleton, __resetForTest() must clear explicitly.
 const _doneRemovalTimers = new Map<string | number, ReturnType<typeof setTimeout>>()
 
 function _cancelDoneRemoval(id: string | number): void {
@@ -271,8 +271,8 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
         tasks.value = tasks.value.filter(t => t.type !== 'index')
       }
     } catch {
-      // 对齐 Vue2:轮询失败静默,恢复由下轮补 —— 后端下线时这条 5s 轮询会持续
-      // 报错刷屏(NimoOS-UI src/store/modules/photos.js 的等价轮询同样吞掉异常)。
+      // Align with Vue2: polling failure silent, recovery by next round—when backend goes down this 5s polling keeps
+      // spamming errors (equivalent polling in NimoOS-UI src/store/modules/photos.js also swallows exceptions).
     }
   }
 
@@ -310,18 +310,18 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       tasks.value.push(task)
     }
 
-    // P8a-T10(P1 挂账,照 Vue2 _onTaskBus store/modules/photos.js:1382-1406):非 index 类型
-    // 的 done 任务 5s 后自动从列表移除;running 事件说明任务复活,取消挂起的移除计时器。
-    // index 类型故意不接这套计时器——它由 fetchIndexStatus 的 idle 对账(:118-120,按后端
-    // pending/queueLen 真实进度收尾)负责摘除,两套机制同时管一种任务类型会变成任务列表的
-    // 第二个真相源(违反"不建第二个任务列表源"的约束)。Vue2 源里 index 其实也会走这个计时器
-    // (只在 face 任务已存在时才改成立即摘除),但 New-UI 早在 timeline.ts 落地 fetchIndexStatus
-    // 时就已经用 idle 对账取代了 index 的收尾路径,这里维持既有分工,不重新引入计时器竞争。
+    // P8a-T10 (P1 pending, follow Vue2 _onTaskBus store/modules/photos.js:1382-1406): non-index-type
+    // done tasks auto-remove 5s later; running event means task revived, cancel pending removal timer.
+    // index type intentionally not subject to this timer—it is managed by fetchIndexStatus's idle reconciliation (:118-120, settle by
+    // real backend pending/queueLen progress), two mechanisms managing same task type becomes second truth source for task list
+    // (violates "don't create second task list source" constraint). Vue2 source actually runs this timer for index too
+    // (only when face task already exists does it become immediate removal), but New-UI early on when landing fetchIndexStatus
+    // in timeline.ts already replaced index's finishing path with idle reconciliation, here maintain existing role division, don't reintroduce timer contention.
     //
-    // 终审 Minor 5:Vue2 :1403-1406 对 status==='error' 的任务同样 scheduleTaskRemove,
-    // 只是延迟 10s(不是 done 的 5s)。此前这段只搬了 running/done 两支,error 任务因此永久
-    // 留在任务列表里——不是"考虑过 error 之后决定不做"的偏离,是遗漏,现补上,复用同一张
-    // _doneRemovalTimers 表(不新开第二张计时器 map)。
+    // Final review Minor 5: Vue2 :1403-1406 scheduleTaskRemove for status==='error' tasks too,
+    // just delayed 10s (not 5s like done). Earlier this section only ported running/done branches, error tasks
+    // permanently stayed in task list—not divergence of "considered error then decided not to", it's an omission, now added,
+    // reusing same _doneRemovalTimers map (don't open second timer map).
     if (task.status === 'running') {
       _cancelDoneRemoval(task.id)
     } else if (task.status === 'done' && task.type !== 'index') {

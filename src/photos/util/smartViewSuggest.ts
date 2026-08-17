@@ -1,6 +1,6 @@
-// 智能视图「建议池 / 快速模板 / 条件建议」纯函数,照搬自 Vue2
-// PhotosSmartViewsView.vue:198-242(POOL + inferChips)与
-// PhotosSmartViewDetail.vue:334-343(condSuggestions)。
+// Smart Views "suggestion pool / quick templates / condition suggestions" pure functions,
+// ported verbatim from Vue2 PhotosSmartViewsView.vue:198-242 (POOL + inferChips) and
+// PhotosSmartViewDetail.vue:334-343 (condSuggestions).
 
 export interface SuggestRow {
   kw: string[]
@@ -11,9 +11,10 @@ export interface SuggestRow {
 // scene:/object: (CLIP semantic), ocr:, place:, person names, and date forms.
 // Anything else gets silently dropped server-side — never suggest those.
 //
-// 注:chips 的值不进 i18n —— 'scene: sunset' / 'place: Japan' / 'Lily' 这些是要发给
-// 后端 svparser 的字面量协议串,翻译了后端就不认;kw 是用来匹配用户输入的英文关键词,
-// 同理不能本地化。两者都逐字照搬 Vue2 源码。
+// Note: chip values are NOT run through i18n -- 'scene: sunset' / 'place: Japan' / 'Lily' are
+// literal protocol strings sent to the backend svparser; translating them makes the backend
+// stop recognizing them. kw is the English keyword list used to match user input, and for the
+// same reason it can't be localized either. Both are copied verbatim from the Vue2 source.
 export const SV_SUGGEST_POOL: readonly SuggestRow[] = [
   { kw: ['sunset', 'golden', 'dusk'], chips: ['scene: sunset'] },
   { kw: ['beach', 'ocean', 'sea', 'coast'], chips: ['scene: beach'] },
@@ -37,8 +38,9 @@ export const SV_SUGGEST_POOL: readonly SuggestRow[] = [
   { kw: ['2026'], chips: ['year: 2026'] },
 ]
 
-// 遍历 POOL(而非遍历输入文本的 token),命中的行把 chips 逐条加入,Set 去重、保持首次
-// 出现顺序,最多 8 条。逐字照搬 Vue2 :229-242。
+// Iterates over POOL (not over tokens of the input text); each matching row has its chips
+// appended one by one, deduped via a Set while preserving first-seen order, capped at 8.
+// Ported verbatim from Vue2 :229-242.
 export function inferChips(text: string): string[] {
   if (!text) return []
   const t = text.toLowerCase()
@@ -60,14 +62,16 @@ export function inferChips(text: string): string[] {
 export interface QuickTemplate {
   labelKey: string
   descKey: string
-  // descEn:英文原文,专供 inferChips 匹配用(POOL 的 kw 是英文,拿 descKey/中文描述去匹配
-  // 恒不中)。descKey 只给界面显示。Vue2 useTemplate(t)(:413-419)直接拿 t.desc(英文原文)
-  // 喂 inferChips;New-UI 存的是 i18n 键,故拆出这个字段承接同样的调用需求。
+  // descEn: the original English text, used solely for inferChips matching (POOL's kw entries
+  // are English, so matching against descKey / the Chinese description would never hit).
+  // descKey is only for on-screen display. Vue2's useTemplate(t) (:413-419) feeds t.desc (the
+  // original English text) straight into inferChips; New-UI stores i18n keys instead, so this
+  // field is split out to carry the same call requirement.
   descEn: string
   thresh: number
 }
 
-// 照搬 Vue2 :221-227,label/desc 换成 i18n 键名(见上方 descEn 的说明)。
+// Ported verbatim from Vue2 :221-227, with label/desc swapped for i18n key names (see the descEn note above).
 export const SV_QUICK_TEMPLATES: readonly QuickTemplate[] = [
   { labelKey: 'photosSvFamilyWeekends', descKey: 'photosSvFamilyWeekendsPark', descEn: 'Family weekends in the park', thresh: 75 },
   { labelKey: 'photosSvBestLastMonth', descKey: 'photosSvBestPhotosLast30', descEn: 'Best photos from the last 30 days', thresh: 88 },
@@ -78,5 +82,5 @@ export const SV_QUICK_TEMPLATES: readonly QuickTemplate[] = [
 
 // COND_SUGGESTIONS / condSuggestionsFor (the "Add condition" popover's suggestion chips)
 // were removed here in SP15-P2c Task 8, ported from Vue2 NimoOS-UI 33b05636
-// PhotosSmartViewDetail.vue:26-30 ("用户追加需求") -- the popover they fed is gone and
+// PhotosSmartViewDetail.vue:26-30 ("user-appended requirements") -- the popover they fed is gone and
 // they had no other caller (grep confirmed zero remaining references before deletion).

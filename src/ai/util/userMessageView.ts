@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/stream/userMessageView.js:6-30
+// Directly ported from Vue2 src/views/AI/Agent/stream/userMessageView.js:6-30
 // Pure view helpers for UserMessage — extracted for testability.
 
 export interface UserMsgBlock {

@@ -14,55 +14,55 @@ const argv = process.argv.slice(2)
 const flag = (n) => argv.includes(n)
 const opt = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d }
 
-// ── 0. 参数校验 ────────────────────────────────────────────────────────────────
-// 🔴 这一段先于一切执行,是 2026-08-08 事故的修复。当时的解析只有上面两个 helper:
-// `flag()` 是 `argv.includes()`、`opt()` 是 `indexOf()` —— **不认识的参数不报错,等同于
-// 没传**。于是 `node oss/export.mjs --help`(只是想看看有哪些参数)走完了全套默认值:
-// 产出目录 = 真实公开仓、提交 = 开启 ⇒ rsync --delete 覆盖公开仓 + `git commit --amend`
-// 改掉它的 HEAD。脚本最后确实报了错(`rev-list --count` 那句),但那是在提交之后 ——
-// **响得太晚,等于没响**。
+// ── 0. Parameter validation ─────────────────────────────────────────────────────
+// 🔴 This runs before everything; it's the fix for the 2026-08-08 incident. The parsing back then had only the two helpers above:
+// `flag()` was `argv.includes()`, `opt()` was `indexOf()` — **unknown parameters didn't error, equivalent to not passing them**.
+// So `node oss/export.mjs --help` (just wanting to see what parameters exist) went through the entire default path:
+// output directory = real public repo, commit = enabled ⇒ rsync --delete overwrites public repo + `git commit --amend`
+// changes its HEAD. The script did error at the end (`rev-list --count` line), but that was after the commit —
+// **response came too late, equivalent to not triggering**.
 //
-// 所以这里的纪律是两条,缺一不可:
-//   ① 不认识的参数 → 立刻退出,不进入任何流程(白名单,不是黑名单);
-//   ② 危险动作(写公开仓 + 提交)只在显式 --publish 时发生,默认导到临时预览目录。
-// 行为由 oss/cli-args.test.mjs 钉住,其中"不带 --publish 不建仓"与"带 --publish 建仓"
-// 两条**必须成对存在** —— 任何单独一条都分辨不出"默认关"和"永远关"。
-const VALUE_FLAGS = new Set(['--out'])          // 后面紧跟一个值,那个值不参与未知参数校验
+// So the rules here are two, both required:
+//   ① Unknown parameter → exit immediately, don't enter any flow (whitelist, not blacklist);
+//   ② Dangerous action (write public repo + commit) only happens with explicit --publish, default exports to temp preview dir.
+// Behavior is locked down by oss/cli-args.test.mjs, where "without --publish don't init repo" and "with --publish init repo"
+// **must exist as a pair** — either alone can't distinguish "default off" from "permanently off".
+const VALUE_FLAGS = new Set(['--out'])          // value follows; that value doesn't participate in unknown param checking
 const BOOL_FLAGS = new Set([
   '--publish', '--skip-guard', '--no-commit', '--keep-temp', '--allow-dirty-oss', '--help', '-h',
 ])
 
-const USAGE = `用法:node oss/export.mjs [选项]
+const USAGE = `Usage: node oss/export.mjs [options]
 
-  不带 --publish:导出到临时预览目录(${PREVIEW_OUT}),只落盘、不建仓、不提交。
-                  怎么跑都碰不到公开仓,用来检查剥离清单改出了什么。
-  带 --publish  :导出到公开仓(${PUBLISH_OUT}),rsync --delete 覆盖它
-                  并 git commit --amend 成零历史单提交。**这是发布动作。**
+  Without --publish: export to temp preview directory (${PREVIEW_OUT}), write to disk only—no repo init, no commit.
+                     No matter how you run it, it never touches the public repo; use this to check what the manifest changed.
+  With --publish   : export to public repo (${PUBLISH_OUT}), rsync --delete overwrites it
+                     and git commit --amends into zero-history single commit. **This is the publish action.**
 
-选项:
-  --publish            发布模式。不给它,公开仓一个字节都不会变。
-  --out <dir>          指定产出目录,覆盖上面两个默认值。
-  --no-commit          即使给了 --publish 也只落盘、不提交。
-  --skip-guard         跳过第 5 步泄漏守卫。仅开发期,正式出包禁用。
-  --allow-dirty-oss    放行 oss/ 下的未提交改动。仅开发期,正式出包禁用。
-  --keep-temp          保留中间临时目录,排查"清单到底改出了什么"时用。
-  -h, --help           显示本帮助。
+Options:
+  --publish            Publish mode. Without it, the public repo won't change a single byte.
+  --out <dir>          Specify output directory, overriding the two defaults above.
+  --no-commit          Even with --publish, only write to disk—don't commit.
+  --skip-guard         Skip step 5 leak guard. Development-only; forbidden in official release.
+  --allow-dirty-oss    Allow uncommitted changes under oss/. Development-only; forbidden in official release.
+  --keep-temp          Keep intermediate temp directory after writing; useful for debugging "what did the manifest change".
+  -h, --help           Show this help.
 
-不认识的参数一律拒绝执行 —— 2026-08-08 的事故正是 \`--help\` 被当成"没传参",
-于是按默认值真的覆盖并提交了公开仓。详见 oss/README.md 与 oss/cli-args.test.mjs。`
+Unknown parameters are always rejected — the 2026-08-08 incident was exactly \`--help\` being treated as "no params",
+so it really did overwrite and commit the public repo using defaults. See oss/README.md and oss/cli-args.test.mjs.`
 
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (VALUE_FLAGS.has(a)) {
     if (i + 1 >= argv.length) {
-      console.error(`[oss] 失败:${a} 后面缺少值。\n\n${USAGE}`)
+      console.error(`[oss] Failed: ${a} missing value after it.\n\n${USAGE}`)
       process.exit(1)
     }
-    i++                                          // 跳过它的值
+    i++                                          // skip its value
     continue
   }
   if (BOOL_FLAGS.has(a)) continue
-  console.error(`[oss] 失败:不认识的参数 ${a}。为免误操作,拒绝执行。\n\n${USAGE}`)
+  console.error(`[oss] Failed: unknown parameter ${a}. To prevent mistakes, refusing to proceed.\n\n${USAGE}`)
   process.exit(1)
 }
 
@@ -74,7 +74,7 @@ if (flag('--help') || flag('-h')) {
 const PUBLISH = flag('--publish')
 const OUT = path.resolve(opt('--out', PUBLISH ? PUBLISH_OUT : PREVIEW_OUT))
 const SKIP_GUARD = flag('--skip-guard')
-// 默认不提交:只有明确说了 --publish 才建仓提交,且 --no-commit 仍可单独关掉它。
+// Default don't commit: only with explicit --publish does it init repo and commit; --no-commit can still turn it off.
 const NO_COMMIT = !PUBLISH || flag('--no-commit')
 const KEEP_TEMP = flag('--keep-temp')
 const ALLOW_DIRTY_OSS = flag('--allow-dirty-oss')
@@ -82,140 +82,143 @@ const ALLOW_DIRTY_OSS = flag('--allow-dirty-oss')
 const log = (m) => console.log(`[oss] ${m}`)
 const git = (dir, ...a) => execFileSync('git', ['-C', dir, ...a], { encoding: 'utf8' }).trim()
 
-// T14(B1):整条主流程包一层 try/catch —— 本项目的纪律是"错误消息本身就是产品"
-// (见 apply.mjs 里每一处 throw 的诊断文案),命中守卫/清单过期这类**预期内、操作员
-// 可见的失败**不该带一段 Node 原始 stack trace,那是噪音,会盖住精心写好的诊断文案。
-// 只在最外层兜底打印 err.message + exit(1);内层各处该抛的 Error 照抛不动,由这里
-// 统一收口成安静的失败退出。
+// T14(B1): wrap entire main flow in try/catch — this project's rule is "error messages are the product"
+// (see diagnostic text in each throw in apply.mjs); expected failures like hitting guard/stale manifest,
+// visible to operator, **shouldn't include a raw Node stack trace**, which is noise and obscures carefully
+// crafted diagnostic text. Only at outermost layer print err.message + exit(1) as fallback; throw Error
+// normally inside, unified catch turns it into a quiet failure exit.
 try {
-// ── 1. 前置检查 ───────────────────────────────────────────────────────────
-log('1/6 前置检查')
-// --allow-dirty-oss 仅供 oss/ 自身的开发迭代测试用(T6-T14 会反复往 manifest.mjs 追加
-// 数据、往 oss/ 加文件),不削弱 checkClean/DIRTY_ALLOW 本身的语义 —— 只是在调用点额外
-// 放行 git status 里路径落在 oss/ 下的行。原因:manifest.mjs 描述的是"删改动作"本身,
-// 工作树里 oss/ 有未提交改动而其余源码干净时,`git archive HEAD` 取到的源码仍然是
-// HEAD 的真实内容,只有"清单"是新的 —— 这种不一致在开发迭代期无害。
-// 正式出包(T15)一律不带这个 flag:那时必须保证 manifest.mjs 描述的清单和
-// `git archive HEAD` 取到的源码版本完全对应,任何 oss/ 下的未提交改动都应该先被看到。
+// ── 1. Pre-flight checks ──────────────────────────────────────────────────
+log('1/6 Pre-flight checks')
+// --allow-dirty-oss is only for oss/ self's development iteration testing (T6-T14 repeatedly appends
+// data to manifest.mjs, adds files to oss/), doesn't weaken checkClean/DIRTY_ALLOW semantics themselves —
+// just additionally allows lines with paths under oss/ in git status at the call site. Reason: manifest.mjs
+// describes the "delete/change actions" themselves; when oss/ has uncommitted changes and rest of source is clean,
+// `git archive HEAD` still retrieves the real HEAD content, only the "manifest" is new — this inconsistency
+// is harmless during development iteration. For official release (T15) never use this flag: then manifest.mjs
+// must exactly match the source version that `git archive HEAD` retrieves; any uncommitted changes under oss/
+// should be caught first.
 //
-// T14(B5):`git status --porcelain` 的 rename 行长这样:`R  oss/foo.mjs -> src/moved.ts`
-// ——原来的 /^.{2}\s+oss\//` 只看"状态码+空格"后面紧跟的第一段路径(rename 的旧路径),
-// 一旦旧路径落在 oss/ 下就整行放行,不管新路径搬到哪去了。真把一个文件从 oss/ 移到
-// src/ 下,src 侧这个真实的未提交改动会被这条正则悄悄放过,checkClean 形同虚设。
-// 用一条"消费掉整行"的正则堵住这个洞:允许 " -> " 之前的内容(旧路径)是任意非
-// " -> " 文本,但如果整行确实包含 " -> "(说明是 rename/copy),后面的新路径必须
-// 同样以 oss/ 开头才放行;如果新路径搬出了 oss/,正则匹配不到行尾,回落到"未豁免"。
-// 优先级最低的开发期 flag(T15 不带),但既然要修就修对,不留一半。
+// T14(B5): rename lines in `git status --porcelain` look like: `R  oss/foo.mjs -> src/moved.ts`
+// — the old /^.{2}\s+oss\//` only looks at the first path immediately after "status+space" (rename's old path),
+// and if old path falls under oss/, it lets the whole line through regardless of where new path goes. If we really
+// move a file from oss/ to src/, the actual uncommitted change on src/ would be silently passed by this regex,
+// making checkClean pointless. Use a regex that "consumes the whole line": allow content before " -> " (old path)
+// to be any non-" -> " text, but if the line truly contains " -> " (indicating rename/copy), the new path after
+// must also start with oss/ to pass; if new path moved out of oss/, regex won't match line-end, falls back to "not exempted".
+// Lowest-priority dev flag (T15 doesn't use), but since we're fixing it, fix it right, don't leave it half-done.
 const OSS_RENAME_SAFE = /^.{2}\s+oss\/(?:(?!\s->\s).)*(?:\s->\s+oss\/.*)?$/
 const dirtyAllowNewUi = ALLOW_DIRTY_OSS ? [...DIRTY_ALLOW, OSS_RENAME_SAFE] : DIRTY_ALLOW
 checkClean(NEW_UI, dirtyAllowNewUi)
 const headNewUi = git(NEW_UI, 'rev-parse', 'HEAD')
-log(`  New-UI ${headNewUi.slice(0, 8)}(共享包已内联,不再取第二个仓)`)
+log(`  New-UI ${headNewUi.slice(0, 8)} (shared package already inlined, no second repo)`)
 
-// ── 2. 取源(git archive HEAD)────────────────────────────────────────────────
-// 🔴 这里原来写的是「.git / node_modules / dist / .superpowers / tmlab 自动排除」——
-// **那句话是错的,而且它就是让 437 处台账泄漏藏了几个月的机制本身**(SP8-P6-T8 实测:
-// 产物树泄漏命中 977 处,其中 437 处出自 packages/service/.superpowers/**)。改成准确的:
+// ── 2. Source extraction (git archive HEAD) ──────────────────────────────
+// 🔴 This used to say ".git / node_modules / dist / .superpowers / tmlab are automatically excluded" —
+// **that statement was wrong, and it's exactly the mechanism that let 437 design-doc leaks hide for months**
+// (SP8-P6-T8 real test: output tree hits 977 leaks, of which 437 came from packages/service/.superpowers/**).
+// Changed to accurate:
 //
-//   `git archive HEAD` 只有两条排除依据 ——
-//     ① **未被 git 跟踪的文件**(.git 自身、node_modules/、dist/、scripts/tmlab/ 都属此类:
-//        前三个在 .gitignore 里,tmlab 也是 `git ls-files | grep tmlab` = 0 条);
-//     ② `.gitattributes` 里标了 `export-ignore` 的路径 —— **本仓没有 .gitattributes
-//        文件**(实测确认),所以这条依据在这里等于不存在。
+//   `git archive HEAD` has only two exclusion bases —
+//     ① **Files not tracked by git** (.git itself, node_modules/, dist/, scripts/tmlab/ all fall here:
+//        first three in .gitignore, tmlab is also `git ls-files | grep tmlab` = 0 items);
+//     ② Paths marked `export-ignore` in `.gitattributes` — **this repo has no .gitattributes file**
+//        (confirmed by test), so this basis effectively doesn't exist here.
 //
-//   ⇒ **凡是被跟踪的文件,一律会进产物树**,只能靠清单显式剔除。`.superpowers/` 正是
-//     这种情况:2026-08-05 起台账入库成了纪律,而这里恰好有**两处**各自独立入库的
-//     台账目录 —— New-UI 根的 `.superpowers/`,与 `packages/service/.superpowers/`
-//     (SP13 内联前是独立仓 `NimoOS-Service` 自己的台账;内联后随同一次 `archive`
-//     一起进了这棵树,但它是**它自己那份**,没有跟着并进根 `.superpowers/`)。
-//     **"两个仓各自的台账"这句旧描述已经不准确(现在只 archive 一个仓),但结论没变**:
-//     仍然需要 **两条独立的清单条目**,分别剔除这两处:
-//       · New-UI 根 → manifest.mjs 的 `DELETE` 表里的 '.superpowers'
-//       · `packages/service/` 子目录 → `SERVICE_DELETE` 表里的 '.superpowers'
-//         (SP8-P6-T8 补,此前漏着;SP13 内联只是把它的基准目录从"另一次 archive 的
-//         根"换成"同一棵树里的子目录",条目本身原样保留)
-//     漏掉任何一条都不会有人报错 —— 兜底的只有泄漏守卫的词命中,而台账里恰好一个禁词
-//     都没有的那天,它就静默上公网了。**⚠️ 具体后果**:若有人因为"现在只剩一个仓了"
-//     推出"一条 DELETE 就够,SERVICE_DELETE 那条 '.superpowers' 是多余的"并把它删掉,
-//     437 处台账内容会原样落进公开产物树,而 `forbidden.mjs` 的词表里一个禁词都没有,
-//     **泄漏守卫不会响**——这正是这段注释想提前挡住的那种事故。tree.test.mjs 因此
-//     另有两条**目录存在性**断言(不依赖词表),见那边「两处台账目录都不能进产物树」
-//     那条用例。
-log('2/6 取源')
+//   ⇒ **All tracked files go into output tree**, only explicit manifest deletion stops them. `.superpowers/` is exactly
+//     this case: since 2026-08-05 design docs in git became mandatory, and here we have **two** independently-tracked
+//     design directories — New-UI root's `.superpowers/`, and `packages/service/.superpowers/`
+//     (before SP13 inlining was independent repo `NimoOS-Service`'s own designs; after inlining came into this tree
+//     in the same `archive`, but it's **its own copy**, not mixed with root `.superpowers/`).
+//     **The old phrase "each repo's designs" is no longer accurate (now only archive one repo), but the conclusion holds**:
+//     still need **two separate manifest entries** to remove both:
+//       · New-UI root → '.superpowers' in `DELETE` table of manifest.mjs
+//       · `packages/service/` subdirectory → '.superpowers' in `SERVICE_DELETE` table
+//         (added SP8-P6-T8, was missing before; SP13 inlining just changed its base dir from "another archive root"
+//         to "subdirectory in the same tree", entry itself stays the same)
+//     Missing either one won't cause anyone to report an error — only leak-guard word hits are the fallback, and
+//     when the word list happens to have no forbiddings, it silently goes public. **⚠️ Specific consequence**: if
+//     someone reasons "now there's only one repo" and deletes the `SERVICE_DELETE` '.superpowers' entry, 437 lines
+//     of design content go straight into public output tree, and `forbidden.mjs` word list has no forbiddings for it,
+//     **leak guard won't trigger** — that's exactly the kind of accident this comment is meant to prevent early.
+//     tree.test.mjs therefore has two additional **directory-existence** assertions (independent of word list),
+//     see the "both design directories must not enter output tree" test case there.
+log('2/6 Source extraction')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'oss-export-'))
-// try 从这里开始(mkdtempSync 之后、第一次可能失败的操作 archiveInto 之前),覆盖取源 +
-// 应用清单 + 落盘全程 —— 否则取源阶段(比如 sibling NimoOS-Service 不存在/archive 失败)
-// 会在 finally 清理跑不到的情况下把 tmp 目录遗留在 /tmp。
+// try starts here (after mkdtempSync, before first possible-failure op archiveInto), covers source extraction +
+// applying manifest + writing to disk — otherwise source extraction phase (e.g., sibling NimoOS-Service doesn't exist/archive fails)
+// would leave tmp directory in /tmp if finally cleanup can't run.
 try {
   const archiveInto = (repo, dest) => {
     fs.mkdirSync(dest, { recursive: true })
     execFileSync('sh', ['-c', `git -C '${repo}' archive HEAD | tar -x -C '${dest}'`])
   }
   archiveInto(NEW_UI, tmp)
-  // SP13 内联后 packages/service/ 已经在 New-UI 自己的 archive 里,不再取第二个仓。
-  // 这个变量保留:下面 SERVICE_DELETE / SERVICE_PATCH 两张表仍以它为基准目录。
+  // After SP13 inlining, packages/service/ is already in New-UI's own archive; no second repo needed.
+  // This variable is kept: SERVICE_DELETE / SERVICE_PATCH tables below still use it as base dir.
   const svcDir = path.join(tmp, 'packages/service')
 
-  // ── 3. 应用清单:顺序固定 DELETE → REPLACE → PATCH ──────────────────────
-  log(`3/6 应用清单(DELETE ${DELETE.length} · REPLACE ${REPLACE.length} · PATCH ${PATCH.length})`)
+  // ── 3. Apply manifest: fixed order DELETE → REPLACE → PATCH ──────────────
+  log(`3/6 Apply manifest (DELETE ${DELETE.length} · REPLACE ${REPLACE.length} · PATCH ${PATCH.length})`)
   applyDelete(tmp, DELETE)
   applyDelete(svcDir, SERVICE_DELETE)
   applyReplace(tmp, REPLACE, path.join(OSS_DIR, 'files'))
   applyPatch(tmp, PATCH)
   applyPatch(svcDir, SERVICE_PATCH)
 
-  // ── 4. 内嵌共享包 ── SP13 起私有仓本身就是内联形态(package.json 写死
-  //    file:packages/service、包入口直指 TS 源码),产物树天然正确,无需任何重写。
-  //    原先这里有:file: 一行重写 + lockfile 两处 replaceAll + 两个"锚点未命中"守卫。
+  // ── 4. Inline shared package ── Since SP13, private repo is already in inlined form (package.json hardcodes
+  //    file:packages/service, package entry points to TS source), output tree is naturally correct, no rewrites needed.
+  //    Previously this section had: one file: path rewrite + two lockfile replaceAll + two "anchor not found" guards.
 
-  // ── 4.5 重算 lockfile(SP8-P6-T7 修复轮 1 · Important 2)──────────────────
-  // 背景:清单从这一刀起会**摘 package.json 的 dependencies**(AI 独占的 4 个 tiptap +
-  // dompurify + @types/dompurify)。上面那段只重写 file: 路径,importers 段里被摘掉的
-  // 那几条 specifier 原样留着 —— 于是产出树的 pnpm-lock.yaml 与 package.json 自相矛盾:
-  //   · `CI=true pnpm install`(CI 环境 frozen-lockfile 默认为 true)直接
-  //     ERR_PNPM_OUTDATED_LOCKFILE —— 对一个**公开仓**来说就是"clone 下来装不上"。
-  //     产出仓是跟踪 pnpm-lock.yaml 的(根目录 + packages/service 各一份)。
-  //   · 而且 packages/snapshots 段还留着约 150 行被摘掉的包的元数据,弱信号泄露
-  //     "私有版有个富文本编辑器"。
-  // 修法二选一(补 importers 段的锚点补丁 / 在这里重算)。选重算:
-  //   ① 锚点补丁只能修 importers,修不掉 packages/snapshots 段那 150 行;重算两个一起解。
-  //   ② 手写 lockfile 锚点在依赖升级一次后就全部作废,起不到"拦住手工夹带"的作用 ——
-  //      forbidden.mjs 对 pnpm-lock.yaml 改用"形状规则"而非精确锚点,同一条理由。
-  // --lockfile-only:只算依赖图、不落 node_modules。--no-frozen-lockfile 显式写死,
-  // 否则在 CI 里跑导出时 pnpm 会因为默认 frozen 而拒绝更新(正是我们要修的那个默认值)。
-  // 失败一律抛出:lockfile 算不出来就不该出包,绝不静默带着漂移的 lockfile 落盘。
-  log('4.5/6 重算 lockfile(package.json 的依赖已被清单改动)')
+  // ── 4.5 Recalculate lockfile (SP8-P6-T7 fix wave 1 · Important 2) ────────
+  // Background: manifest will **remove package.json dependencies** starting here (AI-exclusive 4 tiptap +
+  // dompurify + @types/dompurify). The section above only rewrites file: path; the specifiers removed from the
+  // importers section stay as-is — so output tree's pnpm-lock.yaml conflicts with package.json:
+  //   · `CI=true pnpm install` (CI env frozen-lockfile defaults true) directly
+  //     ERR_PNPM_OUTDATED_LOCKFILE — for a **public repo** that means "clone and can't install".
+  //     Output repo tracks pnpm-lock.yaml (root + packages/service each one).
+  //   · Plus packages/snapshots section has ~150 lines of metadata for removed packages, weak signal leaks
+  //     "private version has a rich-text editor".
+  // Fix: two choices (patch importers section anchors / recalculate here). Chose recalculate:
+  //   ① Anchor patch can only fix importers, can't remove 150 lines in packages/snapshots; recalc fixes both.
+  //   ② Hand-written lockfile anchors become useless after one dep upgrade, can't "block manual smuggling" —
+  //      forbidden.mjs switched to "shape rules" for pnpm-lock.yaml instead of exact anchors, same reasoning.
+  // --lockfile-only: only calculate dep graph, don't write node_modules. --no-frozen-lockfile explicitly set,
+  // otherwise pnpm will refuse updates when run in CI because default frozen (the default we're fixing).
+  // Always throw on failure: if lockfile can't be calculated, don't release; never silently write drifted lockfile to disk.
+  log('4.5/6 Recalculate lockfile (package.json dependencies already modified by manifest)')
   try {
     execFileSync('pnpm', ['install', '--lockfile-only', '--no-frozen-lockfile',
                           '--prefer-offline', '--ignore-scripts'],
       { cwd: tmp, stdio: 'pipe', encoding: 'utf8', env: { ...process.env, CI: '' } })
   } catch (e) {
     throw new Error(
-      'pnpm install --lockfile-only 失败,产出树的 lockfile 会与 package.json 不一致。\n' +
-      `pnpm 输出:\n${(e.stdout || '') + (e.stderr || '')}`,
+      'pnpm install --lockfile-only failed; output tree lockfile will be inconsistent with package.json.\n' +
+      `pnpm output:\n${(e.stdout || '') + (e.stderr || '')}`,
     )
   }
 
-  // ── 5. 泄漏守卫(在临时目录上跑,不过就一个字节都不落盘)────────────────
-  // scanTree 对每次跳过(未做内容扫描)都会留痕一条 word: '__skipped__' 的记录(见
-  // forbidden.mjs 里 scanTree 的注释)。跳过分两类,处理方式不同:
-  //   · 预期内(二进制 / 符号链接)—— 这棵树里长期存在合法的二进制资源(图标等),不算
-  //     泄漏,不能让守卫永久哑火,但必须打印+记录、绝不能悄悄吞掉("绝不静默"纪律)。
-  //   · 预期外(读取失败 / stat 失败 / 目录读取失败 / 超过体积上限)—— 这些情形本身就
-  //     反常(该被扫的文本文件读不出来,或体积大得异常),必须让人停下来看一眼,跟
-  //     "这是个 PNG 图标"不能一视同仁,所以仍然 fatal。
-  // isExpectedSkip(从 forbidden.mjs 导入,T14/B2)只精确匹配 SKIP_REASON_SYMLINK /
-  // SKIP_REASON_BINARY 这两条固定文案(不含动态内容);其余跳过原因(体积超限、各类
-  // 失败,文案里带 err.message 等动态内容)一律落入"预期外"分支。分类逻辑与 scanTree
-  // 里实际写入的文案共享同一份具名常量(不是各自硬编码一份中文字符串再指望人工保持
-  // 同步)——forbidden.test.mjs 有单测直接锁住这个函数的分类结果,tree.test.mjs 走的
-  // --skip-guard 完全不经过这段逻辑,覆盖不到。
+  // ── 5. Leak guard (runs on temp directory; if it hits, nothing reaches disk) ────
+  // scanTree leaves a marker word: '__skipped__' for each skip (no content scan performed) (see
+  // scanTree comment in forbidden.mjs). Skips fall into two categories, handled differently:
+  //   · Expected (binary / symlink) — legitimate binary resources (icons etc.) exist long-term in this tree,
+  //     doesn't count as leak, can't leave guard permanently silent, but must print+log, never silently drop
+  //     ("never silent" rule).
+  //   · Unexpected (read failure / stat failure / directory read failure / exceeds size limit) — these situations
+  //     themselves are abnormal (text file that should be scanned can't be read, or size is unusually large),
+  //     must make people stop and look, not same as "this is a PNG icon", so still fatal.
+  // isExpectedSkip (imported from forbidden.mjs, T14/B2) precisely matches only SKIP_REASON_SYMLINK /
+  // SKIP_REASON_BINARY (two fixed strings, no dynamic content); other skip reasons (size exceeded, various
+  // failures, strings with err.message etc. dynamic content) all fall into "unexpected" branch. Classification
+  // logic shares the same named constant with actual text written in scanTree (not each hardcoded separately
+  // and manually synced) — forbidden.test.mjs has unit test locking down this function's classification,
+  // tree.test.mjs with --skip-guard completely bypasses this logic, not covered.
   let skipReportLines = []
   if (SKIP_GUARD) {
-    log('5/6 泄漏守卫 —— 已用 --skip-guard 跳过(仅开发期允许,未扫描任何文件)')
-    skipReportLines = ['(本次导出带 --skip-guard,泄漏守卫与跳过清单均未执行)']
+    log('5/6 Leak guard — skipped with --skip-guard (development-only; no files scanned)')
+    skipReportLines = ['(this export used --skip-guard; leak guard and skip list both not executed)']
   } else {
-    log('5/6 泄漏守卫')
+    log('5/6 Leak guard')
     const findings = scanTree(tmp)
     const skipped = findings.filter((f) => f.word === '__skipped__')
     const leaks = findings.filter((f) => f.word !== '__skipped__')
@@ -223,9 +226,9 @@ try {
     const unexpectedSkips = skipped.filter((f) => !isExpectedSkip(f.excerpt))
 
     if (expectedSkips.length) {
-      log(`  ⚠ ${expectedSkips.length} 个文件未做内容扫描(二进制/符号链接,预期内,不计入泄漏判定):`)
+      log(`  ⚠ ${expectedSkips.length} files not scanned (binary/symlink, expected, not counted as leak):`)
       for (const f of expectedSkips) {
-        const line = `⚠ 未扫描:${f.file} —— ${f.excerpt}`
+        const line = `⚠ Not scanned: ${f.file} — ${f.excerpt}`
         log(`    ${line}`)
         skipReportLines.push(line)
       }
@@ -234,64 +237,67 @@ try {
     if (unexpectedSkips.length) {
       for (const f of unexpectedSkips) console.error(`  ✗ ${f.file} [${f.word}] ${f.excerpt}`)
       throw new Error(
-        `泄漏守卫遇到 ${unexpectedSkips.length} 处预期外的跳过(读取失败/stat 失败/超过体积上限/目录读取失败),` +
-        `一个字节都不落盘。这类文件本身反常,必须人工看一眼再决定 —— 不能和"这是个二进制图标"一视同仁。`,
+        `Leak guard hit ${unexpectedSkips.length} unexpected skips (read failure/stat failure/size limit/directory read failure); ` +
+        `nothing goes to disk. These files are themselves abnormal and need manual review — can't treat like "this is a binary icon".`,
       )
     }
 
     if (leaks.length) {
       for (const f of leaks.slice(0, 60)) console.error(`  ✗ ${f.file}:${f.line} [${f.word}] ${f.excerpt}`)
-      throw new Error(`泄漏守卫命中 ${leaks.length} 处,一个字节都不落盘。` +
-        `修法只有两条:真泄漏就补剥离清单;误报就往 forbidden.mjs 加**精确白名单** —— 禁止放宽词表。`)
+      throw new Error(`Leak guard hit ${leaks.length} locations; nothing goes to disk. ` +
+        `Only two fixes: real leak → add to manifest; false positive → add **precise whitelist** to forbidden.mjs — forbidden to relax word list.`)
     }
-    log(`  零真实泄漏命中(${expectedSkips.length} 个预期内跳过已记录,见上方与 .export-report.txt)`)
+    log(`  Zero real leaks (${expectedSkips.length} expected skips logged, see above and .export-report.txt)`)
   }
 
-  // ── 6. 落盘 + 零历史提交 ────────────────────────────────────────────────
-  log('6/6 落盘')
-  // --out 护栏:目标目录已存在且非空、又不像是之前的导出产物时,拒绝用 rsync --delete
-  // 清空它 —— 避免用户随手指一个普通目录当 --out,产物一落地就把里面的东西静默删光。
-  // "像是之前的导出产物"用 .git 或 .export-report.txt 任一存在来判定,这样重复导出到
-  // 同一个产物目录(幂等性要求)不受影响,只拦住"这看起来是别的东西"的情形。
+  // ── 6. Write to disk + zero-history commit ────────────────────────────
+  log('6/6 Write to disk')
+  // --out guard: if target directory exists and is non-empty but doesn't look like prior export output,
+  // refuse to rsync --delete to empty it — prevents user accidentally pointing to a regular directory,
+  // and having its contents silently wiped as soon as output is written.
+  // "looks like prior export output" is judged by existence of .git or .export-report.txt; this way
+  // repeated exports to the same output directory (idempotence requirement) aren't affected, only blocks
+  // "this looks like something else."
   if (fs.existsSync(OUT)) {
     const outEntries = fs.readdirSync(OUT)
     if (outEntries.length > 0) {
       const looksLikePriorExport = outEntries.includes('.git') || outEntries.includes('.export-report.txt')
       if (!looksLikePriorExport) {
         throw new Error(
-          `--out ${OUT} 已存在且非空,但看起来不是之前的导出产物(既不含 .git 也不含 .export-report.txt)。\n` +
-          `拒绝用 rsync --delete 清空它 —— 如果你确实要用这个目录,请先自己清空。`,
+          `--out ${OUT} exists and is non-empty, but doesn't look like prior export output (has neither .git nor .export-report.txt).\n` +
+          `Refuse to rsync --delete it — if you really want to use this directory, clear it yourself first.`,
         )
       }
     }
   }
   fs.mkdirSync(OUT, { recursive: true })
-  // T15(e):--exclude node_modules——取源(git archive)天然不含 node_modules,
-  // 若不排除,--delete 每次都会把 --out 目录里已经 `pnpm install` 好的 node_modules
-  // 整个删掉,逼着人每次导出后重装一遍依赖。**故意不排除 dist/**——理由相反:
-  // dist 是构建产物,同样不在取源范围内,让它每次被清掉是对的,否则一次陈旧的、
-  // 对不上当前源码的旧 dist 会被误当成"这次构建的产物"去跑第五道门(dist 扫描),
-  // 扫描结果就不代表这次改动的真实情况。
+  // T15(e): --exclude node_modules — source extraction (git archive) naturally doesn't include node_modules;
+  // if we don't exclude, --delete would wipe the `pnpm install`'ed node_modules in --out every time,
+  // forcing reinstall after every export. **Deliberately don't exclude dist/** — opposite reason:
+  // dist is build output, also not in source extraction range, letting it be wiped each time is right,
+  // otherwise stale dist from a previous build (not matching current source) would be mistaken for
+  // "this build's output" and run through checkpoint 5 (dist scan), making scan results not representative
+  // of this change's reality.
   execFileSync('rsync', ['-a', '--delete', '--exclude', '.git', '--exclude', 'node_modules', `${tmp}/`, `${OUT}/`])
   fs.writeFileSync(
     path.join(OUT, '.export-report.txt'),
-    `NimoOS-New-UI HEAD: ${headNewUi}(共享包已内联)\n` +
+    `NimoOS-New-UI HEAD: ${headNewUi} (shared package already inlined)\n` +
     `DELETE ${DELETE.length} · REPLACE ${REPLACE.length} · PATCH ${PATCH.length}\n` +
-    `泄漏守卫未扫描清单(预期内,二进制/符号链接):\n` +
-    (skipReportLines.length ? skipReportLines.map((l) => `  ${l}`).join('\n') + '\n' : '  (无)\n') +
-    `⚠️ 本文件含私有仓 commit hash,已在 .gitignore 里,不进 git。\n`,
+    `Leak guard skip list (expected, binary/symlink):\n` +
+    (skipReportLines.length ? skipReportLines.map((l) => `  ${l}`).join('\n') + '\n' : '  (none)\n') +
+    `⚠️ This file contains private repo commit hash; it's in .gitignore and doesn't go into git.\n`,
   )
   if (!NO_COMMIT) {
-    // 跨任务顺序依赖(本任务新增的显式检查,brief 未写):.export-report.txt 只有在
-    // 产出树 .gitignore 里被排除才不会被下面的 `git add -A` 误提交进零历史仓库。
-    // 那一行 .gitignore 是 Task 7 才会补的补丁,在那之前必须响、不能静默吞掉。
+    // Cross-task ordering dependency (explicit check new to this task, not in brief): .export-report.txt
+    // only stays out of zero-history repo if it's excluded in output tree's .gitignore; otherwise
+    // `git add -A` below would mistakenly commit it. That .gitignore line is a patch Task 7 adds;
+    // before then it must trigger, can't silently drop it.
     const gitignorePath = path.join(OUT, '.gitignore')
     const gitignore = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : ''
     if (!gitignore.split('\n').some((l) => l.trim() === '.export-report.txt')) {
       throw new Error(
-        '.export-report.txt 会被 git add -A 误提交:产出树 .gitignore 里还没有这一行。\n' +
-        'Task 7 的 .gitignore 补丁还没落地,报告文件会被误提交 —— 先落地那个补丁,或者用 --no-commit 跳过本次提交。',
-      )
+        '.export-report.txt will be mistakenly committed by git add -A: the output tree .gitignore does not have this line yet.\n' +
+        'Task 7 .gitignore patch not landed; the report file would be mistakenly committed — land that patch first, or use --no-commit to skip the commit.', )
     }
     if (!fs.existsSync(path.join(OUT, '.git'))) git(OUT, 'init', '-b', 'main')
     execFileSync('git', ['-C', OUT, 'add', '-A'])
@@ -300,14 +306,14 @@ try {
     execFileSync('git', ['-C', OUT, 'commit', ...(has ? ['--amend'] : []), '--no-edit',
       ...(has ? [] : ['-m', 'NimoOS Web UI'])], { stdio: 'pipe' })
     const n = git(OUT, 'rev-list', '--count', 'HEAD')
-    if (n !== '1') throw new Error(`零历史被破坏:rev-list --count HEAD = ${n},必须是 1`)
+    if (n !== '1') throw new Error(`Zero-history broken: rev-list --count HEAD = ${n}, must be 1`)
   }
-  log(`完成 → ${OUT}`)
+  log(`Complete → ${OUT}`)
 } finally {
-  if (KEEP_TEMP) log(`临时目录保留:${tmp}`)
+  if (KEEP_TEMP) log(`Temp directory kept: ${tmp}`)
   else fs.rmSync(tmp, { recursive: true, force: true })
 }
 } catch (err) {
-  console.error(`[oss] 失败:${err.message}`)
+  console.error(`[oss] Failed: ${err.message}`)
   process.exit(1)
 }

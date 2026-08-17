@@ -192,7 +192,7 @@ export class Peer {
     this.events.onTransferComplete()
   }
 
-  // 子类实现真实发送;基类抛错防误用
+  // Subclass implements actual send; base class throws to prevent misuse
   protected sendRaw(_data: string | ArrayBuffer): void {
     throw new Error('Peer.sendRaw must be overridden')
   }
@@ -271,7 +271,7 @@ export class Peer {
   }
 }
 
-// 仅公网 STUN,无 TURN(Vue2 同,局域网定位)
+// Public STUN only, no TURN (same as Vue2, LAN only)
 export const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 }
@@ -289,7 +289,7 @@ export class RTCPeer extends Peer {
 
   constructor(signal: SignalChannel, peerId: string | null, events: PeerEvents) {
     super(signal, peerId, events)
-    if (!peerId) return // 等对方主叫(signal 消息到达时 onServerMessage 里补 connect)
+    if (!peerId) return // Wait for the other side to call (connect is completed in onServerMessage when signal message arrives)
     this.connectRtc(peerId, true)
   }
 
@@ -466,7 +466,7 @@ export class RTCPeer extends Peer {
       this.refresh()
       return
     }
-    // TS 的 send 重载不接受联合类型,按实际类型分派
+    // TS send overload does not accept union types, dispatch by actual type
     if (typeof data === 'string') this.channel.send(data)
     else this.channel.send(data)
   }

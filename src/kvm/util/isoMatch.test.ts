@@ -5,7 +5,7 @@ import {
 } from './isoMatch'
 import type { KvmISO } from '@nimotech/nimoos-service'
 
-// 真机 2026-08-03 `curl /v1/kvm/isos` 的 8 条里取 5 条(逐字,未手编)。
+// From 8 results of real device 2026-08-03 `curl /v1/kvm/isos`, took 5 (verbatim, not hand-edited).
 const T = (over: Partial<KvmISO>): KvmISO => ({
   id: 'x', name: 'X', version: '1', category: 'linux', size: '1 GB', status: 'available',
   progress: 0, recommendedVcpu: 2, recommendedMemory: 2048, minMemory: 512, minDisk: 8, ...over,
@@ -20,7 +20,7 @@ const TEMPLATES: KvmISO[] = [
 ]
 
 describe('isIsoFile', () => {
-  it('大小写不敏感地认 .iso', () => {
+  it('case-insensitive recognition of .iso', () => {
     expect(isIsoFile('Alpine.ISO')).toBe(true)
     expect(isIsoFile('a.iso')).toBe(true)
     expect(isIsoFile('a.img')).toBe(false)
@@ -29,7 +29,7 @@ describe('isIsoFile', () => {
 })
 
 describe('formatFileSize', () => {
-  it('照 Vue2 OSSelector:1024 进制、一位小数、空/0 返回空串', () => {
+  it('following Vue2 OSSelector: 1024 base, one decimal place, empty/0 returns empty string', () => {
     expect(formatFileSize(undefined)).toBe('')
     expect(formatFileSize(0)).toBe('')
     expect(formatFileSize(512)).toBe('512.0 B')
@@ -39,7 +39,7 @@ describe('formatFileSize', () => {
 })
 
 describe('filterByCategory', () => {
-  it('all 返回全部,其余按 category 精确过滤', () => {
+  it("'all' returns all, rest filters exactly by category", () => {
     expect(filterByCategory(TEMPLATES, 'all')).toHaveLength(6)
     expect(filterByCategory(TEMPLATES, 'windows').map((t) => t.id)).toEqual(['win10', 'win11'])
     expect(filterByCategory(TEMPLATES, 'bsd').map((t) => t.id)).toEqual(['freebsd-14'])
@@ -47,52 +47,52 @@ describe('filterByCategory', () => {
 })
 
 describe('matchTemplateByFilename', () => {
-  it('文件名含模板 id 时直接命中(照 Vue2 :335-340)', () => {
+  it('direct hit when filename contains template id (following Vue2 :335-340)', () => {
     expect(matchTemplateByFilename('my-debian-13-netinst.iso', TEMPLATES)?.id).toBe('debian-13')
   })
-  it('win11 / win10 / 泛 win 三级兜底(照 Vue2 :343-345)', () => {
+  it('win11 / win10 / generic win three-level fallback (following Vue2 :343-345)', () => {
     expect(matchTemplateByFilename('Win11_24H2.iso', TEMPLATES)?.id).toBe('win11')
     expect(matchTemplateByFilename('win10_x64.iso', TEMPLATES)?.id).toBe('win10')
     expect(matchTemplateByFilename('windows-server.iso', TEMPLATES)?.id).toBe('win11')
   })
-  it('认不出来返回 null', () => {
+  it('returns null if not recognized', () => {
     expect(matchTemplateByFilename('haiku-r1.iso', TEMPLATES)).toBeNull()
   })
 })
 
-// 全分支评审修复 B1:家族前缀("较宽松")匹配器,照 Vue2 KVMFullPage.vue:1392-1403。
-// 与上面 matchTemplateByFilename 的关键区别——这里用的是"真机命名不含完整模板 id,
-// 但含家族前缀"这类用例,strict 版会 miss、family 版能命中。
+// Full-branch review fix B1: family-prefix ('looser') matcher, following Vue2 KVMFullPage.vue:1392-1403.
+// Key difference with matchTemplateByFilename above—this uses 'real device naming without complete
+// template id, but contains family prefix' such cases, strict version would miss, family version can hit.
 describe('matchTemplateByFamily', () => {
-  it('文件名不含完整模板 id,但含家族前缀 alpine → 命中 alpine-319', () => {
-    // 'alpine-standard-3.19.1-x86_64.iso' 不含子串 'alpine-319'(strict 版会 miss),
-    // 但含家族前缀 'alpine'。
+  it("filename without complete template id, but contains family prefix alpine → hits alpine-319", () => {
+    // 'alpine-standard-3.19.1-x86_64.iso' doesn't contain substring 'alpine-319' (strict version
+    // would miss), but contains family prefix 'alpine'.
     expect(matchTemplateByFamily('alpine-standard-3.19.1-x86_64.iso', TEMPLATES)?.id).toBe('alpine-319')
   })
-  it('文件名不含完整模板 id,但含家族前缀 ubuntu → 命中 ubuntu-2404', () => {
+  it("filename without complete template id, but contains family prefix ubuntu → hits ubuntu-2404", () => {
     expect(matchTemplateByFamily('ubuntu-server-24.04.iso', TEMPLATES)?.id).toBe('ubuntu-2404')
   })
-  it('家族前缀 debian → 命中 debian-13', () => {
+  it('family prefix debian → hits debian-13', () => {
     expect(matchTemplateByFamily('debian-13-netinst.iso', TEMPLATES)?.id).toBe('debian-13')
   })
-  it('win* 系列要求文件名同时含 "win" 与版本号数字 → Win11_24H2.iso 命中 win11,不误配 win10', () => {
+  it('win* series requires filename to contain both "win" and version number digit → Win11_24H2.iso hits win11, doesn\'t misconfig to win10', () => {
     expect(matchTemplateByFamily('Win11_24H2.iso', TEMPLATES)?.id).toBe('win11')
   })
-  it('认不出来返回 null', () => {
+  it('returns null if not recognized', () => {
     expect(matchTemplateByFamily('haiku-r1.iso', TEMPLATES)).toBeNull()
   })
 })
 
 describe('osTemplateDefaults', () => {
-  it('generic-linux → bios/linux/Linux(照 Vue2 :722-725)', () => {
+  it('generic-linux → bios/linux/Linux (following Vue2 :722-725)', () => {
     expect(osTemplateDefaults('generic-linux', TEMPLATES))
       .toMatchObject({ osType: 'linux', firmware: 'bios', os: 'Linux' })
   })
-  it('generic-windows → uefi/windows/Windows(照 Vue2 :726-729)', () => {
+  it('generic-windows → uefi/windows/Windows (following Vue2 :726-729)', () => {
     expect(osTemplateDefaults('generic-windows', TEMPLATES))
       .toMatchObject({ osType: 'windows', firmware: 'uefi', os: 'Windows' })
   })
-  it('真实模板:id 或 name 含 win 即判 windows + uefi,并带出推荐规格(照 Vue2 :731-743)', () => {
+  it('real templates: if id or name contains win, determine windows + uefi, and bring out recommended specs (following Vue2 :731-743)', () => {
     expect(osTemplateDefaults('win10', TEMPLATES)).toMatchObject({
       osType: 'windows', firmware: 'uefi', os: 'Windows 10', vcpu: 2, memory: 4096, minDisk: 60,
     })
@@ -100,7 +100,7 @@ describe('osTemplateDefaults', () => {
       osType: 'linux', firmware: 'bios', os: 'Ubuntu', vcpu: 2, memory: 4096, minDisk: 10,
     })
   })
-  it('未知 id 回落 generic-linux', () => {
+  it('unknown id falls back to generic-linux', () => {
     expect(osTemplateDefaults('nope', TEMPLATES)).toMatchObject({ osType: 'linux', firmware: 'bios', os: 'Linux' })
   })
 })

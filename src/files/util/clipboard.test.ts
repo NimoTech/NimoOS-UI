@@ -48,21 +48,26 @@ describe('copyText', () => {
   })
 })
 
-// 【SP8-P2b 验收第 4 轮,2026-07-30】用户实测:AI 设置页**页面上**的复制正常,**「创建令牌」
-// 弹窗里的三个复制全部失败(剪贴板里什么都没有)**。
+// SP8-P2b round 4 acceptance, 2026-07-30 — user test: copy on the AI settings **page**
+// works, but all three copy buttons in the **"Create Token" dialog** fail
+// (clipboard is empty).
 //
-// 根因从 reka 源码定死(reka-ui/dist/FocusScope/FocusScope.js:57-62):DialogContent 的
-// FocusScope(trapped)在 **document 上**挂了 focusin 监听 ——
+// Root cause is hardcoded in reka source (reka-ui/dist/FocusScope/FocusScope.js:57-62):
+// DialogContent's FocusScope (trapped) has a focusin listener on **document** —
 //     if (container.contains(target)) lastFocusedElementRef.value = target
 //     else focus(lastFocusedElementRef.value, { select: true })
-// 兜底方案把临时 <textarea> 挂到 document.body 上再 focus(),这个 textarea 不在弹窗容器内
-// → 焦点被**立刻抢回**弹窗里上一个焦点元素,而且 `{select: true}` 还会去选中那个元素的文本
-// → 我们刚做的 ta.select() 选区在 execCommand('copy') 之前就被销毁 → 复制不到任何东西。
-// 页面上的复制没有弹窗、没有 FocusScope,所以一直是好的 —— 与用户的现象完全对上。
+// Fallback workaround: append temporary <textarea> to document.body and focus() it, but
+// this textarea is NOT inside the dialog container → focus is **immediately stolen back**
+// by the previous focused element in the dialog, and `{select: true}` also selects that
+// element's text → the selection we just did with ta.select() is destroyed before
+// execCommand('copy') → nothing to copy.
+// Copy on the page works because there is no dialog and no FocusScope, so it's always
+// been fine — matches user's observation perfectly.
 //
-// 修法:临时 textarea **挂进当前打开的弹窗容器内**(role="dialog"),这样
-// `container.contains(target)` 成立,焦点陷阱不再干预。
-describe('copyText —— 弹窗(焦点陷阱)内的兜底路径', () => {
+// Fix: append temporary textarea **inside the currently open dialog container**
+// (role="dialog"), so that `container.contains(target)` is true and the focus trap
+// no longer interferes.
+describe('copyText — fallback path inside dialog (focus trap)', () => {
   const origClipboard = (navigator as unknown as { clipboard: unknown }).clipboard
   const origExec = document.execCommand
 
@@ -73,7 +78,7 @@ describe('copyText —— 弹窗(焦点陷阱)内的兜底路径', () => {
     vi.restoreAllMocks()
   })
 
-  it('弹窗打开且焦点在弹窗内时,临时 textarea 挂进弹窗容器(不是 body)', async () => {
+  it('when dialog is open and focus is inside, append temporary textarea into dialog container (not body)', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
     const dialog = document.createElement('div')
     dialog.setAttribute('role', 'dialog')
@@ -94,11 +99,11 @@ describe('copyText —— 弹窗(焦点陷阱)内的兜底路径', () => {
 
     await copyText('mcp-token-abc')
     expect(copied).toBe('mcp-token-abc')
-    expect(parentAtCopyTime).toBe(dialog) // 关键:在弹窗里,不是 body
-    expect(document.querySelector('textarea')).toBeNull() // 用完清掉
+    expect(parentAtCopyTime).toBe(dialog) // key: inside dialog, not body
+    expect(document.querySelector('textarea')).toBeNull() // clean up after use
   })
 
-  it('焦点不在弹窗内(例如点击没让按钮取得焦点)也能找到打开的弹窗,取最后一个(嵌套弹窗)', async () => {
+  it('when focus is not inside dialog (e.g., button didn\'t get focus from click), still find the open dialog, take the last one (nested dialogs)', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
     const outer = document.createElement('div')
     outer.setAttribute('role', 'dialog')
@@ -118,7 +123,7 @@ describe('copyText —— 弹窗(焦点陷阱)内的兜底路径', () => {
     expect(parentAtCopyTime).toBe(inner)
   })
 
-  it('已关闭的弹窗不算(data-state=closed 时仍挂 body)', async () => {
+  it('closed dialogs don\'t count (when data-state=closed, still append to body)', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
     const dialog = document.createElement('div')
     dialog.setAttribute('role', 'dialog')
@@ -135,7 +140,7 @@ describe('copyText —— 弹窗(焦点陷阱)内的兜底路径', () => {
     expect(parentAtCopyTime).toBe(document.body)
   })
 
-  it('没有弹窗时行为不变:仍挂 body(页面上的复制路径不受影响)', async () => {
+  it('when no dialog: behavior unchanged, still append to body (copy on page path unaffected)', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
     let parentAtCopyTime: Element | null = null
     document.execCommand = vi.fn(() => {
@@ -147,7 +152,7 @@ describe('copyText —— 弹窗(焦点陷阱)内的兜底路径', () => {
     expect(parentAtCopyTime).toBe(document.body)
   })
 
-  it('复制完把焦点还给原来的元素(不把用户的焦点丢在已删除的节点上)', async () => {
+  it('after copy, return focus to original element (do not leave user focus on a deleted node)', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
     const dialog = document.createElement('div')
     dialog.setAttribute('role', 'dialog')

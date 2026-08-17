@@ -18,18 +18,18 @@ const M = (o: Partial<RaidReattachableMember> = {}): RaidReattachableMember => (
 })
 
 describe('RaidReclaimCard', () => {
-  it('提示句含 serial(身份首选 serial,不是 path)', () => {
+  it('hint sentence includes serial (serial is preferred over path for identity)', () => {
     const w = mountCard([M()])
     expect(w.find('.rrc-hint').text()).toContain('WD-XYZ123')
     expect(w.find('.rrc-hint').text()).not.toContain('/dev/sdc')
     expect(w.find('.rrc-hint').text()).toContain('已插回')
   })
-  it('无 serial 的盘退回 path', () => {
+  it('falls back to path when serial is empty', () => {
     const w = mountCard([M({ serial: '' })])
     expect(w.find('.rrc-hint').text()).toContain('/dev/sdc')
     expect(w.find('.rrc-id').text()).toBe('/dev/sdc')
   })
-  it('多盘:serial 逗号连接;逐盘行展示 role 与 last_update(超块字符串仅插值渲染)', () => {
+  it('multiple drives: serials joined with commas; each row shows role and last_update (superblock strings only interpolated as text)', () => {
     const w = mountCard([M(), M({ path: '/dev/sdd', serial: 'WD-ABC999', role: 'Active device 2' })])
     expect(w.find('.rrc-hint').text()).toContain('WD-XYZ123, WD-ABC999')
     const rows = w.findAll('.rrc-row')
@@ -37,13 +37,13 @@ describe('RaidReclaimCard', () => {
     expect(rows[0].text()).toContain('Active device 1')
     expect(rows[0].text()).toContain('Wed Aug 12 03:43:02 2026')
   })
-  // 超块字段是不可信外部字符串 —— 必须按文本渲染,不能变成 DOM(红线:只 {{ }} 插值)
-  it('role 里的 HTML 按文本渲染,不注入 DOM', () => {
+  // Superblock fields are untrusted external strings — must render as text, never as DOM (hard line: interpolate with {{ }} only)
+  it('HTML inside role renders as text, not injected into the DOM', () => {
     const w = mountCard([M({ role: '<img src=x onerror=alert(1)>' })])
     expect(w.find('.rrc-row img').exists()).toBe(false)
     expect(w.find('.rrc-row').text()).toContain('<img')
   })
-  it('点按钮 emit reclaim;busy 时按钮禁用', async () => {
+  it('clicking the button emits reclaim; the button is disabled while busy', async () => {
     const w = mountCard([M()])
     await w.find('.rrc-btn').trigger('click')
     expect(w.emitted('reclaim')).toHaveLength(1)

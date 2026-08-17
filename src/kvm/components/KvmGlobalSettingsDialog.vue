@@ -1,13 +1,13 @@
 <script setup lang="ts">
-// 全局设置弹窗:左栏齿轮的入口,弹窗内改存储路径/默认 vCPU/默认内存/自动启动四个全局
-// 设置。视觉 1:1 对 Vue2 KVMFullPage.vue 模板 :516-556,数据流对 showGlobalSettings
-// (:1075-1088)/saveGlobalSettings(:1090-1106)。
+// Global settings dialog: entry point from the gear icon in the left bar; dialog changes storage path / default
+// vCPU / default memory / autostart—four global settings. Visual 1:1 mirrors Vue2 KVMFullPage.vue template
+// :516-556; data flow mirrors showGlobalSettings (:1075-1088) / saveGlobalSettings (:1090-1106).
 //
-// 表单编辑用一份本地副本(local,reactive)——不直接双向绑定 useKvmHostInfo() 的
-// settings ref。理由(brief 提醒 + 本任务硬约束):settings 是 Task 7(创建弹窗)/
-// Task 9(VM 设置弹窗)共用的同一份 composable 状态,用户在这个弹窗里改了值又点 ✕
-// 取消,脏值不该留在共享 state 里污染其它消费方读到的默认值。fetch() 完成后才把
-// host.settings 的值覆盖进 local,取消编辑不影响共享状态。
+// Form editing uses a local copy (local, reactive)—does not directly two-way bind useKvmHostInfo()'s settings
+// ref. Reason (brief reminder + hard constraint of this task): settings is a shared composable state used by both
+// Task 7 (create dialog) / Task 9 (VM settings dialog); if user edits values in this dialog then clicks ✕
+// cancel, dirty values shouldn't stay in shared state and pollute other consumers' view of default values. Only
+// after fetch() completes do we overwrite host.settings values into local; canceling edits doesn't affect shared state.
 import { reactive, ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import KvmDialog from './KvmDialog.vue'
@@ -16,17 +16,17 @@ import type { KvmWritableSettings } from '../composables/useKvmHostInfo'
 import { useToast } from '../../stores/toast'
 
 const props = defineProps<{ open: boolean }>()
-// `saved`(P6 Task 8 补,评审指出的真缺陷修复):本组件持有自己独立的一份
-// `useKvmHostInfo()` 实例(见上面「表单编辑用一份本地副本」那段注释),与 `KvmPage.vue`
-// 为创建弹窗持有的另一份 `hostInfo` 互不相干——这是 Task 2 的有意设计(隔离本地编辑
-// 副本,取消不污染共享 state),但代价是:这里保存成功只会更新**自己这一份**
-// `host.settings`,`KvmPage` 那份 `hostInfo.settings`(创建弹窗的 `:defaults` 来源)
-// 完全不知道值已经变了。不补这个通知,用户改完全局默认值、打开创建弹窗看到的还是
-// 旧值,要刷新整页才对——这是评审实测到的真缺陷,不是"下一个任务再说"的债务。
-// 保存成功时额外 emit 这个事件,父组件(KvmPage)收到后重新 fetch 自己那份即可,
-// 不需要打破「本地副本隔离」这条边界(把 hostInfo 当 props 传进来 / 把
-// useKvmHostInfo 改成模块级单例都会破坏 Task 2 已评审通过的隔离设计,评审已明确
-// 排除这两种改法)。
+// `saved` (P6 Task 8 addition; true defect fix identified in review): this component holds its own independent
+// `useKvmHostInfo()` instance (see the "local copy for form editing" comment above), separate from the `KvmPage.vue`
+// create dialog's other instance `hostInfo`—this is an intentional design of Task 2 (isolate local edit copies,
+// canceling doesn't pollute shared state), but the cost is: save success here only updates **this single copy**
+// `host.settings`; `KvmPage`'s `hostInfo.settings` (source of create dialog's `:defaults`) is completely unaware
+// the value changed. Without this notification, after user changes global defaults and opens the create dialog,
+// they still see old values—requiring a page refresh—this is a true defect detected in review testing, not
+// "defer to the next task" technical debt. On save success, emit this extra event; parent (KvmPage) receiving it
+// re-fetches its own copy, without breaking the "local copy isolation" boundary (passing hostInfo as props / making
+// useKvmHostInfo a module-level singleton would both destroy Task 2's already-reviewed isolation design; review
+// explicitly ruled out both approaches).
 const emit = defineEmits<{ 'update:open': [v: boolean]; saved: [] }>()
 
 const { t, te } = useI18n()
@@ -38,23 +38,23 @@ const local = reactive<KvmWritableSettings>({
 })
 
 const saving = ref(false)
-// ''=无错误;否则是后端原文,或 useKvmHostInfo.save() 回退的 i18n 键名——两种情况都交给
-// 下面 errorText 用 te()/t() 判定,同 InstallBanner.vue / ConsoleStage.vue 的既有写法。
+// ''=no error; otherwise is backend original text or i18n key name returned by useKvmHostInfo.save()—both cases
+// are passed to errorText below to be judged by te()/t(), same as the existing pattern in InstallBanner.vue / ConsoleStage.vue.
 const formError = ref('')
 const errorText = computed(() => (formError.value && te(formError.value)) ? t(formError.value) : formError.value)
 
-// 就地过期守卫(硬约束 5,别抽公共 guard 工具):组件本身在 KvmPage 里常驻挂载
-// (v-model:open 控制显隐,不是 v-if),理论上只有整页卸载(离开 /kvm 路由)才会触发,
-// 但 fetch/save 都是异步操作,仍需按项目约定处理。
+// In-place stale guard (hard constraint 5; don't extract common guard tool): the component itself is permanently
+// mounted in KvmPage (v-model:open controls visibility, not v-if); theoretically only whole-page unmount (leaving /kvm
+// route) triggers it, but fetch/save are both async operations, still need to handle per project convention.
 let alive = true
 
-// 照 Vue2 showGlobalSettings(:1075-1087):先开弹窗(props.open 已经驱动 KvmDialog
-// 显示)再拉数据。immediate:true 让"直接以 open=true 挂载"的场景(测试即如此)也走一遍。
+// Per Vue2 showGlobalSettings (:1075-1087): open dialog first (props.open already drives KvmDialog display) then
+// fetch data. immediate:true lets "direct mount with open=true" scenario (as in tests) also run through.
 watch(() => props.open, async (isOpen) => {
   if (!isOpen) return
   formError.value = ''
   await host.fetch()
-  if (!alive) return // dispose 之后到达的响应不再覆盖本地副本
+  if (!alive) return // responses arriving after dispose no longer overwrite local copy
   Object.assign(local, host.settings.value)
 }, { immediate: true })
 
@@ -71,15 +71,15 @@ async function onSave(): Promise<void> {
     const err = await host.save({ ...local })
     if (!alive) return
     if (err === '') {
-      // 硬约束 2:「操作结果」性质的成功提示走全局 toast,不是弹窗内联。
+      // Hard constraint 2: success notification of "operation result" type goes to global toast, not inline in dialog.
       toast.show(t('kvmToastSettingsSaved'))
       emit('update:open', false)
-      // 见上面 `saved` emit 定义处的注释:通知父组件把它自己那份 useKvmHostInfo()
-      // 重新 fetch 一次,否则创建弹窗的默认值会停在保存前的旧值上。
+      // See the comment at `saved` emit definition above: notify parent component to re-fetch its own
+      // useKvmHostInfo() instance, otherwise create dialog's default values stay at pre-save old values.
       emit('saved')
     } else {
-      // 硬约束 2:弹窗内报错走内联 .cv-error,不用 toast(toast z-index 60 会被
-      // 弹窗遮罩 900 压住 + blur 糊掉,优先显示后端 message 原文对排障有用)。
+      // Hard constraint 2: errors in dialog go inline .cv-error, not toast (toast z-index 60 gets pushed under
+      // dialog mask 900 + blur obscures it; prioritize displaying backend message as-is for debugging).
       formError.value = err
     }
   } finally {
@@ -112,10 +112,10 @@ async function onSave(): Promise<void> {
     </div>
 
     <div class="cv-field">
-      <!-- 容器偏离(已申报):Vue2 用 buefy b-switch,New-UI 没有 → 自绘 .cv-switch
-           (胶囊形,视觉照 buefy 开关)。原生 checkbox 视觉隐藏(不用 display:none,
-           保留键盘可达性与原生 checked 语义),靠 :checked 相邻兄弟选择器驱动
-           .cv-switch-track/.cv-switch-knob 的样式,不需要额外 JS。 -->
+      <!-- Container deviation (declared): Vue2 uses buefy b-switch; New-UI lacks it → custom-draw .cv-switch
+           (capsule shape, visual follows buefy switch). Native checkbox visually hidden (not using display:none;
+           preserves keyboard reachability and native checked semantics), :checked adjacent sibling selector drives
+           .cv-switch-track/.cv-switch-knob styles; no extra JS needed. -->
       <label class="cv-switch">
         <input v-model="local.autostart" type="checkbox" name="autostart" />
         <span class="cv-switch-track"><span class="cv-switch-knob"></span></span>
