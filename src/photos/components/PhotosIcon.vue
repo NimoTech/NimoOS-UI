@@ -118,6 +118,18 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <template v-else-if="name === 'chevL'">
       <path d="m15 6-6 6 6 6" />
     </template>
+    <!-- Plan H: transcribed byte-identical from Vue2 PhotosIcon.vue:114-117 ('pause', the
+         slideshow pause button — two filled rects, self-contained :fill, does not go
+         through the outer stroke/fill="none" default) and :161-164 ('refresh', a standard
+         stroked circular-arrow icon used by the trash confirm dialog). -->
+    <template v-else-if="name === 'pause'">
+      <rect x="6" y="4" width="4" height="16" rx="1" :fill="color || 'currentColor'" />
+      <rect x="14" y="4" width="4" height="16" rx="1" :fill="color || 'currentColor'" />
+    </template>
+    <template v-else-if="name === 'refresh'">
+      <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8" /><path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15.5 6.3L3 16" /><path d="M3 21v-5h5" />
+    </template>
     <template v-else>
       <g></g>
     </template>

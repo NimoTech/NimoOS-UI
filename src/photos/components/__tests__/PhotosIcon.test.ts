@@ -14,3 +14,20 @@ describe('PhotosIcon — Plan G additions', () => {
     expect(wrapper.find('path').attributes('d')).toBe('m15 6-6 6 6 6')
   })
 })
+
+describe('PhotosIcon — Plan H additions', () => {
+  it('renders two filled rects for name="pause"', () => {
+    const w = mount(PhotosIcon, { props: { name: 'pause' } })
+    expect(w.findAll('rect')).toHaveLength(2)
+  })
+
+  it('renders the circular-arrow paths for name="refresh"', () => {
+    const w = mount(PhotosIcon, { props: { name: 'refresh' } })
+    expect(w.findAll('path')).toHaveLength(4)
+  })
+
+  it('falls back to an empty <g> for an unknown name (existing behavior, unaffected)', () => {
+    const w = mount(PhotosIcon, { props: { name: 'not-a-real-icon' } })
+    expect(w.find('g').exists()).toBe(true)
+  })
+})
