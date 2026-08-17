@@ -54,6 +54,7 @@ import PlaceCoverPicker from '../../photos/components/PlaceCoverPicker.vue'
 import { usePhotosPlaces } from '../../photos/stores/places'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 import { useToast } from '../../stores/toast'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 import { extractStyleBlock, parseCssRules } from '../../photos/components/__tests__/cssCascade'
 import { MAP_H, MAP_W, project } from '../../photos/util/worldMap'
 import type { Pin } from '../../photos/util/placesMap'
@@ -70,11 +71,28 @@ function makeRouter() {
   })
 }
 
+// Fix-1 item 5 fallout fix (2026-08-16): `createAlbum()` now fires a real
+// `usePhotosToast().show()` — unlike the generic Pinia-scoped `useToast()` this replaced,
+// `usePhotosToast()`'s underlying `toasts` ref is a true module-level singleton, shared by
+// EVERY `mountView()` call in this file. None of this file's ~40+ `mountView()` calls were
+// ever explicitly unmounted (the shared `afterEach` below only wiped `document.body.innerHTML`
+// for PlaceCoverPicker's Teleport target, never called `.unmount()`) — harmless as long as
+// nothing ever mutated a truly-global ref that those abandoned instances' own `<PhotosToastHost/>`
+// (Teleported to `document.body`) were still reactively watching. The album-toast tests below
+// are the first thing in this file to actually mutate that global ref for real, which woke up
+// every previously-abandoned instance's reactive effect on the very next render tick — each
+// tried to patch back into a `document.body` that a *later* test's `afterEach` had already
+// wiped out from under it (`Cannot read properties of null (reading 'insertBefore')`,
+// surfacing in the unrelated "三浮层同开时一次 Esc" test purely by being next in file order).
+// Fix: track every mounted wrapper and actually unmount it after each test, closing the leak
+// at its source instead of only patching around the one symptom.
+const mountedWrappers: Array<{ unmount: () => void }> = []
 async function mountView() {
   const router = makeRouter()
   router.push('/photos/places')
   await router.isReady()
   const w = mount(PhotosPlaces, { global: { plugins: [i18n, router] } })
+  mountedWrappers.push(w)
   await flushPromises()
   await w.vm.$nextTick()
   return { w, router }
@@ -121,9 +139,18 @@ beforeEach(() => {
   svc.photos.createPlaceAlbum.mockReset().mockResolvedValue({ albumId: 'al1', name: 'x', count: 1 })
   svc.photos.placeCoverCandidates.mockReset().mockResolvedValue({ tabs: [], items: [], page: 0, totalPages: 1, total: 0 })
   useLightbox().__resetForTest()
+  // Fix-1 item 5: usePhotosToast() is a module-level singleton (same pattern as
+  // useLightbox() above) — reset between tests so one test's queued toast doesn't leak
+  // into the next test's assertions.
+  usePhotosToast().__resetForTests()
 })
 afterEach(() => {
   vi.restoreAllMocks()
+  // Fix-1 item 5 fallout fix: actually unmount every wrapper `mountView()` created THIS test
+  // (see that function's own comment for why this matters now) — must run before the
+  // `document.body.innerHTML` wipe below, not after, so `.unmount()` gets a chance to tear
+  // down each instance's own Teleport content cleanly first.
+  for (const w of mountedWrappers.splice(0)) w.unmount()
   // Task 2 (Plan E): PlaceCoverPicker now Teleports to `document.body` — clear it between
   // tests so a still-open picker from one test doesn't leak into the next test's queries.
   document.body.innerHTML = ''
@@ -623,6 +650,45 @@ describe('P6b-T8: 面板显隐', () => {
   })
 })
 
+// Fix-1 item 2 (owner acceptance, 2026-08-16): the cover picker's head thumbnail
+// (`.cp-head-thumb`) rendered empty. Root cause: this container's `current-asset-id` prop
+// binding only read `activeDetail?.coverAssetId ?? ''` — missing the `thumbs[0]` fallback
+// Vue2's own `currentHero` computed applies (PhotosPlacesView.vue:310-314: `this.activeDetail.
+// coverAssetId || (this.activeDetail.thumbs || [])[0] || ''`). Most places have no *explicit*
+// coverAssetId (only set once a user actually picks one via this same dialog) and fall back to
+// their first thumb for a cover — exactly the common case this bug always showed empty for.
+describe('Fix-1 item 2: 封面弹层头部缩略图跟随 activeDetail.thumbs[0] 兜底(照 Vue2 currentHero)', () => {
+  it('activeDetail.coverAssetId 为空但 thumbs 非空 → PlaceCoverPicker 的 current-asset-id 落到 thumbs[0]', async () => {
+    const { w } = await mountView() // 首屏已自动选中 TOKYO(id=1)
+    const store = usePhotosPlaces()
+    store.detail = {
+      id: '1', city: 'Tokyo', country: 'Japan', count: 9990, trips: 2, home: false,
+      coverAssetId: '', thumbs: ['fallback-thumb-1', 'fallback-thumb-2'],
+      spots: [], insights: [], visits: [], recent: [],
+    }
+    await w.vm.$nextTick()
+    const panel = w.findComponent(PlaceDetailPanel)
+    await panel.vm.$emit('open-cover-picker')
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceCoverPicker).props('currentAssetId')).toBe('fallback-thumb-1')
+  })
+
+  it('activeDetail.coverAssetId 非空 → current-asset-id 优先用 coverAssetId,不落 thumbs[0]', async () => {
+    const { w } = await mountView()
+    const store = usePhotosPlaces()
+    store.detail = {
+      id: '1', city: 'Tokyo', country: 'Japan', count: 9990, trips: 2, home: false,
+      coverAssetId: 'explicit-cover', thumbs: ['fallback-thumb-1'],
+      spots: [], insights: [], visits: [], recent: [],
+    }
+    await w.vm.$nextTick()
+    const panel = w.findComponent(PlaceDetailPanel)
+    await panel.vm.$emit('open-cover-picker')
+    await w.vm.$nextTick()
+    expect(w.findComponent(PlaceCoverPicker).props('currentAssetId')).toBe('explicit-cover')
+  })
+})
+
 describe('P6b-T8: 偏离登记 4 守卫(切城市后详情不认上一城市)', () => {
   it('store.detail 是 B 城的、activeId 是 A 城 → 面板的 detail prop 为 null、place prop 是 A 城', async () => {
     const { w } = await mountView() // activeId = '1'(TOKYO)
@@ -848,41 +914,51 @@ describe('P6b-T8: 相册与 toast', () => {
     expect(svc.photos.createPlaceAlbum).toHaveBeenCalledWith(1, { name: 'Tokyo · 2026 春', from: '2026-01-01', to: '2026-01-10' })
   })
 
-  it('成功 → toast 文案含相册名与张数、带 action;点 action → router.push 到相册详情', async () => {
+  // Fix-1 item 5 (owner acceptance, 2026-08-16): switched from the generic app-wide
+  // `useToast()` (a plain gray pill) to `usePhotosToast()` (the photos-styled toast every
+  // other Places/library flow already uses) — see createAlbum()'s own comment in
+  // PhotosPlaces.vue for the full account. These two tests replace (not merely rename) the
+  // old `useToast()`-spying assertions below them.
+  it('成功 → photosToast 队列收到 icon:album + 文案含相册名与张数 + action,5000ms;点 action → router.push 到相册详情', async () => {
     svc.photos.createPlaceAlbum.mockResolvedValueOnce({ albumId: 'al-9', name: 'Tokyo', count: 3 })
     const { w, router } = await mountView()
-    const toastStore = useToast()
-    const showSpy = vi.spyOn(toastStore, 'show')
+    const photosToast = usePhotosToast()
     const pushSpy = vi.spyOn(router, 'push')
     await w.findComponent(PlaceDetailPanel).vm.$emit('save-album')
     await flushPromises()
-    expect(showSpy).toHaveBeenCalledTimes(1)
-    const [text, duration, arg] = showSpy.mock.calls[0]
-    // SP8-P6-T3 合流:show() 第三参现为判别联合(字符串=tier / 对象=action),按 typeof 收窄回 action。
-    const action = typeof arg === 'string' ? undefined : arg
-    expect(text).toContain('Tokyo')
-    expect(text).toContain('3')
-    expect(duration).toBe(5000)
-    expect(action?.label).toBe('打开')
-    action?.onClick()
+    // usePhotosToast() is a module-level singleton — its returned `show` function is a fresh
+    // closure per call (only the underlying `toasts` ref is shared), so spying on a
+    // locally-obtained instance's `.show` never sees the component's own internal call.
+    // Assert against the shared queue instead (established pattern: Photos.integration.
+    // test.ts's delete-toast assertion, PhotosAlbumDetail.test.ts, PhotosSmartViewDetail.test.ts).
+    expect(photosToast.toasts.value).toHaveLength(1)
+    const toastItem = photosToast.toasts.value[0]
+    expect(toastItem.icon).toBe('album')
+    expect(toastItem.text).toContain('Tokyo')
+    expect(toastItem.text).toContain('3')
+    expect(toastItem.action?.label).toBe('打开')
+    toastItem.action?.onClick()
     expect(pushSpy).toHaveBeenCalledWith('/photos/albums/al-9')
+    // Generic app toast must NOT also fire — this is a full switch, not an additional one.
+    const genericShowSpy = vi.spyOn(useToast(), 'show')
+    expect(genericShowSpy).not.toHaveBeenCalled()
   })
 
-  it('失败 → 失败 toast;albumBusy 错误不弹 toast', async () => {
+  it('失败 → photosToast 队列收到失败文案;albumBusy 错误不弹 toast', async () => {
     const { w } = await mountView()
-    const toastStore = useToast()
-    const showSpy = vi.spyOn(toastStore, 'show')
+    const photosToast = usePhotosToast()
 
     svc.photos.createPlaceAlbum.mockRejectedValueOnce(new Error('network down'))
     await w.findComponent(PlaceDetailPanel).vm.$emit('save-album')
     await flushPromises()
-    expect(showSpy).toHaveBeenCalledWith('相册创建失败')
+    expect(photosToast.toasts.value).toHaveLength(1)
+    expect(photosToast.toasts.value[0].text).toBe('相册创建失败')
 
-    showSpy.mockClear()
+    photosToast.__resetForTests()
     svc.photos.createPlaceAlbum.mockRejectedValueOnce(new Error('albumBusy'))
     await w.findComponent(PlaceDetailPanel).vm.$emit('save-album')
     await flushPromises()
-    expect(showSpy).not.toHaveBeenCalled()
+    expect(photosToast.toasts.value).toHaveLength(0)
   })
 })
 
@@ -905,15 +981,19 @@ describe('P6b-T8: 灯箱(D9)', () => {
   })
 })
 
-describe('P6b-T8: 跳库导航(key 用后端原始 key,不是归一后的 activeId)', () => {
-  it('emit open-library → router.push 到 /photos/places/7(fixture 的后端 key 是数字 7,证明用的是 key 不是归一 id)', async () => {
+// Fix-1 item 4 (owner acceptance, 2026-08-16): both handlers now navigate to the actual photo
+// library (`/photos`) with the place's city name carried through a `?libraryPlace=` query key
+// (consumed once by Photos.vue's own `onMounted`, see that file's comment) instead of the
+// standalone place-assets page — owner's explicit, binding instruction, matching Vue2's own
+// `onPlacesOpenLibrary`/`onPlacesOpenSpot` city-level EXIF-facet jump (PhotosTimeline.vue:
+// 767-793). The old `/photos/places/:key` assertions below are replaced, not merely renamed —
+// this is a genuine navigation-target change, not a refactor.
+describe('Fix-1 item 4: 跳库导航改落到图书馆(带 ?libraryPlace= 城市名),不再落到独立地点页', () => {
+  it('emit open-library → router.push 到 /photos?libraryPlace=<city>(用地点的 city,不是 key/id)', async () => {
     const { w, router } = await mountView()
     const store = usePhotosPlaces()
-    // 刻意构造 id 与 key 不同的地点(真实 toPlace() 恒 id=String(key),这里为了让删码
-    // 验证有意义——直接注入一个 id≠key 的合成条目,证明 goLibrary 读的是
-    // activePlace.key 而不是 activeId)。
     store.places.push({
-      id: 'weird-id', key: 7, region: 'asia', country: 'X', city: 'Weird',
+      id: 'weird-id', key: 7, region: 'asia', country: 'X', city: 'Weird City',
       lon: 0, lat: 0, count: 1, recent: false, last: '', lastDate: null,
       trips: 0, home: false, thumbs: [], coverAssetId: '',
     })
@@ -921,21 +1001,21 @@ describe('P6b-T8: 跳库导航(key 用后端原始 key,不是归一后的 active
     await w.vm.$nextTick()
     const pushSpy = vi.spyOn(router, 'push')
     await w.findComponent(PlaceDetailPanel).vm.$emit('open-library')
-    expect(pushSpy).toHaveBeenCalledWith('/photos/places/7')
+    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos', query: { libraryPlace: 'Weird City' } })
   })
 
-  it('emit open-spot-library → path 同上且 query 含 spot/lat/lon,且 activeSpotKey 被清空', async () => {
+  it('emit open-spot-library → 同样落到 /photos?libraryPlace=<city>(spot 精度在图书馆现有筛选系统里无落点,降级成同城过滤,登记但非疏漏)+ activeSpotKey 被清空', async () => {
     const { w, router } = await mountView()
     const store = usePhotosPlaces()
     store.places.push({
-      id: 'weird-id', key: 7, region: 'asia', country: 'X', city: 'Weird',
+      id: 'weird-id', key: 7, region: 'asia', country: 'X', city: 'Weird City',
       lon: 0, lat: 0, count: 1, recent: false, last: '', lastDate: null,
       trips: 0, home: false, thumbs: [], coverAssetId: '',
     })
     await w.findComponent(PlacesRail).vm.$emit('pick', 'weird-id')
     await w.vm.$nextTick()
     store.detail = {
-      id: 'weird-id', city: 'Weird', country: 'X', count: 1, trips: 0, home: false,
+      id: 'weird-id', city: 'Weird City', country: 'X', count: 1, trips: 0, home: false,
       coverAssetId: '', thumbs: [], insights: [], visits: [], recent: [],
       spots: [{ key: '42', name: 'Spot', lon: 11, lat: 22, count: 1, thumb: '' }],
     }
@@ -946,7 +1026,7 @@ describe('P6b-T8: 跳库导航(key 用后端原始 key,不是归一后的 active
 
     const pushSpy = vi.spyOn(router, 'push')
     await w.findComponent(PlaceDetailPanel).vm.$emit('open-spot-library')
-    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/places/7', query: { spot: '42', lat: '22', lon: '11' } })
+    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos', query: { libraryPlace: 'Weird City' } })
     await w.vm.$nextTick()
     expect(w.findComponent(PlaceDetailPanel).props('activeSpotKey')).toBe(null)
   })

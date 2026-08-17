@@ -228,6 +228,10 @@ function onToggleFold(rId: string): void {
    surface/chrome color a loading placeholder sits on is New-UI's to reshape, not a value
    that needs pixel-precise Vue2 replication (unlike the accent-tinted *content* states
    above, which do). Kept local rather than moved to parity because it's a deliberate,
-   already-reviewed deviation from parity's own value, not an omission parity should carry. */
-.rail-place .thumb { background: var(--chip-bg); }
+   already-reviewed deviation from parity's own value, not an omission parity should carry.
+   Fix-1 item 6 (2026-08-16): `background` corrected from the global `--chip-bg` to local
+   `--surface-2` — the D3 reshape must still land on a Photos-local, is-light-aware token (the
+   global one only follows the app-wide `[data-theme]` attribute, not Photos' own private
+   `.photos-root.is-light` toggle). */
+.rail-place .thumb { background: var(--surface-2); }
 </style>

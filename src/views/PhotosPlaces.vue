@@ -137,6 +137,21 @@ const activeDetail = computed(() =>
   (store.detail && String(store.detail.id) === String(activeId.value)) ? store.detail : null)
 const hasPanel = computed(() => activePlace.value != null || activeDetail.value != null)
 
+// Fix-1 item 2 (owner acceptance, 2026-08-16): mirrors Vue2's own `currentHero` computed
+// (PhotosPlacesView.vue:310-314) exactly — `coverAssetId || thumbs[0] || ''`. This container's
+// PlaceCoverPicker `current-asset-id` binding used to read only `activeDetail?.coverAssetId ??
+// ''`, missing the `thumbs[0]` fallback: most places have no *explicit* coverAssetId (only set
+// once a user picks one via this same dialog) and fall back to their first thumb for a cover —
+// so the dialog's own head thumbnail (`.cp-head-thumb`) rendered empty for the common case,
+// exactly the owner's report. PlaceDetailPanel.vue's own `currentHero` (this same file's hero
+// image) already gets this right and additionally falls back to `activePlace`'s own cover/thumb
+// when `activeDetail` hasn't loaded yet (its own documented deviation 1) — this computed
+// deliberately does NOT add that extra place-level fallback, staying exactly at Vue2's own
+// `currentHero` semantics for this specific consumer (the cover picker), since Vue2 never falls
+// back further than `activeDetail` here either.
+const coverHeadThumbAssetId = computed(() =>
+  activeDetail.value?.coverAssetId || activeDetail.value?.thumbs[0] || '')
+
 const {
   view, zoomFrac, autoPanTo, zoomToCluster, zoomBy, setScale, reset,
   onWheel, onPointerDown, onPointerMove, onPointerUp, dispose,
@@ -350,18 +365,29 @@ async function onResetSpotName(): Promise<void> {
 }
 
 // ── P6b-T8: 相册与 toast ────────────────────────────────────────────────────
+// Fix-1 item 5 (owner acceptance, 2026-08-16): this used to call the GENERIC app-wide
+// `useToast()` for the save-as-album success toast, rendering as a plain gray pill instead of
+// the photos-styled toast every other Places/library flow uses (delete/lightbox — see
+// `onLightboxDelete` above, which already calls `photosToast.show(...)`). Vue2's own
+// `onPlacesSaveAlbum` (PhotosTimeline.vue:744-764) shows both its success AND failure toasts
+// through `window.PhotosToast` — this repo's Vue3 counterpart of that exact host is
+// `usePhotosToast()` + `<PhotosToastHost/>` (already mounted on this page's template, see
+// below), not the generic `useToast()` store. Switched both branches to `photosToast`,
+// `icon: 'album'` matching Vue2's own `icon: 'album'` (PhotosToastHost.vue already maps that
+// icon name to Vue2's exact glyph path) — copy/Open-action/duration semantics unchanged.
 async function createAlbum(name: string, from?: string, to?: string): Promise<void> {
   if (!activeId.value) return
   try {
     const album = await store.createPlaceAlbum(activeId.value, { name, from, to })
-    toast.show(
-      t('photosPlacesAlbumCreated', { name: album.name, count: album.count }),
-      5000,
-      { label: t('photosPlacesToastOpen'), onClick: () => { void router.push(`/photos/albums/${album.albumId}`) } },
-    )
+    photosToast.show({
+      text: t('photosPlacesAlbumCreated', { name: album.name, count: album.count }),
+      icon: 'album',
+      duration: 5000,
+      action: { label: t('photosPlacesToastOpen'), onClick: () => { void router.push(`/photos/albums/${album.albumId}`) } },
+    })
   } catch (e) {
     // busy 重入不是错误,不弹 toast(见 T2 的 albumBusy 契约)
-    if ((e as Error)?.message !== 'albumBusy') toast.show(t('photosPlacesAlbumCreateFailed'))
+    if ((e as Error)?.message !== 'albumBusy') photosToast.show({ text: t('photosPlacesAlbumCreateFailed') })
   }
 }
 function onSaveAlbum(): void { void createAlbum(activePlace.value?.city ?? '') } // Vue2 :458-462
@@ -436,22 +462,34 @@ function openAlbumPicker(ids: Array<string | number>): void {
 }
 function onAlbumPickerAdded(): void {}
 
-// ── P6b-T8: 跳库导航。key 用后端原始 key(int32),不是归一后的 activeId —— 跳库页要拿它
-// 直接打后端。 ──────────────────────────────────────────────────────────────
+// ── P6b-T8: 跳库导航 ─────────────────────────────────────────────────────────
+// Fix-1 item 4 (owner acceptance, 2026-08-16): both handlers below used to push to the
+// standalone place-assets page (`/photos/places/:key`) — the owner's explicit, binding
+// instruction is that "Open in Library"/a spot row's "View in Library" must instead land in
+// the actual PHOTO LIBRARY (`/photos`) with a place filter applied, matching Vue2's own
+// `onPlacesOpenLibrary`/`onPlacesOpenSpot` (PhotosTimeline.vue:767-793), which drive the
+// library's own client-side `places` EXIF facet with the place's city name rather than
+// navigating to any per-place page at all (Vue2 has no separate route to navigate to — it's a
+// same-page panel switch). New-UI's library (`src/views/Photos.vue`) has no placeKey/spotKey
+// facet or per-spot backend fetch (see that file's own `exifFilter`/`onMounted` comment for the
+// full account of what's in scope here and what isn't) — only the city-name-based `places`
+// facet exists, fed here via a `?libraryPlace=<city>` query key that file reads once on mount.
+// The standalone place-assets page itself is untouched (net addition, other entries may still
+// use it) — only these two handlers' own navigation target changes.
 function goLibrary(): void {
-  const key = activePlace.value?.key ?? activeId.value
-  if (key == null) return
-  void router.push(`/photos/places/${encodeURIComponent(String(key))}`)
+  const city = activePlace.value?.city ?? ''
+  if (!city) return
+  void router.push({ path: '/photos', query: { libraryPlace: city } })
 }
 function onOpenSpotLibrary(): void {
   const spot = activeDetail.value?.spots.find((s) => String(s.key) === String(activeSpotKey.value))
-  const key = activePlace.value?.key ?? activeId.value
-  if (key == null || !spot) return
+  const city = activePlace.value?.city ?? ''
+  if (!city || !spot) return
   activeSpotKey.value = null // 照 Vue2 :484:跳走前关掉弹窗
-  void router.push({
-    path: `/photos/places/${encodeURIComponent(String(key))}`,
-    query: { spot: String(spot.key), lat: String(spot.lat), lon: String(spot.lon) },
-  })
+  // Spot-level precision has no home in the library's existing filter system (see this
+  // function group's own header comment) — degrades to the identical city-level jump
+  // `goLibrary()` above performs; documented limitation, not an oversight.
+  void router.push({ path: '/photos', query: { libraryPlace: city } })
 }
 
 // Vue2 :412-413 把"没有选中项就选 places[0]"放在 loadPlaces() 内部,所以每一次成功加载
@@ -664,7 +702,7 @@ async function retryLoad(): Promise<void> {
     :open="coverOpen"
     :city="activePlace?.city ?? ''"
     :total-count="activePlace?.count ?? 0"
-    :current-asset-id="activeDetail?.coverAssetId ?? ''"
+    :current-asset-id="coverHeadThumbAssetId"
     :candidates="store.coverCandidates"
     :tab="coverTab"
     :search="coverSearch"
@@ -727,10 +765,28 @@ async function retryLoad(): Promise<void> {
    deviates from parity's `var(--surface-0, #0A0A0C)` (a token that is never actually defined
    anywhere in this codebase, so it always resolves to that literal near-black fallback — a
    theme-invariant Vue2 literal) under the same D3 "surface treatment is New-UI's to reshape"
-   ruling `.map-canvas-wrap`'s own background uses just below, not a separate ad-hoc choice. */
+   ruling `.map-canvas-wrap`'s own background uses just below, not a separate ad-hoc choice.
+
+   Fix-1 item 1 (owner acceptance, 2026-08-16) correction: the D3 reshape had picked the wrong
+   token family. `background: var(--panel-bg)` and `border: 1px solid var(--card-border)` are
+   *global* New-UI glass tokens (src/styles/theme.css) — `--panel-bg` is a translucent WHITE
+   glass overlay in BOTH of theme.css's own blocks (a low-alpha white wash, see that file's own
+   two token definitions for the exact alpha in each theme), meant for a frosted panel floating
+   over a photo/wallpaper backdrop, not for painting an entire opaque view's own base surface.
+   Stacked under this view's actual content, that translucent white wash read as a light
+   frame/halo around the whole map area even in Photos' own DARK theme — the owner's literal
+   bug report. It also never follows Photos' own private theme toggle (`.photos-root.is-light`,
+   `usePhotosTheme()`) at all, only the unrelated global `[data-theme]` attribute — same root
+   cause class as `photosGlassSurfaces.test.ts`'s already-documented `PhotosSmartViewDetail.vue`/
+   `.sv-detail-side` fix. Switched to this file's own local, opaque, is-light-aware tokens:
+   `--surface-1` (photos.scss:16/102, a flat fully-opaque color in both of Photos' own themes —
+   the same token parity's own sibling `.places-view-root` rule above already uses for this
+   exact "outermost view frame" role) and `--line` (photos.scss:19/105, the thinner of the two
+   local border tokens, matching this rule's own visual weight as a subtle card outline, not a
+   popover's stronger `--line-strong`). */
 .map-shell {
-  background: var(--panel-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
@@ -742,8 +798,14 @@ async function retryLoad(): Promise<void> {
   /* Vue2 photos-places.scss:196 是写死的深空渐变字面量;letterbox 区域(SVG
      preserveAspectRatio 留白处)才会露出这层底色。D3:布局结构照 Vue2,底色属于"组件体系/
      surface treatment",归 New-UI 重塑——同 PlacesFilterMenu.vue 弹层底色的既定裁定,
-     改用随 app 主题走的 panel-bg 基调渐变,不精确复刻这个 theme-invariant 的深空字面量。 */
-  background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--accent) 6%, var(--panel-bg)) 0%, var(--panel-bg) 70%);
+     改用随 app 主题走的基调渐变,不精确复刻这个 theme-invariant 的深空字面量。
+     Fix-1 item 1 correction (2026-08-16): the reshape had picked `var(--panel-bg)`, the same
+     global translucent-white glass token `.map-shell` above wrongly used — same bug (a white
+     wash under the map canvas contributing to the reported light-frame-in-dark-theme look, and
+     not following Photos' own private is-light toggle at all). Switched to this file's own
+     local, opaque, is-light-aware `--surface-1` (see `.map-shell`'s own comment above for the
+     full token citation), same substitution, same rationale. */
+  background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--accent) 6%, var(--surface-1)) 0%, var(--surface-1) 70%);
 }
 
 /* `top`/`left`/`right`/`display`/`align-items`/`gap` all matched parity byte-for-byte and have
@@ -773,28 +835,33 @@ async function retryLoad(): Promise<void> {
 .map-toolbar > * { pointer-events: auto; }
 
 /* `display`/`gap`/`padding`/`background`/`backdrop-filter`/`border-radius` all matched parity
-   byte-for-byte and have been deleted. `border` survives under the established `--line` →
-   `--card-border` substitution cited in this section's header comment (PlacesRail.vue/
-   PlacesFilterMenu.vue/PlacesZoomBar.vue precedent — none of them re-derive this per-file
-   either, they cite the same table). */
+   byte-for-byte and have been deleted. `border` survives, now under the *corrected* `--line`
+   token (Fix-1 item 6, 2026-08-16 — see `.map-shell`'s own comment above for the full account
+   of why this section's former `--line` → `--card-border` substitution table was itself the
+   bug: `--card-border` is a *global* token, only following the app-wide `[data-theme]`
+   attribute, not Photos' own private `.photos-root.is-light` toggle — every rule below that used
+   to cite that table has been corrected the same way, one deviation-comment for the whole
+   sweep instead of repeating it per rule). */
 .map-chip-row {
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--line);
 }
 /* Byte-identical to parity's `.map-spacer { flex: 1; }` — deleted entirely, parity governs. */
 
 /* 加载中/失败(偏离登记 9,New-UI 新增)。No parity counterpart at all for `.map-skeleton`/
    `.map-failed`/`.map-failed-title` (grep-confirmed against photos-places.scss) — Vue2 has no
    loading-skeleton/failed-state concept for this view (see this file's own script-header
-   deviation 9), so there is nothing to diff these three selectors against; pure survivors. */
+   deviation 9), so there is nothing to diff these three selectors against; pure survivors.
+   Fix-1 item 6: `--skeleton-bg`/`--fg-muted`/`--fg` were the same global-token bug (see
+   `.map-chip-row`'s comment above) — corrected to local `--surface-2`/`--text-2`/`--text-1`. */
 .map-skeleton {
   flex: 1; margin: 16px; border-radius: 16px;
-  background: var(--skeleton-bg);
+  background: var(--surface-2);
 }
 .map-failed {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; color: var(--fg-muted); text-align: center;
+  gap: 10px; color: var(--text-2); text-align: center;
 }
-.map-failed-title { font-size: 14px; font-weight: 600; color: var(--fg); }
+.map-failed-title { font-size: 14px; font-weight: 600; color: var(--text-1); }
 
 /* 悬停卡片(照 Vue2 photos-places.scss:437-473)。评审 M4:本仓没有等价 Vue2 --r-md/--r-sm
    的圆角 token,下面几处圆角是就近取的字面 px 值,不是那两个 token 的精确复刻(数值有出入,
@@ -803,42 +870,55 @@ async function retryLoad(): Promise<void> {
    `min-width`/`backdrop-filter` all matched parity byte-for-byte and have been deleted.
    `z-index: 5` is a same-value duplicate kept only because PhotosPlaces.test.ts's own
    `.map-toolbar 层叠顺序守卫` test reads `zIndexOf(rules, '.map-tip')` off this file's raw
-   source text (see that test's own comment for why). `background`/`box-shadow` deviate from
-   parity's `--pop-bg` token plus a literal opaque-black drop shadow (a similar shape/spread/
-   blur, near-black at ~55% alpha) under the established `--pop-bg` → `--popup-bg`+
-   `--card-shadow-hi` pairing cited in this section's header comment. `border`/`border-radius`
-   deviate under the `--line-strong` → `--card-border` mapping (also cited above) and the
-   `--r-md` radius-approximation this same M4 note already covers. */
+   source text (see that test's own comment for why).
+   Fix-1 item 6 (2026-08-16) correction: `background`/`border`/`box-shadow` used to cite a
+   `--pop-bg` → `--popup-bg`+`--card-shadow-hi` "pairing" — but `--popup-bg`/`--card-shadow-hi`/
+   `--card-border` are *global* New-UI tokens (only following the app-wide `[data-theme]`
+   attribute), while `--pop-bg` is this area's own Photos-local, is-light-aware token
+   (photos.scss:56/116) — there was never a real "pairing" needed, `--pop-bg` alone is the
+   correct local counterpart parity itself uses for this exact selector (photos-places.scss's
+   own `.map-tip` rule). `box-shadow` is switched to Vue2/parity's own literal value (see that
+   declaration's own theme-exception comment below for the exact figure, photos-places.scss:467)
+   instead of the global shadow token — Vue2 never themes this shadow either (same literal in
+   both of Photos' own themes), so a plain literal is the exact parity value, not an
+   approximation. `border-radius` keeps the `--r-md` px-approximation the M4 note above already
+   covers (unrelated to this fix). */
 .map-tip {
   z-index: 5;
   pointer-events: none;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--pop-bg);
+  border: 1px solid var(--line-strong);
   border-radius: 12px;
-  box-shadow: var(--card-shadow-hi);
+  /* theme-exception: Vue2/parity's own literal drop shadow (black at 55% alpha) —
+     theme-invariant in Vue2 itself (same value in both of Photos' own themes), not a token
+     substitution. */
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
 }
-/* 评审 M4:Vue2 scss:453 的缩略图占位底是写死的纯黑;这里改用 --chip-bg(随主题走),
-   不是精确复刻那个 theme-invariant 的黑底——同 D3 裁定,surface treatment 归 New-UI 重塑。
+/* 评审 M4:Vue2 scss:453 的缩略图占位底是写死的纯黑;这里改用本区局部 --surface-2(随
+   Photos 私有主题走),不是精确复刻那个 theme-invariant 的黑底——同 D3 裁定,surface
+   treatment 归 New-UI 重塑。Fix-1 item 6:此前误用全局 --chip-bg(只跟随全局 data-theme,
+   不跟随 Photos 私有 is-light),改回本区局部 token。
    `width`/`height`/`overflow`/`flex-shrink` matched parity byte-for-byte and have been deleted;
    `border-radius` keeps the same `--r-sm` literal-px approximation the M4 note above covers. */
-.map-tip .thumb { border-radius: 8px; background: var(--chip-bg); }
+.map-tip .thumb { border-radius: 8px; background: var(--surface-2); }
 /* Byte-identical to parity's `.map-tip .thumb img` rule — deleted entirely, parity governs. */
 /* `font-size`/`font-weight` matched parity byte-for-byte and have been deleted; `color`
-   deviates under the established `--text-1` → `--fg` mapping cited above. */
-.map-tip .name { color: var(--fg); }
+   corrected (Fix-1 item 6) from the global `--fg` to local `--text-1` — see `.map-chip-row`'s
+   comment above for why the former global-token substitution table was itself the bug. */
+.map-tip .name { color: var(--text-1); }
 /* `font-size`/`margin-top` matched parity byte-for-byte and have been deleted; `color`
-   deviates under the established `--text-3` → `--fg-subtle` mapping cited above. */
-.map-tip .meta { color: var(--fg-subtle); }
+   corrected (Fix-1 item 6) from the global `--fg-subtle` to local `--text-3`. */
+.map-tip .meta { color: var(--text-3); }
 /* `content`/`position`/`left`/`bottom`/`transform`/`width`/`height` all matched parity
    byte-for-byte and have been deleted (this pseudo-element still gets them from parity's own
    identical `.map-tip::after` rule, which cascades onto any `.photos-root` descendant — deleting
    a duplicate declaration here doesn't remove the property, only the local copy of it).
-   `background`/`border-right`/`border-bottom` deviate under the same two mappings cited above
-   (`--pop-bg` pairing, `--line-strong` → `--card-border`). */
+   `background`/`border-right`/`border-bottom` corrected (Fix-1 item 6) to the same local
+   `--pop-bg`/`--line-strong` pair `.map-tip` itself uses above. */
 .map-tip::after {
-  background: var(--popup-bg);
-  border-right: 1px solid var(--card-border);
-  border-bottom: 1px solid var(--card-border);
+  background: var(--pop-bg);
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
 }
 
 /* 图例(照 Vue2 photos-places.scss:285-309)。
@@ -846,14 +926,14 @@ async function retryLoad(): Promise<void> {
    `padding`/`background`/`backdrop-filter` all matched parity byte-for-byte and have been
    deleted. `z-index: 4` is a same-value duplicate kept only because
    PhotosPlaces.test.ts's `.map-toolbar 层叠顺序守卫` test reads `zIndexOf(rules,
-   '.map-legend')` off this file's raw source text. `border`/`border-radius`/`color` deviate
-   under the established `--line` → `--card-border`, `--r-md` radius-approximation (M4 note
-   above), and `--text-3` → `--fg-subtle` mappings cited in this section's header comment. */
+   '.map-legend')` off this file's raw source text.
+   Fix-1 item 6 (2026-08-16): `border`/`color` corrected from the global `--card-border`/
+   `--fg-subtle` to local `--line`/`--text-3` — see `.map-chip-row`'s comment above. */
 .map-legend {
   z-index: 4;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--line);
   border-radius: 12px;
-  color: var(--fg-subtle);
+  color: var(--text-3);
 }
 /* Byte-identical to parity's `.map-legend .grp` rule — deleted entirely, parity governs. */
 /* box-shadow 的 0.2 透明度精确复刻 Vue2 scss:304 那条给 accent 取同一透明度的写法——本仓
@@ -867,9 +947,9 @@ async function retryLoad(): Promise<void> {
 .map-legend .dot { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent); }
 /* `.dot.s1`/`.s2`/`.s3` width/height all matched parity byte-for-byte (photos-places.scss:
    306-308) — all three rules deleted entirely, parity governs. */
-/* `font-weight: 500` matched parity byte-for-byte and has been deleted; `color` deviates under
-   the established `--text-2` → `--fg-muted` mapping cited above. */
-.map-legend b { color: var(--fg-muted); }
+/* `font-weight: 500` matched parity byte-for-byte and has been deleted; `color` corrected
+   (Fix-1 item 6) from the global `--fg-muted` to local `--text-2`. */
+.map-legend b { color: var(--text-2); }
 /* No parity counterpart (Vue2 has no dedicated 4th-tier "current trip" legend class) — pure
    survivor, see the `.dot.dot-trip` comment just below for the full story on this tier. */
 .map-legend .legend-trip { margin-left: 6px; }
@@ -891,21 +971,23 @@ async function retryLoad(): Promise<void> {
    `background`/`backdrop-filter`/`font-size` all matched parity byte-for-byte and have been
    deleted. `z-index: 4` is a same-value duplicate kept only because PhotosPlaces.test.ts's
    `.map-toolbar 层叠顺序守卫` test reads `zIndexOf(rules, '.map-stats')` off this file's raw
-   source text. `border`/`border-radius` deviate under the `--line` → `--card-border` and
-   `--r-md` radius-approximation mappings cited in this section's header comment. */
+   source text. `border` corrected (Fix-1 item 6, 2026-08-16) from the global `--card-border` to
+   local `--line` — see `.map-chip-row`'s comment above. `border-radius` keeps its `--r-md`
+   px-approximation (M4 note above, unrelated to this fix). */
 .map-stats {
   z-index: 4;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--line);
   border-radius: 12px;
 }
 /* `display`/`font-size`/`font-weight`/`letter-spacing` all matched parity byte-for-byte and
-   have been deleted. `font-family`/`color` deviate under the `--font-display` → `--font`
-   (PlacesRail.vue's own `.map-rail-head h2` precedent, cited above) and `--text-1` → `--fg`
-   mappings. */
-.map-stats .stat .v { font-family: var(--font); color: var(--fg); }
-/* `font-size` matched parity byte-for-byte and has been deleted; `color` deviates under the
-   established `--text-3` → `--fg-subtle` mapping. */
-.map-stats .stat .k { color: var(--fg-subtle); }
+   have been deleted. `font-family` keeps the deliberate `--font-display` → `--font` swap
+   (PlacesRail.vue's own `.map-rail-head h2` precedent, cited above — not a color, and `--font`
+   deliberately carries CJK fallbacks `--font-display` doesn't, so this one stays as-is).
+   `color` corrected (Fix-1 item 6) from the global `--fg` to local `--text-1`. */
+.map-stats .stat .v { font-family: var(--font); color: var(--text-1); }
+/* `font-size` matched parity byte-for-byte and has been deleted; `color` corrected (Fix-1
+   item 6) from the global `--fg-subtle` to local `--text-3`. */
+.map-stats .stat .k { color: var(--text-3); }
 
 /* ≤768px:侧栏已收抽屉,地图自己的两栏(rail + canvas)也收窄成单列,避免横向溢出。 */
 @media (max-width: 768px) {

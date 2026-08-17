@@ -170,9 +170,17 @@ onUnmounted(() => {
             <span class="mtp-name">{{ t(preset.nameKey) }}</span>
             <span class="mtp-desc">{{ t(preset.descKey) }}</span>
           </span>
+          <!-- Fix-1 item 6 (2026-08-16): `--accent-text` (global, theme.css) swapped for
+               `--accent-hi` — Vue2's own exact value here (PhotosPlacesView.vue:1014,
+               `<PhotosIcon ... color="var(--accent-hi)">`), and already Photos-local
+               (photos.scss:31, theme-invariant — Photos' own accent family is intentionally
+               NOT overridden by `.photos-root.is-light`, same as this rule's `.is-active`
+               background/border tokens). `--accent-text` tracked the wrong signal entirely
+               (a global, app-wide-theme-following, unrelated blue) and wasn't even the right
+               Vue2 value to begin with. -->
           <svg
             v-if="selection.mapTheme === preset.id" class="mtp-check" data-test="mtm-check"
-            viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="var(--accent-text)"
+            viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="var(--accent-hi)"
             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
           ><path d="m5 12 5 5L20 7" /></svg>
         </button>
@@ -203,14 +211,46 @@ onUnmounted(() => {
 .mtm-anchor { position: relative; }
 .mtm-chip-icon { vertical-align: -1px; }
 
-/* D3 surface-treatment ruling (same as PlacesFilterMenu.vue's `.map-filter-pop` — see that
-   file's full citation, reused here rather than restated): popover chrome (background/
-   border/shadow) is New-UI's to reshape, using the established --popup-bg + --card-shadow-hi
-   pair instead of Vue2's flat --surface-2 + single box-shadow. */
+/* Fix-1 item 3 (owner acceptance, 2026-08-16): `.mtp-dot` had NO geometry at all anywhere in
+   this repo (grep-confirmed against parity's own photos-places.scss, which only styles
+   `.mtp-swatch` itself) — only its `background` was ever bound (`:style="{ background:
+   swatchColors(...).dot }"` in the template above), so with no width/height/shape it rendered
+   as an invisible zero-size inline span: the owner's exact "preset swatches render as
+   near-empty dark squares (no visible dot)" report. Vue2 draws this same dot via an INLINE
+   style object, not a CSS class at all (NimoOS-UI PhotosPlacesView.vue:1005, `<span :style="{
+   position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width:
+   '4px', height: '4px', borderRadius: '99px', background: ... }" />`) — no parity selector
+   exists for New-UI's own `.mtp-dot` class to fall back to, so every non-color geometry
+   property below is transcribed from that inline object (this component's `:style` binding on
+   the same element only supplies `background`, matching Vue2's own split between the
+   class/CSS-supplied geometry and the per-instance color). `.mtp-swatch`'s own parity rule
+   already declares `position: relative` (photos-places.scss's own `.mtp-swatch`), which this
+   absolutely-positioned dot needs as its containing block. */
+.mtp-dot {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px; height: 4px;
+  border-radius: 99px;
+}
+
+/* D3 surface-treatment ruling — REVERSED (Fix-1 item 6, owner acceptance, 2026-08-16), same
+   reversal as PlacesFilterMenu.vue's `.map-filter-pop` (see that file's full citation for the
+   complete account): --popup-bg/--card-border/--card-shadow-hi are *global* New-UI tokens
+   that only follow the app-wide `[data-theme]` attribute, never Photos' own private
+   `.photos-root.is-light` toggle — this popover stayed dark under "Photos-light +
+   app-global-dark", the owner's reported "Map theme chips stay dark" defect. Restored to
+   parity's own literal values: flat `--surface-2` + `--line` border + Vue2's own literal drop
+   shadow (see that declaration's own theme-exception comment just below for the exact value,
+   theme-invariant in Vue2 too so a plain literal is the precise parity value, not an
+   approximation) — background/border are both Photos-local, is-light-aware tokens. */
 .map-theme-pop {
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow-hi);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  /* theme-exception: Vue2's own literal drop shadow (photos-places.scss, black at 60% alpha) —
+     theme-invariant in Vue2 itself (same value in both of Photos' own themes), not a token
+     substitution. */
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
 
 /* New-UI-only hover affordance (verified absent from Vue2/parity: parity's own `.mtp-item`
@@ -218,8 +258,9 @@ onUnmounted(() => {
    value copied from parity's own `.mtp-item.is-active` so hovering the active preset never
    flips its color. PlacesThemeMenu.test.ts's `winningHoverBackground` assertion pins this
    pair to this file's own `<style>` text (same convention as PlacesFilterMenu.test.ts), so
-   it stays local rather than moving to parity. */
-.map-theme-pop .mtp-item:hover { background: var(--chip-bg); }
+   it stays local rather than moving to parity. Fix-1 item 6: `--chip-bg` (global) corrected
+   to local `--surface-2`, same is-light rationale as `.map-theme-pop` above. */
+.map-theme-pop .mtp-item:hover { background: var(--surface-2); }
 .map-theme-pop .mtp-item.is-active:hover {
   background: var(--accent-soft);
   border-color: var(--accent);

@@ -357,13 +357,22 @@ describe('.map-detail 进场 transition(评审 I2)', () => {
 // ⇒ 「本文件要不要改成用 `node:fs` 读 theme.css、程序化断言 `--panel-bg-solid` 两套主题块
 //    下都不带 alpha」现在是一个**纯设计取舍**,不再有技术阻塞。**T10 只动注释,不改实现**,
 //    该取舍已登记为债务(见 VUE2 `docs/vue3-migration-roadmap.md` §SP8 债务台账 I4)。
-describe('面板底完全不透明', () => {
-  it('.map-detail 的 background 用 --panel-bg-solid,不用半透的 --panel-bg', () => {
+//
+// Fix-1 item 6 订正(owner acceptance, 2026-08-16):上面那条"半透会把网格点透上来"的
+// **前提本身**已经证伪——`--surface-1`(本文件改用的 token)在两套 Photos 主题下都是
+// 完全不透明的纯色,从来没有 alpha 通道;`--panel-bg-solid` 反而是个*全局* token,只跟随
+// 全站 `[data-theme]`、不跟随 Photos 私有的 `.photos-root.is-light` 切换——真机验收报告的
+// "右侧详情面板不跟随浅色主题"正是这个后果。已改回 `--surface-1`(parity `photos-places.
+// scss` 自己的 `.map-detail` 规则本就是这个值,本文件这条本地覆盖此前一直在遮盖它,同
+// PlacesZoomBar.vue 等文件已修过的 shadowing 缺陷同一类)。测试断言随之整体反过来。
+describe('面板底完全不透明且跟随 Photos 私有 is-light(Fix-1 item 6 订正)', () => {
+  it('.map-detail 的 background 用本地 --surface-1(完全不透明、随 is-light 切换),不用全局 --panel-bg/--panel-bg-solid', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const m = /\.map-detail\s*\{([^}]*)\}/.exec(style)
     expect(m, '未找到 .map-detail 规则').not.toBeNull()
     const decls = m![1].replace(/\/\*[\s\S]*?\*\//g, '')
-    expect(decls).toMatch(/background:\s*var\(--panel-bg-solid\)/)
+    expect(decls).toMatch(/background:\s*var\(--surface-1\)/)
+    expect(decls).not.toMatch(/background:\s*var\(--panel-bg-solid\)/)
     expect(decls).not.toMatch(/background:\s*var\(--panel-bg\)/)
   })
 })

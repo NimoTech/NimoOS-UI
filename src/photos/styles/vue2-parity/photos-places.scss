@@ -190,15 +190,20 @@
      loaded-gate or skeleton-loading concept anywhere in this view (it assumes places are
      already loaded by the time the view renders), so there is no Vue2-derived rule for
      these three empty/skeleton states to be transcribed *into*; this section only relocates
-     what PlacesRail.vue already had, it does not redesign it. */
+     what PlacesRail.vue already had, it does not redesign it.
+     Fix-1 item 6 (owner acceptance, 2026-08-16): `--fg-muted`/`--fg`/`--skeleton-bg` were
+     *global* New-UI tokens — only following the app-wide `[data-theme]` attribute, never
+     Photos' own private `.photos-root.is-light` toggle — corrected to local `--text-2`/
+     `--text-1`/`--surface-2` (same tokens this same `.photos-root` block already defines for
+     both its own dark and `.is-light` states, a few lines above). */
   .rail-empty-state {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 6px; padding: 40px 16px; color: var(--fg-muted); text-align: center; font-size: 12px;
+    gap: 6px; padding: 40px 16px; color: var(--text-2); text-align: center; font-size: 12px;
   }
-  .rail-empty-title { font-size: 13px; font-weight: 600; color: var(--fg); }
+  .rail-empty-title { font-size: 13px; font-weight: 600; color: var(--text-1); }
   .rail-empty-hint { font-size: 11.5px; }
   .rail-place-skeleton {
-    height: 56px; border-radius: 10px; background: var(--skeleton-bg);
+    height: 56px; border-radius: 10px; background: var(--surface-2);
     margin: 1px 0;
   }
 
@@ -1227,14 +1232,23 @@
    used to carry these as its own local `<style scoped>` overrides; that whole block was
    deleted in favor of this shared file governing 100% of `.places-cover-portal`'s rules
    once the component started teleporting there — these survive here since there is
-   nowhere else left for them to live. Global New-UI theme tokens (`--chip-bg`,
-   `--chip-bg-hi`, `--on-accent`) are used where the original addition already chose them;
-   this section only relocates, it does not redesign. */
+   nowhere else left for them to live.
+   Fix-1 item 6 (owner acceptance, 2026-08-16) correction: the original addition's choice of
+   global New-UI theme tokens (`--chip-bg`/`--chip-bg-hi`) is retired — those only follow the
+   app-wide `[data-theme]` attribute, not Photos' own private `.photos-root.is-light` toggle,
+   which this exact portal root also carries (PlaceCoverPicker.vue's own template applies both
+   `photos-root` and `places-cover-portal` to the same teleported element, so this file's own
+   local `.photos-root { --surface-2: …; --surface-3: …; }` declarations already resolve here
+   correctly — no separate re-declaration needed). Corrected to local `--surface-2`/
+   `--surface-3` throughout this section. `--on-accent` (below, `.cp-cell-check`) is untouched
+   by this fix — it's a fixed-white theme-exception over Photos' own constant-purple accent,
+   already reasoned through in that rule's own comment, a different situation from the
+   is-light-following surfaces this fix corrects. */
 
 /* Placeholder background visible before a thumbnail image finishes loading (D3 ruling,
    PlacesRail.vue's own precedent: surface treatment is New-UI's to reshape, not a precise
    port of a Vue2 literal — Vue2's `.cp-head-thumb` has no background at all). */
-.places-cover-portal .cp-head-thumb { background: var(--chip-bg); }
+.places-cover-portal .cp-head-thumb { background: var(--surface-2); }
 
 /* New-UI's inline `<svg class="cp-search-ic">` needs its own color rule — Vue2 colors its
    search icon via a `<PhotosIcon color="var(--text-3)">` component prop, not a CSS class
@@ -1260,16 +1274,16 @@
    `--chip-bg-hi`, same as its own non-hover `.is-active` rule); this was the one place in the
    family where the hover variant had regressed to the base value instead. */
 .places-cover-portal .cp-tab.is-active:hover { background: rgba(var(--ink), 0.10); }
-.places-cover-portal .cp-cell:hover { background: var(--chip-bg-hi); }
-.places-cover-portal .cp-cell.is-active { background: var(--chip-bg-hi); }
-.places-cover-portal .cp-cell.is-active:hover { background: var(--chip-bg-hi); }
+.places-cover-portal .cp-cell:hover { background: var(--surface-3); }
+.places-cover-portal .cp-cell.is-active { background: var(--surface-3); }
+.places-cover-portal .cp-cell.is-active:hover { background: var(--surface-3); }
 
 /* Busy-state disabling: New-UI added `:disabled="busy"` to cover-cell/reset/pager buttons
    while a cover-set request is in flight — Vue2 has no such affordance at all in this view. */
 .places-cover-portal .cp-cell:disabled { opacity: 0.5; cursor: not-allowed; }
-.places-cover-portal .cp-reset-btn:hover:not(:disabled) { background: var(--chip-bg-hi); color: var(--text-1); }
+.places-cover-portal .cp-reset-btn:hover:not(:disabled) { background: var(--surface-3); color: var(--text-1); }
 .places-cover-portal .cp-reset-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.places-cover-portal .cp-pagers button:hover:not(:disabled) { background: var(--chip-bg-hi); }
+.places-cover-portal .cp-pagers button:hover:not(:disabled) { background: var(--surface-3); }
 
 /* Checkmark badge icon color: New-UI's badge icon uses `stroke="currentColor"` and needs a
    CSS color; Vue2 hardcodes white via a `<PhotosIcon color="white">` prop, no CSS

@@ -215,7 +215,14 @@ onUnmounted(() => {
           @click.prevent="toggleRecentOnly"
         >
           <span class="mfp-tick" data-test="pfm-tick">
-            <svg v-if="filter.recentOnly" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--on-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7" /></svg>
+            <!-- Fix-1 item 6 (2026-08-16): `--on-accent` banned here (same precedent as
+                 PlaceDetailPanel.vue's `.btn-primary`) — it's calibrated against New-UI's
+                 *global* accent, which follows the app-wide theme, while `.mfp-tick.is-on`'s
+                 background is Photos' own FIXED local `--accent` (theme-invariant purple,
+                 never overridden by `.photos-root.is-light`, photos.scss:28/100). A checkmark
+                 over a constant-purple chip needs a constant light stroke in both Photos
+                 themes, not a token that could resolve dark and vanish. -->
+            <svg v-if="filter.recentOnly" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7" /></svg>
           </span>
           <input type="checkbox" :checked="filter.recentOnly" style="display:none" tabindex="-1">
           <span class="mfp-checkbox-label">{{ t('photosPlacesCurrentTripOnly') }}</span>
@@ -273,31 +280,40 @@ onUnmounted(() => {
    (class vs. inline style), not a different value. */
 .pfm-badge { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: 0.7; }
 
-/* D3 surface-treatment ruling (reviewed and upheld — kept verbatim, still accurate):
-   this deliberately uses this repo's established floating-menu/panel chrome convention
-   (--popup-bg / --card-shadow-hi) rather than porting Vue2's flat opaque grey
-   (`--surface-2`) + single box-shadow. Basis: area-level spec D3 — "reshape per New-UI's
-   design language (AreaShell/tokens/component system, same precedent as SP4/SP5); port
-   Vue2's layout structure and information hierarchy, not its 4498-line photos.scss
-   verbatim." A popover's own background/shadow is "component system / surface treatment",
-   New-UI's side of that split; this component already ported Vue2's layout structure and
-   information hierarchy (all six sections, none skipped), so it does not also copy Vue2's
-   concrete color implementation for the shell itself. This differs from the *content*
-   tokens ported precisely elsewhere in the Places family (pin colors, selected city row,
-   zoom-track base) — those have no established convention in this repo, so they either
-   copy Vue2's alpha exactly or get a new token; popover chrome already has an established
-   convention here (ContextMenu.vue/Dialog.vue/AlertDialog.vue/ClusterActionDialog.vue/
-   AlbumPickerDialog.vue/PersonHero.vue's two dropdowns all use this --popup-bg +
-   --card-shadow-hi pair), and reusing it is exactly what D3 asks for, not laziness. Visible
-   difference: --card-shadow-hi carries an inset top-edge highlight in dark theme
-   (theme.css:175+) that Vue2's flat popover never had; if that's ever rejected on real-device
-   review, the fix is two new tokens (--filter-pop-bg/--filter-pop-shadow) precisely
-   replicating Vue2's flat grey + single 0.6-alpha shadow (photos-places.scss:864), not
-   reverting this rule. */
+/* D3 surface-treatment ruling — REVERSED (Fix-1 item 6, owner acceptance, 2026-08-16).
+   The former "reviewed and upheld" note below (kept for history) argued for this repo's
+   established floating-menu/panel chrome convention (--popup-bg / --card-shadow-hi) over
+   Vue2's own flat grey + single shadow, on the basis that a popover's chrome is "component
+   system / surface treatment", New-UI's side of the D3 split. That argument assumed the
+   substitute tokens were merely a *different-looking* convention; they are also *global*
+   New-UI tokens that only follow the app-wide `[data-theme]` attribute, never Photos' own
+   private `.photos-root.is-light` toggle (`usePhotosTheme()`) — so in the very common
+   "Photos-light + app-global-dark" combination (dark is theme.css's default, no
+   `data-theme="light"` attribute needed to hit it) this popover stayed dark regardless of
+   Photos' own theme switch. That is a functional is-light bug, not a stylistic one, and the
+   owner's real-device acceptance report ("Filters / Map theme chips stay dark") is the
+   real-device rejection the original note itself said would trigger this exact reversal.
+   Restored to parity's own literal values (photos-places.scss's own `.map-filter-pop` rule):
+   flat `--surface-2` + `--line` border + Vue2's own literal drop shadow (see that declaration's
+   own theme-exception comment just below for the exact value) — Vue2 never themes this shadow
+   either, same literal in both of Photos' own themes, so a plain literal is the precise parity
+   value, not an approximation. Both the background and border are Photos-local tokens,
+   correctly redefined under `.photos-root.is-light`.
+
+   [Former note, superseded above, kept for history: "this deliberately uses this repo's
+   established floating-menu/panel chrome convention (--popup-bg / --card-shadow-hi) rather
+   than porting Vue2's flat opaque grey (--surface-2) + single box-shadow... if that's ever
+   rejected on real-device review, the fix is two new tokens (--filter-pop-bg/
+   --filter-pop-shadow) precisely replicating Vue2's own flat grey + single-alpha shadow
+   (photos-places.scss:864), not reverting this rule." — real-device review rejected it; no
+   new tokens were needed since parity's own local tokens already cover this exactly.] */
 .map-filter-pop {
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow-hi);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  /* theme-exception: Vue2's own literal drop shadow (photos-places.scss:867, black at 60%
+     alpha) — theme-invariant in Vue2 itself (same value in both of Photos' own themes), not a
+     token substitution. */
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
 
 /* New-UI-only hover affordances (verified absent from Vue2/parity — see header comment).
@@ -305,19 +321,21 @@ onUnmounted(() => {
    (equal specificity would otherwise let source order decide, which this repo's convention
    treats as unreliable — see PlacesRail.vue's own citation of the same lesson); their values
    are copied from parity's own `.is-active` rules so hovering an active control never
-   flips its color. */
-.map-filter-pop .mfp-count-row button:hover { background: var(--chip-bg-hi); color: var(--fg); }
+   flips its color. Fix-1 item 6: `--chip-bg`/`--chip-bg-hi`/`--fg` (global) corrected to
+   local `--surface-2`/`--surface-3`/`--text-1`, same is-light rationale as `.map-filter-pop`
+   above. */
+.map-filter-pop .mfp-count-row button:hover { background: var(--surface-3); color: var(--text-1); }
 /* theme-exception: literal text color below matches parity's own `.mfp-count-row
    button.is-active` (photos-places.scss), which is the same literal in both of Vue2's
    themes (theme-invariant) — kept in lockstep with that value, not a hardcoded escape. */
 .map-filter-pop .mfp-count-row button.is-active:hover { background: var(--accent); color: white; }
-.map-filter-pop .mfp-region-row button:hover { background: var(--chip-bg); color: var(--fg); }
+.map-filter-pop .mfp-region-row button:hover { background: var(--surface-2); color: var(--text-1); }
 .map-filter-pop .mfp-region-row button.is-active:hover {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent-hi);
 }
-.map-filter-pop .mfp-checkbox:hover { background: var(--chip-bg-hi); }
+.map-filter-pop .mfp-checkbox:hover { background: var(--surface-3); }
 .map-filter-pop .mfp-checkbox.is-on:hover .mfp-tick {
   border-color: var(--accent);
   background: var(--accent);

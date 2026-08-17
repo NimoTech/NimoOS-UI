@@ -332,12 +332,31 @@ function onSpotOpenPhoto(assetId: string): void {
    exact offset/blur/alpha) — same shadowing pattern as PlacesZoomBar.vue's 2026-08-15 fix).
    What survives is exactly what
    PlaceDetailPanel.test.ts pins to this file's own raw `<style>` text: the z-index invariant
-   (`z-index 不变量` describe block), the opaque-panel background token (`面板底完全不透明`,
-   a deliberate design decision, not a bug — see that test's own comment for the SP8-P6 T10
-   history), and the entrance transition (`.map-detail 进场 transition`). */
+   (`z-index 不变量` describe block) and the entrance transition (`.map-detail 进场 transition`).
+
+   Fix-1 item 6 (owner acceptance, 2026-08-16) correction: the opaque-panel background token
+   this rule used to pin (`--panel-bg-solid`, a *global* New-UI token, src/styles/theme.css) is
+   retired here. Its whole reason to exist — "the map-detail panel needs a fully OPAQUE
+   background because `--panel-bg`/`--surface-1` are translucent glass and the map's grid dots
+   would bleed through" (SP8-P6 T10 history) — turned out to be a stale premise: this file's
+   own Photos-local `--surface-1` (photos.scss:16/102) is a flat, fully opaque color in BOTH of
+   Photos' own themes (see that file's own dark and is-light blocks for the exact values) — no
+   alpha channel at all, so it was never actually translucent, and parity's own `.map-detail` rule
+   (photos-places.scss's own copy) already declares `background: var(--surface-1)` for this
+   exact selector — this scoped rule's `--panel-bg-solid` override was silently *shadowing*
+   that correct parity value via `[data-v-xxxx]` specificity, the same bug class as every other
+   "global token standing in for a Photos-local one" fix this file's own header comment already
+   documents. The practical, owner-visible consequence: `--panel-bg-solid` only follows the
+   app-wide global `[data-theme]` attribute, never Photos' own private `.photos-root.is-light`
+   toggle (`usePhotosTheme()`) — so switching Photos' own theme to light left this panel stuck
+   dark, exactly the reported defect. Switched to `--surface-1`, restoring parity's own value
+   (see `photosGlassSurfaces.test.ts`'s already-established `PhotosSmartViewDetail.vue`/
+   `.sv-detail-side` fix for the identical correction on the identical bug class). The
+   `--panel-bg-solid` consumer whitelist in that same test file is updated to empty alongside
+   this change — there is no remaining legitimate consumer of that token anywhere in Photos. */
 .map-detail {
   z-index: 6;
-  background: var(--panel-bg-solid);
+  background: var(--surface-1);
   transition: transform 0.28s cubic-bezier(.16, .84, .44, 1), opacity 0.2s ease-out;
 }
 
@@ -397,11 +416,15 @@ function onSpotOpenPhoto(assetId: string): void {
 }
 
 /* New-UI addition, no Vue2/parity counterpart at all (Vue2 has no loading-skeleton concept
-   in this view) — stays local, single owner. */
+   in this view) — stays local, single owner. Fix-1 item 6 (2026-08-16): `background` corrected
+   from the global `--skeleton-bg` (only follows the app-wide `[data-theme]` attribute) to local
+   `--surface-2` (photos.scss, correctly shadowed under `.photos-root.is-light`) — same bug
+   class as `.map-detail`'s own fix above. `border-radius` is unrelated (structural, not color;
+   `--radius-sm` is a plain global size token, shared across both app themes, not per-theme). */
 .detail-body-skeleton {
   height: 120px;
   border-radius: var(--radius-sm);
-  background: var(--skeleton-bg);
+  background: var(--surface-2);
 }
 /* .btn.btn-primary:hover survives because PlaceDetailPanel.test.ts's `hover 态背景不被基类
    规则夺走` block regex-matches this exact compound-selector text
@@ -454,9 +477,13 @@ function onSpotOpenPhoto(assetId: string): void {
    `.sub`/`.count` rules is deleted — duplicated `photos-places.scss:690-719` using global
    tokens (`--chip-bg`/`--fg`/`--fg-subtle`/`--fg-muted`/`--num-font`) for Photos-local ones
    (`--surface-2`/`--text-1`/`--text-3`/`--text-2`, and Vue2's own `ui-monospace, monospace`
-   font stack) that parity already gets right. */
+   font stack) that parity already gets right.
+   Fix-1 item 6 (2026-08-16): `.spot-row .thumb`'s `background` corrected from the global
+   `--chip-bg` to local `--surface-2` — same D3 "surface treatment is New-UI's to reshape"
+   ruling as before, but the reshape must land on a Photos-local, is-light-aware token, not a
+   global one that only follows the app-wide theme. */
 .spot-row:hover { background: var(--surface-2); }
-.spot-row .thumb { background: var(--chip-bg); }
+.spot-row .thumb { background: var(--surface-2); }
 
 /* New-UI addition (no Vue2 responsive breakpoint in this view at all). */
 @media (max-width: 768px) {

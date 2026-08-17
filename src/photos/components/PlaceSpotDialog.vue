@@ -108,10 +108,14 @@ function onThumbClick(): void {
 <template>
   <div class="spot-dialog">
     <div class="spot-dialog-head">
+      <!-- Fix-1 item 6 (2026-08-16): `--accent-text` (global theme.css token, only follows the
+           app-wide theme) swapped for `--accent-hi` — Vue2's own exact value here
+           (PhotosPlacesView.vue:1194, `<PhotosIcon name="map" :size="13" color="var(--accent-hi)"
+           />`), and already Photos-local/theme-invariant (photos.scss:31). -->
       <svg
         viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        style="color: var(--accent-text); flex: none"
+        style="color: var(--accent-hi); flex: none"
       ><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" /><path d="M9 4v14M15 6v14" /></svg>
       <div style="flex:1;min-width:0">
         <div v-if="!editing" class="spot-dialog-name">
@@ -208,13 +212,17 @@ function onThumbClick(): void {
 
 /* D8 net-new: "restore default name" button — Vue2 has no such affordance (only a
    zero-callsite service method), so there is no parity selector to fall back on; styled as a
-   ghost button matching `.spot-rename-cancel`'s geometry (parity :659-663). */
+   ghost button matching `.spot-rename-cancel`'s geometry (parity :659-663).
+   Fix-1 item 6 (2026-08-16): `border`/`color` corrected from the global `--card-border`/
+   `--fg-muted` (only follow the app-wide theme) to local `--line`/`--text-2` (this file's
+   header comment already made the identical correction for every other selector in this
+   family — these two survivor rules were missed in that earlier pass). */
 .spot-dialog-reset {
   flex: none; height: 26px; padding: 0 10px; border-radius: 6px;
   font: inherit; font-size: 11.5px; font-weight: 500; cursor: pointer;
-  border: 1px solid var(--card-border); background: transparent; color: var(--fg-muted);
+  border: 1px solid var(--line); background: transparent; color: var(--text-2);
 }
-.spot-dialog-reset:hover { color: var(--fg); }
+.spot-dialog-reset:hover { color: var(--text-1); }
 .spot-dialog-reset:disabled { opacity: 0.4; pointer-events: none; }
 
 /* Hover-lock survivors (PlaceSpotDialog.test.ts reads this file's own raw `<style>` text via

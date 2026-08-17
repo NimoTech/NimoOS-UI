@@ -11,9 +11,19 @@
 // 一律走玻璃 token(`--panel-bg`),同区先例:PhotosSidebar / PlacesRail / PhotoInfoPanel /
 // PersonPlacesTab 全是 `var(--panel-bg)`。
 //
-// `--panel-bg-solid`(深色是不透明渐变实底)是**为地图专门引入的**:PlaceDetailPanel 压在
+// `--panel-bg-solid`(深色是不透明渐变实底)当年**为地图专门引入**:PlaceDetailPanel 压在
 // PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。除此之外没有第二个
 // 合法场景 —— 所以下面第三组用**白名单**钉住它的消费方集合,多一个就红。
+//
+// Fix-1 item 6 订正(owner acceptance, 2026-08-16):当年那条"半透会把网格点透上来"的理由
+// 本身站不住脚——`--surface-1`(本仓 Photos 私有 token)在两套 Photos 主题下都是**完全不
+// 透明**的纯色(`#131318` 深色 / `oklch(0.975 0.004 80)` 浅色,均无 alpha 通道),从来不是
+// 半透明的。`--panel-bg-solid` 反而是个*全局* token,只跟随全站 `[data-theme]` 属性、不跟随
+// Photos 私有的 `.photos-root.is-light` 切换——真正的后果是:切 Photos 私有浅色主题后,这块
+// 面板底色仍卡在深色(真机验收里"右侧详情面板不跟随浅色主题"的报告)。PlaceDetailPanel.vue
+// 的 `.map-detail` 已改回 `--surface-1`(parity `photos-places.scss` 自己的 `.map-detail`
+// 规则本就是这个值,组件那条本地覆盖此前一直在遮盖它)——`--panel-bg-solid` 现在没有任何
+// 合法消费方了,下面白名单已改成空集,不是又找了个新消费方。
 //
 // jsdom 不算级联、也不做布局,这类缺陷单测抓不到(5952 例全绿也没抓到),故与
 // color-guard.test.ts / photosLayoutHeightCap.test.ts 同一路数:对样式块原文做文本断言。
@@ -21,6 +31,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { extractStyleBlock } from '../../photos/components/__tests__/cssCascade'
 
 const SRC = path.resolve(__dirname, '../..')
 
@@ -91,9 +102,13 @@ describe('相册区表面用玻璃 token,不刷应用底色', () => {
 })
 
 describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
-  // 唯一合法场景:压在 PlacesMap 画布上的地点详情面板(半透会把地图网格点透上来)。
-  // 每新增一条都必须先问"它底下真的有地图吗" —— 没有就该用 --panel-bg。
-  const ALLOW = new Set(['photos/components/PlaceDetailPanel.vue'])
+  // Fix-1 item 6 (2026-08-16): the previously-sole "legitimate scenario" (PlaceDetailPanel.vue,
+  // stacked over the map canvas) has been fixed to use `--surface-1` instead (see this file's
+  // header comment for the full account) — `--surface-1` is already fully opaque in both
+  // Photos themes, so there was never a real translucency problem to solve with a second,
+  // is-light-blind token. The whitelist is now empty: any future consumer must justify itself
+  // from scratch, not point back at a precedent that turned out to be a bug.
+  const ALLOW = new Set<string>([])
 
   function walk(dir: string, out: string[] = []): string[] {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -269,5 +284,73 @@ describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不�
   it('4 个文件里裸色字面量的完整清单恰好等于已登记的白名单(多一条就红)', () => {
     const found = new Set(LIGHTBOX_FILES.flatMap(bareColorLiteralLines))
     expect(found).toEqual(ALLOWED_BARE_LITERALS)
+  })
+})
+
+// Fix-1 items 1/6 (owner acceptance, 2026-08-16): dark-theme light frame around `.map-shell`
+// (item 1) and light-theme popovers/detail-panel staying dark (item 6) traced to the same root
+// cause across the whole Places area — rules using *global* New-UI tokens (`--fg`/`--fg-muted`/
+// `--fg-subtle`/`--card-border`/`--panel-bg`/`--panel-bg-solid`/`--popup-bg`/`--card-shadow-hi`/
+// `--chip-bg`/`--chip-bg-hi`/`--on-accent`/`--skeleton-bg`/`--accent-text`) instead of this
+// area's own Photos-local, is-light-aware equivalents (`--text-1/2/3`/`--line`/`--line-strong`/
+// `--surface-1/2/3`/`--accent-hi`/literal Vue2 box-shadows). Global tokens only follow the
+// app-wide `[data-theme]` attribute; Photos has its own PRIVATE theme toggle
+// (`usePhotosTheme()`/`.photos-root.is-light`, independent of the global one) — so in the very
+// common "Photos-light + app-global-dark" combination, every rule below stayed stuck in its
+// dark/glass appearance regardless of Photos' own switch. This is a whitelist-style sweep (same
+// idiom as this file's other two describe blocks above): every one of these token names should
+// have ZERO occurrences left in the places area's own component/parity files; any future
+// reintroduction is exactly the class of regression this fix corrects.
+describe('Fix-1 items 1/6: Places 区不再消费全局玻璃/文本 token(只跟全站主题、不跟 Photos 私有 is-light)', () => {
+  // .vue files: scan only the `<style>` block (via `extractStyleBlock`, which also strips CSS
+  // `/* … */` comments) — this file's own `<style>` header comments cite these exact banned
+  // token names in prose (documenting the fix), which would otherwise false-positive this
+  // guard; `extractStyleBlock` is the same "raw source, comments stripped" idiom PlacesThemeMenu.
+  // test.ts/PlacesFilterMenu.test.ts already use for their own `winningHoverBackground` reads.
+  // PlaceCoverPicker.vue/PlaceInsights.vue/PlacesZoomBar.vue are deliberately excluded — none
+  // has a `<style>` block of its own at all (fully governed by the shared parity scss below;
+  // `extractStyleBlock` would throw on any of them, grep-verified).
+  const VUE_FILES = [
+    'views/PhotosPlaces.vue',
+    'photos/components/PlaceDetailPanel.vue',
+    'photos/components/PlaceSpotDialog.vue',
+    'photos/components/PlaceVisitHistory.vue',
+    'photos/components/PlacesRail.vue',
+    'photos/components/PlacesFilterMenu.vue',
+    'photos/components/PlacesThemeMenu.vue',
+  ]
+  // The one non-.vue file: a bare .scss, no `<style>` wrapper to extract — strip CSS block
+  // comments directly instead.
+  const SCSS_FILES = ['photos/styles/vue2-parity/photos-places.scss']
+
+  const BANNED_TOKENS = [
+    '--fg\\b', '--fg-muted', '--fg-subtle', '--card-border', '--panel-bg\\b', '--panel-bg-solid',
+    '--popup-bg', '--card-shadow-hi', '--chip-bg\\b', '--chip-bg-hi', '--on-accent',
+    '--skeleton-bg', '--accent-text',
+  ]
+  const BANNED_RE = new RegExp(`var\\((${BANNED_TOKENS.join('|')})\\)`)
+
+  function bannedTokenUsages(rel: string, styleText: string): string[] {
+    return styleText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => BANNED_RE.test(l))
+      .map((l) => `${rel}::${l}`)
+  }
+
+  it('Places 区组件 + parity scss 里,以上全局 token 的 var(...) 消费方数量恰好为 0', () => {
+    const fromVue = VUE_FILES.flatMap((rel) => bannedTokenUsages(rel, extractStyleBlock(read(rel))))
+    const fromScss = SCSS_FILES.flatMap((rel) => bannedTokenUsages(rel, read(rel).replace(/\/\*[\s\S]*?\*\//g, '')))
+    expect([...fromVue, ...fromScss]).toEqual([])
+  })
+
+  // PlaceSpotDialog.vue's banned-icon-color fix (`--accent-text` → `--accent-hi`) is an inline
+  // `style="…"` attribute in its TEMPLATE, not its `<style>` block — the sweep above can't see
+  // it (extractStyleBlock only reads `<style>…</style>`). Separate raw-source check for that
+  // one template-level occurrence.
+  it('PlaceSpotDialog.vue 的地图图钉图标 inline style 不再用 --accent-text', () => {
+    const raw = read('photos/components/PlaceSpotDialog.vue')
+    expect(raw).not.toMatch(/var\(--accent-text\)/)
+    expect(raw).toContain('color: var(--accent-hi); flex: none')
   })
 })

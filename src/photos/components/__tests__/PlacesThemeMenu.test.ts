@@ -101,6 +101,27 @@ describe('预设列表', () => {
     expect(lightSwatch.get('.mtp-dot').attributes('style')).toContain('background: rgb(10, 132, 194)') // #0A84C2
   })
 
+  // Fix-1 item 3 (owner acceptance, 2026-08-16): `.mtp-dot` used to carry no geometry
+  // anywhere in this repo — only its `background` was bound (asserted above) — so it
+  // rendered as an invisible zero-size inline span: "preset swatches render as near-empty
+  // dark squares (no visible dot)". Vue2 draws this dot via an inline style object
+  // (PhotosPlacesView.vue:1005): absolutely centered, 4x4px, fully rounded. This guard pins
+  // that geometry to this file's own raw `<style>` text (jsdom does not compute layout, so a
+  // rendered-DOM assertion can't catch a missing width/height the way a real browser would).
+  it('.mtp-dot 有几何形状(绝对居中 + 4x4 圆形),不再是零尺寸的裸 <span>', () => {
+    const style = extractStyleBlock(placesThemeMenuRaw)
+    const m = /\.mtp-dot\s*\{([^}]*)\}/.exec(style)
+    expect(m, '未找到 .mtp-dot 规则').not.toBeNull()
+    const decls = m![1]
+    expect(decls).toMatch(/position:\s*absolute/)
+    expect(decls).toMatch(/top:\s*50%/)
+    expect(decls).toMatch(/left:\s*50%/)
+    expect(decls).toMatch(/transform:\s*translate\(-50%,\s*-50%\)/)
+    expect(decls).toMatch(/width:\s*4px/)
+    expect(decls).toMatch(/height:\s*4px/)
+    expect(decls).toMatch(/border-radius:\s*99px/)
+  })
+
   it('点预设 → emit update:selection(mapTheme 变该 id,颜色字段原样保留)+ emit update:open(false)', async () => {
     const original = defaultSelection({ customDotColor: '#123456', customCityColor: '#abcdef' })
     const w = mountMenu({ open: true, selection: original })

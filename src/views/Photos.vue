@@ -51,7 +51,7 @@
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
@@ -79,6 +79,7 @@ import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
 const store = useTimelineStore()
 const trash = usePhotosTrash()
 const toast = useToast()
@@ -125,7 +126,52 @@ const selected = ref<Array<string | number>>([])
 // P7b-T4:EXIF 筛选态。照 Vue2 PhotosTimeline.vue:116 的 activeFilters,但只保留三个
 // facet 键——Vue2 那个对象上还挂着 placeKey/spotKey 两个 spot 跳转用的键,New-UI 的
 // 城市/spot 跳转走独立路由页(D6),那两个键在本仓无对应物。
+//
+// Fix-1 item 4 (owner acceptance, 2026-08-16) partial reversal of D6: the owner's explicit,
+// binding instruction is that PlaceDetailPanel.vue's "Open in Library" button AND a spot row's
+// "View in Library" jump must land HERE (the photo library), with a place filter applied — not
+// on the standalone place-assets page (that page stays, as a net addition other entries may
+// still use; only these two buttons' own navigation target changes, see PlaceDetailPanel.vue's
+// own comment for the mechanism this file's `?libraryPlace=` query key feeds).
+//
+// Vue2's own city jump (PhotosTimeline.vue's `onPlacesOpenLibrary`) drives exactly this file's
+// existing `places: string[]` EXIF facet — `activeFilters.places = [city]` — the client-side
+// text-match filter already wired up above; it does NOT use a separate placeKey/backend fetch
+// for this entry point. Vue2's *spot*-row jump (`onPlacesOpenSpot`) additionally sets
+// `placeKey`/`spotKey`, which drive a SEPARATE precise backend fetch (`_loadPlaceAssets`) that
+// swaps the grid's data source to the exact per-spot photo list, layered under a dedicated
+// breadcrumb bar (`.place-filter-bar`, "City › Spot") — New-UI's library has no such
+// infrastructure at all (no placeKey/spotKey facet, no per-spot backend fetch, no breadcrumb
+// bar), and building it is out of this fix's scope (the brief's own instruction: mirror Vue2's
+// parameters as closely as the EXISTING filter system allows, do not invent new filter UI).
+// So here, a spot jump necessarily DEGRADES to the same city-level `places` filter as the plain
+// "Open in Library" jump — both PlaceDetailPanel.vue handlers below feed this file the same
+// single city-name query key, and there is no finer-grained spot filter for this file to apply
+// even if it wanted to. This is a documented limitation, not an oversight.
 const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
+
+// Fix-1 item 4: one-shot city-name seed for the `places` EXIF facet, fed by
+// PlaceDetailPanel.vue's "Open in Library"/"View in Library" jumps via `router.push({ path:
+// '/photos', query: { libraryPlace: city } })`. Deliberately a NEW, separate query key, not a
+// reuse of `usePhotosDeepLinks`'s existing `?place=<numeric key>` — that key's contract already
+// means something else entirely (an old-bookmark redirect straight to the place-assets page,
+// consumed by a DIFFERENT composable mounted on this same page) and takes a backend place KEY,
+// not a city NAME; colliding the two would make `usePhotosDeepLinks` intercept and redirect
+// before this logic ever saw the query at all. Read once on mount (Vue2's own equivalent is
+// also a one-shot method call from a click handler, not a persistent binding) and the key is
+// stripped immediately after being consumed — same "one-shot query, strip after use" idiom
+// `usePhotosDeepLinks.ts`'s own `stripQueryKey` already establishes elsewhere on this exact
+// route, so a later reload of the bare `/photos` URL (after the user has since cleared the
+// filter) doesn't silently resurrect it.
+onMounted(() => {
+  const raw = route.query.libraryPlace
+  const city = (Array.isArray(raw) ? raw[0] : raw) || ''
+  if (!city) return
+  exifFilter.value = { ...exifFilter.value, places: [city] }
+  const rest = { ...route.query }
+  delete rest.libraryPlace
+  void router.replace({ path: route.path, query: rest })
+})
 
 // SP15-P3-T8: is an EXIF filter actually narrowing anything right now? Only
 // then does "unknown membership" become a real problem for an unloaded month.
