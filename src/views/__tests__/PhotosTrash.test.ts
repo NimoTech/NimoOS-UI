@@ -29,6 +29,16 @@ const svc = vi.hoisted(() => ({
     updateConfig: vi.fn().mockResolvedValue(undefined),
     getTimeline: vi.fn().mockResolvedValue([]),
     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
+    // Task 9: tile-click now opens the lightbox against the bucketed flat list, so the mock
+    // needs to cover everything useLightbox().openAt() and the mounted PhotoLightbox touch —
+    // recordView/reconcileFav's listFavoriteIds (both fire on every openAt), hydrateDetail's
+    // getAsset/getAssetOcr, and the lightbox's own image/live URL builders.
+    recordView: vi.fn().mockResolvedValue(undefined),
+    listFavoriteIds: vi.fn().mockResolvedValue([]),
+    getAsset: vi.fn().mockRejectedValue(new Error('no hydrate in test')),
+    getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
+    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
+    liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -37,6 +47,9 @@ import PhotosTrash from '../PhotosTrash.vue'
 import AppToast from '../../components/AppToast.vue'
 import { usePhotosTrash } from '../../photos/stores/trash'
 import { useToast } from '../../stores/toast'
+import { useLightbox } from '../../photos/lightbox/useLightbox'
+
+const lb = useLightbox()
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -87,10 +100,16 @@ beforeEach(() => {
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
   svc.photos.getConfig.mockClear().mockResolvedValue({ watchDirs: ['/DATA/Gallery'], retentionDays: 30 })
   svc.photos.getTimeline.mockClear().mockResolvedValue([])
+  svc.photos.recordView.mockClear().mockResolvedValue(undefined)
+  svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
+  svc.photos.getAsset.mockClear().mockRejectedValue(new Error('no hydrate in test'))
+  svc.photos.getAssetOcr.mockClear().mockResolvedValue({ lines: [] })
+  lb.__resetForTest()
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  lb.__resetForTest()
 })
 
 describe('PhotosTrash.vue', () => {
@@ -239,18 +258,22 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-bulk-bar').exists()).toBe(false)
   })
 
-  // F-6 (Task 8): this asserts the CURRENT bare-click-selects semantics -- Task 9 will flip it
-  // to bare-click-opens-lightbox (the select circle becomes the only way to toggle selection),
-  // at which point this test gets rewritten to match. Left untouched here on purpose so Task 8's
-  // and Task 9's RED/GREEN states don't get tangled together.
-  it('clicking a tile (not the select circle) also toggles selection, without triggering any lightbox/navigation', async () => {
-    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+  // Task 9 (F-6): flips Task 8's bare-click-selects placeholder to Vue2 PhotosTrashView.vue's real
+  // onTileClick semantics (:211-216) -- with nothing selected, a plain tile click opens the
+  // lightbox against the bucketed flat list; once anything is selected, every further click
+  // (including on a different tile) toggles selection instead.
+  it('clicking a tile with nothing selected opens the lightbox against the bucketed flat list; clicking with a selection active toggles selection instead', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z'), asset('b', '2026-07-26T00:00:00Z')])
     const w = await mountView()
 
     await w.find('.trash-tile').trigger('click')
-    await w.vm.$nextTick()
-    expect(w.find('.trash-bulk-bar').exists()).toBe(true)
-    expect(w.find('.trash-tile').attributes('data-selected')).toBe('true')
+    expect(lb.open.value).toBe(true)
+
+    lb.close()
+    await w.find('.trash-tile-check').trigger('click') // manually check one first
+    expect(w.find('.trash-tile[data-selected="true"]').exists()).toBe(true)
+    await w.findAll('.trash-tile')[1]!.trigger('click') // with selection active, clicking a second tile = toggle selection, not open lightbox
+    expect(lb.open.value).toBe(false)
   })
 
   // Task 12 (SP15-P3): while pages remain, the freeable-size figure is only a sum over the

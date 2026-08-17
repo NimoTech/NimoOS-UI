@@ -10,11 +10,12 @@
 // topbar's Ask Nimo button is wired to the real drawer entry (`show-ask-nimo` +
 // `@ask-nimo="useAskNimo().openDrawer()"`), same as PhotosFavorites.vue.
 //
-// P3 hard rule: clicking a tile (including blank areas) = toggle selection, does NOT open the
-// lightbox — trash items are slimmed-down objects "pending restore / pending permanent deletion",
-// and the lightbox's favorite-star/delete-trash button semantics don't hold here (does delete mean
-// permanent deletion? or restore? ambiguous), so lightbox wiring is skipped entirely for this view,
-// tracked in the ledger (see task-9-report.md).
+// Task 9 (Plan H): superseded the P3 placeholder above -- Vue2 PhotosTrashView.vue actually does
+// wire a lightbox (onTileClick :211-216), so this view now mounts one too. A plain tile click
+// with nothing selected opens it against the bucketed flat list; once anything is selected,
+// every further click toggles selection instead. Inside the lightbox, "delete" is remapped to
+// permanent purge (the asset is already soft-deleted) and favorite/add-to-album are no-ops --
+// see onLightboxDelete below.
 //
 // The selected state uses Set<string|number>, compared by id value (not object reference) — Vue3's
 // ref() has dedicated reactivity hooks for Set/Map (collection handlers), so calling
@@ -34,12 +35,15 @@ import { usePhotosTrash } from '../photos/stores/trash'
 import { useToast } from '../stores/toast'
 import type { TrashPhoto } from '../photos/util/trashAssetToPhoto'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useLightbox } from '../photos/lightbox/useLightbox'
+import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const trash = usePhotosTrash()
 const toast = useToast()
+const lb = useLightbox()
 
 // Bucket constants, following Vue2 PhotosTrashView.vue:126-131 (4 buckets, min/max/tone). tone is
 // just a semantic label — the actual color is mapped to an existing token in the style block
@@ -105,7 +109,25 @@ function toggleSelect(id: string | number) {
   else selected.value.add(id)
 }
 function clearSelection() { selected.value.clear() }
-function onTileClick(p: TrashPhoto) { toggleSelect(p.id) }
+
+// Task 9: matches Vue2 PhotosTrashView.vue onTileClick(:211-216) -- a plain click with no
+// active selection opens the lightbox against the bucketed flat list; once anything is
+// selected, every further click toggles selection instead of opening the viewer.
+function onTileClick(p: TrashPhoto): void {
+  if (selected.value.size > 0) { toggleSelect(p.id); return }
+  const flat = bucketed.value.flatMap((b) => b.photos)
+  lb.openAt(p, flat, 0)
+}
+
+// Task 9: "delete" from inside the trash lightbox means permanent purge -- the asset is
+// already soft-deleted. add-to-album makes no product sense on a trashed asset either, so
+// both are deliberate no-ops, same convention as Photos.vue's unused @toggle-fav.
+async function onLightboxDelete(id: string | number): Promise<void> {
+  const p = trash.items.find((x) => x.id === id)
+  const size = p ? Number(p.sizeMb) || 0 : 0
+  await trash.purge([id])
+  toast.show(t('photosTrashPurgedToast', { count: 1, size: size.toFixed(1) }), 4500)
+}
 
 function askConfirm(cfg: ConfirmState) { confirm.value = cfg }
 function closeConfirm() { confirm.value = null }
@@ -449,6 +471,16 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         </div>
       </div>
     </transition>
+
+    <!-- Task 9: lightbox re-nested inside .photos-root per the F8 module-singleton rule (any
+         page calling useLightbox().openAt must mount its own <PhotoLightbox>), same shape as
+         Photos.vue/PhotosFavorites.vue. Delete/toggle-fav/add-to-album semantics: see
+         onLightboxDelete's comment above. -->
+    <PhotoLightbox
+      @delete="onLightboxDelete"
+      @toggle-fav="() => {}"
+      @add-to-album="() => {}"
+    />
 
     <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
          shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
