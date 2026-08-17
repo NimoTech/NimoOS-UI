@@ -48,30 +48,51 @@ export const usePhotosTrash = defineStore('photosTrash', () => {
   // clear the second call's flag out from under it in its `finally`.
   let _loadMoreSeq = 0
 
+  // Task 10 (Plan H): now that PhotosSidebar also calls fetchTrash() once per session (its own
+  // onMounted, gated on `loaded`), it mounts in the same frame as PhotosTrash.vue's own
+  // unconditional onMounted fetch whenever the user's first visit of the session lands directly
+  // on the Trash page -- two concurrent fetchTrash() calls would each bump `_generation` and
+  // fire their own real service.photos.listTrash() request, so the first call's response is
+  // always discarded (see the `gen !== _generation` guards below) even though it already cost a
+  // network round trip. Same in-flight-dedup shape as settings.ts's fetchAiFeatures (see that
+  // function's header comment for the fuller precedent): concurrent callers share one in-flight
+  // promise instead of firing a second request; intentionally NOT a permanent cache -- the
+  // promise resets to null in `finally`, so a later call (restore/purge/empty/undoRestore, or a
+  // fresh page navigation) still re-fetches for real.
+  let fetchInFlight: Promise<void> | null = null
+
   // Task 12: fetchTrash now always fetches page one and resets the cursor — call it for the
   // initial load and for any refresh (restore/purge/empty/undoRestore all end with it, which
   // is exactly "go back to page one").
   async function fetchTrash(): Promise<void> {
-    const gen = ++_generation
-    _loadMoreSeq++
-    loadingMore.value = false
+    if (fetchInFlight) return fetchInFlight
+    fetchInFlight = (async () => {
+      const gen = ++_generation
+      _loadMoreSeq++
+      loadingMore.value = false
+      try {
+        const list = (await service.photos.listTrash(TRASH_PAGE_SIZE, 0)) as unknown[]
+        if (gen !== _generation) return
+        const rows = list ?? []
+        items.value = rows.map((a) => trashAssetToPhoto(a as Record<string, unknown>, retentionDays.value))
+        _offset = rows.length
+        trashExhausted.value = rows.length < TRASH_PAGE_SIZE
+        // Only mark loaded on success — a transient fetch failure must stay
+        // distinguishable from "confirmed empty trash" so callers can retry,
+        // mirroring the favIdsLoaded/favoritesLoaded precedent in favorites.ts.
+        loaded.value = true
+      } catch (e) {
+        if (gen !== _generation) return
+        items.value = []
+        _offset = 0
+        trashExhausted.value = false
+        console.error('[photos-trash] fetchTrash', e)
+      }
+    })()
     try {
-      const list = (await service.photos.listTrash(TRASH_PAGE_SIZE, 0)) as unknown[]
-      if (gen !== _generation) return
-      const rows = list ?? []
-      items.value = rows.map((a) => trashAssetToPhoto(a as Record<string, unknown>, retentionDays.value))
-      _offset = rows.length
-      trashExhausted.value = rows.length < TRASH_PAGE_SIZE
-      // Only mark loaded on success — a transient fetch failure must stay
-      // distinguishable from "confirmed empty trash" so callers can retry,
-      // mirroring the favIdsLoaded/favoritesLoaded precedent in favorites.ts.
-      loaded.value = true
-    } catch (e) {
-      if (gen !== _generation) return
-      items.value = []
-      _offset = 0
-      trashExhausted.value = false
-      console.error('[photos-trash] fetchTrash', e)
+      await fetchInFlight
+    } finally {
+      fetchInFlight = null
     }
   }
 

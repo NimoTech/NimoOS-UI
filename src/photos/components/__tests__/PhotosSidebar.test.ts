@@ -9,6 +9,7 @@ import PhotosSidebar from '../PhotosSidebar.vue'
 import { useTimelineStore } from '../../stores/timeline'
 import { usePhotosSettingsStore } from '../../stores/settings'
 import { usePhotosFavorites } from '../../stores/favorites'
+import { usePhotosTrash } from '../../stores/trash'
 import { useSessionStore } from '../../../stores/session'
 import { usePhotosTheme, __resetPhotosThemeForTests } from '../../composables/usePhotosTheme'
 import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../../composables/useSidebarDrawer'
@@ -383,10 +384,41 @@ describe('PhotosSidebar', () => {
       expect(favItem?.find('.nav-count').exists()).toBe(false)
     })
 
-    it('the trash item does not get a badge in this task (a logged out-of-scope gap, see the comment at the top of the component)', () => {
+  })
+
+  // Task 10 (Plan H): trash badge -- wired the same way as favorites' (loaded gate), plus the
+  // fetch-once-on-mount behavior favorites doesn't need (favIds is reconciled elsewhere; trash
+  // has no other always-loaded source, so the sidebar itself fetches it, once per session).
+  // F-15: split into three independent cases -- the original single "fetch once if not loaded"
+  // case set `trash.loaded = true` in its own body, which meant the new fetch-once logic was
+  // never actually exercised by an assertion that could fail.
+  describe('trash badge (Task 10)', () => {
+    it('fetches trash once on mount when not already loaded', async () => {
+      const trash = usePhotosTrash()
+      trash.loaded = false
+      const spy = vi.spyOn(trash, 'fetchTrash').mockResolvedValue(undefined)
+      mountSidebar()
+      await flushPromises()
+      expect(spy).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not refetch trash on mount once already loaded', async () => {
+      const trash = usePhotosTrash()
+      trash.loaded = true
+      const spy = vi.spyOn(trash, 'fetchTrash')
+      mountSidebar()
+      await flushPromises()
+      expect(spy).not.toHaveBeenCalled()
+    })
+
+    it('shows the loaded trash count as the nav badge', async () => {
+      const trash = usePhotosTrash()
+      trash.items = [{ id: '1' } as any, { id: '2' } as any]
+      trash.loaded = true
       const w = mountSidebar()
+      await flushPromises()
       const trashItem = w.findAll('.nav-item').find((n) => n.text().includes('最近删除'))
-      expect(trashItem?.find('.nav-count').exists()).toBe(false)
+      expect(trashItem?.find('.nav-count').text()).toBe('2')
     })
   })
 
