@@ -25,6 +25,7 @@ import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosAlbums } from '../photos/stores/albums'
@@ -332,6 +333,7 @@ onMounted(() => {
               @clear="cancelSelection"
               @delete="onBatchDelete([...selected])"
               @add-to-album="openAlbumPicker([...selected])"
+              @ask-nimo="useAskNimo().openWith(t('photosGridAskNimoRecap', { count: selected.length }))"
             />
             <PhotosGrid
               :months="fav.favoritesMonths" :tab="tab" :density="density" :selected="selected"

@@ -401,6 +401,7 @@ onUnmounted(() => {
                 @clear="cancelSelection"
                 @delete="onBatchDelete([...selected])"
                 @add-to-album="openAlbumPicker([...selected])"
+                @ask-nimo="useAskNimo().openWith(t('photosGridAskNimoRecap', { count: selected.length }))"
               />
               <PhotosGrid
                 :months="gridMonths" :tab="tab" :density="density" :selected="selected"
