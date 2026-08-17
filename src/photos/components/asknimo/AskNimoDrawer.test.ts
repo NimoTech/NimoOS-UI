@@ -4,6 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useAgentStore } from '../../../ai/stores/agentStore'
 import { useAskNimo } from '../../composables/useAskNimo'
 import AskNimoDrawer from './AskNimoDrawer.vue'
+import askNimoDrawerRaw from './AskNimoDrawer.vue?raw'
 
 describe('AskNimoDrawer', () => {
   beforeEach(() => {
@@ -58,5 +59,14 @@ describe('AskNimoDrawer', () => {
     useAskNimo().openDrawer()
     const wrapper = mount(AskNimoDrawer)
     expect(wrapper.find('.nimo-chat.is-fullscreen').exists()).toBe(true)
+  })
+
+  // Review fix (Important): Vue2 PhotosNimoChatDrawer.vue:2-3,27 wraps the aside in
+  // `<transition name="chat-drawer">` so it slides in/out instead of popping. jsdom has no real
+  // animation clock and @vue/test-utils doesn't cleanly type-match Vue's built-in <transition>,
+  // so a raw-source check for the wrapper + its name is the same lightweight pattern
+  // AskNimoFab.test.ts already uses for its own `<transition name="nimo-fab-swap">`.
+  it('wraps the aside in a <transition name="chat-drawer">', () => {
+    expect(askNimoDrawerRaw).toMatch(/<transition\s+name="chat-drawer">/)
   })
 })

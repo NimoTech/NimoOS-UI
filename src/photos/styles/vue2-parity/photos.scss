@@ -2599,6 +2599,15 @@
   transition: transform 0.22s cubic-bezier(.3,.7,.4,1), opacity 0.18s;
 }
 .chat-drawer-enter, .chat-drawer-leave-to { transform: translateX(100%); opacity: 0.5; }
+/* Review fix (Important, Task 12): Vue2->Vue3 framework-difference fix, same precedent as
+   .nimo-fab-swap-enter-from (~:890) / .pin-merge-enter-from / .lb-swap-*-enter-from. Vue3
+   renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept its name in
+   both versions, so it needs no shim -- already covered by the combined selector above). The
+   `.chat-drawer-enter` selector just above is the verbatim Vue2 transcription (parity record,
+   kept as documented dead source -- Vue3's <transition> never applies that class name); this
+   rule supplies the real Vue3 selector so AskNimoDrawer.vue's `<transition name="chat-drawer">`
+   slide actually runs. */
+.chat-drawer-enter-from { transform: translateX(100%); opacity: 0.5; }
 .photos-root .cd-head {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 16px 12px; border-bottom: 1px solid var(--line);

@@ -4,6 +4,12 @@
      only the popup supports prefill).
      Preflight F-16 (verified against Vue2 source directly): PhotosNimoChatDrawer.vue also has
      NO scrim/Esc/click-outside -- same grep, same zero hits. Deliberate parity, not an omission.
+     Review fix (Important): Vue2 wraps the aside in `<transition name="chat-drawer">`
+     (PhotosNimoChatDrawer.vue:2-3,27) -- ported here verbatim so the drawer slides instead of
+     popping. The parity scss's `.chat-drawer-enter`/`-leave-to` rules (photos.scss:~2598-2601)
+     are the Vue2-era transcription; Vue3 renamed the enter class to `-enter-from`, so a
+     `.chat-drawer-enter-from` alias was added alongside (same shim idiom as T10's
+     `.nimo-fab-swap-enter-from`, photos.scss:~881-892) to make the transition actually run.
      No <style> block: pixel coverage comes entirely from parity scss (Constraints #12). -->
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -35,24 +41,26 @@ async function clear(): Promise<void> {
 </script>
 
 <template>
-  <aside v-if="nimo.drawerOpen.value" class="chat-drawer">
-    <header class="cd-head">
-      <span class="nimo-orb" style="width:34px;height:34px" />
-      <div style="flex:1;min-width:0">
-        <div class="cd-title">{{ t('photosNimoAgent') }}</div>
-        <NimoModelPicker />
-      </div>
-      <button type="button" class="icon-btn" data-test="drawer-clear" :disabled="clearing" :title="t('photosClearConversation')" @click="clear">
-        <PhotosIcon name="trash" :size="14" />
-      </button>
-      <button type="button" class="icon-btn" data-test="drawer-close" :title="t('photosClose')" @click="nimo.closeDrawer()">
-        <PhotosIcon name="x" :size="15" />
-      </button>
-    </header>
-    <NimoTaskBar v-model:expanded="nimo.taskBarExpanded.value" />
-    <AskNimoChat
-      :fullscreen="true" :context-photo="nimo.contextPhoto.value" :context-album="nimo.contextAlbum.value"
-      @context-consumed="nimo.consumeContextPhoto()" @album-context-consumed="nimo.consumeContextAlbum()"
-    />
-  </aside>
+  <transition name="chat-drawer">
+    <aside v-if="nimo.drawerOpen.value" class="chat-drawer">
+      <header class="cd-head">
+        <span class="nimo-orb" style="width:34px;height:34px" />
+        <div style="flex:1;min-width:0">
+          <div class="cd-title">{{ t('photosNimoAgent') }}</div>
+          <NimoModelPicker />
+        </div>
+        <button type="button" class="icon-btn" data-test="drawer-clear" :disabled="clearing" :title="t('photosClearConversation')" @click="clear">
+          <PhotosIcon name="trash" :size="14" />
+        </button>
+        <button type="button" class="icon-btn" data-test="drawer-close" :title="t('photosClose')" @click="nimo.closeDrawer()">
+          <PhotosIcon name="x" :size="15" />
+        </button>
+      </header>
+      <NimoTaskBar v-model:expanded="nimo.taskBarExpanded.value" />
+      <AskNimoChat
+        :fullscreen="true" :context-photo="nimo.contextPhoto.value" :context-album="nimo.contextAlbum.value"
+        @context-consumed="nimo.consumeContextPhoto()" @album-context-consumed="nimo.consumeContextAlbum()"
+      />
+    </aside>
+  </transition>
 </template>
