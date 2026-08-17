@@ -156,6 +156,88 @@ describe('search submit', () => {
   })
 })
 
+// Fix-1 item 1 (owner acceptance, 2026-08-13): additive title/sub/showSearch prop overrides,
+// used by the five re-shelled album/for-you pages (Vue2 truth: PhotosTimeline.vue mounts the
+// SAME <PhotosTopbar> for every non-people/places/upload nav, PhotosTimeline.vue:957-971, just
+// feeding it per-nav title/sub and show-search — it is not a library-exclusive component).
+describe('title/sub/showSearch props (extra coverage, Fix-1 item 1)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('title/sub omitted → default behaviour unchanged (backwards compatible with Photos.vue existing usage)', () => {
+    const w = mountTopbar()
+    expect(w.get('.topbar-title').text()).toBe(zh.photosLibrary)
+  })
+
+  it('title passed → overrides the default photosLibrary copy', () => {
+    const w = mountTopbar({ title: zh.photosAlbumsTitle })
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+  })
+
+  it('sub passed → overrides the default whole-library count sub-line', () => {
+    const w = mountTopbar({ sub: '9 个相册' })
+    expect(w.get('.topbar-sub').text()).toBe('9 个相册')
+  })
+
+  it('showSearch defaults to true → the search box renders (backwards compatible)', () => {
+    const w = mountTopbar()
+    expect(w.find('.search').exists()).toBe(true)
+  })
+
+  it('showSearch=false → the search box is not rendered, but the centring wrapper stays', () => {
+    const w = mountTopbar({ showSearch: false })
+    expect(w.find('.search').exists()).toBe(false)
+    expect(w.find('.topbar-title').exists()).toBe(true)
+  })
+})
+
+// Fix-4 item 2 (owner acceptance, 2026-08-13): `back` prop had zero test coverage in Fix-3 —
+// every other prop added that wave (title/sub/showSearch, Fix-1 item 1) got one, this one didn't.
+// Mirrors Vue2 PhotosTopbar.vue:6-12's searchMode swap: `v-if="back"` renders a second icon-btn
+// (chevL) in place of the title/sub block (`v-if="!back"`), emits `back` on click.
+describe('back prop (extra coverage, Fix-4 item 2)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('back omitted → default behaviour unchanged: title/sub render and no back button appears', () => {
+    const w = mountTopbar()
+    expect(w.find('.topbar-title').exists()).toBe(true)
+    expect(w.find('.topbar-sub').exists()).toBe(true)
+    // Only one .icon-btn besides the collapse button (there is no second, back button).
+    expect(w.findAll('.icon-btn')).toHaveLength(1)
+  })
+
+  it('back=true → renders the chevL back button (a second .icon-btn) and suppresses title/sub', () => {
+    const w = mountTopbar({ back: true })
+    expect(w.find('.topbar-title').exists()).toBe(false)
+    expect(w.find('.topbar-sub').exists()).toBe(false)
+    const icons = w.findAll('.icon-btn')
+    expect(icons).toHaveLength(2)
+    // Character-for-character against Vue2 PhotosIcon.vue's chevL branch (SearchDatePopover.vue's
+    // cal-nav previous-month button already uses the same path, so the precedent is consistent).
+    expect(icons[1]!.get('path').attributes('d')).toBe('m15 6-6 6 6 6')
+  })
+
+  it('with back=true, clicking the second .icon-btn emits back', async () => {
+    const w = mountTopbar({ back: true })
+    const icons = w.findAll('.icon-btn')
+    await icons[1]!.trigger('click')
+    expect(w.emitted('back')).toHaveLength(1)
+  })
+
+  it('with back=true, the back button title is the localized photosSearchBackToLibrary value', () => {
+    const w = mountTopbar({ back: true })
+    const icons = w.findAll('.icon-btn')
+    expect(icons[1]!.attributes('title')).toBe(zh.photosSearchBackToLibrary)
+  })
+
+  it('with back=true, the collapse button (the first .icon-btn) still emits toggle-collapse as usual, unaffected by back', async () => {
+    const w = mountTopbar({ back: true })
+    const icons = w.findAll('.icon-btn')
+    await icons[0]!.trigger('click')
+    expect(w.emitted('toggle-collapse')).toHaveLength(1)
+    expect(w.emitted('back')).toBeUndefined()
+  })
+})
+
 // Non-color visual property pin (same convention as PhotosSearchBar.test.ts, I5): the only
 // rule allowed in the component's own scoped style is the already-approved glass-texture
 // FILL deviation for the search box (chip-bg/chip-border) — none of the other visual

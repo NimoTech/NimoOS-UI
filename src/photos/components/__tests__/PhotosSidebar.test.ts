@@ -453,6 +453,54 @@ describe('PhotosSidebar', () => {
     })
   })
 
+  // Plan C Task 2, review fix round 1 (Important 1): AreaShell's ☰ was the ONLY way to open
+  // the sidebar drawer on a ≤768px viewport for every photos-area page except Photos.vue
+  // (which gets its own toggle from PhotosTopbar). Once the five re-shelled album/for-you
+  // views drop AreaShell, that entry point vanishes with nothing to replace it — a confirmed
+  // live regression, not a hypothetical one. Fix: PhotosSidebar owns a small floating trigger
+  // of its own, rendered only when there is a real gap to fill (narrow + drawer closed), so
+  // every current and future sister page gets it for free without a topbar of its own.
+  // `hideDrawerTrigger` lets Photos.vue opt out — its own PhotosTopbar button already does
+  // this job, and rendering both would be a redundant double affordance.
+  describe('the mobile drawer floating trigger button (review fix round 1)', () => {
+    it('narrow viewport with the drawer closed: the trigger button renders, and clicking it calls drawer.toggle() to open the drawer', async () => {
+      const d = useSidebarDrawer()
+      d.isNarrow.value = true
+      d.open.value = false
+      const w = mountSidebar()
+      await nextTick()
+      const btn = w.find('[data-test="sidebar-drawer-trigger"]')
+      expect(btn.exists()).toBe(true)
+      await btn.trigger('click')
+      expect(d.open.value).toBe(true)
+    })
+
+    it('narrow viewport with the drawer already open: no trigger button renders (the drawer already covers the screen, a duplicate entry point is unnecessary)', async () => {
+      const d = useSidebarDrawer()
+      d.isNarrow.value = true
+      d.open.value = true
+      const w = mountSidebar()
+      await nextTick()
+      expect(w.find('[data-test="sidebar-drawer-trigger"]').exists()).toBe(false)
+    })
+
+    it('desktop state (isNarrow=false): no trigger button renders', () => {
+      const d = useSidebarDrawer()
+      d.isNarrow.value = false
+      const w = mountSidebar()
+      expect(w.find('[data-test="sidebar-drawer-trigger"]').exists()).toBe(false)
+    })
+
+    it('hideDrawerTrigger=true (Photos.vue uses it to avoid a second entry point alongside PhotosTopbar own collapse button): nothing renders even on a narrow viewport with the drawer closed', async () => {
+      const d = useSidebarDrawer()
+      d.isNarrow.value = true
+      d.open.value = false
+      const w = mountSidebar({ hideDrawerTrigger: true })
+      await nextTick()
+      expect(w.find('[data-test="sidebar-drawer-trigger"]').exists()).toBe(false)
+    })
+  })
+
   // SP15-P2b Task 5: the smart-views entry's label changes to "For You" now that its page
   // is Moments-only, but its id/route stay so the ?view=smart deep link and the
   // aiFeatures.smartview hide-when-off filter above keep working unmodified.

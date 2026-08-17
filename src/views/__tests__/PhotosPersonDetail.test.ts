@@ -40,6 +40,10 @@ const svc = vi.hoisted(() => ({
     mergePersons: vi.fn(),
     purgePerson: vi.fn(),
     detachAssetsFromPerson: vi.fn(),
+    // T7 (Plan D): the Hidden people section + hide/unhide actions.
+    hidePerson: vi.fn(),
+    listHiddenPersons: vi.fn(),
+    restorePerson: vi.fn(),
     // albums store (saveAsAlbum = createAlbum + batchAddToAlbum + fetchAlbums)
     createAlbum: vi.fn(),
     batchAddToAlbum: vi.fn(),
@@ -121,7 +125,7 @@ async function mountView(id: string | number = '7') {
 }
 
 /** Open the Edit menu and click one of its items (PersonHero's internal menu, data-test names from T10). */
-async function pickEditMenu(w: ReturnType<typeof mount>, which: 'rename' | 'merge' | 'delete') {
+async function pickEditMenu(w: ReturnType<typeof mount>, which: 'rename' | 'merge' | 'hide' | 'delete') {
   await w.find('[data-test="hero-edit-trigger"]').trigger('click')
   await w.find(`[data-test="hero-edit-${which}"]`).trigger('click')
   await flushPromises()
@@ -149,6 +153,9 @@ beforeEach(() => {
   svc.photos.mergePersons.mockReset().mockResolvedValue(undefined)
   svc.photos.purgePerson.mockReset().mockResolvedValue(undefined)
   svc.photos.detachAssetsFromPerson.mockReset().mockResolvedValue(undefined)
+  svc.photos.hidePerson.mockReset().mockResolvedValue(undefined)
+  svc.photos.listHiddenPersons.mockReset().mockResolvedValue([])
+  svc.photos.restorePerson.mockReset().mockResolvedValue(undefined)
   svc.photos.createAlbum.mockReset().mockResolvedValue({ id: 'alb-1', name: 'x' })
   svc.photos.batchAddToAlbum.mockReset().mockResolvedValue(undefined)
   svc.photos.listAlbums.mockReset().mockResolvedValue([])
@@ -190,6 +197,15 @@ describe('PhotosPersonDetail.vue — four-state gate (skeleton / load failed+ret
     expect(router.currentRoute.value.path).toBe('/photos/people')
   })
 
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct, so this is GREEN immediately, no RED theater): the not-found state's description
+  // line was untested.
+  it('the person-not-found state renders the photosPersonNotFoundHint description copy', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: null, relations: [] })
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="person-not-found"]').text()).toContain(zh.photosPersonNotFoundHint)
+  })
+
   // Coordinator ruling 4: a load failure must be distinguishable from "person does not
   // exist" (T9's failed flag was added exactly for this).
   it('load failure → dedicated error copy + retry button (does not reuse "Person not found")', async () => {
@@ -200,6 +216,14 @@ describe('PhotosPersonDetail.vue — four-state gate (skeleton / load failed+ret
     // Must not fall into the "person does not exist" branch
     expect(w.find('[data-test="person-not-found"]').exists()).toBe(false)
     expect(w.find('[data-test="person-skeleton"]').exists()).toBe(false)
+  })
+
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition): the load-failed state's
+  // description line was untested.
+  it('the load-failed state renders the photosPersonLoadFailedHint description copy', async () => {
+    svc.photos.getPerson.mockRejectedValue(new Error('network down'))
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="person-load-failed"]').text()).toContain(zh.photosPersonLoadFailedHint)
   })
 
   it('clicking "Retry" in the failed state → load gets called again; flips to normal content on success', async () => {
@@ -241,6 +265,54 @@ describe('PhotosPersonDetail.vue — four-state gate (skeleton / load failed+ret
     expect(w.findComponent(PersonHero).exists()).toBe(true)
     expect(w.findComponent(PersonAssetGrid).exists()).toBe(true)
     expect(w.find('[data-test="hero-name"]').text()).toBe('妈妈')
+  })
+})
+
+// Plan D Task 3 (re-shell + re-home overlays): the shell became the same
+// `.photos-root > .app > PhotosSidebar + main.main > PhotosTopbar + .photos-main` as
+// PhotosPeople.vue/PhotosAlbums.vue; every overlay (the selection-state floating bar / the seven
+// person-dialog-scrim dialogs / AlbumPickerDialog) moved inside .photos-root, except PhotoLightbox
+// which stays a sibling of .photos-root (the standing rule until Plan F lands, see the comment at
+// the file's template).
+
+describe('PhotosPersonDetail.vue — re-shell + overlay re-homing (Plan D Task 3)', () => {
+  // Fix round 1 (controller ruling on Deviation A, 2026-08-14): the plan's original
+  // `back = true` was a defect in the plan itself — Vue2's source (the authority here),
+  // PhotosPeopleTopbar.vue:6-9/36, always shows only title+sub on the People detail-state topbar,
+  // never a back chevron; the back affordance lives in the hero instead (Vue2's own
+  // `.detail-hero .back`, this app's counterpart being PersonHero's `hero-back` button,
+  // emit('back') → the container's existing goToPeopleList). PhotosTopbar.vue itself is
+  // unchanged, its `back`-vs-title/sub mutual exclusivity unchanged — so asserting a falsy back
+  // plus title/sub here is the real visual contract worth pinning down.
+  it('mounts .app shell; topbar shows person name with Unnamed fallback, no back chevron', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
+    const { w } = await mountView('7')
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.props('title')).toBe(zh.photosPersonUnnamedTitle)
+    expect(topbar.props('sub')).toBe(zh.photosPersonSubtitle)
+    expect(topbar.props('back')).toBeFalsy()
+    expect(w.find('.photos-root > .app').exists()).toBe(true)
+  })
+
+  it('renders selection bar and person dialogs inside .photos-root, lightbox outside', async () => {
+    const { w } = await mountView('7')
+    w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
+    await w.vm.$nextTick()
+    expect(w.find('.photos-root .selection-bar').exists()).toBe(true)
+    // PhotoLightbox stays a sibling of .photos-root (the standing rule until Plan F lands)
+    const rootEl = w.find('.photos-root').element
+    const lbComp = w.findComponent({ name: 'PhotoLightbox' })
+    expect(rootEl.contains(lbComp.element)).toBe(false)
+  })
+
+  // Plan D Task 4 (dialog class-name rework): the seven dialogs' outer scrim class has been
+  // re-anchored from .pd-scrim to Vue2's own .person-dialog-scrim, and still hangs inside
+  // .photos-root (Task 3's re-shell/re-home-overlays structure is unchanged).
+  it('once a dialog opens, its scrim hangs inside .photos-root and carries the Vue2 anchor class person-dialog-scrim', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    expect(w.find('.photos-root .person-dialog-scrim').exists()).toBe(true)
+    expect(w.find('[data-test="person-rename-dialog"]').classes()).toContain('person-dialog-scrim')
   })
 })
 
@@ -337,6 +409,20 @@ describe('PhotosPersonDetail.vue — co-appearance strip', () => {
     // Strip disappears after switching to the places tab
     await w.find('[data-test="person-tab-places"]').trigger('click')
     expect(w.findAll('[data-test="coappear-card"]')).toHaveLength(0)
+  })
+
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): the co-appear
+  // card's Unnamed-person fallback (PhotosPersonDetail.vue:718) had no covering assertion.
+  it('a co-appearing person with an empty name → the card renders the Unnamed person fallback copy', async () => {
+    svc.photos.getPerson.mockResolvedValue({
+      person: rawPerson(),
+      relations: [{ personId: 13, name: '', coverFaceId: 'f13', count: 5 }],
+    })
+    const { w } = await mountView('7')
+    const cards = w.findAll('[data-test="coappear-card"]')
+    expect(cards).toHaveLength(1)
+    expect(cards[0].text()).toContain(zh.photosPersonUnnamedTitle)
   })
 })
 
@@ -454,6 +540,164 @@ describe('PhotosPersonDetail.vue — rename dialog', () => {
     expect(svc.photos.updatePerson).toHaveBeenCalledTimes(1)
     release!()
     await flushPromises()
+  })
+})
+
+// Task 7 (Plan D): a rename that collides with an existing name switches to the duplicate-name
+// dupconfirm dialog (Vue2 dupConfirmDialog :293-314). The allPeople counterpart is people.people
+// (the full list, including unnamed) — this has listPersons return two people: the current
+// person (id=7, name "妈妈"/"Mom") and another already-named person (id=9, name "Ada").
+describe('PhotosPersonDetail.vue — rename dialog: duplicate-name dupconfirm', () => {
+  beforeEach(() => {
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [rawPerson(), rawPerson({ id: 9, name: 'Ada', coverFaceId: 'face-9' })],
+      facesIndexedUpTo: null,
+    })
+  })
+
+  it('typing a name that already exists (case- and whitespace-insensitive) → dupconfirm appears and no updatePerson is sent', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('  ada ')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(true)
+    expect(w.find('[data-test="person-rename-dialog"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).not.toHaveBeenCalled()
+  })
+
+  it('the title includes the name that was typed', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').text()).toContain('Ada')
+  })
+
+  // A Chinese name that, after trimming whitespace, is exactly identical to the original (e.g.
+  // "  妈妈 " → "妈妈") hits confirmRename's earlier "name unchanged" short-circuit (per Vue2
+  // :911) and never even reaches findNamedDuplicate — that path can't test whether excludeId
+  // actually takes effect. Using person 7's own English name "Ada" and typing the casing variant
+  // "ADA" instead (which, after trim, is NOT equal to the original 'Ada', so it clears that first
+  // short-circuit) actually reaches findNamedDuplicate(people.people, 'ADA', '7'), letting us
+  // assert it doesn't match "itself" as a duplicate (excludeId works).
+  it('renaming to a case variant of the person own current name → not counted as a duplicate (excludeId works), the rename goes straight through', async () => {
+    // Overrides just for this test case: in the people list, id=7 is also named "Ada" (matching
+    // what the detail page shows), and id=9 is changed to a non-conflicting "Bob" — otherwise
+    // "ADA" would match id=9's "Ada" first and be judged a real duplicate, which wouldn't test
+    // whether it's actually excluding "itself".
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: 'Ada' }), relations: [] })
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [rawPerson({ name: 'Ada' }), rawPerson({ id: 9, name: 'Bob', coverFaceId: 'face-9' })],
+      facesIndexedUpTo: null,
+    })
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('ADA')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { name: 'ADA' })
+  })
+
+  it('"Name anyway" → renames anyway (using the originally typed name) and closes the dialog', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('  ada ')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-name-anyway"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { name: 'ada' })
+    expect(w.find('[data-test="hero-name"]').text()).toBe('ada')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+
+  it('"Merge into existing" → merges into the existing person (id=9) and navigates back to the list page', async () => {
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-merge"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.mergePersons).toHaveBeenCalledWith('7', 9)
+    expect(push).toHaveBeenCalledWith('/photos/people')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+
+  it('"Cancel" → closes dupconfirm without renaming or merging', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-cancel"]').trigger('click')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).not.toHaveBeenCalled()
+    expect(svc.photos.mergePersons).not.toHaveBeenCalled()
+  })
+
+  it('Esc closes dupconfirm (same Esc layering convention as the other dialogs)', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    pressEscape()
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+})
+
+// Task 7 (Plan D): hiding a person (Vue2 hideCurrentPerson :914-925). Executes immediately, no
+// confirmation dialog, only shows in the Edit menu when hiddenPeopleSupported (PersonHero already
+// has its own tests for the gating itself; this only tests the container's wiring: calling the
+// store, the toast, navigation).
+describe('PhotosPersonDetail.vue — hide person', () => {
+  it('the Edit menu carries a Hide-this-person item (hiddenPeopleSupported defaults to true)', async () => {
+    const { w } = await mountView('7')
+    await w.find('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.find('[data-test="hero-edit-hide"]').exists()).toBe(true)
+  })
+
+  it('hiddenPeopleSupported=false (listHiddenPersons 404) → the menu has no Hide-this-person item', async () => {
+    svc.photos.listHiddenPersons.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    const { w } = await mountView('7')
+    await w.find('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.find('[data-test="hero-edit-hide"]').exists()).toBe(false)
+  })
+
+  it('success: calls hidePerson(id), shows no confirmation dialog, the toast carries the person name, and it navigates back to the list page', async () => {
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(svc.photos.hidePerson).toHaveBeenCalledWith('7')
+    // No confirmation dialog: the rename/delete etc. dialogs shouldn't appear.
+    expect(w.find('[data-test="person-rename-dialog"]').exists()).toBe(false)
+    expect(push).toHaveBeenCalledWith('/photos/people')
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonHiddenToast.replace('{label}', '"妈妈"'))
+  })
+
+  it('an unnamed person → the toast uses the fallback label (per Vue2 :919 name.trim() check)', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
+    const { w } = await mountView('7')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonHiddenToast.replace('{label}', zh.photosPersonUnnamedLabel))
+  })
+
+  it('failure: no navigation and no success toast', async () => {
+    svc.photos.hidePerson.mockRejectedValueOnce(new Error('boom'))
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(push).not.toHaveBeenCalledWith('/photos/people')
+    expect(toast.toasts).toHaveLength(0)
   })
 })
 
@@ -734,14 +978,17 @@ describe('PhotosPersonDetail.vue — delete person', () => {
     expect(dlg.text()).not.toContain(zh.photosPersonDeleteTitle)
   })
 
-  // Review Minor 6: the body text has two gray tiers — the second sentence sits in its
-  // own <span> (only that way can it take the dimmer token)
+  // Review Minor 6: the body text has two dimming tiers — the second sentence sits in its
+  // own <span> (only that way can it take the dimmer token).
+  // Plan D Task 4: after the class-name rework the selector is now person-dialog-body-dim
+  // (formerly .pd-body-dim; the class name is now re-anchored to Vue2's person-dialog-* family,
+  // .pd-body-dim no longer exists in the template/scoped styles).
   it('the delete dialog body splits into two tiers: the body sentence + the dimmer "undoable within 5 seconds"', async () => {
     const { w } = await mountView('7')
     await pickEditMenu(w, 'delete')
     const dlg = w.find('[data-test="person-delete-dialog"]')
     expect(dlg.text()).toContain(zh.photosPersonDeleteKeptBody)
-    const dim = dlg.find('.pd-body-dim')
+    const dim = dlg.find('.person-dialog-body-dim')
     expect(dim.exists()).toBe(true)
     expect(dim.text()).toBe(zh.photosPersonDeleteUndoHint)
   })
@@ -1051,6 +1298,9 @@ describe('PhotosPersonDetail.vue —— icons inside buttons (must have everythi
     expect(w.find('[data-test="person-merge-confirm"] svg').exists()).toBe(true)
   })
 
+  // Plan D Task 4: after the class-name rework the video-badge selector is now .tile-vid (the
+  // Vue2 anchor, the same class PersonAssetGrid reuses; the former .hero-picker-vid no longer
+  // exists in the template/scoped styles).
   it('the background-picker grid\'s video badge has a ▶ + duration (Vue2 :352; the same element as T11\'s PersonAssetGrid)', async () => {
     svc.photos.getPersonAssets.mockResolvedValue([
       { id: 'v1', takenAt: '2026-05-01T10:00:00Z', mimeType: 'video/mp4', originalName: 'v1.mp4', durationMs: 5000 },
@@ -1058,7 +1308,7 @@ describe('PhotosPersonDetail.vue —— icons inside buttons (must have everythi
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('open-hero-picker')
     await w.vm.$nextTick()
-    const badge = w.find('.hero-picker-vid')
+    const badge = w.find('.tile-vid')
     expect(badge.exists()).toBe(true)
     expect(badge.find('.vid-play').text()).toBe('▶')
     expect(badge.text()).toContain('0:05')

@@ -4,7 +4,9 @@
 // "a bit gray" but **completely unreadable**. Real consequence caught in this sprint's review —
 // three "failed but the dialog is deliberately kept open for retry" paths (rename person failed /
 // create album failed / name unnamed person failed) all hid the failure reason under the
-// z-index 220 .pd-scrim / .cad-overlay; users only saw a button that "did nothing" and kept retrying.
+// z-index 220 .pd-scrim / .cad-overlay (since Plan D Task 4: renamed to .person-dialog-scrim,
+// now 200, via the Vue2-parity stylesheet — still below toast either way); users only saw a
+// button that "did nothing" and kept retrying.
 //
 // jsdom does no cascade computation, so cross-component stacking cannot be read after mount; the
 // only option is numeric assertions on the raw <style> text (same `?raw` precedent established by
@@ -119,9 +121,16 @@ describe('Convention guard (THEMING.md §8): toasts must be above all modal scri
   })
 
   // Pin the two concrete scrims from the three review-hit paths individually (even if someone relaxes the previous test, this one remains).
+  //
+  // Plan D Task 4 update: both rules moved out of their component's own local `<style
+  // scoped>` block (now deleted) into the global parity stylesheet — `.pd-scrim` was
+  // renamed to the Vue2 anchor `.person-dialog-scrim` and now lives in
+  // photos-people.scss; `.cad-overlay` kept its name (ClusterActionDialog.vue's classes
+  // don't change per Plan D) but its rule now lives in that same parity file too. Point
+  // both rows at the file that actually carries the rule now.
   it.each([
-    ['src/views/PhotosPersonDetail.vue', '.pd-scrim'],
-    ['src/photos/components/ClusterActionDialog.vue', '.cad-overlay'],
+    ['src/photos/styles/vue2-parity/photos-people.scss', '.person-dialog-scrim'],
+    ['src/photos/styles/vue2-parity/photos-people.scss', '.cad-overlay'],
   ])('%s %s is below toast', (rel, selector) => {
     const src = Object.entries(files).find(([p]) => relOf(p) === rel)?.[1]
     expect(src, `${rel} not collected by glob`).toBeTruthy()

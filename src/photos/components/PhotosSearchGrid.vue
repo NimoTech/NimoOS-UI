@@ -131,22 +131,19 @@ function toggleMore(): void {
    Vue2 photos.scss:318's fixed 7 columns — this is a deliberate deviation from Vue2, logged. */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; padding: 0 32px 40px; }
 
-/* Vue2 photos.scss:2711-2718 (.more-results-bar + :hover). token mapping per this cycle's table:
-   --surface-2→--chip-bg / --surface-3→--chip-bg-hi / --line→--card-border /
-   --text-1→--fg / --text-2→--fg-muted (SmartViewCreateDialog.vue:43-45 four-tier mapping). */
-.more-results-bar {
-  display: flex; align-items: center; gap: 6px;
-  margin: 4px 32px 16px; padding: 9px 14px;
-  border-radius: 8px; border: 1px dashed var(--card-border);
-  background: var(--chip-bg); color: var(--fg-muted);
-  font-size: 12px; font-weight: 500; cursor: pointer;
-}
-.more-results-bar:hover { background: var(--chip-bg-hi); color: var(--fg); }
-
-/* Vue2 photos.scss:2722-2726 (.load-more-sentinel/.load-more-status). */
-.load-more-sentinel {
-  display: flex; align-items: center; justify-content: center;
-  height: 1px; margin: 4px auto 24px; padding: 20px 0;
-}
-.load-more-status { font-size: 12px; font-weight: 500; color: var(--fg-faint); }
+/* 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+   this component was missed in that round): the three Vue2-native class names
+   .more-results-bar (+:hover) / .load-more-sentinel / .load-more-status already have
+   character-for-character bare selectors in vue2-parity/photos.scss (:2743-2757), whose values
+   are Vue2's own local tokens (--line/--surface-2/--surface-3/--text-1/--text-2/--text-3,
+   defined in both the dark block and the .photos-root.is-light block). This file used to carry
+   a duplicate of each, mapped onto the repo-wide glass semantics
+   (--card-border/--chip-bg/--chip-bg-hi/--fg-muted/--fg/--fg-faint) — none of which
+   `.photos-root` redefines locally, so they fell through to theme.css's global accent-toned
+   glass values, and the [data-v-xxxx] attribute that scoped compilation adds pushed them above
+   the parity bare selectors. Dropping the duplicate lets the parity rules apply directly, with
+   no attribute-driven specificity boost needed. `.photos-wrap` and `.grid` (the deliberate
+   deviations registered as D2/D7) are unaffected and stay in this component — they are not
+   Vue2-native class names or values, so parity has no same-named bare selector to hand them
+   over to. */
 </style>

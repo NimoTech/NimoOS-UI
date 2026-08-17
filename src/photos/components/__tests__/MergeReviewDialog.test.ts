@@ -7,6 +7,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import zhCn from '../../../i18n/zh_cn'
 import enUs from '../../../i18n/en_us'
 import type { Person } from '../../util/peopleView'
@@ -22,11 +25,6 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import MergeReviewDialog, { type MergeSuggestion } from '../MergeReviewDialog.vue'
-// Raw source text (Vite `?raw`) + cascade helpers: jsdom neither computes cascade
-// styles nor enters real hover state, so we must parse the raw <style> block and
-// judge CSS precedence ourselves. Mechanism is identical to ClusterActionDialog.test.ts.
-import mergeReviewDialogRaw from '../MergeReviewDialog.vue?raw'
-import { extractStyleBlock, winningHoverBackground } from './cssCascade'
 
 const i18n = createI18n({
   legacy: false,
@@ -181,22 +179,66 @@ different values prove they take different code paths', () => {
   })
 })
 
-// Same CSS precedence trap as ClusterActionDialog (only remaining instance in codebase):
-// base class `.mrd-btn:hover` has specificity (0,2,0), overriding single-class
-// `.mrd-btn-primary` (0,1,0); on hover it swaps accent background to near-white
-// --chip-bg-hi while text stays --on-accent → "Merge" button becomes invisible.
-// Original `.mrd-btn-primary:hover` only had filter, no background to block it.
-describe('MergeReviewDialog.vue — primary action button background not stolen by .mrd-btn:hover on hover', () => {
-  const styleText = extractStyleBlock(mergeReviewDialogRaw)
-
-  it('merge button background on hover is still --accent, not --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['mrd-btn', 'mrd-btn-primary'])
-    expect(win.value).toContain('--accent')
-    expect(win.value).not.toContain('--chip-bg-hi')
+// Plan D Task 4 (scoped zeroed out): this file used to have a set of tests for "the hover state's
+// background doesn't get stolen by the base class's rule", reading the component's own
+// <style scoped> source via `?raw` and asserting, using ./cssCascade's small CSS-priority
+// calculator, which background declaration actually wins on hover (the same priority pitfall as
+// ClusterActionDialog.test.ts — a full-repo scan at the time found only these two spots). This
+// task deleted the component's entire <style scoped> block (the class names are unchanged, but
+// styling authority has moved to the .mrd-* parity rules in
+// src/photos/styles/vue2-parity/photos-people.scss — see the component's own script-header
+// comment), so the source read in via `?raw` no longer has a <style> block to extract, and that
+// test group's precondition no longer holds — deleted along with it. All that's pinned down here
+// is one thing: the component's root class name is unaffected.
+//
+// Fix round 1 (final-review Important, corrected alongside the same spot in
+// ClusterActionDialog.test.ts): the old comment above used to also say "once scoped is entirely
+// zeroed out this can't recur, parity's own internal declaration order is correct as is" — **that
+// sentence was wrong, and has been deleted.** The CSS cascade decides a winner per property, not
+// per rule as a whole: even when parity's file writes a variant rule after the base class, as
+// long as the variant's :hover doesn't re-declare some property itself, that property has no
+// competing declaration from the variant at all, and the base class's value still wins.
+// ClusterActionDialog's own `.cad-btn-danger:hover` reproduced the bug this way, unchanged, inside
+// parity (see that test file's own comment at the same spot); on the MRD side, `.mrd-btn-primary:
+// hover` was checked and has always had its own background, so it wasn't affected — but a
+// regression assertion is still added here to stop it from being casually removed later.
+describe('MergeReviewDialog.vue — Plan D Task 4: the root class names survive the scoped-style removal', () => {
+  it('after mounting, [data-test="mrd-overlay"] still carries the mrd-overlay class (the class-name rework only touched PhotosPersonDetail.vue pd-*, not this component)', () => {
+    const w = mountDialog({ open: true, suggestions, index: 0, people })
+    expect(w.find('[data-test="mrd-overlay"]').classes()).toContain('mrd-overlay')
+    expect(w.find('[data-test="mrd-panel"]').classes()).toContain('mrd-panel')
   })
+})
 
-  it('"Not a match" button (base class only) should get --chip-bg-hi on hover', () => {
-    const win = winningHoverBackground(styleText, ['mrd-btn'])
-    expect(win.value).toContain('--chip-bg-hi')
+// ── Plan D Task 4, fix round 1 (final-review Important): the merge-button hover regression
+// guard ────────────
+// The same approach as ClusterActionDialog.test.ts's own test group: reads the parity file's raw
+// text directly via node:fs, pulls the rule body by selector name (the same read-off-disk
+// approach already established by AppToast.zIndex.test.ts).
+const PARITY_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../styles/vue2-parity/photos-people.scss',
+)
+const parityCss = readFileSync(PARITY_PATH, 'utf8')
+
+function parityRuleBody(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(parityCss)
+  if (!m) throw new Error(`Rule not found in parity file: ${selector}`)
+  return m[1]
+}
+
+function backgroundOf(body: string): string | null {
+  const m = /background\s*:\s*([^;]+)/.exec(body)
+  return m ? m[1].trim() : null
+}
+
+describe('MergeReviewDialog.vue — Plan D Task 4 fix round 1: in parity, the merge button hover background is not stolen by .mrd-btn:hover', () => {
+  it('.mrd-btn-primary:hover must re-declare background itself (otherwise the base class .mrd-btn:hover var(--surface-3) takes that property — the same class of bug fixed in ClusterActionDialog, verified unaffected here)', () => {
+    const baseBg = backgroundOf(parityRuleBody('.mrd-btn:hover'))
+    const primaryHoverBg = backgroundOf(parityRuleBody('.mrd-btn-primary:hover'))
+    expect(baseBg).toBe('var(--surface-3)')
+    expect(primaryHoverBg, '.mrd-btn-primary:hover has no background declaration — by the CSS cascade the base class .mrd-btn:hover background wins on that property').not.toBeNull()
+    expect(primaryHoverBg).not.toBe(baseBg)
   })
 })

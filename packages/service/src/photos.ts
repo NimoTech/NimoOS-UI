@@ -234,6 +234,18 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/persons/${id}/restore`, {})
       return body<unknown>(res.data)
     },
+    // Task 7 (SP7-P5 People, Plan D): the literal counterpart of Vue2's src/service/photos.js:78-79
+    // endpoints — hidePerson is an immediate hide (non-destructive, no grace period,
+    // restorePerson can always undo it); listHiddenPersons fetches the hidden-person list, the
+    // backend responds with a bare array (no envelope), same unwrapping as mergeSuggestions().
+    async hidePerson(id: string | number): Promise<unknown> {
+      const res = await http.post(`/photos/persons/${id}/hide`, {})
+      return body<unknown>(res.data)
+    },
+    async listHiddenPersons(): Promise<unknown[]> {
+      const res = await http.get('/photos/persons/hidden')
+      return body<unknown[]>(res.data)
+    },
     async getPersonAssets(id: string | number, limit = 100, offset = 0): Promise<unknown> {
       const res = await http.get(`/photos/persons/${id}/assets`, { params: { limit, offset } })
       return body<unknown>(res.data)

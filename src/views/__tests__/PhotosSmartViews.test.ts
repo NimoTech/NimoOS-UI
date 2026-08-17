@@ -15,7 +15,8 @@
 //
 // What survives here: the `aiSmartViewOff` → `settings.fetchAiFeatures()` dedup behaviour
 // (this page still consumes that store directly, unrelated to the smart-view list) and the
-// `.photos-layout` responsive CSS structural check. The Moments band itself — rendering,
+// `.app` grid responsive CSS structural check (Plan C Task 2 re-shell: was a `.photos-layout`
+// check before the page moved onto the Vue2 `.app` grid shell). The Moments band itself — rendering,
 // gating, drag-reorder, the new slim settings hint, and the h2→h1 promotion — is covered in
 // the sibling file `../PhotosSmartViews.moments.test.ts` (SP15-P1-T5's established home for
 // band behaviour; this branch's new cases were added there, not duplicated here).
@@ -40,6 +41,8 @@ import PhotosSmartViews from '../PhotosSmartViews.vue'
 // assertions against the <style> source text, never for behavioral assertions.
 import photosSmartViewsRaw from '../PhotosSmartViews.vue?raw'
 import { usePhotosSettingsStore } from '../../photos/stores/settings'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -110,9 +113,32 @@ describe('PhotosSmartViews.vue — aiFeatures fetch dedup (§7e-15, unrelated to
 // ── style block structural assertions (?raw, following the existing color-guard /
 // PersonAssetGrid.test.ts precedent) ──
 describe('PhotosSmartViews.vue — style block structural check', () => {
-  it('.photos-layout collapses gap to 0 inside the ≤768px media query (matching the established shape for this area)', () => {
+  // Plan C Task 2: after the re-skin the sidebar width is owned by the `.app` CSS grid
+  // column, so narrowing to ≤768px now collapses the whole sidebar column (the same
+  // `.app { grid-template-columns: 1fr; }` as Photos.vue) rather than setting `gap: 0` on
+  // `.photos-layout`.
+  it('.app collapses the sidebar column to a single column inside the ≤768px media query (matching the shape Photos.vue established)', () => {
     const m = /@media \(max-width: 768px\)\s*\{([^}]*\{[^}]*\})*[^}]*\}/.exec(photosSmartViewsRaw)
     expect(m).not.toBeNull()
-    expect(photosSmartViewsRaw).toContain('.photos-layout { gap: 0; }')
+    expect(photosSmartViewsRaw).toContain('.app { grid-template-columns: 1fr; }')
+  })
+})
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): Vue2 mounts the same <PhotosTopbar> for
+// activeNav === 'smart' (PhotosTimeline.vue:957-971) with title = topbarTitle's 'smart' branch
+// ('For You', PhotosTimeline.vue:190) and sub = topbarSubContext's DEFAULT branch (navMap has
+// no 'smart' entry, PhotosTimeline.vue:229-234) -- the same full-library count line the topbar
+// already computes on its own by default, so no `sub` override is needed from this page.
+describe('Fix-1 item 1: PhotosTopbar restored (title=For You, default full-library sub)', () => {
+  it('renders the topbar with title=For You, no search box', async () => {
+    const { w } = await mountView()
+    expect(w.findComponent(PhotosTopbar).exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosMoForYou)
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar', async () => {
+    const { w } = await mountView()
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
   })
 })

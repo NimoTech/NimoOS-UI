@@ -8,6 +8,7 @@
 // — label is localized text after t()), instead uses DateRange.key field added in dateRange.ts.
 // The "data-on still true after locale switch" test in this file is the main guard for this fix.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -15,7 +16,7 @@ import en from '../../../i18n/en_us'
 import { QUICK_KEYS, QUICK_LABEL_KEYS, type DateRange } from '../../util/dateRange'
 import SearchDatePopover from '../SearchDatePopover.vue'
 import searchDatePopoverRaw from '../SearchDatePopover.vue?raw'
-import { extractStyleBlock, parseCssRules, winningHoverBackground } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
@@ -275,92 +276,120 @@ describe('Footer buttons', () => {
   })
 })
 
-// ── Dead CSS not migrated (A4)────────────────────────────────────────────
-describe('Dead CSS not migrated', () => {
-  it('.cal-cell.muted has no consumer in template (grep zero hits), should not appear in styles either', () => {
+// 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+// this component was missed in that round, and the brief names it explicitly: "align their
+// chrome to parity like the FilterChip/Popover treatment"): the whole set of colour and
+// non-colour visual rules .fpop/.fpop-title/.fpop-quick(+ the hover hard constraint)/.cal-head/
+// .cal-nav/.cal/.cal-cell(+ every variant)/.btn/.btn-primary has been removed wholesale from
+// this component's scoped style and handed to the bare selectors in vue2-parity/photos.scss
+// (:2690-2726; the .btn family goes through the global `.photos-root .btn` /
+// `.photos-root .btn-primary` rules at :290-301). `.fpop-row` only lost the three declarations
+// that duplicated parity (display/gap/margin-bottom); its own `flex-wrap: wrap` (a New-UI-only
+// additive fix that neither Vue2 nor parity has) stays in this component, so that one is not a
+// full hand-over. The assertions here now check that those rules really are gone from this
+// component, and the hover hard constraint plus the non-colour visual properties are checked
+// against the shared parity file instead (the same shape as the same-day rollbacks landed in
+// PhotosFilterChip.test.ts / PhotosFilterPopover.test.ts).
+describe('styles: the .fpop/.cal/.btn families are now owned by the shared parity scss (no longer this component own scoped style)', () => {
+  it('this component scoped style keeps only .fpop-row (the flex-wrap additive property) and .fpop-foot (+ child selectors) — the rules parity does not cover', () => {
     const style = extractStyleBlock(searchDatePopoverRaw)
-    expect(style.length).toBeGreaterThan(0)
-    const rules = parseCssRules(style)
-    expect(rules.some((r) => r.selectors.includes('.cal-cell.muted'))).toBe(false)
-  })
-})
-
-// ── Styles: :hover hard constraint + --on-accent positive assertion + non-color visual properties ─
-describe('Styles', () => {
-  it('cssCascade: .fpop-quick[data-on="true"] hover winning rule contains :hover and data-on', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['fpop-quick'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('data-on')
-  })
-
-  it('cssCascade: .cal-cell.in hover winning rule contains :hover and "in"', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'in'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('in')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors).toEqual(['.fpop-row', '.fpop-foot', '.fpop-foot .fpop-quick', '.fpop-foot .btn'])
   })
 
-  it('cssCascade: .cal-cell.start hover winning rule contains :hover and start', () => {
+  // `.fpop-row`'s `flex-wrap: wrap` is a New-UI-only additive fix (neither Vue2 nor parity has
+  // that property), so it cannot be handed to parity — it stays in this component, and this
+  // asserts it is the only declaration left (display/gap/margin went to parity's bare
+  // `.fpop-row`).
+  it('this component .fpop-row keeps flex-wrap: wrap as its only additive declaration', () => {
     const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'start'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('start')
+    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
+    expect(rule).toBeDefined()
+    expect(rule!.body.replace(/\s/g, '')).toBe('flex-wrap:wrap;')
   })
 
-  it('cssCascade: .cal-cell.end hover winning rule contains :hover and end', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'end'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('end')
+  it('cssCascade: parity scss declares .fpop-quick[data-on="true"] and .fpop-quick:hover as a single rule sharing one set of values (not two rules fighting each other)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
+      (r) => r.selectors.includes('.fpop-quick:hover') && r.selectors.includes('.fpop-quick[data-on="true"]'),
+    )
+    expect(rule).toBeDefined()
   })
 
-  // --on-accent positive assertion (accent solid + white text scenario, legal usage).
-  it('.cal-cell.start / .cal-cell.end rules have background --accent, foreground --on-accent', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rules = parseCssRules(style)
+  // Correction (the first version got this wrong): in Vue2/parity, .cal-cell.in/.start/.end do
+  // not each carry their own :hover variant — the hover lock relies on **source order** at equal
+  // specificity (`.cal-cell:hover` comes first, the three variants after it, and on a tie the
+  // later declaration wins, the same trick as .fchip[data-on="true"] sitting after .fchip:hover),
+  // not on every variant declaring its own :hover. The parity scss is a verbatim transcription
+  // and keeps that order-dependent shape as-is.
+  it('parity scss: .cal-cell:hover comes before .cal-cell.in/.start/.end (the hover lock relies on source order, as Vue2 wrote it)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const hoverIdx = parityScss.indexOf('.cal-cell:hover')
+    expect(hoverIdx).toBeGreaterThan(-1)
+    for (const variant of ['.cal-cell.in {', '.cal-cell.start {', '.cal-cell.end {']) {
+      const idx = parityScss.indexOf(variant)
+      expect(idx, `the parity scss should contain ${variant}`).toBeGreaterThan(-1)
+      expect(idx, `${variant} should come after .cal-cell:hover`).toBeGreaterThan(hoverIdx)
+    }
+  })
+
+  // An accent solid fill with light text, a legal usage — parity uses the literal `white` (a
+  // verbatim transcription of Vue2), not this repo's own --on-accent (the parity file never
+  // references that token; --on-accent is New-UI-only).
+  it('parity scss: the .cal-cell.start / .cal-cell.end rules have background --accent and foreground white', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rules = parseCssRules(parityScss)
     const startRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell.start')
     const endRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell.end')
     expect(startRule).toBeDefined()
     expect(endRule).toBeDefined()
     expect(startRule!.body).toContain('background: var(--accent)')
-    expect(startRule!.body).toContain('color: var(--on-accent)')
+    expect(startRule!.body).toContain('color: white')
     expect(endRule!.body).toContain('background: var(--accent)')
-    expect(endRule!.body).toContain('color: var(--on-accent)')
+    expect(endRule!.body).toContain('color: white')
   })
 
-  it('.fpop rule contains width: 320px (not default width — A1 cross-task fix)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
+  it('parity scss: the .fpop rule contains width: 320px (the A1 cross-task correction still holds)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('width: 320px')
   })
 
-  it('.cal-nav rule contains transition: all 0.2s (non-color visual property, anchor rule body first then assert)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-nav')
+  it('parity scss: the .cal-nav rule contains transition: all 0.2s (a non-color visual property — anchor the rule body first, then assert)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-nav')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('transition: all 0.2s')
   })
 
-  it('.cal-cell rule contains font-variant-numeric: tabular-nums', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell')
+  it('parity scss: the .cal-cell rule contains font-variant-numeric: tabular-nums', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('font-variant-numeric: tabular-nums')
   })
 
-  it('.cal rule contains grid-template-columns: repeat(7,1fr)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal')
+  it('parity scss: the .cal rule contains grid-template-columns: repeat(7,1fr)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal')
     expect(rule).toBeDefined()
     expect(rule!.body.replace(/\s/g, '')).toContain('grid-template-columns:repeat(7,1fr)')
   })
 
-  it('.fpop-row rule contains flex-wrap: wrap', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
+  it('parity scss: the .fpop-row rule contains display: flex / gap: 6px (flex-wrap is not in parity — see the "this component .fpop-row keeps flex-wrap" case above, that one is a New-UI-only additive declaration)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
     expect(rule).toBeDefined()
-    expect(rule!.body).toContain('flex-wrap: wrap')
+    expect(rule!.body).toContain('display: flex')
+    expect(rule!.body).not.toContain('flex-wrap')
+  })
+
+  // The A4 conclusion (dead CSS is not migrated) is unchanged; only the assertion target moved
+  // from this component's scoped style to the shared parity file: .cal-cell.muted still has zero
+  // hits in this component's template, and parity transcribed that dead Vue2 CSS with no consumer.
+  it('the parity scss contains .cal-cell.muted (a verbatim transcription of dead Vue2 CSS) while this component template has no consumer for it (A4)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    expect(parityScss).toContain('.cal-cell.muted')
   })
 })

@@ -3,6 +3,7 @@
 // (except tile-level assertions already moved to SearchResultTile.test.ts). Only mock @nimotech/nimoos-service's
 // thumbnailUrl; IntersectionObserver stubbed (afterEach restores, prevents leaking to other test files).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -222,10 +223,23 @@ describe('styles', () => {
     expect(m![1]).toMatch(/gap:\s*4px/)
   })
 
-  it('.more-results-bar winning background on hover is --chip-bg-hi (cssCascade judges specificity, selector contains :hover)', () => {
-    const win = winningHoverBackground(styleText, ['more-results-bar'])
+  // 2026-08-13 rollback (Fix-3 item 7 follow-up): .more-results-bar (+:hover) /
+  // .load-more-sentinel / .load-more-status have been removed wholesale from this component's
+  // scoped style and handed over to the bare selectors in vue2-parity/photos.scss — assert here
+  // that the rules are gone from this component, and check the shared parity file for the hover
+  // guarantee instead.
+  it('the scoped style of this component no longer holds .more-results-bar/.load-more-sentinel/.load-more-status (handed over to parity)', () => {
+    const selectors = [...styleText.matchAll(/([^{}]+)\{/g)].map((m) => m[1].trim())
+    expect(selectors.some((s) => s.includes('more-results-bar'))).toBe(false)
+    expect(selectors.some((s) => s.includes('load-more-sentinel'))).toBe(false)
+    expect(selectors.some((s) => s.includes('load-more-status'))).toBe(false)
+  })
+
+  it('parity scss: the winning background for .more-results-bar on hover is --surface-3', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const win = winningHoverBackground(parityScss, ['more-results-bar'])
     expect(win.selector).toContain(':hover')
-    expect(win.value).toContain('--chip-bg-hi')
+    expect(win.value).toContain('--surface-3')
   })
 
   it('.match-badge not in style block (dead CSS, scss:2728-2738 not migrated, inverse assertion)', () => {

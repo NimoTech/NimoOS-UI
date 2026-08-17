@@ -450,7 +450,7 @@ describe('PhotosLibraryPicker.vue', () => {
     // 05 the only unloaded dated bucket.
     expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(3)
 
-    const body = w.get('.lib-picker-body')
+    const body = w.get('.picker-body')
     Object.defineProperty(body.element, 'scrollHeight', { value: 1000, configurable: true })
     Object.defineProperty(body.element, 'clientHeight', { value: 500, configurable: true })
     body.element.scrollTop = 550 // 1000 - 550 - 500 = -50 < 200 → near the bottom
@@ -482,7 +482,7 @@ describe('PhotosLibraryPicker.vue', () => {
     // reports 0 for both, component reads as "not laid out yet" and deliberately
     // refuses to act on.
     await w.setProps({ open: true })
-    const body = w.get('.lib-picker-body')
+    const body = w.get('.picker-body')
     Object.defineProperty(body.element, 'clientHeight', { value: 500, configurable: true })
     Object.defineProperty(body.element, 'scrollHeight', { value: 100, configurable: true })
     await flushPromises()
@@ -504,7 +504,7 @@ describe('PhotosLibraryPicker.vue', () => {
     await flushPromises()
 
     await w.setProps({ open: true })
-    const body = w.get('.lib-picker-body')
+    const body = w.get('.picker-body')
     Object.defineProperty(body.element, 'clientHeight', { value: 500, configurable: true })
     Object.defineProperty(body.element, 'scrollHeight', { value: 2000, configurable: true })
     await flushPromises()

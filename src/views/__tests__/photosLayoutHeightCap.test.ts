@@ -35,26 +35,42 @@ const CAPPED = [
   // it: `allPhotosLayoutViews()` only collects pages whose source still literally contains
   // `.photos-layout {` — Photos.vue no longer does, so it's automatically excluded and doesn't
   // need to be moved into EXEMPT.
+  // As of Plan C Task 2 (shared re-shell), five more pages — PhotosAlbums.vue /
+  // PhotosAlbumDetail.vue / PhotosSmartViews.vue (see the EXEMPT removal below) /
+  // PhotosSmartViewDetail.vue / PhotosMomentDetail.vue — switched to the same `.app` grid shell
+  // and likewise no longer contain a literal `.photos-layout {`; the same automatic-exclusion
+  // rule covers them, and they have been dropped from the CAPPED list below (the height cap is
+  // now the `.app` grid's job, not the `.photos-layout` rule string this file locks).
+  // As of Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward), PhotosSearch.vue
+  // switched to the `.app` grid shell too and is dropped below for the same reason — it no
+  // longer contains a literal `.photos-layout {`, so `allPhotosLayoutViews()` excludes it
+  // automatically and it does not need to move into EXEMPT.
+  // As of Plan D Task 2 (People re-shell), PhotosPeople.vue has likewise switched to the `.app`
+  // grid shell, so it's dropped from below the same way (`.people-body` still takes over the
+  // inner scroll responsibility, unchanged) — it no longer contains a literal `.photos-layout {`,
+  // so `allPhotosLayoutViews()` excludes it automatically; no need to move it into EXEMPT.
+  // As of Plan D Task 3 (detail-page re-shell), PhotosPersonDetail.vue has likewise switched to
+  // the `.app` grid shell, so it's dropped from below the same way (`.detail-body` still takes
+  // over the inner scroll responsibility, unchanged) — it no longer contains a literal
+  // `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to move it
+  // into EXEMPT.
   'PhotosFavorites.vue',        // .photos-wrap of PhotosGrid
   'PhotosPlaceAssets.vue',      // .photos-wrap of PhotosGrid
   'PhotosTrash.vue',            // .trash-scroll
-  'PhotosSearch.vue',           // root .photos-wrap of the PhotosSearchGrid component (flex:1 + overflow-y:auto)
-  'PhotosSmartViewDetail.vue',  // .sv-detail-main / .sv-detail-side — each grid cell scrolls independently
-  'PhotosMomentDetail.vue',     // same as above — reuses that sv-detail-* two-column skeleton (SP15-P1-T7)
-  'PhotosPersonDetail.vue',     // .detail-body
-  'PhotosAlbums.vue',           // .albums-scroll
-  'PhotosPeople.vue',           // .people-body
-  'PhotosAlbumDetail.vue',      // SP15-P2c: .sv-detail-main / .sv-detail-side, same as above (was .album-photos-wrap)
   'PhotosSettings.vue',         // .ps-scroll
 ]
 
-// Exempt: these two pages have no inner scroll container anywhere on the page, so capping would
-// clip content out of reach — they need a scroll container built first before they can be capped,
-// already tracked separately. Their staying on min-height:100% is current behavior (the sidebar
-// scrolls along with the content), not a regression, but it IS a known defect; once a scroll
-// container is added, move them from this list to CAPPED.
+// Exempt: this page has no inner scroll container anywhere, so capping would clip content out of
+// reach — it needs a scroll container built first before it can be capped, already tracked
+// separately. Its staying on min-height:100% is current behavior (the sidebar scrolls along with
+// the content), not a regression, but it IS a known defect; once a scroll container is added,
+// move it from this list to CAPPED.
+//
+// PhotosSmartViews.vue got its scroll container in Plan C Task 2 (`.mo-section` promoted to
+// flex:1 + overflow-y:auto) and was capped along with the re-shell, so it is removed from this
+// list (it no longer contains a literal `.photos-layout {` either, so `allPhotosLayoutViews()`
+// already excludes it).
 const EXEMPT: Record<string, string> = {
-  'PhotosSmartViews.vue': 'Smart views list page has no inner scroll container; capping would clip content — pending a separate ticket to add one before capping',
   'PhotosPlaces.vue': 'Places map page has no inner scroll container and juggles map canvas sizing; capping is high-risk — pending a separate ticket',
 }
 

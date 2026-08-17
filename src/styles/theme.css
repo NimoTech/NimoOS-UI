@@ -10,6 +10,13 @@
    121+ ignores its ::-webkit-scrollbar-* pseudo-element styles entirely, so a WebKit-side
    theme override can't rescue it either.
    Guarded by: src/styles/scrollbarTheme.test.ts. */
+/* Critical: the thumb colour must be var(--scrollbar-thumb), never a literal. This `*` rule pins
+   the value explicitly onto every single element, and an element's own declaration beats the
+   flipped value inherited from :root — a hardcoded literal would leave every inner scroll
+   container in the light theme with a pale thumb on an equally pale track (invisible). On top of
+   that, once an element sets scrollbar-color, Chrome 121+ ignores its ::-webkit-scrollbar-*
+   pseudo-element styling entirely, so the webkit theme override cannot rescue it either.
+   Guard: src/styles/scrollbarTheme.test.ts. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
@@ -811,6 +818,13 @@ body::after {
    ratios anchored to a comfortable 108px cell: gap 5/108≈0.046, font-size 16.7/108≈0.155,
    radius 18/108≈0.167 */
 .kind-app, .kind-folder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); }
+/* Cap the tile root at the cell width (bug.txt #6, second form): .grid-item is a flex container,
+   and the SFC's tile roots (.app-tile/.folder-tile-wrap) are flex items with no width ceiling —
+   a nowrap long name stretches one out to its content width (the min-width:auto floor),
+   .app-label's max-width:100% then resolves against that stretched parent, the ellipsis never
+   triggers, and the overflow covers the neighbouring cell. Capping at 100% is what finally
+   constrains the label to the cell width so long names collapse to "…". */
+.kind-app .app-tile, .kind-folder .folder-tile-wrap { max-width: 100%; }
 /* Cap the tile root's width at the cell width (bug.txt #6, second form): .grid-item is a
    flex container, and the SFC's tile root (.app-tile/.folder-tile-wrap), as a flex item,
    has no upper width bound -- a long nowrap name would stretch it to its content width

@@ -67,6 +67,20 @@ describe('scanDist: content whitelist only hollows matched substring, doesn\'t p
     expect(findings.filter((f) => f.word !== '__skipped__')).toEqual([])
   })
 
+  it('legit wallpaper theme menu entry (themePhoto, SP11) passes, but a bare 照片 still trips', () => {
+    write('assets/index-abc.js', 'const o={themePhoto:"照片…"};')
+    expect(scanDist(tmp).filter((f) => f.word !== '__skipped__')).toEqual([])
+    // The allowlist entry is key-qualified: the same copy under another key must not pass.
+    write('assets/index-abc.js', 'const o={somethingElse:"照片…"};')
+    expect(scanDist(tmp).some((f) => f.word === '照片')).toBe(true)
+  })
+
+  it('legit Google Drive guide sentence ("搜索 <b>Google Drive API</b>") passes', () => {
+    write('guide/google-drive.html', '<p>左侧菜单 <span class="path">API 和服务 → 库</span>,搜索 <b>Google Drive API</b>,点进去 → <b>启用</b>。</p>')
+    const findings = scanDist(tmp)
+    expect(findings.filter((f) => f.word !== '__skipped__')).toEqual([])
+  })
+
   it('legit wallpaper theme menu entry (themePhoto, SP11) passes, but a bare photo still trips', () => {
     write('assets/index-abc.js', 'const o={themePhoto:"照片…"};')
     expect(scanDist(tmp).filter((f) => f.word !== '__skipped__')).toEqual([])

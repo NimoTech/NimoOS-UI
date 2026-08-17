@@ -11,6 +11,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
       purgePerson: vi.fn(() => Promise.resolve({})),
       mergePersons: vi.fn(() => Promise.resolve({})),
       rejectMergeSuggestion: vi.fn(() => Promise.resolve({})),
+      hidePerson: vi.fn(() => Promise.resolve({})),
+      listHiddenPersons: vi.fn(() => Promise.resolve([])),
+      restorePerson: vi.fn(() => Promise.resolve({})),
     },
   },
 }))
@@ -593,6 +596,107 @@ describe('photosPeople store', () => {
     })
   })
 
+  // Task 7 (Plan D, SP7-P5 People): the Hidden people section + hide/unhide actions, mirroring
+  // Vue2 hidePersonAction/fetchHiddenPeople/unhidePerson (photos.js:1585-1633).
+  describe('hiddenPeople / hidePerson / unhidePerson', () => {
+    it('fetchHiddenPeople success → hiddenPeople is filled with Person[], and hiddenPeopleLoaded/hiddenPeopleSupported are both true', async () => {
+      ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1', name: 'Zed' })])
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeople).toHaveLength(1)
+      expect(s.hiddenPeople[0]).toMatchObject({ id: 'h1', name: 'Zed' })
+      expect(s.hiddenPeopleLoaded).toBe(true)
+      expect(s.hiddenPeopleSupported).toBe(true)
+    })
+
+    it('hiddenPeopleSupported defaults to true (assume supported until a real 404 disproves it)', () => {
+      const s = usePhotosPeople()
+      expect(s.hiddenPeopleSupported).toBe(true)
+    })
+
+    it('fetchHiddenPeople 404 → hiddenPeopleSupported flips to false (feature detection, not an error, no console.error)', async () => {
+      const err = Object.assign(new Error('not found'), { response: { status: 404 } })
+      ;(service.photos.listHiddenPersons as any).mockRejectedValueOnce(err)
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeopleSupported).toBe(false)
+      expect(consoleSpy).not.toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('fetchHiddenPeople failing with a non-404 → hiddenPeopleSupported is unchanged and console.error is called', async () => {
+      ;(service.photos.listHiddenPersons as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeopleSupported).toBe(true)
+      expect(consoleSpy).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('hidePerson success → calls service.photos.hidePerson(id), optimistically removes it from people, and returns true', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      const ok = await s.hidePerson('p1')
+      expect(ok).toBe(true)
+      expect(s.people).toHaveLength(0)
+      expect(service.photos.hidePerson).toHaveBeenCalledWith('p1')
+    })
+
+    it('hidePerson failure → the snapshot is rolled back into its original position and it returns false', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({
+        persons: [rawPerson({ id: 'p0' }), rawPerson({ id: 'p1', name: 'Ann' }), rawPerson({ id: 'p2' })],
+        facesIndexedUpTo: null,
+      })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      ;(service.photos.hidePerson as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const ok = await s.hidePerson('p1')
+      expect(ok).toBe(false)
+      expect(s.people).toHaveLength(3)
+      expect(s.people[1]).toMatchObject({ id: 'p1', name: 'Ann' }) // reinserted at its original index
+      consoleSpy.mockRestore()
+    })
+
+    it('while hidePerson is in flight: a racing fetchPeople must not pull the just-removed person back in', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      let resolveHide: (() => void) | undefined
+      ;(service.photos.hidePerson as any).mockImplementation(() => new Promise((resolve) => { resolveHide = () => resolve({}) }))
+      const hidePromise = s.hidePerson('p1')
+      // While the hide request is still in flight, a racing fetchPeople hits the same backend
+      // data (which doesn't reflect the hide result yet).
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      await s.fetchPeople()
+      expect(s.people).toHaveLength(0) // blocked by _pendingHides, doesn't come back from the dead
+      resolveHide?.()
+      await hidePromise
+    })
+
+    it('unhidePerson success → calls restorePerson(id) and re-fetches both people and hiddenPeople in finally', async () => {
+      const s = usePhotosPeople()
+      await s.unhidePerson('h1')
+      expect(service.photos.restorePerson).toHaveBeenCalledWith('h1')
+      expect(service.photos.listPersons).toHaveBeenCalled()
+      expect(service.photos.listHiddenPersons).toHaveBeenCalled()
+    })
+
+    it('unhidePerson failure → still re-fetches both lists (per Vue2 unconditional finally) and console.error is called', async () => {
+      ;(service.photos.restorePerson as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.unhidePerson('h1')
+      expect(consoleSpy).toHaveBeenCalled()
+      expect(service.photos.listPersons).toHaveBeenCalled()
+      expect(service.photos.listHiddenPersons).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+  })
+
   describe('__resetForTest', () => {
     // Style cleanup: use describe-level beforeEach/afterEach to toggle fake timers, not inline in it() —
     // vi.useFakeTimers()/vi.useRealTimers() — consistent with other fake-timer describe blocks in this file.
@@ -611,6 +715,21 @@ describe('photosPeople store', () => {
       expect(s.mergeSuggestions).toEqual([])
       await vi.advanceTimersByTimeAsync(5000)
       expect(service.photos.purgePerson).not.toHaveBeenCalled() // timer was cleared
+    })
+
+    // Task 7 (Plan D): __resetForTest must also clear the Hidden-people-related state and
+    // _pendingHides, otherwise when the same id gets hidePerson'd in the next test case,
+    // fetchPeople's filtering logic would be polluted by a dangling entry left over from the
+    // previous case (the same precedent as _purgeTimers in the previous test case's comment).
+    it('clears the Hidden people state', async () => {
+      const s = usePhotosPeople()
+      ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1' })])
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeople).toHaveLength(1)
+      s.__resetForTest()
+      expect(s.hiddenPeople).toEqual([])
+      expect(s.hiddenPeopleLoaded).toBe(false)
+      expect(s.hiddenPeopleSupported).toBe(true)
     })
   })
 })

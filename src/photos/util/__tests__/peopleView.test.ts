@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   toPerson, personInitial, namedOf, unnamedOf, visibleUnnamedOf,
   hiddenSingletonCountOf, unnamedCountAt, sortNamed, monthKeyLabel, mergeConfidencePct,
-  mergeReasonKey, nimoReadParts,
+  mergeReasonKey, nimoReadParts, findNamedDuplicate,
   PLACE_PALETTE, groupPlaces, colorPoints,
   topPersons, topPlaces, byYear, resolvePersonByName,
   type Person, type PersonPlace, type PlaceGroup,
@@ -43,6 +43,35 @@ describe('namedOf / unnamedOf', () => {
   })
   it('does not change the original order or mutate the input in place', () => {
     const src = [...list]; namedOf(src); expect(src.map((p) => p.id)).toEqual([1, 2, 3])
+  })
+})
+
+// Task 7 (Plan D, Vue2 peopleUtils.js:36-40): the duplicate-name detection pure function, shared
+// by ClusterActionDialog.vue's naming state and PhotosPersonDetail.vue's rename state.
+describe('findNamedDuplicate', () => {
+  const list = [P({ id: 1, name: 'Ada' }), P({ id: 2, name: 'Bob' }), P({ id: 3, name: '' })]
+
+  it('trims and matches a named person case-insensitively', () => {
+    expect(findNamedDuplicate(list, '  ada  ')).toMatchObject({ id: 1, name: 'Ada' })
+    expect(findNamedDuplicate(list, 'ADA')).toMatchObject({ id: 1, name: 'Ada' })
+  })
+  it('no match → null', () => {
+    expect(findNamedDuplicate(list, 'Carol')).toBeNull()
+  })
+  it('an empty or whitespace-only name → null (an unnamed person is never treated as a duplicate)', () => {
+    expect(findNamedDuplicate(list, '')).toBeNull()
+    expect(findNamedDuplicate(list, '   ')).toBeNull()
+  })
+  it('excludeId skips the person themselves (renaming to a case/whitespace variant of their own name is not a duplicate)', () => {
+    expect(findNamedDuplicate(list, 'Ada', 1)).toBeNull()
+    // Mixed number/string ids must still match (hard rule: id comparison goes through String())
+    expect(findNamedDuplicate(list, 'Ada', '1')).toBeNull()
+  })
+  it('excludeId does not stop a different duplicate person from matching', () => {
+    expect(findNamedDuplicate(list, 'Ada', 2)).toMatchObject({ id: 1 })
+  })
+  it('a non-array list → null, no crash', () => {
+    expect(findNamedDuplicate(null as unknown as Person[], 'Ada')).toBeNull()
   })
 })
 

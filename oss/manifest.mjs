@@ -129,6 +129,10 @@ export const DELETE = [
   'src/views/__tests__/PhotosFavorites.test.ts',
   'src/views/__tests__/photosGlassSurfaces.test.ts',
   'src/views/__tests__/photosLayoutHeightCap.test.ts',
+  // Fix-8 round 2 (owner acceptance, 2026-08-14): guard that every sibling-of-`.app` overlay
+  // (lightbox/scrims/select-bar/toast) keeps an explicit z-index above `.app`'s own — see that
+  // test's own header comment and acceptance-fix-report.md §F8-r2.
+  'src/views/__tests__/photosOverlayZIndex.test.ts',
   // SP15-P2a task 4: the carried-in [data-selected] defect fix's own test, added under
   // __tests__/ (unlike the three siblings named in the comment above) so a plain glob over
   // this directory does still find it — it is listed here anyway because this table is
@@ -1226,16 +1230,25 @@ import PhotosSettings from '../views/PhotosSettings.vue'
 // "a bit gray" but **completely unreadable**. Real consequence caught in this sprint's review —
 // three "failed but the dialog is deliberately kept open for retry" paths (rename person failed /
 // create album failed / name unnamed person failed) all hid the failure reason under the
-// z-index 220 .pd-scrim / .cad-overlay; users only saw a button that "did nothing" and kept retrying.
+// z-index 220 .pd-scrim / .cad-overlay (since Plan D Task 4: renamed to .person-dialog-scrim,
+// now 200, via the Vue2-parity stylesheet — still below toast either way); users only saw a
+// button that "did nothing" and kept retrying.
 `,
     replace: `// Why this needs a test: the scrims all carry backdrop-filter, so a toast buried under one is not
 // "a bit gray" but **completely unreadable** — users only see a button that "did nothing" and keep retrying.
 ` },
   { path: 'src/components/AppToast.zIndex.test.ts',
     find: `  // Pin the two concrete scrims from the three review-hit paths individually (even if someone relaxes the previous test, this one remains).
+  //
+  // Plan D Task 4 update: both rules moved out of their component's own local \`<style
+  // scoped>\` block (now deleted) into the global parity stylesheet — \`.pd-scrim\` was
+  // renamed to the Vue2 anchor \`.person-dialog-scrim\` and now lives in
+  // photos-people.scss; \`.cad-overlay\` kept its name (ClusterActionDialog.vue's classes
+  // don't change per Plan D) but its rule now lives in that same parity file too. Point
+  // both rows at the file that actually carries the rule now.
   it.each([
-    ['src/views/PhotosPersonDetail.vue', '.pd-scrim'],
-    ['src/photos/components/ClusterActionDialog.vue', '.cad-overlay'],
+    ['src/photos/styles/vue2-parity/photos-people.scss', '.person-dialog-scrim'],
+    ['src/photos/styles/vue2-parity/photos-people.scss', '.cad-overlay'],
   ])('%s %s is below toast', (rel, selector) => {
     const src = Object.entries(files).find(([p]) => relOf(p) === rel)?.[1]
     expect(src, \`\${rel} not collected by glob\`).toBeTruthy()

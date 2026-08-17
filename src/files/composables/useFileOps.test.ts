@@ -92,6 +92,36 @@ describe('useFileOps', () => {
     expect(fileCreate).toHaveBeenCalledWith('/DATA/a.txt')
   })
 
+  it('createFolder: a name over 255 bytes → toasts filesNameTooLong and sends no request', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('x'.repeat(256))
+    expect(folderCreate).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+  })
+
+  it('createFolder: the backend message is the literal "Fail" → show the local filesOpFailed copy instead of "Fail"', async () => {
+    useFilesStore().currentPath = '/DATA'
+    folderCreate.mockRejectedValueOnce(new Error('Fail'))
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('ok')
+    expect(showSpy).toHaveBeenCalledWith(zh.filesOpFailed)
+  })
+
+  it('createFolder: an error carrying detail → show the detail text verbatim', async () => {
+    useFilesStore().currentPath = '/DATA'
+    folderCreate.mockRejectedValueOnce(Object.assign(new Error('Fail'), { detail: 'no space left on device' }))
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('ok')
+    expect(showSpy).toHaveBeenCalledWith('no space left on device')
+  })
+
   it('createFolder: name over 255 bytes → toast filesNameTooLong, sends no request', async () => {
     useFilesStore().currentPath = '/DATA'
     const toast = useToast()
@@ -134,6 +164,83 @@ describe('useFileOps', () => {
     const ops = makeOps()
     await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
     expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/b.txt')
+  })
+
+  it('rename syncs the favorite pointing at the renamed entry (sidebar stays in step)', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const favs = useFavoritesStore()
+    await favs.add({ name: 'a.txt', path: '/DATA/a.txt' })
+    const ops = makeOps()
+    await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
+    expect(favs.list).toEqual([{ name: 'b.txt', path: '/DATA/b.txt' }])
+  })
+
+  it('rename failure leaves favorites untouched', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const favs = useFavoritesStore()
+    await favs.add({ name: 'a.txt', path: '/DATA/a.txt' })
+    fileRename.mockRejectedValueOnce(new Error('Fail'))
+    const ops = makeOps()
+    await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
+    expect(favs.list).toEqual([{ name: 'a.txt', path: '/DATA/a.txt' }])
+  })
+
+  // bug.txt #2, rename half: create already refuses an over-long name locally,
+  // rename went straight to the wire. The backend answers HTTP 500 with the bare
+  // literal "Fail" for ENAMETOOLONG, which errMsg() collapses into the generic
+  // "operation failed" -- the user is never told the name is the problem.
+  describe('rename length guards', () => {
+    it('refuses a name over 255 bytes with the name-too-long copy and sends nothing', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'x'.repeat(256))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+    })
+
+    it('counts bytes, not characters: 86 CJK characters are 258 bytes and are refused', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, '名'.repeat(86))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+    })
+
+    it('still accepts a name exactly on the 255-byte boundary', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'x'.repeat(255))
+      expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/' + 'x'.repeat(255))
+    })
+
+    it('refuses a target whose whole path exceeds 4095 bytes with the path-too-long copy', async () => {
+      // A parent 4025 bytes deep: each segment is well inside NAME_MAX, so only
+      // the joined path can be what is over the limit.
+      const deepDir = '/DATA' + '/' + Array.from({ length: 20 }, () => 'a'.repeat(200)).join('/')
+      useFilesStore().currentPath = deepDir
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: deepDir + '/a.txt', is_dir: false }, 'b'.repeat(100))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesPathTooLong)
+    })
+
+    // The base for rename is the entry's OWN parent, not files.currentPath: the
+    // two differ whenever the rename is driven from a search result or the
+    // sidebar. Measuring against currentPath would refuse a perfectly legal
+    // rename of a shallow entry while the user happens to be standing in a deep
+    // directory.
+    it('measures the path against the entry parent, not the directory the user is standing in', async () => {
+      useFilesStore().currentPath = '/DATA' + '/' + Array.from({ length: 20 }, () => 'a'.repeat(200)).join('/')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b'.repeat(100))
+      expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/' + 'b'.repeat(100))
+    })
   })
 
   it('rename syncs the favorite pointing at the renamed entry (sidebar stays in step)', async () => {

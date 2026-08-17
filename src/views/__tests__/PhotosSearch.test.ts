@@ -7,6 +7,7 @@
 // module-level singleton, mocked wholesale with the same technique already used in
 // PhotosSmartViewDetail.test.ts.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -1187,6 +1188,24 @@ describe('routing', () => {
     const resolved = appRouter.resolve('/photos/search')
     expect(resolved.name).toBe('photos-search')
   })
+
+  // Fix-4 item 2 (owner acceptance, 2026-08-13): clicking PhotosTopbar's back button (Vue2
+  // searchMode's chevL, wired up by Fix-3 item 7) should navigate to /photos — not router.back()
+  // (a deep link or a freshly opened tab has no history to go back to); onBack()'s established
+  // implementation is router.push('/photos').
+  it('clicking PhotosTopbar back button → router.push("/photos")', async () => {
+    const { w, router } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const pushSpy = vi.spyOn(router, 'push')
+    // Scope the lookup to .topbar — PhotosSidebar has .icon-btn elements of its own (the drawer
+    // trigger and the theme toggle), and a bare `.icon-btn` would select those too.
+    const icons = w.findAll('.topbar .icon-btn')
+    // The first is the collapse button, the second is the back button rendered when back=true
+    // (per PhotosTopbar.vue's structural spec).
+    expect(icons).toHaveLength(2)
+    await icons[1]!.trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith('/photos')
+  })
 })
 
 // ── fix round 1 · I4: exact glyph reproduction for the 8 inline SVGs added in this file ──────────────────
@@ -1285,22 +1304,42 @@ describe('styling: hover hard constraint (cssCascade)', () => {
     expect(winner.selector).toContain('data-saved')
   })
 
-  it('.prestate-chip has a :hover rule (a minimal compliance check from cssCascade\'s perspective)', () => {
+  // Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward) — same rollback treatment
+  // as PhotosFilterChip.vue/PhotosFilterPopover.vue's own 2026-08-13 rollback: `.prestate-chip`
+  // is genuine Vue2-sourced CSS (Vue2 photos.scss:2781 has this exact hover rule too, not a
+  // New-UI additive enhancement like `.sort button`/`.save-smart` above), and
+  // vue2-parity/photos.scss already carries it verbatim — the local scoped duplicate (which used
+  // to reach for New-UI's global `--accent-text` instead of the correct local `--accent-hi`) is
+  // deleted, not re-pointed at the right token, since parity's own copy is already correct.
+  it('this component scoped style no longer holds .prestate-chip colour rules (handed over to parity)', () => {
     const style = extractStyleBlock(photosSearchRaw)
-    // .prestate-chip is the descendant selector `.search-prestate .prestate-chip`, so both
-    // classes need to be fed to the matcher (cssCascade.ts's matching is "every class that
-    // appears in the selector must be in the allowed set", not a structural descendant-
-    // relationship check).
-    const winner = winningHoverBackground(style, ['prestate-chip', 'search-prestate'])
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors.some((s) => s.includes('prestate-chip'))).toBe(false)
+  })
+
+  it('parity scss: the .search-prestate .prestate-chip:hover rule contains :hover', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const winner = winningHoverBackground(parityScss, ['prestate-chip', 'search-prestate'])
     expect(winner.selector).toContain(':hover')
     expect(winner.selector).toContain('prestate-chip')
   })
 })
 
 describe('styling: non-color visual property anchoring (anchor the rule body first, then assert the property)', () => {
-  it('.search-prestate .nimo-orb / .empty-search .nimo-orb are both 68×68', () => {
+  // Fix-3 item 7: `.nimo-orb` (including both size variants `.search-prestate .nimo-orb` and
+  // `.empty-search .nimo-orb`) and `.empty-search .conditions .fchip` were handed over wholesale
+  // to vue2-parity/photos.scss by the 2026-08-13 rollback — this component no longer carries
+  // those rules, so the assertions now target the shared parity file.
+  it('this component scoped style no longer holds .nimo-orb/.empty-search .conditions .fchip rules (handed over to parity)', () => {
     const style = extractStyleBlock(photosSearchRaw)
-    const rules = parseCssRules(style)
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors.some((s) => s.includes('nimo-orb'))).toBe(false)
+    expect(selectors.some((s) => s === '.empty-search .conditions .fchip')).toBe(false)
+  })
+
+  it('parity scss: .search-prestate .nimo-orb and .empty-search .nimo-orb are both 68×68', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rules = parseCssRules(parityScss)
     for (const sel of ['.search-prestate .nimo-orb', '.empty-search .nimo-orb']) {
       const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === sel)
       expect(rule, `rule not found: ${sel}`).toBeDefined()
@@ -1309,9 +1348,9 @@ describe('styling: non-color visual property anchoring (anchor the rule body fir
     }
   })
 
-  it('.empty-search .conditions .fchip\'s compact height is 26px', () => {
-    const style = extractStyleBlock(photosSearchRaw)
-    const rule = parseCssRules(style).find(
+  it('parity scss: the compact height of .empty-search .conditions .fchip is 26px', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
       (r) => r.selectors.length === 1 && r.selectors[0] === '.empty-search .conditions .fchip',
     )
     expect(rule).toBeDefined()

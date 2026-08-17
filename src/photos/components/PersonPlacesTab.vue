@@ -90,131 +90,23 @@ function legendPinStyle(color: string): Record<string, string> {
 </template>
 
 <style scoped>
-/* Section wrapper + title (following photos-people.scss:724-739 .detail-section /
-   .detail-section-title / .sub). Vue2 uses --font-display/--font-sans two font
-   tokens to distinguish title/subtitle font weight sources; New-UI has single unified --font token (verified in
-   theme.css), use it both places, same as PersonAssetGrid.vue's .person-month-head
-   .title/.sub existing precedent (same flex+baseline+gap structure, same --fg/--fg-muted colors). */
-.detail-section {
-  margin-top: 8px;
-}
-.detail-section-title {
-  font-family: var(--font);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0 0 14px;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  color: var(--fg);
-}
-.detail-section-title .sub {
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--fg-muted);
-  letter-spacing: 0;
-}
+/* Task 5 (Plan D) shadowing cleanup: `.detail-section`, `.detail-section-title`(+`.sub`),
+   `.map-card`, `.legend`(+`.title`/`.row`/`.row .ct`), `.place-strip`, `.place-chip`(+`.nm`/
+   `.ct`) all duplicated parity anchors under the same selector paths and have been deleted —
+   parity now governs directly with its own token set. See task-5-report.md's deviations table
+   for the resulting value changes (`.map-card`'s fixed 320px height survives unchanged since
+   parity has that exact value too — kept only where the geometry/behavior genuinely has no
+   parity source, see below). */
 
-/* Map view (following photos-people.scss:570-590 .map-card). */
-.map-card {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  /* Keep consistent height with old iframe-based map card, avoid layout jump on tab switch. */
-  height: 320px;
-  position: relative;
-}
+/* `.legend .row .pin` / `.place-chip .pin` also duplicated parity's own geometry
+   (10px/10px/50%/flex:none) and have been deleted too — parity additionally paints an
+   `--accent` background/box-shadow on these selectors for its own (unthemed) demo markup,
+   but this component always binds the real per-place color inline (`:style`, see
+   legendPinStyle's own comment in the script block), and an inline style declaration always
+   wins over any external stylesheet property it sets — so parity's accent fallback never
+   actually shows through here; there was nothing left worth keeping local.
 
-/* Top-left legend overlay (following :591-611 .legend). */
-.legend {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 180px;
-  color: var(--fg-muted);
-}
-.legend .title {
-  font-weight: 600;
-  font-size: 12.5px;
-  margin-bottom: 4px;
-  color: var(--fg);
-}
-.legend .row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11.5px;
-  color: var(--fg-muted);
-}
-.legend .row .pin {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex: none;
-  /* background/box-shadow is per-place data (PLACE_PALETTE cycled colors), bound by :style,
-     not theme color — see legendPinStyle comment in script section. */
-}
-.legend .row .ct {
-  margin-left: auto;
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Place card strip (following :612-645 .place-strip / .place-chip). */
-.place-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-.place-chip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--panel-bg);
-  border: 1px solid var(--card-border);
-  /* Vue2 :636 has cursor:pointer + :hover highlight, but both-side templates don't attach
-     click handler to .place-chip (card itself not clickable) — purely visually copy this "looks clickable but does nothing"
-     state, no new emit (brief explicitly no emits for this component). */
-  cursor: pointer;
-}
-/* final review Minor 5: Vue2 :637 hover changes both border-color (--line-strong) and bg, original implementation only changed bg.
-   This repo has no --line-strong (confirmed by grep theme.css both theme blocks), use same "one tier more pronounced than default outline"
-   --fg-faint — same neutral outline darken precedent as MediaViewer.vue:793 `.spk-chip:hover { border-color: var(--fg-faint) }`,
-   defined in both themes. */
-.place-chip:hover {
-  background: var(--chip-bg-hi);
-  border-color: var(--fg-faint);
-}
-.place-chip .pin {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex: none;
-  /* Same as above: data color, not theme color. */
-}
-.place-chip .nm {
-  flex: 1;
-  font-size: 12.5px;
-  color: var(--fg);
-}
-.place-chip .ct {
-  font-size: 11px;
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-}
+   Vue2's own `.place-chip` has a `cursor: pointer` + hover highlight despite neither template
+   wiring a click handler on it (not clickable in either app) — parity transcribes that
+   1:1, nothing to add here. */
 </style>

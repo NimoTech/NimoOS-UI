@@ -57,7 +57,7 @@
 // (src/ai/views/AgentPage.vue), a same-shape custom full-page shell that likewise never
 // borrows AreaShell.
 import '../photos/styles/vue2-parity'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
@@ -71,7 +71,7 @@ import PhotosFilterBar, { type ExifFilterValue } from '../photos/components/Phot
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosDeepLinks } from '../photos/composables/usePhotosDeepLinks'
-import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosTrash } from '../photos/stores/trash'
@@ -104,30 +104,16 @@ const lb = useLightbox()
 // composable — see usePhotosTheme.ts).
 const { themeClass } = usePhotosTheme()
 
-// Task 3: sidebar collapse (Vue2 PhotosTimeline.vue's `collapsed` data + the topbar toggle
-// button that flips it — the toggle button itself lands with the topbar in T4+; this task
-// only owns the persisted state and the `.app[data-collapsed]` wiring). Persisted here
-// (not in PhotosSidebar) per the brief's interface contract — the sidebar is a shared
-// component mounted by every photos-area page, this state is Photos.vue's own.
-const COLLAPSE_KEY = 'nimo_photos_sidebar_collapsed'
-const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
-watch(collapsed, (v) => { localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0') })
-// Task 4: the topbar's collapse-toggle button (Vue2 PhotosTopbar's own `☰`, wired at
-// PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`) — same flip, now reachable.
-//
-// final-review fix (item 6): on a ≤768px viewport PhotosSidebar renders as its own fixed
-// drawer instead of the desktop two-column grid track (useSidebarDrawer — a module
-// singleton PhotosSidebar.vue already consumes for its is-narrow/is-drawer/is-open
-// classes). Flipping `collapsed` there is a no-op: that flag only ever drives the
-// `.app[data-collapsed]` desktop column-width rule, which the drawer isn't part of — so
-// the topbar's panelLeft button had no way to open the sidebar on mobile at all (Task 3's
-// shell rewrite dropped the old AreaShell hamburger that used to do that job). Route the
-// same click to the drawer's own toggle() when isNarrow is true instead.
-const { isNarrow: sidebarIsNarrow, toggle: toggleSidebarDrawer } = useSidebarDrawer()
-function onToggleCollapse() {
-  if (sidebarIsNarrow.value) { toggleSidebarDrawer(); return }
-  collapsed.value = !collapsed.value
-}
+// Task 3/4: sidebar collapse (Vue2 PhotosTimeline.vue's `collapsed` data + the topbar
+// toggle button that flips it, PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`) —
+// persisted state + the narrow-viewport drawer branch (final-review fix item 6: on a
+// ≤768px viewport PhotosSidebar renders as its own fixed drawer instead of the desktop
+// two-column grid track, so flipping `collapsed` there would be a no-op; the composable
+// routes the same toggle to the drawer's own toggle() when isNarrow is true) now live in
+// the shared useSidebarCollapse composable (Plan C Task 2 extraction, behavior-preserving —
+// see that file's header comment for the module-singleton rationale). Photos.vue is its
+// first consumer; the five re-shelled album/for-you views (Task 2) share the same instance.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
@@ -355,7 +341,12 @@ onUnmounted(() => {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed" :data-selecting="selected.length > 0">
-      <PhotosSidebar :collapsed="collapsed" />
+      <!-- review fix round 1 (Plan C Task 2): PhotosSidebar's own floating drawer-trigger
+           button is suppressed here — PhotosTopbar's collapse-toggle button already delegates
+           to the same drawer on a narrow viewport (see onToggleCollapse above), so rendering
+           both would be a redundant double affordance on this one page. Every other
+           photos-area page has no topbar and needs the sidebar's own trigger. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
         <PhotosTopbar :collapsed="collapsed" @toggle-collapse="onToggleCollapse" @search-submit="onSearchSubmit" />
         <div class="photos-main">
@@ -404,16 +395,64 @@ onUnmounted(() => {
         </div>
       </main>
     </div>
+
+    <!-- Fix-4 item 1 (owner acceptance, 2026-08-13; F1/F2 lesson class, now found on the
+         timeline page too): AlbumPickerDialog used to be a template-root SIBLING of
+         `.photos-root` (a Vue 3 multi-root fragment) rather than its DOM descendant — the same
+         root cause as Fix-1 item 3's "New album" modal bug and Fix-2 item 5's detail-page
+         dialogs (acceptance-fix-report.md §F1/§F2), just never audited on this page until now.
+         Its own parity styling is written as `.photos-root .album-picker-panel` etc.
+         (vue2-parity/photos.scss:1072-1102) and its panel background is `var(--surface-2)` — a
+         `.photos-root`-local custom property with NO fallback and no global (theme.css)
+         definition at all, so outside `.photos-root` it resolves to nothing: the add-to-album
+         picker panel likely rendered with a fully transparent background over the fixed dark
+         scrim, not merely "wrong colour." Moved back inside `.photos-root`, as a sibling of
+         `.app` (matching Vue2's own single-shell nesting and the F1/F2 precedent) — it is
+         `position: fixed`, so nesting it inside the scrolling column buys nothing either way,
+         and `.photos-root` itself sets no transform/filter/perspective/`contain` that would
+         create a new containing block for `position: fixed` (same reasoning already verified in
+         F1/F2).
+         PhotosToastHost is NOT moved: it Teleports to `<body>` and re-applies `photos-root` +
+         `themeClass` on its own portal target by design (see its own header comment and the
+         comment just below) — moving its mount point in the template would not change where it
+         actually renders, so there is nothing to fix there; it stays a sibling of `.photos-root`
+         as it always was. -->
+    <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
   </div>
-  <!-- Favourite state shares its source with the photosFavorites store (the lightbox already
-       calls usePhotosFavorites().toggle() directly internally), so an empty handler here is
-       enough, no need to bubble it up further. -->
+  <!-- Fix-8 round 4 (owner acceptance, 2026-08-14; correction of this same file's F4-item-1
+       comment above, which used to also nest `<PhotoLightbox>` here and asserted "this move
+       changes nothing about how the lightbox itself renders today" — that assertion was WRONG,
+       confirmed by real-device evidence: openAt's network calls fired (state opened) but the
+       lightbox never became visible. Root cause: nesting `<PhotoLightbox>` inside `.photos-root`
+       activates parity's own `.photos-root .lightbox`/`.lb-*` rule family
+       (vue2-parity/photos.scss:499-1061+) for the FIRST time — those rules target a *future*
+       Plan-F pixel re-skin of this component and describe a completely different DOM/CSS
+       structure (a `display: grid; grid-template-areas: "top top" "main info" "strip info"`
+       container with named-area children) than what `PhotoLightbox.vue`'s own current,
+       pre-Plan-F, self-contained `<style scoped>` implements (`display: flex; flex-direction:
+       column`, plain nested divs, no grid-area assignments at all). Both rule sets share
+       IDENTICAL specificity for every colliding selector (`.photos-root .lightbox` = two
+       classes vs. the component's own scoped `.lightbox[data-v-xxx]` = one class + one
+       attribute, (0,2,0) either way, for `.lightbox`/`.lb-top`/`.lb-title`/`.lb-media`/
+       `.lb-nav`/`.lb-strip`/`.lb-thumb`/`.lb-info`/`.lb-live-badge` alike) — a genuine cascade
+       TIE, resolved only by bundler-internal CSS source order, not by anything this component
+       controls. Should parity's `display: grid` ever win that tie for the outer `.lightbox`
+       container, none of this component's actual children carry the `top`/`main`/`info`/`strip`
+       grid-area names parity's `grid-template-areas` expects, so they fall into unpredictable
+       implicit grid placement — collapsing/overlapping/effectively invisible, exactly matching
+       "state opens, render fails." Un-nested back to a sibling of `.photos-root` (its pre-F4
+       position) so parity's `.photos-root`-scoped rule family stops matching this component's
+       DOM at all, same as every other page in this sweep (see acceptance-fix-report.md §F8-r4)
+       — **do not re-nest this component inside `.photos-root` before Plan F's own lightbox
+       re-skin actually ports its DOM/CSS to match those parity rules; until then, the class
+       overlap is a hazard, not a feature.** `.photos-toast-host`'s photos-root reapplication
+       trick (PhotosToastHost.vue) is not a usable fix here either -- PhotoLightbox is not
+       Teleported and does not carry its own portal target to re-apply the class to. -->
   <PhotoLightbox
     @delete="onLightboxDelete"
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
-  <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
   <!-- Task 8: Photos-private toast queue (delete/Undo) — mounted once per photos view,
        Teleports to <body> (see PhotosToastHost.vue). -->
   <PhotosToastHost />

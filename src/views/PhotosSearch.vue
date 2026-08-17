@@ -20,9 +20,10 @@ import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosSearchBar from '../photos/components/PhotosSearchBar.vue'
 import PhotosFilterChip from '../photos/components/PhotosFilterChip.vue'
 import PhotosFilterPopover from '../photos/components/PhotosFilterPopover.vue'
@@ -53,6 +54,12 @@ const router = useRouter()
 // following existing precedent in SearchPeoplePopover.vue:59-63 / SmartViewCard.vue:38, etc.).
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): shell migration onto the
+// `.app` CSS Grid + PhotosTopbar, matching the six pages already migrated (Photos.vue's Task 3/4,
+// PhotosAlbums.vue's Plan C Task 2). `collapsed`/`toggle` is the same shared module-singleton
+// composable every migrated page already consumes — this page is not a new instance of the
+// collapse state, just another consumer of it.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const localeTag = computed(() => locale.value.replace('_', '-'))
 const search = usePhotosSearch()
 const people = usePhotosPeople()
@@ -142,6 +149,18 @@ function submitQuery(q: string): void {
     return
   }
   void router.replace({ path: '/photos/search', query: q ? { q } : {} })
+}
+
+// Fix-3 item 7: PhotosTopbar's `back` button (Vue2 searchMode's chevL, PhotosTopbar.vue:6-8,
+// `$emit('exit-search')` → `this.$store.dispatch('photos/clearSearch')`). Vue2 exits back to
+// the SAME component (the timeline underneath, still mounted) because search there is a local
+// UI state, not a route. New-UI's /photos/search is a real route, so "back" has to mean
+// "navigate to the library" — /photos is the concrete destination every entry point into this
+// page conceptually returns to (Photos.vue's search box, PhotosSmartViewDetail's "Refine in
+// Search" button, a deep link). Not `router.back()`: a deep link or a fresh tab has no prior
+// history entry to go back to, and `/photos` is deterministic and testable.
+function onBack(): void {
+  void router.push('/photos')
 }
 
 // ── three data sources (structure spec 11) ───────────────────────────────────
@@ -622,10 +641,21 @@ onMounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosTitle')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <!-- Fix-3 item 7: same narrow-mode coordination as Photos.vue/PhotosAlbums.vue — the
+           topbar's own collapse button already delegates to the sidebar drawer on narrow
+           viewports, so the sidebar's own floating trigger would be a redundant second
+           affordance here. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
+      <main class="main">
+        <!-- `back`: Vue2 searchMode's chevL button, replacing title/sub (PhotosTopbar.vue:6-12
+             region). `show-search="false"`: PhotosSearchBar below already carries the editable
+             query box (owner's standing glass-fill exception) — Vue2 has only one search box
+             because its search "page" and library page are the same component; rendering the
+             topbar's own box here too would duplicate it. -->
+        <PhotosTopbar :collapsed="collapsed" back :show-search="false" @toggle-collapse="onToggleCollapse" @back="onBack" />
+      <div class="photos-main">
         <PhotosSearchBar :value="query" autofocus @submit="submitQuery" />
 
         <!-- pre-search state (structure spec 15)-->
@@ -807,184 +837,99 @@ onMounted(() => {
             @load-more="search.loadMore()"
           />
         </template>
+      </div>
       </main>
     </div>
-  </AreaShell>
+  </div>
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height (not min-height): this screen has a hard cap, only the inner scroll container scrolls
-   -- a same-source fix; see the comment on the equivalent rule in src/views/Photos.vue for the
-   Vue2 rationale. */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): shell migration onto the
+   `.app` CSS Grid, matching the six pages already migrated (Photos.vue Task 3/4, PhotosAlbums.vue/
+   PhotosAlbumDetail.vue/PhotosSmartViews.vue/PhotosSmartViewDetail.vue/PhotosMomentDetail.vue's
+   Plan C Task 2). The transitional flex-row `.photos-layout` shell and its `.sidebar` width pin
+   are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns the sidebar's width
+   and the height cap (`height: 100vh; overflow: hidden`). `.photos-layout` no longer appears
+   anywhere in this file's source — photosLayoutHeightCap.test.ts's CAPPED list has been updated
+   to drop this page accordingly (its `allPhotosLayoutViews()` scan only collects pages that still
+   contain the `.photos-layout` rule). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* ── hand-drawn nimo-orb (this repo has no asset for it; brief section E ruled it should be
-   hand-drawn, with colors entirely from the accent family of tokens) ──
-   Vue2 uses a purple-toned logo image (url(./nimo-logo.png)); this repo replaces it with a
-   radial gradient plus a drop-shadow using the existing --orb-glow token (AiWidget.vue:37's
-   .ai-orb is already an established precedent using this same token, so no new token is
-   introduced). */
-.nimo-orb {
-  display: inline-block;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 32%, var(--accent-soft-2), var(--accent) 72%);
-  /* fix round 1 * M12 (folded in during review, fix round 2 * Minor#3 corrected the line
-     number): Vue2 photos.scss:875 (not 876 as the first version cited) has `flex-shrink: 0` on
-     `.nimo-orb`, which the first version missed -- `.understood` is an `inline-flex` container,
-     and on a narrow viewport or with long copy squeezing it, that 18px orb gets squashed out of
-     shape. Restored here. */
-  flex-shrink: 0;
-}
+/* 2026-08-13 rollback (owner acceptance, Fix-3 item 7 pull-forward — the same treatment
+   PhotosFilterChip.vue/PhotosFilterPopover.vue already went through on the same date): every
+   selector that shared a name with a bare rule in vue2-parity/photos.scss has been deleted from
+   here. The local scoped copies were reaching for New-UI's OWN global tokens (--fg/--fg-faint/
+   --fg-muted/--chip-bg/--chip-border/--chip-bg-hi/--accent-soft/--accent-soft-2/--accent-soft-bd/
+   --accent-text/--divider/--success), none of which `.photos-root` redefines locally — so they
+   fell through to New-UI's blue/glass theme.css values instead of the Vue2-native
+   --text-* / --surface-* / --line / --accent-hi / --accent-soft tokens `.photos-root` DOES define
+   locally (vue2-parity/photos.scss:14-64). Scoped `[data-v-xxx]` specificity always won over the correct
+   plain parity selector of the same name, so the wrong-token copy always rendered — this is the
+   exact "chaotic hybrid" the owner flagged on this page. Deleting them lets the already-present,
+   already-correct parity rules govern directly: `.search-prestate`(+children incl. `.nimo-orb`)/
+   `.search-hero`/`.search-query`(+`.kw`)/`.search-meta`/`.search-history`(+children)/
+   `.understood`(+`.nimo-orb`)/`.filterbar`/`.filterbar-spacer`/`.filterbar .clear`(+:hover)/
+   `.save-smart`/`.save-smart[data-saved="true"]`/`.results-bar`/`.sort`/`.sort button`/
+   `.sort button[data-active="true"]`/`.empty-search`(+children incl. `.conditions .fchip`)/
+   `.nimo-orb` all now come from vue2-parity/photos.scss:2603-2868 verbatim (transcribed from
+   Vue2 photos.scss:2560-2825 1:1). The `.filterbar` `background: var(--bg)` an earlier version
+   of this comment specifically avoided is safe now: this page no longer lives inside AreaShell's
+   translucent glass shell (the very problem that comment registered) — it lives in the SAME
+   opaque `.app` grid every other migrated page does, which already paints its own solid
+   `var(--bg)` (parity scss photos.scss:116-129), so the "black band on a translucent panel"
+   failure mode that comment described cannot recur here (see the corrected reverse gate,
+   __tests__/photosGlassSurfaces.test.ts). `.nimo-orb`'s own base rule is dropped too, not just
+   its size variants: vue2-parity/photos.scss already carries a `.photos-root .nimo-orb` rule
+   using the REAL Vue2 logo asset (`src/photos/assets/nimo-logo.png`, already shipped and already
+   consumed by `.nimo-fab`/`.nimo-pop-head` elsewhere in that same stylesheet) — this page's
+   self-drawn radial-gradient substitute predates that asset landing in this repo and is strictly
+   less accurate than the real image parity already uses, so it is dropped rather than kept as a
+   "close enough" stand-in. */
 
-/* ── pre-search state (photos.scss:2779-2793) ── */
-.search-prestate { text-align: center; padding: 96px 32px 40px; max-width: 560px; margin: 0 auto; }
-.search-prestate .nimo-orb { width: 68px; height: 68px; margin: 0 auto 16px; filter: drop-shadow(0 0 24px var(--orb-glow)); }
-.search-prestate h2 { font-family: var(--font-display, var(--font)); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--fg); }
-.search-prestate p { color: var(--fg-faint); font-size: 13.5px; line-height: 1.5; margin: 0 0 28px; }
-.search-prestate .prestate-recent { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.search-prestate .prestate-recent-label { font-size: 11px; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-.search-prestate .prestate-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.search-prestate .prestate-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border-radius: 99px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted);
-  font-size: 12.5px; cursor: pointer; transition: all 0.12s;
-}
-.search-prestate .prestate-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
-.search-prestate .prestate-chip span { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ── hero(photos.scss:2577-2608)── */
-.search-hero { padding: 28px 32px 8px; border-bottom: 1px solid var(--divider); }
-.search-query-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.search-query { font-family: var(--font-display, var(--font)); font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: var(--fg); }
-.search-query .kw { color: var(--accent-text); }
-.search-meta { color: var(--fg-faint); font-size: 13px; font-variant-numeric: tabular-nums; }
-
-.search-history { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.search-history-label { font-size: 11px; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-right: 4px; }
-.search-history-item {
-  padding: 3px 10px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
-  color: var(--fg-muted); font-size: 11.5px; white-space: nowrap; max-width: 240px; overflow: hidden;
-  text-overflow: ellipsis; transition: all 0.12s; cursor: pointer;
-}
-.search-history-item:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
-
-.understood {
-  display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
-  padding: 4px 10px 4px 8px; border-radius: 999px;
-  background: var(--accent-soft); border: 1px solid var(--accent-soft-bd); color: var(--accent-text);
-  font-size: 11.5px; font-weight: 500;
-}
-.understood .nimo-orb { width: 18px; height: 18px; }
-.understood-k { color: var(--fg-faint); }
+/* `.understood-k`/`.understood-v`: New-UI-only, not covered by parity — Vue2 renders this pair via
+   inline `style=` on unclassed spans (PhotosSearchView.vue:43-44: `style="color:var(--text-3)"` /
+   `style="margin:0 4px"`), so parity's own extraction has no selector for either. Token corrected
+   to `--text-3` (parity-local, matches Vue2's own inline literal exactly) — the old `--fg-faint`
+   here was the same New-UI-global-token leak the rest of this rollback removes. */
+.understood-k { color: var(--text-3); }
 .understood-v { margin: 0 4px; }
 
-/* ── filterbar (photos.scss:2610-2657) ── */
-/* Deliberately **draws no background** (fixes a band of black spanning the full width seen in
-   real-device screenshots).
-   Vue2's `photos.scss:2616` has `background: var(--bg)` here, which works fine in Vue2 -- its
-   albums area is one **opaque dark page** (its own `--bg` is defined at `photos.scss:3` as a
-   near-black solid color), so the bar's background matches the page's background and the
-   boundary is invisible. New-UI's albums area lives inside AreaShell's **glass shell**
-   (translucent, with the wallpaper/gradient showing through), and this repo's identically-named
-   `--bg` (`theme.css:42`, a solid dark blue-gray) painted here just becomes an opaque color
-   swatch.
-   This is a porting defect of the "copied the token name, but the two --bg's contexts differ"
-   kind. Per "match Vue2's visuals / get the logic right", the fix removes the background color
-   so this bar lets the glass shell show through consistently with .search-hero above and the
-   sort row below, leaving the boundary to border-bottom instead.
-   The legitimate use of this repo's `--bg` is for shells that "fill the viewport and are
-   themselves the page floor" (StorageShell / SettingsShell / MediaViewer / SearchDialog) and for
-   the gap color in SmartViewCard's collage image -- it shouldn't be painted onto a row/bar
-   living inside an area shell.
-   **position/z-index are kept**: the filter popover (.fpop) is a descendant of this element and
-   relies on these two properties to render above the grid below; sticky is effectively a no-op
-   in this layout (the scroll container lives inside PhotosSearchGrid, a sibling rather than an
-   ancestor), but it still serves the role of "establishing a positioning context" -- removing it
-   would let the popover get covered by the tiles -- unrelated to removing the background, so
-   left alone.
-   See the regression guard in __tests__/photosGlassSurfaces.test.ts. */
-.filterbar {
-  padding: 12px 32px; border-bottom: 1px solid var(--divider);
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  position: sticky; top: 0; z-index: 6;
-}
-.filterbar-spacer { flex: 1; }
-.clear { font-size: 12px; color: var(--fg-faint); padding: 6px 8px; background: none; border: 0; cursor: pointer; }
-.clear:hover { color: var(--accent-text); }
+/* `.sort button:hover` / `.sort button[data-active="true"]:hover`: Vue2's own `.sort button` has
+   NO hover feedback at all (photos.scss:2696-2698 has no `:hover` rule, and parity's transcription
+   of it, vue2-parity/photos.scss:2739-2740, faithfully carries that same absence) — this repo's
+   other clickable controls all give hover feedback, so this stays as a kept, registered additive
+   UX improvement (not a parity gap), just re-pointed at the correct parity token (`--text-1`, not
+   the New-UI-global `--fg`) and re-anchored against parity's actual `[data-active]` value
+   (`--surface-3`, not `--chip-bg-hi`) for the hover-lock variant, so hovering an already-active
+   sort button doesn't visually revert it to the inactive background. */
+.sort button:hover { color: var(--text-1); }
+.sort button[data-active='true']:hover { background: var(--surface-3); color: var(--text-1); }
 
-/* save-smart: E9, mapped onto the accent family of tokens (the gradient's two stops, 0.20/0.08,
-   average out to roughly --accent-soft's .14 level) + the [data-saved] state reuses the
-   --success token T3 already established (see SmartViewCard.vue); Vue2's three !important flags
-   aren't ported over -- there's no other rule inside this scoped SFC to win a specificity fight
-   against, so they aren't needed. */
-.save-smart {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 30px; padding: 0 12px; border-radius: 999px;
-  background: var(--accent-soft); border: 1px solid var(--accent-soft-bd);
-  color: var(--accent-text); font-size: 12px; font-weight: 500; cursor: pointer;
-}
-.save-smart:hover { background: var(--accent-soft-2); }
-.save-smart[data-saved='true'] {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
-  color: var(--success);
-  cursor: default;
-}
+/* `.save-smart:hover` / `.save-smart[data-saved="true"]:hover`: same situation as `.sort button`
+   above — Vue2's `.save-smart` (photos.scss:2634-2646) has no hover state at all, on either the
+   base or the `[data-saved="true"]` variant. Kept as the same registered additive hover-feedback
+   convention; the saved-state hover-lock repeats the exact literal values Vue2 uses for that
+   state — not a new literal introduced by this rollback, see the theme-exception tag below. */
+.save-smart:hover { filter: brightness(1.1); }
+/* theme-exception: repeats Vue2's own literal success color for the saved state — the same
+   literal (plus !important) parity itself carries at vue2-parity/photos.scss:2683-2687. Each
+   property line below needs its own marker since the guard's exempt window only spans to the
+   next `;`. */
 .save-smart[data-saved='true']:hover {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
-  color: var(--success);
+  /* theme-exception: Vue2 literal */
+  background: rgba(52,199,89,0.14) !important;
+  /* theme-exception: Vue2 literal */
+  border-color: rgba(52,199,89,0.35) !important;
+  /* theme-exception: Vue2 literal */
+  color: #34C759 !important;
 }
 
-/* ── results-bar (photos.scss:2702-2708). Vue2's .sort button has no :hover feedback at all --
-   every other clickable button in this repo has hover, so it's added here (an additive UX
-   improvement, registered in the report), with the [data-active] variant also carrying its own
-   :hover to satisfy this repo's hard constraint that "the winning rule must include :hover". */
-.results-bar { display: flex; align-items: center; gap: 12px; padding: 10px 32px; font-size: 12.5px; color: var(--fg-faint); }
-.sort { display: inline-flex; gap: 0; background: var(--chip-bg); padding: 2px; border-radius: 99px; }
-.sort button {
-  padding: 4px 10px; font-size: 11.5px; border-radius: 99px; color: var(--fg-faint); font-weight: 500;
-  background: transparent; border: 0; cursor: pointer; transition: background 0.15s, color 0.15s;
-}
-.sort button:hover { color: var(--fg); }
-.sort button[data-active='true'] { background: var(--chip-bg-hi); color: var(--fg); }
-.sort button[data-active='true']:hover { background: var(--chip-bg-hi); color: var(--fg); }
-
-/* ── empty state (photos.scss:2771-2776) ── */
-.empty-search { text-align: center; padding: 80px 32px; max-width: 480px; margin: 0 auto; }
-.empty-search .nimo-orb { width: 68px; height: 68px; margin: 0 auto 16px; filter: drop-shadow(0 0 24px var(--orb-glow)); }
-.empty-search h2 { font-family: var(--font-display, var(--font)); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--fg); }
-.empty-search p { color: var(--fg-faint); font-size: 13.5px; line-height: 1.5; margin: 0 0 24px; }
-.empty-search .conditions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 24px; }
-/* E10 (handed off from T12): the compact chip variant in the empty state is implemented by this
-   task. There's no shared .fchip base class to inherit here (PhotosFilterChip's .fchip is its
-   own scoped style, invisible across components), so the "selected" look (accent-soft
-   background + accent-soft-bd border) is written out directly at the compact size from
-   photos.scss:2776.
-   fix round 1 * M13 (folded in during review, fix round 2 * Minor#3 corrected the line number):
-   `padding` reverted to Vue2's base class `.fchip`'s (photos.scss:2622-2623, not 2617 as the
-   first version cited -- that line is actually `.filterbar`'s `z-index: 6`) `0 12px` -- the
-   first version wrote `0 10px`, which was a copying mistake, not a deliberate tightening, and
-   has been reverted to Vue2's literal value. */
-.empty-search .conditions .fchip {
-  display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 99px;
-  background: var(--accent-soft); border: 1px solid var(--accent-soft-bd); color: var(--fg); font-size: 11.5px;
-}
-
-/* <=768px: the sidebar collapses into a drawer, layout goes single-column (this area's
-   established pattern). */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation as
+   Photos.vue's/PhotosAlbums.vue's own copy of this rule): once the sidebar switches into
+   is-drawer mode (position:fixed, taken out of grid flow) at ≤768px, collapse `.app`'s sidebar
+   column too, so `.main` doesn't leave a dead var(--sidebar-w) gutter where the now-floating
+   sidebar used to sit. */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
 }
 </style>

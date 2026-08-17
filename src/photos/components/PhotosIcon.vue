@@ -103,6 +103,12 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <template v-else-if="name === 'panelLeft'">
       <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" />
     </template>
+    <!-- Fix-11 (owner acceptance, 2026-08-14): PhotosAlbums.vue's Sort pill (photos-albums-view
+         Vue2 :60-61 `<photos-icon name="filter" :size="13"/>`) had no leading icon at all --
+         net-new branch, transcribed byte-identical from Vue2's own PhotosIcon.vue:93-95. -->
+    <template v-else-if="name === 'filter'">
+      <path d="M3 5h18l-7 9v6l-4-2v-4z" />
+    </template>
     <template v-else>
       <g></g>
     </template>

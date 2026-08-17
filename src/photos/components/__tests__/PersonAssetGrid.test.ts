@@ -17,10 +17,25 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PersonAssetGrid from '../PersonAssetGrid.vue'
-// Raw source text (Vite `?raw`), used only for the "override control default transparency" test group below —
-// jsdom does not perform cascade style calculation, cannot read real hover opacity after mount, can only
-// assert structure against <style> raw text (same precedent as color-guard.test.ts reading <style> raw).
-import personAssetGridRaw from '../PersonAssetGrid.vue?raw'
+// Task 5 (Plan D) shadowing cleanup moved the `.tile-check`/`.tile-detach` hover-reveal
+// family out of this component and into the shared parity file (they now duplicate parity
+// anchors there instead of here) — the two describe blocks below that assert on that CSS
+// text (jsdom does no cascade/computed-style, so structural assertions on the raw <style>
+// text are the only way to pin opacity/hover/transition behavior — same precedent as
+// color-guard.test.ts) now read parity's raw source instead of the component's.
+//
+// Read via `node:fs`, NOT `import '...scss?raw'`: Vite's CSS plugin claims `.scss` (like
+// `.css`) as a side-effect-only module — under Vitest a `?raw` import of it resolves to an
+// empty string (same landmine color-guard.test.ts's own header comment already documents for
+// `.css`; confirmed here to apply to `.scss` too — a `?raw` import silently returned `''`,
+// which made every rule lookup below fail before this was found).
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const photosPeopleParityRaw = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../styles/vue2-parity/photos-people.scss'),
+  'utf8',
+)
 import { assetToPhoto, type Month, type Photo } from '../../util/assetToPhoto'
 
 function photo(
@@ -209,26 +224,52 @@ describe('PersonAssetGrid.vue — empty state', () => {
 // for structure assertion, rather than asserting getComputedStyle.
 interface CssRule { selectors: string[]; body: string }
 
+// Task 5 (Plan D): rewritten brace-depth-aware and recursive (was a naive
+// `/([^{}]+)\{([^}]*)\}/g` regex that assumed CSS never nests — broke the moment this function
+// started reading parity's `photos-people.scss`, which turns out to be ONE single SCSS nesting
+// scope: the entire file is wrapped in one outer `.photos-root { … }` (confirmed by counting
+// braces — it opens on line 1 and its matching close is the file's very last `}`), with every
+// other selector (`.detail-hero`, `.person-grid .tile .tile-detach`, etc.) nested one level
+// inside it exactly as written in the source (SCSS compiles the `.photos-root` ancestor prefix
+// onto them; the source text itself doesn't repeat it). The old regex — and an earlier,
+// simpler top-level-only rewrite — both only ever surfaced that one outer rule. This version
+// recursively descends into every matched brace pair so every selector at every nesting depth
+// gets its own entry, each keyed by its own local selector text (unqualified by any ancestor),
+// which is exactly what every lookup in this file queries by.
 function parseCssRules(styleText: string): CssRule[] {
   const rules: CssRule[] = []
-  const re = /([^{}]+)\{([^}]*)\}/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(styleText))) {
-    rules.push({
-      selectors: m[1].split(',').map((s) => s.trim()).filter(Boolean),
-      body: m[2],
-    })
+  function parseScope(text: string): void {
+    let i = 0
+    while (i < text.length) {
+      const braceIdx = text.indexOf('{', i)
+      if (braceIdx === -1) break
+      const selectorText = text.slice(i, braceIdx)
+      let depth = 1
+      let j = braceIdx + 1
+      for (; j < text.length && depth > 0; j++) {
+        if (text[j] === '{') depth++
+        else if (text[j] === '}') depth--
+      }
+      const body = text.slice(braceIdx + 1, j - 1)
+      const selectors = selectorText.split(',').map((s) => s.trim()).filter(Boolean)
+      if (selectors.length) rules.push({ selectors, body })
+      parseScope(body)
+      i = j
+    }
   }
+  parseScope(styleText)
   return rules
 }
 
 function extractStyleBlock(src: string): string {
+  // Task 5 (Plan D): also accepts a plain `.scss` source with no `<style>` wrapper at all
+  // (the parity file is not an SFC) — fall back to the whole text in that case.
   const m = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)
-  if (!m) throw new Error('Style block not found')
+  const body = m ? m[1] : src
   // First strip CSS comments: parseCssRules treats everything before `{` as selector list,
   // comments above rules get merged into selectors, breaks ownRuleBody's "selector list exactly equals one" check
   // (hit during final review Minor 3 when adding comment).
-  return m[1].replace(/\/\*[\s\S]*?\*\//g, '')
+  return body.replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
 // Find rule body where "selector list exactly equals the given single selector"
@@ -247,42 +288,47 @@ function findRuleBodyContainingAll(rules: CssRule[], required: string[]): string
   return hit?.body
 }
 
-describe('PersonAssetGrid.vue — override control default transparent, only visible in hover/select (per Vue2 :1148-1216)', () => {
-  const rules = parseCssRules(extractStyleBlock(personAssetGridRaw))
+// Task 5 (Plan D) shadowing cleanup moved this whole rule family out of the component and
+// into the shared parity file (src/photos/styles/vue2-parity/photos-people.scss), which now
+// duplicates Vue2's own PhotosPersonDetail.vue:1259-1331 (::v-deep stripped) directly — so
+// these two describe blocks now read parity's raw source, and every selector below carries
+// the `.person-grid .tile` prefix parity uses (a plain global stylesheet, not component-scoped).
+describe('PersonAssetGrid.vue — override control default transparent, only visible in hover/select (per Vue2 :1148-1216, now carried by parity)', () => {
+  const rules = parseCssRules(extractStyleBlock(photosPeopleParityRaw))
 
   it('.tile-check default opacity:0 (per Vue2 :1199)', () => {
-    expect(ownRuleBody(rules, '.tile-check')).toMatch(/opacity:\s*0\b/)
+    expect(ownRuleBody(rules, '.person-grid .tile .tile-check')).toMatch(/opacity:\s*0\b/)
   })
 
   it('.tile-detach default opacity:0 (per Vue2 :1162)', () => {
-    expect(ownRuleBody(rules, '.tile-detach')).toMatch(/opacity:\s*0\b/)
+    expect(ownRuleBody(rules, '.person-grid .tile .tile-detach')).toMatch(/opacity:\s*0\b/)
   })
 
   it('.tile:hover forces .tile-check visible (per Vue2 :1203-1208)', () => {
-    const body = findRuleBodyContainingAll(rules, ['.tile:hover .tile-check'])
+    const body = findRuleBodyContainingAll(rules, ['.person-grid .tile:hover .tile-check'])
     expect(body).toBeDefined()
     expect(body).toMatch(/opacity:\s*1\b/)
   })
 
   it('.tile:hover forces .tile-detach visible (per Vue2 :1168-1171)', () => {
-    const body = findRuleBodyContainingAll(rules, ['.tile:hover .tile-detach'])
+    const body = findRuleBodyContainingAll(rules, ['.person-grid .tile:hover .tile-detach'])
     expect(body).toBeDefined()
     expect(body).toMatch(/opacity:\s*1\b/)
   })
 
   it('In selectionMode or when selected, .tile-check also forced visible, no hover needed (per Vue2 :1204-1205)', () => {
     const body = findRuleBodyContainingAll(rules, [
-      '.tile:hover .tile-check',
-      '.tile[data-selection-mode="true"] .tile-check',
-      '.tile[data-selected="true"] .tile-check',
+      '.person-grid .tile:hover .tile-check',
+      '.person-grid .tile[data-selection-mode="true"] .tile-check',
+      '.person-grid .tile[data-selected="true"] .tile-check',
     ])
     expect(body).toBeDefined()
     expect(body).toMatch(/opacity:\s*1\b/)
   })
 
-  it('.tile-detach has no selectionMode/selected force-visible rule (Vue2 original only adds those two to tile-check, tile-detach doesn\'t — literal copy, not omission)', () => {
-    expect(findRuleBodyContainingAll(rules, ['.tile[data-selection-mode="true"] .tile-detach'])).toBeUndefined()
-    expect(findRuleBodyContainingAll(rules, ['.tile[data-selected="true"] .tile-detach'])).toBeUndefined()
+  it('.tile-detach has no selectionMode/selected force-visible rule (Vue2 original only adds those two to tile-check, tile-detach does not — literal copy, not omission)', () => {
+    expect(findRuleBodyContainingAll(rules, ['.person-grid .tile[data-selection-mode="true"] .tile-detach'])).toBeUndefined()
+    expect(findRuleBodyContainingAll(rules, ['.person-grid .tile[data-selected="true"] .tile-detach'])).toBeUndefined()
   })
 })
 
@@ -290,40 +336,44 @@ describe('PersonAssetGrid.vue — override control default transparent, only vis
 // Original impl only has "whole cell hover → button fade in", zero feedback when mouse on button itself; add the
 // "detach" button lacks Vue2's danger color, final review quote: stacking these makes the **destructive** detach ×
 // unrecognizable as delete key.
-describe('PersonAssetGrid.vue — control self :hover and selected state (per Vue2 :1148-1222)', () => {
-  const rules = parseCssRules(extractStyleBlock(personAssetGridRaw))
+// Task 5 record: this rule family moved into parity together with the previous describe block;
+// `--remove-bg` (this app's theme-following token) has likewise been replaced by parity's
+// `var(--danger, #FF3860)` (Vue2's own literal fixed color, see task-5-report.md's deviations
+// table) — the assertions below have been updated to match the new expected values.
+describe('PersonAssetGrid.vue — control self :hover and selected state (per Vue2 :1148-1222, now carried by parity)', () => {
+  const rules = parseCssRules(extractStyleBlock(photosPeopleParityRaw))
 
   it('.tile-check:hover self darkens (Vue2 :1209-1212 background + border-color)', () => {
-    const body = ownRuleBody(rules, '.tile-check:hover')
+    const body = ownRuleBody(rules, '.person-grid .tile .tile-check:hover')
     expect(body).toMatch(/background:/)
     expect(body).toMatch(/border-color:/)
   })
 
-  it('.tile-detach:hover self turns danger color (Vue2 :1172-1177: solid danger red + white icon + transparent border)', () => {
-    const body = ownRuleBody(rules, '.tile-detach:hover')
-    expect(body).toMatch(/background:\s*var\(--remove-bg\)/)
+  it('.tile-detach:hover self turns danger color (Vue2 :1172-1177: solid danger fill + light icon + transparent border)', () => {
+    const body = ownRuleBody(rules, '.person-grid .tile .tile-detach:hover')
+    expect(body).toMatch(/background:\s*var\(--danger,\s*#FF3860\)/)
     expect(body).toMatch(/border-color:\s*transparent/)
     expect(body).toMatch(/color:/)
   })
 
-  it('Both controls\' transition covers background (else hover color is hard cut, Vue2 :1163,1202)', () => {
-    expect(ownRuleBody(rules, '.tile-check')).toMatch(/transition:[^;]*background/)
-    expect(ownRuleBody(rules, '.tile-detach')).toMatch(/transition:[^;]*background/)
+  it('Both controls transition covers background (else hover color is hard cut, Vue2 :1163,1202)', () => {
+    expect(ownRuleBody(rules, '.person-grid .tile .tile-check')).toMatch(/transition:[^;]*background/)
+    expect(ownRuleBody(rules, '.person-grid .tile .tile-detach')).toMatch(/transition:[^;]*background/)
   })
 
   it('Selected tile dims image opacity .85 (Vue2 :1222)', () => {
-    expect(ownRuleBody(rules, '.tile[data-selected="true"] img')).toMatch(/opacity:\s*0?\.85\b/)
+    expect(ownRuleBody(rules, '.person-grid .tile[data-selected="true"] img')).toMatch(/opacity:\s*0?\.85\b/)
   })
 
   it('Geometry per Vue2 effective values: check 20px/offset 6px/2px border, detach 22px/offset 6px + backdrop-filter', () => {
-    const check = ownRuleBody(rules, '.tile-check')
+    const check = ownRuleBody(rules, '.person-grid .tile .tile-check')
     expect(check).toMatch(/width:\s*20px/)
     expect(check).toMatch(/height:\s*20px/)
     expect(check).toMatch(/top:\s*6px/)
     expect(check).toMatch(/left:\s*6px/)
     expect(check).toMatch(/border:\s*2px\s+solid/)
 
-    const detach = ownRuleBody(rules, '.tile-detach')
+    const detach = ownRuleBody(rules, '.person-grid .tile .tile-detach')
     expect(detach).toMatch(/width:\s*22px/)
     expect(detach).toMatch(/height:\s*22px/)
     expect(detach).toMatch(/top:\s*6px/)

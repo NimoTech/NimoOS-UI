@@ -457,32 +457,82 @@ describe('narrow screen rules', () => {
 
 // ── I2: Template row sparkles icon color ────────────────────────────────────────────
 describe('template row icon color (fix round 1 · I2)', () => {
-  it('.sv-template-row svg uses --accent-text, not inherited container foreground (container is --fg)', () => {
+  // Fix-2 item 6 (owner acceptance, 2026-08-13): the token family this file's whole style
+  // block uses switched from New-UI's global tokens (--accent-text/--fg/--chip-bg/etc, none
+  // shadowed on `.photos-root`, so none followed the private photos-is-light toggle) to
+  // parity's own (--accent-hi/--text-1/--surface-*/etc) -- see the acceptance-fix-report.md
+  // §F2 sweep table. This spot-check follows suit.
+  it('.sv-template-row svg uses --accent-hi, not the inherited container foreground (the container itself is --text-1)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-template-row svg')
     expect(rule).toBeDefined()
-    expect(rule?.body).toContain('color: var(--accent-text)')
+    expect(rule?.body).toContain('color: var(--accent-hi)')
   })
 })
 
-// ── I3: The other two --on-accent positive assertions (.sv-modal-icon covered in "foreground color compliance" describe) ──
-describe('foreground color compliance supplementary (fix round 1 · I3: the other two --on-accent positive assertions)', () => {
-  it('.sv-switch[data-on="true"] uses --accent solid fill, ::after knob uses --on-accent foreground', () => {
-    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
-    const bgRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]')
-    expect(bgRule).toBeDefined()
-    expect(bgRule?.body).toContain('background: var(--accent)')
-    const knobRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
-    expect(knobRule).toBeDefined()
-    expect(knobRule?.body).toContain('background: var(--on-accent)')
-  })
-
+// ── I3: the other --on-accent positive assertion (.sv-modal-icon is covered in the "foreground color compliance" describe) ──
+// Fix-5 (owner acceptance, 2026-08-14): the `.sv-switch[data-on="true"]::after` case below this
+// comment used to assert the knob turns `--on-accent` when on -- that was the bug itself
+// (the knob picked up the accent tone on toggle-on in this repo's dark theme, contradicting
+// Vue2's own invariant knob colour and the owner's explicit "the knob keeps one colour in both
+// states" requirement). Replaced with the corrected assertion in the describe block further
+// down ("Fix-5: the switch knob keeps one colour in both states").
+describe('foreground color compliance supplementary (fix round 1 · I3: the other --on-accent positive assertion)', () => {
   it('.sv-btn-primary uses --accent solid fill + --on-accent foreground', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-btn-primary')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('background: var(--accent)')
     expect(rule?.body).toContain('color: var(--on-accent)')
+  })
+})
+
+// ── Fix-5 (owner acceptance, 2026-08-14): the switch knob keeps one colour in both states, it
+//    does not change with on/off ──────────
+// Root cause: parity's own `.photos-root .sv-switch[data-on="true"]::after`
+// (photos-smartview.scss:786-789) only moves the knob (`left: 16px`) -- it never overrides
+// `background`, so Vue2's knob is the exact same colour whether the switch is on or off. This
+// file's own `[data-on="true"]::after` rule used to add `background: var(--on-accent)`, making
+// the knob track state (near-white off, `--on-accent`'s dark-navy value on, in this repo's dark
+// theme) -- a straight bug, not a deviation from Vue2, reproduced in the owner's own screenshot
+// (Keep it live toggled on).
+describe('Fix-5: the switch knob keeps one colour in both states (it does not change with data-on)', () => {
+  it('.sv-switch[data-on="true"]::after only moves the knob, it never overrides background (one knob colour in both states)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob).toBeDefined()
+    expect(onKnob?.body).toContain('left: 16px')
+    // The state rule body no longer declares background -- the knob colour always comes from the
+    // base rule and does not vary with data-on.
+    expect(onKnob?.body).not.toMatch(/background\s*:/)
+  })
+})
+
+// ── Fix-6 (owner decision, 2026-08-14): knob is invariant white across EVERY theme, not just
+// both on/off states -- Fix-5's `var(--text-1)` correctly stayed constant across on/off but is
+// itself a theme-flipping token (dark under `.photos-root.is-light`), so the owner's actual
+// requirement ("white in both themes and both states") was still unmet. `--text-1` is no longer
+// used for the knob at all; light mode gets a paired border+shadow rule to keep a flat white
+// knob visible against its own near-white off-track. ──────────────────────────────────────
+describe('Fix-6: the switch knob stays white across themes (no longer the theme-flipping --text-1)', () => {
+  it('.sv-switch::after knob background is a literal white, not var(--text-1)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
+    expect(baseKnob).toBeDefined()
+    expect(baseKnob?.body).toMatch(/background\s*:\s*#fff\b/)
+    expect(baseKnob?.body).not.toContain('var(--text-1)')
+  })
+
+  it('.photos-root.is-light .sv-switch::after gives the white knob a light-theme border + shadow, shared by both states', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const lightKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.photos-root.is-light .sv-switch::after')
+    expect(lightKnob, 'the light-theme knob-specific border/shadow override rule is missing').toBeDefined()
+    expect(lightKnob?.body).toMatch(/border\s*:\s*1px solid var\(--line-strong\)/)
+    expect(lightKnob?.body).toMatch(/box-shadow\s*:/)
+    // This rule is not split by on/off; it applies in both states (the data-on rule does not
+    // override border/box-shadow either).
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob?.body).not.toMatch(/border\s*:|box-shadow\s*:/)
   })
 })
 

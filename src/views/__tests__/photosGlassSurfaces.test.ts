@@ -49,31 +49,52 @@ function ruleBody(text: string, selector: string): string {
 }
 
 describe('Photos section surfaces use the glass token, not the app background color', () => {
-  it('search page filter bar paints no background (glass shell shows through, consistent with the rows above and below)', () => {
-    const body = ruleBody(read('views/PhotosSearch.vue'), '.filterbar {')
-    // Not "don't use --bg" but "this bar shouldn't paint a background at all" — the .search-hero
-    // above it and the sort row below it are both transparent, so any fill here would leave a
-    // colored band on the glass shell.
-    expect(body, `.filterbar has a background painted again: ${body.trim()}`).not.toMatch(/background\s*:/)
+  // Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward) correction: this case's own
+  // premise -- "this page still lives inside AreaShell's glass shell, so any background paints a
+  // visible band" -- is no longer true, same class of correction as Fix-2 item 6 below did for
+  // PhotosSmartViewDetail.vue's `.sv-detail-side`. This task un-wrapped PhotosSearch.vue from its
+  // old flex-row `.photos-layout` shell into the SAME opaque `.photos-root > .app` grid every
+  // other migrated page uses (`--bg: #0A0A0C`, a solid near-black page, not a translucent
+  // wallpaper backdrop) -- the exact problem this case originally guarded against cannot recur
+  // here. PhotosSearch.vue no longer carries its own local `.filterbar` rule at all: the
+  // 2026-08-13 rollback (see PhotosSearch.vue's own style-block header comment) deleted it along
+  // with every other selector name already covered by vue2-parity/photos.scss, letting THAT rule
+  // (which does paint `background: var(--bg)`, matching Vue2 1:1, photos.scss:2610-2616) govern
+  // directly.
+  it('the search page no longer carries a local .filterbar rule (handed over to parity by the 2026-08-13 rollback)', () => {
+    const src = read('views/PhotosSearch.vue')
+    expect(src, 'the search page still keeps a local .filterbar rule; the rollback should have removed it').not.toMatch(/\n\.filterbar\s*\{/)
   })
 
-  it('search page filter bar still keeps its divider and stacking (only the background was removed, nothing else)', () => {
-    const body = ruleBody(read('views/PhotosSearch.vue'), '.filterbar {')
-    // border-bottom is the only visual boundary between it and the sort row — removing the
-    // background makes keeping this even more important.
-    expect(body).toMatch(/border-bottom\s*:\s*1px solid var\(--divider\)/)
+  it('parity own .filterbar does paint a background (Plan C left the AreaShell glass shell, so a fill no longer leaves a band) and still keeps its divider and stacking', () => {
+    const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.filterbar {')
+    expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
+    // border-bottom is the only visual boundary between it and the sort row.
+    expect(body).toMatch(/border-bottom\s*:\s*1px solid var\(--line\)/)
     // position/z-index aren't decorative: the filter popover (.fpop) is a descendant of this
     // element, and these two properties are what let it render above the grid below.
-    // Removing them would let it get covered by tiles — unrelated to this "remove background"
-    // change, so they must be kept.
     expect(body).toMatch(/position\s*:\s*sticky/)
     expect(body).toMatch(/z-index\s*:\s*6/)
   })
 
-  it('smart view detail right sidebar uses the glass background (consistent with PhotosSidebar / PlacesRail in the same section)', () => {
+  // Fix-2 item 6 (owner acceptance, 2026-08-13) correction: this case's own premise -- "this
+  // page still lives inside AreaShell's glass shell, same as PhotosSidebar/PlacesRail" -- is no
+  // longer true. Plan C Task 2 (see PhotosSmartViewDetail.vue's own header comment) un-wrapped
+  // this exact page from AreaShell into Vue2's own single opaque `.photos-root > .app` shell
+  // (`--bg: #0A0A0C`, a solid near-black page, not a glass wallpaper backdrop) -- the same
+  // migration Photos.vue's own shell went through earlier. PhotosSidebar, cited here as the
+  // same-precedent glass surface, in fact no longer uses `--panel-bg` either: its real parity
+  // rule (`vue2-parity/photos.scss:134-139` `.sidebar { background: var(--surface-1); ... }`)
+  // is the same flat, opaque, `.photos-root`-scoped token this fix gives `.sv-detail-side`.
+  // `--surface-1` is also correctly shadowed under `.photos-root.is-light` (unlike the global
+  // `--panel-bg`, which was not, and stayed a barely-visible glass tint in photos light mode --
+  // the actual bug this correction fixes, on top of restoring the pre-Plan-C premise this test
+  // case itself no longer describes).
+  it('the smart view detail right sidebar uses parity own opaque panel background (Plan C left the AreaShell glass shell, matching what PhotosSidebar does now)', () => {
     const body = ruleBody(read('views/PhotosSmartViewDetail.vue'), '.sv-detail-side {')
-    expect(body).toMatch(/background\s*:\s*var\(--panel-bg\)/)
-    expect(body, 'nothing behind the right sidebar is a map, so it has no need for an opaque solid fill').not.toMatch(/var\(--panel-bg-solid\)/)
+    expect(body).toMatch(/background\s*:\s*var\(--surface-1\)/)
+    expect(body, 'nothing behind the right sidebar is a map, so it has no need for an opaque solid fill (and it stopped consuming --panel-bg-solid long ago)').not.toMatch(/var\(--panel-bg-solid\)/)
+    expect(body, 'it must not fall back to the global glass token that never followed the photos-is-light switch').not.toMatch(/var\(--panel-bg\)/)
   })
 })
 
@@ -108,5 +129,30 @@ describe('--panel-bg-solid consumer allowlist (reverse gate)', () => {
       .filter((p) => fs.readFileSync(p, 'utf8').includes('var(--panel-bg-solid)'))
       .map((p) => path.relative(SRC, p).replace(/\\/g, '/'))
     expect(users.slice().sort(), `the set of --panel-bg-solid consumers has changed`).toEqual([...ALLOW].sort())
+  })
+})
+
+// Fix-2 item 6b (owner acceptance, 2026-08-13): global body::before/after (theme.css) paint a
+// fixed, viewport-covering "aurora" wash at z-index:0, meant to glow through AreaShell's own
+// glass shells. Photos opted out of that glass aesthetic entirely (`.photos-root .app` paints
+// its own fully opaque `--bg`, matching Vue2 1:1) -- but a plain, non-positioned block element
+// is painted *before* a `position: fixed; z-index: 0` sibling in the standard CSS paint order
+// regardless of how opaque its own background is, so the aurora painted on top of `.app` all
+// along. It read as a plausible ambient glow in Photos' own dark theme and was never reported;
+// `.photos-root.is-light`'s near-white `--bg` makes the exact same bleed-through glaringly
+// visible (a colourful gradient wash over a light page), which is what the owner's screenshot
+// shows. Fix: `position: relative; z-index: 1` on `.app` promotes it into the positioned/
+// z-index layer above the aurora's `z-index: 0` -- theme-invariant (fixes both of
+// `.photos-root`'s own themes at once, not a per-theme override), same recipe already used by
+// ViewerShell.vue's own opaque shell over its own z-index:0 bokeh layer. jsdom does not compute
+// paint order/cascade, so (same as this file's other cases) this is a raw-source assertion, not
+// a rendered-DOM one; real-device verification is still the authority for the visual result.
+describe('Fix-2 item 6b: .app establishes its own stacking context, sitting above the global aurora (z-index:0)', () => {
+  it('.photos-root .app carries position:relative + z-index:1 (shared by both themes, not split light/dark)', () => {
+    const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root .app {')
+    expect(body).toMatch(/position\s*:\s*relative/)
+    expect(body).toMatch(/z-index\s*:\s*1\b/)
+    // The opaque background stays as well -- the two are independent and both must hold.
+    expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
   })
 })

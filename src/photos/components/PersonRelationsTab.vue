@@ -17,6 +17,10 @@
 // (T13 new addition, see that file's comments); here only does t(key, params) resolution + space
 // joining (follows :584 `parts.join(' ')`), plus v-html hardening (see escapeHtml comment below).
 //
+// Task 8 (Plan D): the insight card's bottom "Dig deeper" button (Vue2 :228-230 `.nimo-btn`,
+// $emit('ask-nimo', ...)) was previously deferred to SP8 and unrendered; now added back per Vue2.
+// The click is a no-op — wiring the real Ask Nimo call belongs to Plan G.
+//
 // v-html security (tradeoff between two brief options, detailed in report): brief suggests "if low
 // cost, switch to <i18n-t> named slots to make <b> a slot". Here using another lower-cost path
 // that equally closes the risk — before assembling sentence, HTML-escape each interpolation
@@ -91,6 +95,11 @@ const nimoReadHtml = computed(() => {
     })
     .join(' ')
 })
+
+// Task 8 (Plan D): Vue2 :228 emits 'ask-nimo' with a canned prompt string; this component's
+// own ask-nimo wiring lands in Plan G (per this task's brief).
+// wired in Plan G (Ask Nimo)
+function onDigDeeper(): void {}
 </script>
 
 <template>
@@ -120,7 +129,10 @@ const nimoReadHtml = computed(() => {
         >
           <PersonAvatar :person-id="r.personId" :name="r.name" :ver="r.coverFaceId" :size="36" />
           <div class="body">
-            <div class="nm">{{ r.name }}</div>
+            <!-- Task 6 (Plan D, PR 137 gap-close): Vue2 PR 137 patch (PhotosPersonDetail.vue,
+                 graph-tab rel-row) added `r.name || $t('Unnamed person')` here — this list row
+                 was missing that fallback. -->
+            <div class="nm">{{ r.name || t('photosPersonUnnamedTitle') }}</div>
             <div class="ct">{{ t('photosPersonPhotosTogether', { n: r.count }) }}</div>
           </div>
           <div class="bar"><div :style="{ width: (r.count / relMax * 100) + '%' }" /></div>
@@ -133,137 +145,33 @@ const nimoReadHtml = computed(() => {
              individually in nimoReadHtml, remaining <b> can only come from translation template
              itself, see script section comment -->
         <p class="insight-text" data-test="insight-text" v-html="nimoReadHtml" />
+        <!-- Task 8 (Plan D): the "Dig deeper" button — Vue2 :228-230, click is a no-op
+             (onDigDeeper), wiring belongs to Plan G. -->
+        <button type="button" class="nimo-btn" data-test="rel-insight-dig-deeper" @click="onDigDeeper">
+          {{ t('photosPersonDigDeeper') }}
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Relation graph area (follow photos-people.scss:502-535). */
-.rel-section {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 24px;
-  align-items: start;
-}
-/* Vue2 uses --font-display/--font-sans two font tokens to distinguish title/subtitle font-weight
-   source; New-UI has only one unified --font token (verified in theme.css), both use it, same as
-   PersonPlacesTab.vue's .detail-section-title/.sub existing precedent (T12, same flex+baseline+gap
-   structure, same --fg/--fg-muted coloring) — both tabs render their own section titles
-   (coordinator decision), CSS rules therefore written separately, not omitted sharing. */
-.detail-section-title {
-  font-family: var(--font);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0 0 14px;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  color: var(--fg);
-}
-.detail-section-title .sub {
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--fg-muted);
-  letter-spacing: 0;
-}
-/* Vue2 this card uses --surface-1 (background) / --line (border) / --r-lg (border-radius) three
-   tokens, none exist here (verified via grep, both theme blocks lack them) — substitute with
-   --card (same as T12 .map-card precedent) / --card-border / --radius-sm respectively. */
-.rel-graph-wrap {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  position: relative;
-  min-height: 420px;
-  overflow: hidden;
-}
-/* Vue2 legend text uses --text-3, does not exist here, substitute with semantically equivalent --fg-muted. */
-.rel-graph-wrap .legend {
-  position: absolute;
-  top: 14px;
-  left: 16px;
-  font-size: 11px;
-  color: var(--fg-muted);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.rel-graph-wrap .legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.rel-graph-wrap .legend .l {
-  width: 18px;
-  height: 2px;
-  background: var(--accent);
-  opacity: 0.8;
-}
-.rel-graph-wrap .legend .l.thin {
-  opacity: 0.4;
-}
+/* Task 5 (Plan D) shadowing cleanup: `.rel-section`, `.detail-section-title`(+`.sub`),
+   `.rel-graph-wrap`(+`.legend` family), `.rel-list`/`.rel-row`(+`.body`/`.nm`/`.ct`/`.bar`/
+   `.bar > div`) all duplicated parity anchors under the exact same selector paths and have
+   been deleted — parity now governs directly, using its own token set (`--text-1`/`--surface-1`
+   /`--line`/`--r-lg` etc.) rather than this app's theme.css tokens the comments here used to
+   explain as substitutes. See task-5-report.md's deviations table for the resulting value
+   changes (mostly cosmetic: parity's tokens resolve to Vue2's own pixel values inside
+   `.photos-root`, this component's previous substitutions were reasoned approximations). */
 
-/* Co-appearance list (follow photos-people.scss:537-568). */
-.rel-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.rel-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-/* Vue2 uses --surface-2, does not exist here, substitute with --hover (same as PersonHero.vue
-   .hero-menu-item:hover precedent: light overlay layer on transparent background for line-level hover). */
-.rel-row:hover {
-  background: var(--hover);
-}
-.rel-row .body {
-  flex: 1;
-  min-width: 0;
-}
-.rel-row .nm {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--fg);
-}
-.rel-row .ct {
-  font-size: 11.5px;
-  color: var(--fg-muted);
-}
-.rel-row .bar {
-  width: 60px;
-  height: 4px;
-  border-radius: 99px;
-  /* Vue2 this track background uses --ink token at 6% transparency, --ink does not exist here
-     (verified via grep, neither theme block has that token) — substitute with semantically
-     equivalent neutral light overlay token --divider (defined in both themes). */
-  background: var(--divider);
-  overflow: hidden;
-  flex: none;
-}
-.rel-row .bar > div {
-  height: 100%;
-  /* Vue2 uses var(--accent-hi) — that token does not exist here, substitute with --accent-text
-     (defined in both themes, semantics equivalent: "accent highlight/text variant"). */
-  background: linear-gradient(90deg, var(--accent), var(--accent-text));
-}
-
-/* Nimo's read insight card (follow photos-people.scss:647-673; does not include :674-682
-   "deep dive" button styles — that button not rendered this task, belongs to SP8). */
+/* `.rel-insight-card` survives as a deliberate, already-reviewed deviation from both Vue2 and
+   parity: Vue2 hardcodes this card's background as a fixed purple RGB-triplet gradient
+   (its old theme's literal accent color) — parity transcribes that literal value too. This app
+   follows the *current* theme's --accent instead via color-mix, so the card doesn't look
+   frozen to Vue2's old purple in whichever theme has a different accent. Not a bug to fix;
+   kept exactly as previously reasoned. */
 .rel-insight-card {
-  /* Vue2 this card's background is hard-coded fixed purple transparency gradient (RGB 110,91,255)
-     — exactly Vue2 old theme's accent literal color, not theme-independent data viz color. Change to
-     use color-mix deriving from current theme's --accent, follows theme switch, not pinned to purple
-     (the two themes' accent values differ). */
   background: linear-gradient(
     160deg,
     color-mix(in srgb, var(--accent) 10%, transparent),
@@ -273,27 +181,20 @@ const nimoReadHtml = computed(() => {
   border-radius: var(--radius-sm);
   padding: 16px;
 }
-.rel-insight-card .hd {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--accent-text);
-  font-weight: 600;
-  margin-bottom: 10px;
-}
+/* `.hd` itself duplicated parity's own rule (parity's `color: var(--accent-hi)` is already a
+   themed token, not one of Vue2's hardcoded literals, so there's no reason to keep a local
+   copy — deleted). `.hd .orb`'s background-image comes from an inline :style binding (imported
+   asset URL, see script block) rather than parity's `url(../../assets/nimo-logo.png)` —
+   parity's relative scss import path is not guaranteed to resolve the same way through this
+   app's own asset pipeline, so the image itself stays inline; only the box geometry survives
+   here (parity's shorthand still supplies matching background-size/position/repeat, since
+   inline style only overrides the single background-image longhand it sets). `.rel-insight-card
+   p` duplicated parity's own rule too and has been deleted (parity's `margin: 0 0 10px` vs.
+   this component's `margin: 0` — this component never renders the button that margin made room
+   for, so the extra 10px is just a touch of trailing padding, not a visible defect). */
 .rel-insight-card .hd .orb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-}
-.rel-insight-card p {
-  font-size: 12.5px;
-  color: var(--fg-muted);
-  line-height: 1.55;
-  margin: 0;
 }
 </style>

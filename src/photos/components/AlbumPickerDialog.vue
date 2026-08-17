@@ -161,18 +161,18 @@ async function submitCreate(): Promise<void> {
 <template>
   <div
     v-if="open"
-    class="alb-picker-overlay"
+    class="album-picker-overlay"
     data-test="album-picker-overlay"
     @click.self="close"
   >
-    <div class="alb-picker-panel">
-      <div class="alb-picker-head">
-        <span class="alb-picker-title-text">{{ t('photosAddToAlbumTitle') }}</span>
-        <button type="button" class="alb-picker-close" :aria-label="t('photosClose')" @click="close">×</button>
+    <div class="album-picker-panel">
+      <div class="album-picker-head">
+        <span class="album-picker-title-text">{{ t('photosAddToAlbumTitle') }}</span>
+        <button type="button" class="album-picker-close" :aria-label="t('photosClose')" @click="close">×</button>
       </div>
 
-      <div class="alb-picker-body">
-        <div v-if="views.length === 0" class="alb-picker-empty" data-test="album-picker-empty">
+      <div class="album-picker-body">
+        <div v-if="views.length === 0" class="album-picker-empty" data-test="album-picker-empty">
           {{ t('photosAddToAlbumEmpty') }}
         </div>
 
@@ -180,37 +180,37 @@ async function submitCreate(): Promise<void> {
           v-for="v in views"
           :key="v.id"
           type="button"
-          class="alb-picker-item"
+          class="album-picker-item"
           data-test="album-picker-item"
           :disabled="!canSubmit"
           @click="pick(v.id)"
         >
-          <span v-if="v.cover" class="alb-picker-cover">
+          <span v-if="v.cover" class="album-picker-cover">
             <img :src="thumb(v.cover)" alt="">
           </span>
-          <span v-else class="alb-picker-cover alb-picker-cover-empty" data-test="album-picker-cover-empty"></span>
-          <span class="alb-picker-info">
-            <span class="alb-picker-item-title">{{ v.title }}</span>
-            <span class="alb-picker-item-count">{{ t('photosItemsCount', { count: v.count }) }}</span>
+          <span v-else class="album-picker-cover album-picker-cover-empty" data-test="album-picker-cover-empty"></span>
+          <span class="album-picker-info">
+            <span class="album-picker-item-title">{{ v.title }}</span>
+            <span class="album-picker-item-count">{{ t('photosItemsCount', { count: v.count }) }}</span>
           </span>
         </button>
 
         <button
           v-if="!creating"
           type="button"
-          class="alb-picker-item alb-picker-new"
+          class="album-picker-item album-picker-new"
           data-test="album-picker-new"
           :disabled="!canSubmit"
           @click="startCreate"
         >
           {{ t('photosAddToAlbumNew') }}
         </button>
-        <div v-else class="alb-picker-new-row">
+        <div v-else class="album-picker-new-row">
           <input
             ref="newInputRef"
             v-model="newName"
             type="text"
-            class="alb-picker-new-input"
+            class="album-picker-new-input"
             data-test="album-picker-new-input"
             @keydown.enter="submitCreate"
           >
@@ -221,80 +221,86 @@ async function submitCreate(): Promise<void> {
 </template>
 
 <style scoped>
-.alb-picker-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 230;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
+/* Task 7 (the two-picker class-name rework): overlay/panel/head/body/item(+:hover)/new/empty
+   are character-for-character the same names as the already-imported global parity stylesheet
+   (src/photos/styles/vue2-parity/photos.scss:1043-1074, `.photos-root .album-picker-*`) — those
+   rules are deleted wholesale here and parity takes over directly, with no local restatement
+   (otherwise two declarations of the same property tie on scoped specificity and the winner is
+   decided by load order, an invisible source of pixel drift — the exact trap hit during the T3
+   albums-dialog cleanup). Only selectors parity does not cover at all survive below, each with
+   its own comment explaining why. */
+
+/* Structural supplement (not covered by parity): this component's album row carries a cover
+   thumbnail plus a two-column title/count layout, and uses a native <button> to express the
+   clickable semantics (Vue2's version is a plain-text <div> that creates albums through
+   window.prompt, with no cover/count sub-structure at all) — only the flex layout and the button
+   appearance reset survive here, two categories parity does not touch;
+   padding/font-size/color/cursor/transition still come from parity's .album-picker-item and are
+   not restated. */
+.album-picker-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 40px 24px;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
+/* Parity has no rule for the disabled state (Vue2 has no such state) — a New-UI safeguard for
+   the empty-assetIds case. */
+.album-picker-item:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 
-/* P2 hard lesson: panel background must use --popup-bg, not --card-bg (--card-bg nearly transparent
-   in dark theme, shows through when layered on dark background). */
-.alb-picker-panel {
-  width: 340px;
-  max-width: 100%;
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: var(--card-shadow-hi);
-  overflow: hidden;
-}
-
-.alb-picker-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--divider);
-  flex: 0 0 auto;
-}
-.alb-picker-title-text { font-size: 14.5px; font-weight: 600; color: var(--fg); }
-.alb-picker-close {
+/* Header close button: Vue2 reuses the site-wide .icon-btn (photos.scss:229-237, a 32px circle
+   plus the photos-icon component). This repo's dialogs (MergeReviewDialog.vue `.mrd-close`,
+   ClusterActionDialog.vue `.cad-close`, the New Album layer's `.albums-modal-close` in
+   PhotosAlbums.vue) consistently use a smaller 24px dedicated close-button class instead of
+   reusing .icon-btn — a continuation of the established local idiom, with no parity selector
+   to compare against. */
+.album-picker-close {
   width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
+  color: var(--text-2); font-size: 15px; line-height: 1; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.alb-picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.album-picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
-.alb-picker-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px; }
+/* Title text (the `.album-picker-title-text` span in the template, with no rule of its own —
+   recorded during Task 8's static self-check): no local font-size/font-weight/color is declared
+   any more. Parity's own .album-picker-head is already a font-size:13px; font-weight:600 flex
+   container (space-between naturally pushes the title and the close button to opposite ends), so
+   keeping a local override here would quietly turn 13px into 14.5px — pixel drift. With it gone,
+   parity's header type size governs, matching Vue2's own bare <span> (likewise unclassed,
+   inheriting the ambient colour). The class name stays as a structural marker. */
 
-.alb-picker-empty { padding: 20px 8px; color: var(--fg-muted); font-size: 12.5px; text-align: center; }
-
-.alb-picker-item {
-  width: 100%;
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px; border: 0; border-radius: 10px; background: transparent;
-  color: var(--fg); font: inherit; text-align: left; cursor: pointer;
-}
-.alb-picker-item:hover { background: var(--chip-bg-hi); }
-.alb-picker-item:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
-
-.alb-picker-cover {
+/* Cover thumbnail / empty placeholder — Vue2's window.prompt flow shows no cover at all; this is
+   a feature addition unique to this component (a shape deviation the brief registers explicitly),
+   with no parity selector to match. */
+.album-picker-cover {
   flex: 0 0 auto; width: 40px; height: 40px; border-radius: 8px; overflow: hidden;
-  border: 1px solid var(--card-border); background: var(--chip-bg);
+  border: 1px solid var(--line); background: var(--surface-2);
 }
-.alb-picker-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.alb-picker-cover-empty { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
+.album-picker-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.album-picker-cover-empty { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
 
-.alb-picker-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.alb-picker-item-title { font-size: 13px; font-weight: 500; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.alb-picker-item-count { font-size: 11px; color: var(--fg-muted); }
+/* The two-column title + count information area — as above, parity's plain-text row has no such
+   sub-structure. */
+.album-picker-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.album-picker-item-title { font-size: 13px; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.album-picker-item-count { font-size: 11px; color: var(--text-2); }
 
-.alb-picker-new { color: var(--accent-text); font-size: 13px; font-weight: 500; }
+/* .album-picker-new's colour is now owned by parity (`color: var(--accent-hi)`), and the
+   font-size/font-weight overrides that used to sit here are deleted along with it — Vue2's
+   "+ New Album" row has always carried the same weight as an ordinary album row, not a bolded
+   emphasis, so removing them matches Vue2. */
 
-.alb-picker-new-row { padding: 8px; }
-.alb-picker-new-input {
+/* The inline create-album input row — a shape deviation registered in the brief (Vue2 uses
+   window.prompt, this repo uses an inline input row inside the panel), so parity naturally has no
+   matching selector. */
+.album-picker-new-row { padding: 8px; }
+.album-picker-new-input {
   width: 100%; height: 34px; padding: 0 10px; border-radius: 8px;
-  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text-1);
   font: inherit; font-size: 13px;
 }
-.alb-picker-new-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.album-picker-new-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 </style>

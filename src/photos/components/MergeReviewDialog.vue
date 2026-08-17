@@ -24,6 +24,22 @@
 // Vue2 $t('Cluster A'/'Cluster B'); old repo zh_CN.json:1993-1994 translated to "clusters A/B"
 // which violates this period's terminology redline, changed to "group A/B"), and
 // photosPersonMergeNimoLead (brand-prefixed reason label $t('Nimo:')).
+//
+// Plan D Task 4 (scoped zeroed out): this component's class names are unchanged (Task 1 already
+// landed them in parity under the current .mrd-* names — Vue2's entire dialog is likewise built
+// from :style bindings, so there's no class to anchor to). The whole local scoped style block
+// that used to live at the end of this file has been deleted: every rule now has a matching,
+// line-by-line-compared counterpart in src/photos/styles/vue2-parity/photos-people.scss (the
+// genuine gap filled in during the diff — the old `:deep(.person-avatar)` avatar square
+// constraint has been rewritten in parity as a plain descendant selector
+// `.mrd-side .person-avatar`, since parity isn't scoped CSS and doesn't need :deep; the local
+// drift from Vue2 corrected along the way — .mrd-overlay's padding — is also documented in that
+// parity rule's own comment). Parity is a plain global stylesheet, and once this component
+// carries no local scoped rules at all, nothing can out-specificity parity's own declaration
+// order anymore — the hover-fix comment that used to be here (":hover losing its background to
+// the base class's hover") existed precisely because a local scoped rule carries its own
+// specificity bump; once scoped is entirely zeroed out, that precondition no longer holds and
+// can't recur.
 import { computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
@@ -188,99 +204,3 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
     </div>
   </div>
 </template>
-
-<style scoped>
-.mrd-overlay {
-  position: fixed;
-  inset: 0;
-  /* Must be lower than three-state dialog ClusterActionDialog (220) — Vue2 source has ratio
-     100 (this dialog) vs 200 (three-state dialog); here we choose per the hard constraint "lower
-     than three-state dialog" within this repo's existing z-index sequence, not copying Vue2's
-     absolute number (other floating layers in this repo already use values 50/150/220/230). */
-  z-index: 200;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 24px;
-}
-
-/* P2 hard-won lesson (precedent ClusterActionDialog.vue:257-258): panel background must use
-   --popup-bg, not --card-bg (in dark theme --card-bg is near-transparent, layered on dark
-   background becomes see-through). */
-.mrd-panel {
-  width: 560px;
-  max-width: 100%;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: var(--card-shadow-hi);
-}
-
-.mrd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.mrd-logo {
-  width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
-  object-fit: cover;
-  /* Placeholder background color before image loads (or on load failure; <img> has no fallback)
-     — not a layout container for content — does not need display:flex/align-items/justify-content
-     /color (those apply to child layout; <img> has no children). */
-  background: var(--accent-soft);
-}
-.mrd-head-text { flex: 1 1 auto; min-width: 0; }
-.mrd-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.mrd-confidence { font-size: 11.5px; color: var(--fg-muted); margin-top: 2px; }
-.mrd-close {
-  flex: 0 0 auto;
-  width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.mrd-close:hover { background: var(--hover); color: var(--fg); }
-
-.mrd-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-.mrd-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-/* PersonAvatar's size prop accepts only fixed pixels, not percentages — Vue2's avatar here is
-   a true fluid block with width:100%/aspect-ratio:1 (:387,405). Use !important to override
-   component inline style to narrow the root node to "follow column width, maintain 1:1" (CSS
-   max-width/aspect-ratio precedence applies after width; this is standard behavior, not a hack);
-   size=200 remains as a basis value for PersonAvatar's internal ratio calculation (this view
-   doesn't show save stars, so no impact). Narrow-screen fallback: without this, 200px block would
-   overflow on narrow panel (560px panel gets narrowed to max-width:100% on phone width, but the
-   block stays pinned at 200px). */
-.mrd-side :deep(.person-avatar) {
-  max-width: 100%;
-  height: auto !important;
-  aspect-ratio: 1;
-}
-.mrd-side-label { font-size: 12px; color: var(--fg-muted); }
-
-.mrd-reason {
-  padding: 12px; background: var(--accent-soft); border-radius: 10px;
-  font-size: 12px; color: var(--fg); line-height: 1.5; margin-bottom: 16px;
-}
-/* Vue2 :423 uses var(--accent-hi) — this repo's theme.css does not define this token (grep
-   confirms it's absent in both theme blocks); reuse --accent-text which is defined in both themes
-   (same hue, established role as "emphasis text"; consistent with existing PhotosPeople.vue .em
-   / .check convention), rather than adding/fabricating a new token. */
-.mrd-reason-lead { color: var(--accent-text); }
-
-.mrd-actions { display: flex; gap: 8px; }
-.mrd-btn {
-  flex: 1; height: 38px; border-radius: 10px; background: var(--chip-bg);
-  border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px;
-  font-weight: 500; cursor: pointer;
-}
-.mrd-btn:hover { background: var(--chip-bg-hi); }
-.mrd-btn-primary {
-  background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-}
-/* Same fix as ClusterActionDialog: `.mrd-btn:hover` (:260, specificity (0,2,0)) overrides the
-   single-class `.mrd-btn-primary` (0,1,0); on hover, accent solid background gets replaced with
-   near-white --chip-bg-hi while text stays --on-accent → "Merge" button becomes completely
-   invisible. This :hover originally had only filter; must also restore the background (same as
-   the existing correct pattern in detail view PhotosPersonDetail.vue:1142). */
-.mrd-btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
-</style>

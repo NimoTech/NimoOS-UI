@@ -121,7 +121,7 @@ function timeOf(a: SmartViewActivity): string {
 .sv-side-section { margin-bottom: 24px; }
 .sv-side-section h3 {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--fg-faint); margin: 0 0 10px;
+  color: var(--text-3); margin: 0 0 10px;
 }
 
 /* — Activity feed (scss:606-625) — */
@@ -134,9 +134,9 @@ function timeOf(a: SmartViewActivity): string {
    (same as file header token mapping). */
 .sv-activity-placeholder {
   width: 26px; height: 26px; border-radius: 4px; background: var(--accent-soft);
-  display: flex; align-items: center; justify-content: center; color: var(--accent-text);
+  display: flex; align-items: center; justify-content: center; color: var(--accent-hi);
 }
-.sv-activity-text { flex: 1; color: var(--fg-muted); line-height: 1.4; }
-.sv-activity-text b { color: var(--fg); font-weight: 600; }
-.sv-activity-time { color: var(--fg-subtle); font-size: 10.5px; }
+.sv-activity-text { flex: 1; color: var(--text-2); line-height: 1.4; }
+.sv-activity-text b { color: var(--text-1); font-weight: 600; }
+.sv-activity-time { color: var(--text-4); font-size: 10.5px; }
 </style>

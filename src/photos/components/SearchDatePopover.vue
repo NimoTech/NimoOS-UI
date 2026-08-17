@@ -175,178 +175,36 @@ function pick(c: CalCell): void {
 </template>
 
 <style scoped>
-/* Shell duplication with T12's PhotosFilterPopover.vue (see file header registry): .fpop series +
-   .fpop-quick + .btn series. Values copied verbatim from photos.scss:2658-2674, not from T12 file. */
-.fpop {
-  position: absolute;
-  top: 36px;
-  left: 0;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  box-shadow: var(--card-shadow-hi);
-  padding: 14px;
-  width: 320px;
-  z-index: 10;
-  animation: pop-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: default;
-  text-align: left;
-}
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.96);
-  }
-}
+/* 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+   this component was missed in that round, and the brief names it explicitly: "align their
+   chrome to parity like the FilterChip/Popover treatment"): the whole batch of Vue2-native
+   class names .fpop/.fpop-title/.fpop-row/.fpop-quick(+:hover/[data-on])/.cal-head/
+   .cal-nav(+:hover)/.cal/.cal-cell(+ every variant)/.btn/.btn-primary(+ both :hover rules)
+   already have character-for-character bare selectors in vue2-parity/photos.scss (:2690-2726;
+   the .btn family goes through the global `.photos-root .btn` / `.photos-root .btn-primary`
+   rules at :290-301), whose values are Vue2's own local tokens (--surface-2/3, --text-1/2/3,
+   --line, --accent-soft, --accent-hi and so on, defined in both the dark block and the
+   .photos-root.is-light block). This file used to carry a duplicate of each, mapped onto the
+   repo-wide glass semantics (--popup-bg/--card-border/--card-shadow-hi/--chip-bg/--fg-muted/
+   --accent-text and friends) — none of which `.photos-root` redefines locally, so they fell
+   through to theme.css's global accent-toned glass values, and the [data-v-xxxx] attribute
+   that scoped compilation adds pushed them above the parity bare selectors, which is the only
+   reason that mismatched colour set could win at all. Dropping the duplicate lets the parity
+   rules apply directly, with no attribute-driven specificity boost needed. `@keyframes pop-in`
+   goes for the same reason — the parity scss already has a keyframe of that name, and
+   animation names live in a global namespace that scoped compilation does not touch.
+   `.cal-cell.muted` (Vue2 photos.scss:2685) has zero hits in PhotosSearchView.vue's template
+   and no consumer at all; parity transcribed that dead CSS, this component never repeated the
+   declaration, and nothing here changes. */
 
-.fpop-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--fg-faint);
-  letter-spacing: 0.06em;
-  margin-bottom: 10px;
-}
-
+/* `.fpop-row`'s `flex-wrap: wrap` is not a property Vue2/parity has (Vue2 photos.scss:2660's
+   `.fpop-row` carries only `display:flex; gap:6px; margin-bottom:6px`, no flex-wrap) — it is a
+   New-UI-only additive fix: without wrapping, the five quick-range buttons overflow a 320px-wide
+   popover under some languages' button copy. The rollback keeps this one declaration (only the
+   addition stays; everything else goes to parity's bare `.fpop-row`). */
 .fpop-row {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
   flex-wrap: wrap;
 }
-
-.fpop-quick {
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 99px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-.fpop-quick:hover {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-/* Hover hard constraint (A7): Vue2 original (photos.scss:2674) writes :hover and [data-on="true"]
-   in the same rule, sharing the same values — when splitting here, both sides must match exactly
-   (copy the :hover line above, not create a separate set). Base :hover and [data-on="true"] (not
-   hovered) have equal specificity (both 0,2,0: one class + one pseudo-class / one class + one
-   attribute selector); the variant must carry its own :hover to maintain the selected state when
-   'hovering over an already-selected quick button', not be overridden by base hover. */
-.fpop-quick[data-on='true'] {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-.fpop-quick[data-on='true']:hover {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-
-.cal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 14px;
-  margin-bottom: 2px;
-}
-
-.cal-nav {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--fg-muted);
-  background: transparent;
-  border: 0;
-  transition: all 0.2s;
-}
-.cal-nav:hover {
-  background: var(--chip-bg-hi);
-  color: var(--fg);
-}
-
-.cal {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  margin-top: 12px;
-}
-.cal-cell {
-  height: 28px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.cal-cell.dow {
-  color: var(--fg-faint);
-  font-size: 10.5px;
-  font-weight: 600;
-  cursor: default;
-  height: 22px;
-}
-.cal-cell:hover {
-  background: var(--chip-bg-hi);
-}
-/* Hover hard constraint (A7; this component's most concentrated case of this constraint):
-   .cal-cell:hover and the three variants .in/.start/.end all have equal specificity (all 0,2,0:
-   one class + one pseudo-class / two classes). Vue2 relies on source code order (variants written
-   after hover) to keep the selected state unoverridden when hovering — in scoped SFC this
-   'order-dependent' approach should not be relied on; each of the three variants adds its own
-   :hover with values equal to the existing state when not hovered (i.e., selected state unchanged
-   when hovering). */
-.cal-cell.in {
-  background: var(--accent-soft);
-  color: var(--fg);
-  border-radius: 0;
-}
-.cal-cell.in:hover {
-  background: var(--accent-soft);
-  color: var(--fg);
-}
-/* .start / .end are accent solid bottom + white text scenarios — --on-accent is legitimate use here
-   (background is indeed var(--accent) saturated solid). */
-.cal-cell.start {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: 6px 0 0 6px;
-}
-.cal-cell.start:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.cal-cell.end {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: 0 6px 6px 0;
-}
-.cal-cell.end:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.cal-cell.start.end {
-  border-radius: 6px;
-}
-.cal-cell.blank {
-  cursor: default;
-  pointer-events: none;
-}
-.cal-cell.blank:hover {
-  background: transparent;
-}
-/* .cal-cell.muted (Vue2 photos.scss:2685) has zero grep hits in PhotosSearchView.vue template,
-   no consumers — dead CSS, not migrated (A4; counter-assertion in tests). */
 
 .fpop-foot {
   display: flex;
@@ -357,35 +215,5 @@ function pick(c: CalCell): void {
 .fpop-foot .btn {
   flex: 1;
   justify-content: center;
-}
-
-.btn {
-  height: 32px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.btn:hover {
-  background: var(--chip-bg-hi);
-}
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-/* Same as T12's established pattern (same as ClusterActionDialog.vue/MergeReviewDialog.vue):
-   .btn:hover is (0,2,0), overrides single class .btn-primary (0,1,0), replaces accent solid with
-   --chip-bg-hi on hover — the variant carries its own :hover to restore the accent solid. */
-.btn.btn-primary:hover {
-  background: var(--accent);
-  filter: brightness(1.08);
 }
 </style>

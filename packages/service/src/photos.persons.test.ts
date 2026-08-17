@@ -40,6 +40,16 @@ describe('photos persons', () => {
     expect(calls[1]).toMatchObject({ method: 'delete', url: '/photos/persons/p1?purge=true' })
     expect(calls[2]).toMatchObject({ method: 'post', url: '/photos/persons/p1/restore' })
   })
+  // Task 7 (Plan D, SP7-P5 People): hidePerson/listHiddenPersons — the literal counterpart
+  // endpoints of Vue2 src/service/photos.js:78-79.
+  it('hide a person / fetch the hidden-person list', async () => {
+    const { http, calls } = capture()
+    const p = createPhotos(http, noToken)
+    await p.hidePerson('p1')
+    await p.listHiddenPersons()
+    expect(calls[0]).toMatchObject({ method: 'post', url: '/photos/persons/p1/hide', body: {} })
+    expect(calls[1]).toMatchObject({ method: 'get', url: '/photos/persons/hidden' })
+  })
   it('asset paging / relations / places', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)

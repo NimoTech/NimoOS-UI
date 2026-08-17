@@ -3,6 +3,7 @@
 // touch store). Mocks shared package @nimotech/nimoos-service (PersonAvatar calls
 // personFaceThumbnailUrl internally).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -18,7 +19,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 import SearchPeoplePopover from '../SearchPeoplePopover.vue'
 import searchPeoplePopoverRaw from '../SearchPeoplePopover.vue?raw'
 import type { PersonOption } from '../../util/searchUnderstood'
-import { extractStyleBlock, parseCssRules, winningHoverBackground } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
@@ -187,29 +188,53 @@ describe('footer buttons + bubbling', () => {
   })
 })
 
-describe('styles', () => {
-  it('cssCascade: .btn.btn-primary winning hover rule contains :hover and -primary', () => {
+// 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+// this component was missed in that round, and the brief names it explicitly: "align their
+// chrome to parity like the FilterChip/Popover treatment"): the whole colour rule set
+// .fpop/.fpop-search/.face-pop-grid/.face-cell-name/.face-cell-count/.fpop-quick(+:hover)/
+// .btn/.btn-primary(+:hover) has been removed wholesale from this component's scoped style and
+// handed to the bare selectors in vue2-parity/photos.scss (:2690-2726; the .btn family goes
+// through the global `.photos-root .btn` / `.photos-root .btn-primary` rules at :290-301). The
+// hover hard constraint and the non-colour visual properties are now checked against that
+// shared parity file instead; `.fpop`'s fixed width is no longer a CSS rule either (it moved
+// to an inline `style="width: 300px"` in the template, overriding parity's default 320px, the
+// same idiom as PhotosFilterPopover.vue's `:style` override), so this reads the rendered DOM's
+// inline style after mounting rather than parsing the <style> block.
+describe('styles: the .fpop/.face-pop-grid/.btn families are now owned by the shared parity scss (no longer this component own scoped style)', () => {
+  it('this component scoped style keeps only .face-pop-empty / the .face-cell selection ring / .fpop-foot (+ child selectors) — the rules parity does not cover', () => {
     const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const winner = winningHoverBackground(style, ['btn', 'btn-primary'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('-primary')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors).toEqual([
+      '.face-pop-empty',
+      '.face-cell :deep(.person-avatar-ring)',
+      '.face-cell[data-on="true"] :deep(.person-avatar-ring)',
+      '.fpop-foot',
+      '.fpop-foot .fpop-quick',
+      '.fpop-foot .btn',
+    ])
   })
 
-  it('.face-pop-grid rule contains grid-template-columns: repeat(4, 1fr)', () => {
-    const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.face-pop-grid')
+  it('parity scss: .photos-root .btn-primary:hover comes after .photos-root .btn:hover (on hover the primary button accent fill covers the base class hover fill, as Vue2 wrote it)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const baseHoverIdx = parityScss.indexOf('.photos-root .btn:hover')
+    const primaryHoverIdx = parityScss.indexOf('.photos-root .btn-primary:hover')
+    expect(baseHoverIdx).toBeGreaterThan(-1)
+    expect(primaryHoverIdx).toBeGreaterThan(baseHoverIdx)
+  })
+
+  it('parity scss: the .face-pop-grid rule contains grid-template-columns: repeat(4,1fr)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.face-pop-grid')
     expect(rule).toBeDefined()
-    expect(rule?.body).toContain('repeat(4, 1fr)')
+    expect(rule?.body.replace(/\s/g, '')).toContain('repeat(4,1fr)')
   })
 
-  it('.fpop rule width is 300px (not a prop)', () => {
-    const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
-    expect(rule).toBeDefined()
-    expect(rule?.body).toContain('width: 300px')
+  it('the rendered .fpop element carries an inline width of 300px (not a prop, overriding parity default of 320px)', () => {
+    const w = mountPop({ people: people(), selected: [] })
+    expect(w.get('.fpop').attributes('style')).toContain('width: 300px')
   })
 
-  it('.fpop-foot rule margin-top is 14px (differs from T12/T13\'s 12px, declare actual difference per item)', () => {
+  it('the .fpop-foot rule margin-top is 14px (unlike the 12px in SearchDatePopover.vue/PhotosFilterPopover.vue — the real difference declared per item)', () => {
     const style = extractStyleBlock(searchPeoplePopoverRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-foot')
     expect(rule).toBeDefined()

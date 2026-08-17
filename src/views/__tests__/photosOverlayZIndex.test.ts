@@ -1,0 +1,84 @@
+// Fix-8 round 2 (owner acceptance, 2026-08-14): guard against a class of bug that turned out NOT
+// to be the cause of Fix-8's reported symptom, but is a real risk worth locking down anyway.
+//
+// Controller hypothesis (disproven by this same investigation, see acceptance-fix-report.md
+// §F8-r2): `.photos-root .app` gained `position: relative; z-index: 1` (Fix-6b, the aurora
+// bleed-through fix). Every `position: fixed` overlay that renders as a *sibling* of `.app`
+// inside `.photos-root` (the lightbox, confirm/create/picker scrims, the edit-mode select bar,
+// the export toast) must carry its own explicit `z-index` well above that `1`, or it would stack
+// *underneath* `.app` and silently paint invisible/inert -- state flips (jsdom would see it), but
+// nothing appears on screen. Reading every one of these rules found each already declares an
+// explicit z-index (100-300) -- the hypothesis did not hold for the reported symptom -- but nothing
+// currently prevents a future edit from stripping one of these values back to nothing/`auto`,
+// silently reproducing the exact failure mode the hypothesis described. This is that guard.
+//
+// Text-scan, not rendered-DOM: jsdom does not compute cascade/paint order (same rationale as
+// color-guard.test.ts / photosLayoutHeightCap.test.ts / photosGlassSurfaces.test.ts), so this
+// reads the real source files directly via node:fs rather than mounting anything.
+import { describe, it, expect } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+
+function read(rel: string): string {
+  const text = fs.readFileSync(path.join(SRC, rel), 'utf8')
+  expect(text.length, `${rel} read as empty -- the way this file is loaded has stopped working`).toBeGreaterThan(0)
+  return text
+}
+
+/** All occurrences of a selector's rule body (a class can appear more than once, e.g. the
+ *  lightbox has both a component-scoped copy and a parity global copy -- both must pass). */
+function ruleBodies(text: string, selector: string): string[] {
+  const bodies: string[] = []
+  let from = 0
+  for (;;) {
+    const i = text.indexOf(selector, from)
+    if (i === -1) break
+    const open = text.indexOf('{', i)
+    const close = text.indexOf('}', open)
+    if (open === -1 || close === -1) break
+    bodies.push(text.slice(open + 1, close))
+    from = close + 1
+  }
+  return bodies
+}
+
+const MIN_Z = 100
+
+// Each entry: [selector text as it appears in source, files it may be declared in]. Matches the
+// sweep table in acceptance-fix-report.md §F8-r2 exactly -- every sibling-of-`.app` overlay this
+// plan's own pages render.
+const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
+  { name: '.lightbox (parity)', selector: '.photos-root .lightbox {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  { name: '.lightbox (component-scoped)', selector: '.lightbox {', files: ['photos/lightbox/PhotoLightbox.vue'] },
+  { name: '.lb-confirm-scrim', selector: '.photos-root .lb-confirm-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  { name: '.sv-modal-scrim', selector: '.photos-root .sv-modal-scrim {', files: ['photos/styles/vue2-parity/photos-smartview.scss'] },
+  { name: '.albums-modal-scrim', selector: '.photos-root .albums-modal-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  { name: '.album-picker-overlay', selector: '.photos-root .album-picker-overlay {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  { name: '.picker-scrim', selector: '.picker-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  { name: '.sv-select-bar', selector: '.photos-root .sv-select-bar {', files: ['photos/styles/vue2-parity/photos-smartview.scss'] },
+  { name: '.sv-toast', selector: '.photos-root .sv-toast {', files: ['photos/styles/vue2-parity/photos-smartview.scss'] },
+]
+
+describe('Fix-8 round 2: sibling-of-.app overlays keep an explicit z-index above .app\'s own (1)', () => {
+  for (const { name, selector, files } of OVERLAYS) {
+    it(`${name} declares position:fixed with an explicit numeric z-index >= ${MIN_Z}`, () => {
+      const bodies = files.flatMap((f) => ruleBodies(read(f), selector))
+      expect(bodies.length, `rule ${selector} not found in ${files.join(', ')}`).toBeGreaterThan(0)
+      for (const body of bodies) {
+        expect(body, `${selector} is missing position:fixed`).toMatch(/position\s*:\s*fixed/)
+        const m = /z-index\s*:\s*(-?\d+)/.exec(body)
+        expect(m, `${selector} has no explicit numeric z-index (or degraded to auto) -- exactly the failure shape the F8 round 2 hypothesis describes`).not.toBeNull()
+        expect(Number(m?.[1])).toBeGreaterThanOrEqual(MIN_Z)
+      }
+    })
+  }
+
+  it(".app itself stays at z-index:1 (the floor every overlay above must clear)", () => {
+    const body = ruleBodies(read('photos/styles/vue2-parity/photos.scss'), '.photos-root .app {')[0]
+    expect(body).toMatch(/position\s*:\s*relative/)
+    expect(body).toMatch(/z-index\s*:\s*1\b/)
+  })
+})

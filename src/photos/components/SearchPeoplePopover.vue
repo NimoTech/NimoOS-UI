@@ -101,7 +101,14 @@ const applyLabel = computed(() => {
 
 <template>
   <div @click.stop>
-    <div class="fpop">
+    <!-- 2026-08-13 rollback addendum (Fix-3 item 7): `.fpop`'s shape, size, position and focus
+         ring all come from the bare `.fpop` rule in the parity scss
+         (vue2-parity/photos.scss:2690-2726) and are no longer restated locally — parity's default
+         width is the 320px shared by the list and date popovers, and this popover's only deviation
+         is Vue2 `:94`'s inline `style="width:300px"`, which is likewise overridden with an inline
+         style (rather than adding a scoped rule that changes one property; PhotosFilterPopover.vue's
+         width prop already set the precedent, overriding via :style rather than a CSS class). -->
+    <div class="fpop" style="width: 300px">
       <input
         v-model="search" class="fpop-search" data-test="people-search"
         :placeholder="t('photosSearchSearchPeople')"
@@ -135,108 +142,57 @@ const applyLabel = computed(() => {
 </template>
 
 <style scoped>
-/* .fpop/.fpop-search/.fpop-foot/.btn series shell duplicated with T12/T13 (see same-class
-   registration in both files' headers): values all copied from photos.scss, not copied from
-   sibling task files. This popover has fixed width 300 (not a prop — brief interface section
-   gave no width prop; Vue2 only uses 300 here, unlike T12's list popover which differs per side
-   and needs a prop). */
-.fpop {
-  position: absolute;
-  top: 36px;
-  left: 0;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  box-shadow: var(--card-shadow-hi);
-  padding: 14px;
-  width: 300px;
-  z-index: 10;
-  animation: pop-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: default;
-  text-align: left;
-}
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.96);
-  }
-}
-
-.fpop-search {
-  width: 100%;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg);
-  font: inherit;
+/* 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+   this component was missed in that round, and the brief names it explicitly: "align their
+   chrome to parity like the FilterChip/Popover treatment"): the whole colour rule set
+   .fpop/.fpop-search(+:focus)/.face-pop-grid/.face-cell/.face-cell-name/.face-cell-count/
+   .fpop-quick(+:hover)/.btn/.btn-primary(+:hover) has been removed wholesale from this
+   component's scoped style and handed to the bare selectors in vue2-parity/photos.scss
+   (:2690-2726; the .btn family goes through the global `.photos-root .btn` /
+   `.photos-root .btn-primary` rules at :290-301) — this component no longer carries its own
+   duplicate mapping onto the repo-wide glass semantics (--popup-bg/--card-border/
+   --card-shadow-hi/--chip-bg/--fg-muted/--fg-subtle/--accent-text and friends), none of which
+   `.photos-root` redefines locally, so they fell through to theme.css's global accent-toned
+   glass values. `@keyframes pop-in` goes for the same reason — the parity scss already has a
+   keyframe of that name. What stays here is only what parity does not cover:
+   `.face-pop-empty` (Vue2 :110-112 is an inline style, not a class, so parity has no such
+   selector), `.face-cell :deep(.person-avatar-ring)` (+ its [data-on] variant, the
+   New-UI-only selection-ring treatment ruled in C10, reaching into PersonAvatar's own
+   structure, with no parity counterpart), and `.fpop-foot` (+ its child selectors; Vue2's
+   margin-top here is 14px, unlike the 12px of the List/Date popovers, and parity never had a
+   `.fpop-foot` class at all, so there is nothing to hand over). */
+.face-pop-empty {
+  padding: 24px 8px;
+  text-align: center;
+  color: var(--text-3);
   font-size: 12px;
-  margin-bottom: 10px;
-}
-.fpop-search:focus {
-  outline: 0;
-  border-color: var(--accent-soft);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-/* Follow photos.scss:2689-2694 line-by-line (6 rules, already verified with two-path audit). */
-.face-pop-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  max-height: 264px;
-  overflow-y: auto;
-}
-.face-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-/* photos.scss:2691's `.face-cell .face-avatar { width/height:48px; font-size:18px;
-   border:2px solid transparent }` is handled by PersonAvatar(:size="48") + the selection ring
-   rule below — 48×48 size already passed via prop, no need to repeat width/height here. font-size:18px
-   is Vue2's inline first-letter size; PersonAvatar's own first-letter formula is size*0.32=15.36px
-   (component precedent, not new to this task), about 2.6px difference from Vue2's 18px — deviation
-   log: do not change PersonAvatar's existing formula (it's a P5 contract frozen across multiple
-   consumers; changing it would affect other components using it); here the divergence is acceptable. */
-.face-cell-name {
-  font-size: 11.5px;
-  color: var(--fg-muted);
-}
-.face-cell-count {
-  font-size: 10px;
-  color: var(--fg-subtle);
-}
-/* photos.scss:2691-2692's selection ring: C10 decision uses :deep to target PersonAvatar's
-   ring element, does not draw avatar itself. Base state fixed 2px width (not PersonAvatar's
-   default 1px card-border) so selected state only changes color without width jump; selected
-   state switches to accent stroke + glow (0.20 alpha closest to --accent-soft-2; this repo
-   has no per-component accent-rgb token, Global Constraints §33). */
+/* photos.scss:2691-2692's selection ring: C10 ruled that this hangs off PersonAvatar's ring
+   element via :deep rather than drawing the avatar itself. The base state pins the width at
+   2px (instead of PersonAvatar's default 1px card-border) so selecting only swaps the colour
+   without a width jump; the selected state switches to an accent stroke plus glow (0.20 alpha).
+   Fix-3 item 7 token correction: the glow used to reference a token defined globally in this
+   repo's theme.css (never redefined locally on `.photos-root`), which belongs to a different
+   hue family than the rest of this page's accent family (defined locally by parity) — the same
+   "global token leaking into a parity page" problem as elsewhere in this task. It now uses the
+   literal marked theme-exception below (Vue2's own value, character for character), rather
+   than introducing a new token. */
 .face-cell :deep(.person-avatar-ring) {
   border-width: 2px;
 }
 .face-cell[data-on="true"] :deep(.person-avatar-ring) {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft-2);
+  /* theme-exception: Vue2's own glow value character for character (the accent hue at 0.20
+     alpha), handled the same way as the same-family literal on parity's transcribed
+     .fchip[data-on] border — no new token introduced. */
+  box-shadow: 0 0 0 2px rgba(110,91,255,0.20);
 }
 
-/* Vue2 :110-112's empty state inline style (padding:24px 8px; different from T12's .fpop-empty
-   18px 8px — not the same class, values also differ — cannot reuse that class, establish a new one). */
-.face-pop-empty {
-  padding: 24px 8px;
-  text-align: center;
-  color: var(--fg-faint);
-  font-size: 12px;
-}
-
-/* Vue2 :113's footer margin-top here is 14px, different from T13 `SearchDatePopover.vue`
-   (Vue2 date popover :84) / T12 `PhotosFilterPopover.vue` (Vue2 list popover :142) at 12px
-   (fix round 2 · N3 corrects pairing: previously had T12/T13 to :84/:142 mapping backwards;
-   line-by-line declaration level two-path audit verified the true difference, not copy error)
-   — the two footer rules each declared independently, not merged/reused. */
+/* Vue2 :113's footer margin-top here is 14px, unlike the 12px in SearchDatePopover.vue (Vue2
+   date popover :84) / PhotosFilterPopover.vue (Vue2 list popover :142) — the three footer
+   rules are each declared independently; parity has no `.fpop-foot` class of its own, so
+   there is no merging or reuse to do. */
 .fpop-foot {
   display: flex;
   gap: 8px;
@@ -246,47 +202,5 @@ const applyLabel = computed(() => {
 .fpop-foot .btn {
   flex: 1;
   justify-content: center;
-}
-
-.fpop-quick {
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 99px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-.fpop-quick:hover {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-
-.btn {
-  height: 32px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.btn:hover {
-  background: var(--chip-bg-hi);
-}
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-.btn.btn-primary:hover {
-  background: var(--accent);
-  filter: brightness(1.08);
 }
 </style>

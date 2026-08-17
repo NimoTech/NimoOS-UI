@@ -265,57 +265,57 @@ function confirmAdd(): void {
 <template>
   <div
     v-if="open"
-    class="lib-picker-overlay"
+    class="picker-scrim"
     data-test="lib-picker-overlay"
     @click.self="attemptClose"
   >
-    <div class="lib-picker-panel">
-      <div class="lib-picker-head">
-        <div class="lib-picker-head-text">
-          <div class="lib-picker-title">{{ title }}</div>
-          <div class="lib-picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
+    <div class="picker-modal">
+      <div class="picker-head">
+        <div class="picker-head-text">
+          <div class="picker-title">{{ title }}</div>
+          <div class="picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
         </div>
         <button
           type="button"
-          class="lib-picker-close"
+          class="picker-close"
           data-test="lib-picker-close"
           :aria-label="t('photosCancel')"
           @click="attemptClose"
         >&#215;</button>
       </div>
 
-      <div ref="bodyRef" class="lib-picker-body" @scroll="onListScroll">
-        <div v-if="flat.length === 0" class="lib-picker-empty" data-test="lib-picker-empty">
+      <div ref="bodyRef" class="picker-body" @scroll="onListScroll">
+        <div v-if="flat.length === 0" class="picker-empty" data-test="lib-picker-empty">
           {{ t('photosAlbumPickerEmpty') }}
         </div>
-        <div v-else class="lib-picker-grid">
+        <div v-else class="picker-grid">
           <div
             v-for="p in flat"
             :key="p.id"
-            class="lib-picker-tile"
+            class="picker-tile"
             data-test="lib-picker-tile"
             :data-asset-id="p.id"
             :data-selected="isSelected(p)"
             :data-disabled="isExisting(p)"
             @click="toggle(p)"
           >
-            <img :src="thumb(p.id)" alt="" class="lib-picker-tile-img" :class="{ 'is-dimmed': isExisting(p) }">
-            <div v-if="isExisting(p)" class="lib-picker-already" data-test="lib-picker-already">
-              <span class="lib-picker-already-icon">&#10003;</span>
+            <img :src="thumb(p.id)" alt="">
+            <div v-if="isExisting(p)" class="picker-already" data-test="lib-picker-already">
+              <span class="picker-already-icon">&#10003;</span>
               <span>{{ existingLabel }}</span>
             </div>
-            <div v-else-if="isSelected(p)" class="lib-picker-check" data-test="lib-picker-selected-check">&#10003;</div>
+            <div v-else-if="isSelected(p)" class="picker-tile-check" data-test="lib-picker-selected-check">&#10003;</div>
           </div>
         </div>
       </div>
 
-      <div v-if="!discardConfirm" class="lib-picker-foot">
-        <button type="button" class="lib-picker-btn-ghost" data-test="lib-picker-cancel" @click="attemptClose">
+      <div v-if="!discardConfirm" class="picker-foot">
+        <button type="button" class="albums-btn-ghost" data-test="lib-picker-cancel" @click="attemptClose">
           {{ t('photosCancel') }}
         </button>
         <button
           type="button"
-          class="lib-picker-btn-cta"
+          class="albums-btn-cta"
           data-test="lib-picker-add"
           :disabled="selected.size === 0 || submitting"
           @click="confirmAdd"
@@ -323,13 +323,13 @@ function confirmAdd(): void {
           {{ submitting ? t('photosAlbumPickerAdding') : submitText }}
         </button>
       </div>
-      <div v-else class="lib-picker-discard" data-test="lib-picker-discard-bar">
-        <div class="lib-picker-discard-text">{{ t('photosAlbumPickerDiscard') }}</div>
-        <div class="lib-picker-discard-actions">
-          <button type="button" class="lib-picker-btn-ghost" data-test="lib-picker-discard-cancel" @click="cancelDiscard">
+      <div v-else class="picker-discard" data-test="lib-picker-discard-bar">
+        <div class="picker-discard-text">{{ t('photosAlbumPickerDiscard') }}</div>
+        <div class="picker-discard-actions">
+          <button type="button" class="albums-btn-ghost" data-test="lib-picker-discard-cancel" @click="cancelDiscard">
             {{ t('photosCancel') }}
           </button>
-          <button type="button" class="lib-picker-btn-cta" data-test="lib-picker-discard-confirm" @click="confirmDiscard">
+          <button type="button" class="albums-btn-cta" data-test="lib-picker-discard-confirm" @click="confirmDiscard">
             {{ t('photosAlbumPickerDiscardConfirm') }}
           </button>
         </div>
@@ -339,55 +339,35 @@ function confirmAdd(): void {
 </template>
 
 <style scoped>
-.lib-picker-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 230;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 20px;
-}
+/* Task 7 (the two-picker class-name rework): scrim/modal/head/title/sub/body/empty/grid/tile
+   (+[data-selected]/[data-disabled]/the nested img)/tile-check/foot are character-for-character
+   the same names as the already-imported global parity stylesheet
+   (src/photos/styles/vue2-parity/photos.scss:4277-4341, `.picker-*`, bare top-level selectors
+   with no `.photos-root` prefix — these are Vue2-native class names, and
+   class-collision-guard.test.ts pins them to zero cross-area collisions) — every local duplicate
+   is deleted and parity takes over directly. The two footer buttons likewise reuse parity's
+   existing `.albums-btn-ghost`/`.albums-btn-cta` (Vue2's own source, PhotosLibraryPicker.vue
+   :40/:42, uses exactly those two classes, and PhotosAlbums.vue's New Album dialog set the same
+   reuse precedent), instead of each maintaining an equivalent ghost/cta button style. */
 
-/* P2 tears (same as T5): panel background must use --popup-bg, not --card-bg (in dark theme
-   --card-bg is near-transparent, layered on dark background shows through). */
-.lib-picker-panel {
-  width: min(760px, 100%);
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: var(--card-shadow-hi);
-  overflow: hidden;
-}
+/* Header text container — Vue2 uses an unclassed div with inline style="flex:1;min-width:0"
+   (:6), so parity naturally has no matching selector; the class name here exists purely for
+   readability and the rule itself is unchanged. */
+.picker-head-text { flex: 1 1 auto; min-width: 0; }
 
-.lib-picker-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--divider);
-  flex: 0 0 auto;
-}
-.lib-picker-head-text { flex: 1 1 auto; min-width: 0; }
-.lib-picker-title { font-size: 14.5px; font-weight: 600; color: var(--fg); }
-.lib-picker-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
-
-/* Head X close button (review caught gap: Vue2 :10-12 has it, brief structure list missed) —
-   style follows AlbumPickerDialog.vue's .alb-picker-close existing pattern, don't import Vue2's
-   photos-icon component. */
-.lib-picker-close {
+/* Header X close button — Vue2 uses the site-wide .icon-btn plus the photos-icon component
+   (:10-12); this repo's dialogs consistently use a smaller 24px dedicated close-button class
+   instead of reusing .icon-btn (the same idiom as AlbumPickerDialog.vue's
+   `.album-picker-close`, MergeReviewDialog.vue's `.mrd-close` and ClusterActionDialog.vue's
+   `.cad-close`), and parity has no selector to compare against. */
+.picker-close {
   flex: 0 0 auto;
   width: 24px;
   height: 24px;
   border-radius: 50%;
   border: 0;
   background: transparent;
-  color: var(--fg-muted);
+  color: var(--text-2);
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
@@ -395,38 +375,38 @@ function confirmAdd(): void {
   align-items: center;
   justify-content: center;
 }
-.lib-picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
-.lib-picker-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 18px; }
-.lib-picker-empty { padding: 48px 8px; color: var(--fg-muted); font-size: 12.5px; text-align: center; }
+/* The <img> inside a tile no longer carries a class of its own — parity's .picker-tile has a
+   nested `img { … }` (SCSS compiles it to `.picker-tile img`) that already applies to any img
+   child, matching Vue2's own bare <img> (:28, likewise unclassed). The "already in this album"
+   dimming is handed to parity's .picker-tile[data-disabled="true"] { opacity: .4;
+   pointer-events: none } as well (it applies to the whole tile, including the badge overlay
+   below), instead of locally dimming only the img — which matches what Vue2 actually renders (the
+   whole tile dims together) and removes the img-only is-dimmed local rule. */
 
-.lib-picker-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 6px;
-}
-
-.lib-picker-tile {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--chip-bg);
-  outline: 2px solid transparent;
-  transition: outline-color 0.15s ease, transform 0.15s ease;
-}
-.lib-picker-tile[data-selected="true"] { outline-color: var(--accent); transform: scale(0.96); }
-.lib-picker-tile[data-disabled="true"] { cursor: default; }
-
-.lib-picker-tile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 0.4 matches pixel-for-pixel with Vue2 photos.scss :4402's [data-disabled="true"] { opacity: 0.4 }. */
-.lib-picker-tile-img.is-dimmed { opacity: 0.4; }
-
-/* Overlay marking: full-coverage semi-transparent mask + text. The --overlay-bg/--fg combo
-   already verified on PhotosGrid.vue's .tile-fav (readable in both light/dark), reused here rather
-   than creating new token. */
-.lib-picker-already {
+/* The "already in this album" marker — both Vue2 (:29-31) and parity (.picker-tile-existing)
+   render only an 18px circular badge in the top-right corner, with the explanatory text
+   coming from a native title attribute on hover. This component deliberately extends that:
+   the existingLabel copy stays visible at all times (not hover-only) and covers the whole
+   tile — behaviour an existing test locks down (PhotosLibraryPicker.test.ts asserts
+   tile.text() contains the existingLabel string), so it must not be narrowed back to
+   parity's icon-only badge. That is why parity's `.picker-tile-existing` name is not reused
+   (different semantics and size, and sharing the name would fight parity's rule); the
+   non-clashing `.picker-already` family keeps the original visuals instead. */
+/* Fix-2 item 6 (owner acceptance, 2026-08-13): `color` used to be `var(--text-1)` -- a
+   *parity*-scoped token that correctly flips dark under `.photos-root.is-light`, sitting on
+   `--overlay-bg`, a *global* token that stays a dark tint in both of New-UI's own themes
+   (theme.css:274/408, both a translucent dark fill, deliberately invariant since a
+   tile-covering scrim needs to read against unpredictable photo pixels underneath, not the
+   app's own theme). In photos light mode the pairing was dark-on-dark: the background stayed
+   dark (correctly) but the text went dark too (incorrectly, chasing the private is-light flip
+   the background doesn't follow). Pinned to a literal light value instead, matching this
+   repo's own established convention for exactly this shape (thumbnail-overlay text needs
+   constant contrast regardless of theme -- the same call PhotosTrash.vue's
+   `.tile-fav`/`.tile-vid` badges and PhotosSmartViewDetail.vue's `.sv-toast` already make,
+   each with their own theme-exception comment). */
+.picker-already {
   position: absolute;
   inset: 0;
   display: flex;
@@ -435,14 +415,13 @@ function confirmAdd(): void {
   justify-content: center;
   gap: 3px;
   background: var(--overlay-bg);
-  color: var(--fg);
+  color: #fff; /* theme-exception: overlays unpredictable photo pixels, same as --overlay-bg above */
   font-size: 10px;
   font-weight: 600;
   text-align: center;
   padding: 0 4px;
 }
-.lib-picker-already-icon,
-.lib-picker-check {
+.picker-already-icon {
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -450,61 +429,26 @@ function confirmAdd(): void {
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  /* Vue2 checkmark is color="white" (:30/:33) — changed to --on-accent (readable foreground
-     color semantic token atop pure accent fill), not hardcoded color literal. */
+  /* Vue2's checkmark is color="white" — changed to --on-accent (the semantic token for a
+     readable foreground atop a solid accent fill) rather than hardcoding a colour literal. */
   color: var(--on-accent);
   font-size: 11px;
   line-height: 1;
 }
-.lib-picker-check {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-}
 
-.lib-picker-foot {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  padding: 12px 18px;
-  border-top: 1px solid var(--divider);
-  flex: 0 0 auto;
-}
+/* .picker-tile-check (the top-right check badge in the selected state) has the same name and the
+   same meaning as parity's .picker-tile-check (Vue2 :32-34 uses that very class) — the local
+   override is deleted; position, size and background colour all come from parity. */
 
-.lib-picker-discard {
+.picker-discard {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 18px;
-  border-top: 1px solid var(--divider);
+  border-top: 1px solid var(--line);
   flex: 0 0 auto;
 }
-.lib-picker-discard-text { font-size: 12.5px; color: var(--fg); flex: 1 1 auto; min-width: 0; }
-.lib-picker-discard-actions { display: flex; gap: 8px; flex: 0 0 auto; }
-
-.lib-picker-btn-ghost {
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--chip-border);
-  background: var(--chip-bg);
-  color: var(--fg);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.lib-picker-btn-ghost:hover { background: var(--chip-bg-hi); }
-
-.lib-picker-btn-cta {
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: 0;
-  background: var(--accent);
-  color: var(--on-accent);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.lib-picker-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+.picker-discard-text { font-size: 12.5px; color: var(--text-1); flex: 1 1 auto; min-width: 0; }
+.picker-discard-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 </style>

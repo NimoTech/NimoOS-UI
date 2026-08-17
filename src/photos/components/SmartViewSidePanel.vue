@@ -33,11 +33,26 @@
 // final emits to avoid concurrent PATCH races — button exposes visual state via data-busy,
 // not silently swallowing clicks.
 //
-// ── token mapping (reuse SmartViewCreateDialog.vue:436-438 spec table, same Vue2 source
-//    files, same mapping, not written multiple times again) ──────────────────────────
-// --surface-1→--popup-bg / --surface-2→--chip-bg / --surface-3→--chip-bg-hi;
-// --line→--card-border; --text-1→--fg / --text-2→--fg-muted / --text-3→--fg-faint /
-// --text-4→--fg-subtle; --accent-hi (text/icon color) → --accent-text.
+// ── token mapping: correction record (Fix-2 item 4, owner acceptance, 2026-08-13) ────────
+// This section used to follow the spec table established in SmartViewCreateDialog.vue:436-438,
+// styling the switch/toggle rows here with New-UI's **global** tokens (--surface-1→--popup-bg /
+// --surface-2→--chip-bg / --surface-3→--chip-bg-hi; --line→--card-border; --text-1→--fg /
+// --text-2→--fg-muted / --text-3→--fg-faint / --text-4→--fg-subtle; --accent-hi→--accent-text).
+// That mapping claimed at the time to "match parity", but it was wrong: global tokens do not
+// follow the private `.photos-root.is-light` light/dark switch (they only follow the app-level
+// `data-theme`), `--chip-bg`/`--chip-bg-hi` are still a glass gradient in the dark tier rather
+// than the flat fill parity wants, and `--card-border`'s dark-tier opacity (0.36) is far more
+// prominent than parity's `--line` (0.06/0.10). Both paths produced the "the switch / action
+// pill doesn't look like Vue2" deviation in this task's owner screenshots — already wrong in
+// the dark tier, and degrading into unreadably low-contrast text in the light tier. Corrected:
+// the style block below is back on parity's own tokens (--surface-2/3, --text-1/2/3/4, --line,
+// --accent-hi). Two spots stay as they were — `--on-accent` (the knob shadow sits on a solid
+// accent fill) and `--success` (redefined under `.photos-root` itself, so it naturally shadows
+// the global value) — both verified safe in either theme. **Correction on record: the earlier
+// claim that "SmartViewSidePanel is already parity" does not hold**; the deviation came from
+// this component's own mapping table picking the wrong token family, not from anywhere else.
+// This change touched only this comment and the concrete values in the style block below; the
+// script logic and props are untouched.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosThreshSlider from './PhotosThreshSlider.vue'
@@ -236,63 +251,94 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
 .sv-side-section { margin-bottom: 24px; }
 .sv-side-section h3 {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--fg-faint); margin: 0 0 10px;
+  color: var(--text-3); margin: 0 0 10px;
 }
 
 /* ── Threshold section (scss:537-542, 565-573; slider itself in PhotosThreshSlider.vue) ── */
 .sv-thresh-row { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
-.sv-thresh-row b { color: var(--accent-text); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
+.sv-thresh-row b { color: var(--accent-hi); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
 .sv-thresh-help {
-  font-size: 11.5px; color: var(--fg-faint); line-height: 1.5; margin-top: 10px;
-  padding: 8px 10px; background: var(--chip-bg); border-radius: 8px;
+  font-size: 11.5px; color: var(--text-3); line-height: 1.5; margin-top: 10px;
+  padding: 8px 10px; background: var(--surface-2); border-radius: 8px;
 }
 
 /* ── Settings section (scss:574-605, existing port of same Vue2 source rules in
      SmartViewCreateDialog.vue, exact value-by-value consistency) ── */
 .sv-toggle-row {
   display: flex; align-items: center; gap: 10px; padding: 10px 0;
-  border-bottom: 1px solid var(--card-border); font-size: 12.5px; color: var(--fg-muted);
+  border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--text-2);
 }
 .sv-toggle-row:last-child { border-bottom: 0; }
-.sv-toggle-row .label { flex: 1; color: var(--fg); }
-.sv-toggle-row .desc { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
+.sv-toggle-row .label { flex: 1; color: var(--text-1); }
+.sv-toggle-row .desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 /* fix round 1 · M1 (brief omitted the photos.scss half, same failure pattern as T5 omitting
    slider styles): Vue2 `.sv-switch` actually has two stacked cascading rules — `photos-smartview.scss:
    584-600` (high specificity, wins sizing) plus `photos.scss:2819-2820` bare low-specificity
    `.sv-switch` declaring `transition: background 0.15s` and `::after` shadow, neither overridden
    by high specificity, both merge and apply. Adding these two, track color change becomes smooth
    transition and thumb gets shadow (not instant + flat). */
-.sv-switch { position: relative; width: 32px; height: 18px; background: var(--chip-bg-hi); border-radius: 99px; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+.sv-switch { position: relative; width: 32px; height: 18px; background: var(--surface-3); border-radius: 99px; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH
+   on/off states -- overrides whatever Vue2's own (non-existent) light theme would have done,
+   explicit owner requirement, not a legibility inference. Fix-5's `var(--text-1)` got dark-mode
+   legibility right (≈white there) but was still a *theme-flipping* token, so it went near-black
+   under `.photos-root.is-light` -- correctly legible, but not white, which is what the owner
+   actually wants here. `--text-1` is deliberately no longer used for the knob. Literal white,
+   same theme-exception convention this repo already uses for other theme-invariant surfaces
+   (PhotosToastHost.vue's `.photos-toast` background, this file's own sibling
+   PhotosSmartViewDetail.vue's `.sv-toast`). The light-mode border + shadow immediately below
+   (also an owner decision, same date) is what keeps a flat white knob visible against a
+   light-mode white-ish track -- the two rules are a matched pair, not independent choices. */
 .sv-switch::after {
   content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
-  background: var(--fg); transition: all 0.2s;
+  background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
+  transition: all 0.2s;
   /* Shadow is pure dark shadow (not semantic color), replicate Vue2 original (pure black,
      ~30% opacity shadow) using color-mix, not literal color functions, following existing
      pattern in PhotosSmartViewDetail.vue `.tile.recent::after` ("black keyword + color-mix"
      expresses semi-transparent black). */
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
+/* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle
+   has no edge against photos light mode's own near-white `--surface-3` off-track (and reads
+   flat against the solid `--accent` on-track too), so light mode gets a subtle parity-token
+   border plus a lighter drop shadow (dark mode's 30%-black shadow reads as depth on a dark
+   track; carried at that same strength here it would look like a dirty smudge on a light one,
+   hence the lower alpha) -- values chosen to read as a native light-theme toggle, not a
+   dark-theme knob pasted onto a light page. Applies to both on/off states (neither modifies
+   border/box-shadow), which is what keeps the knob's presentation state-invariant per the
+   owner's requirement. */
+.photos-root.is-light .sv-switch::after {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
+}
 .sv-switch[data-on="true"] { background: var(--accent); }
-/* Legal --on-accent usage: thumb layered on top of adjacent [data-on="true"] solid (var(--accent),
-   not gradient/semi-transparent), legality self-evident from this background declaration (same
-   pattern established in SmartViewCreateDialog.vue). */
-.sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
+/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+   own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+   moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+   same colour in both states. The `--on-accent` override this rule used to carry (justified at
+   the time as "legal atop a solid --accent fill", same reasoning as `.sv-btn-primary`) was wrong
+   for this element specifically: it made the knob track the on/off *state* instead of staying
+   constant like Vue2's -- the owner's screenshot is exactly that dark-navy-on-purple knob.
+   Deleted; the knob now always uses the base rule's background above (Fix-6: literal white, see
+   that rule's own comment), in both states, matching Vue2's own single-value knob. */
+.sv-switch[data-on="true"]::after { left: 16px; }
 .sv-switch[data-busy="true"] { cursor: not-allowed; opacity: 0.6; }
 
 /* ── Stats section (scss:626-658) ── */
 .sv-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sv-stat-cell { background: var(--chip-bg); padding: 10px 12px; border-radius: 8px; }
+.sv-stat-cell { background: var(--surface-2); padding: 10px 12px; border-radius: 8px; }
 .sv-stat-cell .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.sv-stat-cell .l { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
+.sv-stat-cell .l { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .sv-stat-cell .delta { font-size: 11px; color: var(--success); margin-left: 4px; font-weight: 500; }
-.sv-dist-head { font-size: 11.5px; color: var(--fg-faint); margin-bottom: 4px; }
+.sv-dist-head { font-size: 11.5px; color: var(--text-3); margin-bottom: 4px; }
 .sv-distribution { height: 56px; display: flex; align-items: flex-end; gap: 2px; margin-top: 8px; }
 .sv-dist-bar {
   flex: 1; min-width: 4px; border-radius: 2px 2px 0 0;
   /* Vue2 scss:648 hardcodes gradient (accent → literal light purple) ⇒ change two levels of
      accent family (following existing pattern in PersonRelationsTab.vue:251), don't write
      literal colors. */
-  background: linear-gradient(to top, var(--accent), var(--accent-text));
+  background: linear-gradient(to top, var(--accent), var(--accent-hi));
 }
-.sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-subtle); margin-top: 4px; }
+.sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-4); margin-top: 4px; }
 </style>

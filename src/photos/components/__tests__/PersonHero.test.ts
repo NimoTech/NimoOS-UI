@@ -43,9 +43,16 @@ function person(overrides: Partial<Person> = {}): Person {
 }
 
 const mounted: VueWrapper[] = []
-function mountHero(props: { person: Person; relationCount: number; placesCount: number }, i18n = makeI18n()) {
+// Task 7 (Plan D): hiddenPeopleSupported defaults to true here (matching the people store's
+// own default, see people.ts) so every pre-existing call site below — none of which cares
+// about the hide-menu gating — keeps compiling and passing unchanged; new gating-specific
+// tests override it explicitly.
+function mountHero(
+  props: { person: Person; relationCount: number; placesCount: number; hiddenPeopleSupported?: boolean },
+  i18n = makeI18n(),
+) {
   const w = mount(PersonHero, {
-    props,
+    props: { hiddenPeopleSupported: true, ...props },
     global: { plugins: [i18n] },
     attachTo: document.body,
   })
@@ -214,6 +221,65 @@ describe('PersonHero.vue — Edit menu', () => {
     await w.get('[data-test="hero-edit-delete"]').trigger('click')
     expect(w.emitted('delete')).toHaveLength(1)
   })
+
+  // Task 7 (Plan D): the "Hide person" menu item — gating + title + emit, mirroring Vue2
+  // PhotosPersonDetail.vue:43-46 (v-if="hiddenPeopleSupported" + an explanatory title).
+  it('hiddenPeopleSupported=true → the menu carries a Hide-this-person item with an explanatory title; clicking emits hide and closes the menu', async () => {
+    const w = mountHero({ person: person(), relationCount: 0, placesCount: 0, hiddenPeopleSupported: true })
+    await w.get('[data-test="hero-edit-trigger"]').trigger('click')
+    const item = w.get('[data-test="hero-edit-hide"]')
+    expect(item.text()).toBe(zh.photosPersonMenuHide)
+    expect(item.attributes('title')).toBe(zh.photosPersonHideGateTitle)
+    await item.trigger('click')
+    expect(w.emitted('hide')).toHaveLength(1)
+    expect(w.find('[data-test="hero-edit-menu"]').exists()).toBe(false)
+  })
+
+  it('hiddenPeopleSupported=false → the menu has no Hide-this-person item', async () => {
+    const w = mountHero({ person: person(), relationCount: 0, placesCount: 0, hiddenPeopleSupported: false })
+    await w.get('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.find('[data-test="hero-edit-hide"]').exists()).toBe(false)
+  })
+})
+
+// Task 8 (Plan D): the hero's three buttons filled in — Vue2 PhotosPersonDetail.vue:89-91 has
+// three buttons (Ask about {name} / Make album / Background); previously only the latter two
+// rendered here (see the file-header comment "the Ask Nimo button ... unrendered"), now the
+// first is added back in Vue2's order. The click is a no-op (wiring belongs to Plan G, see the
+// component's own English comment) — this only asserts render position/visuals/no thrown
+// error/no emitted event.
+describe('PersonHero.vue — the Ask about button among the hero three (Task 8; wiring belongs to Plan G)', () => {
+  it('renders the Ask about {name} button, first in the actions row, with the .btn-ai look', () => {
+    const w = mountHero({ person: person({ name: 'Sara' }), relationCount: 0, placesCount: 0 })
+    const buttons = w.findAll('.actions button')
+    expect(buttons).toHaveLength(3)
+    expect(buttons[0].attributes('data-test')).toBe('hero-ask-nimo')
+    expect(buttons[1].attributes('data-test')).toBe('hero-make-album')
+    expect(buttons[2].attributes('data-test')).toBe('hero-background')
+
+    const ask = w.get('[data-test="hero-ask-nimo"]')
+    expect(ask.classes()).toContain('btn')
+    expect(ask.classes()).toContain('btn-ai')
+    expect(ask.text()).toBe(zh.photosPersonAskAbout.replace('{name}', 'Sara'))
+  })
+
+  it('renders the en_us copy under the en_us locale', () => {
+    const w = mountHero({ person: person({ name: 'Sara' }), relationCount: 0, placesCount: 0 }, makeI18n('en_us'))
+    expect(w.get('[data-test="hero-ask-nimo"]').text()).toBe(en.photosPersonAskAbout.replace('{name}', 'Sara'))
+  })
+
+  it('clicking neither throws nor emits any known business event (a no-op; wiring belongs to Plan G, no navigation or dialog)', async () => {
+    const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
+    await w.get('[data-test="hero-ask-nimo"]').trigger('click')
+    // None of the component's declared business emits (the defineEmits list) should fire — this
+    // is exactly what "doesn't navigate, doesn't open a dialog" is verifiable as: every action
+    // that could open a dialog/trigger navigation goes through one of these emits.
+    const knownEmits = [
+      'back', 'toggle-fav', 'rename', 'merge', 'hide', 'delete',
+      'pick-relation', 'make-album', 'open-hero-picker',
+    ]
+    for (const name of knownEmits) expect(w.emitted(name)).toBeUndefined()
+  })
 })
 
 describe('PersonHero.vue — Relation group dropdown', () => {
@@ -326,9 +392,14 @@ describe('PersonHero.vue — Dropdown clipping boundary', () => {
     return (m as RegExpExecArray)[1]
   }
 
-  it('.person-hero **must not** have overflow (else menus anchored to absolute will be completely clipped, z-index is useless)', () => {
+  it('.detail-hero overflow must not be hidden (otherwise menus anchored with absolute get clipped wholesale and z-index is useless)', () => {
+    // Task 5 (Plan D): once the root class name changed from .person-hero to .detail-hero to
+    // align with the parity anchor, parity's own `.detail-hero { overflow: hidden }` cascades
+    // in — this component must now explicitly override it back to overflow:visible (no longer
+    // "simply don't declare this at all"), so the assertion changed from "overflow: must not
+    // appear" to "whatever overflow value appears, it must not be hidden".
     expect(style).not.toBe('')
-    expect(rule('.person-hero')).not.toMatch(/overflow\s*:/)
+    expect(rule('.detail-hero')).not.toMatch(/overflow\s*:\s*hidden/)
   })
 
   it('Clipping responsibility is on .hero-clip: it has overflow:hidden and fills hero', () => {
@@ -347,16 +418,18 @@ describe('PersonHero.vue — Dropdown clipping boundary', () => {
     const clip = w.get('[data-test="hero-clip"]')
     expect(clip.find('[data-test="hero-bg"]').exists()).toBe(true)
     expect(clip.find('[data-test="hero-scrim"]').exists()).toBe(true)
-    // Menu is not inside clipping layer — it is a descendant of .person-hero but not of .hero-clip.
+    // The menu is not inside the clip layer — it's a descendant of .detail-hero, but not of .hero-clip.
     expect(clip.find('[data-test="hero-edit-wrap"]').exists()).toBe(false)
   })
 
-  it('Menu is hung outside clipping layer (under hero root), after opening all three items render', async () => {
+  // Task 7 (Plan D): hiddenPeopleSupported now defaults to true (see mountHero's own header
+  // comment), so the menu now has four items (rename/merge/hide/delete), not three.
+  it('the menu hangs outside the clip layer (under the hero root) and renders all four items once opened', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     const menu = w.get('[data-test="hero-edit-menu"]')
     expect(menu.element.closest('[data-test="hero-clip"]')).toBeNull()
-    expect(w.findAll('[data-test="hero-edit-menu"] button')).toHaveLength(3)
+    expect(w.findAll('[data-test="hero-edit-menu"] button')).toHaveLength(4)
   })
 })
 

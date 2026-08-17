@@ -74,9 +74,12 @@ import PhotosAlbumDetail from '../PhotosAlbumDetail.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import AlbumConvertToSmartDialog from '../../photos/components/AlbumConvertToSmartDialog.vue'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 
 const lb = useLightbox()
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -167,6 +170,9 @@ function findSortItem(w: ReturnType<typeof mount>, sortId: string) {
 beforeEach(() => {
   setActivePinia(createPinia())
   lb.__resetForTest()
+  // Fix-10: usePhotosToast() is a module-level singleton (not Pinia), so its queue must be
+  // reset per test the same way lb.__resetForTest() already resets the lightbox singleton.
+  usePhotosToast().__resetForTests()
   svc.photos.listAlbums.mockClear().mockResolvedValue([rawAlbum(7, { name: 'Trip', coverAssetId: 'cover-1' })])
   svc.photos.getAlbum.mockClear().mockResolvedValue({ assets: [] })
   svc.photos.updateAlbum.mockClear().mockResolvedValue({})
@@ -1094,6 +1100,65 @@ describe('P2c detail skeleton', () => {
     expect(w.find('.sv-select-bar').text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
   })
 
+  // Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): this whole tail section used
+  // to be a template-root SIBLING of `.photos-root` rather than its DOM descendant, so none of
+  // parity's `.photos-root .sv-select-bar` / `.photos-root .lb-confirm-scrim` descendant
+  // selectors (photos-smartview.scss:675 / photos.scss:620) could match -- the exact same root
+  // cause as Fix-1 item 3's "New album" modal bug (acceptance-fix-report.md §F1), now found in
+  // this page's own edit-mode bar, delete-confirm dialog, library picker, lightbox, album
+  // picker, and convert-to-smart dialog. Same fix: nest them back inside `.photos-root`.
+  describe('Fix-2 item 5: the edit-mode tail section is a real descendant of .photos-root', () => {
+    it('the select bar renders inside .photos-root (so parity .sv-select-bar can match)', async () => {
+      const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+      await w.find('[data-test="album-edit-toggle"]').trigger('click')
+      await w.vm.$nextTick()
+      const bar = w.get('.sv-select-bar').element
+      expect(bar.closest('.photos-root')).not.toBeNull()
+    })
+
+    it('the delete-confirm dialog renders inside .photos-root', async () => {
+      const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+      await w.find('[data-test="album-more-btn"]').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('[data-test="album-menu-delete"]').trigger('click')
+      await w.vm.$nextTick()
+      const scrim = w.get('[data-test="album-delete-confirm"]').element
+      expect(scrim.closest('.photos-root')).not.toBeNull()
+    })
+
+    it('the library picker renders inside .photos-root', async () => {
+      // PhotosLibraryPicker's own root is `v-if="open"` -- closed, `.element` is a comment
+      // placeholder with no `.closest`, so open it first via the select bar's Add photos button.
+      const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+      await w.find('[data-test="album-edit-toggle"]').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('.sv-select-bar [data-test="album-add-photos"]').trigger('click')
+      await w.vm.$nextTick()
+      const overlay = w.get('[data-test="lib-picker-overlay"]').element
+      expect(overlay.closest('.photos-root')).not.toBeNull()
+    })
+  })
+
+  // Fix-8 round 4 (owner acceptance, 2026-08-14): unlike every other element in the "Fix-2 item
+  // 5" block above, `<PhotoLightbox>` is deliberately NOT nested inside `.photos-root` here.
+  // Nesting it (as an earlier fix round on this same file did) activates parity's own
+  // `.photos-root .lightbox`/`.lb-*` rule family (vue2-parity/photos.scss:499-1061+), which
+  // targets a *future* Plan-F re-skin describing a different DOM/CSS shape (a CSS Grid with
+  // named grid-area children) than this component's own current, self-contained flex layout --
+  // every colliding selector ties in specificity between the component's own scoped rule and
+  // parity's, a genuine cascade tie settled only by bundler-internal CSS order. Confirmed by
+  // real-device evidence: `lb.openAt`'s network calls fired (state opened) but the lightbox
+  // never became visible. See acceptance-fix-report.md §F8-r4 for the full collision list.
+  describe('Fix-8 round 4: the lightbox is deliberately NOT nested inside .photos-root', () => {
+    it('the lightbox renders OUTSIDE .photos-root (parity\'s future-re-skin .lightbox/.lb-* rules must not match this component yet)', async () => {
+      const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+      await w.find('.tile').trigger('click')
+      await flushPromises()
+      const lightbox = w.get('.lightbox').element
+      expect(lightbox.closest('.photos-root')).toBeNull()
+    })
+  })
+
   it('removes the selected photos and keeps the guard against a double click', async () => {
     let resolveRemove: (() => void) | undefined
     const removeSpy = vi.spyOn(usePhotosAlbums(), 'removeAssetsFromAlbum').mockImplementation(
@@ -1325,12 +1390,14 @@ describe('P2c album more menu', () => {
     expect(actionsIndex).toBeLessThan(aboutIndex)
   })
 
-  it('duplicates the album and closes the menu', async () => {
+  // Fix-10 (owner acceptance, 2026-08-14): was asserted against the generic `useToast()` --
+  // Vue2's real duplicate-success confirmation is `window.PhotosToast.show({ icon: 'sparkles',
+  // ... })`, the photos-private bottom-pill toast, not the app-wide generic one. Updated to
+  // assert against `usePhotosToast()`'s queue instead, including the icon.
+  it('duplicates the album and shows the photos-private toast, closes the menu', async () => {
     const w = await mountDetail({ album: { id: 'a1', name: 'Trip' }, assets: [] })
     const albums = usePhotosAlbums()
-    const toast = useToast()
     const dupSpy = vi.spyOn(albums, 'duplicateAlbum')
-    const showSpy = vi.spyOn(toast, 'show')
 
     await openMenu(w)
     await w.find('[data-test="album-menu-duplicate"]').trigger('click')
@@ -1339,7 +1406,9 @@ describe('P2c album more menu', () => {
 
     expect(dupSpy).toHaveBeenCalledWith('a1')
     expect(svc.photos.createAlbum).toHaveBeenCalledWith('Trip copy')
-    expect(showSpy).toHaveBeenCalledWith(zh.photosSvDuplicatedNameOpenCopy.replace('{name}', 'Trip'))
+    const toasts = usePhotosToast().toasts.value
+    expect(toasts.map((t) => t.text)).toContain(zh.photosSvDuplicatedNameOpenCopy.replace('{name}', 'Trip'))
+    expect(toasts.find((t) => t.text === zh.photosSvDuplicatedNameOpenCopy.replace('{name}', 'Trip'))?.icon).toBe('sparkles')
     expect(w.find('[data-test="album-menu"]').exists()).toBe(false)
   })
 
@@ -1477,5 +1546,32 @@ describe('P2c whole-branch review fixes', () => {
       expect(hasGlyph).toBe(item.attributes('data-active') === 'true')
     }
     expect(items.filter((n) => n.attributes('data-active') === 'true')).toHaveLength(1)
+  })
+})
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): plan-premise correction — Vue2 nests the album
+// detail state inside PhotosAlbumsView while activeNav stays 'albums'
+// (NimoOS-UI src/views/Photos/PhotosAlbumsView.vue:1016-1022 `v-else-if="activeNav==='albums'"`
+// wraps both the list AND the detail-layer <photos-album-detail>, PhotosAlbumsView.vue:12-21).
+// PhotosTimeline's topbar therefore never changes while a detail is open under this nav: same
+// title ('Albums') and same album-aggregate sub as the list page.
+describe('Fix-1 item 1: PhotosTopbar restored (same title/sub as the Albums list, Vue2 truth)', () => {
+  it('renders the topbar with title=Albums and the album-aggregate sub, no search box', async () => {
+    svc.photos.listAlbums.mockClear().mockResolvedValue([
+      rawAlbum(7, { name: 'Trip', photoCount: 40, videoCount: 2 }),
+      rawAlbum(8, { name: 'Other', photoCount: 10, videoCount: 0 }),
+    ])
+    const { w } = await mountView(7)
+    expect(w.findComponent(PhotosTopbar).exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+    expect(w.get('.topbar-sub').text()).toBe(
+      zh.photosCountSummary.replace('{photos}', '50').replace('{videos}', '2'),
+    )
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar', async () => {
+    const { w } = await mountView(7)
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
   })
 })

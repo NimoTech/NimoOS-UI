@@ -90,9 +90,13 @@ describe('PersonRelGraph.vue', () => {
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith('me', 'cover1')
   })
 
-  it('Center name taken from person.name, empty string when person is null (doesn\'t crash)', () => {
+  // Task 6 (Plan D, PR#137 gap-close) fix: this test previously asserted `''` for a null
+  // person, which was the pre-fix (wrong) behavior — Vue2's own centerName computed
+  // (`(this.person && this.person.name) || this.$t('Unnamed person')`) has ALWAYS fallen back
+  // to the Unnamed-person copy here, never an empty string. Updated to match Vue2 truth.
+  it('center name comes from person.name and falls back to Unnamed person when person is null (per Vue2 centerName, no crash)', () => {
     const w = mountGraph({ relations: [{ personId: 1, name: 'A', count: 5 }], person: null })
-    expect(w.get('.rg-name.rg-center-name').text()).toBe('')
+    expect(w.get('.rg-name.rg-center-name').text()).toBe('未命名人物')
     expect(w.get('.rg-center-img').attributes('href')).toBe('')
   })
 
@@ -157,6 +161,17 @@ describe('PersonRelGraph.vue', () => {
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith(42, 'faceA')
   })
 
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): existing
+  // coverage only checked centerName's Unnamed fallback and the initial-glyph fallback; the
+  // satellite NAME LABEL (`.rg-name-dim` text, the `pos.name || t('photosPersonUnnamedTitle')`
+  // hunk) had no assertion of its own.
+  it('a satellite node with an empty name → its name label (.rg-name-dim) renders the Unnamed person fallback copy', () => {
+    const relations: PersonRelation[] = [{ personId: 1, name: '', count: 5 }]
+    const w = mountGraph({ relations, person: P() })
+    expect(w.get('.rg-name-dim').text()).toBe('未命名人物')
+  })
+
   it('Clicking satellite node → emit open-person with personId (fill in affordance, Vue2 has no such behavior)', async () => {
     const relations: PersonRelation[] = [
       { personId: 101, name: 'A', count: 10 },
@@ -174,5 +189,38 @@ describe('PersonRelGraph.vue', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: 'A', count: 10 }]
     const w = mountGraph({ relations, person: P() })
     expect(w.html()).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\s*\(/)
+  })
+})
+
+// Task 6 (Plan D, PR#137 gap-close): three cases ported from Vue2 NimoOS-UI
+// tests/photosRelGraph.test.js (commit 03245590) — MAX_GRAPH_NODES cap, avatar-fallback
+// initial letter under every avatar, and the co-appearances empty state. All three behaviors
+// were entirely missing from this component before this task (verified RED before
+// implementation: cap test found 3 <image>s not 13, initial test found no `.rg-avatar-initial`
+// text at all, empty-state test found no `.rg-empty` element — see task-6-report.md for the
+// captured RED output).
+describe('PersonRelGraph.vue — PR#137 port: node cap / avatar initial fallback / empty state', () => {
+  it('with more than 12 relations only 12 satellite nodes plus 1 centre render (13 <image> in total, per Vue2 tests/photosRelGraph.test.js "caps rendered nodes at 12")', () => {
+    const relations: PersonRelation[] = Array.from({ length: 20 }, (_, i) => ({
+      personId: `p${i}`, name: `P${i}`, count: 20 - i,
+    }))
+    const w = mountGraph({ relations, person: P() })
+    expect(w.findAll('image')).toHaveLength(13)
+  })
+
+  it('an initial-letter fallback <text> renders under every avatar, centre and satellites alike (per Vue2 tests/photosRelGraph.test.js "draws an initial-letter fallback under every avatar")', () => {
+    const relations: PersonRelation[] = [{ personId: 1, name: 'Zoe', count: 3 }]
+    const w = mountGraph({ relations, person: P({ name: 'Amy' }) })
+    const initials = w.findAll('.rg-avatar-initial').map((x) => x.text())
+    expect(initials).toContain('Z') // satellite node initial
+    expect(initials).toContain('A') // center node initial
+  })
+
+  it('with no relations, the .rg-empty empty state renders with the photosPersonRelGraphEmptyTitle/Sub copy (per Vue2 tests/photosRelGraph.test.js "renders empty state when no co-appearances")', () => {
+    const w = mountGraph({ relations: [], person: P() })
+    expect(w.find('svg').exists()).toBe(false)
+    const empty = w.get('.rg-empty')
+    expect(empty.get('.t').text()).toBe('暂无同框记录')
+    expect(empty.get('.d').text()).toBe('当这个人与其他人同框出现在照片里时，关系图会显示在这里。')
   })
 })

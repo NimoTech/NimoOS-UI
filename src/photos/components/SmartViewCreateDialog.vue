@@ -24,11 +24,14 @@
 // 3) `--on-accent` actually legal in two more places, not just brief's "only one"
 //    (fix round 1 · I3 review verified each location, no code change, only reasoning—original
 //    comment mistakenly cited non-existent file in this branch):
-//    a) `.sv-switch[data-on="true"]::after` (toggle slider stacked on var(--accent) solid when
-//       data-on=true)—`role="switch"` is first use in this branch (grep whole repo hits only
-//       these two), no in-branch precedent; --on-accent legality here self-proven by adjacent
-//       `.sv-switch[data-on="true"] { background: var(--accent) }` (solid, not gradient/semi),
-//       independent of any outside precedent.
+//    a) [Fix-5, reverted 2026-08-14] the --on-accent usage at
+//       `.sv-switch[data-on="true"]::after` has been reverted — see that rule's own comment
+//       in the style block. Parity's own switch knob is one colour in both states
+//       (photos-smartview.scss:786-789 only moves it, never touches the background); the
+//       "legal because it sits on a solid accent fill" argument made here was self-consistent
+//       but never checked that Vue2's real value does not change with state, and the result
+//       was a genuine bug the owner reproduced in a screenshot (the knob darkened once the
+//       switch was turned on).
 //    b) `.sv-btn-primary` (background: var(--accent); color: var(--on-accent))—structurally
 //       matches existing primary button precedent in this repo: ClusterActionDialog.vue:320,
 //       MergeReviewDialog.vue:262 (both files exist and verified in this branch).
@@ -531,8 +534,8 @@ function thumbUrl(seed: string): string {
   width: 820px;
   max-width: 100%;
   max-height: calc(100vh - 80px);
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 18px;
   box-shadow: var(--card-shadow-hi);
   display: flex;
@@ -567,7 +570,7 @@ function thumbUrl(seed: string): string {
   align-items: center;
   gap: 12px;
   padding: 18px 20px 16px;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--line);
 }
 /* Deviation entry (file header comment 1): Vue2 scss:690-691 is 32×32, not brief's 28×28—
    source is authoritative. */
@@ -584,8 +587,8 @@ function thumbUrl(seed: string): string {
   box-shadow: var(--card-shadow-hi);
 }
 .sv-modal-head-text { flex: 1; min-width: 0; }
-.sv-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
-.sv-modal-sub { font-size: 11.5px; color: var(--fg-faint); margin-top: 2px; }
+.sv-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-1); }
+.sv-modal-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
 /* Vue2 global .icon-btn (32×32, see photos.scss) doesn't exist in this repo (scoped island),
    define scoped equivalent per this dialog's other 26-28px button scale (same as
    PlaceSpotDialog.vue:257 precedent). */
@@ -599,11 +602,11 @@ function thumbUrl(seed: string): string {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--fg-subtle);
+  color: var(--text-4);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.icon-btn:hover { background: var(--chip-bg); color: var(--fg); }
+.icon-btn:hover { background: var(--surface-2); color: var(--text-1); }
 
 .sv-modal-body {
   display: grid;
@@ -623,29 +626,29 @@ function thumbUrl(seed: string): string {
 .sv-modal-side {
   overflow-y: auto;
   padding: 18px 18px 22px;
-  border-left: 1px solid var(--card-border);
-  background: var(--chip-bg);
+  border-left: 1px solid var(--line);
+  background: var(--surface-2);
 }
 
 .sv-field { display: flex; flex-direction: column; gap: 6px; }
-.sv-field-label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--fg-muted); }
-.sv-field-hint { font-size: 10.5px; color: var(--fg-subtle); font-weight: 400; }
+.sv-field-label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--text-2); }
+.sv-field-hint { font-size: 10.5px; color: var(--text-4); font-weight: 400; }
 /* Vue2 inline style="margin-top:6px" (:103/:116) → named class, property-by-property match,
    not bare literal dropped. */
 .sv-hint-spaced { margin-top: 6px; }
 .sv-input {
   width: 100%;
   padding: 9px 11px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--fg);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   outline: none;
   transition: border-color 0.15s, background 0.15s;
 }
-.sv-input:focus { border-color: var(--accent); background: var(--popup-bg); }
+.sv-input:focus { border-color: var(--accent); background: var(--surface-1); }
 .sv-textarea { min-height: 60px; resize: vertical; line-height: 1.45; font-size: 12.5px; }
 
 .sv-suggest {
@@ -662,21 +665,21 @@ function thumbUrl(seed: string): string {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--accent-text);
+  color: var(--accent-hi);
   margin-bottom: 8px;
 }
 .sv-suggest-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .sv-suggest-chip {
   padding: 4px 10px;
   border-radius: 99px;
-  background: var(--popup-bg);
+  background: var(--surface-1);
   border: 1px dashed var(--accent-soft-bd);
-  color: var(--fg);
+  color: var(--text-1);
   font-size: 11.5px;
   cursor: pointer;
   transition: all 0.12s;
 }
-.sv-suggest-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.sv-suggest-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hi); }
 
 .sv-chip-bin {
   display: flex;
@@ -684,21 +687,21 @@ function thumbUrl(seed: string): string {
   align-items: center;
   gap: 5px;
   padding: 7px 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   min-height: 38px;
   transition: border-color 0.15s;
 }
-.sv-chip-bin:focus-within { border-color: var(--accent); background: var(--popup-bg); }
+.sv-chip-bin:focus-within { border-color: var(--accent); background: var(--surface-1); }
 .sv-chip-bin[data-empty="true"] { padding: 0; background: transparent; border: 0; }
 .sv-chip-bin[data-empty="true"] .sv-chip-input {
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 9px 11px;
 }
-.sv-chip-bin[data-empty="true"]:focus-within .sv-chip-input { border-color: var(--accent); background: var(--popup-bg); }
+.sv-chip-bin[data-empty="true"]:focus-within .sv-chip-input { border-color: var(--accent); background: var(--surface-1); }
 .sv-chip-item {
   display: inline-flex;
   align-items: center;
@@ -707,7 +710,7 @@ function thumbUrl(seed: string): string {
   background: var(--accent-soft);
   border: 1px solid var(--accent-soft-bd);
   border-radius: 99px;
-  color: var(--accent-text);
+  color: var(--accent-hi);
   font-size: 11.5px;
   font-weight: 500;
 }
@@ -717,7 +720,7 @@ function thumbUrl(seed: string): string {
   border-radius: 50%;
   border: 0;
   background: var(--accent-soft-2);
-  color: var(--accent-text);
+  color: var(--accent-hi);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -730,30 +733,30 @@ function thumbUrl(seed: string): string {
   min-width: 140px;
   background: transparent;
   border: 0;
-  color: var(--fg);
+  color: var(--text-1);
   font: inherit;
   font-size: 12.5px;
   outline: none;
   padding: 4px 6px;
 }
 
-.sv-thresh-val { margin-left: auto; color: var(--accent-text); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
+.sv-thresh-val { margin-left: auto; color: var(--accent-hi); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
 /* fix round 1 · I1: .sv-slider/.sv-slider-marks actual styles sunk to PhotosThreshSlider.vue
    (scoped but act on elements it renders, no need to repeat here). */
 
-.sv-toggles { background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 2px 12px; }
+.sv-toggles { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 2px 12px; }
 .sv-toggle-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--line);
   font-size: 12.5px;
-  color: var(--fg-muted);
+  color: var(--text-2);
 }
 .sv-toggle-row:last-child { border-bottom: 0; }
-.sv-toggle-row .label { flex: 1; color: var(--fg); }
-.sv-toggle-row .desc { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
+.sv-toggle-row .label { flex: 1; color: var(--text-1); }
+.sv-toggle-row .desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .sv-toggle-clickable { cursor: pointer; user-select: none; }
 /* fix round 1 · M1 (SmartViewSidePanel.vue task-8 review same batch finding, controller
    approved adding to this file too): Vue2's `.sv-switch` has two rule layers stacking—range
@@ -765,12 +768,20 @@ function thumbUrl(seed: string): string {
   position: relative;
   width: 32px;
   height: 18px;
-  background: var(--chip-bg-hi);
+  background: var(--surface-3);
   border-radius: 99px;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s;
 }
+/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
+   states -- overrides whatever Vue2's own (non-existent) light theme would have done, explicit
+   owner requirement. Fix-5's `var(--text-1)` got dark-mode legibility right but was still a
+   theme-flipping token, going near-black under `.photos-root.is-light` -- legible, but not
+   white, which is what the owner wants. `--text-1` is deliberately no longer used for the knob.
+   Literal white, same theme-exception convention as PhotosToastHost.vue's `.photos-toast`
+   background / this repo's other theme-invariant surfaces. The light-mode border + shadow below
+   is a matched pair with this rule, not an independent choice -- see its own comment. */
 .sv-switch::after {
   content: '';
   position: absolute;
@@ -779,18 +790,35 @@ function thumbUrl(seed: string): string {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--fg);
+  background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
   transition: all 0.2s;
   /* Shadow is pure black rough shadow, use color-mix to match Vue2 original (pure black, ~30%
      opacity shadow), don't use literal color function, same precedent as SmartViewSidePanel.vue. */
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
+/* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle has
+   no edge against photos light mode's own near-white `--surface-3` off-track, so light mode gets
+   a subtle parity-token border plus a lighter drop shadow (dark mode's 30%-black shadow reads as
+   depth on a dark track; at that strength on a light one it looks like a smudge, hence the lower
+   alpha) -- values chosen to read as a native light-theme toggle. Applies to both on/off states
+   (neither modifies border/box-shadow), matching the owner's state-invariant requirement. */
+.photos-root.is-light .sv-switch::after {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
+}
 .sv-switch[data-on="true"] { background: var(--accent); }
-/* --on-accent legal use case #2 (file header comment 3a, fix round 1 · I3 removed non-existent
-   external reference): slider stacked on adjacent [data-on="true"] solid (var(--accent), not
-   gradient/semi), legality self-proven by background declaration here—role="switch" first use
-   in this branch, no in-branch precedent to cite. */
-.sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
+/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+   own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+   moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+   same colour in both states. The `--on-accent` override this rule used to carry (the file
+   header's own "legal use 3a", justified at the time as "legal atop a solid --accent fill", same
+   reasoning as `.sv-btn-primary`) was wrong for this element specifically: it made the knob track
+   the on/off *state* instead of staying constant like Vue2's -- the owner's screenshot ("Keep it
+   live" toggled on) is exactly that dark-navy-on-purple knob. Deleted; the knob now always uses
+   the base rule's background above (Fix-6: literal white, see that rule's own comment), in both
+   states, matching Vue2's own single-value knob. File header comment 3a above is superseded by
+   this note; "legal use b" (`.sv-btn-primary`) is unaffected and still correct. */
+.sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-preview-head {
   display: inline-flex;
@@ -800,12 +828,12 @@ function thumbUrl(seed: string): string {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--accent-text);
+  color: var(--accent-hi);
   margin-bottom: 8px;
 }
 .sv-preview-count { display: flex; align-items: baseline; gap: 6px; margin-bottom: 12px; }
-.sv-preview-count b { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--fg); }
-.sv-preview-count span { font-size: 11.5px; color: var(--fg-faint); }
+.sv-preview-count b { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--text-1); }
+.sv-preview-count span { font-size: 11.5px; color: var(--text-3); }
 .sv-preview-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -817,11 +845,11 @@ function thumbUrl(seed: string): string {
 .sv-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
 .sv-preview-help {
   font-size: 11px;
-  color: var(--fg-faint);
+  color: var(--text-3);
   line-height: 1.5;
   padding: 8px 10px;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 8px;
 }
 
@@ -831,7 +859,7 @@ function thumbUrl(seed: string): string {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--fg-faint);
+  color: var(--text-3);
   margin-bottom: 8px;
 }
 .sv-template-row {
@@ -841,10 +869,10 @@ function thumbUrl(seed: string): string {
   width: 100%;
   padding: 8px 10px;
   margin-bottom: 4px;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--fg);
+  color: var(--text-1);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -853,39 +881,40 @@ function thumbUrl(seed: string): string {
 .sv-template-row:hover { border-color: var(--accent); background: var(--accent-soft); }
 /* fix round 1 · I2: Vue2 :164 explicitly passes color="var(--accent-hi)" to these 5 template
    rows' sparkles icons (Vue2 PhotosIcon.vue maps color prop to :stroke)—is accent color, not
-   inherited from .sv-template-row's own color:var(--fg) (foreground white/dark). Earlier
+   inherited from .sv-template-row's own color:var(--text-1) (foreground light/dark). Earlier
    mistakenly used stroke="currentColor" making icon inherit container foreground instead of
    accent; other two sparkles in file (.sv-suggest-head/.sv-preview-head) happened to work
-   because those rules' own color is already --accent-text, only this one has container
-   color:--fg, currentColor inherited wrong. Vue2 hover (scss:955-958) only changes
-   border-color/background, not icon color, so hover should also stay accent—pin svg color
-   here explicitly, doesn't follow container hover, naturally covers both states. */
-.sv-template-row svg { margin-top: 2px; flex-shrink: 0; color: var(--accent-text); }
+   because those rules' own color is already the accent text tier, only this one has a plain
+   foreground container color, so currentColor inherited the wrong value. Vue2 hover
+   (scss:955-958) only changes border-color/background, not icon color, so hover should also
+   stay accent—pin svg color here explicitly, doesn't follow container hover, naturally covers
+   both states. */
+.sv-template-row svg { margin-top: 2px; flex-shrink: 0; color: var(--accent-hi); }
 .sv-template-row .t-label { font-size: 12px; font-weight: 500; }
-.sv-template-row .t-desc { font-size: 10.5px; color: var(--fg-faint); margin-top: 1px; line-height: 1.35; }
+.sv-template-row .t-desc { font-size: 10.5px; color: var(--text-3); margin-top: 1px; line-height: 1.35; }
 
 .sv-modal-foot {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
-  border-top: 1px solid var(--card-border);
-  background: var(--popup-bg);
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
 }
 .sv-btn-ghost {
   height: 36px;
   padding: 0 16px;
   border-radius: 9px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
 }
-.sv-btn-ghost:hover { background: var(--chip-bg-hi); }
+.sv-btn-ghost:hover { background: var(--surface-3); }
 /* --on-accent legal use case #3 (file header comment 3b): matches existing primary button
    precedent in this repo ClusterActionDialog.vue:320 / MergeReviewDialog.vue:262. */
 .sv-btn-primary {
@@ -922,7 +951,7 @@ function thumbUrl(seed: string): string {
    PhotosSmartViews.vue already at 768 (deviation from Vue2 literal 760 logged). */
 @media (max-width: 768px) {
   .sv-modal-body { grid-template-columns: 1fr; }
-  .sv-modal-side { border-left: 0; border-top: 1px solid var(--card-border); }
+  .sv-modal-side { border-left: 0; border-top: 1px solid var(--line); }
 }
 
 </style>

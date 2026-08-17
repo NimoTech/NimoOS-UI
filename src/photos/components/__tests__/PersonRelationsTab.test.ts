@@ -88,6 +88,15 @@ describe('PersonRelationsTab.vue', () => {
     expect(rows[2].text()).toContain('A')
   })
 
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): the rel-row
+  // Unnamed-person fallback (PersonRelationsTab.vue:122) had no covering assertion.
+  it('a relation with an empty name → the list row renders the Unnamed person fallback copy', () => {
+    const relations: PersonRelation[] = [{ personId: 5, name: '', count: 2 }]
+    const w = mountTab({ relations, person: P(), places: [] })
+    expect(w.get('.rel-row .nm').text()).toBe(zh.photosPersonUnnamedTitle)
+  })
+
   it('Bar width ratio is correct (max item 100%, ref :533–536 relMax)', () => {
     const relations: PersonRelation[] = [
       { personId: 1, name: 'A', count: 25 },
@@ -163,9 +172,17 @@ describe('PersonRelationsTab.vue', () => {
     expect(html).toContain('&lt;img')
   })
 
-  it('Do not render "Deep Dive" button at bottom of insights card (belongs to SP8, ref brief)', () => {
+  // Task 8 (Plan D): previously deferred and unrendered in SP8, now added back here per Vue2
+  // PhotosPersonDetail.vue:228-230 — the click is a no-op (wiring belongs to Plan G), this only
+  // adds the render + visuals first.
+  it('renders the Deep Dive button at the bottom of the insights card; clicking it neither throws nor emits (no-op, wiring belongs to Plan G)', async () => {
     const w = mountTab({ relations: [{ personId: 1, name: 'A', count: 1 }], person: P(), places: [] })
-    expect(w.find('.nimo-btn').exists()).toBe(false)
+    const btn = w.get('.nimo-btn')
+    expect(btn.attributes('data-test')).toBe('rel-insight-dig-deeper')
+    expect(btn.text()).toBe(zh.photosPersonDigDeeper)
+    await btn.trigger('click')
+    // The one business emit (open-person) shouldn't fire — a no-op, no navigation.
+    expect(w.emitted('open-person')).toBeUndefined()
   })
 
   it('No bare color literals in template (hex or rgba()/hsla() function form, fallback assertion)', () => {
