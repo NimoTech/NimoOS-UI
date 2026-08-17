@@ -114,8 +114,10 @@
      wrong palette. Confirmed via `/usr/bin/grep -rn 'pin-bg\|pin-stroke\|pin-active-bg\|
      pin-pulse\|pin-cluster\|pin-glow' src/` that nothing outside Photos consumed these tokens,
      so they were moved wholesale rather than left duplicated here. */
-  /* Vue2 原值 #34c759(当前行程绿,图例第四组也用),两套主题下都用同一个值——不用
-     本仓 --good(它是青绿 #5fe3b0/#15754c,与 iOS 绿不同,是近似不是精确复刻)。 */
+  /* Vue2's original value #34c759 (the current-trip color, also used by the legend's fourth
+     group), the same value in both themes -- not reusing this repo's --good (that's a
+     teal-leaning #5fe3b0/#15754c, distinct from the iOS hue, an approximation rather than
+     an exact port). */
   --place-current-trip: #34c759;
   /* PlaceDetailPanel.vue (P6b-T3) "home base" marker color -- a new token, an exact port
      of Vue2 photos-places.scss's inline `style="color:#c4b8ff"` (:1078). Deviation on
@@ -152,10 +154,12 @@
      actually reachable (Vue2 :150/:137, the two most common paths, both have dotBg === null,
      i.e. both fall through to this CSS fallback — not a rare branch). */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
-  /* PlacesZoomBar.vue(P6a-T8)垂直缩放滑杆的浮动药丸底——新增 token,精确复刻 Vue2
-     photos.scss:49(NimoOS-UI 全局浮动条/FAB 共用底,不是 photos-places.scss 自己定义的)。
-     本仓之前没有等价的"半透明浮动工具条底"token,--panel-bg(0.1)/--popup-bg(渐变,
-     ~0.9-0.95)/--tool-bg(0.16,不透明纯色)都对不上这个扁平 0.85 的量级,故新增而非近似。 */
+  /* PlacesZoomBar.vue (P6a-T8) vertical zoom slider's floating pill background -- a new
+     token, an exact port of Vue2 photos.scss:49 (NimoOS-UI's shared global floating-bar/FAB
+     background, not something photos-places.scss defines on its own). This repo had no
+     equivalent "translucent floating toolbar background" token before -- --panel-bg (0.1),
+     --popup-bg (a gradient, ~0.9-0.95), and --tool-bg (0.16, an opaque flat color) all miss
+     this flat 0.85 magnitude, hence a new token rather than an approximation. */
   --float-bg: rgba(20, 20, 28, 0.85);
   /* Same component -- Vue2 uses rgba(var(--ink), 0.08/0.12) for .zb-btn:hover's background
      and .zb-track's base color, an "alpha ramp that follows the text color"; this repo has
@@ -541,10 +545,10 @@
   --place-row-bg: rgba(59, 91, 219, 0.08);
   --place-row-border: rgba(59, 91, 219, 0.25);
   --place-thumb-active: rgba(59, 91, 219, 0.15);
-  /* Review I3 (Plan E final-fix): the seven --pin-* geo-pin tokens have moved to
-     `src/photos/styles/vue2-parity/photos.scss`'s `.photos-root.is-light { }` block — see the
-     `:root` block's own comment above for the full rationale. */
-  /* 两套主题同值,见 :root 同名注释。 */
+  /* Fix-5: the seven --pin-* geo-pin tokens that used to be redefined here (blue-family
+     light-mode values) are removed — see the dark `.photos-root` block's own Fix-5 comment
+     above for the full rationale. */
+  /* Same value in both themes, see the :root token of the same name's comment. */
   --place-current-trip: #34c759;
   /* Same value in both themes, see the :root token of the same name's comment (deviation
      on record: didn't give the light theme a deeper-violet version as literally required
@@ -557,8 +561,8 @@
      as there — light --fg-faint is an opaque warm grey #9a958a, which would likewise turn into
      an opaque block over the map canvas). */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
-  /* PlacesZoomBar.vue(P6a-T8)——见 :root 同名 token 注释。精确复刻 Vue2 photos.scss:84
-     的浅色浮动条底字面量。 */
+  /* PlacesZoomBar.vue (P6a-T8) -- see the :root token of the same name's comment. An
+     exact port of Vue2 photos.scss:84's light-theme floating-bar-background literal. */
   --float-bg: rgba(255, 255, 255, 0.85);
   /* See the :root token of the same name's comment: alpha is identical to :root's
      (0.08/0.12), RGB is swapped for this repo's light theme --fg's actual decomposed

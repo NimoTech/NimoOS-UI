@@ -877,31 +877,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --place-thumb-active: rgba(138, 180, 255, 0.18);
 `,
     replace: '' },
-  // --pin-* 六色 + --pin-cluster-stroke(PlacesMap 图钉)
-  { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue (P6a-T6) map pins -- an exact port of Vue2 photos-places.scss:366-411's
-     rgba(var(--accent-rgb), α). Vue2 explicitly marks --accent-rgb theme-invariant
-     (permanently 110,91,255), meaning these alpha layers don't change between the dark and
-     light app themes -- the pins sit on the map preset's own canvas (4 presets plus a
-     custom color, independent of the app theme's light/dark state; custom mode always has
-     a dark backdrop), so alpha can't be lowered to follow the app theme, or a "light app
-     theme + dark custom backdrop" combination would wash the pins out entirely. So both
-     theme blocks share identical alpha; only the RGB follows this repo's dark/light
-     --accent-rgb pair. */
-  --pin-bg: rgba(138, 180, 255, 0.16);
-  --pin-stroke: rgba(138, 180, 255, 0.55);
-  --pin-active-bg: rgba(138, 180, 255, 0.30);
-  --pin-pulse: rgba(138, 180, 255, 0.25);
-  --pin-cluster-hover-bg: rgba(138, 180, 255, 0.42);
-  --pin-glow: rgba(138, 180, 255, 0.7);
-  /* Vue2's original value is a pale-lilac rgba(196,184,255,0.85), lighter than accent, so
-     a cluster reads as "a group" rather than a single point; here the RGB is swapped for
-     this repo's --accent-text (169,198,255) -- its semantics are exactly "an
-     accent-derived hue that's lighter/more readable than accent", with the alpha an exact
-     port of the original 0.85. */
-  --pin-cluster-stroke: rgba(169, 198, 255, 0.85);
-`,
-    replace: '' },
+  // Fix-5 (owner acceptance, 2026-08-17): the seven --pin-* geo-pin tokens (P6a formally
+  // overturned) were removed from theme.css outright on the private side -- moved to
+  // photos.scss during an earlier task, then deleted entirely once PlacesMap.vue's own
+  // shadowing rules were fixed to let parity's already-correct purple rules govern (see
+  // photos.scss's own Fix-5 comment). Nothing left here for this PATCH entry to strip, so
+  // the entry itself (dark block, light 6-token block, and light cluster-stroke block below)
+  // is retired along with the tokens -- retargeting it at some other text would just be
+  // re-inventing a strip rule for content that no longer exists on the private side at all.
   // --place-current-trip
   { path: 'src/styles/theme.css',
     find: `  /* Vue2's original value #34c759 (the current-trip color, also used by the legend's fourth
@@ -1063,27 +1046,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --place-row-bg: rgba(59, 91, 219, 0.08);
   --place-row-border: rgba(59, 91, 219, 0.25);
   --place-thumb-active: rgba(59, 91, 219, 0.15);
-`,
-    replace: '' },
-  // light:--pin-*
-  { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue (P6a-T6) map pins -- see the :root token of the same name's comment:
-     alpha is identical to :root's (theme-invariant, sits on the map preset's own canvas,
-     doesn't lower alpha to follow the app theme), RGB is swapped for this repo's light
-     theme --accent-rgb (59,91,219). */
-  --pin-bg: rgba(59, 91, 219, 0.16);
-  --pin-stroke: rgba(59, 91, 219, 0.55);
-  --pin-active-bg: rgba(59, 91, 219, 0.30);
-  --pin-pulse: rgba(59, 91, 219, 0.25);
-  --pin-cluster-hover-bg: rgba(59, 91, 219, 0.42);
-  --pin-glow: rgba(59, 91, 219, 0.7);
-`,
-    replace: '' },
-  // light:--pin-cluster-stroke
-  { path: 'src/styles/theme.css',
-    find: `  /* RGB is taken from this repo's light theme --accent-text (53,80,196), alpha is an
-     exact port of Vue2's original 0.85 (see the :root token of the same name's comment). */
-  --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
 `,
     replace: '' },
   // light:--place-current-trip
