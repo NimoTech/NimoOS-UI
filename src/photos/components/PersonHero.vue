@@ -87,6 +87,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import PersonAvatar from './PersonAvatar.vue'
 import nimoLogoUrl from '../assets/nimo-logo.png'
+import { useAskNimo } from '../composables/useAskNimo'
 import type { Person } from '../util/peopleView'
 
 const props = defineProps<{
@@ -177,12 +178,10 @@ function pickRelation(value: string): void {
   emit('pick-relation', value)
 }
 
-// Task 8 (Plan D): Vue2 :89 emits 'ask-nimo' with a canned prompt string; this component's
-// own ask-nimo wiring lands in Plan G (per this task's brief). Kept as a real no-op function
-// (not an inline no-op in the template) so it reads as a deliberate placeholder, not a
-// forgotten handler.
-// wired in Plan G (Ask Nimo)
-function onAskNimo(): void {}
+// Plan G: opens the Ask Nimo popup with Vue2's exact canned prompt (PhotosPersonDetail.vue:89-92).
+function onAskNimo(): void {
+  useAskNimo().openWith(t('photosPersonAskAboutPrompt', { name: heroTitle.value }))
+}
 
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node

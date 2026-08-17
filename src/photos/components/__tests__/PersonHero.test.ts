@@ -3,8 +3,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
 import en from '../../../i18n/en_us'
+import { useAgentStore } from '../../../ai/stores/agentStore'
+import { useAskNimo } from '../../composables/useAskNimo'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -268,7 +271,17 @@ describe('PersonHero.vue — the Ask about button among the hero three (Task 8; 
     expect(w.get('[data-test="hero-ask-nimo"]').text()).toBe(en.photosPersonAskAbout.replace('{name}', 'Sara'))
   })
 
-  it('clicking neither throws nor emits any known business event (a no-op; wiring belongs to Plan G, no navigation or dialog)', async () => {
+  it('clicking does not emit any known business event (opens Ask Nimo instead — no navigation or dialog)', async () => {
+    // Preflight F-13: this it()'s own stub -- openWith() below calls ensureNimoAgentInit(), and
+    // this test file has no beforeEach of Plan G's own to rely on, so the stub goes right here.
+    setActivePinia(createPinia())
+    const agent = useAgentStore('photos')
+    agent.loadAvailableModels = vi.fn(async () => {})
+    agent.createSession = vi.fn(async () => { agent.activeSessionId = 's0' })
+    agent.deleteSession = vi.fn(async () => {})
+    agent.setSessionTitle = vi.fn(async () => {})
+    useAskNimo().__resetForTests()
+
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-ask-nimo"]').trigger('click')
     // None of the component's declared business emits (the defineEmits list) should fire — this
@@ -279,6 +292,26 @@ describe('PersonHero.vue — the Ask about button among the hero three (Task 8; 
       'pick-relation', 'make-album', 'open-hero-picker',
     ]
     for (const name of knownEmits) expect(w.emitted(name)).toBeUndefined()
+  })
+
+  // Task 15 (Plan G): wires the previously no-op onAskNimo to useAskNimo().openWith() with
+  // Vue2's exact canned prompt (PhotosPersonDetail.vue:89-92).
+  it('clicking "Ask about {name}" opens Ask Nimo with the canned favorite-photos prompt', async () => {
+    // Re-check F-13: this it()'s own stub -- openWith() below calls ensureNimoAgentInit(), and this
+    // test file has no beforeEach of Plan G's own to rely on (it's an appended case in a pre-existing
+    // suite), so the stub goes right here, not "covered indirectly" by anything else.
+    setActivePinia(createPinia())
+    const agent = useAgentStore('photos')
+    agent.loadAvailableModels = vi.fn(async () => {})
+    agent.createSession = vi.fn(async () => { agent.activeSessionId = 's0' })
+    agent.deleteSession = vi.fn(async () => {})
+    agent.setSessionTitle = vi.fn(async () => {})
+    useAskNimo().__resetForTests()
+
+    const w = mountHero({ person: person({ name: 'Sara' }), relationCount: 0, placesCount: 0 })
+    await w.get('[data-test="hero-ask-nimo"]').trigger('click')
+    expect(useAskNimo().popupOpen.value).toBe(true)
+    expect(useAskNimo().prefill.value).toBe('给我看看我最喜欢的 Sara 的照片')
   })
 })
 
