@@ -59,9 +59,48 @@ describe('useAskNimo', () => {
 
   it('consume*() functions clear their respective field exactly once', () => {
     const nimo = useAskNimo()
-    nimo.openWith('hello')
+    nimo.openWith({
+      text: 'hello',
+      contextPhoto: { id: 1, name: 'a.jpg', takenAt: null, place: null },
+      contextAlbum: { id: 2, name: 'album' },
+    })
     nimo.consumePrefill()
     expect(nimo.prefill.value).toBe('')
+    nimo.consumeContextPhoto()
+    expect(nimo.contextPhoto.value).toBeNull()
+    nimo.consumeContextAlbum()
+    expect(nimo.contextAlbum.value).toBeNull()
+  })
+
+  // Review fix (defaults): Vue2 PhotosAskNimo.vue:117-118 is the truth for the FAB's resting
+  // position -- 14/14, not the brief's original 24/24 (miniY's 24 default is unaffected).
+  it('defaults fabRight/fabBottom to 14 when nothing is persisted (Vue2 PhotosAskNimo.vue truth)', () => {
+    const nimo = useAskNimo()
+    expect(nimo.fabRight.value).toBe(14)
+    expect(nimo.fabBottom.value).toBe(14)
+  })
+
+  // Review fix (minor): an empty-string stored value must resolve to the fallback, not 0
+  // (Number('') === 0 would silently produce a wrong default distinct from "nothing stored").
+  it('__resetForTests() treats an empty-string persisted value as unset, falling back to the default', () => {
+    localStorage.setItem('nimo_fab_right', '')
+    const nimo = useAskNimo()
+    nimo.__resetForTests()
+    expect(nimo.fabRight.value).toBe(14)
+  })
+
+  // Review fix (localStorage failure tolerance): quota-exceeded / private-mode Safari can make
+  // localStorage.setItem throw synchronously -- setFabPosition must degrade gracefully (update
+  // the refs, swallow the storage error) instead of throwing into T10's mouseup handler.
+  it('setFabPosition tolerates a throwing localStorage without throwing itself', () => {
+    const nimo = useAskNimo()
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError')
+    })
+    expect(() => nimo.setFabPosition(10, 20)).not.toThrow()
+    expect(nimo.fabRight.value).toBe(10)
+    expect(nimo.fabBottom.value).toBe(20)
+    spy.mockRestore()
   })
 
   it('FAB position/dismissed persist to the Vue2-compatible localStorage keys', () => {

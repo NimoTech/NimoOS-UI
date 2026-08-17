@@ -19,10 +19,36 @@ const FAB_BOTTOM_KEY = 'nimo_fab_bottom'
 const FAB_MINI_Y_KEY = 'nimo_mini_y'
 const FAB_DISMISSED_KEY = 'nimo_fab_dismissed'
 
+// Review fix (localStorage failure tolerance): mirrors Vue2 PhotosAskNimo.vue, which wraps
+// every localStorage access -- quota-exceeded / private-mode Safari / disabled storage must
+// degrade to the fallback/no-op rather than throwing into callers (e.g. T10's mouseup handler).
 function readNum(key: string, fallback: number): number {
-  const raw = localStorage.getItem(key)
-  const n = raw == null ? NaN : Number(raw)
-  return Number.isFinite(n) ? n : fallback
+  try {
+    const raw = localStorage.getItem(key)
+    // Review fix (minor): an empty-string stored value must resolve to the fallback, not 0
+    // (Number('') === 0, which is a silent wrong-default bug distinct from "nothing stored").
+    if (raw === null || raw === '') return fallback
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function writeStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Best-effort persistence only -- see readNum's comment above.
+  }
+}
+
+function removeStorage(key: string): void {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // Best-effort persistence only -- see readNum's comment above.
+  }
 }
 
 const popupOpen = ref(false)
@@ -32,8 +58,10 @@ const contextPhoto = ref<AskNimoContextPhoto | null>(null)
 const contextAlbum = ref<AskNimoContextAlbum | null>(null)
 const taskBarExpanded = ref(false)
 const fabDismissed = ref(readNum(FAB_DISMISSED_KEY, 0) === 1)
-const fabRight = ref(readNum(FAB_RIGHT_KEY, 24))
-const fabBottom = ref(readNum(FAB_BOTTOM_KEY, 24))
+// Review fix (defaults): Vue2 PhotosAskNimo.vue:117-118 is the truth for the FAB's default
+// resting position -- 14/14, not 24/24. miniY's 24 default is already correct and unchanged.
+const fabRight = ref(readNum(FAB_RIGHT_KEY, 14))
+const fabBottom = ref(readNum(FAB_BOTTOM_KEY, 14))
 const miniY = ref(readNum(FAB_MINI_Y_KEY, 24))
 
 let modelsInit: Promise<void> | null = null
@@ -47,6 +75,10 @@ let touchWatchersBound = false
 function bindTouchWatchers(): void {
   if (touchWatchersBound) return
   touchWatchersBound = true
+  // Review fix (minor): __resetForTests() clears this flag so a later ensureNimoAgentInit()
+  // call re-binds -- the two watch() calls below stack up on the same agent store instance
+  // across test cases (prior watchers are never torn down). Harmless in production (this file
+  // has no equivalent of __resetForTests() outside tests) and accepted as test-only debt.
   const agent = useAgentStore('photos')
   watch(() => agent.messages.length, (n, o) => { if (n > (o ?? 0)) touchPhotosSession() })
   watch(() => agent.busy, (isBusy) => { if (!isBusy) touchPhotosSession() })
@@ -82,22 +114,22 @@ function closeDrawer(): void { drawerOpen.value = false }
 
 function dismissFab(): void {
   fabDismissed.value = true
-  localStorage.setItem(FAB_DISMISSED_KEY, '1')
+  writeStorage(FAB_DISMISSED_KEY, '1')
 }
 function restoreFab(): void {
   fabDismissed.value = false
-  localStorage.removeItem(FAB_DISMISSED_KEY)
+  removeStorage(FAB_DISMISSED_KEY)
 }
 
 function setFabPosition(right: number, bottom: number): void {
   fabRight.value = right
   fabBottom.value = bottom
-  localStorage.setItem(FAB_RIGHT_KEY, String(right))
-  localStorage.setItem(FAB_BOTTOM_KEY, String(bottom))
+  writeStorage(FAB_RIGHT_KEY, String(right))
+  writeStorage(FAB_BOTTOM_KEY, String(bottom))
 }
 function setMiniY(y: number): void {
   miniY.value = y
-  localStorage.setItem(FAB_MINI_Y_KEY, String(y))
+  writeStorage(FAB_MINI_Y_KEY, String(y))
 }
 // Re-check N-5 ③: update the visible ref every mousemove frame WITHOUT touching localStorage --
 // Vue2 PhotosAskNimo.vue's own _dragOnMove only mutates `this.fabRight`/`this.fabBottom` (plain
@@ -141,8 +173,8 @@ function __resetForTests(): void {
   contextAlbum.value = null
   taskBarExpanded.value = false
   fabDismissed.value = readNum(FAB_DISMISSED_KEY, 0) === 1
-  fabRight.value = readNum(FAB_RIGHT_KEY, 24)
-  fabBottom.value = readNum(FAB_BOTTOM_KEY, 24)
+  fabRight.value = readNum(FAB_RIGHT_KEY, 14)
+  fabBottom.value = readNum(FAB_BOTTOM_KEY, 14)
   miniY.value = readNum(FAB_MINI_Y_KEY, 24)
   modelsInit = null
   ensureInflight = null
