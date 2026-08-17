@@ -793,6 +793,15 @@ describe('PhotosFavorites.vue', () => {
         { id: '2', mimeType: 'image/jpeg', placeName: 'Osaka, Japan', takenAt: '2026-01-01T00:00:00Z' },
       ])
       const w = await mountView()
+      // Review fix: Vue2 :126/:152 trails the count badge with a small down-chevron -- the
+      // filter button carries both the place-count badge (2 distinct places) and a trailing
+      // chevD chevron (PhotosIcon's existing branch, `d="m6 9 6 6 6-6"`, reused instead of a
+      // one-off inline svg since it's the same chevron-down shape at 2x scale).
+      const btn = w.find('[data-test="fav-filter-places-btn"]')
+      expect(btn.find('.ct').text()).toBe('2')
+      const svgs = btn.findAll('svg')
+      expect(svgs[svgs.length - 1].find('path').attributes('d')).toBe('m6 9 6 6 6-6')
+
       await w.find('[data-test="fav-filter-places-btn"]').trigger('click')
       expect(w.find('.fav-filter-menu').exists()).toBe(true)
       await w.findAll('.fav-filter-item').find((b) => b.text().includes('Kyoto'))!.trigger('click')
@@ -825,10 +834,12 @@ describe('PhotosFavorites.vue', () => {
       expect(w.find('.fav-filter-menu').exists()).toBe(false)
     })
 
-    it('disabled (no places among the loaded favorites) when every asset has a null place', async () => {
+    it('disabled (no places among the loaded favorites) when every asset has a null place, and the count badge is not rendered (Vue2 :126/:152 guard)', async () => {
       svc.photos.listFavorites.mockResolvedValueOnce([{ id: '1', mimeType: 'image/jpeg' }])
       const w = await mountView()
-      expect(w.find('[data-test="fav-filter-places-btn"]').attributes('disabled')).toBeDefined()
+      const btn = w.find('[data-test="fav-filter-places-btn"]')
+      expect(btn.attributes('disabled')).toBeDefined()
+      expect(btn.find('.ct').exists()).toBe(false)
     })
   })
 

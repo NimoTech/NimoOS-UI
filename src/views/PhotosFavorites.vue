@@ -580,7 +580,14 @@ function onSlideKey(e: KeyboardEvent): void {
               >
                 <PhotosIcon name="map" :size="11" />
                 {{ activePlaceLabel || t('photosFavFilterPlaces') }}
-                <span class="ct">{{ byPlaceAll.length }}</span>
+                <span v-if="byPlaceAll.length" class="ct">{{ byPlaceAll.length }}</span>
+                <!-- Review fix: Vue2 :126/:152 trails the count badge with a small down-chevron
+                     (raw `<svg width="9" height="9" viewBox="0 0 12 12">` +
+                     `<path d="M3 4.5l3 3 3-3" stroke-width="1.5">`). PhotosIcon's existing
+                     `chevD` branch (`d="m6 9 6 6 6-6"` in a 24-viewBox) is the exact same
+                     chevron-down shape at 2x scale, so it's reused here rather than inlining a
+                     second one-off svg -- size/style transcribed from Vue2's inline svg. -->
+                <PhotosIcon name="chevD" :size="9" style="margin-left:2px;opacity:0.75" />
               </button>
               <transition name="fav-menu">
                 <div v-if="openFilter === 'places'" class="fav-filter-menu" @click.stop>
