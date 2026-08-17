@@ -109,6 +109,15 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <template v-else-if="name === 'filter'">
       <path d="M3 5h18l-7 9v6l-4-2v-4z" />
     </template>
+    <!-- Plan G (Ask Nimo): transcribed byte-identical from Vue2 PhotosIcon.vue:130-132
+         ('panelRight', the popup's "expand to drawer" icon) and :57-59 ('chevL', the FAB
+         mini edge-tab's chevron). -->
+    <template v-else-if="name === 'panelRight'">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" />
+    </template>
+    <template v-else-if="name === 'chevL'">
+      <path d="m15 6-6 6 6 6" />
+    </template>
     <template v-else>
       <g></g>
     </template>
