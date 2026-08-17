@@ -16,9 +16,10 @@
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
@@ -38,6 +39,9 @@ import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Task 1 (Plan H re-shell): shared module-singleton collapse state, same composable
+// Photos.vue/PhotosPeople.vue's own re-shell tasks already use.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const fav = usePhotosFavorites()
 const albums = usePhotosAlbums()
 // Deletion is a global operation (the asset is actually deleted), using the same store/API as
@@ -240,199 +244,204 @@ onMounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosFavTitle')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
-        <div class="fav-header">
-          <button
-            type="button"
-            class="fav-export"
-            :disabled="!(fav.favoritesList?.length)"
-            @click="onExport"
-          >{{ t('photosFavExport') }}</button>
-          <button
-            type="button"
-            class="fav-save-album"
-            data-test="fav-save-album-btn"
-            :disabled="!(fav.favoritesList?.length)"
-            @click="openSaveAlbum"
-          >{{ t('photosFavSaveAlbum') }}</button>
-          <span class="fav-count">{{ t('photosFavCount', { count: fav.favoritesTotal }) }}</span>
-        </div>
-
-        <!-- Task 9 (closing out a P3 leftover item): the failure state is prioritized ahead of
-             the empty state -- once loadError is true, it must not fall into the (previously
-             always-false) isEmpty branch and render an empty grid with no indication at all. -->
-        <div v-if="fav.loadError" class="empty-state" data-test="fav-load-error">
-          <div class="empty-state-title">{{ t('photosFavoritesLoadFailed') }}</div>
-          <button
-            type="button"
-            class="bar-btn"
-            data-test="fav-retry"
-            :disabled="retryingFavorites"
-            @click="retryFavorites"
-          >{{ t('photosRetry') }}</button>
-        </div>
-        <div v-else-if="isEmpty" class="empty-state" data-test="fav-empty">
-          <div class="empty-state-title">{{ t('photosFavEmptyTitle') }}</div>
-          <div class="empty-state-desc">{{ t('photosFavEmptyHint') }}</div>
-        </div>
-        <template v-else>
-          <!-- Task 11 (SP15-P3): the hero stats and facet dropdowns below are all derived from
-               fav.favoritesList, which is only the pages fetched so far while pagination is
-               still catching up — say so out loud instead of silently under-reporting. -->
-          <div v-if="!fav.favoritesExhausted" class="fav-loaded-hint" data-test="fav-loaded-hint">
-            {{ t('photosLoadedSubsetHint', { n: fav.favoritesList?.length ?? 0 }) }}
-          </div>
-          <!-- Task 15A: the hero stats' three cards -- follows Vue2 PhotosFavoritesView.vue:56-84,
-               only rendered on the non-empty branch (Vue2's v-if/v-else at :47-53/:54 routes the
-               empty state through a different branch entirely, where the three cards don't render). -->
-          <div class="fav-stats">
-            <div class="fav-stat-card">
-              <div class="label">{{ t('photosFavStatTopPerson') }}</div>
-              <div class="value">{{ byPerson[0] ? byPerson[0][0] : '—' }}</div>
-              <div class="meta">{{ byPerson[0] ? t('photosPeoplePhotosCount', { n: byPerson[0][1] }) : t('photosFavNoFaces') }}</div>
-              <div class="fav-stat-bar">
-                <span v-for="(p, i) in byPerson" :key="p[0]" :data-hi="i === 0 || undefined"></span>
-              </div>
-            </div>
-            <div class="fav-stat-card">
-              <div class="label">{{ t('photosFavStatTopPlace') }}</div>
-              <div class="value">{{ byPlace[0] ? byPlace[0][0].split(',')[0] : '—' }}</div>
-              <div class="meta">{{ byPlace[0] ? t('photosPeoplePhotosCount', { n: byPlace[0][1] }) : '' }}</div>
-              <div class="fav-stat-bar">
-                <span v-for="(p, i) in byPlace" :key="p[0]" :data-hi="i === 0 || undefined"></span>
-              </div>
-            </div>
-            <div class="fav-stat-card">
-              <div class="label">{{ t('photosFavStatByYear') }}</div>
-              <div class="value">
-                {{ byYear[0] ? byYear[0][1] : 0 }}
-                <span class="fav-stat-sub">{{ t('photosFavStatInYear', { year: byYear[0] ? byYear[0][0] : '—' }) }}</span>
-              </div>
-              <div class="meta">{{ t('photosFavStatYearsTotal', { n: byYear.length }) }}</div>
-              <div class="fav-stat-bar">
-                <span v-for="(y, i) in byYear" :key="y[0]" :data-hi="i === 0 || undefined"></span>
-              </div>
-            </div>
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="t('photosFavTitle')"
+          :sub="t('photosFavCount', { count: fav.favoritesTotal })"
+          :show-search="false"
+          show-ask-nimo
+          @toggle-collapse="onToggleCollapse"
+          @ask-nimo="useAskNimo().openDrawer()"
+        />
+        <div class="photos-main">
+          <div class="fav-header">
+            <button
+              type="button"
+              class="fav-export"
+              :disabled="!(fav.favoritesList?.length)"
+              @click="onExport"
+            >{{ t('photosFavExport') }}</button>
+            <button
+              type="button"
+              class="fav-save-album"
+              data-test="fav-save-album-btn"
+              :disabled="!(fav.favoritesList?.length)"
+              @click="openSaveAlbum"
+            >{{ t('photosFavSaveAlbum') }}</button>
           </div>
 
-          <PhotosToolbar
-            :tab="tab" :density="density" :count="filteredCount"
-            @update:tab="tab = $event" @update:density="density = $event"
-          />
-          <!-- Task 7 (D19, ported alongside Photos.vue's same move): the floating
-               selectbar mounts INSIDE the grid slot (already `position: relative`, see this
-               file's style block below) so its absolute top:50px anchors to the grid area, same
-               as Vue2 and same as Photos.vue's timeline view. -->
-          <div class="photos-grid-slot">
-            <PhotosSelectionToolbar
-              v-if="selected.length"
-              :count="selected.length"
-              @clear="cancelSelection"
-              @delete="onBatchDelete([...selected])"
-              @add-to-album="openAlbumPicker([...selected])"
-              @ask-nimo="useAskNimo().openWith(t('photosGridAskNimoRecap', { count: selected.length }))"
-            />
-            <PhotosGrid
-              :months="fav.favoritesMonths" :tab="tab" :density="density" :selected="selected"
-              @open="onOpenTile"
-              @toggle-select="toggleSelect"
-            />
-          </div>
-          <!-- Task 11: the backend caps a single request at 500 rows now (NimoOS-Photos#54),
-               so anything past the first page only shows up once this is clicked. -->
-          <div v-if="!fav.favoritesExhausted" class="fav-load-more">
+          <!-- Task 9 (closing out a P3 leftover item): the failure state is prioritized ahead of
+               the empty state -- once loadError is true, it must not fall into the (previously
+               always-false) isEmpty branch and render an empty grid with no indication at all. -->
+          <div v-if="fav.loadError" class="empty-state" data-test="fav-load-error">
+            <div class="empty-state-title">{{ t('photosFavoritesLoadFailed') }}</div>
             <button
               type="button"
               class="bar-btn"
-              data-test="fav-load-more"
-              :disabled="fav.loadingMore"
-              @click="fav.loadMoreFavorites()"
-            >{{ t('photosLoadMore') }}</button>
+              data-test="fav-retry"
+              :disabled="retryingFavorites"
+              @click="retryFavorites"
+            >{{ t('photosRetry') }}</button>
           </div>
-        </template>
-      </main>
-      <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
-      <PhotoLightbox
-        @delete="onLightboxDelete"
-        @toggle-fav="() => {}"
-        @add-to-album="(id) => openAlbumPicker([id])"
-      />
-      <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
-           shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
-           mount this once at. -->
-      <AskNimoHost />
-    </div>
-  </AreaShell>
-  <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
+          <div v-else-if="isEmpty" class="empty-state" data-test="fav-empty">
+            <div class="empty-state-title">{{ t('photosFavEmptyTitle') }}</div>
+            <div class="empty-state-desc">{{ t('photosFavEmptyHint') }}</div>
+          </div>
+          <template v-else>
+            <!-- Task 11 (SP15-P3): the hero stats and facet dropdowns below are all derived from
+                 fav.favoritesList, which is only the pages fetched so far while pagination is
+                 still catching up — say so out loud instead of silently under-reporting. -->
+            <div v-if="!fav.favoritesExhausted" class="fav-loaded-hint" data-test="fav-loaded-hint">
+              {{ t('photosLoadedSubsetHint', { n: fav.favoritesList?.length ?? 0 }) }}
+            </div>
+            <!-- Task 15A: the hero stats' three cards -- follows Vue2 PhotosFavoritesView.vue:56-84,
+                 only rendered on the non-empty branch (Vue2's v-if/v-else at :47-53/:54 routes the
+                 empty state through a different branch entirely, where the three cards don't render). -->
+            <div class="fav-stats">
+              <div class="fav-stat-card">
+                <div class="label">{{ t('photosFavStatTopPerson') }}</div>
+                <div class="value">{{ byPerson[0] ? byPerson[0][0] : '—' }}</div>
+                <div class="meta">{{ byPerson[0] ? t('photosPeoplePhotosCount', { n: byPerson[0][1] }) : t('photosFavNoFaces') }}</div>
+                <div class="fav-stat-bar">
+                  <span v-for="(p, i) in byPerson" :key="p[0]" :data-hi="i === 0 || undefined"></span>
+                </div>
+              </div>
+              <div class="fav-stat-card">
+                <div class="label">{{ t('photosFavStatTopPlace') }}</div>
+                <div class="value">{{ byPlace[0] ? byPlace[0][0].split(',')[0] : '—' }}</div>
+                <div class="meta">{{ byPlace[0] ? t('photosPeoplePhotosCount', { n: byPlace[0][1] }) : '' }}</div>
+                <div class="fav-stat-bar">
+                  <span v-for="(p, i) in byPlace" :key="p[0]" :data-hi="i === 0 || undefined"></span>
+                </div>
+              </div>
+              <div class="fav-stat-card">
+                <div class="label">{{ t('photosFavStatByYear') }}</div>
+                <div class="value">
+                  {{ byYear[0] ? byYear[0][1] : 0 }}
+                  <span class="fav-stat-sub">{{ t('photosFavStatInYear', { year: byYear[0] ? byYear[0][0] : '—' }) }}</span>
+                </div>
+                <div class="meta">{{ t('photosFavStatYearsTotal', { n: byYear.length }) }}</div>
+                <div class="fav-stat-bar">
+                  <span v-for="(y, i) in byYear" :key="y[0]" :data-hi="i === 0 || undefined"></span>
+                </div>
+              </div>
+            </div>
 
-  <div
-    v-if="saveAlbumOpen"
-    class="favsave-scrim"
-    data-test="fav-savealbum-modal"
-    @click.self="closeSaveAlbum"
-  >
-    <div class="favsave-modal">
-      <div class="favsave-head">
-        <div class="favsave-head-text">
-          <div class="favsave-title">{{ t('photosFavSaveAlbumTitle') }}</div>
-          <!-- Review Important 2: adds Vue2 :267-268's dynamic subtitle (structure follows the
-               concurrent T7 PhotosAlbums.vue:269 .albums-modal-sub).
-               Task 11 review fix: use the exact total, not the loaded-page length — the
-               number shown here is what confirmSaveAlbum now actually pages in and saves. -->
-          <div class="favsave-sub" data-test="fav-savealbum-sub">
-            {{ t('photosFavSaveAlbumSub', { count: fav.favoritesTotal }) }}
-          </div>
+            <PhotosToolbar
+              :tab="tab" :density="density" :count="filteredCount"
+              @update:tab="tab = $event" @update:density="density = $event"
+            />
+            <!-- Task 7 (D19, ported alongside Photos.vue's same move): the floating
+                 selectbar mounts INSIDE the grid slot (already `position: relative`, see this
+                 file's style block below) so its absolute top:50px anchors to the grid area, same
+                 as Vue2 and same as Photos.vue's timeline view. -->
+            <div class="photos-grid-slot">
+              <PhotosSelectionToolbar
+                v-if="selected.length"
+                :count="selected.length"
+                @clear="cancelSelection"
+                @delete="onBatchDelete([...selected])"
+                @add-to-album="openAlbumPicker([...selected])"
+                @ask-nimo="useAskNimo().openWith(t('photosGridAskNimoRecap', { count: selected.length }))"
+              />
+              <PhotosGrid
+                :months="fav.favoritesMonths" :tab="tab" :density="density" :selected="selected"
+                @open="onOpenTile"
+                @toggle-select="toggleSelect"
+              />
+            </div>
+            <!-- Task 11: the backend caps a single request at 500 rows now (NimoOS-Photos#54),
+                 so anything past the first page only shows up once this is clicked. -->
+            <div v-if="!fav.favoritesExhausted" class="fav-load-more">
+              <button
+                type="button"
+                class="bar-btn"
+                data-test="fav-load-more"
+                :disabled="fav.loadingMore"
+                @click="fav.loadMoreFavorites()"
+              >{{ t('photosLoadMore') }}</button>
+            </div>
+          </template>
         </div>
-        <button type="button" class="favsave-close" :aria-label="t('photosCancel')" @click="closeSaveAlbum">&#215;</button>
-      </div>
-      <input
-        ref="saveAlbumInputRef"
-        v-model="saveAlbumName"
-        class="favsave-input"
-        data-test="fav-savealbum-input"
-        @keydown.enter.prevent="confirmSaveAlbum"
-      >
-      <!-- Review Important 2: adds Vue2 :279-281's static footnote (the album is a snapshot and
-           doesn't stay in sync with later favorites changes). -->
-      <div class="favsave-note" data-test="fav-savealbum-note">{{ t('photosFavSaveAlbumNote') }}</div>
-      <div class="favsave-foot">
-        <button type="button" class="favsave-btn-ghost" @click="closeSaveAlbum">{{ t('photosCancel') }}</button>
-        <button
-          type="button"
-          class="favsave-btn-cta"
-          data-test="fav-savealbum-confirm"
-          :disabled="!saveAlbumName.trim() || saveAlbumSaving"
-          @click="confirmSaveAlbum"
-        >{{ t('photosAlbumCreate') }}</button>
+      </main>
+    </div>
+
+    <!-- Task 1: re-homed inside .photos-root (used to be a template-root sibling of the old
+         AreaShell wrapper). -->
+    <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
+
+    <div
+      v-if="saveAlbumOpen"
+      class="favsave-scrim"
+      data-test="fav-savealbum-modal"
+      @click.self="closeSaveAlbum"
+    >
+      <div class="favsave-modal">
+        <div class="favsave-head">
+          <div class="favsave-head-text">
+            <div class="favsave-title">{{ t('photosFavSaveAlbumTitle') }}</div>
+            <!-- Review Important 2: adds Vue2 :267-268's dynamic subtitle (structure follows the
+                 concurrent T7 PhotosAlbums.vue:269 .albums-modal-sub).
+                 Task 11 review fix: use the exact total, not the loaded-page length — the
+                 number shown here is what confirmSaveAlbum now actually pages in and saves. -->
+            <div class="favsave-sub" data-test="fav-savealbum-sub">
+              {{ t('photosFavSaveAlbumSub', { count: fav.favoritesTotal }) }}
+            </div>
+          </div>
+          <button type="button" class="favsave-close" :aria-label="t('photosCancel')" @click="closeSaveAlbum">&#215;</button>
+        </div>
+        <input
+          ref="saveAlbumInputRef"
+          v-model="saveAlbumName"
+          class="favsave-input"
+          data-test="fav-savealbum-input"
+          @keydown.enter.prevent="confirmSaveAlbum"
+        >
+        <!-- Review Important 2: adds Vue2 :279-281's static footnote (the album is a snapshot and
+             doesn't stay in sync with later favorites changes). -->
+        <div class="favsave-note" data-test="fav-savealbum-note">{{ t('photosFavSaveAlbumNote') }}</div>
+        <div class="favsave-foot">
+          <button type="button" class="favsave-btn-ghost" @click="closeSaveAlbum">{{ t('photosCancel') }}</button>
+          <button
+            type="button"
+            class="favsave-btn-cta"
+            data-test="fav-savealbum-confirm"
+            :disabled="!saveAlbumName.trim() || saveAlbumSaving"
+            @click="confirmSaveAlbum"
+          >{{ t('photosAlbumCreate') }}</button>
+        </div>
       </div>
     </div>
+
+    <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
+    <PhotoLightbox
+      @delete="onLightboxDelete"
+      @toggle-fav="() => {}"
+      @add-to-album="(id) => openAlbumPicker([id])"
+    />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+         shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+         mount this once at. -->
+    <AskNimoHost />
   </div>
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height (not min-height): this screen has a hard cap, only the inner scroll container
-   scrolls -- a same-source fix; see the comment at the same rule in src/views/Photos.vue for
-   the rationale. */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Task 1 (Plan H re-shell): this page now mounts the shared `.app` CSS Grid shell
+   (Photos.vue/PhotosPeople.vue's own re-shell precedent) instead of the old flex-row
+   `.photos-layout` + unpinned `.sidebar` transitional rules -- both deleted, the `.app` grid's
+   own column track now owns the sidebar width and the height cap. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 .photos-grid-slot { position: relative; flex: 1 1 auto; min-height: 0; }
 
 .fav-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 8px; }
-.fav-count { color: var(--fg-muted); font-size: 13px; }
 
-/* Task 11 (SP15-P3): same small-muted-text treatment as .fav-count above (--fg-muted, 13px) —
+/* Task 11 (SP15-P3): same small-muted-text treatment the old `.fav-count` span used to carry
+   (--fg-muted, 13px; that span is gone, its count now flows into PhotosTopbar's `sub` prop) —
    no new color, just a differently-positioned instance of the same token usage. */
 .fav-loaded-hint { color: var(--fg-muted); font-size: 13px; margin-bottom: 10px; }
 .fav-load-more { display: flex; justify-content: center; padding: 16px 0; }
@@ -510,9 +519,10 @@ onMounted(() => {
    screens look inconsistent. */
 .empty-state .bar-btn { margin-top: 10px; }
 
-/* <=768px: the sidebar has collapsed into a drawer (PhotosSidebar.is-drawer is taken out of
-   document flow), layout becomes single-column */
+/* Task 1: mobile column-collapse, copied from Photos.vue:465-468 specifically (not from
+   PhotosPeople.vue, which has no .app scoped rule at all) -- a New-UI-only mobile
+   enhancement, no Vue2/parity source (F-21). */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
 }
 </style>

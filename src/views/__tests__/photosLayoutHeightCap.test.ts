@@ -48,7 +48,11 @@ const CAPPED = [
   // still takes over the inner scroll responsibility, unchanged) — it no longer contains a
   // literal `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to
   // move it into EXEMPT.
-  'PhotosFavorites.vue',        // PhotosGrid 的 .photos-wrap
+  // As of Plan H Task 1 (Favorites re-shell), PhotosFavorites.vue has likewise switched to the
+  // `.app` grid shell, so it's dropped from below the same way (PhotosGrid's own `.photos-wrap`
+  // still takes over the inner scroll responsibility, unchanged) — it no longer contains a
+  // literal `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to
+  // move it into EXEMPT.
   'PhotosTrash.vue',            // .trash-scroll
   'PhotosSettings.vue',         // .ps-scroll
 ]

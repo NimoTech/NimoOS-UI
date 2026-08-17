@@ -749,8 +749,45 @@ describe('PhotosFavorites.vue', () => {
       )
       const w = await mountView()
 
-      expect(w.find('.fav-count').text()).toContain('1234')
-      expect(w.find('.fav-count').text()).not.toContain('500')
+      // Step 6 (R-3): migrated off `.fav-count` -- that span was deleted by the Task 1 re-shell,
+      // the count now flows into PhotosTopbar's `sub` prop instead. Expected value unchanged.
+      const topbar = w.findComponent({ name: 'PhotosTopbar' })
+      expect(topbar.props('sub')).toContain('1234')
+      expect(topbar.props('sub')).not.toContain('500')
     })
+  })
+})
+
+describe('PhotosFavorites.vue (Task 1 re-shell)', () => {
+  it('roots under .photos-root > .app[data-collapsed] > PhotosSidebar + main.main > PhotosTopbar + .photos-main', async () => {
+    const w = await mountView()
+    const root = w.find('.photos-root')
+    expect(root.exists()).toBe(true)
+    const app = root.find('.app')
+    expect(app.exists()).toBe(true)
+    expect(app.attributes('data-collapsed')).toBeDefined()
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.exists()).toBe(true)
+    expect(topbar.props('showSearch')).toBe(false)
+  })
+
+  // F-05 (X-1/X-2): Ask Nimo is a REAL Vue2 entry point on this page's topbar (baseline report
+  // §2.1 trigger #1 -- opens the drawer, no prefill), and AskNimoHost must survive this task's
+  // template rewrite (Plan G T14 mounts it before this task runs).
+  it('wires PhotosTopbar Ask Nimo (opens the drawer, no prefill) and keeps AskNimoHost mounted', async () => {
+    const w = await mountView()
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.props('showAskNimo')).toBe(true)
+    expect(w.findComponent({ name: 'AskNimoHost' }).exists()).toBe(true)
+  })
+
+  // F-16: this button is `:disabled` when there are no loaded favorites -- mock a page first so
+  // the click actually fires (the default empty-list mock would make this a silent no-op).
+  it('AlbumPickerDialog and the save-as-album modal are both descendants of .photos-root', async () => {
+    svc.photos.listFavorites.mockResolvedValueOnce([{ id: '1', mimeType: 'image/jpeg' }])
+    const w = await mountView()
+    await w.find('[data-test="fav-save-album-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.photos-root [data-test="fav-savealbum-modal"]').exists()).toBe(true)
   })
 })

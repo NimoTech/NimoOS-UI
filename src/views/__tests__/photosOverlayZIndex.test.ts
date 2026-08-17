@@ -73,6 +73,13 @@ const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   { name: '.nimo-pop', selector: '.photos-root .nimo-pop {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.chat-drawer', selector: '.photos-root .chat-drawer {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.nimo-mp-list', selector: '.photos-root .nimo-mp-list {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  // Plan H Task 1 (F-20): PhotosFavorites.vue's own save-as-album naming modal scrim -- unlike
+  // the parity-sourced overlays above, this one is New-UI-only (no Vue2 counterpart) and lives
+  // in the component's own `<style scoped>`, so its selector has no `.photos-root ` prefix (a
+  // scoped style's own implicit scoping does that job instead) and its own re-shell (this same
+  // task) now nests it as a `.photos-root` descendant in the template, same subtree rule as
+  // every other overlay in this table.
+  { name: '.favsave-scrim', selector: '.favsave-scrim {', files: ['views/PhotosFavorites.vue'] },
 ]
 
 describe('Fix-8 round 2: sibling-of-.app overlays keep an explicit z-index above .app\'s own (1)', () => {
