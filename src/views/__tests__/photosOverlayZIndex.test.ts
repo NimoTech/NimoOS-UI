@@ -68,7 +68,8 @@ const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   // Plan G (Ask Nimo): these three previously carried Vue2's original low z-index values
   // (50/50/60) as dead CSS -- nothing consumed them yet. Bumped below alongside the components
   // that finally use them, normalized to this codebase's existing overlay/menu tiers rather than
-  // kept at Vue2's raw numbers (see photos-people.scss:1327-1329's own precedent for `.cluster-menu`).
+  // kept at Vue2's raw numbers (see photos-people.scss:1330 (rule start) / :1338 (z-index)'s
+  // own precedent for `.cluster-menu`).
   { name: '.nimo-pop', selector: '.photos-root .nimo-pop {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.chat-drawer', selector: '.photos-root .chat-drawer {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.nimo-mp-list', selector: '.photos-root .nimo-mp-list {', files: ['photos/styles/vue2-parity/photos.scss'] },
