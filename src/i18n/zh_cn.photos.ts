@@ -80,6 +80,10 @@ export default {
   photosFavExport: '下载为 ZIP',
   photosFavExporting: '开始打包下载…',
   photosFavCount: '{count} 张收藏',
+  // Task 3 (Plan H): hero stats sub-line.
+  photosFavHeroPhotos: '{n} 张照片',
+  photosFavHeroVideos: '{n} 个视频',
+  photosFavHeroKeptForever: '永久保留',
   // ── 相册:最近删除视图 ──
   photosTrashTitle: '最近删除',
   photosTrashEmptyTitle: '最近删除是空的',

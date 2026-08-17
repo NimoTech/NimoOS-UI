@@ -116,7 +116,11 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(true)
     expect(w.text()).toContain('暂无收藏')
     expect(w.find('.content').exists()).toBe(false)
-    expect(w.find('.fav-export').attributes('disabled')).toBeDefined()
+    // Task 3 (Plan H, F-10): was "export button disabled" -- same structural fact as the
+    // dedicated save-as-album exception below: the button now lives inside .lib-hero-actions,
+    // which only renders on the v-else (loaded, non-empty) branch, so on the empty branch it
+    // doesn't render at all rather than rendering disabled.
+    expect(w.find('[data-test="fav-export-btn"]').exists()).toBe(false)
   })
 
   // Task 9 (closing out a P3 leftover): when fetchFavorites fails, favoritesLoaded stays
@@ -209,7 +213,7 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
     expect(w.find('.content').exists()).toBe(true)
     expect(w.findAll('.tile')).toHaveLength(2)
-    expect(w.find('.fav-export').attributes('disabled')).toBeUndefined()
+    expect(w.find('[data-test="fav-export-btn"]').attributes('disabled')).toBeUndefined()
   })
 
   it('click the export button -> fav.exportZip is called + toast', async () => {
@@ -220,7 +224,7 @@ describe('PhotosFavorites.vue', () => {
     const exportSpy = vi.spyOn(fav, 'exportZip')
     const showSpy = vi.spyOn(toast, 'show')
 
-    await w.find('.fav-export').trigger('click')
+    await w.find('[data-test="fav-export-btn"]').trigger('click')
     await w.vm.$nextTick()
 
     expect(exportSpy).toHaveBeenCalledTimes(1)
@@ -392,16 +396,21 @@ describe('PhotosFavorites.vue', () => {
   // album" — following Vue2 PhotosFavoritesView.vue :21-23 (entry point)/:455-478
   // (openSaveAlbum/confirmSaveAlbum).
   describe('Save as album', () => {
-    it('empty favorites -> "save as album" button disabled and clicking doesn\'t trigger openSaveAlbum (no modal)', async () => {
-      const wEmpty = await mountView()
-      expect(wEmpty.find('.fav-save-album').attributes('disabled')).toBeDefined()
-      await wEmpty.find('.fav-save-album').trigger('click')
-      await wEmpty.vm.$nextTick()
-      expect(wEmpty.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+    // Task 3 (Plan H, F-10): was "save-album button disabled on empty favorites" -- that
+    // assertion no longer holds structurally, since .lib-hero-actions (and both its buttons)
+    // now lives entirely inside the v-else branch; the empty-favorites case takes the isEmpty
+    // branch instead, where the actions never render at all.
+    it('does not render the hero actions (Export/Save-as-Album) on the empty-favorites branch', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([])
+      const w = await mountView()
+      expect(w.find('[data-test="fav-empty"]').exists()).toBe(true)
+      expect(w.find('.lib-hero-actions').exists()).toBe(false)
+    })
 
+    it('non-empty favorites -> "save as album" button enabled', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const wFull = await mountView()
-      expect(wFull.find('.fav-save-album').attributes('disabled')).toBeUndefined()
+      expect(wFull.find('[data-test="fav-save-album-btn"]').attributes('disabled')).toBeUndefined()
     })
 
     it('clicking "save as album" -> modal appears, input is prefilled with a default name containing the current year, subtitle/footnote copy renders', async () => {
@@ -413,7 +422,7 @@ describe('PhotosFavorites.vue', () => {
       const w = await mountView()
 
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
 
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
@@ -434,7 +443,7 @@ describe('PhotosFavorites.vue', () => {
       const saveSpy = vi.spyOn(albums, 'saveAsAlbum').mockResolvedValue({ id: 9, name: 'Trip' })
       const showSpy = vi.spyOn(toast, 'show')
 
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
       const input = w.find('[data-test="fav-savealbum-input"]')
       await input.setValue('Trip')
@@ -466,7 +475,7 @@ describe('PhotosFavorites.vue', () => {
       const albums = usePhotosAlbums()
       const saveSpy = vi.spyOn(albums, 'saveAsAlbum').mockResolvedValue({ id: 1, name: 'Trip' })
 
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
       // The modal shows the exact total (800), not the one loaded page (500).
       expect(w.find('[data-test="fav-savealbum-sub"]').text()).toContain('800')
@@ -501,7 +510,7 @@ describe('PhotosFavorites.vue', () => {
       const toast = useToast()
       const showSpy = vi.spyOn(toast, 'show')
 
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
       await w.find('[data-test="fav-savealbum-input"]').setValue('Trip')
       await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
@@ -519,7 +528,7 @@ describe('PhotosFavorites.vue', () => {
       const albums = usePhotosAlbums()
       const saveSpy = vi.spyOn(albums, 'saveAsAlbum')
 
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
       const input = w.find('[data-test="fav-savealbum-input"]')
       await input.setValue('   ')
@@ -544,7 +553,7 @@ describe('PhotosFavorites.vue', () => {
         () => new Promise((resolve) => { resolveSave = resolve }),
       )
 
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
       await w.find('[data-test="fav-savealbum-input"]').setValue('Trip')
 
@@ -570,7 +579,7 @@ describe('PhotosFavorites.vue', () => {
       vi.spyOn(albums, 'saveAsAlbum').mockRejectedValue({ response: { status: 409 } })
       const showSpy = vi.spyOn(toast, 'show')
 
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
       const input = w.find('[data-test="fav-savealbum-input"]')
       await input.setValue('Dup')
@@ -591,7 +600,7 @@ describe('PhotosFavorites.vue', () => {
       vi.spyOn(albums, 'saveAsAlbum').mockRejectedValue(new Error('boom'))
       const showSpy = vi.spyOn(toast, 'show')
 
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
       await w.find('[data-test="fav-savealbum-input"]').setValue('Whatever')
       await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
@@ -606,7 +615,7 @@ describe('PhotosFavorites.vue', () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a')])
       const w = await mountView()
 
-      await w.find('.fav-save-album').trigger('click')
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
       await w.vm.$nextTick()
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
 
@@ -614,6 +623,29 @@ describe('PhotosFavorites.vue', () => {
       await w.vm.$nextTick()
 
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+    })
+  })
+
+  // Task 3 (Plan H): the hero stats header (F-17: assert via data-test anchors, not literal
+  // copy, since mountView() fixes locale=zh_cn -- asserting the actual rendered zh_cn text
+  // would be an accidental double-check of i18n content, not of this task's structure).
+  describe('hero header (Task 3)', () => {
+    it('renders the hero header (inside the loaded/non-empty branch) with photo/video counts, year span, and the kept-forever badge', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        { id: '1', mimeType: 'image/jpeg', takenAt: '2024-06-01T00:00:00Z' },
+        { id: '2', mimeType: 'video/mp4', takenAt: '2026-01-01T00:00:00Z' },
+      ])
+      const w = await mountView()
+      const hero = w.find('[data-test="fav-hero"]')
+      expect(hero.exists()).toBe(true)
+      expect(hero.find('[data-test="fav-hero-badge"]').exists()).toBe(true)
+    })
+
+    it('does not render the hero on the empty-favorites branch', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([])
+      const w = await mountView()
+      expect(w.find('[data-test="fav-empty"]').exists()).toBe(true)
+      expect(w.find('[data-test="fav-hero"]').exists()).toBe(false)
     })
   })
 

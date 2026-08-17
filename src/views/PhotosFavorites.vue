@@ -29,6 +29,7 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
+import PhotosIcon from '../photos/components/PhotosIcon.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
@@ -83,6 +84,25 @@ const filteredCount = computed(() =>
 const byPerson = computed(() => topPersons(fav.favoritesList ?? []).slice(0, 4))
 const byPlace = computed(() => topPlaces(fav.favoritesList ?? []).slice(0, 3))
 const byYear = computed(() => byYearOf(fav.favoritesList ?? []))
+
+// Task 3 (Plan H): hero sub-line -- photoCount/videoCount/yearSpan have no server-side per-type
+// aggregate (only favoritesTotal, from favIds.size, is exact), so these stay derived from
+// the loaded page. In the common case (<=500 favorites) favoritesList IS the full set, so
+// photoCount+videoCount naturally equals favoritesTotal -- no visible inconsistency. Past
+// that page size the existing fav-loaded-hint discloses the partial-load state. The hero
+// itself only renders in the v-else (loaded, non-empty) branch below (F-10), so it never
+// competes with the topbar's exact total on the error/empty branches either.
+const heroPhotoCount = computed(() => (fav.favoritesList ?? []).filter((p) => !p.isVideo).length)
+const heroVideoCount = computed(() => (fav.favoritesList ?? []).filter((p) => p.isVideo).length)
+const heroYearSpan = computed(() => {
+  const years = (fav.favoritesList ?? [])
+    .map((p) => (p.takenAt ? new Date(p.takenAt).getFullYear() : null))
+    .filter((y): y is number => y != null)
+  if (!years.length) return ''
+  const min = Math.min(...years)
+  const max = Math.max(...years)
+  return min === max ? String(min) : `${min}–${max}`
+})
 
 function toggleSelect(id: string | number) {
   const idx = selected.value.indexOf(id)
@@ -269,22 +289,6 @@ onMounted(() => {
           @ask-nimo="useAskNimo().openDrawer()"
         />
         <div class="photos-main">
-          <div class="fav-header">
-            <button
-              type="button"
-              class="fav-export"
-              :disabled="!(fav.favoritesList?.length)"
-              @click="onExport"
-            >{{ t('photosFavExport') }}</button>
-            <button
-              type="button"
-              class="fav-save-album"
-              data-test="fav-save-album-btn"
-              :disabled="!(fav.favoritesList?.length)"
-              @click="openSaveAlbum"
-            >{{ t('photosFavSaveAlbum') }}</button>
-          </div>
-
           <!-- Task 9 (closing out a P3 leftover item): the failure state is prioritized ahead of
                the empty state -- once loadError is true, it must not fall into the (previously
                always-false) isEmpty branch and render an empty grid with no indication at all. -->
@@ -303,6 +307,38 @@ onMounted(() => {
             <div class="empty-state-desc">{{ t('photosFavEmptyHint') }}</div>
           </div>
           <template v-else>
+            <!-- Task 3 (Plan H): the hero stats header -- follows Vue2 PhotosFavoritesView.vue's
+                 .lib-hero (:4-45), matched against the new-UI's shared .lib-hero* parity CSS
+                 (photos.scss ~1231-1267) instead of the old bespoke .fav-header. F-10: only
+                 rendered on this v-else (loaded, non-empty) branch, sharing the same
+                 "has data to show" precondition as the topbar's exact total -- on the
+                 error/empty branches above the hero simply doesn't exist, rather than showing
+                 all-zero sub-counts. F-11: .lib-hero-actions carries the Export/Save-as-Album
+                 buttons that used to live in the deleted .fav-header (Task 5 will insert a
+                 Slideshow button at the front of this same container, matching Vue2's
+                 Slideshow -> Save as Album -> Export order). -->
+            <div class="lib-hero" data-test="fav-hero" data-tint="fav">
+              <div class="lib-hero-icon" data-tint="fav">
+                <PhotosIcon name="star" :size="24" class="fav-hero-star-icon" />
+              </div>
+              <div style="flex:1">
+                <h1 class="lib-hero-title">{{ t('photosFavTitle') }}</h1>
+                <div class="lib-hero-sub">
+                  <b>{{ t('photosFavHeroPhotos', { n: heroPhotoCount }) }}</b>
+                  &middot; <b>{{ t('photosFavHeroVideos', { n: heroVideoCount }) }}</b>
+                  <template v-if="heroYearSpan"> &middot; <b>{{ heroYearSpan }}</b></template>
+                  &middot; <span data-test="fav-hero-badge" class="fav-hero-star-label">&#9733; {{ t('photosFavHeroKeptForever') }}</span>
+                </div>
+              </div>
+              <div class="lib-hero-actions">
+                <button type="button" class="btn" data-test="fav-save-album-btn" :disabled="!(fav.favoritesList?.length)" @click="openSaveAlbum">{{ t('photosFavSaveAlbum') }}</button>
+                <!-- R-3: gains data-test="fav-export-btn" -- this button had no anchor before (only
+                     the save-album button did), leaving the 3 existing .fav-export text-selector
+                     assertions with nowhere to migrate to. -->
+                <button type="button" class="btn" data-test="fav-export-btn" :disabled="!(fav.favoritesList?.length)" @click="onExport">{{ t('photosFavExport') }}</button>
+              </div>
+            </div>
+
             <!-- Task 11 (SP15-P3): the hero stats and facet dropdowns below are all derived from
                  fav.favoritesList, which is only the pages fetched so far while pagination is
                  still catching up — say so out loud instead of silently under-reporting. -->
@@ -449,44 +485,21 @@ onMounted(() => {
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 .photos-grid-slot { position: relative; flex: 1 1 auto; min-height: 0; }
 
-.fav-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 8px; }
+/* Task 3 (Plan H): theme-exception precedent -- this repo's existing var(--star-fg, #ffd60a)
+   fallback convention (PersonHero.vue/PhotosGrid.vue/PersonAvatar.vue) -- a fixed golden star
+   color that stays the same across themes, expressed via a CSS custom-property reference with
+   a literal fallback rather than a bare hex literal (F-07). */
+.fav-hero-star-icon { color: var(--star-fg, #ffd60a); }
+.fav-hero-star-label { color: var(--star-fg, #ffd60a); }
 
-/* Task 11 (SP15-P3): same small-muted-text treatment the old `.fav-count` span used to carry
-   (--fg-muted, 13px; that span is gone, its count now flows into PhotosTopbar's `sub` prop) —
-   no new color, just a differently-positioned instance of the same token usage. */
-.fav-loaded-hint { color: var(--fg-muted); font-size: 13px; margin-bottom: 10px; }
 .fav-load-more { display: flex; justify-content: center; padding: 16px 0; }
 .fav-load-more .bar-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.fav-export {
-  padding: 6px 14px; border-radius: var(--chip-radius); border: 1px solid var(--chip-border);
-  background: var(--chip-bg); color: var(--fg); font-size: 13px; cursor: pointer;
-}
-.fav-export:hover:not(:disabled) { background: var(--chip-bg-hi); }
-.fav-export:disabled { color: var(--fg-muted); cursor: not-allowed; opacity: 0.6; }
 
-.fav-save-album {
-  padding: 6px 14px; border-radius: var(--chip-radius); border: 1px solid var(--chip-border);
-  background: var(--chip-bg); color: var(--fg); font-size: 13px; cursor: pointer;
-}
-.fav-save-album:hover:not(:disabled) { background: var(--chip-bg-hi); }
-.fav-save-album:disabled { color: var(--fg-muted); cursor: not-allowed; opacity: 0.6; }
-
-/* Task 15A: the hero stats' three cards -- follows Vue2 PhotosFavoritesView.vue:56-84's
-   .fav-stats/.fav-stat-card/.label/.value/.meta/.fav-stat-bar structure, all colors go through
-   theme tokens (--card-bg/--card-border/--fg/--fg-muted/--accent/--divider, confirmed defined
-   in both themes). */
-.fav-stats { display: flex; gap: 12px; margin-bottom: 14px; }
-.fav-stat-card {
-  flex: 1 1 0; min-width: 0; padding: 14px 16px; border-radius: 14px;
-  background: var(--card-bg); border: 1px solid var(--card-border);
-}
-.fav-stat-card .label { font-size: 12px; color: var(--fg-muted); margin-bottom: 4px; }
-.fav-stat-card .value { font-size: 20px; font-weight: 600; color: var(--fg); line-height: 1.2; }
+/* Task 3 review handoff (Minor-4): .fav-stats/.fav-stat-card/.fav-stat-bar's own scoped copy
+   used to live here, shadowing parity photos.scss:1804-1845's grid layout/tokens with a
+   value-divergent flex layout -- deleted so parity governs; .fav-stat-sub (the "in {year}"
+   caption) has no parity counterpart (Vue2 uses an inline style, not a class) and stays. */
 .fav-stat-sub { font-size: 11px; color: var(--fg-muted); font-weight: 400; margin-left: 4px; }
-.fav-stat-card .meta { font-size: 12px; color: var(--fg-muted); min-height: 15px; margin-top: 2px; }
-.fav-stat-bar { display: flex; gap: 3px; margin-top: 10px; }
-.fav-stat-bar span { flex: 1 1 0; height: 4px; border-radius: 2px; background: var(--divider); }
-.fav-stat-bar span[data-hi='true'] { background: var(--accent); }
 
 /* Save-as-album naming modal -- structure follows PhotosAlbums.vue's (T7) new-album modal
    (hard-won P2/P3 lesson: the background must use --popup-bg, not --card-bg -- in the dark
@@ -522,12 +535,12 @@ onMounted(() => {
 .favsave-btn-cta { padding: 8px 18px; border-radius: 9px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .favsave-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
-.empty-state-desc { font-size: 13px; }
-/* Review take-along: aligns the spacing with PhotosAlbumDetail.vue's matching failure state
-   (that file's .empty-state .bar-btn already has this rule), otherwise the two failure
-   screens look inconsistent. */
+/* Task 3 review handoff (Minor-4): .empty-state/-title/-desc's own scoped copy (a coin-flip
+   specificity tie with parity photos.scss:1196-1205) used to live here -- deleted, parity
+   governs. .empty-state .bar-btn has no parity counterpart (parity's own retry-style button is
+   .empty-state-btn, a different class this view doesn't use) and stays as a load-bearing
+   survivor: it matches the same rule already present in PhotosAlbums.vue/PhotosPlaceAssets.vue's
+   own empty/failure states, keeping the title/desc-to-button gap consistent across views. */
 .empty-state .bar-btn { margin-top: 10px; }
 
 /* Task 1: mobile column-collapse, copied from Photos.vue:466-468 specifically (not from

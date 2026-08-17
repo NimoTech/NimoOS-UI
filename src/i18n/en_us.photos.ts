@@ -86,6 +86,10 @@ export default {
   photosFavExport: 'Download as ZIP',
   photosFavExporting: 'Preparing download…',
   photosFavCount: '{count} favorites',
+  // Task 3 (Plan H): hero stats sub-line.
+  photosFavHeroPhotos: '{n} photos',
+  photosFavHeroVideos: '{n} videos',
+  photosFavHeroKeptForever: 'kept forever',
   // ── Photos: Trash view ──
   photosTrashTitle: 'Recently Deleted',
   photosTrashEmptyTitle: 'Trash is empty',
