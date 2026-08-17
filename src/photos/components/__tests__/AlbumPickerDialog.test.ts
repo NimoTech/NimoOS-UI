@@ -340,4 +340,32 @@ describe('AlbumPickerDialog.vue 尺寸(Fix-2 item 3:放大 + 视口响应)', () 
     expect(body).toMatch(/overflow-y:\s*auto/)
     expect(body).toMatch(/flex:\s*1/)
   })
+
+  // Fix-3 (owner acceptance, 2026-08-17, screenshot image copy 77.png): "Add to album" header
+  // title rendered white-on-light in Photos' private light theme -- invisible. Root cause: this
+  // dialog mounts as a SIBLING of `.app` (not inside it, see e.g. PhotosSearch.vue's template),
+  // and `.photos-root .app` is the only ancestor that explicitly sets `color: var(--text-1)`
+  // (this area's own is-light-aware token, photos.scss:104-116). Mounted outside `.app`, the
+  // title span's inherited `color` instead falls all the way through to the GLOBAL
+  // `src/styles/theme.css` `body { color: var(--fg) }` -- which only follows the app-wide
+  // `[data-theme]` attribute, not Photos' private `.photos-root.is-light` toggle. Same defect
+  // class as Fix-2 item 4 (Places/lightbox), a third independent surfacing of it. jsdom doesn't
+  // compute cross-stylesheet cascade/inheritance, so this is a raw-source assertion (same idiom
+  // as this describe block's own sizing checks above) rather than a computed-style read.
+  it('.album-picker-title-text 有显式局部 color: var(--text-1)(不再靠继承落到全局 --fg)', () => {
+    const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
+    // 锚定真正的规则(选择器紧跟 `{`),不是这条规则上方注释里同名的反引号引用
+    // (那条注释本身还提到了 `body { color: var(--fg) }` 这样的字面示例,朴素的
+    // indexOf(selector) 会先命中注释里的类名提及,再抓到注释自己那对花括号里的示例文本)。
+    const body = ruleBody(styleBlock, '.album-picker-title-text {')
+    expect(body).toMatch(/color:\s*var\(--text-1\)/)
+  })
+
+  it('.album-picker-close(✕ 按钮)已是局部 --text-2/--text-1,不受本次修复影响(先行核对未回归)', () => {
+    const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
+    const base = ruleBody(styleBlock, '.album-picker-close {')
+    expect(base).toMatch(/color:\s*var\(--text-2\)/)
+    const hover = ruleBody(styleBlock, '.album-picker-close:hover')
+    expect(hover).toMatch(/color:\s*var\(--text-1\)/)
+  })
 })

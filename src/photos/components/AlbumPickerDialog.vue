@@ -275,11 +275,25 @@ async function submitCreate(): Promise<void> {
 }
 .album-picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
-/* 标题文字(模板处 `.album-picker-title-text` span,无独立规则,Task 8 静态自查记录):
-   不再声明局部 font-size/font-weight/color——parity 的 .album-picker-head 本身
-   已是 font-size:13px;font-weight:600 的 flex 容器(space-between 天然把标题和关闭按钮分置
-   两端),留出这层局部覆盖只会把 13px 悄悄改成 14.5px,构成像素漂移;删除后交给 parity 的
-   头部字号与 Vue2 原生 <span>(同样无 class、继承环境色)行为一致。类名仍保留作结构标记。 */
+/* 标题文字(模板处 `.album-picker-title-text` span,Task 8 静态自查记录 + Fix-3 订正):
+   font-size/font-weight 仍不声明局部规则——parity 的 .album-picker-head 本身已是
+   font-size:13px;font-weight:600 的 flex 容器(space-between 天然把标题和关闭按钮分置
+   两端),留出这层局部覆盖只会把 13px 悄悄改成 14.5px,构成像素漂移。
+
+   Fix-3(owner acceptance, 2026-08-17,screenshot image copy 77.png)订正 Task 8 当年的
+   color 判断——**"删除后交给继承环境色,与 Vue2 行为一致"这条推论是错的**:本组件
+   挂载在 `.app` 的**同级**(`.photos-root > .app` 与 `.photos-root > AlbumPickerDialog`
+   是兄弟,见 PhotosSearch.vue 等宿主页模板),不在 `.app` 子树内——而 `.photos-root .app`
+   才是本仓唯一显式设 `color: var(--text-1)`(Photos 私有、随 is-light 翻转)的祖先层级
+   (photos.scss:104-116)。挂在 `.app` 外的这个弹层,继承链会一路跳过它,落到
+   src/styles/theme.css 全局 `body { color: var(--fg) }`——那是**全局**、只跟随全站
+   `[data-theme]` 的 token,不跟随 Photos 私有的 `.photos-root.is-light` 切换。常见的
+   "Photos 私有浅色 + 全站深色"组合下,`--fg` 停在深色默认的纯白值上,标题就成了浅色
+   面板上的白字——即 owner 验收截图报的"标题看不见"。同 Fix-2 item 4 一路病根(Places/
+   灯箱两处均已修过),这里是同一缺陷类在相册弹层的第三处现身。补一条局部 `color`,钉在
+   Photos 私有的 `--text-1`(与 parity 的 .album-picker-item 标题同色,视觉上与列表行标题
+   一致),不再依赖继承。类名仍保留作结构标记。 */
+.album-picker-title-text { color: var(--text-1); }
 
 /* 封面缩略图/空占位——Vue2 的 window.prompt 流程完全没有封面展示,这是本组件独有的功能
    增补(brief 明确登记的形态偏离),parity 无对应选择器。 */
