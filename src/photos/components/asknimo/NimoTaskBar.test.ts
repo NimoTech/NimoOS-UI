@@ -72,4 +72,36 @@ describe('NimoTaskBar', () => {
     const wrapper = mount(NimoTaskBar, { props: { expanded: true } })
     expect(wrapper.find('.nimo-tb-error-detail').text()).toBe('已失败')
   })
+
+  it('picks the error-detail line by raw array order, not by group sort order', () => {
+    // Vue2 NimoTaskBar.vue:52 is a flat `this.tasks.find(t => t.error)` scan over the raw
+    // list -- 'ocr' (TYPE_META order 3) appears first in the array here, while 'index'
+    // (order 1) appears second and would sort first among taskGroups. The displayed detail
+    // must follow array order (ocr), not group sort order (index).
+    const tl = useTimelineStore()
+    tl.tasks = [
+      { id: 1, type: 'ocr', status: 'error', error: 'ocr-error', current: 0, total: 0 },
+      { id: 2, type: 'index', status: 'error', error: 'index-error', current: 0, total: 0 },
+    ] as any
+    const wrapper = mount(NimoTaskBar, { props: { expanded: true } })
+    expect(wrapper.find('.nimo-tb-error-detail').text()).toBe('ocr-error')
+  })
+
+  it('sums current/total across all running tasks in a group unconditionally, including total=0 tasks', () => {
+    // Vue2 NimoTaskBar.vue:88-91: runCur/runTot accumulate every running task in the group
+    // regardless of whether that individual task reports a total, so a total=0 task still
+    // contributes (0 current, 0 total) to the sum rather than being shunted into a separate
+    // progress-average path. Here one running task has a real total (2/10) and a second
+    // running task of the same type has total=0 -- expected sum is current=2, total=10 (the
+    // total=0 task adds nothing to either side), so pct is 2/10 = 20%, not an average.
+    const tl = useTimelineStore()
+    tl.tasks = [
+      { id: 1, type: 'face', status: 'running', current: 2, total: 10 },
+      { id: 2, type: 'face', status: 'running', current: 0, total: 0, progress: 0.5 },
+    ] as any
+    const wrapper = mount(NimoTaskBar, { props: { expanded: true } })
+    const pct = wrapper.find('.nimo-tb-type-pct')
+    expect(pct.text()).toContain('20%')
+    expect(pct.text()).toContain('2/10')
+  })
 })

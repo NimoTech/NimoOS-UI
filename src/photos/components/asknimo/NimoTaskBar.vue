@@ -37,45 +37,53 @@ interface TaskGroup {
   total: number
   progress: number
   hasError: boolean
-  firstError?: TaskBusPayload
 }
 
+// Byte-exact port of Vue2 NimoTaskBar.vue:61-100 (taskGroups computed). Running (non-done)
+// tasks' current/total are summed UNCONDITIONALLY into the group -- there is no per-task
+// "only fold in tasks that report a total" branch; a task with total===0 still contributes
+// 0 to runTot, same as Vue2's `g.runTot += t.total || 0`. The progress-average fallback
+// (runProgSum / runCount) only kicks in once the WHOLE group's summed total is 0, not per task.
 const taskGroups = computed<TaskGroup[]>(() => {
-  const byType = new Map<string, TaskBusPayload[]>()
+  interface Acc { type: string; runCur: number; runTot: number; runProgSum: number; runCount: number; hasError: boolean }
+  const byType = new Map<string, Acc>()
   for (const task of tasks.value) {
-    const key = task.type || 'other'
-    if (!byType.has(key)) byType.set(key, [])
-    byType.get(key)!.push(task)
+    const type = task.type || 'other'
+    let acc = byType.get(type)
+    if (!acc) {
+      acc = { type, runCur: 0, runTot: 0, runProgSum: 0, runCount: 0, hasError: false }
+      byType.set(type, acc)
+    }
+    if (task.error) acc.hasError = true
+    if (task.status !== 'done') {
+      acc.runCount++
+      acc.runCur += task.current || 0
+      acc.runTot += task.total || 0
+      acc.runProgSum += task.progress || 0
+    }
   }
   const groups: TaskGroup[] = []
-  for (const [type, list] of byType) {
-    // Preflight F-28: named `task` (not `t`) throughout this function -- `t` shadowing
-    // useI18n()'s own `t` inside this closure has no functional effect (nothing here calls
-    // i18n), but it invites future maintenance mistakes, so it's renamed defensively.
-    const running = list.filter((task) => task.status !== 'done')
-    const hasError = list.some((task) => !!task.error)
-    const firstError = list.find((task) => !!task.error)
-    if (running.length === 0) {
-      groups.push({ type, current: 0, total: 0, progress: 1, hasError, firstError })
-      continue
+  for (const acc of byType.values()) {
+    if (acc.runCount > 0) {
+      groups.push({
+        type: acc.type,
+        current: acc.runCur,
+        total: acc.runTot,
+        progress: acc.runTot > 0 ? acc.runCur / acc.runTot : acc.runProgSum / acc.runCount,
+        hasError: acc.hasError,
+      })
+    } else {
+      groups.push({ type: acc.type, current: 0, total: 0, progress: 1, hasError: acc.hasError })
     }
-    let runCur = 0, runTot = 0, progSum = 0, withTotal = 0
-    for (const task of running) {
-      if (typeof task.total === 'number' && task.total > 0) {
-        runCur += task.current || 0
-        runTot += task.total
-        withTotal += 1
-      } else {
-        progSum += task.progress || 0
-      }
-    }
-    const progress = runTot > 0 ? runCur / runTot : (running.length - withTotal > 0 ? progSum / (running.length - withTotal) : 0)
-    groups.push({ type, current: runCur, total: runTot, progress, hasError, firstError })
   }
   return groups.sort((a, b) => (TYPE_META[a.type]?.order ?? 99) - (TYPE_META[b.type]?.order ?? 99))
 })
 
-const firstError = computed(() => taskGroups.value.find((g) => g.hasError)?.firstError)
+// Byte-exact port of Vue2 NimoTaskBar.vue:52 -- a flat scan of the RAW task list in array
+// order (NOT grouped/sorted by type). With simultaneous errors across two types, the
+// displayed error line must be whichever task appears first in the raw list, regardless of
+// that type's sort position in taskGroups.
+const firstError = computed(() => tasks.value.find((task) => !!task.error))
 
 function groupPct(g: TaskGroup): number {
   return Math.round(g.progress * 100)
