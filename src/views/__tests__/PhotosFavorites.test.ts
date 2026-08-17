@@ -681,6 +681,72 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
+  // Task 5 (Plan H): the real slideshow -- chained setTimeout timer, Esc/arrow/space keyboard
+  // control, follows Vue2 PhotosFavoritesView.vue:469-501 verbatim.
+  describe('slideshow (Task 5)', () => {
+    it('slideshow: opens on button click, auto-advances via a chained setTimeout at the default 4000ms interval, Space toggles pause, Esc closes', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        { id: 'a', mimeType: 'image/jpeg' }, { id: 'b', mimeType: 'image/jpeg' },
+      ])
+      const w = await mountView()
+      // F-8: mountView() first (its own flushPromises relies on real setTimeout), only then
+      // switch to fake timers -- otherwise flushPromises awaiting a real setTimeout would hang
+      // under fake timers.
+      vi.useFakeTimers()
+      try {
+        await w.find('[data-test="fav-slideshow-btn"]').trigger('click')
+        expect(w.find('.fav-slideshow').exists()).toBe(true)
+        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 2')
+
+        await vi.advanceTimersByTimeAsync(4000)
+        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('2 / 2')
+
+        // Task 5 (Plan H): dispatches on `document`, not `window` -- the implementation follows
+        // Vue2 PhotosFavoritesView.vue:473/477's `document.addEventListener('keydown', ...)`
+        // (matching this repo's own AlbumPickerDialog.vue precedent), and a `window`-targeted
+        // keydown does not bubble down to a `document` listener (window has no parent in the
+        // event-propagation path; the reverse -- document bubbling up to window -- is what
+        // normally happens for real key presses).
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
+        await vi.advanceTimersByTimeAsync(4000) // paused: must not advance
+        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('2 / 2')
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+        await w.vm.$nextTick()
+        expect(w.find('.fav-slideshow').exists()).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('not rendered on the empty-favorites branch (F-10, same gating as the save-album/export buttons); ArrowRight/ArrowLeft navigate, speed presets update the interval', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([])
+      const wEmpty = await mountView()
+      expect(wEmpty.find('[data-test="fav-empty"]').exists()).toBe(true)
+      expect(wEmpty.find('[data-test="fav-slideshow-btn"]').exists()).toBe(false)
+
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        { id: 'a', mimeType: 'image/jpeg' }, { id: 'b', mimeType: 'image/jpeg' }, { id: 'c', mimeType: 'image/jpeg' },
+      ])
+      const w = await mountView()
+      await w.find('[data-test="fav-slideshow-btn"]').trigger('click')
+      expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 3')
+
+      await w.find('.fav-slide-nav-r').trigger('click')
+      expect(w.find('[data-test="fav-slide-count"]').text()).toBe('2 / 3')
+      await w.find('.fav-slide-nav-l').trigger('click')
+      expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 3')
+
+      const fastBtn = w.findAll('.fav-slide-speed').find((b) => b.text() === zh.photosFavSlideFast)
+      expect(fastBtn?.attributes('data-active')).toBe('false')
+      await fastBtn?.trigger('click')
+      expect(fastBtn?.attributes('data-active')).toBe('true')
+
+      await w.find('.fav-slide-close').trigger('click')
+      expect(w.find('.fav-slideshow').exists()).toBe(false)
+    })
+  })
+
   // Task 15A (closing out two ledger entries from SP7-P5): hero stats three cards —
   // following Vue2 PhotosFavoritesView.vue :56-84 (template) + :369-385
   // (byPersonAll/byPlaceAll/byYearAll). Each card has its own sort key/slice count,

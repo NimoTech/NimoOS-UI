@@ -80,6 +80,10 @@ const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   // task) now nests it as a `.photos-root` descendant in the template, same subtree rule as
   // every other overlay in this table.
   { name: '.favsave-scrim', selector: '.favsave-scrim {', files: ['views/PhotosFavorites.vue'] },
+  // Plan H Task 5: the Favorites slideshow overlay -- parity-sourced (photos.scss), bare
+  // top-level selector (no `.photos-root ` prefix, same shape as `.picker-scrim` above), already
+  // carries z-index: 400 (well above the 100 floor and above every other overlay in this table).
+  { name: '.fav-slideshow', selector: '.fav-slideshow {', files: ['photos/styles/vue2-parity/photos.scss'] },
 ]
 
 describe('Fix-8 round 2: sibling-of-.app overlays keep an explicit z-index above .app\'s own (1)', () => {

@@ -214,7 +214,11 @@ watch(saveAlbumOpen, (isOpen) => {
   if (isOpen) document.addEventListener('keydown', onSaveAlbumKeydown)
   else document.removeEventListener('keydown', onSaveAlbumKeydown)
 })
-onUnmounted(() => document.removeEventListener('keydown', onSaveAlbumKeydown))
+onUnmounted(() => {
+  document.removeEventListener('keydown', onSaveAlbumKeydown)
+  stopSlideTimer()
+  document.removeEventListener('keydown', onSlideKey)
+})
 
 // Once PhotosGrid has a non-empty selected, onTileClick internally switches into the "keep
 // selecting" branch instead of "open photo" -- without a matching selection toolbar, ticking
@@ -285,6 +289,67 @@ function onOpenPinned(photo: Photo): void {
   const list = fav.favoritesMonths.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
   lb.openAt(photo, list, 0)
 }
+
+// Task 5 (Plan H): real slideshow (not the known-dead album-detail Slideshow stub) -- follows
+// Vue2 PhotosFavoritesView.vue:469-501. slidePhotos currently mirrors the page's tab-filtered
+// favorites (same source as the grid below); Task 6 narrows this further to the place filter
+// once that lands.
+const slideOpen = ref(false)
+const slideIdx = ref(0)
+const slidePlaying = ref(true)
+const slideInterval = ref(4000)
+let slideTimer: ReturnType<typeof setTimeout> | undefined
+
+const slidePhotos = computed(() => fav.favoritesMonths.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value)))
+const slidePhoto = computed(() => slidePhotos.value[slideIdx.value] ?? null)
+
+function stopSlideTimer(): void {
+  clearTimeout(slideTimer)
+  slideTimer = undefined
+}
+function startSlideTimer(): void {
+  stopSlideTimer()
+  if (!slidePlaying.value || !slideOpen.value) return
+  slideTimer = setTimeout(() => slideNext(), slideInterval.value)
+}
+function openSlideshow(): void {
+  if (!slidePhotos.value.length) return
+  slideIdx.value = 0
+  slidePlaying.value = true
+  slideOpen.value = true
+  startSlideTimer()
+  document.addEventListener('keydown', onSlideKey)
+}
+function closeSlideshow(): void {
+  slideOpen.value = false
+  stopSlideTimer()
+  document.removeEventListener('keydown', onSlideKey)
+}
+function slideNext(): void {
+  if (!slidePhotos.value.length) return
+  slideIdx.value = (slideIdx.value + 1) % slidePhotos.value.length
+  startSlideTimer()
+}
+function slidePrev(): void {
+  if (!slidePhotos.value.length) return
+  slideIdx.value = (slideIdx.value - 1 + slidePhotos.value.length) % slidePhotos.value.length
+  startSlideTimer()
+}
+function toggleSlidePlay(): void {
+  slidePlaying.value = !slidePlaying.value
+  startSlideTimer()
+}
+function setSlideSpeed(ms: number): void {
+  slideInterval.value = ms
+  if (slidePlaying.value) startSlideTimer()
+}
+function onSlideKey(e: KeyboardEvent): void {
+  if (!slideOpen.value) return
+  if (e.key === 'Escape') { e.preventDefault(); closeSlideshow() }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); slideNext() }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); slidePrev() }
+  else if (e.key === ' ') { e.preventDefault(); toggleSlidePlay() }
+}
 </script>
 
 <template>
@@ -353,6 +418,15 @@ function onOpenPinned(photo: Photo): void {
                 </div>
               </div>
               <div class="lib-hero-actions">
+                <!-- Task 5 (Plan H): the real slideshow entry -- F-11: Vue2 order is
+                     Slideshow -> Save as Album -> Export, so this is inserted as the FIRST
+                     child of the already-landed (Task 3) .lib-hero-actions container. Vue2
+                     :18-19 also carries a leading play icon, matching the other two buttons'
+                     own leading icon (album/download, :size=13) below. -->
+                <button
+                  type="button" class="btn" data-test="fav-slideshow-btn"
+                  :disabled="!fav.favoritesList?.length" @click="openSlideshow"
+                ><PhotosIcon name="play" :size="13" /> {{ t('photosFavSlideshow') }}</button>
                 <!-- Review fix: restores Vue2 :21/:26's leading icon inside each button
                      (album/download, :size=13) -- dropped by mistake in the first pass. -->
                 <button type="button" class="btn" data-test="fav-save-album-btn" :disabled="!(fav.favoritesList?.length)" @click="openSaveAlbum">
@@ -518,6 +592,47 @@ function onOpenPinned(photo: Photo): void {
         </div>
       </div>
     </div>
+
+    <!-- Task 5 (Plan H): slideshow overlay -- follows Vue2 PhotosFavoritesView.vue:237-273
+         verbatim (crossfade full-image render, no count cap, progress bar via a CSS animation
+         keyed to slideIdx/slidePlaying/slideInterval so it restarts on every advance/pause/speed
+         change). F-1: thumbnailUrl's size param is the string enum 'large', not a pixel number
+         like Vue2's thumbUrl(p.id, 800). -->
+    <transition name="fav-slide">
+      <div v-if="slideOpen" class="fav-slideshow" @click.self="closeSlideshow">
+        <div
+          v-for="(p, i) in slidePhotos" :key="p.id" class="fav-slide-img-wrap"
+          :style="{ opacity: i === slideIdx ? 1 : 0, transform: i === slideIdx ? 'scale(1)' : 'scale(1.05)' }"
+        >
+          <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="">
+        </div>
+        <div v-if="slidePhoto" class="fav-slide-caption">
+          <div class="fav-slide-title">{{ slidePhoto.title }}</div>
+          <div class="fav-slide-meta">{{ slidePhoto.date }}<template v-if="slidePhoto.place"> &middot; {{ slidePhoto.place }}</template></div>
+        </div>
+        <button type="button" class="fav-slide-close" :title="t('photosFavSlideClose')" @click="closeSlideshow">&#10005;</button>
+        <button type="button" class="fav-slide-nav fav-slide-nav-l" :title="t('photosFavSlidePrev')" @click="slidePrev">&#8249;</button>
+        <button type="button" class="fav-slide-nav fav-slide-nav-r" :title="t('photosFavSlideNext')" @click="slideNext">&#8250;</button>
+        <div class="fav-slide-controls" @click.stop>
+          <button type="button" class="fav-slide-ctrl" @click="toggleSlidePlay">
+            <PhotosIcon :name="slidePlaying ? 'pause' : 'play'" :size="14" />
+          </button>
+          <div class="fav-slide-progress">
+            <div
+              :key="slideIdx + '-' + slidePlaying + '-' + slideInterval"
+              class="fav-slide-progress-bar"
+              :style="{ animationDuration: slideInterval + 'ms', animationPlayState: slidePlaying ? 'running' : 'paused' }"
+            ></div>
+          </div>
+          <div class="fav-slide-count" data-test="fav-slide-count">{{ slideIdx + 1 }} / {{ slidePhotos.length }}</div>
+          <div class="fav-slide-sep"></div>
+          <span class="fav-slide-speed-label">{{ t('photosFavSlideSpeed') }}</span>
+          <button type="button" class="fav-slide-speed" :data-active="slideInterval === 2000" @click="setSlideSpeed(2000)">{{ t('photosFavSlideFast') }}</button>
+          <button type="button" class="fav-slide-speed" :data-active="slideInterval === 4000" @click="setSlideSpeed(4000)">{{ t('photosFavSlideNormal') }}</button>
+          <button type="button" class="fav-slide-speed" :data-active="slideInterval === 7000" @click="setSlideSpeed(7000)">{{ t('photosFavSlideSlow') }}</button>
+        </div>
+      </div>
+    </transition>
 
     <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
     <PhotoLightbox

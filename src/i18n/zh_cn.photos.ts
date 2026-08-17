@@ -92,6 +92,16 @@ export default {
   // PhotosFavoritesView.vue:89-90。
   photosFavPinnedTitle: '精选亮点',
   photosFavPinnedSub: '你最常收藏的瞬间 · Nimo 精选',
+  // Task 5 (Plan H):幻灯片播放 —— 对应 Vue2 PhotosFavoritesView.vue:18-19(入口按钮)/
+  // :237-273(播放层:关闭、上一张/下一张、暂停/播放、三档速度)。
+  photosFavSlideshow: '幻灯片播放',
+  photosFavSlideClose: '关闭 (Esc)',
+  photosFavSlidePrev: '上一张 (←)',
+  photosFavSlideNext: '下一张 (→)',
+  photosFavSlideSpeed: '速度',
+  photosFavSlideFast: '快',
+  photosFavSlideNormal: '正常',
+  photosFavSlideSlow: '慢',
   // ── 相册:最近删除视图 ──
   photosTrashTitle: '最近删除',
   photosTrashEmptyTitle: '最近删除是空的',

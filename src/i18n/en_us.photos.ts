@@ -98,6 +98,16 @@ export default {
   // Vue2 PhotosFavoritesView.vue:89-90.
   photosFavPinnedTitle: 'Pinned highlights',
   photosFavPinnedSub: 'Your most-favorited moments · Nimo curated',
+  // Task 5 (Plan H): slideshow -- Vue2 PhotosFavoritesView.vue:18-19 (entry button) /
+  // :237-273 (playback overlay: close, prev/next, pause/play, 3 speed presets).
+  photosFavSlideshow: 'Slideshow',
+  photosFavSlideClose: 'Close (Esc)',
+  photosFavSlidePrev: 'Previous (←)',
+  photosFavSlideNext: 'Next (→)',
+  photosFavSlideSpeed: 'Speed',
+  photosFavSlideFast: 'Fast',
+  photosFavSlideNormal: 'Normal',
+  photosFavSlideSlow: 'Slow',
   // ── Photos: Trash view ──
   photosTrashTitle: 'Recently Deleted',
   photosTrashEmptyTitle: 'Trash is empty',
