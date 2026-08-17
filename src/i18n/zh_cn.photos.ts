@@ -98,6 +98,8 @@ export default {
   photosFavSlideClose: '关闭 (Esc)',
   photosFavSlidePrev: '上一张 (←)',
   photosFavSlideNext: '下一张 (→)',
+  // 评审 Minor 4:补 Vue2 :256 播放/暂停按钮的 title(值取自 NimoOS-UI/src/assets/lang/zh_CN.json:2244)。
+  photosFavSlidePlayPause: '播放/暂停 (空格)',
   photosFavSlideSpeed: '速度',
   photosFavSlideFast: '快',
   photosFavSlideNormal: '正常',

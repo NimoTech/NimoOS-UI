@@ -300,7 +300,17 @@ const slidePlaying = ref(true)
 const slideInterval = ref(4000)
 let slideTimer: ReturnType<typeof setTimeout> | undefined
 
-const slidePhotos = computed(() => fav.favoritesMonths.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value)))
+// Review fix (Important 3): restores Vue2 :439's fallback --
+// `slidePhotos() { return this.sorted.length ? this.sorted : this.favorites }` (`sorted` is
+// Vue2's tab/facet-filtered set, `favorites` is the full unfiltered loaded set). Without this,
+// opening the slideshow while the active tab has zero matches (e.g. "Videos" selected but every
+// favorite is a photo) would silently play an empty deck instead of falling back to the whole
+// favorites set, same as Vue2.
+const slidePhotos = computed(() => {
+  const all = fav.favoritesMonths.flatMap((m) => m.photos)
+  const filtered = all.filter((p) => matchesTab(p, tab.value))
+  return filtered.length ? filtered : all
+})
 const slidePhoto = computed(() => slidePhotos.value[slideIdx.value] ?? null)
 
 function stopSlideTimer(): void {
@@ -610,11 +620,20 @@ function onSlideKey(e: KeyboardEvent): void {
           <div class="fav-slide-title">{{ slidePhoto.title }}</div>
           <div class="fav-slide-meta">{{ slidePhoto.date }}<template v-if="slidePhoto.place"> &middot; {{ slidePhoto.place }}</template></div>
         </div>
-        <button type="button" class="fav-slide-close" :title="t('photosFavSlideClose')" @click="closeSlideshow">&#10005;</button>
-        <button type="button" class="fav-slide-nav fav-slide-nav-l" :title="t('photosFavSlidePrev')" @click="slidePrev">&#8249;</button>
-        <button type="button" class="fav-slide-nav fav-slide-nav-r" :title="t('photosFavSlideNext')" @click="slideNext">&#8250;</button>
+        <!-- Review fix (Important 2): Vue2 :246-254 uses PhotosIcon glyphs here (x/chevL/chevR),
+             not text-entity characters -- swapped in verbatim. -->
+        <button type="button" class="fav-slide-close" :title="t('photosFavSlideClose')" @click="closeSlideshow">
+          <PhotosIcon name="x" :size="18" />
+        </button>
+        <button type="button" class="fav-slide-nav fav-slide-nav-l" :title="t('photosFavSlidePrev')" @click="slidePrev">
+          <PhotosIcon name="chevL" :size="22" />
+        </button>
+        <button type="button" class="fav-slide-nav fav-slide-nav-r" :title="t('photosFavSlideNext')" @click="slideNext">
+          <PhotosIcon name="chevR" :size="22" />
+        </button>
         <div class="fav-slide-controls" @click.stop>
-          <button type="button" class="fav-slide-ctrl" @click="toggleSlidePlay">
+          <!-- Review fix (Minor 4): adds Vue2 :256's title. -->
+          <button type="button" class="fav-slide-ctrl" :title="t('photosFavSlidePlayPause')" @click="toggleSlidePlay">
             <PhotosIcon :name="slidePlaying ? 'pause' : 'play'" :size="14" />
           </button>
           <div class="fav-slide-progress">

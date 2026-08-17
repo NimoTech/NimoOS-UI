@@ -104,6 +104,9 @@ export default {
   photosFavSlideClose: 'Close (Esc)',
   photosFavSlidePrev: 'Previous (←)',
   photosFavSlideNext: 'Next (→)',
+  // Review Minor 4: adds Vue2 :256's play/pause button title (value verbatim from
+  // NimoOS-UI/src/assets/lang/en_US.json:2168).
+  photosFavSlidePlayPause: 'Play/Pause (Space)',
   photosFavSlideSpeed: 'Speed',
   photosFavSlideFast: 'Fast',
   photosFavSlideNormal: 'Normal',

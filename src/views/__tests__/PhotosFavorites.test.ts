@@ -684,9 +684,9 @@ describe('PhotosFavorites.vue', () => {
   // Task 5 (Plan H): the real slideshow -- chained setTimeout timer, Esc/arrow/space keyboard
   // control, follows Vue2 PhotosFavoritesView.vue:469-501 verbatim.
   describe('slideshow (Task 5)', () => {
-    it('slideshow: opens on button click, auto-advances via a chained setTimeout at the default 4000ms interval, Space toggles pause, Esc closes', async () => {
+    it('slideshow: opens on click, auto-advances via a re-armed timer at EACH step (not a one-shot/impostor), changing speed rearms at the new interval, Space toggles pause, Esc closes', async () => {
       svc.photos.listFavorites.mockResolvedValueOnce([
-        { id: 'a', mimeType: 'image/jpeg' }, { id: 'b', mimeType: 'image/jpeg' },
+        { id: 'a', mimeType: 'image/jpeg' }, { id: 'b', mimeType: 'image/jpeg' }, { id: 'c', mimeType: 'image/jpeg' },
       ])
       const w = await mountView()
       // F-8: mountView() first (its own flushPromises relies on real setTimeout), only then
@@ -696,10 +696,23 @@ describe('PhotosFavorites.vue', () => {
       try {
         await w.find('[data-test="fav-slideshow-btn"]').trigger('click')
         expect(w.find('.fav-slideshow').exists()).toBe(true)
-        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 2')
+        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 3')
 
+        // Review fix (Minor 5): a 3-photo list + two CONSECUTIVE 4000ms steps, each asserted --
+        // a one-shot timer (fires once, never re-arms) or a setInterval impostor that quietly
+        // stopped re-arming would pass a single-step assertion but fail the second one.
         await vi.advanceTimersByTimeAsync(4000)
-        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('2 / 2')
+        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('2 / 3')
+        await vi.advanceTimersByTimeAsync(4000)
+        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('3 / 3')
+
+        // Review fix (Minor 5): setSlideSpeed while playing must re-arm the pending timer at the
+        // NEW interval, not just update the ref for the next natural re-arm -- advancing by
+        // exactly the new (shorter) 2000ms interval proves the rearm actually happened.
+        const fastBtn = w.findAll('.fav-slide-speed').find((b) => b.text() === zh.photosFavSlideFast)
+        await fastBtn?.trigger('click')
+        await vi.advanceTimersByTimeAsync(2000)
+        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 3') // wraps 3 -> 1
 
         // Task 5 (Plan H): dispatches on `document`, not `window` -- the implementation follows
         // Vue2 PhotosFavoritesView.vue:473/477's `document.addEventListener('keydown', ...)`
@@ -709,7 +722,7 @@ describe('PhotosFavorites.vue', () => {
         // normally happens for real key presses).
         document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
         await vi.advanceTimersByTimeAsync(4000) // paused: must not advance
-        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('2 / 2')
+        expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 3')
 
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
         await w.vm.$nextTick()
@@ -717,6 +730,24 @@ describe('PhotosFavorites.vue', () => {
       } finally {
         vi.useRealTimers()
       }
+    })
+
+    // Review fix (Important 3): restores Vue2 :439's playlist fallback --
+    // `slidePhotos() { return this.sorted.length ? this.sorted : this.favorites }`.
+    it('falls back to the full favorites set (not an empty/no-op deck) when the active tab has zero matches', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        { id: 'a', mimeType: 'image/jpeg' }, { id: 'b', mimeType: 'image/jpeg' },
+      ])
+      const w = await mountView()
+      // Every favorite above is a photo -- switching to the Videos tab makes the tab-filtered
+      // set empty, but the slideshow must still play the full (unfiltered) favorites set.
+      const videoTab = w.findAll('.tab').find((b) => b.text() === zh.photosTabVideos)
+      await videoTab?.trigger('click')
+      await w.vm.$nextTick()
+
+      await w.find('[data-test="fav-slideshow-btn"]').trigger('click')
+      expect(w.find('.fav-slideshow').exists()).toBe(true)
+      expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 2')
     })
 
     it('not rendered on the empty-favorites branch (F-10, same gating as the save-album/export buttons); ArrowRight/ArrowLeft navigate, speed presets update the interval', async () => {
