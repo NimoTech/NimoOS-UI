@@ -84,6 +84,12 @@ const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   // top-level selector (no `.photos-root ` prefix, same shape as `.picker-scrim` above), already
   // carries z-index: 400 (well above the 100 floor and above every other overlay in this table).
   { name: '.fav-slideshow', selector: '.fav-slideshow {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  // Plan H Task 8: PhotosTrash.vue's confirm modal scrim -- parity-sourced (photos.scss), bare
+  // top-level selector (no `.photos-root ` prefix, same shape as `.picker-scrim`/`.fav-slideshow`
+  // above). This task's re-shell deleted PhotosTrash.vue's own local duplicate of this rule
+  // (redundant with the globally-imported parity copy), so the only surviving declaration lives
+  // in the parity file, not the component's own `<style scoped>`.
+  { name: '.trash-modal-scrim', selector: '.trash-modal-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
 ]
 
 describe('Fix-8 round 2: sibling-of-.app overlays keep an explicit z-index above .app\'s own (1)', () => {

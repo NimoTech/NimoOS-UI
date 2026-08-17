@@ -94,6 +94,18 @@ afterEach(() => {
 })
 
 describe('PhotosTrash.vue', () => {
+  // Task 8 (Plan H re-shell): mounts the shared `.app` grid shell + the real PhotosTopbar,
+  // wired to the real Ask Nimo drawer entry (F-5/X-2, same as PhotosFavorites.vue).
+  it('mounts the .app shell with PhotosTopbar (Trash title, search hidden) and wires Ask Nimo + AskNimoHost', async () => {
+    const w = await mountView()
+    expect(w.find('.photos-root .app').exists()).toBe(true)
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.exists()).toBe(true)
+    expect(topbar.props('showSearch')).toBe(false)
+    expect(topbar.props('showAskNimo')).toBe(true)
+    expect(w.findComponent({ name: 'AskNimoHost' }).exists()).toBe(true)
+  })
+
   it('loaded and empty -> renders the empty state, hero buttons disabled', async () => {
     const w = await mountView()
     const trash = usePhotosTrash()
@@ -118,7 +130,7 @@ describe('PhotosTrash.vue', () => {
     const imgs = w.findAll('.trash-tile img')
     expect(imgs.map((i) => i.attributes('src')).sort()).toEqual(['mock://thumb/a/small', 'mock://thumb/b/small'])
 
-    const countdowns = w.findAll('.trash-tile-countdown').map((c) => c.text())
+    const countdowns = w.findAll('.trash-countdown').map((c) => c.text())
     expect(countdowns.some((t) => t.includes('3'))).toBe(true)
     expect(countdowns.some((t) => t.includes('29'))).toBe(true)
   })
@@ -128,7 +140,7 @@ describe('PhotosTrash.vue', () => {
     const w = await mountView()
 
     expect(w.find('.trash-bulk-bar').exists()).toBe(false)
-    await w.find('.trash-tile-select').trigger('click')
+    await w.find('.trash-tile-check').trigger('click')
     await w.vm.$nextTick()
 
     const bar = w.find('.trash-bulk-bar')
@@ -144,7 +156,7 @@ describe('PhotosTrash.vue', () => {
     const restoreSpy = vi.spyOn(trash, 'restore')
     const undoSpy = vi.spyOn(trash, 'undoRestore')
 
-    await w.find('.trash-tile-select').trigger('click')
+    await w.find('.trash-tile-check').trigger('click')
     await w.vm.$nextTick()
 
     await w.find('[data-test="trash-bulk-restore"]').trigger('click')
@@ -201,7 +213,7 @@ describe('PhotosTrash.vue', () => {
     const trash = usePhotosTrash()
     const purgeSpy = vi.spyOn(trash, 'purge')
 
-    await w.find('.trash-tile-select').trigger('click')
+    await w.find('.trash-tile-check').trigger('click')
     await w.vm.$nextTick()
     await w.find('[data-test="trash-bulk-delete"]').trigger('click')
     await w.vm.$nextTick()
@@ -218,7 +230,7 @@ describe('PhotosTrash.vue', () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
 
-    await w.find('.trash-tile-select').trigger('click')
+    await w.find('.trash-tile-check').trigger('click')
     await w.vm.$nextTick()
     expect(w.find('.trash-bulk-bar').exists()).toBe(true)
 
@@ -227,6 +239,10 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-bulk-bar').exists()).toBe(false)
   })
 
+  // F-6 (Task 8): this asserts the CURRENT bare-click-selects semantics -- Task 9 will flip it
+  // to bare-click-opens-lightbox (the select circle becomes the only way to toggle selection),
+  // at which point this test gets rewritten to match. Left untouched here on purpose so Task 8's
+  // and Task 9's RED/GREEN states don't get tangled together.
   it('clicking a tile (not the select circle) also toggles selection, without triggering any lightbox/navigation', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
