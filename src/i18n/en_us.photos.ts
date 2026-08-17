@@ -94,6 +94,10 @@ export default {
   photosFavHeroPhotosNoun: 'photos',
   photosFavHeroVideosNoun: 'videos',
   photosFavHeroKeptForever: 'kept forever',
+  // Task 4 (Plan H): pinned-highlights strip (server-ranked top 5, GET /favorites/top) --
+  // Vue2 PhotosFavoritesView.vue:89-90.
+  photosFavPinnedTitle: 'Pinned highlights',
+  photosFavPinnedSub: 'Your most-favorited moments · Nimo curated',
   // ── Photos: Trash view ──
   photosTrashTitle: 'Recently Deleted',
   photosTrashEmptyTitle: 'Trash is empty',

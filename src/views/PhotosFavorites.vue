@@ -23,6 +23,7 @@
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { service } from '@nimotech/nimoos-service'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
@@ -273,7 +274,17 @@ async function onLightboxDelete(id: string | number) {
 onMounted(() => {
   void fav.reconcileFavIds()
   void fav.fetchFavorites()
+  void fav.fetchTopFavorites()
 })
+
+// Task 4 (Plan H): pinned card click opens the lightbox against the SAME tab-filtered paging set as
+// the grid below (not just the 5-card strip) -- matches Vue2's own @click passing the full
+// grouped-by-month favorites list, not top5. Task 6 will narrow this further to the place
+// filter once that lands.
+function onOpenPinned(photo: Photo): void {
+  const list = fav.favoritesMonths.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
+  lb.openAt(photo, list, 0)
+}
 </script>
 
 <template>
@@ -355,6 +366,31 @@ onMounted(() => {
                 <button type="button" class="btn" data-test="fav-export-btn" :disabled="!(fav.favoritesList?.length)" @click="onExport">
                   <PhotosIcon name="download" :size="13" /> {{ t('photosFavExport') }}
                 </button>
+              </div>
+            </div>
+
+            <!-- Task 4 (Plan H): pinned-highlights strip -- server-ranked top 5 (GET
+                 /favorites/top, fav.fetchTopFavorites), rendered in this v-else (loaded,
+                 non-empty) branch alongside the hero (F-10). Follows Vue2
+                 PhotosFavoritesView.vue:86-102 verbatim; F-1: thumbnailUrl's size param is the
+                 string enum 'large', not a pixel number like Vue2's thumbUrl(p.id, 800). -->
+            <div v-if="fav.topFavoritesLoaded && fav.topFavorites.length" class="fav-top-strip" data-test="fav-pinned-strip">
+              <div class="fav-top-head">
+                <h3>{{ t('photosFavPinnedTitle') }}</h3>
+                <span class="sub">{{ t('photosFavPinnedSub') }}</span>
+              </div>
+              <div class="fav-top-grid">
+                <div
+                  v-for="(p, i) in fav.topFavorites" :key="p.id" class="fav-top-card" data-test="fav-pinned-card"
+                  @click="onOpenPinned(p)"
+                >
+                  <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+                  <span class="fav-rank">{{ i + 1 }}</span>
+                  <div class="fav-meta">
+                    <div class="fav-meta-title">{{ p.title || p.date }}</div>
+                    <div class="fav-meta-sub">{{ p.date }}<template v-if="p.place"> &middot; {{ p.place }}</template></div>
+                  </div>
+                </div>
               </div>
             </div>
 

@@ -20,6 +20,7 @@ const svc = vi.hoisted(() => ({
     unfavorite: vi.fn().mockResolvedValue(undefined),
     recordView: vi.fn().mockResolvedValue(undefined),
     exportFavoritesUrl: vi.fn(() => '/v1/photos/favorites/export?token=T1'),
+    topFavorites: vi.fn().mockResolvedValue([]),
     deleteAsset: vi.fn().mockResolvedValue(undefined),
     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
     previewUrl: vi.fn((id: string | number) => `mock://preview/${id}`),
@@ -92,6 +93,7 @@ beforeEach(() => {
   svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
   svc.photos.listFavorites.mockClear().mockResolvedValue([])
   svc.photos.exportFavoritesUrl.mockClear().mockReturnValue('/v1/photos/favorites/export?token=T1')
+  svc.photos.topFavorites.mockClear().mockResolvedValue([])
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
   svc.photos.recordView.mockClear().mockResolvedValue(undefined)
   svc.photos.listAlbums.mockClear().mockResolvedValue([])
@@ -654,6 +656,28 @@ describe('PhotosFavorites.vue', () => {
       const w = await mountView()
       expect(w.find('[data-test="fav-empty"]').exists()).toBe(true)
       expect(w.find('[data-test="fav-hero"]').exists()).toBe(false)
+    })
+  })
+
+  // Task 4 (Plan H): pinned-highlights strip -- server-ranked top 5 (GET /favorites/top),
+  // rendered inside the same v-else (loaded, non-empty) branch as the hero (F-10).
+  describe('pinned-highlights strip (Task 4)', () => {
+    it('renders the pinned-highlights strip from the server-ranked top favorites, opening the lightbox on click', async () => {
+      // R-4: also mock listFavorites (not just topFavorites) so favoritesLoaded && length>0 --
+      // otherwise isEmpty is true and the v-else branch containing the pinned strip never renders.
+      svc.photos.listFavorites.mockResolvedValueOnce([{ id: 'x', mimeType: 'image/jpeg' }])
+      svc.photos.topFavorites.mockResolvedValueOnce([{ id: 'p1', mimeType: 'image/jpeg', takenAt: '2026-01-01T00:00:00Z' }])
+      const w = await mountView()
+      const strip = w.find('[data-test="fav-pinned-strip"]')
+      expect(strip.exists()).toBe(true)
+      await w.find('[data-test="fav-pinned-card"]').trigger('click')
+      expect(lb.open.value).toBe(true)
+    })
+
+    it('does not render the strip while topFavorites is loading/empty', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([{ id: 'x', mimeType: 'image/jpeg' }])
+      const w = await mountView()
+      expect(w.find('[data-test="fav-pinned-strip"]').exists()).toBe(false)
     })
   })
 

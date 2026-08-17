@@ -88,6 +88,10 @@ export default {
   photosFavHeroPhotosNoun: '张照片',
   photosFavHeroVideosNoun: '视频',
   photosFavHeroKeptForever: '永久保留',
+  // Task 4 (Plan H):置顶精选条(服务端排序 top5,GET /favorites/top)—— 对应 Vue2
+  // PhotosFavoritesView.vue:89-90。
+  photosFavPinnedTitle: '精选亮点',
+  photosFavPinnedSub: '你最常收藏的瞬间 · Nimo 精选',
   // ── 相册:最近删除视图 ──
   photosTrashTitle: '最近删除',
   photosTrashEmptyTitle: '最近删除是空的',
