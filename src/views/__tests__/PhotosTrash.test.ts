@@ -276,6 +276,18 @@ describe('PhotosTrash.vue', () => {
     expect(lb.open.value).toBe(false)
   })
 
+  // Task 9 (coordinator review fix): Vue2 PhotosTrashView.vue onTileClick(:211-212, template :72
+  // passes $event) guards `e.shiftKey || selected.size > 0` -- shift-clicking an unselected tile
+  // starts multi-select from zero, it must never open the lightbox.
+  it('shift-clicking a tile with nothing selected toggles selection instead of opening the lightbox', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    const w = await mountView()
+
+    await w.find('.trash-tile').trigger('click', { shiftKey: true })
+    expect(w.find('.trash-tile[data-selected="true"]').exists()).toBe(true)
+    expect(lb.open.value).toBe(false)
+  })
+
   // Task 12 (SP15-P3): while pages remain, the freeable-size figure is only a sum over the
   // loaded subset — the empty-trash confirmation must not present it as the whole truth.
   const fullPage = () => Array.from({ length: 500 }, (_, i) => asset(`p${i}`, '2026-06-30T00:00:00Z'))

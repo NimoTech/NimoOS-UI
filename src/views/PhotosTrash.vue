@@ -110,11 +110,12 @@ function toggleSelect(id: string | number) {
 }
 function clearSelection() { selected.value.clear() }
 
-// Task 9: matches Vue2 PhotosTrashView.vue onTileClick(:211-216) -- a plain click with no
-// active selection opens the lightbox against the bucketed flat list; once anything is
-// selected, every further click toggles selection instead of opening the viewer.
-function onTileClick(p: TrashPhoto): void {
-  if (selected.value.size > 0) { toggleSelect(p.id); return }
+// Task 9 (review fix): matches Vue2 PhotosTrashView.vue onTileClick(:211-216, template :72
+// passes $event) -- a plain click with no active selection opens the lightbox against the
+// bucketed flat list; once anything is selected, OR the click is shift-held (starts multi-select
+// even from zero), every further click toggles selection instead of opening the viewer.
+function onTileClick(p: TrashPhoto, e: MouseEvent): void {
+  if (e.shiftKey || selected.value.size > 0) { toggleSelect(p.id); return }
   const flat = bucketed.value.flatMap((b) => b.photos)
   lb.openAt(p, flat, 0)
 }
@@ -399,7 +400,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                   <div
                     v-for="p in b.photos" :key="p.id"
                     class="lib-tile trash-tile" :data-selected="isSelected(p.id)"
-                    @click="onTileClick(p)"
+                    @click="onTileClick(p, $event)"
                   >
                     <!-- pixel parity: Vue2 PhotosTrashView.vue:73 dims the thumbnail via an
                          inline style (not a class), 0.78 opacity -- kept as an inline style
