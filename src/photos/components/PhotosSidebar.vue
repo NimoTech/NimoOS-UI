@@ -176,9 +176,16 @@ function isActive(n: { id: string }): boolean {
 // onMounted guard above. Known remaining deviation: this count is loaded-page-only once the
 // backend's 500-row cap kicks in, same limitation the Trash view's own loaded-subset hint
 // already discloses.
+// Review fix (Task 10 round 2): Vue2 PhotosSidebar.vue:129-131 builds both counts as
+// `this.favCount || null` / `this.trashCount || null` -- a falsy 0 collapses to null there, so
+// a loaded-but-empty list hides the badge entirely rather than rendering a literal "0". Our
+// `!= null` template guard (":47/:73" there, this file's `countFor(n.id) != null` here) only
+// catches null/undefined, not 0, so both branches below must fold zero into null themselves to
+// match. This applies to favorites too, not just trash -- same pre-existing gap, fixed in the
+// same pass since it's the identical shape.
 function countFor(id: string): number | null {
-  if (id === 'favorites') return favorites.favIdsLoaded ? favorites.favIds.size : null
-  if (id === 'trash') return trash.loaded ? trash.items.length : null
+  if (id === 'favorites') return favorites.favIdsLoaded && favorites.favIds.size > 0 ? favorites.favIds.size : null
+  if (id === 'trash') return trash.loaded && trash.items.length > 0 ? trash.items.length : null
   return null
 }
 

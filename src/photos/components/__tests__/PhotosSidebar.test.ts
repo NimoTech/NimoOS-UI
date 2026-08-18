@@ -384,6 +384,16 @@ describe('PhotosSidebar', () => {
       expect(favItem?.find('.nav-count').exists()).toBe(false)
     })
 
+    // Review fix (Task 10 round 2): Vue2 PhotosSidebar.vue:129/:143 builds this count as
+    // `this.favCount || null` -- a loaded-but-empty list must hide the badge, not render "0".
+    it('does not show .nav-count on the favorites item when loaded but empty', () => {
+      const fav = usePhotosFavorites()
+      fav.favIds = new Set()
+      fav.favIdsLoaded = true
+      const w = mountSidebar()
+      const favItem = w.findAll('.nav-item').find((n) => n.text().includes('收藏'))
+      expect(favItem?.find('.nav-count').exists()).toBe(false)
+    })
   })
 
   // Task 10 (Plan H): trash badge -- wired the same way as favorites' (loaded gate), plus the
@@ -419,6 +429,18 @@ describe('PhotosSidebar', () => {
       await flushPromises()
       const trashItem = w.findAll('.nav-item').find((n) => n.text().includes('最近删除'))
       expect(trashItem?.find('.nav-count').text()).toBe('2')
+    })
+
+    // Review fix (Task 10 round 2): Vue2 PhotosSidebar.vue:130/:144 builds this count as
+    // `this.trashCount || null` -- a loaded-but-empty trash must hide the badge, not render "0".
+    it('does not show .nav-count on the trash item when loaded but empty', async () => {
+      const trash = usePhotosTrash()
+      trash.items = []
+      trash.loaded = true
+      const w = mountSidebar()
+      await flushPromises()
+      const trashItem = w.findAll('.nav-item').find((n) => n.text().includes('最近删除'))
+      expect(trashItem?.find('.nav-count').exists()).toBe(false)
     })
   })
 
