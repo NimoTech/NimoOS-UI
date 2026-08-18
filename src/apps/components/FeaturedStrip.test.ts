@@ -11,7 +11,7 @@ const ITEMS = [
 ]
 
 describe('FeaturedStrip', () => {
-  it('渲染标题、缩略图与卡片;点卡片 emit open(id);已装徽章走注入函数', async () => {
+  it('renders title, thumbnail and cards; click card emits open(id); installed badge uses injected function', async () => {
     const w = mount(FeaturedStrip, {
       props: { items: ITEMS, installed: (id: string) => id === 'jellyfin', progress: () => null, compatible: () => true },
       global: { plugins: [i18n] },
@@ -20,32 +20,32 @@ describe('FeaturedStrip', () => {
     const cards = w.findAll('.featured-card')
     expect(cards).toHaveLength(2)
     expect(cards[0].get('.featured-shot img').attributes('src')).toBe('https://cdn/t.png')
-    expect(cards[1].find('.featured-shot img').exists()).toBe(false) // 无缩略图落占位块
+    expect(cards[1].find('.featured-shot img').exists()).toBe(false) // no thumbnail falls back to the placeholder block
     expect(cards[1].find('.featured-shot-fallback').exists()).toBe(true)
     expect(cards[0].text()).toContain('已安装')
     await cards[1].trigger('click')
     expect(w.emitted('open')![0]).toEqual(['nextcloud'])
   })
-  it('未装卡片有安装按钮:emit install(id) 且不冒泡成 open;已装卡片无按钮', async () => {
+  it('uninstalled card has install button: emits install(id) and does not bubble to open; installed card has no button', async () => {
     const w = mount(FeaturedStrip, {
       props: { items: ITEMS, installed: (id: string) => id === 'jellyfin', progress: () => null, compatible: () => true },
       global: { plugins: [i18n] },
     })
     const cards = w.findAll('.featured-card')
-    expect(cards[0].find('.featured-install').exists()).toBe(false) // 已装
+    expect(cards[0].find('.featured-install').exists()).toBe(false) // installed
     const btn = cards[1].get('.featured-install')
     await btn.trigger('click')
     expect(w.emitted('install')![0]).toEqual(['nextcloud'])
     expect(w.emitted('open')).toBeUndefined()
   })
-  it('items 空整块不渲染', () => {
+  it('empty items does not render block', () => {
     const w = mount(FeaturedStrip, {
       props: { items: [], installed: () => false, progress: () => null, compatible: () => true },
       global: { plugins: [i18n] },
     })
     expect(w.find('.featured-strip').exists()).toBe(false)
   })
-  it('progress/compatible 函数 prop 驱动按钮态', () => {
+  it('progress/compatible function props drive button state', () => {
     const items = [{ id: 'a', title: 'A', tagline: '', icon: '', thumbnail: '', category: '', architectures: [], tips: undefined }]
     const w = mount(FeaturedStrip, {
       props: {

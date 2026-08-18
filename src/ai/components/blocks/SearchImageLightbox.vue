@@ -1,5 +1,5 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/blocks/SearchImageLightbox.vue
+  1:1 ported from Vue2 src/views/AI/Agent/blocks/SearchImageLightbox.vue
 
   Self-contained fullscreen lightbox for search-result images. Purpose-built so
   it does NOT depend on any Photos-page-scoped CSS, which caused the enlarged

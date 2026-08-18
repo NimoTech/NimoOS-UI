@@ -5,7 +5,7 @@ describe('sparklinePoints', () => {
   it('returns empty for <2 points', () => { expect(sparklinePoints([5])).toBe('') })
   it('maps 0..100 to a 100x32 polyline (x step, y inverted)', () => {
     const s = sparklinePoints([0, 100])
-    // 2 点:x=0 和 x=100;y(0%)=31, y(100%)=1
+    // 2 points: x=0 and x=100; y(0%)=31, y(100%)=1
     expect(s).toBe('0.00,31.0 100.00,1.0')
   })
 })

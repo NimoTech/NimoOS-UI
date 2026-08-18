@@ -1,5 +1,5 @@
-// /v1/storage children 的 size/avail/used 是字符串(2026-07-23 真机核实),必须显式 Number()。
-// usePercent 公式与 Vue2 StorageManagerPanel 逐字一致,保证迁移前后读数不变。
+// /v1/storage children's size/avail/used are strings (confirmed on real hardware 2026-07-23) — must call Number() explicitly.
+// The usePercent formula matches Vue2 StorageManagerPanel byte-for-byte, so the displayed reading doesn't change across the migration.
 
 import type { DiskRaidInfo } from '@nimotech/nimoos-service'
 
@@ -18,7 +18,7 @@ export interface StorageVolume {
   disk: string
 }
 
-// 分区行(/v1/disks children[]):mount_point/used_bytes 是 2026-08 新增,仅挂载时才有。
+// Partition row (/v1/disks children[]): mount_point/used_bytes were added 2026-08, present only when mounted.
 export interface DriveChild {
   name: string
   format: string
@@ -34,17 +34,17 @@ export interface PhysicalDrive {
   diskType: string
   healthy: boolean
   temperature: number
-  // health 原文("true"/"false",都缺时 "")。详情页三态展示(正常/损坏/未知)
-  // 必须严格比较字符串,绝不能真值判断 —— "false" 是真值(Vue2 曾因此把坏盘显示成健康)。
+  // health raw value ("true"/"false", empty "" when both are missing). Detail page shows three states (healthy/damaged/unknown)
+  // Must be compared strictly as a string, never truthy-checked — "false" is truthy (Vue2 used to show a bad drive as healthy because of this).
   health: string
   serial: string
   path: string
   diskById: string
   powerOnHours: number
   children: DriveChild[]
-  // 后端 raid 对象原样透传(字段名保持 /v1/disks 原文;见 service 包 DiskRaidInfo)。
-  // ⚠️ array_name/created_at/updated_at 来自盘上 mdadm 超块,是不可信文本 ——
-  // 只能经模板插值渲染,不能拼 HTML。
+  // Backend raid object is passed through as-is (field names keep the /v1/disks original naming; see DiskRaidInfo in the service package).
+  // ⚠️ array_name/created_at/updated_at come from the on-disk mdadm superblock and are untrusted text —
+  // only ever render via template interpolation, never concatenate into HTML.
   raid: DiskRaidInfo | null
 }
 
@@ -65,11 +65,11 @@ export function mapVolumes(groups: unknown, raidMountPoints: Set<string> = new S
   const flat: Array<RawChild & { _disk: string; _diskName: string }> = []
   for (const g of arr) {
     for (const c of g?.children || []) {
-      if (raidMountPoints.has(c?.mount_point || '')) continue // RAID 卷归 /storage/raid(P3)
+      if (raidMountPoints.has(c?.mount_point || '')) continue // RAID volumes belong to /storage/raid (P3)
       flat.push({ ...c, _disk: g?.path || '', _diskName: g?.disk_name || '' })
     }
   }
-  // Vue2 orderBy(['diskName','label'],['desc','asc']):System 组排最前
+  // Vue2 orderBy(['diskName','label'],['desc','asc']): the System group sorts first
   flat.sort((a, b) => {
     if (a._diskName !== b._diskName) return a._diskName < b._diskName ? 1 : -1
     const la = a.label || ''
@@ -126,7 +126,7 @@ export function mapDrives(disks: unknown): PhysicalDrive[] {
     model: d.model || '',
     size: Number(d.size) || 0,
     diskType: d.disk_type || '',
-    // 后端 health 是字符串 "true"/"false";严格比较,避免 "false" 被当真值(Vue2 隐患)
+    // Backend health is the string "true"/"false"; compare strictly to avoid "false" being treated as truthy (Vue2 pitfall)
     healthy: d.health === true || d.health === 'true',
     health: typeof d.health === 'string' ? d.health : d.health === true ? 'true' : '',
     temperature: Number(d.temperature) || 0,
@@ -145,7 +145,7 @@ export function mapDrives(disks: unknown): PhysicalDrive[] {
   }))
 }
 
-// 与 Vue2 mixin getProgressType 阈值一致
+// Matches the thresholds in the Vue2 mixin getProgressType
 export function usageLevel(pct: number): 'ok' | 'warn' | 'danger' {
   if (pct < 80) return 'ok'
   if (pct < 90) return 'warn'
@@ -156,9 +156,9 @@ export function toFahrenheit(c: number): string {
   return (32 + c * 1.8).toFixed(1)
 }
 
-// disk_type/health/temperature/power_on_time 保留后端 /v1/disks 的原文命名(不改成 camelCase):
-// RAID 选盘卡片那条链路的 RaidDisk 是逐字对齐 Vue2 的读法(disk.disk_type / disk.health / …),
-// 保持同名才能让 AvailDisk 直接结构化赋值给 RaidDisk(StorageRaidCreate.vue 的 candidateDisks)。
+// disk_type/health/temperature/power_on_time keep the backend /v1/disks original naming (not renamed to camelCase):
+// the RaidDisk type on the RAID drive-picker card path reads fields exactly like Vue2 does (disk.disk_type / disk.health / …),
+// keeping the same names lets AvailDisk be assigned straight into RaidDisk by structural typing (candidateDisks in StorageRaidCreate.vue).
 export interface AvailDisk {
   path: string
   name: string
@@ -170,8 +170,8 @@ export interface AvailDisk {
   health: string
   temperature: number
   power_on_time: number
-  // 外来阵列残留超块(role:"residue")原样透传:选盘 UI 打警告标、创建/换盘请求
-  // 据此决定 wipe_raid_residue。本机成员(role:"member")后端已从 avail 剔除。
+  // Leftover superblocks from a foreign array (role:"residue") are passed through as-is: the drive-picker UI shows a warning badge, and create/replace-drive requests
+  // use this to decide wipe_raid_residue. Local members (role:"member") are already excluded from avail by the backend.
   raid?: DiskRaidInfo | null
 }
 
@@ -189,16 +189,17 @@ interface RawAvail {
   raid?: DiskRaidInfo
 }
 
-// GET /v1/disks 响应的 avail 字段 → 创建存储候选盘 / RAID 选盘卡片。
-// need_format 同 health:后端可能给字符串 "true"/"false",严格判定。
+// The avail field from the GET /v1/disks response → storage-creation candidate drives / RAID drive-picker card.
+// need_format works like health: the backend may send the string "true"/"false", so compare strictly.
 //
-// ⚠️ 第二参数 disks = 同一响应里的 data.disks,用来按 path 补齐 health(以及 avail 万一缺的
-// temperature/power_on_time)。原因:后端 route/v1/disk.go:152-157 把 disk **值拷贝** append
-// 进 avail,而 disk.Health = strconv.FormatBool(...) 在那之后才执行 →
-// **avail 里每块盘的 health 恒为空串 ""**(2026-07-30 真机 curl 逐字核实:
-// avail[*].health="" 而 disks 里同一块 sda 是 "true")。同一块物理盘在两个列表里都在、path 相同,
-// 所以前端在同一份响应内就能把真实 SMART 结论接上,不必等后端修。后端票已登记在
-// vue3-migration-roadmap.md §4 SP6 台账 B-bis。补不上时保留 avail 原值(空串 = 结论未知,不伪造健康)。
+// ⚠️ The second argument, disks, is data.disks from the same response, used to backfill health by path (and
+// temperature/power_on_time for the rare case avail is missing them). Reason: backend route/v1/disk.go:152-157
+// appends a **value copy** of disk into avail, and disk.Health = strconv.FormatBool(...) only runs after that →
+// **health for every drive in avail is always the empty string ""** (confirmed byte-for-byte with curl on real
+// hardware 2026-07-30: avail[*].health="" while the same sda in disks is "true"). The same physical drive
+// appears in both lists with the same path, so the frontend can attach the real SMART verdict within a single
+// response without waiting for a backend fix. The backend ticket is logged in
+// vue3-migration-roadmap.md §4 SP6 ledger B-bis. When it can't be backfilled, keep the avail value as-is (empty string = verdict unknown — never fabricate a healthy status).
 export function mapAvailDisks(avail: unknown, disks?: unknown): AvailDisk[] {
   const arr = Array.isArray(avail) ? (avail as RawAvail[]) : []
   const byPath = new Map<string, RawAvail>()

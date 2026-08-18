@@ -37,10 +37,10 @@ export default {
   photosUnfavorite: 'Unfavorite',
   photosDownload: 'Download',
   photosClose: 'Close',
-  photosZoomIn: 'Zoom in',
-  photosZoomOut: 'Zoom out',
-  photosRotate: 'Rotate',
-  photosReset: 'Reset',
+  // Fix-2 item 1 (owner acceptance, 2026-08-16): photosZoomIn/photosZoomOut/photosRotate/
+  // photosReset were only ever used by the now-removed bottom zoom toolbar
+  // (PhotoImageViewer.vue's `.img-toolbar`) -- deleted here (both locales) rather than left
+  // orphaned, since nothing else in the app consumed them.
   photosPrev: 'Previous',
   photosNext: 'Next',
   photosInfoToggle: 'Info',
@@ -53,6 +53,9 @@ export default {
   photosInfoLocation: 'Location',
   photosInfoPeople: 'People',
   photosInfoNimoSees: 'Nimo sees',
+  // Fix-2 item 2 (owner acceptance, 2026-08-16): Vue2's exact label, PhotosLightbox.vue:86
+  // `{{ $t('Hand off to Nimo') }}`.
+  photosHandOffToNimo: 'Hand off to Nimo',
   photosInfoFile: 'File on NAS',
   photosFieldCamera: 'Camera',
   photosFieldIso: 'ISO',
@@ -165,7 +168,7 @@ export default {
   photosAlbumNamePlaceholder: 'e.g. Tokyo · Spring',
   photosAlbumFillLabel: 'How to fill it',
   photosAlbumFillEmpty: 'Empty album',
-  photosAlbumFillEmptyHint: 'Add photos later',
+  photosAlbumFillEmptyHint: 'Add photos later by dragging',
   photosAlbumFillRecent: 'Photos from the last 30 days',
   photosAlbumFillRecentHint: 'Automatically fill with everything recent',
   photosAlbumFillSelect: 'Choose photos…',
@@ -268,6 +271,12 @@ export default {
   // ── Photos: People (SP7-P5, task-3). en values are verbatim Vue2 $t() literal
   // arguments (Vue2 uses the English string itself as the i18n key).
   photosPeople: 'People',
+  // Plan D Task 2 (re-shell): the PhotosTopbar `sub` line for this page's index route. Vue2's
+  // own PhotosPeopleTopbar.vue:37 index-mode subtitle is `Face clusters · {named} named ·
+  // {unnamed} unnamed` — the task brief that specified this key gave the counts half verbatim
+  // but deliberately dropped the "Face clusters ·" lead-in (brief's exact wording), so this key
+  // carries only the counts clause; not a transcription oversight.
+  photosPeopleTopbarSub: '{named} named · {unnamed} unnamed',
   photosPeopleNamed: '{n} named',
   photosPeopleUnnamedClusters: '{n} unnamed clusters',
   photosPeopleIndexedUpTo: 'Faces indexed up to {date}',
@@ -353,12 +362,15 @@ export default {
   // (Vue2 has two literally-different but semantically-identical toasts here); flagged in the
   // task report as an intentional consolidation, not an oversight.
   photosPersonMergeDismissedToast: 'Suggestion dismissed',
-  // Final-review Minor 8: photosPersonSubtitle ('Person details · faces & relationships') was
-  // removed — zero references repo-wide. It belongs to Vue2 PhotosPeopleTopbar.vue:36 (detail
-  // state), and that whole topbar is not ported here (AreaShell has only a title, hidden on
-  // desktop); the index-state subtitle of the same topbar has no key here either. Do not confuse
-  // it with photosPeopleNamed / photosPeopleUnnamedClusters — those come from Vue2's *banner*
-  // (PhotosPeopleView.vue:7-9) and are rendered in .people-sub.
+  // Plan D Task 3: photosPersonSubtitle ('Person details · faces & relationships') is back.
+  // Final-review Minor 8 (earlier P5) deleted this because the detail page's topbar was still
+  // AreaShell (title-only, hidden on desktop) — Vue2 PhotosPeopleTopbar.vue:36's detail-state
+  // subtitle had nowhere to render. Task 3 re-shells PhotosPersonDetail.vue onto PhotosTopbar
+  // (title/sub/back props), which is exactly that detail-state slot, so the key is genuinely
+  // needed again now. Do not confuse it with photosPeopleNamed / photosPeopleUnnamedClusters —
+  // those come from Vue2's *banner* (PhotosPeopleView.vue:7-9) and are rendered in .people-sub
+  // on the People index page, unrelated to this topbar subtitle.
+  photosPersonSubtitle: 'Person details · faces & relationships',
   photosPersonTabTimeline: 'Timeline',
   photosPersonTabPlaces: 'Places',
   photosPersonTabRelations: 'Relationships',
@@ -368,6 +380,9 @@ export default {
   photosPersonStatFirstSeen: 'First seen',
   photosPersonMakeAlbum: 'Make album',
   photosPersonBackground: 'Background',
+  // Task 8 (Plan D): hero action buttons completion (Vue2 PhotosPersonDetail.vue:89-91).
+  // Click is a no-op here — wiring deferred to Plan G — this only adds copy + visuals.
+  photosPersonAskAbout: 'Ask about {name}',
   // ★ New-UI addition (Task 10): see zh_cn.ts for the reasoning — Vue2 :33 is the generic
   // $t('Edit') label on the pill trigger button itself (not the three menu items below it);
   // reusing photosAlbumEdit/topbarEdit would tie this to unrelated features.
@@ -413,18 +428,33 @@ export default {
   // ★ means "no such copy in Vue2, authored here" (convention at :788 / :815). Re-checked
   // every ★ below against the old repo's zh_CN.json: none of these English sentences exist
   // there, so ★ is accurate for them. Only the two above were mismarked and are now fixed.
+  // Final-review follow-up (fix round, Plan D): the ★ that used to sit on `photosPersonNotFound`/
+  // `photosPersonBack` below has gone stale — Vue2 commit 03245590 later added matching copy for
+  // both (`Person not found` / `Back to People`, PhotosPersonDetail.vue:471/473, part of the same
+  // fallback-branch source this task's I1 re-anchor draws from), so they are no longer "no Vue2
+  // copy, authored here." ★ removed from both.
   photosPersonRelationFailed: 'Could not update group', // ★
   photosPersonFavFailed: 'Could not update favorite', // ★
   photosPersonNoPhotos: 'No photos for this person yet', // ★
-  photosPersonNotFound: 'Person not found', // ★
-  photosPersonBack: 'Back to people', // ★
+  photosPersonNotFound: 'Person not found',
+  // Task 6 (Plan D, PR#137 gap-close): source-of-truth casing check against the Vue2 patch
+  // that introduced this string (`"Back to People": "Back to People"`) turned up a casing
+  // mismatch here — fixed to match Vue2 verbatim (was 'Back to people').
+  photosPersonBack: 'Back to People',
   photosPeopleEmptyTitle: 'No people yet', // ★
-  photosPeopleEmptyHint: 'Nimo groups faces as your library is indexed.', // ★
+  // Task 6 (Plan D, PR#137 gap-close): replaces the old single `photosPeopleEmptyHint` —
+  // Vue2's #137 patch (NimoOS-UI commit 03245590, PhotosPeopleView.vue) branches this hint on
+  // whether face recognition is on, quoted verbatim from that commit's en_US.json.
+  photosPeopleEmptyHintFaces: 'Faces are detected automatically while your photos are indexed. People will appear here soon.',
+  photosPeopleEmptyHintNoFaces: 'Turn on face recognition to start finding people in your photos.',
   photosPersonShowAll: 'Show all {n}', // ★
   photosPersonShowLess: 'Show less', // ★
   photosPersonPlacesLegend: 'Top places',
   photosPersonNoPlaces: 'No location data for {name} yet',
   photosPersonNimoRead: "Nimo's read",
+  // Task 8 (Plan D): rel-insight-card's "dig deeper" button (Vue2 PhotosPersonDetail.vue:
+  // 228-230 `.nimo-btn`). Click is a no-op here — wiring deferred to Plan G.
+  photosPersonDigDeeper: 'Dig deeper',
   photosPersonInsightWith: '{name} appears most often with <b>{other}</b>.',
   photosPersonInsightWithUnnamed: '{name} appears together with an unnamed person.',
   photosPersonInsightPlaces2: 'Their photos cluster in <b>{place1}</b> and <b>{place2}</b>.',
@@ -467,6 +497,10 @@ export default {
   photosPersonGraphLegendOccasional: 'Occasional',
   photosPersonCoappearTitle: 'Co-appearance',
   photosPersonPhotosTogether: '{n} photos together',
+  // Task 6 (Plan D, PR#137 gap-close): relation-graph empty state, quoted verbatim from
+  // Vue2's #137 patch (NimoOS-UI commit 03245590's en_US.json).
+  photosPersonRelGraphEmptyTitle: 'No co-appearances yet',
+  photosPersonRelGraphEmptySub: 'When this person shows up in photos with others, the graph appears here.',
   // Task 14 (container + six dialogs): copy that the brief's key list did not
   // cover and that a line-by-line pass over Vue2 PhotosPersonDetail.vue showed
   // was genuinely missing here. English strings are verbatim from the Vue2
@@ -496,6 +530,11 @@ export default {
   // P4 left a same-shaped debt (detail page load failure → permanent skeleton, no
   // error state, no retry) that we are not repeating here.
   photosPersonLoadFailed: 'Could not load this person',
+  // Task 6 (Plan D, PR#137 gap-close): the load-failed / not-found fallback states were
+  // missing their description line — Vue2's #137 patch added both (quoted verbatim from
+  // NimoOS-UI commit 03245590's en_US.json).
+  photosPersonLoadFailedHint: 'Please check your connection and try again.',
+  photosPersonNotFoundHint: 'This person may have been deleted or merged.',
   photosPersonRetry: 'Retry',
   // T14 review Minor 4: the detail page's delete-confirm dialog heading. Vue2 :304 is
   // `Delete person?` — a different sentence from T7's in-warning-box
@@ -537,6 +576,11 @@ export default {
   photosPlaces: 'Places',
   photosPlacesCities: 'cities',
   photosPlacesCountries: 'countries',
+  // Task 1 (Plan E re-shell): PhotosTopbar's `sub` line on the Places index page — value
+  // copied verbatim from Vue2 PhotosPlacesTopbar.vue's own subtitle computed (NimoOS-UI
+  // src/views/Photos/PhotosPlacesTopbar.vue:34, which uses the English literal itself as the
+  // i18n key, English-source-as-key convention) and NimoOS-UI/src/assets/lang/en_US.json:2442.
+  photosPlacesTopbarSub: '{cities} cities · {countries} countries · indexed by Nimo',
   photosPlacesPhotos: 'photos',
   photosPlacesSearchPlaceholder: 'Search cities or countries',
   photosPlacesCityCount: '{n} cities',
@@ -844,6 +888,8 @@ export default {
   photosSearchPreviousMonth: 'Previous month',
   photosSearchQuickRange: 'Quick range',
   photosSearchRecentSearches: 'Recent searches',
+  // Fix-4 (owner-directed addition, 2026-08-17): clear-history button, no Vue2 source.
+  photosSearchClearHistory: 'Clear',
   photosSearchRecent: 'Recent:',
   photosSearchRelevance: 'Relevance',
   photosSearchSaveSmartView: 'Save as Smart View',
@@ -1043,4 +1089,42 @@ export default {
   photosMoDeleteMoment: 'Delete moment',
   photosMoDeleteBody: 'The moment is removed. The {n} photos in your library are untouched.',
   photosMoDeleted: 'Moment "{name}" deleted',
+  // ── Task 3 (shell + sidebar re-skin): sidebar-head theme toggle button title,
+  // Vue2 PhotosSidebar.vue:29's $t('Switch to dark theme')/$t('Switch to light theme').
+  photosSwitchToDarkTheme: 'Switch to dark theme',
+  photosSwitchToLightTheme: 'Switch to light theme',
+  // ── Task 4 (topbar re-skin): the topbar's collapse-toggle button title,
+  // Vue2 PhotosTopbar.vue:3's $t('Toggle sidebar'). KVM already has the same copy under
+  // kvmToggleSidebar, but that key is namespaced to the KVM area per this repo's
+  // per-area-prefix key convention — a new photos-prefixed key here, not a cross-area reuse.
+  photosToggleSidebar: 'Toggle sidebar',
+  // ── Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): PhotosTopbar's
+  // search-mode back-button title, mapped from Vue2 PhotosTopbar.vue:8's $t('Back (Esc)') —
+  // New-UI has no Esc semantics here (the search page is a real route, and Esc is already
+  // owned by the unified overlay-dismiss handling), so the copy describes the real
+  // destination instead of keeping the "(Esc)" wording.
+  photosSearchBackToLibrary: 'Back to library',
+  // ── Task 7 (Plan D, SP7-P5 people): Hidden people section + hide action + duplicate-name
+  // confirm flow — all values below are Vue2's own literal English source strings.
+  // Vue2 PhotosPeopleView.vue:228 (section header $t('Hidden people')).
+  photosPeopleHiddenSection: 'Hidden people',
+  // Vue2 PhotosPeopleView.vue:279 / PhotosPersonDetail.vue:45 — same literal string
+  // $t('Hide person') at both call sites, shared as one key.
+  photosPersonMenuHide: 'Hide person',
+  // Vue2's title attr on both of the above menu items, same literal string
+  // (PhotosPeopleView.vue:274 / PhotosPersonDetail.vue:44):
+  photosPersonHideGateTitle: 'Person leaves the People page. Photos and face recognition are kept — you can unhide anytime.',
+  // Vue2 PhotosPeopleView.vue:249 $t('Unhide').
+  photosPeopleUnhide: 'Unhide',
+  // Vue2 hideClusterPerson/hideCurrentPerson's success toast, same literal string at both
+  // call sites (PhotosPeopleView.vue:759 / PhotosPersonDetail.vue:923): $t('{label} hidden').
+  photosPersonHiddenToast: '{label} hidden',
+  // Vue2 PhotosPeopleView.vue:317 / PhotosPersonDetail.vue:299 — same literal dupconfirm
+  // dialog title at both call sites: $t('A person named "{name}" already exists.').
+  photosPersonDupExistsTitle: 'A person named "{name}" already exists.',
+  // Vue2's dupconfirm "merge" button at both call sites, literal $t('Merge into existing')
+  // (no ellipsis — distinct from the menu item's 'Merge into existing…', photosPersonMergeExisting).
+  photosPersonDupMergeInto: 'Merge into existing',
+  // Vue2's dupconfirm "name anyway" button at both call sites: $t('Name anyway').
+  photosPersonDupNameAnyway: 'Name anyway',
 }

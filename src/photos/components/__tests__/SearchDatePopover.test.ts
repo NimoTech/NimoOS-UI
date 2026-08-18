@@ -1,13 +1,14 @@
-// SP7-P7a-T13: SearchDatePopover.vue —— 搜索日期弹层(5 个快捷区间按钮 + 真日历)。
-// 结构对应 Vue2 PhotosSearchView.vue:61-91(模板)、:755-777(setDraftDateQuick/
-// shiftCalMonth/pickCalDay)、:790-796(togglePop 的 date 分支)。样式对应
-// photos.scss:2658-2688。
+// SP7-P7a-T13: SearchDatePopover.vue — search date popover (5 quick-range buttons + true calendar).
+// Structure corresponds to Vue2 PhotosSearchView.vue:61-91 (template), :755-777 (setDraftDateQuick/
+// shiftCalMonth/pickCalDay), :790-796 (date branch of togglePop). Styles correspond to
+// photos.scss:2658-2688.
 //
-// 关键回改(A3,任务简报授权,详见 task-13-report.md「T9 回改」一节):data-on 判据不用
-// label 字符串比较(Vue2 `draft.date.label === q` 在 locale 切换后会失配——label 是 t()
-// 之后的本地化文案),改用 dateRange.ts 新增的 DateRange.key 字段比较。本文件"locale 切
-// 换后 data-on 仍为 true"那条用例就是这条回改的主守卫。
+// Key fix (A3, authorized by task brief; see task-13-report.md "T9 Fix" section): data-on criterion
+// does not use label string comparison (Vue2 `draft.date.label === q` fails after locale switch
+// — label is localized text after t()), instead uses DateRange.key field added in dateRange.ts.
+// The "data-on still true after locale switch" test in this file is the main guard for this fix.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -15,7 +16,7 @@ import en from '../../../i18n/en_us'
 import { QUICK_KEYS, QUICK_LABEL_KEYS, type DateRange } from '../../util/dateRange'
 import SearchDatePopover from '../SearchDatePopover.vue'
 import searchDatePopoverRaw from '../SearchDatePopover.vue?raw'
-import { extractStyleBlock, parseCssRules, winningHoverBackground } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
@@ -26,7 +27,7 @@ function mountPop(props: { draft: DateRange | null; committed: DateRange | null 
 }
 
 beforeEach(() => {
-  // 固定"今天" = 2026-07-31(与 T9 dateRange.test.ts 的 quickRange 用例同一天,方便交叉核对)。
+  // Fix "today" = 2026-07-31 (same day as the quickRange case in T9 dateRange.test.ts for easy cross-check).
   vi.setSystemTime(new Date(2026, 6, 31, 15, 30))
 })
 afterEach(() => {
@@ -37,9 +38,9 @@ function findCellByDate(w: ReturnType<typeof mountPop>, date: string) {
   return w.findAll('.cal-cell').find((el) => el.attributes('data-date') === date)
 }
 
-// ── 结构清点(Vue2 :61-91 逐项对照,brief 结构规格 1-5)────────────────────
-describe('结构清点', () => {
-  it('5 个 .fpop-quick 快捷按钮、.cal-head 下两个 .cal-nav、7 个 .cal-cell.dow、脚部两个按钮', () => {
+// ── Structure audit (Vue2 :61-91 item-by-item; brief struct spec 1-5)─────────
+describe('Structure audit', () => {
+  it('5 .fpop-quick shortcut buttons, 2 .cal-nav under .cal-head, 7 .cal-cell.dow, 2 buttons in footer', () => {
     const w = mountPop({ draft: null, committed: null })
     expect(w.findAll('.fpop-row .fpop-quick')).toHaveLength(5)
     expect(w.get('.cal-head').findAll('.cal-nav')).toHaveLength(2)
@@ -47,13 +48,13 @@ describe('结构清点', () => {
     expect(w.get('.fpop-foot').findAll('button')).toHaveLength(2)
   })
 
-  it('.cal 下格子总数 = 7 个 dow + calCells() 的格子数(blank + 当月天数)', () => {
-    // 2026-07-31 所在月是 2026 年 7 月:1 日是周三 → 3 个 blank + 31 天 = 34。
+  it('Total cells under .cal = 7 dow + cells from calCells() (blank + days of month)', () => {
+    // July 2026 (month containing 2026-07-31): 1st is Wednesday → 3 blanks + 31 days = 34.
     const w = mountPop({ draft: null, committed: null })
     expect(w.findAll('.cal-cell')).toHaveLength(7 + 34)
   })
 
-  it('快捷按钮文案 = t(QUICK_LABEL_KEYS[key]),按 QUICK_KEYS 顺序', () => {
+  it('Shortcut button text = t(QUICK_LABEL_KEYS[key]), in QUICK_KEYS order', () => {
     const w = mountPop({ draft: null, committed: null })
     const buttons = w.findAll('.fpop-row .fpop-quick')
     QUICK_KEYS.forEach((k, i) => {
@@ -61,7 +62,7 @@ describe('结构清点', () => {
     })
   })
 
-  it('.cal-head 标题(中间 .fpop-title)与 nav title 属性走 i18n 键', () => {
+  it('.cal-head title (middle .fpop-title) and nav title attribute use i18n keys', () => {
     const w = mountPop({ draft: null, committed: null })
     const navs = w.get('.cal-head').findAll('.cal-nav')
     expect(navs[0]!.attributes('title')).toBe(zh.photosSearchPreviousMonth)
@@ -69,13 +70,13 @@ describe('结构清点', () => {
   })
 })
 
-// ── 日历初值(brief 结构规格「日历显示的年月是组件内部 state」+ Vue2 :790-796)────────
-describe('日历初值', () => {
-  it('committed 有 end → 初始标题落在该 end 的年月(2025-03-20 → 2025 年 3 月)', () => {
+// ── Calendar initial state (brief struct spec "calendar displayed year/month is component state" + Vue2 :790-796)─────
+describe('Calendar initial state', () => {
+  it('committed has end → initial title lands on that end\'s year/month (2025-03-20 → March 2025)', () => {
     const w = mountPop({ draft: null, committed: { label: '', start: '2025-03-01', end: '2025-03-20' } })
     const title = w.get('.cal-head .fpop-title').text()
     expect(title).toContain('2025')
-    // 用 en locale 更好断言月份英文名,避免中文月份格式歧义。
+    // Use en locale to better assert month name in English, avoid Chinese month format ambiguity.
     const wEn = mountPop(
       { draft: null, committed: { label: '', start: '2025-03-01', end: '2025-03-20' } },
       makeI18n('en_us'),
@@ -83,7 +84,7 @@ describe('日历初值', () => {
     expect(wEn.get('.cal-head .fpop-title').text()).toContain('March')
   })
 
-  it('committed 为 null → 初始标题落在当月(固定系统时间 2026-07-31 → 7 月)', () => {
+  it('committed is null → initial title lands on current month (fixed system time 2026-07-31 → July)', () => {
     const w = mountPop({ draft: null, committed: null }, makeI18n('en_us'))
     const title = w.get('.cal-head .fpop-title').text()
     expect(title).toContain('July')
@@ -91,9 +92,9 @@ describe('日历初值', () => {
   })
 })
 
-// ── 快捷区间(brief 结构规格 7:setQuick)───────────────────────────────────
-describe('快捷区间', () => {
-  it('点「最近 7 天」→ update:draft 的 start 是今天减 6 天、end 是今天、key 是 last7', async () => {
+// ── Quick ranges (brief struct spec 7:setQuick)─────────────────────────────
+describe('Quick ranges', () => {
+  it('Click "Last 7 days" → update:draft start is today minus 6, end is today, key is last7', async () => {
     const w = mountPop({ draft: null, committed: null })
     const idx = QUICK_KEYS.indexOf('last7')
     await w.findAll('.fpop-row .fpop-quick')[idx]!.trigger('click')
@@ -106,7 +107,7 @@ describe('快捷区间', () => {
     expect(payload.label).toBe(zh.photosSearchLast7Days)
   })
 
-  it('点「去年」→ 日历标题跳到该 end(2025-12-31)的年月,即使当前月是 2026-07', async () => {
+  it('Click "Last year" → calendar title jumps to that end\'s (2025-12-31) year/month, even if current month is 2026-07', async () => {
     const w = mountPop({ draft: null, committed: null }, makeI18n('en_us'))
     expect(w.get('.cal-head .fpop-title').text()).toContain('July')
     const idx = QUICK_KEYS.indexOf('lastYear')
@@ -116,8 +117,8 @@ describe('快捷区间', () => {
     expect(title).toContain('2025')
   })
 
-  // data-on 判据是本任务的核心偏离登记:比较对象是 key,不是 label 字符串。
-  it('data-on 用 key 比较:draft.key === "last7" → 「最近 7 天」按钮 data-on=true,其余 false', () => {
+  // data-on criterion is the core deviation register for this task: comparison target is key, not label string.
+  it('data-on uses key comparison: draft.key === "last7" → "Last 7 days" button has data-on=true, rest false', () => {
     const draft: DateRange = { label: '最近7天', start: '2026-07-25', end: '2026-07-31', key: 'last7' }
     const w = mountPop({ draft, committed: null })
     const buttons = w.findAll('.fpop-row .fpop-quick')
@@ -126,23 +127,23 @@ describe('快捷区间', () => {
     })
   })
 
-  // 主守卫(brief 明确点名):把 locale 从 zh 切到 en 重新挂载,data-on 仍应为 true——
-  // 如果实现偷懒改回 label 字符串比较,这条会红(因为 en 下 label 文案是 'Last 7 days',
-  // 与 draft.label 里存的中文 '最近7天' 不相等)。
-  it('locale 从 zh 切到 en 重新挂载 → data-on 仍为 true(label 比较会在这里失配)', () => {
+  // Main guard (brief explicitly names it): switch locale from zh to en and remount, data-on should still be true —
+  // if implementation lazily reverts to label string comparison, this fails (because en label is 'Last 7 days',
+  // not equal to Chinese '最近7天' stored in draft.label).
+  it('Switch locale from zh to en and remount → data-on still true (label comparison would fail here)', () => {
     const draft: DateRange = { label: '最近7天', start: '2026-07-25', end: '2026-07-31', key: 'last7' }
     const wEn = mountPop({ draft, committed: null }, makeI18n('en_us'))
     const idx = QUICK_KEYS.indexOf('last7')
     expect(wEn.findAll('.fpop-row .fpop-quick')[idx]!.attributes('data-on')).toBe('true')
-    // 顺带证明按钮文案确实随 locale 变了(不是巧合两边都没变化)。
+    // Also prove button text truly changes with locale (not coincidence that both sides didn't change).
     expect(wEn.findAll('.fpop-row .fpop-quick')[idx]!.text()).toBe(en.photosSearchLast7Days)
     expect(wEn.findAll('.fpop-row .fpop-quick')[idx]!.text()).not.toBe(draft.label)
   })
 })
 
-// ── 上下月导航(brief 结构规格「shiftMonth」)────────────────────────────
-describe('上下月导航', () => {
-  it('点右 nav → 标题月份 +1(同一年内)', async () => {
+// ── Month navigation (brief struct spec "shiftMonth")──────────────────────
+describe('Month navigation', () => {
+  it('Click right nav → title month +1 (same year)', async () => {
     const w = mountPop({ draft: null, committed: null }, makeI18n('en_us'))
     expect(w.get('.cal-head .fpop-title').text()).toContain('July')
     await w.get('.cal-head').findAll('.cal-nav')[1]!.trigger('click')
@@ -151,7 +152,7 @@ describe('上下月导航', () => {
     expect(title).toContain('2026')
   })
 
-  it('从 12 月点右 nav → 年份 +1、月份变 1 月(跨年,验证 shiftMonth 走 Date 而非手动 +1)', async () => {
+  it('Click right nav from December → year +1, month becomes January (cross-year, verify shiftMonth uses Date not manual +1)', async () => {
     const w = mountPop(
       { draft: null, committed: { label: '', start: '2026-12-01', end: '2026-12-15' } },
       makeI18n('en_us'),
@@ -163,7 +164,7 @@ describe('上下月导航', () => {
     expect(title).toContain('2027')
   })
 
-  it('从 1 月点左 nav → 年份 -1、变 12 月', async () => {
+  it('Click left nav from January → year -1, month becomes December', async () => {
     const w = mountPop(
       { draft: null, committed: { label: '', start: '2027-01-01', end: '2027-01-15' } },
       makeI18n('en_us'),
@@ -176,9 +177,9 @@ describe('上下月导航', () => {
   })
 })
 
-// ── 点格子(brief 结构规格「pick」,照搬 Vue2 :765-777)─────────────────────
-describe('点格子', () => {
-  it('第一次点(draft 为 null)→ update:draft 的 start=该日、end=null、无 key 字段', async () => {
+// ── Click cells (brief struct spec "pick", copy from Vue2 :765-777)──────────
+describe('Click cells', () => {
+  it('First click (draft is null) → update:draft start=that day, end=null, no key field', async () => {
     const w = mountPop({ draft: null, committed: null })
     const cell = findCellByDate(w, '2026-07-05')!
     await cell.trigger('click')
@@ -188,7 +189,7 @@ describe('点格子', () => {
     expect(payload.key).toBeUndefined()
   })
 
-  it('已有单日区间(end:null)时再点更晚的日 → end 补上该日,start 不变', async () => {
+  it('With single-day range (end:null), click later day → end filled with that day, start unchanged', async () => {
     const draft: DateRange = { label: '', start: '2026-07-05', end: null }
     const w = mountPop({ draft, committed: null })
     const cell = findCellByDate(w, '2026-07-10')!
@@ -198,7 +199,7 @@ describe('点格子', () => {
     expect(payload.end).toBe('2026-07-10')
   })
 
-  it('已有单日区间(end:null)时点更早的日 → start/end 被交换', async () => {
+  it('With single-day range (end:null), click earlier day → start/end are swapped', async () => {
     const draft: DateRange = { label: '', start: '2026-07-10', end: null }
     const w = mountPop({ draft, committed: null })
     const cell = findCellByDate(w, '2026-07-05')!
@@ -208,7 +209,7 @@ describe('点格子', () => {
     expect(payload.end).toBe('2026-07-10')
   })
 
-  it('draft.end 已存在(完整区间)时再点 → 重开新单日区间,忽略旧区间', async () => {
+  it('When draft.end exists (complete range), click again → restart new single-day range, ignore old range', async () => {
     const draft: DateRange = { label: '', start: '2026-07-05', end: '2026-07-10' }
     const w = mountPop({ draft, committed: null })
     const cell = findCellByDate(w, '2026-07-20')!
@@ -218,7 +219,7 @@ describe('点格子', () => {
     expect(payload.end).toBeNull()
   })
 
-  it('点 blank 格 → 不触发 update:draft', async () => {
+  it('Click blank cell → do not emit update:draft', async () => {
     const w = mountPop({ draft: null, committed: null })
     const blank = w.find('.cal-cell.blank')
     expect(blank.exists()).toBe(true)
@@ -227,9 +228,9 @@ describe('点格子', () => {
   })
 })
 
-// ── 区间高亮(brief 必含用例)────────────────────────────────────────────
-describe('区间高亮', () => {
-  it('draft 2026-07-10..12 → 10 号 start+in、11 号只有 in、12 号 end+in', () => {
+// ── Range highlight (brief required cases)─────────────────────────────────
+describe('Range highlight', () => {
+  it('draft 2026-07-10..12 → 10th has start+in, 11th only has in, 12th has end+in', () => {
     const draft: DateRange = { label: '', start: '2026-07-10', end: '2026-07-12' }
     const w = mountPop({ draft, committed: null })
     const c10 = findCellByDate(w, '2026-07-10')!
@@ -246,7 +247,7 @@ describe('区间高亮', () => {
     expect(c12.classes()).not.toContain('start')
   })
 
-  it('单日区间(start === end)→ 该格同时有 start 与 end(触发 .start.end 圆角规则)', () => {
+  it('Single-day range (start === end) → that cell has both start and end (trigger .start.end border-radius rule)', () => {
     const draft: DateRange = { label: '', start: '2026-07-20', end: '2026-07-20' }
     const w = mountPop({ draft, committed: null })
     const c20 = findCellByDate(w, '2026-07-20')!
@@ -255,9 +256,9 @@ describe('区间高亮', () => {
   })
 })
 
-// ── 脚部按钮 ────────────────────────────────────────────────────────────
-describe('脚部按钮', () => {
-  it('点 Cancel → emit cancel;点 Apply → emit apply', async () => {
+// ── Footer buttons ───────────────────────────────────────────────────────
+describe('Footer buttons', () => {
+  it('Click Cancel → emit cancel; click Apply → emit apply', async () => {
     const w = mountPop({ draft: null, committed: null })
     const buttons = w.get('.fpop-foot').findAll('button')
     await buttons[0]!.trigger('click')
@@ -266,7 +267,7 @@ describe('脚部按钮', () => {
     expect(w.emitted('apply')).toHaveLength(1)
   })
 
-  it('脚部文案走 photosCancel / photosSearchApply(非写死"应用"——该键中文值是"提交")', () => {
+  it('Footer text uses photosCancel / photosSearchApply (not hardcoded "Apply" — that key\'s Chinese value is "Submit")', () => {
     const w = mountPop({ draft: null, committed: null })
     const buttons = w.get('.fpop-foot').findAll('button')
     expect(buttons[0]!.text()).toBe(zh.photosCancel)
@@ -275,92 +276,120 @@ describe('脚部按钮', () => {
   })
 })
 
-// ── 死 CSS 不迁(A4)────────────────────────────────────────────────────
-describe('死 CSS 不迁', () => {
-  it('.cal-cell.muted 在模板里无消费方(grep 零命中),样式块里也不应出现', () => {
+// 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+// this component was missed in that round, and the brief names it explicitly: "align their
+// chrome to parity like the FilterChip/Popover treatment"): the whole set of colour and
+// non-colour visual rules .fpop/.fpop-title/.fpop-quick(+ the hover hard constraint)/.cal-head/
+// .cal-nav/.cal/.cal-cell(+ every variant)/.btn/.btn-primary has been removed wholesale from
+// this component's scoped style and handed to the bare selectors in vue2-parity/photos.scss
+// (:2690-2726; the .btn family goes through the global `.photos-root .btn` /
+// `.photos-root .btn-primary` rules at :290-301). `.fpop-row` only lost the three declarations
+// that duplicated parity (display/gap/margin-bottom); its own `flex-wrap: wrap` (a New-UI-only
+// additive fix that neither Vue2 nor parity has) stays in this component, so that one is not a
+// full hand-over. The assertions here now check that those rules really are gone from this
+// component, and the hover hard constraint plus the non-colour visual properties are checked
+// against the shared parity file instead (the same shape as the same-day rollbacks landed in
+// PhotosFilterChip.test.ts / PhotosFilterPopover.test.ts).
+describe('styles: the .fpop/.cal/.btn families are now owned by the shared parity scss (no longer this component own scoped style)', () => {
+  it('this component scoped style keeps only .fpop-row (the flex-wrap additive property) and .fpop-foot (+ child selectors) — the rules parity does not cover', () => {
     const style = extractStyleBlock(searchDatePopoverRaw)
-    expect(style.length).toBeGreaterThan(0)
-    const rules = parseCssRules(style)
-    expect(rules.some((r) => r.selectors.includes('.cal-cell.muted'))).toBe(false)
-  })
-})
-
-// ── 样式:hover 硬约束 + --on-accent 正向断言 + 非颜色视觉属性 ──────────────
-describe('样式', () => {
-  it('cssCascade:.fpop-quick[data-on="true"] 的 hover 胜出规则含 :hover 且含 data-on', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['fpop-quick'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('data-on')
-  })
-
-  it('cssCascade:.cal-cell.in 的 hover 胜出规则含 :hover 且含 "in"', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'in'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('in')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors).toEqual(['.fpop-row', '.fpop-foot', '.fpop-foot .fpop-quick', '.fpop-foot .btn'])
   })
 
-  it('cssCascade:.cal-cell.start 的 hover 胜出规则含 :hover 且含 start', () => {
+  // `.fpop-row`'s `flex-wrap: wrap` is a New-UI-only additive fix (neither Vue2 nor parity has
+  // that property), so it cannot be handed to parity — it stays in this component, and this
+  // asserts it is the only declaration left (display/gap/margin went to parity's bare
+  // `.fpop-row`).
+  it('this component .fpop-row keeps flex-wrap: wrap as its only additive declaration', () => {
     const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'start'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('start')
+    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
+    expect(rule).toBeDefined()
+    expect(rule!.body.replace(/\s/g, '')).toBe('flex-wrap:wrap;')
   })
 
-  it('cssCascade:.cal-cell.end 的 hover 胜出规则含 :hover 且含 end', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'end'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('end')
+  it('cssCascade: parity scss declares .fpop-quick[data-on="true"] and .fpop-quick:hover as a single rule sharing one set of values (not two rules fighting each other)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
+      (r) => r.selectors.includes('.fpop-quick:hover') && r.selectors.includes('.fpop-quick[data-on="true"]'),
+    )
+    expect(rule).toBeDefined()
   })
 
-  // --on-accent 正向断言(accent 实底 + 白字场景,合法用法)。
-  it('.cal-cell.start / .cal-cell.end 的规则里背景是 --accent、前景是 --on-accent', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rules = parseCssRules(style)
+  // Correction (the first version got this wrong): in Vue2/parity, .cal-cell.in/.start/.end do
+  // not each carry their own :hover variant — the hover lock relies on **source order** at equal
+  // specificity (`.cal-cell:hover` comes first, the three variants after it, and on a tie the
+  // later declaration wins, the same trick as .fchip[data-on="true"] sitting after .fchip:hover),
+  // not on every variant declaring its own :hover. The parity scss is a verbatim transcription
+  // and keeps that order-dependent shape as-is.
+  it('parity scss: .cal-cell:hover comes before .cal-cell.in/.start/.end (the hover lock relies on source order, as Vue2 wrote it)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const hoverIdx = parityScss.indexOf('.cal-cell:hover')
+    expect(hoverIdx).toBeGreaterThan(-1)
+    for (const variant of ['.cal-cell.in {', '.cal-cell.start {', '.cal-cell.end {']) {
+      const idx = parityScss.indexOf(variant)
+      expect(idx, `the parity scss should contain ${variant}`).toBeGreaterThan(-1)
+      expect(idx, `${variant} should come after .cal-cell:hover`).toBeGreaterThan(hoverIdx)
+    }
+  })
+
+  // An accent solid fill with light text, a legal usage — parity uses the literal `white` (a
+  // verbatim transcription of Vue2), not this repo's own --on-accent (the parity file never
+  // references that token; --on-accent is New-UI-only).
+  it('parity scss: the .cal-cell.start / .cal-cell.end rules have background --accent and foreground white', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rules = parseCssRules(parityScss)
     const startRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell.start')
     const endRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell.end')
     expect(startRule).toBeDefined()
     expect(endRule).toBeDefined()
     expect(startRule!.body).toContain('background: var(--accent)')
-    expect(startRule!.body).toContain('color: var(--on-accent)')
+    expect(startRule!.body).toContain('color: white')
     expect(endRule!.body).toContain('background: var(--accent)')
-    expect(endRule!.body).toContain('color: var(--on-accent)')
+    expect(endRule!.body).toContain('color: white')
   })
 
-  it('.fpop 规则含 width: 320px(不是默认宽 —— A1 跨任务修正)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
+  it('parity scss: the .fpop rule contains width: 320px (the A1 cross-task correction still holds)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('width: 320px')
   })
 
-  it('.cal-nav 规则含 transition: all 0.2s(非颜色视觉属性,先锚定规则体再断言)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-nav')
+  it('parity scss: the .cal-nav rule contains transition: all 0.2s (a non-color visual property — anchor the rule body first, then assert)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-nav')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('transition: all 0.2s')
   })
 
-  it('.cal-cell 规则含 font-variant-numeric: tabular-nums', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell')
+  it('parity scss: the .cal-cell rule contains font-variant-numeric: tabular-nums', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('font-variant-numeric: tabular-nums')
   })
 
-  it('.cal 规则含 grid-template-columns: repeat(7,1fr)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal')
+  it('parity scss: the .cal rule contains grid-template-columns: repeat(7,1fr)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal')
     expect(rule).toBeDefined()
     expect(rule!.body.replace(/\s/g, '')).toContain('grid-template-columns:repeat(7,1fr)')
   })
 
-  it('.fpop-row 规则含 flex-wrap: wrap', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
+  it('parity scss: the .fpop-row rule contains display: flex / gap: 6px (flex-wrap is not in parity — see the "this component .fpop-row keeps flex-wrap" case above, that one is a New-UI-only additive declaration)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
     expect(rule).toBeDefined()
-    expect(rule!.body).toContain('flex-wrap: wrap')
+    expect(rule!.body).toContain('display: flex')
+    expect(rule!.body).not.toContain('flex-wrap')
+  })
+
+  // The A4 conclusion (dead CSS is not migrated) is unchanged; only the assertion target moved
+  // from this component's scoped style to the shared parity file: .cal-cell.muted still has zero
+  // hits in this component's template, and parity transcribed that dead Vue2 CSS with no consumer.
+  it('the parity scss contains .cal-cell.muted (a verbatim transcription of dead Vue2 CSS) while this component template has no consumer for it (A4)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    expect(parityScss).toContain('.cal-cell.muted')
   })
 })

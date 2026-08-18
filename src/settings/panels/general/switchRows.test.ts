@@ -28,9 +28,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
 
 import UsbAutoMountRow from './UsbAutoMountRow.vue'
 import SwitchRow from './SwitchRow.vue'
-// 用「导入组件本身」而不是 findComponent({name:'AlertDialog'}):
-// AlertDialog.vue 没有 defineOptions({name}),而它是 sp7/sp8 也会碰的共享文件,
-// 为了测试去改它会白增合并冲突面。
+// Use "import the component itself" instead of findComponent({name:'AlertDialog'}):
+// AlertDialog.vue has no defineOptions({name}), and it's a shared file that sp7/sp8 also touch,
+// so changing it just for the test would needlessly widen the merge-conflict surface.
 import AlertDialog from '../../../components/ui/AlertDialog.vue'
 import { __resetSystemConfigQueue } from '../../util/systemConfig'
 
@@ -46,21 +46,21 @@ beforeEach(() => {
 describe('UsbAutoMountRow', () => {
   const mountIt = () => mount(UsbAutoMountRow, { global: { plugins: [i18n] } })
 
-  it('挂载后开关反映后端状态("True" 已在包里归一成布尔)', async () => {
+  it('after mount, the switch reflects the backend state ("True" is already normalized to a boolean inside the package)', async () => {
     state.usb = true
     const w = mountIt()
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 
-  it('挂载**不**下发 toggle(加载 ≠ 用户操作)', async () => {
+  it('mounting **does not** send a toggle (loading ≠ user action)', async () => {
     state.usb = true
     mountIt()
     await flushPromises()
     expect(state.usbCalls).toEqual([])
   })
 
-  it('拨开下发 state:on,并立刻乐观翻转', async () => {
+  it('switching on sends state:on, and optimistically flips immediately', async () => {
     const w = mountIt()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
@@ -69,7 +69,7 @@ describe('UsbAutoMountRow', () => {
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 
-  it('拨关下发 state:off', async () => {
+  it('switching off sends state:off', async () => {
     state.usb = true
     const w = mountIt()
     await flushPromises()
@@ -78,7 +78,7 @@ describe('UsbAutoMountRow', () => {
     expect(state.usbCalls).toEqual([{ state: 'off' }])
   })
 
-  it('下发失败时开关弹回原状态(Vue2 是 fire-and-forget,失败后界面在骗人)', async () => {
+  it('the switch snaps back to its original state when the request fails (Vue2 is fire-and-forget, so the UI lies on failure)', async () => {
     state.usbFail = true
     const toast = useToast()
     const w = mountIt()
@@ -86,23 +86,23 @@ describe('UsbAutoMountRow', () => {
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
-    // 评审 fix round 2 · Important:此前只验证了开关弹回,没验证真的提示了用户 ——
-    // 漏写 toast.show(...) 或写错 i18n key 都不会让上面那句失败。
+    // Review fix round 2 · Important: previously this only verified the switch snapped back, not that the user was actually notified —
+    // omitting toast.show(...) or getting the i18n key wrong wouldn't fail the assertion above.
     expect(toast.toasts).toHaveLength(1)
     expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
   })
 
-  it('树莓派 + 开启时给出启动失败警告(对位 Vue2 L1791-1797)', async () => {
+  it('gives a boot-failure warning on Raspberry Pi + when switching on (ports Vue2 L1791-1797)', async () => {
     state.driveModel = 'Raspberry Pi 5 Model B'
     const w = mountIt()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
-    // Vue2 译文写的是 "Raspberry Pi" 而不是「树莓派」,断言跟着译文走
+    // The Vue2 translation reads "Raspberry Pi", not the Chinese name — the assertion follows the translation
     expect(w.text()).toContain('Raspberry Pi')
   })
 
-  it('非树莓派不给警告', async () => {
+  it('gives no warning on non-Raspberry-Pi', async () => {
     const w = mountIt()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
@@ -110,7 +110,7 @@ describe('UsbAutoMountRow', () => {
     expect(w.text()).not.toContain('Raspberry Pi')
   })
 
-  it('关闭时即使是树莓派也不给警告(警告只针对「开启」)', async () => {
+  it('gives no warning on Raspberry Pi either when switching off (the warning only applies to "on")', async () => {
     state.driveModel = 'Raspberry Pi 5'
     state.usb = true
     const w = mountIt()
@@ -120,44 +120,44 @@ describe('UsbAutoMountRow', () => {
     expect(w.text()).not.toContain('Raspberry Pi')
   })
 
-  // 交错防护回归测试(不在 brief 里,但外层任务描述明确要求):挂在真实网络延迟下,
-  // 慢的初次加载不能在 resolve 时把用户已经做出的翻动冲回去。
-  // 两个坑都要避开:①不能先 flushPromises 等 load 落定再翻(那样证明不了任何东西);
-  // ②"旧值"必须是发起加载那一刻的快照,不能等用户翻完之后才去读共享 mock 状态
-  // (那样它已经不是"旧"值了,不加防护也会通过)。
-  it('交错防护:onMounted 的 getUsbStatus 慢于用户翻动时不覆盖(USB)', async () => {
+  // Interleaving-guard regression test (not in the brief, but explicitly required by the outer task description): under real network latency,
+  // a slow initial load must not, upon resolving, stomp on a flip the user has already made.
+  // Both pitfalls must be avoided: ① don't flushPromises to let the load settle before flipping (that would prove nothing);
+  // ② the "old value" must be a snapshot taken at the moment the load was kicked off, not read from the shared mock state after the user has already flipped
+  // (otherwise it's no longer an "old" value, and the test would pass even without the guard).
+  it('interleaving guard: onMounted\'s getUsbStatus resolving later than the user flip does not overwrite it (USB)', async () => {
     const svc = await import('@nimotech/nimoos-service')
     let resolveLoad: (v: boolean) => void = () => {}
     const pending = new Promise<boolean>((res) => { resolveLoad = res })
-    // 加载发起时刻服务端快照是 false —— 在用户翻动**之前**就捕获好这个值
+    // The server snapshot at the moment the load was kicked off is false — capture this value **before** the user flips
     const staleValue = state.usb // false
     vi.spyOn(svc.service.sys, 'getUsbStatus').mockReturnValueOnce(pending)
     const w = mountIt()
-    // 不 flushPromises 等 load 落定 —— load 仍处于 pending,用户先翻开关
+    // Don't flushPromises to let the load settle — the load is still pending, the user flips the switch first
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
     expect(state.usbCalls).toEqual([{ state: 'on' }])
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
-    // 现在才让"慢"的加载用翻动前捕获的旧值 resolve —— 模拟网络延迟回包
+    // Only now let the "slow" load resolve with the old value captured before the flip — simulating a delayed network response
     resolveLoad(staleValue)
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 })
 
-describe('SwitchRow —— 推荐应用(无确认)', () => {
+describe('SwitchRow —— recommended apps (no confirmation)', () => {
   const mountIt = () => mount(SwitchRow, {
     props: { field: 'recommend_switch', labelKey: 'settingsRecommendApps' },
     global: { plugins: [i18n] },
   })
 
-  it('挂载后反映服务端值,默认 true(对位 Vue2 L942)', async () => {
+  it('reflects the server value after mount, default true (ports Vue2 L942)', async () => {
     const w = mountIt()
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 
-  it('拨动直接落库,只写自己那一个字段', async () => {
+  it('flipping persists directly, writing only its own single field', async () => {
     blob.rss_switch = true
     const w = mountIt()
     await flushPromises()
@@ -167,7 +167,7 @@ describe('SwitchRow —— 推荐应用(无确认)', () => {
     expect(blob.rss_switch).toBe(true)
   })
 
-  it('落库失败时弹回', async () => {
+  it('snaps back when persisting fails', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.users, 'setCustomStorage').mockRejectedValueOnce(new Error('boom'))
     const toast = useToast()
@@ -176,34 +176,34 @@ describe('SwitchRow —— 推荐应用(无确认)', () => {
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
-    // 评审 fix round 2 · Important:此前只验证了开关弹回,没验证真的提示了用户。
+    // Review fix round 2 · Important: previously this only verified the switch snapped back, not that the user was actually notified.
     expect(toast.toasts).toHaveLength(1)
     expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
   })
 
-  // 交错防护回归测试(同 UsbAutoMountRow 那条,不在 brief 里但外层任务描述明确要求)。
-  it('交错防护:onMounted 的 readSystemConfig 慢于用户翻动时不覆盖(推荐应用)', async () => {
+  // Interleaving-guard regression test (same as the UsbAutoMountRow one, not in the brief but explicitly required by the outer task description).
+  it('interleaving guard: onMounted\'s readSystemConfig resolving later than the user flip does not overwrite it (recommended apps)', async () => {
     const svc = await import('@nimotech/nimoos-service')
     let resolveLoad: (v: Record<string, unknown>) => void = () => {}
     const pending = new Promise<Record<string, unknown>>((res) => { resolveLoad = res })
-    // 加载发起时刻服务端快照是空 blob(合并默认值后 recommend_switch = true)——
-    // 在用户翻动**之前**就捕获好这个"旧"快照
+    // The server snapshot at the moment the load was kicked off is an empty blob (recommend_switch = true after merging defaults) —
+    // capture this "old" snapshot **before** the user flips
     const staleSnapshot = { ...blob }
     vi.spyOn(svc.service.users, 'getCustomStorage').mockReturnValueOnce(pending)
     const w = mountIt()
-    // 不 flushPromises 等 load 落定 —— load 仍处于 pending,用户先关掉开关(默认开)
+    // Don't flushPromises to let the load settle — the load is still pending, the user turns off the switch first (default on)
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
     expect(blob.recommend_switch).toBe(false)
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
-    // 现在才让"慢"的加载用翻动前捕获的旧快照 resolve
+    // Only now let the "slow" load resolve with the old snapshot captured before the flip
     resolveLoad(staleSnapshot)
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
   })
 })
 
-describe('SwitchRow —— 新闻流(开启需确认,对位 Vue2 rssConfirm L1696-1715)', () => {
+describe('SwitchRow —— news feed (turning on requires confirmation, ports Vue2 rssConfirm L1696-1715)', () => {
   const mountIt = () => mount(SwitchRow, {
     props: {
       field: 'rss_switch', labelKey: 'settingsNewsFeed',
@@ -214,13 +214,13 @@ describe('SwitchRow —— 新闻流(开启需确认,对位 Vue2 rssConfirm L169
     global: { plugins: [i18n] },
   })
 
-  it('默认关(对位 Vue2 L944 rss_switch:false)', async () => {
+  it('defaults to off (ports Vue2 L944 rss_switch:false)', async () => {
     const w = mountIt()
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
   })
 
-  it('拨开先弹确认,未确认前不落库、开关不翻', async () => {
+  it('switching on first pops a confirmation; nothing persists and the switch doesn\'t flip before confirming', async () => {
     const w = mountIt()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
@@ -230,7 +230,7 @@ describe('SwitchRow —— 新闻流(开启需确认,对位 Vue2 rssConfirm L169
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
   })
 
-  it('确认后才落库并翻开', async () => {
+  it('only persists and flips on after confirming', async () => {
     const w = mountIt()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
@@ -241,7 +241,7 @@ describe('SwitchRow —— 新闻流(开启需确认,对位 Vue2 rssConfirm L169
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 
-  it('取消确认:保持关闭且不落库', async () => {
+  it('cancel the confirmation: stays off and doesn\'t persist', async () => {
     const w = mountIt()
     await flushPromises()
     await w.find('[role="switch"]').trigger('click')
@@ -252,36 +252,36 @@ describe('SwitchRow —— 新闻流(开启需确认,对位 Vue2 rssConfirm L169
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
   })
 
-  // 评审 fix round 2 · Minor:此前 onToggle 一打开确认弹窗就把 touched 置 true,
-  // 无论用户是否真的确认。场景:服务端 rss_switch=true,hydrate 还没返回(行先显示
-  // 默认关),用户拨开触发确认弹窗后又取消 —— 取消不应该让 touched 卡死;迟到的
-  // hydrate 必须仍能把行拉到服务端真实值(true),而不是永远停在用户从没确认过的关。
-  it('交错防护:确认弹窗被取消不应卡死 touched,迟到的 hydrate 仍生效', async () => {
+  // Review fix round 2 · Minor: previously onToggle set touched to true as soon as the confirmation dialog opened,
+  // regardless of whether the user actually confirmed. Scenario: the server has rss_switch=true, hydrate hasn't returned yet (the row shows
+  // its default off first), the user switches on to trigger the confirmation dialog and then cancels — cancelling shouldn't leave touched stuck; a late
+  // hydrate must still be able to pull the row to the real server value (true), instead of staying stuck forever at an off the user never confirmed.
+  it('interleaving guard: cancelling the confirmation dialog does not leave touched stuck, a late hydrate still takes effect', async () => {
     const svc = await import('@nimotech/nimoos-service')
     let resolveLoad: (v: Record<string, unknown>) => void = () => {}
     const pending = new Promise<Record<string, unknown>>((res) => { resolveLoad = res })
-    // 服务端真实值:rss_switch = true。加载发起时刻捕获,hydrate 迟到时用这份。
+    // Real server value: rss_switch = true. Captured when the load is kicked off, used when hydrate arrives late.
     const staleSnapshot = { rss_switch: true }
     vi.spyOn(svc.service.users, 'getCustomStorage').mockReturnValueOnce(pending)
 
     const w = mountIt()
-    // hydrate 还卡在 pending,用户先拨开(触发确认弹窗,不落库、不翻)
+    // hydrate is still stuck pending; the user switches on first (triggers the confirmation dialog, doesn't persist, doesn't flip)
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
     expect(w.findComponent(AlertDialog).props('open')).toBe(true)
 
-    // 用户取消确认
+    // The user cancels the confirmation
     w.findComponent(AlertDialog).vm.$emit('update:open', false)
     await flushPromises()
     expect(blob.rss_switch).toBeUndefined()
 
-    // hydrate 才姗姗来迟地返回服务端真实值
+    // hydrate finally returns the real server value, belatedly
     resolveLoad(staleSnapshot)
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 
-  it('关闭方向**不**弹确认,直接落库(对位 Vue2:!rss_switch 时直接 saveData)', async () => {
+  it('switching off **doesn\'t** pop a confirmation, persists directly (ports Vue2: saveData is called directly when !rss_switch)', async () => {
     blob.rss_switch = true
     const w = mountIt()
     await flushPromises()

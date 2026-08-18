@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { osmEmbedSrc } from '../osmMap'
-it('构造 OSM embed URL,默认 bbox 半径 0.02、带 marker', () => {
-  // 用同一算术构造期望值,避免 JS 浮点(120-0.02 可能不是精确 "119.98")导致假失败;
-  // 忠于 Vue2 的裸算术 `${lon-d}`(不四舍五入),OSM 容忍长小数。
+it('Construct OSM embed URL, default bbox radius 0.02, with marker', () => {
+  // Use same arithmetic for expected values to avoid JS floating-point (120-0.02 might not be
+  // exact "119.98") false failures. Faithful to Vue2's raw arithmetic `${lon-d}` (no rounding).
   const d = 0.02
   const bbox = `${120 - d},${30 - d},${120 + d},${30 + d}`
   expect(osmEmbedSrc(30, 120)).toBe(
     `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=30,120`,
   )
 })
-it('缺经纬度返空串', () => {
+it('Missing latitude/longitude returns empty string', () => {
   expect(osmEmbedSrc(null, 120)).toBe('')
   expect(osmEmbedSrc(30, undefined)).toBe('')
 })
-it('0 值视为缺失(Vue2 用 falsy 检查 !photo.latitude)', () => {
-  // Vue2 mapSrc 用 !photo.latitude,所以 0 → 缺失 → ''
+it('0 value treated as missing (Vue2 uses falsy check !photo.latitude)', () => {
+  // Vue2 mapSrc uses !photo.latitude, so 0 → missing → ''
   expect(osmEmbedSrc(0, 120)).toBe('')
   expect(osmEmbedSrc(30, 0)).toBe('')
 })

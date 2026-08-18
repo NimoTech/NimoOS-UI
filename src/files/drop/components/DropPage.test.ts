@@ -22,7 +22,7 @@ describe('DropPage', () => {
   beforeEach(() => { pinia = createPinia(); setActivePinia(pinia) })
   const mountPage = () => mount(DropPage, { global: { plugins: [pinia, router], stubs: { AreaShell: { template: '<div><slot/></div>' }, FilesSidebar: true } } })
 
-  it('mount 调 store.init,unmount 调 destroy', async () => {
+  it('mount calls store.init, unmount calls destroy', async () => {
     const s = useDropStore()
     const initSpy = vi.spyOn(s, 'init')
     const destroySpy = vi.spyOn(s, 'destroy')
@@ -52,7 +52,7 @@ describe('DropPage', () => {
     window.dispatchEvent(afterUnmount)
     expect(afterUnmount.defaultPrevented).toBe(false)
   })
-  it('渲染 peers(self 标记)与接收卡挂载点', async () => {
+  it('renders peers (self flag) and receive card mount point', async () => {
     const s = useDropStore()
     s.peers.push(
       { id: 'me', name: { model: 'desktop', deviceName: 'd', displayName: 'Me' }, rtcSupported: true },
@@ -81,7 +81,7 @@ describe('DropPage', () => {
 
     expect(calls).toEqual([['b'], ['b', 'timeout']])
   })
-  it('侧栏 @navigate 事件跳转到目标路径', async () => {
+  it('sidebar @navigate event navigates to target path', async () => {
     const w = mount(DropPage, {
       global: {
         plugins: [pinia, router],

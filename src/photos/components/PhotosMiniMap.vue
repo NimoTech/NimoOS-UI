@@ -128,12 +128,27 @@ const projectedPoints = computed(() => validPoints.value.map(pt => ({
 </template>
 
 <style scoped>
-/* Mini-map container — fills its parent (.map-card) dimensions. */
+/* Task 6 (Plan E, 2026-08-15) shadowing-cleanup fix: `width`/`height`/`background` deleted —
+   they duplicated (and, worse, mis-shadowed) parity's own `.map-card .mini-map-root` rule
+   (src/photos/styles/vue2-parity/photos-people.scss:652-660, which also carries the
+   `.photos-root.is-light` override this component's own single `background: var(--card)`
+   literal had no equivalent for). This is the same shadowing pattern already fixed elsewhere
+   in this codebase (see views/PhotosSearch.vue's own style-block header comment, "Scoped
+   [data-v-xxx] specificity always won over the correct plain parity selector of the same
+   name") — a component's own scoped `.mini-map-root[data-v-xxx] { background: var(--card) }`
+   and parity's plain `.map-card .mini-map-root { background: var(--surface-1) }` carry equal
+   selector-count specificity, so the LOCAL rule was winning regardless of the light/dark
+   override existing in parity at all. This was the actual "light-theme mini-map has the wrong
+   (white) background" bug: `--card` resolves to pure white (hex FFFFFF) in the light theme
+   block (theme.css) — a flat white, not the warm off-white `oklch(0.975 0.004 80)` Vue2's own
+   light-mode mini-map uses
+   (photos-people.scss:658-660) — so every mount, dark or light, was silently rendering
+   `--card`'s value instead of parity's `--surface-1` / light-override pair. Deleting the local
+   rule lets parity govern directly, same as every other shadowing cleanup in this codebase.
+   `position`/`border-radius`/`overflow` survive: parity's own rule doesn't set them (parity
+   only sets width/height/background), so they're genuinely local, not duplicates. */
 .mini-map-root {
   position: relative;
-  width: 100%;
-  height: 100%;
-  background: var(--card);
   border-radius: inherit;
   overflow: hidden;
 }
@@ -150,9 +165,10 @@ const projectedPoints = computed(() => validPoints.value.map(pt => ({
   fill: var(--fg-faint);
 }
 
-/* theme-exception: 描边固定白色,不随主题切换——环要在任意主题底色上都能
-   撑开任意 PLACE_PALETTE 填充色(fill 本身是逐点数据,由 :fill 绑定,见上)
-   同例见 PhotosGrid.vue 的 .tile-vid 徽标(固定 chrome 叠加在可变内容上) */
+/* theme-exception: stroke stays fixed white, doesn't follow theme switch — the ring must stand out
+   over any theme background with any PLACE_PALETTE fill color (fill itself is per-point data,
+   bound via :fill, see above). Similar precedent: PhotosGrid.vue's .tile-vid badge (fixed chrome
+   overlaid on variable content) */
 .dot-person {
   stroke: #fff;
 }

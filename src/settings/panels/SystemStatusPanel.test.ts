@@ -7,7 +7,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { sys: { getGatewayComponents: (...a: unknown[]) => getGatewayComponents(...a) } },
 }))
 
-// i18n 用项目既有的测试桩写法(照抄 src/settings/panels/panels.test.ts 里的 global.plugins)
+// i18n uses the project's existing test-stub pattern (copied from global.plugins in src/settings/panels/panels.test.ts)
 import { i18n } from '../../i18n'
 
 const REAL = [
@@ -21,7 +21,7 @@ const mountPanel = () => mount(SystemStatusPanel, { global: { plugins: [i18n] } 
 describe('SystemStatusPanel', () => {
   beforeEach(() => { getGatewayComponents.mockReset() })
 
-  it('挂载即取数并按组渲染', async () => {
+  it('fetches data on mount and renders grouped by category', async () => {
     getGatewayComponents.mockResolvedValue(REAL)
     const w = mountPanel()
     await flushPromises()
@@ -30,7 +30,7 @@ describe('SystemStatusPanel', () => {
     expect(w.text()).toContain('Qdrant')
   })
 
-  it('离线项显示离线态与版本占位', async () => {
+  it('offline items show the offline state and a version placeholder', async () => {
     getGatewayComponents.mockResolvedValue(REAL)
     const w = mountPanel()
     await flushPromises()
@@ -41,7 +41,7 @@ describe('SystemStatusPanel', () => {
       .toContain('unexpected status Internal Server Error')
   })
 
-  it('刷新按钮重新取数', async () => {
+  it('the refresh button refetches the data', async () => {
     getGatewayComponents.mockResolvedValue(REAL)
     const w = mountPanel()
     await flushPromises()
@@ -50,7 +50,7 @@ describe('SystemStatusPanel', () => {
     expect(getGatewayComponents).toHaveBeenCalledTimes(2)
   })
 
-  it('接口失败时清空并显示空态,不白屏', async () => {
+  it('clears and shows the empty state when the API fails, without a blank screen', async () => {
     getGatewayComponents.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
     await flushPromises()
@@ -58,31 +58,35 @@ describe('SystemStatusPanel', () => {
     expect(w.text()).toContain('暂无数据')
   })
 
-  // 过期守卫(约束 #2,brief 未列,评审要求就地实现 + 交错测试证明):
-  // 先发起的挂载请求被挂住(deferred),期间点刷新发起第二次请求并让它先落地,
-  // 随后再放行第一次的旧结果——旧结果必须被丢弃,不能覆盖新结果。
-  // 若组件按「谁后落定就用谁」写(即没有代际守卫),这条会翻红:第一次的旧
-  // REAL2(只有 1 条)会覆盖第二次的 REAL(3 条),行数断言会失败。
-  it('旧请求晚于新请求落定时不覆盖新结果(过期守卫)', async () => {
+  // Stale-response guard (constraint #2, not listed in the brief, review required an
+  // in-place implementation plus an interleaved test to prove it):
+  // the initial mount request is suspended (deferred); while it hangs, clicking refresh
+  // fires a second request and lets it land first; only afterward is the first, stale
+  // result released -- the stale result must be discarded and must not overwrite the
+  // fresh result.
+  // If the component were written as "whichever resolves last wins" (i.e. with no
+  // generation guard), this test would fail: the stale first REAL2 (only 1 item) would
+  // overwrite the second REAL (3 items), and the row-count assertion would fail.
+  it('a stale request that resolves after the fresh one does not overwrite the fresh result (stale-response guard)', async () => {
     let resolveFirst!: (v: typeof REAL) => void
     const first = new Promise<typeof REAL>((resolve) => { resolveFirst = resolve })
-    const REAL2 = [REAL[0]] // 旧结果:只有 1 条,便于跟新结果(3 条)区分
+    const REAL2 = [REAL[0]] // stale result: only 1 item, to make it easy to distinguish from the fresh result (3 items)
 
     getGatewayComponents.mockReturnValueOnce(first)
     const w = mountPanel()
-    await flushPromises() // 让挂载的 onMounted/load 跑到 await 处并挂住
+    await flushPromises() // let the mounted onMounted/load run to its await and hang there
 
-    // 第二次(刷新)请求先落定
+    // the second (refresh) request resolves first
     getGatewayComponents.mockResolvedValueOnce(REAL)
     await w.find('.set-comp-refresh').trigger('click')
     await flushPromises()
     expect(w.findAll('.set-comp-row')).toHaveLength(3)
 
-    // 现在才放行第一次的旧结果
+    // only now release the first, stale result
     resolveFirst(REAL2)
     await flushPromises()
 
-    expect(w.findAll('.set-comp-row')).toHaveLength(3) // 仍是新结果,没被旧结果覆盖
+    expect(w.findAll('.set-comp-row')).toHaveLength(3) // still the fresh result, not overwritten by the stale one
     expect(w.text()).toContain('Gateway')
   })
 })

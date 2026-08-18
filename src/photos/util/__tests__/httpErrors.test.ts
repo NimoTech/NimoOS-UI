@@ -1,5 +1,7 @@
-// 单测迁自 T5 AlbumPickerDialog.test.ts 里针对本地 isConflict 的两个用例(抽 util 后，组件侧
-// 保留各自的端到端 409 行为断言——即"抛 409 时组件真的显示重名 toast"，这里只测判定函数本身)。
+// Unit tests migrated from the two local isConflict cases in T5 AlbumPickerDialog.test.ts (after
+// extracting the util, the component side keeps its own end-to-end 409 behavior assertion — i.e.
+// "when a 409 is thrown, the component really shows the duplicate-name toast"; here we only test
+// the predicate function itself).
 import { describe, it, expect } from 'vitest'
 import { isConflict } from '../httpErrors'
 
@@ -9,27 +11,27 @@ describe('isConflict', () => {
     expect(isConflict(err)).toBe(true)
   })
 
-  it('无 response 字段但 message 含 409 → true(message 兜底)', () => {
+  it('no response field but message contains 409 → true (message fallback)', () => {
     const err = new Error('request failed with status code 409')
     expect(isConflict(err)).toBe(true)
   })
 
-  it('非 409 错误(如网络错误)→ false', () => {
+  it('a non-409 error (e.g. network error) → false', () => {
     expect(isConflict(new Error('network error'))).toBe(false)
   })
 
-  it('response.status 非 409 → false', () => {
+  it('response.status is not 409 → false', () => {
     const err = Object.assign(new Error('bad request'), { response: { status: 400 } })
     expect(isConflict(err)).toBe(false)
   })
 
-  it('非对象/null/undefined → false(不假设异常形状,避免二次抛错)', () => {
+  it('non-object/null/undefined → false (don\'t assume the error shape, avoid a secondary throw)', () => {
     expect(isConflict(null)).toBe(false)
     expect(isConflict(undefined)).toBe(false)
     expect(isConflict('plain string error')).toBe(false)
   })
 
-  it('P8a-T10:词边界对齐 isNotFound —— 不把 4090 / 1409 误判成 409', () => {
+  it('P8a-T10: word-boundary alignment matching isNotFound — do not misjudge 4090 / 1409 as 409', () => {
     expect(isConflict(new Error('code 4090'))).toBe(false)
     expect(isConflict(new Error('req 1409 failed'))).toBe(false)
     expect(isConflict(new Error('HTTP 409'))).toBe(true)

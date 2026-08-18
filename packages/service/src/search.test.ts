@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { AxiosInstance } from 'axios'
 import { createSearch } from './search'
 
-// 记录调用的 http 桩:post 记下 url + body,返回 postMap[url]
+// http stub that records calls: post records url + body, returns postMap[url]
 function stub(postMap: Record<string, unknown> = {}) {
   const calls: { url: string; body?: unknown }[] = []
   const http = {
@@ -17,9 +17,9 @@ function stub(postMap: Record<string, unknown> = {}) {
 
 const URL = '/v1/ai/search/agent/tool'
 
-// ── fixture ①:真机逐字响应(spec §7.10a,2026-08-04 curl,query=receipt)────────
-// 注意三件事:semantic 是空数组(Parser 活着、零命中)、images/notes 是 null、
-// warnings 只有 images_unavailable —— 「组为 null」与「warnings 含该源」不是同一件事。
+// ── fixture 1: verbatim real-device response (spec §7.10a, 2026-08-04 curl, query=receipt) ────────
+// Note three things: semantic is an empty array (Parser is alive, zero hits), images/notes are null,
+// warnings only has images_unavailable —— "group is null" and "warnings contains this source" are not the same thing.
 const REAL_RECEIPT = {
   groups: {
     semantic: [],
@@ -34,12 +34,12 @@ const REAL_RECEIPT = {
   warnings: ['images_unavailable'],
 }
 
-// ── fixture ②:semantic / images 组的形状(本机产不出非空组,逐字派生自 Go 结构体)──
-// semantic 元素 = NimoOS-Search/service/agent_tools.go:186-211 trimHits() 的投影
-//   (score/file_id/paths/mime/kind/cite/preview 七个键,没有 raw_score/collection/payload_extra)
-// paths 元素   = service/parser_client.go:139-143 FilePath{root_id,path,mtime_ms}
-// cite         = service/search.go:46-53 Cite(前五个字段是指针,JSON 里可为 null)
-// images 元素  = service/photos_client.go:13-25 ImageHit(taken_at/caption 带 omitempty)
+// ── fixture 2: shape of the semantic / images groups (this machine can't produce a non-empty group, derived verbatim from the Go structs) ──
+// semantic element = the projection of NimoOS-Search/service/agent_tools.go:186-211 trimHits()
+//   (seven keys: score/file_id/paths/mime/kind/cite/preview, no raw_score/collection/payload_extra)
+// paths element   = service/parser_client.go:139-143 FilePath{root_id,path,mtime_ms}
+// cite         = service/search.go:46-53 Cite (the first five fields are pointers, can be null in JSON)
+// images element  = service/photos_client.go:13-25 ImageHit (taken_at/caption carry omitempty)
 const SHAPED = {
   groups: {
     semantic: [
@@ -63,8 +63,8 @@ const SHAPED = {
   warnings: [],
 }
 
-describe('createSearch.agentTool —— 请求形状', () => {
-  it('打 /v1/ai/search/agent/tool,body 是 nimoos_search 工具调用(蛇形 top_k)', async () => {
+describe('createSearch.agentTool —— request shape', () => {
+  it('hits /v1/ai/search/agent/tool, body is the nimoos_search tool call (snake_case top_k)', async () => {
     const { http, calls } = stub({ [URL]: REAL_RECEIPT })
     await createSearch(http).agentTool('receipt')
     expect(calls).toHaveLength(1)
@@ -75,7 +75,7 @@ describe('createSearch.agentTool —— 请求形状', () => {
     })
   })
 
-  it('sources / topK 可覆盖', async () => {
+  it('sources / topK are overridable', async () => {
     const { http, calls } = stub({ [URL]: REAL_RECEIPT })
     await createSearch(http).agentTool('receipt', { sources: ['filenames'], topK: 5 })
     expect(calls[0].body).toEqual({
@@ -85,8 +85,8 @@ describe('createSearch.agentTool —— 请求形状', () => {
   })
 })
 
-describe('createSearch.agentTool —— 归一化', () => {
-  it('真机响应:filenames 转驼峰,空组 null → [],stats/warnings 归位', async () => {
+describe('createSearch.agentTool —— normalization', () => {
+  it('real-device response: filenames converted to camelCase, empty group null → [], stats/warnings settle into place', async () => {
     const { http } = stub({ [URL]: REAL_RECEIPT })
     const agg = await createSearch(http).agentTool('receipt')
     expect(agg.filenames).toHaveLength(2)
@@ -101,7 +101,7 @@ describe('createSearch.agentTool —— 归一化', () => {
     expect(agg.warnings).toEqual(['images_unavailable'])
   })
 
-  it('semantic 命中转驼峰,preview.text / paths / cite 原样带出', async () => {
+  it('semantic hit converted to camelCase, preview.text / paths / cite carried through as-is', async () => {
     const { http } = stub({ [URL]: SHAPED })
     const agg = await createSearch(http).agentTool('fish')
     expect(agg.semantic).toHaveLength(1)
@@ -114,30 +114,30 @@ describe('createSearch.agentTool —— 归一化', () => {
     expect(h.preview.text).toBe('Pan-seared fish with lemon butter')
   })
 
-  it('images 命中转驼峰,omitempty 缺失的 takenAt / caption 退化成空串', async () => {
+  it('images hit converted to camelCase, takenAt / caption missing due to omitempty degrade to an empty string', async () => {
     const { http } = stub({ [URL]: SHAPED })
     const agg = await createSearch(http).agentTool('fish')
     expect(agg.images[0]).toEqual({
       assetId: 'asset-9', name: 'IMG_0042.jpg', path: '/DATA/Gallery/IMG_0042.jpg',
       score: 0.71, takenAt: '', thumbnailUrl: '/v1/photos/assets/asset-9/thumbnail', caption: '',
     })
-    expect(agg.filenames).toEqual([])  // 这份 fixture 里 filenames 是 null
+    expect(agg.filenames).toEqual([])  // filenames is null in this fixture
   })
 
-  it('stats 缺键时退化成空串 / 0,不抛', async () => {
+  it('stats degrades to an empty string / 0 on a missing key, never throws', async () => {
     const { http } = stub({ [URL]: { groups: { semantic: null, filenames: null, images: null, notes: null }, warnings: null } })
     const agg = await createSearch(http).agentTool('x')
     expect(agg.stats).toEqual({ fileindexStatus: '', totalCandidates: 0 })
     expect(agg.warnings).toEqual([])
   })
 
-  it('响应里没有 groups → 抛错,绝不静默返回空结果', async () => {
-    // spec §7.8 底线:AI 代理挂了/返回异形,必须让 UI 走「搜索服务不可用」而不是「没搜到」
+  it('response has no groups → throws, never silently returns an empty result', async () => {
+    // spec §7.8 bottom line: if the AI agent is down/returns a malformed shape, the UI must go down the "search service unavailable" path, not "no results found"
     const { http } = stub({ [URL]: { message: 'internal error' } })
     await expect(createSearch(http).agentTool('x')).rejects.toThrow(/unexpected search response/)
   })
 
-  it('响应体不是对象(null / 字符串)→ 同样抛错', async () => {
+  it('response body is not an object (null / string) → also throws', async () => {
     const a = stub({ [URL]: null })
     await expect(createSearch(a.http).agentTool('x')).rejects.toThrow(/unexpected search response/)
     const b = stub({ [URL]: 'boom' })

@@ -1,22 +1,24 @@
 <!--
-  SP8-P2b Task 6 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/MemorySection.vue(159 行)。
+  SP8-P2b Task 6 — 1:1 port from Vue2 src/views/AI/Settings/sections/MemorySection.vue (159 lines).
 
-  【D2 申报】状态留在组件本地(ref)、直调 service.ai —— 与 Vue2 归属一致(Vue2 data()
-  是组件本地状态),不做 store 集中(只有 blacklist 用 store,见 BlacklistSection.vue
-  头注释,用户 2026-07-28 拍板)。
+  【D2 declaration】 State remains in component local (ref), direct call to service.ai —
+  consistent with Vue2 attribution (Vue2 data() is component local state),
+  no store centralization (only blacklist uses store, see BlacklistSection.vue header,
+  user decision 2026-07-28).
 
-  【逻辑修正 1】`enabled.value = !!s.enabled` 是刻意偏离:Vue2 写的是
-  `this.enabled = s.enabled`(MemorySection.vue:105,不加 `!!`)。后端漏 enabled 字段时
-  会变成 undefined ——SetSwitch 收到 undefined 渲染成关,但 payload 又把 undefined
-  发回去,让后端按「未修改」处理,是个可复现的错误行为。加 `!!` 归一。Vue2 测试第 1
-  条 mock 的是 {enabled:false},加 `!!` 后断言不变。
+  【Logic fix 1】 `enabled.value = !!s.enabled` is deliberate deviation: Vue2 writes
+  `this.enabled = s.enabled` (MemorySection.vue:105, no `!!`). When backend omits enabled field,
+  becomes undefined — SetSwitch receives undefined, renders off, but payload sends undefined back,
+  letting backend treat as "unchanged"; reproducible wrong behavior. Add `!!` to normalize.
+  Vue2 test case 1 mocks {enabled:false}; assertion unchanged after adding `!!`.
 
-  【逻辑修正 2】saveEnabled/saveCompaction/saveContextWindow/remove 失败时补
-  danger toast。Vue2 这四处失败都是静默的(MemorySection.vue:122-124/133-135/
-  145-147/153-155,remove 处甚至有注释 `/* keep the item on failure */` 显式说明
-  「只保留不提示」)。本分区不属于挂载即触发的多分区并发场景(不像 BlacklistSection
-  的 mounted 静默吞是为了避免多分区同时挂载时 toast 糊屏),这几处是用户主动操作后
-  的保存/删除失败,静默会让用户以为操作生效了、其实没有,补提示更安全。
+  【Logic fix 2】 saveEnabled/saveCompaction/saveContextWindow/remove failures add danger toast.
+  Vue2 all four are silent (MemorySection.vue:122-124/133-135/145-147/153-155;
+  remove even has comment `/* keep the item on failure */` explicitly saying "keep, no hint").
+  This section is not a mount-triggered multi-section concurrent scenario
+  (unlike BlacklistSection mounted silent to avoid toast flood at multi-section mount);
+  these are user-initiated save/delete failures. Silent makes user think it succeeded when it didn't;
+  adding hints is safer.
 -->
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
@@ -44,14 +46,14 @@ const enabled = ref(true)
 const loading = ref(false)
 const error = ref(false)
 const compactionEnabled = ref(false)
-const contextWindow = ref<string>('') // 与 Vue2 一致:字符串,空串表示自动
+const contextWindow = ref<string>('') // Matches Vue2: string; empty string means auto
 
 onMounted(async () => {
   await load()
 })
 
-// Vue2 MemorySection.vue:112-116 / :126-130 / :140-144 三处发的是同一个三字段
-// payload,这里收成一处。
+// Vue2 MemorySection.vue:112-116 / :126-130 / :140-144 three places send same three-field
+// payload; consolidated here.
 function payload() {
   return {
     enabled: enabled.value,
@@ -69,13 +71,13 @@ async function load() {
       compaction_enabled?: boolean
       context_window?: number | null
     }
-    enabled.value = !!s.enabled // 逻辑修正 1,见文件头注释
+    enabled.value = !!s.enabled // Logic fix 1, see header comment
     compactionEnabled.value = !!s.compaction_enabled
     contextWindow.value = s.context_window != null ? String(s.context_window) : ''
-    // 逻辑修正 3(final review Fix 5):`|| []` 是本处新增的防御性兜底,Vue2 对应处
-    // (MemorySection.vue:108,`this.memories = await ai.listUserMemory()`)没有这一层 ——
-    // 后端返回 null/undefined 时 Vue2 会把 memories 直接置为 falsy 值,后续
-    // `memories.length` 抛错、`v-for` 渲染异常,是可复现的错误行为,故加固并保留。
+    // Logic fix 3 (final review Fix 5): `|| []` is new defensive fallback here; Vue2 corresponding
+    // (MemorySection.vue:108, `this.memories = await ai.listUserMemory()`) lacks this layer —
+    // when backend returns null/undefined, Vue2 sets memories to falsy; subsequent
+    // `memories.length` throws, `v-for` fails; reproducible wrong behavior, so hardened here.
     memories.value = ((await service.ai.listUserMemory()) as MemoryItem[]) || []
   } catch {
     error.value = true
@@ -88,8 +90,8 @@ async function saveEnabled() {
   try {
     await service.ai.putMemorySettings(payload())
   } catch (e) {
-    enabled.value = !enabled.value // Vue2 :119 同款回滚
-    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 2
+    enabled.value = !enabled.value // Vue2 :119 same rollback
+    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // Logic fix 2
   }
 }
 
@@ -98,17 +100,17 @@ async function saveCompaction() {
     await service.ai.putMemorySettings(payload())
   } catch (e) {
     compactionEnabled.value = !compactionEnabled.value
-    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 2
+    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // Logic fix 2
   }
 }
 
 async function saveContextWindow() {
-  const prev = contextWindow.value // Vue2 :138 —— 发请求前先存快照,不是失败时读当前值
+  const prev = contextWindow.value // Vue2 :138 — save snapshot before request, not read current on fail
   try {
     await service.ai.putMemorySettings(payload())
   } catch (e) {
     contextWindow.value = prev
-    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 2
+    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // Logic fix 2
   }
 }
 
@@ -117,11 +119,11 @@ async function remove(m: MemoryItem) {
     await service.ai.deleteUserMemory(m.id)
     memories.value = memories.value.filter((x) => x.id !== m.id)
   } catch (e) {
-    // Vue2 :152 注释是「keep the item on failure」——保留条目这条照搬,但补提示(逻辑修正 2)。
-    // 逻辑修正(final review Fix 2):这是一条**删除**失败路径,兜底文案原先误用了
-    // t('aiCfgSaveFailed')(「保存失败」),与 McpTokensSection.vue:146 / ChannelsSection.vue:
-    // 223,276 三处删除失败统一用 t('aiCfgDeleteFailed')(「删除失败」)不一致。Vue2 :152-155
-    // 不构成约束(裸 e.message),改用 aiCfgDeleteFailed 与另外三处对齐。
+    // Vue2 :152 comment is "keep the item on failure" — keep item as-is, but add hint (Logic fix 2).
+    // Logic fix (final review Fix 2): this is a **delete** failure path; fallback text originally
+    // misused t('aiCfgSaveFailed') ("Save failed"), inconsistent with McpTokensSection.vue:146 /
+    // ChannelsSection.vue:223,276 which all use t('aiCfgDeleteFailed') ("Delete failed") for delete
+    // failures. Vue2 :152-155 no constraint (bare e.message); changed to aiCfgDeleteFailed to align.
     toast.show(apiErrorMessage(e, t('aiCfgDeleteFailed')), 3000, 'danger')
   }
 }

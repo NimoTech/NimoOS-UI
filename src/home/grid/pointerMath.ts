@@ -10,7 +10,7 @@ export function dragCell(localX: number, localY: number, w: number, h: number, s
   }
 }
 
-// engine.js 781-784 (不含 clampSize)
+// engine.js 781-784 (excluding clampSize)
 export function resizeSize(localX: number, localY: number, c: number, r: number, stride: number, dims: Dims): [number, number] {
   return [
     clamp(Math.round(localX / stride) - (c - 1), 1, dims.cols - c + 1),

@@ -8,7 +8,7 @@ const task = (o = {}) => ({ taskId: 't', name: 'md0', level: 5, filesystem: 'btr
 
 describe('RaidCreateProgressModal', () => {
   beforeEach(() => { document.body.innerHTML = '' })
-  it('open 时渲染 6 步 + 进度值', async () => {
+  it('renders 6 steps + the progress value when open', async () => {
     const w = mount(RaidCreateProgressModal, { props: { open: true, task: task() }, global: { plugins: [i18n] } })
     await w.vm.$nextTick()
     const body = document.body.textContent || ''
@@ -19,20 +19,20 @@ describe('RaidCreateProgressModal', () => {
   it('step<current → done;== current → active(creating)', async () => {
     const w = mount(RaidCreateProgressModal, { props: { open: true, task: task({ step: 3, status: 'creating' }) }, global: { plugins: [i18n] } })
     await w.vm.$nextTick()
-    expect(document.body.querySelectorAll('.rpm-step.done').length).toBe(2) // 步 1,2
-    expect(document.body.querySelectorAll('.rpm-step.active').length).toBe(1) // 步 3
+    expect(document.body.querySelectorAll('.rpm-step.done').length).toBe(2) // steps 1, 2
+    expect(document.body.querySelectorAll('.rpm-step.active').length).toBe(1) // step 3
   })
-  it('failed:当前步标记 failed', async () => {
+  it('failed: marks the current step as failed', async () => {
     const w = mount(RaidCreateProgressModal, { props: { open: true, task: task({ step: 3, status: 'failed' }) }, global: { plugins: [i18n] } })
     await w.vm.$nextTick()
     expect(document.body.querySelectorAll('.rpm-step.failed').length).toBe(1)
   })
-  it('done:全部步 done', async () => {
+  it('done: all steps done', async () => {
     const w = mount(RaidCreateProgressModal, { props: { open: true, task: task({ status: 'done', step: 6 }) }, global: { plugins: [i18n] } })
     await w.vm.$nextTick()
     expect(document.body.querySelectorAll('.rpm-step.done').length).toBe(6)
   })
-  it('step=0(尚未进入首个真实步骤)→ 当前步标签回退 raidPreparing,而非字面量 raidStep0', async () => {
+  it('step=0 (not yet in the first real step) → the current step label falls back to raidPreparing, not the literal raidStep0', async () => {
     const w = mount(RaidCreateProgressModal, { props: { open: true, task: task({ step: 0, status: 'creating' }) }, global: { plugins: [i18n] } })
     await w.vm.$nextTick()
     const body = document.body.textContent || ''

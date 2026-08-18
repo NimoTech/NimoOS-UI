@@ -37,7 +37,7 @@ export type { SseOptions, SseOutcome } from './sse.js'
 export type { ServiceConfig } from './config.js'
 export type { Utilization, UtilSection, StdEnvelope, EventModel, FolderEntry, FolderListing, AppGridWidget, AppGridItem, PhotoAsset, FileContent, ServerUploadTask, UploadPrecheckResult, LoginResult, UserStatus, UserInfo, MemberInfo, UserFolderPermission, SambaConnection, CloudMount, CloudDriver, HardwareInfo, DockerNetwork, PruneReport, AppCategory, StoreAppInfo, StoreAppCatalog, UpgradableAppInfo, AppStoreSource, ComposeAppWithStoreInfo, UpdateCheck, SysBaseInfo, SystemPathEntry, SystemPaths, SSLConfig, SSLConfigInput, GatewayComponent, GatewayDeviceInfo, LanDevice, LanDiscovery, MigrateStatus, NetworkIPv4Config, NetworkWirelessConfig, NetworkInterfaceConfig, NetworkInterfaceUpdate, WifiScanResult, CreateBatchInput, UploadBatch, UploadBatchItem, BatchDetail } from './types.js'
 export type { ComposeContainerSummary, ComposeContainersInfo } from './compose.js'
-export type { RaidStatus, RaidMemberDisk, RaidMemberDiskRow, RaidReplaceDiskBody, RaidCreateBody } from './raid.js'
+export type { RaidStatus, RaidMemberDisk, RaidMemberDiskRow, RaidReplaceDiskBody, RaidCreateBody, RaidReattachableMember, RaidRecoverResult } from './raid.js'
 export type { Drive, DiskChild, DiskRaidInfo, DiskListData } from './disks.js'
 export type { SnapshotVolume, SnapshotPolicy } from './snapshot.js'
 export type { KvmVM, KvmVMList, KvmVncInfo, KvmSettings, KvmSettingsUpdate, KvmISO, KvmISODownloadProgress, KvmSnapshot, KvmCreateVMRequest, KvmUpdateVMRequest } from './kvm.js'
@@ -47,7 +47,7 @@ export type { Note, CreateNoteFields, UpdateNoteFields, NotesSettings, SettingsF
 export type { WikiRoot, WikiCandidate, WikiTreeNode, WikiChildMapEntry, WikiRecentChange, WikiNode } from './wiki.js'
 export type { McpToolRow, McpApprovalRow } from './ai.js'
 
-// 惰性域服务:initService 之后访问。
+// Lazy domain services: access only after initService.
 export const service = {
   get sys(): ReturnType<typeof createSys> {
     return createSys(getHttp() as AxiosInstance)

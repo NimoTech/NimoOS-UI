@@ -1,18 +1,22 @@
 <script setup lang="ts">
-// Task 6 (SP7-P4 相册): 「从图库挑照片加入本相册」选择器 —— 被 T7(相册列表页新建相册的
-// 「手动挑选照片」)与 T8(相册详情页 Edit 态「添加照片」按钮)共用。结构照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosAlbumLibraryPicker.vue(142 行)。
+// Task 6 (SP7-P4 albums): "pick photos from library to add to this album" picker — shared by
+// T7 (create album on album list page's "pick photos manually") and T8 (add photos button in album
+// detail Edit state). Structure per Vue2 NimoOS-UI src/views/Photos/PhotosAlbumLibraryPicker.vue
+// (142 lines).
 //
-// 与 T5 AlbumPickerDialog.vue(选相册)的区别:T5 是把一批已知 assetIds 加入某个待选相册;
-// 本组件是从整个图库(时间线展平)里挑照片加入一个已知相册——数据源、已选判定、UI 结构都不同。
+// Difference from T5 AlbumPickerDialog.vue (pick albums): T5 adds a known set of assetIds to some
+// target album; this component picks photos from the entire library (flattened timeline) to add to a
+// known album — data source, existence check, UI structure all differ.
 //
-// 铁律:「已在相册中」判定必须 String() 归一值比较——后端资产 id 可能是数字,时间线
-// Photo.id 类型是 string | number,不归一就漏判(Vue2 :86-89 直接用 Set(id) 值比较,
-// 未考虑跨类型,这里改用 String 归一,同 T2 store 的既有铁律)。
+// Iron rule: "already in album" checks must String()-normalize before comparing — backend asset ids
+// may be numbers, timeline Photo.id is string | number, unnormalized comparison misses matches (Vue2
+// :86-89 compares Set(id) values directly, unconcerned with cross-type mismatches; here changed to
+// String normalization, matching T2 store's existing iron rule).
 //
-// 形态偏离登记(与 T5 同理由,记账):Vue2 用 window.confirm 做「放弃未保存选择」二次确认
-// (:112);本仓无 window.confirm 惯例,改为面板内联确认条(discardConfirm 状态),行为语义
-// 不变——有未保存选择时点取消先展示确认条,确认后才真正关闭。
+// Shape deviation logged (same reason as T5, accounting): Vue2 uses window.confirm for "discard
+// unsaved picks" second confirmation (:112); this repo has no window.confirm convention, changed to
+// inline confirmation bar in panel (discardConfirm state), behavior semantics unchanged — with
+// unsaved picks, clicking cancel shows confirmation bar first, real close only after confirming.
 //
 // ★★★ SP15-P1-T9 · Step 0: generalised away from albums ★★★
 // It used to hardcode the album store for both halves of its job — reading which assets are
@@ -69,8 +73,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const timeline = useTimelineStore()
 
-// 选中集合直接存 flat 里给出的原始 id(与 flat 同源,类型天然一致,无需归一);
-// 提交时原样传给 addAssetsToAlbum,不做类型转换。
+// Selected set directly stores the raw ids from flat (same source as flat, types naturally align,
+// no normalization needed); submitted as-is to addAssetsToAlbum, no type conversion.
 // [T9] The ids are now handed to the caller unconverted instead — whatever type it wants is its
 // own business. Both album paths still pass them straight to addAssetsToAlbum, so not one byte
 // of the request body changed.
@@ -80,8 +84,9 @@ const discardConfirm = ref(false)
 // (see fillViewport below). Declared here, ahead of the open-watch that reaches it.
 const bodyRef = ref<HTMLElement | null>(null)
 
-// 照 Vue2 flat computed(:73-85):展平所有月份的照片,按 takenAt 降序。时间线本身已有
-// allPhotos 展平 computed(timeline.ts:61),这里复用它再排序,不重写展平逻辑。
+// Per Vue2 flat computed (:73-85): flatten all months' photos, sort by takenAt descending.
+// Timeline already has allPhotos flattened computed (timeline.ts:61), reuse it and sort, don't
+// rewrite flatten logic.
 const flat = computed<Photo[]>(() => {
   const out = timeline.allPhotos.slice()
   out.sort((a, b) => {
@@ -92,7 +97,8 @@ const flat = computed<Photo[]>(() => {
   return out
 })
 
-// 铁律:String 归一的 Set 值比较——相册资产 id 与时间线照片 id 类型可能不一致。
+// Iron rule: Set value comparison with String normalization — album asset ids and timeline photo
+// ids may have different types.
 // [T9] Only the consuming half of that normalisation is still here; the producing half (String()
 // while building the Set) moved to whoever owns the target collection. Each caller's test asserts
 // its own half — a numeric album asset id has to reach this component as '5'.
@@ -101,7 +107,7 @@ function isExisting(p: Photo): boolean {
 }
 
 // submitLabel may be a function of the selected count (both album paths: "Add (2)") or a fixed
-// string (moments: "Add selected") — see deviation (b) in the header.
+// string (moments: "Add selected") — see deviation (b) in the file header.
 const submitText = computed(() =>
   typeof props.submitLabel === 'function' ? props.submitLabel(selected.value.size) : props.submitLabel,
 )
@@ -124,7 +130,7 @@ function closeNow(): void {
   emit('update:open', false)
 }
 
-// 点取消 / 点遮罩:有未保存选择 → 先出确认条;无选择 → 直接关闭。
+// Click cancel / click overlay: with unsaved picks → show confirmation bar first; no picks → close immediately.
 function attemptClose(): void {
   if (selected.value.size > 0) {
     discardConfirm.value = true
@@ -140,15 +146,18 @@ function confirmDiscard(): void {
   closeNow()
 }
 
-// Esc 分层,document 级监听(不用模板 @keydown.esc)—— 同 T5 AlbumPickerDialog.vue 与
-// PhotoLightbox.vue:119-139 的既有范式:模板绑定的 keydown 依赖真实 DOM 焦点,用户从触发
-// 按钮打开面板、不点面板内部直接按 Esc 时事件到不了面板内的元素。确认条展开时 Esc 只收起
-// 确认条(不强制关闭面板——放弃选择必须显式点确认按钮,同 attemptClose 的安全语义一致)。
+// Esc layering, document-level listening (not template @keydown.esc) — same pattern as T5
+// AlbumPickerDialog.vue and PhotoLightbox.vue:119-139: template-bound keydown relies on real DOM
+// focus; when user opens from trigger button and presses Esc without clicking inside the panel,
+// the event doesn't reach elements inside. When confirmation bar expands, Esc only collapses it
+// (doesn't force close the panel — discarding picks requires explicit confirmation button click,
+// matching attemptClose's safety semantics).
 //
-// 终审必修 1(统一防御):本组件目前没有被灯箱层叠挂载,但同一份「document 先冒泡关面板、
-// 原生 keydown 默认继续冒泡到 window」的风险与 AlbumPickerDialog.vue 完全一致——未来一旦
-// 有宿主把它叠在灯箱之上打开(同款用法迟早出现),同样会把灯箱一起误关。这里同步补上
-// stopPropagation,不等真的踩到才修。
+// Final review mandatory 1 (unified defense): this component isn't currently mounted in lightbox
+// layers, but the risk of "document bubbles up closing panel, native keydown bubbles to window" is
+// identical to AlbumPickerDialog.vue — if a future host opens it stacked above a lightbox (the
+// pattern will eventually appear), it would mistakenly close the lightbox too. Adding stopPropagation
+// here preemptively, not waiting to step on it first.
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   e.stopPropagation()
@@ -165,26 +174,25 @@ watch(
     if (isOpen) {
       selected.value = new Set()
       discardConfirm.value = false
-      // Task 8b (owner ruling): in bucket mode `months` arriving does not mean any photos
-      // are in hand yet -- this grid reads timeline.allPhotos (via `flat` above), so
-      // without this the picker would open on an empty grid even though the directory says
-      // the library isn't empty. Load the newest few months up front; fetchNewestBuckets is
-      // a no-op outside bucket mode, so legacy behaviour is unchanged. Scrolling to the
-      // bottom (onListScroll below) pages in earlier months as the user asks for them.
+      // Task 8b (owner ruling): in bucket mode `months` arriving does not mean any photos are in
+      // hand yet — this grid reads timeline.allPhotos (via `flat` above), so without this the
+      // picker would open on an empty grid even though the directory says the library isn't empty.
+      // Load the newest few months up front; fetchNewestBuckets is a no-op outside bucket mode, so
+      // legacy behaviour is unchanged. Scrolling to the bottom (onListScroll below) pages in earlier
+      // months as the user asks for them.
       //
-      // fetchNewestBuckets must wait for fetchTimeline to resolve first when the latter is
-      // needed -- firing both in parallel would read bucketMode before the probe that sets
-      // it has had a chance to run, silently no-op'ing on every fresh mount.
+      // fetchNewestBuckets must wait for fetchTimeline to resolve first when the latter is needed —
+      // firing both in parallel would read bucketMode before the probe that sets it has had a chance
+      // to run, silently no-op'ing on every fresh mount.
       const needsTimeline = timeline.months.length === 0
       void (async () => {
         if (needsTimeline) await timeline.fetchTimeline()
         await timeline.fetchNewestBuckets(3)
-        // Whole-branch review fix (minor 12): paging used to happen ONLY on a
-        // `scroll` event, so a library whose three newest months fit inside the
-        // panel never fired one and every earlier month was unreachable — the
-        // picker looked like the library ended three months ago. If the list does
-        // not overflow there is nothing for the user to scroll, so keep pulling
-        // months in until it does (or until the library runs out).
+        // Whole-branch review fix (minor 12): paging used to happen ONLY on a `scroll` event, so a
+        // library whose three newest months fit inside the panel never fired one and every earlier
+        // month was unreachable — the picker looked like the library ended three months ago. If the
+        // list does not overflow there is nothing for the user to scroll, so keep pulling months in
+        // until it does (or until the library runs out).
         await fillViewport()
       })()
       document.addEventListener('keydown', onDocumentKeydown)
@@ -196,12 +204,12 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
-// Task 8b (owner ruling, second half): in bucket mode this grid only ever holds the
-// already-loaded buckets. Scrolling near the bottom fetches the next unloaded dated bucket
-// so the user can keep paging back through the library instead of the whole thing being
-// pulled down at once. `loadingMore` caps it to one in-flight bucket load at a time --
-// fetchBucket already dedupes per key, but without this guard one scroll gesture could kick
-// off requests for a dozen different buckets before the first one lands.
+// Task 8b (owner ruling, second half): in bucket mode this grid only ever holds the already-loaded
+// buckets. Scrolling near the bottom fetches the next unloaded dated bucket so the user can keep
+// paging back through the library instead of the whole thing being pulled down at once. `loadingMore`
+// caps it to one in-flight bucket load at a time — fetchBucket already dedupes per key, but without
+// this guard one scroll gesture could kick off requests for a dozen different buckets before the
+// first one lands.
 let loadingMore = false
 // Returns false when there was nothing to page in (no unloaded dated bucket left,
 // or a load is already in flight), so callers can stop asking.
@@ -244,10 +252,10 @@ async function fillViewport(): Promise<void> {
   }
 }
 
-// Handing over the picked ids is where this component's job ends: the write, the success and
-// failure toasts and the closing all belong to the caller (see the Step 0 note in the header).
-// Neither `selected` nor `open` is touched here — on a failed write the caller leaves the panel
-// up, and the user's selection is still sitting in it, ready to resubmit.
+// Handing over the picked ids is where this component's job ends: the write, success and failure
+// toasts, and closing all belong to the caller (see the Step 0 note in the file header). Neither
+// `selected` nor `open` is touched here — on a failed write the caller leaves the panel up, and the
+// user's selection is still in it, ready to resubmit.
 function confirmAdd(): void {
   if (selected.value.size === 0 || props.submitting) return
   emit('confirm', Array.from(selected.value))
@@ -257,57 +265,57 @@ function confirmAdd(): void {
 <template>
   <div
     v-if="open"
-    class="lib-picker-overlay"
+    class="picker-scrim"
     data-test="lib-picker-overlay"
     @click.self="attemptClose"
   >
-    <div class="lib-picker-panel">
-      <div class="lib-picker-head">
-        <div class="lib-picker-head-text">
-          <div class="lib-picker-title">{{ title }}</div>
-          <div class="lib-picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
+    <div class="picker-modal">
+      <div class="picker-head">
+        <div class="picker-head-text">
+          <div class="picker-title">{{ title }}</div>
+          <div class="picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
         </div>
         <button
           type="button"
-          class="lib-picker-close"
+          class="picker-close"
           data-test="lib-picker-close"
           :aria-label="t('photosCancel')"
           @click="attemptClose"
         >&#215;</button>
       </div>
 
-      <div ref="bodyRef" class="lib-picker-body" @scroll="onListScroll">
-        <div v-if="flat.length === 0" class="lib-picker-empty" data-test="lib-picker-empty">
+      <div ref="bodyRef" class="picker-body" @scroll="onListScroll">
+        <div v-if="flat.length === 0" class="picker-empty" data-test="lib-picker-empty">
           {{ t('photosAlbumPickerEmpty') }}
         </div>
-        <div v-else class="lib-picker-grid">
+        <div v-else class="picker-grid">
           <div
             v-for="p in flat"
             :key="p.id"
-            class="lib-picker-tile"
+            class="picker-tile"
             data-test="lib-picker-tile"
             :data-asset-id="p.id"
             :data-selected="isSelected(p)"
             :data-disabled="isExisting(p)"
             @click="toggle(p)"
           >
-            <img :src="thumb(p.id)" alt="" class="lib-picker-tile-img" :class="{ 'is-dimmed': isExisting(p) }">
-            <div v-if="isExisting(p)" class="lib-picker-already" data-test="lib-picker-already">
-              <span class="lib-picker-already-icon">&#10003;</span>
+            <img :src="thumb(p.id)" alt="">
+            <div v-if="isExisting(p)" class="picker-already" data-test="lib-picker-already">
+              <span class="picker-already-icon">&#10003;</span>
               <span>{{ existingLabel }}</span>
             </div>
-            <div v-else-if="isSelected(p)" class="lib-picker-check" data-test="lib-picker-selected-check">&#10003;</div>
+            <div v-else-if="isSelected(p)" class="picker-tile-check" data-test="lib-picker-selected-check">&#10003;</div>
           </div>
         </div>
       </div>
 
-      <div v-if="!discardConfirm" class="lib-picker-foot">
-        <button type="button" class="lib-picker-btn-ghost" data-test="lib-picker-cancel" @click="attemptClose">
+      <div v-if="!discardConfirm" class="picker-foot">
+        <button type="button" class="albums-btn-ghost" data-test="lib-picker-cancel" @click="attemptClose">
           {{ t('photosCancel') }}
         </button>
         <button
           type="button"
-          class="lib-picker-btn-cta"
+          class="albums-btn-cta"
           data-test="lib-picker-add"
           :disabled="selected.size === 0 || submitting"
           @click="confirmAdd"
@@ -315,13 +323,13 @@ function confirmAdd(): void {
           {{ submitting ? t('photosAlbumPickerAdding') : submitText }}
         </button>
       </div>
-      <div v-else class="lib-picker-discard" data-test="lib-picker-discard-bar">
-        <div class="lib-picker-discard-text">{{ t('photosAlbumPickerDiscard') }}</div>
-        <div class="lib-picker-discard-actions">
-          <button type="button" class="lib-picker-btn-ghost" data-test="lib-picker-discard-cancel" @click="cancelDiscard">
+      <div v-else class="picker-discard" data-test="lib-picker-discard-bar">
+        <div class="picker-discard-text">{{ t('photosAlbumPickerDiscard') }}</div>
+        <div class="picker-discard-actions">
+          <button type="button" class="albums-btn-ghost" data-test="lib-picker-discard-cancel" @click="cancelDiscard">
             {{ t('photosCancel') }}
           </button>
-          <button type="button" class="lib-picker-btn-cta" data-test="lib-picker-discard-confirm" @click="confirmDiscard">
+          <button type="button" class="albums-btn-cta" data-test="lib-picker-discard-confirm" @click="confirmDiscard">
             {{ t('photosAlbumPickerDiscardConfirm') }}
           </button>
         </div>
@@ -331,54 +339,35 @@ function confirmAdd(): void {
 </template>
 
 <style scoped>
-.lib-picker-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 230;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 20px;
-}
+/* Task 7 (the two-picker class-name rework): scrim/modal/head/title/sub/body/empty/grid/tile
+   (+[data-selected]/[data-disabled]/the nested img)/tile-check/foot are character-for-character
+   the same names as the already-imported global parity stylesheet
+   (src/photos/styles/vue2-parity/photos.scss:4277-4341, `.picker-*`, bare top-level selectors
+   with no `.photos-root` prefix — these are Vue2-native class names, and
+   class-collision-guard.test.ts pins them to zero cross-area collisions) — every local duplicate
+   is deleted and parity takes over directly. The two footer buttons likewise reuse parity's
+   existing `.albums-btn-ghost`/`.albums-btn-cta` (Vue2's own source, PhotosLibraryPicker.vue
+   :40/:42, uses exactly those two classes, and PhotosAlbums.vue's New Album dialog set the same
+   reuse precedent), instead of each maintaining an equivalent ghost/cta button style. */
 
-/* P2 血泪(同 T5 沿用):面板底色须用 --popup-bg,不用 --card-bg(深色主题下 --card-bg
-   近透明,叠在暗底上会看穿)。 */
-.lib-picker-panel {
-  width: min(760px, 100%);
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: var(--card-shadow-hi);
-  overflow: hidden;
-}
+/* Header text container — Vue2 uses an unclassed div with inline style="flex:1;min-width:0"
+   (:6), so parity naturally has no matching selector; the class name here exists purely for
+   readability and the rule itself is unchanged. */
+.picker-head-text { flex: 1 1 auto; min-width: 0; }
 
-.lib-picker-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--divider);
-  flex: 0 0 auto;
-}
-.lib-picker-head-text { flex: 1 1 auto; min-width: 0; }
-.lib-picker-title { font-size: 14.5px; font-weight: 600; color: var(--fg); }
-.lib-picker-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
-
-/* 头部 X 关闭按钮(评审补漏:Vue2 :10-12 确有,brief 结构清单漏列)—— 写法照
-   AlbumPickerDialog.vue 的 .alb-picker-close 既有范式,不引 Vue2 的 photos-icon 组件。 */
-.lib-picker-close {
+/* Header X close button — Vue2 uses the site-wide .icon-btn plus the photos-icon component
+   (:10-12); this repo's dialogs consistently use a smaller 24px dedicated close-button class
+   instead of reusing .icon-btn (the same idiom as AlbumPickerDialog.vue's
+   `.album-picker-close`, MergeReviewDialog.vue's `.mrd-close` and ClusterActionDialog.vue's
+   `.cad-close`), and parity has no selector to compare against. */
+.picker-close {
   flex: 0 0 auto;
   width: 24px;
   height: 24px;
   border-radius: 50%;
   border: 0;
   background: transparent;
-  color: var(--fg-muted);
+  color: var(--text-2);
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
@@ -386,37 +375,38 @@ function confirmAdd(): void {
   align-items: center;
   justify-content: center;
 }
-.lib-picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
-.lib-picker-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 18px; }
-.lib-picker-empty { padding: 48px 8px; color: var(--fg-muted); font-size: 12.5px; text-align: center; }
+/* The <img> inside a tile no longer carries a class of its own — parity's .picker-tile has a
+   nested `img { … }` (SCSS compiles it to `.picker-tile img`) that already applies to any img
+   child, matching Vue2's own bare <img> (:28, likewise unclassed). The "already in this album"
+   dimming is handed to parity's .picker-tile[data-disabled="true"] { opacity: .4;
+   pointer-events: none } as well (it applies to the whole tile, including the badge overlay
+   below), instead of locally dimming only the img — which matches what Vue2 actually renders (the
+   whole tile dims together) and removes the img-only is-dimmed local rule. */
 
-.lib-picker-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 6px;
-}
-
-.lib-picker-tile {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--chip-bg);
-  outline: 2px solid transparent;
-  transition: outline-color 0.15s ease, transform 0.15s ease;
-}
-.lib-picker-tile[data-selected="true"] { outline-color: var(--accent); transform: scale(0.96); }
-.lib-picker-tile[data-disabled="true"] { cursor: default; }
-
-.lib-picker-tile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 0.4 与 Vue2 photos.scss :4402 的 [data-disabled="true"] { opacity: 0.4 } 保持像素级一致。 */
-.lib-picker-tile-img.is-dimmed { opacity: 0.4; }
-
-/* 覆盖标记:满铺半透明遮罩 + 文案。--overlay-bg/--fg 这一组合已在 PhotosGrid.vue 的
-   .tile-fav 上验证过(深浅主题都可读),这里沿用而非另造新 token。 */
-.lib-picker-already {
+/* The "already in this album" marker — both Vue2 (:29-31) and parity (.picker-tile-existing)
+   render only an 18px circular badge in the top-right corner, with the explanatory text
+   coming from a native title attribute on hover. This component deliberately extends that:
+   the existingLabel copy stays visible at all times (not hover-only) and covers the whole
+   tile — behaviour an existing test locks down (PhotosLibraryPicker.test.ts asserts
+   tile.text() contains the existingLabel string), so it must not be narrowed back to
+   parity's icon-only badge. That is why parity's `.picker-tile-existing` name is not reused
+   (different semantics and size, and sharing the name would fight parity's rule); the
+   non-clashing `.picker-already` family keeps the original visuals instead. */
+/* Fix-2 item 6 (owner acceptance, 2026-08-13): `color` used to be `var(--text-1)` -- a
+   *parity*-scoped token that correctly flips dark under `.photos-root.is-light`, sitting on
+   `--overlay-bg`, a *global* token that stays a dark tint in both of New-UI's own themes
+   (theme.css:274/408, both a translucent dark fill, deliberately invariant since a
+   tile-covering scrim needs to read against unpredictable photo pixels underneath, not the
+   app's own theme). In photos light mode the pairing was dark-on-dark: the background stayed
+   dark (correctly) but the text went dark too (incorrectly, chasing the private is-light flip
+   the background doesn't follow). Pinned to a literal light value instead, matching this
+   repo's own established convention for exactly this shape (thumbnail-overlay text needs
+   constant contrast regardless of theme -- the same call PhotosTrash.vue's
+   `.tile-fav`/`.tile-vid` badges and PhotosSmartViewDetail.vue's `.sv-toast` already make,
+   each with their own theme-exception comment). */
+.picker-already {
   position: absolute;
   inset: 0;
   display: flex;
@@ -425,14 +415,13 @@ function confirmAdd(): void {
   justify-content: center;
   gap: 3px;
   background: var(--overlay-bg);
-  color: var(--fg);
+  color: #fff; /* theme-exception: overlays unpredictable photo pixels, same as --overlay-bg above */
   font-size: 10px;
   font-weight: 600;
   text-align: center;
   padding: 0 4px;
 }
-.lib-picker-already-icon,
-.lib-picker-check {
+.picker-already-icon {
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -440,61 +429,26 @@ function confirmAdd(): void {
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  /* Vue2 勾选图标是 color="white"(:30/:33)—— 改用 --on-accent(atop 纯色 accent 填充
-     的可读前景色语义 token),而不是写死颜色字面量。 */
+  /* Vue2's checkmark is color="white" — changed to --on-accent (the semantic token for a
+     readable foreground atop a solid accent fill) rather than hardcoding a colour literal. */
   color: var(--on-accent);
   font-size: 11px;
   line-height: 1;
 }
-.lib-picker-check {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-}
 
-.lib-picker-foot {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  padding: 12px 18px;
-  border-top: 1px solid var(--divider);
-  flex: 0 0 auto;
-}
+/* .picker-tile-check (the top-right check badge in the selected state) has the same name and the
+   same meaning as parity's .picker-tile-check (Vue2 :32-34 uses that very class) — the local
+   override is deleted; position, size and background colour all come from parity. */
 
-.lib-picker-discard {
+.picker-discard {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 18px;
-  border-top: 1px solid var(--divider);
+  border-top: 1px solid var(--line);
   flex: 0 0 auto;
 }
-.lib-picker-discard-text { font-size: 12.5px; color: var(--fg); flex: 1 1 auto; min-width: 0; }
-.lib-picker-discard-actions { display: flex; gap: 8px; flex: 0 0 auto; }
-
-.lib-picker-btn-ghost {
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--chip-border);
-  background: var(--chip-bg);
-  color: var(--fg);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.lib-picker-btn-ghost:hover { background: var(--chip-bg-hi); }
-
-.lib-picker-btn-cta {
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: 0;
-  background: var(--accent);
-  color: var(--on-accent);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.lib-picker-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+.picker-discard-text { font-size: 12.5px; color: var(--text-1); flex: 1 1 auto; min-width: 0; }
+.picker-discard-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 </style>

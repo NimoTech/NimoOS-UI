@@ -7,7 +7,7 @@ import { shareName } from '../util/sambaPath'
 
 export interface ShareRow { id: number; path: string; name: string }
 
-// 透出后端错误消息(如「已共享」),取不到则回退通用文案。仿 NetworkStorageDialog。
+// Expose backend error message (e.g., "Already shared"), fall back to generic copy if not available. Similar to NetworkStorageDialog.
 function errMsg(e: unknown): string | undefined {
   return (e as { response?: { data?: { message?: string } } })?.response?.data?.message
 }
@@ -56,5 +56,29 @@ export const useSharesStore = defineStore('shares', () => {
     }
   }
 
-  return { items, loading, load, create, remove }
+  // Batch unshare. The backend only has a per-id DELETE endpoint.
+  // Deletes run sequentially on purpose: each DELETE rewrites the samba config
+  // and restarts smbd on the backend with no server-side locking — concurrent
+  // requests can corrupt smb.conf or resurrect deleted shares.
+  // One reload, one toast, failed ids returned so the page can keep them selected for retry.
+  async function removeMany(ids: number[]): Promise<{ failedIds: number[] }> {
+    if (!ids.length) return { failedIds: [] }
+    let firstErr: unknown
+    const failedIds: number[] = []
+    for (const id of ids) {
+      try { await service.samba.deleteShare(id) } catch (e) { failedIds.push(id); firstErr ??= e }
+    }
+    await load()
+    const ok = ids.length - failedIds.length
+    if (!failedIds.length) {
+      toast.show(t('filesUnshareBatchDone', { count: ok }))
+    } else if (!ok) {
+      toast.show(errMsg(firstErr) || t('filesShareFailed'))
+    } else {
+      toast.show(t('filesUnshareBatchPartial', { ok, fail: failedIds.length }))
+    }
+    return { failedIds }
+  }
+
+  return { items, loading, load, create, remove, removeMany }
 })

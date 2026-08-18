@@ -1,48 +1,54 @@
 <!--
-  SP8-P2b Task 10 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/McpTokensSection.vue(247 行)。
-  纯函数(endpointUrl computed / buildInstruction / buildJson / fmtCreated 与 fmtLastUsed 的
-  「按毫秒格式化」核心)已由 Task 9 抽到 ../../../util/mcpConnect.ts,这里只保留组件专属状态
-  与 i18n 拼接。
+  SP8-P2b Task 10 — 1:1 ported from Vue2 src/views/AI/Settings/sections/McpTokensSection.vue (247 lines).
+  Pure functions (endpointUrl computed / buildInstruction / buildJson / fmtCreated and fmtLastUsed
+  “format milliseconds” core) extracted to ../../../util/mcpConnect.ts in Task 9;
+  this component retains only component-scoped state and i18n concatenation.
 
-  【D2 申报】状态留在组件本地(ref)、直调 service.ai —— 与 Vue2 归属一致(Vue2 data() 是
-  组件本地状态),不做 store 集中。用户 2026-07-28 拍板(见 BlacklistSection.vue 头注释)。
+  [D2 declaration] State lives in component local scope (ref), calling service.ai directly —
+  consistent with Vue2 pattern (Vue2 data() is component local state), not centralizing in store.
+  User approved on 2026-07-28 (see BlacklistSection.vue header).
 
-  【D1 申报】Vue2 :91-120 的明文令牌弹窗是手写 `.sk-modal-bg` 裸 div + `@click.self` 关闭,
-  换成 Task 3 的 SkModal(reka Dialog 外壳,视觉规则不变,详见 SkModal.vue 头注释的 D1)。
-  Vue2 里 `.mcp-x` 关闭按钮 scoped 样式已被 SkModal 内置的 `.sk-x` 收编,这里不再重复定义。
-  Vue2 `$buefy.dialog.confirm`(:185-191 删除确认)→ 共享 AlertDialog;
-  Vue2 `$buefy.dialog.prompt`(:167-174 创建令牌)→ 共享 PromptDialog(P2a Task 6 建)——
-  用法与 title/confirmText 复用既有动作名的手法,同 ProvidersSection.vue 的既定先例。
+  [D1 declaration] Vue2 :91-120's plaintext token modal was hand-written `.sk-modal-bg` bare div
+  + `@click.self` to close, replaced with Task 3's SkModal (reka Dialog shell, visual rules unchanged,
+  see SkModal.vue header D1). Vue2's `.mcp-x` close button scoped styles now handled by SkModal's
+  built-in `.sk-x`, not duplicated here. Vue2 `$buefy.dialog.confirm` (:185-191 delete confirmation)
+  → shared AlertDialog; Vue2 `$buefy.dialog.prompt` (:167-174 create token) → shared PromptDialog
+  (P2a Task 6 created) — usage pattern and title/confirmText reusing existing action names follow
+  the established pattern in ProvidersSection.vue.
 
-  【SkModal 三条关闭路径统一处理】遮罩点击 / Esc / 右上 × 都会经 `update:open(false)`,
-  「完成」按钮走同一个 `onRevealClose`——与 Vue2 `@click.self="closeReveal"` 和 × 都走同一个
-  `closeReveal` 语义一致,详见下方 `handleRevealOpenChange`。
+  [SkModal three close paths unified] Mask click / Esc / top-right × all go through `update:open(false)`,
+  “Done” button goes through the same `onRevealClose` — semantically consistent with Vue2's
+  `@click.self=”closeReveal”` and × both going through the same `closeReveal`, see `handleRevealOpenChange` below.
 
-  【服务端响应形状核实,纠正 brief Step 3 伪代码】brief 给的伪代码把 load()/createToken()
-  写成 `res?.data?.tokens` / `res?.data?.token`,那是把 Vue2 的 axios 包装层重复算了一遍:
-  Vue2 `res` 是 axios 响应,`res.data` 才是后端 body,`res.data.tokens` 只有一层 `.data`。
-  已读 NimoOS-AI/agent/main.py:232-235(`GET /mcp-tokens` 返回 `{"tokens": [...]}`)与
-  :221-229(`POST /mcp-tokens` 返回 `{"id","token","label"}`)确认后端 body 是**扁平**结构,
-  没有信封。本仓 `service.ai.*`「返回 body 原样」= Vue2 的 `res.data`,所以正确映射是
-  `res.tokens` / `res.token`(比 brief 伪代码少一层 `.data`)——公共约束 §5 明确禁止
-  「多剥一层 .data」,这里就是那一层要去掉的地方。防御性 `&&`/`|| []` 兜底语义原样保留。
+  [Backend response shape verified, correcting brief Step 3 pseudocode] The brief's pseudocode
+  wrote load()/createToken() as `res?.data?.tokens` / `res?.data?.token`, which double-counted
+  Vue2's axios wrapper: in Vue2, `res` is the axios response, `res.data` is the backend body,
+  `res.data.tokens` only has one layer of `.data`. Verified from NimoOS-AI/agent/main.py:232-235
+  (`GET /mcp-tokens` returns `{“tokens”: [...]}`) and :221-229 (`POST /mcp-tokens` returns
+  `{“id”,”token”,”label”}`) confirming backend body is **flat** structure, no envelope.
+  This repo's `service.ai.*` “returns body as-is” = Vue2's `res.data`, so correct mapping is
+  `res.tokens` / `res.token` (one less `.data` than brief pseudocode) — common constraints §5
+  explicitly forbids “stripping extra .data”, this is exactly where that layer needs removal.
+  Defensive `&&` / `|| []` fallback semantics preserved as-is.
 
-  【PromptDialog 无 maxlength prop,降级方案,已在 brief Step 3 获授权】Vue2 :170
-  `inputAttrs.maxlength = 64` 在 PromptDialog(P2a 共享原语)上没有对应 prop;本期不给它
-  加 prop(会动 P2a 在途文件),改为在 `createToken()` 里 `label.slice(0, 64)`——用户能多打
-  但存不进去多的字符,行为等价降级,不是静默丢弃需求。
+  [PromptDialog has no maxlength prop, degradation plan authorized at brief Step 3]
+  Vue2 :170 `inputAttrs.maxlength = 64` has no corresponding prop on PromptDialog (P2a shared
+  primitive); not adding a prop this cycle (would touch in-flight P2a files), instead using
+  `label.slice(0, 64)` in `createToken()` — users can type more but can't save more characters,
+  behavior is equivalent degradation, not silent requirement drop.
 
-  【评审补漏,声明】Vue2 :238-247(scoped `<style>`)给三个类定了样:`.mcp-x`(已被 D1 的
-  SkModal `.sk-x` 收编,见上)、`.mcp-label`(:245)、`.mcp-reveal-warn`(:246)。首次落地时
-  只顾上 `.mcp-x` 的替代,漏收后两条 —— 模板里仍在用这两个类(明文弹窗里的两处“把下面这段
-  交给…”标签 + 顶部警示文案),没有对应 CSS,渲染成无样式默认字体/黑色文字,是未申报的 1:1
-  视觉回归。修复:值逐字保留(两条本来就是纯 token,`var(--text-secondary)`/`var(--danger)`,
-  不含裸色 fallback,不用摘),**放进 `src/ai/styles/settings-styles.scss`**(不给本组件补
-  `<style>` 块)——同 Task 8 把 Vue2 `ObservabilitySection.vue` 的 scoped `.status` 挪去该档
-  的先例,**范围扩张,已申报**:这是本组件第二次因为「分区组件零 `<style>` 块」的惯例把 Vue2
-  scoped 样式挪到那个全局档。类名未改(`mcp-` 前缀已避开撞名,不像 `.px-msg` 那次需要改名)。
-  见 `settings-styles.scss` 里同一处的注释;回归测试见
-  `src/ai/styles/settingsStyles.test.ts`(McpTokensSection 描述块的两条断言)。
+  [Review gap fix, declared] Vue2 :238-247 (scoped `<style>`) defined styles for three classes:
+  `.mcp-x` (now handled by D1's SkModal `.sk-x`, see above), `.mcp-label` (:245), `.mcp-reveal-warn` (:246).
+  First landing only handled `.mcp-x` replacement, missed the latter two — template still uses these classes
+  (two “pass this to…” labels in plaintext modal + top warning text), no corresponding CSS,
+  rendering as unstyled default font/black text, an undeclared 1:1 visual regression. Fix: values preserved
+  verbatim (both are pure tokens anyway, `var(--text-secondary)` / `var(--danger)`, no bare color fallbacks,
+  no extraction needed), **go into `src/ai/styles/settings-styles.scss`** (no `<style>` block for this component)
+  — following Task 8's pattern of moving Vue2 `ObservabilitySection.vue` scoped `.status` to that file,
+  **scope expansion, declared**: this is the second time this component moves Vue2 scoped styles there due to
+  the “zero `<style>` blocks in section components” convention. Class names unchanged (`mcp-` prefix avoids
+  collisions, unlike `.px-msg` which needed renaming). See comment in `settings-styles.scss` at same location;
+  regression test in `src/ai/styles/settingsStyles.test.ts` (two assertions in McpTokensSection block).
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
@@ -82,8 +88,8 @@ const pendingDeleteId = ref<string | number | null>(null)
 const endpointUrl = computed(() => mcpEndpointUrl())
 const instructionTemplate = computed(() => t('aiCfgMcpInstructionTemplate'))
 
-// Vue2 是 created() 里 load(),本仓用 onMounted —— 两者对本组件等价(无 SSR、不依赖
-// 挂载前时序),且与其余 6 个分区写法统一。
+// Vue2 loads in created(), this repo uses onMounted — equivalent for this component (no SSR,
+// no pre-mount timing dependency), consistent with other 6 section patterns.
 onMounted(() => { void load() })
 
 async function load() {
@@ -91,7 +97,7 @@ async function load() {
   error.value = false
   try {
     const res = (await service.ai.listMCPTokens()) as { tokens?: McpToken[] } | null | undefined
-    tokens.value = (res && res.tokens) || [] // Vue2 :150 三重兜底,已核实后端 body 扁平,见文件头注释
+    tokens.value = (res && res.tokens) || [] // Vue2 :150 triple fallback, verified backend body is flat, see file header
   } catch {
     error.value = true
   } finally {
@@ -111,8 +117,8 @@ function openPrompt() {
   promptOpen.value = true
 }
 
-// Vue2 :172 `(value || '').trim()` —— trim 在这里做,64 字软上限在 createToken() 里做
-// (见文件头注释)。
+// Vue2 :172 `(value || '').trim()` — trim done here, 64-char soft limit done in createToken()
+// (see file header).
 function onPromptConfirm(value: string) {
   void createToken((value || '').trim())
 }
@@ -148,17 +154,18 @@ async function doDelete(id: string | number) {
   }
 }
 
-// 明文弹窗关闭时:先清明文、再重新拉列表(Vue2 :207-211 同序)。清明文必须在 await 之前
-// —— 否则请求在途这段时间明文还留在内存/DOM 里。
+// When plaintext modal closes: clear plaintext first, then re-fetch list (Vue2 :207-211 same order).
+// Clear plaintext must be before await — otherwise during request the plaintext stays in memory/DOM.
 async function onRevealClose() {
-  // 撤掉打勾态:否则下次打开弹窗还挂着上一次的绿勾,像是"这次已经复制过了"
+  // Remove checkmark state: otherwise next time opening modal still has last time's green checkmark,
+  // looks like "this is already copied".
   resetCopied()
   showReveal.value = false
   revealedToken.value = ''
   await load()
 }
 
-// 遮罩点击 / Esc / 右上 × 三条路径统一走这里(见文件头 D1 说明)。
+// All three paths (mask click / Esc / top-right ×) unified here (see file header D1).
 function handleRevealOpenChange(open: boolean) {
   if (!open) void onRevealClose()
 }
@@ -168,15 +175,16 @@ function fmtCreated(tk: McpToken): string {
 }
 
 function fmtLastUsed(tk: McpToken): string {
-  // 承接 Task 9 复核结论:last_used_at 为空时是裸「从未使用」串,不带前缀
-  // (Vue2 :213-216),不能写成 `'上次使用:' + formatEpochMs(x)`(会渲染成
-  // 「上次使用:-」的 1:1 回归)。
+  // Following Task 9 review conclusion: when last_used_at is empty, return bare "never used" string,
+  // no prefix (Vue2 :213-216), cannot write as `'last used:' + formatEpochMs(x)` (would render as
+  // "last used:-" 1:1 regression).
   if (!tk.last_used_at) return t('aiCfgNeverUsed')
   return `${t('aiCfgLastUsed')}: ${formatEpochMs(tk.last_used_at)}`
 }
 
-// SP8-P2b 验收第 5 轮:复制反馈(toast + 「已复制」打勾态)统一走 useCopyFeedback,
-// 同时只有一个按钮打勾、复制别的东西自动重置。需求与设计取舍见该文件头注释。
+// SP8-P2b acceptance round 5: copy feedback (toast + "copied" checkmark state) unified via useCopyFeedback,
+// with only one button showing checkmark, copying something else auto-resets.
+// Requirements and design rationale in file header.
 </script>
 
 <template>

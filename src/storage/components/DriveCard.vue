@@ -6,10 +6,12 @@ import { toFahrenheit, type PhysicalDrive } from '../util/storageMap'
 import { pohDisplay } from '../util/raidLevels'
 import DriveDetailDialog from './DriveDetailDialog.vue'
 
-// 2026-08-11 磁盘洞察(对齐 Vue2 DriveItem.vue b6cffd6c):卡片带序列号 + 通电时长与
-// RAID 身份标 —— 本机阵列成员打中性标(级别 · 阵列名),带外来阵列残留超块的盘打警告标;
-// 点卡片开详情弹窗(完整身份/健康/分区表/RAID 关系)。
-// ⚠️ raid.array_name 来自盘上 mdadm 超块(不可信文本),只经模板插值渲染,不拼 HTML。
+// 2026-08-11 disk insights (aligned with Vue2 DriveItem.vue b6cffd6c): the card shows the serial
+// number + power-on hours and a RAID identity tag —— local array members get a neutral tag
+// (level · array name), disks carrying a foreign array's residual superblock get a warning tag;
+// clicking the card opens the detail dialog (full identity/health/partition table/RAID relationship).
+// ⚠️ raid.array_name comes from the mdadm superblock on the disk (untrusted text) — only rendered
+// via template interpolation, never concatenated into HTML.
 const props = defineProps<{ drive: PhysicalDrive }>()
 const { t } = useI18n()
 

@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue:2-28
+// 1:1 ported from Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue:2-28
 // Pure geometry/formatting for the context-usage ring, extracted so the
 // component (a later task) only wires props → these functions.
 

@@ -15,9 +15,15 @@ import {
 } from '../util/placesMap'
 
 // New-UI 命名法,刻意不沿用 Vue2 的 `photos.placesMapTheme` / `photos.placesRailCollapsed`
-// (偏离登记):Vue2 与 New-UI 同源共享同一个浏览器 localStorage,而本期(D5)把浅色地图变体
-// 的触发信号从"相册私有 mapTheme 字段"改成了全局 `data-theme` 属性——若沿用同一个 key,
-// 两边会互相读写对方写入的旧结构,互相污染。改用独立 key 让两套实现的持久化状态互不干扰。
+// (deviation log): Vue2 and New-UI share the same origin's browser localStorage. This comment
+// used to explain the need for this separate key via "D5 changed the trigger signal to the
+// global data-theme" — that decision has since been reverted (see placesMapThemes.ts's own
+// header comment's "D5" section and usePhotosTheme.ts), but the separate key itself stays: even
+// though New-UI's MapThemePrefs shape (the customCityColor field name, the custom branch's
+// bg/grid-follow semantics) and Vue2's current customCityColor structure happen to be
+// name-for-name/shape-for-shape identical, it's safer for the two persistence layers to stay
+// independent rather than share one localStorage key — sharing it would mean any future
+// structural change on either side directly corrupts the other's data, and vice versa.
 const LS_THEME = 'nimo_places_map_theme'
 const LS_RAIL_COLLAPSED = 'nimo_places_rail_collapsed'
 
@@ -25,12 +31,18 @@ const THEME_ALLOWED = ['default', 'ocean', 'sand', 'mono', 'custom']
 const HEX_RE = /^#[0-9a-f]{6}$/i
 // 照 Vue2 PhotosPlacesView.vue:86-87 的默认值。
 const DEFAULT_DOT_COLOR = '#6E5BFF'
-const DEFAULT_GRID_COLOR = '#9C8EFF'
+// Task 6 (Plan E, 2026-08-15): renamed from DEFAULT_GRID_COLOR — same reason as Vue2 PR #106
+// sub-commit 3 renaming its own `customGridColor` to `customCityColor` (this value now feeds the
+// solid "city light" colour, not a grid line): no migration for the old field name's localStorage
+// value — reading an old-shape record simply finds this field already missing and falls straight
+// back to this default, matching Vue2's own handling (per the brief's quote of that sub-commit's
+// own commit message).
+const DEFAULT_CITY_COLOR = '#9C8EFF'
 
 export interface MapThemePrefs {
   mapTheme: string // 'default' | 'ocean' | 'sand' | 'mono' | 'custom'
   customDotColor: string // '#RRGGBB'
-  customGridColor: string
+  customCityColor: string
 }
 
 // 三个原先内联在 PlaceDetail 里的匿名对象类型提成具名导出(P6b-T2):T3-T6 四个组件的
@@ -72,7 +84,7 @@ const EMPTY_STATS: PlacesStats = { cities: 0, countries: 0, photos: 0 }
 // 照 Vue2 mounted :339-348 的 IIFE 读法:白名单/正则校验 + 整体 try 兜底(隐私模式/SSR/坏 JSON)。
 // 单字段独立回落——mapTheme 非法不连累已经合法的自定义色,反之亦然。
 function readThemePrefs(): MapThemePrefs {
-  const def: MapThemePrefs = { mapTheme: 'default', customDotColor: DEFAULT_DOT_COLOR, customGridColor: DEFAULT_GRID_COLOR }
+  const def: MapThemePrefs = { mapTheme: 'default', customDotColor: DEFAULT_DOT_COLOR, customCityColor: DEFAULT_CITY_COLOR }
   try {
     const raw = localStorage.getItem(LS_THEME)
     if (!raw) return def
@@ -80,7 +92,7 @@ function readThemePrefs(): MapThemePrefs {
     return {
       mapTheme: THEME_ALLOWED.includes(t.mapTheme as string) ? (t.mapTheme as string) : 'default',
       customDotColor: HEX_RE.test(t.customDotColor ?? '') ? (t.customDotColor as string) : DEFAULT_DOT_COLOR,
-      customGridColor: HEX_RE.test(t.customGridColor ?? '') ? (t.customGridColor as string) : DEFAULT_GRID_COLOR,
+      customCityColor: HEX_RE.test(t.customCityColor ?? '') ? (t.customCityColor as string) : DEFAULT_CITY_COLOR,
     }
   } catch {
     return def
@@ -383,16 +395,43 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  function persistTheme(): void {
+  // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 250ms debounce + flush-on-unmount,
+  // ported
+  // from Vue2 NimoOS-UI PR #106's own perf sub-commit (git show 78cf3335) persistTheme()/
+  // writeThemeNow()/beforeDestroy(). localStorage.setItem is synchronous, and dragging the
+  // custom-colour picker fires an `input` event (and, before this task, a synchronous
+  // setCustomColors() → persistTheme() call) per mouse-move — writing to disk on every one of
+  // those stutters the drag. Only the *disk write* is debounced; `themePrefs.value` itself is
+  // still assigned synchronously in setMapTheme/setCustomColors below, so every other reactive
+  // consumer (PlacesMap's themeVars, PlacesThemeMenu's own selection prop, etc.) sees the new
+  // value immediately — only the localStorage.setItem call is coalesced.
+  let persistThemeTimer: ReturnType<typeof setTimeout> | null = null
+  function writeThemeNow(): void {
+    persistThemeTimer = null
     try { localStorage.setItem(LS_THEME, JSON.stringify(themePrefs.value)) } catch { /* 忽略写入失败 */ }
+  }
+  function persistTheme(): void {
+    if (persistThemeTimer !== null) clearTimeout(persistThemeTimer)
+    persistThemeTimer = setTimeout(writeThemeNow, 250)
+  }
+  // Equivalent of Vue2's beforeDestroy (:393-397): flushes the last not-yet-persisted colour pick
+  // when the view unmounts — can't rely on the browser staying open until the user reopens the
+  // page. The caller is PhotosPlaces.vue's onUnmounted. Also called by __resetForTest itself
+  // (below), to keep a leftover timer from an already-reset old store instance from firing later
+  // during some other test and writing a themePrefs snapshot that doesn't belong to that test.
+  function flushThemePersist(): void {
+    if (persistThemeTimer !== null) {
+      clearTimeout(persistThemeTimer)
+      writeThemeNow()
+    }
   }
   function setMapTheme(theme: string): void {
     themePrefs.value = { ...themePrefs.value, mapTheme: theme }
     persistTheme()
   }
   // 照 Vue2 模板 :940/:944 的 `@input="mapTheme = 'custom'"`:挑自定义色即视为切到 custom 主题。
-  function setCustomColors(dotColor: string, gridColor: string): void {
-    themePrefs.value = { ...themePrefs.value, mapTheme: 'custom', customDotColor: dotColor, customGridColor: gridColor }
+  function setCustomColors(dotColor: string, cityColor: string): void {
+    themePrefs.value = { ...themePrefs.value, mapTheme: 'custom', customDotColor: dotColor, customCityColor: cityColor }
     persistTheme()
   }
 
@@ -433,6 +472,13 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     albumBusy.value = false
     // 有意不重置 coverSeq:理由同上面 seq 的注释——重置会让重置后的下一次
     // fetchCoverCandidates 落在同一个 mine 值上,与重置前仍在途的旧请求产生别名冲突。
+    // Task 5: flush any not-yet-persisted debounced write before resetting — without this, if the
+    // previous test/caller just called setMapTheme/setCustomColors and immediately called
+    // __resetForTest (without waiting the 250ms), the readThemePrefs() call below would read the
+    // stale pre-flush localStorage content rather than "the last value written before the reset"
+    // (an invariant places.test.ts's own __resetForTest case pins down). This also keeps the
+    // about-to-be-discarded store instance from leaving behind a still-ticking timer.
+    flushThemePersist()
     themePrefs.value = readThemePrefs()
     railCollapsed.value = readRailCollapsed()
   }
@@ -444,6 +490,7 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     fetchPlaces, loadDetail, clearDetail,
     setPlaceCover, resetPlaceCover, setSpotName, resetSpotName, createPlaceAlbum, fetchCoverCandidates,
     setMapTheme, setCustomColors, toggleRegionFold, isRegionCollapsed,
+    flushThemePersist,
     __resetForTest,
   }
 })

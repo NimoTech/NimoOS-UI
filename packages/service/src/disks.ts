@@ -1,41 +1,41 @@
 import type { AxiosInstance } from 'axios'
 import { unwrap } from './unwrap.js'
 
-// 字段抄自 NimoOS-LocalStorage route/v1/disk.go(GET /v1/disks,2026-08-11 真机 curl 核实)。
-// raid 字段来自 mdadm 超块扫描 —— 注意 array_name/created_at/updated_at 是**超块里的字符串**,
-// 任何插进来的盘都能控制其内容,前端只能当不可信文本渲染(模板插值),绝不能拼 HTML。
+// Fields copied from NimoOS-LocalStorage route/v1/disk.go (GET /v1/disks, verified 2026-08-11 via real-device curl).
+// The raid field comes from an mdadm superblock scan —— note that array_name/created_at/updated_at are **strings taken from the superblock**,
+// which any inserted disk can control the content of, so the frontend must render them only as untrusted text (template interpolation), never concatenate them into HTML.
 export interface DiskRaidInfo {
-  // member = 本机运行/登记的阵列成员,**绝不可**被选为新盘/替换盘(后端已把它们从 avail 剔除);
-  // residue = 外来/废弃阵列遗留的超块,出现在 avail 里,选用必须带 wipe_raid_residue: true。
+  // member = a member of an array running/registered on this machine, **must never** be selectable as a new/replacement disk (the backend has already excluded them from avail);
+  // residue = a superblock left over from a foreign/abandoned array, appears in avail, selecting it requires wipe_raid_residue: true.
   role: 'member' | 'residue'
   array_name: string
   array_uuid: string
-  level: string // "raid10" 等小写串
-  md_device?: string // 可能缺席
+  level: string // a lowercase string like "raid10"
+  md_device?: string // may be absent
   registered: boolean
   active: boolean
-  created_at?: string // residue 才有(mdadm 原文,如 "Thu Aug  6 21:54:49 2026")
-  updated_at?: string // residue 才有
+  created_at?: string // only present for residue (mdadm's raw text, e.g. "Thu Aug  6 21:54:49 2026")
+  updated_at?: string // only present for residue
 }
 
-// 分区/子设备行(disk.children[])。
+// A partition/child-device row (disk.children[]).
 export interface DiskChild {
   name: string
   size: number
   format: string
   supported: boolean
-  mount_point?: string // 未挂载时为 "" 或缺席
-  used_bytes?: number // 仅挂载时才有
+  mount_point?: string // "" or absent when not mounted
+  used_bytes?: number // only present when mounted
 }
 
-// 物理盘(data.disks[] 与 data.avail[] 同形)。health 是字符串 "true"/"false"
-// (avail 里恒为空串,后端赋值顺序缺陷,见 src/storage/util/storageMap.ts mapAvailDisks)。
+// A physical disk (data.disks[] and data.avail[] share this shape). health is the string "true"/"false"
+// (always an empty string in avail, a backend assignment-order defect, see src/storage/util/storageMap.ts mapAvailDisks).
 export interface Drive {
   name: string
   size: number
   model: string
   serial: string
-  disk_by_id?: string // 2026-08 新增,可能为 ""
+  disk_by_id?: string // added 2026-08, may be ""
   health: string
   temperature: number
   power_on_time: number
@@ -43,7 +43,7 @@ export interface Drive {
   need_format: boolean
   path: string
   children?: DiskChild[]
-  raid?: DiskRaidInfo // 干净盘缺席
+  raid?: DiskRaidInfo // absent for a clean disk
   [k: string]: unknown
 }
 
@@ -54,19 +54,19 @@ export interface DiskListData {
 
 export function createDisks(http: AxiosInstance) {
   return {
-    // GET /v1/disks — 物理盘列表(信封 Data = {disks, avail})。
-    // 老后端可能直接回裸数组,该分支原样透传 —— 类型按真机信封形状声明。
+    // GET /v1/disks — physical disk list (envelope Data = {disks, avail}).
+    // Older backends may return a bare array directly, this branch passes it through as-is —— the type is declared per the real-device envelope shape.
     async getDiskList(params?: Record<string, unknown>): Promise<DiskListData> {
       const res = await http.get('/disks', { params })
       const d = res.data
       return (Array.isArray(d) ? d : unwrap<DiskListData>(d)) as DiskListData
     },
-    // DELETE /v1/disks — 卸载盘(body 透传,Vue2 disks.umount 同形)
+    // DELETE /v1/disks — unmount a disk (body passed through, same shape as Vue2 disks.umount)
     async umount(data: unknown): Promise<unknown> {
       const res = await http.delete('/disks', { data })
       return unwrap<unknown>(res.data)
     },
-    // GET /v1/disks/usb — USB 设备列表
+    // GET /v1/disks/usb — USB device list
     async getUsbs(): Promise<unknown> {
       const res = await http.get('/disks/usb')
       const d = res.data

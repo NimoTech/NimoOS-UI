@@ -269,34 +269,41 @@ async function confirm(): Promise<void> {
 </template>
 
 <style scoped>
-/* token 映射(同 T5/T12/T13 既定表,不重复展开每一条):--surface-1→--popup-bg;
-   --line→--card-border;--text-1/2/3/4→--fg/--fg-muted/--fg-faint/--fg-subtle;
-   --surface-2→--chip-bg;--accent-hi→--accent-text;半透明 accent 描边(0.3 阿尔法)就近取
-   --accent-soft-bd(本仓无逐分量 accent-rgb token,Global Constraints §33)。投影统一走
-   --card-shadow-hi(本仓"不透明浮动面板"的既定组合,先例见 PhotosFilterPopover.vue/
-   SearchDatePopover.vue/SmartViewCreateDialog.vue 头部注释——不复刻 Vue2 那条额外的
-   0 0 0 1px 极淡 accent 描边,这三个先例都统一省略了这层,不是本任务新的偏离)。 */
-.save-pop {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  width: 360px;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 14px;
-  box-shadow: var(--card-shadow-hi);
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.save-pop-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--card-border);
-}
+/* 2026-08-13 revert (the owner overturned the EXIF glass exception; Plan F Task 2 fills this in
+   retroactively -- this component had missed that revert round, using the same established
+   approach as PhotosFilterPopover.vue/SearchDatePopover.vue/SearchPeoplePopover.vue):
+   the paragraph that used to sit here mapped every color in this block onto the generic
+   cross-app glass tokens (--surface-1→--popup-bg, --line→--card-border, --text-1/2/3/4→
+   --fg/--fg-muted/--fg-faint/--fg-subtle, --surface-2→--chip-bg, --accent-hi→--accent-text,
+   shadow→--card-shadow-hi) — the exact aesthetic the owner reverted for the fchip/fpop family.
+   `.save-pop`/`.save-pop-head`/`.save-pop-body`/`.save-pop-field`/`.save-pop-label`/
+   `.save-pop-sub`/`.save-pop-input`(+:focus)/`.save-pop-conds`/`.save-pop-cond`/
+   `.save-pop-toggle`/`.save-pop-foot`/`.save-pop-enter-active,.save-pop-leave-active` are
+   deleted below — every one of them was already a byte-for-byte duplicate of
+   vue2-parity/photos.scss's own bare rules (:2892-2911) once the wrong generic token names
+   were swapped for the local ones parity actually uses, so nothing is lost by handing them
+   over outright. One of those "duplicates" was hiding a real bug, not just a naming
+   preference: `.save-pop-cond`'s border used `var(--accent-soft-bd)`, a GLOBAL theme.css
+   token (blue channel family) that `.photos-root` never locally redefines — parity's own value
+   is a Photos-local purple literal instead, matching this file's own `--accent-rgb` (see the
+   component test file for the exact numbers). Deleting the rule instead of hand-fixing the
+   token also fixes the leak, for free.
+   Survivors (kept below, NOT part of this cleanup): `.save-pop-icon` (C11: deliberate solid
+   --accent + --on-accent vs. parity's literal purple gradient, unrelated to the glass-token
+   family), `.icon-btn` (M1: deliberate 28px vs. Vue2's global 32px `.icon-btn`, ditto),
+   `.save-pop-head-text`/`.save-pop-thresh-label`/`.save-pop-thresh-val`/
+   `.save-pop-conds-empty`/`.save-pop-toggle-text`/`.save-pop-toggle-label`/
+   `.save-pop-toggle-desc` (zero parity coverage — Vue2's real markup here is inline style,
+   not a class, same registered reasoning as `.fpop-item`/`.fpop-empty` in
+   PhotosFilterPopover.vue; their color tokens were already the correct local ones, nothing to
+   revert), and `.save-pop-enter-from,.save-pop-leave-to` (C7: Vue3 renamed Vue2's bare
+   enter/leave transition classes to an -from-suffixed pair, so parity's own verbatim
+   transcription of Vue2's SFC transition selector never matches any real Vue3 transition
+   class; this rule cannot be handed over by selector name, only its
+   `-active` sibling can). The `.sv-switch`/`.sv-btn-ghost`/`.sv-btn-primary` family further
+   below is untouched by this pass — C5 pinned those to a different, still-standing precedent
+   (T5 SmartViewCreateDialog.vue's `photos-smartview.scss` values), not to the fchip/fpop
+   glass-token family this task is about. */
 /* C11:28×28、border-radius:9px(不是 T5 .sv-modal-icon 的 32×32——两处尺寸独立核实,
    不能互相套用)。Vue2 原背景是写死的紫色渐变,改成 --accent 实底后前景满足"背景确为
    --accent 饱和实底"的条件,--on-accent 合法(同 T5 对 .sv-modal-icon 的既定处理口径)。 */
@@ -317,11 +324,11 @@ async function confirm(): Promise<void> {
 .save-pop-title {
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--fg);
+  color: var(--text-1);
 }
 .save-pop-sub {
   font-size: 11px;
-  color: var(--fg-faint);
+  color: var(--text-3);
   margin-top: 1px;
 }
 /* 偏离登记(fix round 1 · M1 已修正措辞,此前误写成"等价"):Vue2 全局 `.icon-btn`
@@ -342,120 +349,51 @@ async function confirm(): Promise<void> {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--fg-subtle);
+  color: var(--text-4);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 .icon-btn:hover {
-  background: var(--chip-bg);
-  color: var(--fg);
+  background: var(--surface-2);
+  color: var(--text-1);
 }
 
-.save-pop-body {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.save-pop-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.save-pop-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--fg-muted);
-}
 .save-pop-thresh-label {
   display: flex;
   align-items: baseline;
 }
 .save-pop-thresh-val {
   margin-left: auto;
-  color: var(--accent-text);
+  color: var(--accent-hi);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
-.save-pop-input {
-  padding: 8px 10px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 7px;
-  color: var(--fg);
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.12s, background 0.12s;
-}
-.save-pop-input:focus {
-  border-color: var(--accent);
-  background: var(--popup-bg);
-}
-.save-pop-conds {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 7px;
-  max-height: 70px;
-  overflow-y: auto;
-}
-.save-pop-cond {
-  padding: 2px 9px;
-  border-radius: 99px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-soft-bd);
-  color: var(--accent-text);
-  font-size: 11px;
-  font-weight: 500;
-}
 .save-pop-conds-empty {
   font-size: 11px;
-  color: var(--fg-subtle);
-}
-.save-pop-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 10px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  cursor: pointer;
+  color: var(--text-4);
 }
 .save-pop-toggle-text {
   flex: 1;
 }
 .save-pop-toggle-label {
   font-size: 12.5px;
-  color: var(--fg);
+  color: var(--text-1);
   font-weight: 500;
 }
 .save-pop-toggle-desc {
   font-size: 11px;
-  color: var(--fg-faint);
+  color: var(--text-3);
   margin-top: 1px;
 }
-.save-pop-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--card-border);
-  background: var(--popup-bg);
-}
-
-/* C7:Vue2 的 <transition name="save-pop"> 规则,Vue3 类名是 -enter-from 不是 Vue2 的
-   -enter(T6 fix round 教训:写成 -enter 会静默失效)。 */
-.save-pop-enter-active,
-.save-pop-leave-active {
-  transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  transform-origin: top right;
-}
+/* C7: for Vue2's <transition name="save-pop"> rule, the Vue3 class name is -enter-from, not
+   Vue2's -enter (a lesson from T6's fix round: writing -enter silently fails to match).
+   `-enter-active`/`-leave-active` (same
+   selector name in Vue2 and Vue3 — only the non-`-active` half was renamed) is NOT kept here:
+   vue2-parity/photos.scss's own `.save-pop-enter-active, .save-pop-leave-active` (:2911) is a
+   byte-identical transition, so it's handed over like every other duplicate above. Only the
+   `-enter-from`/`-leave-to` half survives, since parity's corresponding rule uses Vue2's dead
+   `.save-pop-enter` name that no Vue3 transition ever applies. */
 .save-pop-enter-from,
 .save-pop-leave-to {
   opacity: 0;
@@ -471,12 +409,20 @@ async function confirm(): Promise<void> {
   position: relative;
   width: 32px;
   height: 18px;
-  background: var(--chip-bg-hi);
+  background: var(--surface-3);
   border-radius: 99px;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s;
 }
+/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
+   states -- overrides whatever Vue2's own (non-existent) light theme would have done, explicit
+   owner requirement. Fix-5's `var(--text-1)` got dark-mode legibility right but was still a
+   theme-flipping token, going near-black under `.photos-root.is-light` -- legible, but not
+   white, which is what the owner wants. `--text-1` is deliberately no longer used for the knob.
+   Literal white, same theme-exception convention as PhotosToastHost.vue's `.photos-toast`
+   background / this repo's other theme-invariant surfaces. The light-mode border + shadow below
+   is a matched pair with this rule -- see its own comment. */
 .sv-switch::after {
   content: '';
   position: absolute;
@@ -485,27 +431,46 @@ async function confirm(): Promise<void> {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--fg);
+  background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
   transition: all 0.2s;
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
+/* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle has
+   no edge against photos light mode's own near-white `--surface-3` off-track, so light mode gets
+   a subtle parity-token border plus a lighter drop shadow, same values as
+   SmartViewCreateDialog.vue/SmartViewSidePanel.vue's own copies of this rule. Applies to both
+   on/off states (neither modifies border/box-shadow), matching the owner's state-invariant
+   requirement. */
+.photos-root.is-light .sv-switch::after {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
+}
 .sv-switch[data-on="true"] { background: var(--accent); }
-.sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
+/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+   own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+   moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+   same colour in both states. The `--on-accent` override this rule used to carry (the C5 ruling
+   above pinned this file's `.sv-switch` to SmartViewCreateDialog.vue's values, which carried the
+   same bug) was wrong: it made the knob track the on/off *state* instead of staying constant
+   like Vue2's. Deleted here too, same fix as that file and SmartViewSidePanel.vue's own copy in
+   the same commit -- the knob now always uses the base rule's background above (Fix-6: literal
+   white), in both states, matching Vue2's own single-value knob exactly. */
+.sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-btn-ghost {
   height: 36px;
   padding: 0 16px;
   border-radius: 9px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
 }
-.sv-btn-ghost:hover { background: var(--chip-bg-hi); }
+.sv-btn-ghost:hover { background: var(--surface-3); }
 .sv-btn-primary {
   height: 36px;
   padding: 0 18px;

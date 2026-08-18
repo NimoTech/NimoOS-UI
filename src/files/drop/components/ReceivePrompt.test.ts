@@ -14,10 +14,10 @@ describe('ReceivePrompt', () => {
   beforeEach(() => { pinia = createPinia(); setActivePinia(pinia) })
   const mountP = () => mount(ReceivePrompt, { global: { plugins: [pinia, i18n] } })
 
-  it('队列空不渲染', () => {
+  it('empty queue does not render', () => {
     expect(mountP().find('.receive-card').exists()).toBe(false)
   })
-  it('队头渲染名称/大小,忽略出队,HTML 不含 /DATA', async () => {
+  it('queue head renders name/size, ignores dequeue, HTML does not contain /DATA', async () => {
     const s = useDropStore()
     s.receiveQueue.push({ file: { name: 'a.txt', mime: '', size: 2048, blob: new Blob(['x']) }, from: 'p' })
     const w = mountP()
@@ -28,7 +28,7 @@ describe('ReceivePrompt', () => {
     await w.find('.receive-ignore').trigger('click')
     expect(s.receiveQueue.length).toBe(0)
   })
-  it('保存键调 saveCurrent', async () => {
+  it('save button calls saveCurrent', async () => {
     const s = useDropStore()
     const spy = vi.spyOn(s, 'saveCurrent').mockImplementation(() => {})
     s.receiveQueue.push({ file: { name: 'a', mime: '', size: 1, blob: new Blob(['x']) }, from: 'p' })

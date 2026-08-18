@@ -14,50 +14,50 @@ const F = (over: Partial<CreateVmForm> = {}): CreateVmForm => ({
 })
 
 describe('validateCreateVm', () => {
-  it('全部合法返回 null', () => {
+  it('All valid return null', () => {
     expect(validateCreateVm(F(), OS(), HOST)).toBeNull()
   })
-  it('名字空白 → kvmErrNoName(照 Vue2 :1451)', () => {
+  it('Name is blank → kvmErrNoName (per Vue2 :1451)', () => {
     expect(validateCreateVm(F({ name: '   ' }), OS(), HOST)?.key).toBe('kvmErrNoName')
   })
-  it('没选 OS → kvmErrNoOs(照 Vue2 :1454)', () => {
+  it('No OS selected → kvmErrNoOs (per Vue2 :1454)', () => {
     expect(validateCreateVm(F(), null, HOST)?.key).toBe('kvmErrNoOs')
   })
 
-  // ⚠️ 这条是「改正确」:Vue2 只判 os.minDisk(:1458),alpine-319.minDisk=2 会放行
-  // disk=2,而后端 vm_service.go:286-310 硬要求 disk>=8,请求必被拒。取 max(8, minDisk)。
-  it('磁盘下限取 max(8, os.minDisk) —— minDisk=2 时仍要求 8', () => {
+  // ⚠️ This case is a deliberate fix (not a 1:1 port): Vue2 only checks os.minDisk (:1458), so alpine-319.minDisk=2
+  // would allow disk=2, but the backend vm_service.go:286-310 hard-requires disk>=8 and would always reject. Use max(8, minDisk).
+  it('Disk minimum is max(8, os.minDisk) — still requires 8 when minDisk=2', () => {
     const r = validateCreateVm(F({ disk: 4 }), OS({ minDisk: 2 }), HOST)
     expect(r).toEqual({ key: 'kvmErrDiskMin', arg: '8 GB' })
     expect(validateCreateVm(F({ disk: 8 }), OS({ minDisk: 2 }), HOST)).toBeNull()
   })
-  it('minDisk 大于 8 时以 minDisk 为准', () => {
+  it('When minDisk is greater than 8, use minDisk as the standard', () => {
     expect(validateCreateVm(F({ disk: 20 }), OS({ minDisk: 60 }), HOST))
       .toEqual({ key: 'kvmErrDiskMin', arg: '60 GB' })
   })
 
-  it('内存低于 os.minMemory → kvmErrMemoryMin(照 Vue2 :1461)', () => {
+  it('Memory below os.minMemory → kvmErrMemoryMin (per Vue2 :1461)', () => {
     expect(validateCreateVm(F({ memory: 128 }), OS({ minMemory: 256 }), HOST))
       .toEqual({ key: 'kvmErrMemoryMin', arg: '256 MB' })
   })
-  it('磁盘超可用 → kvmErrDiskMax(照 Vue2 :1464)', () => {
+  it('Disk exceeds available → kvmErrDiskMax (per Vue2 :1464)', () => {
     expect(validateCreateVm(F({ disk: 999 }), OS(), HOST))
       .toEqual({ key: 'kvmErrDiskMax', arg: '263 GB' })
   })
-  it('内存超可用 → kvmErrMemoryMax,单位按 formatHostMem 换 GB(照 Vue2 :1467,:1649)', () => {
+  it('Memory exceeds available → kvmErrMemoryMax, unit converted to GB per formatHostMem (per Vue2 :1467,:1649)', () => {
     expect(validateCreateVm(F({ memory: 99999 }), OS(), HOST))
       .toEqual({ key: 'kvmErrMemoryMax', arg: '9.0 GB' })
   })
-  it('vCPU 超核心数 → kvmErrVcpuMax(照 Vue2 :1470)', () => {
+  it('vCPU exceeds core count → kvmErrVcpuMax (per Vue2 :1470)', () => {
     expect(validateCreateVm(F({ vcpu: 8 }), OS(), HOST))
       .toEqual({ key: 'kvmErrVcpuMax', arg: '6' })
   })
-  it('host 值为 0(settings 还没回来)时不拿 0 当上限拒人(照 Vue2 的真值判断)', () => {
+  it('When host value is 0 (settings not yet returned), do not treat 0 as a limit to reject (per Vue2 truthiness check)', () => {
     const empty = { cpuCores: 0, availableMemoryMB: 0, availableDiskGB: 0, networkInterfaces: [], defaultDiskSize: 0 }
     expect(validateCreateVm(F(), OS(), empty)).toBeNull()
   })
-  it('校验顺序照 Vue2:名字 → OS → 磁盘下限 → 内存下限 → 三个上限', () => {
-    // 名字空 + 磁盘也不合法 → 先报名字
+  it('Validation order per Vue2: name → OS → disk minimum → memory minimum → three maximums', () => {
+    // Empty name + invalid disk → the name error is reported first
     expect(validateCreateVm(F({ name: '', disk: 1 }), OS(), HOST)?.key).toBe('kvmErrNoName')
   })
 })

@@ -1,16 +1,16 @@
 <!--
-  风格 C · 指针 + Helvetica 大字（A+B 结合）
+  Style C · analog hands + large Helvetica digits (A+B combined)
 
-  卡片底色由 WidgetCard.vue 的 .card.w-clock { background: var(--clock-bg) } 提供。
-  想要预览里那种紫玻璃质感，把 theme.css 里的 --clock-bg 改成：
+  The card background comes from WidgetCard.vue's .card.w-clock { background: var(--clock-bg) }.
+  For the purple glass look from the preview, change --clock-bg in theme.css to:
     --clock-bg: linear-gradient(155deg, rgba(152,152,224,.5), rgba(108,110,186,.32));
-  想保留原来的蓝白玻璃则无需改动。
+  To keep the original blue-white glass, no change is needed.
 
-  尺寸自适应（item.h 为行数、item.w 为列数）：
-    h<2            → 仅时间（1×2）
-    w>=4, h>=2     → 指针 + 大字 + 问候/日期（2×4）
-    w==3, h>=2     → 指针 + 星期/时间/日期 居中（2×3）
-    其余(2×2)       → 指针在上、时间在下，垂直居中
+  Size-adaptive (item.h = rows, item.w = columns):
+    h<2            → time only (1×2)
+    w>=4, h>=2     → hands + large digits + greeting/date (2×4)
+    w==3, h>=2     → hands + weekday/time/date, centered (2×3)
+    otherwise (2×2) → hands on top, time below, vertically centered
 -->
 <template>
   <div class="clock" :class="'v-' + variant" data-clock-widget>
@@ -94,16 +94,17 @@ const variant = computed<'mini' | 'wide' | 'med' | 'square'>(() => {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-weight: 200; line-height: .82; letter-spacing: -.04em;
   font-variant-numeric: tabular-nums;
-  font-size: 1em;                 /* time = 该档的基准字号(容器 font-size) */
+  font-size: 1em;                 /* time = the variant's base font size (container font-size) */
 }
-/* 等比例缩放:每档只让基准字号 font-size 随卡片(cqmin)缩放;其余尺寸(表盘/间距/次要文字)
-   全部用 em 表达 = 原设计 px ÷ 基准 px,于是所有元素严格按原比例一起放大缩小。
-   clamp 上限 = 原写死值(大屏观感不变),下限保证小屏可读。 */
+/* Proportional scaling: each variant only lets the base font-size scale with the card (cqmin); every
+   other size (dial/spacing/secondary text) is expressed in em = original design px ÷ base px, so all
+   elements scale up and down strictly in the original proportions.
+   clamp upper bound = the original hardcoded value (large screens look unchanged); the lower bound keeps small screens readable. */
 .greet { opacity: .68; }
 .sub   { opacity: .68; }
 .wk    { opacity: .82; }
 
-/* —— 2×4(基准 time=100px)—— */
+/* —— 2×4 (base time=100px) —— */
 .v-wide { font-size: clamp(30px, 40cqmin, 100px); flex-direction: row; align-items: center; justify-content: center; gap: .34em; padding: .28em .34em; }
 .v-wide .dial { width: 1.7em; height: 1.7em; }
 .v-wide .txt { gap: .06em; }
@@ -111,23 +112,23 @@ const variant = computed<'mini' | 'wide' | 'med' | 'square'>(() => {
 .v-wide .greet { font-size: max(11px, .14em); }
 .v-wide .sub   { font-size: max(11px, .17em); opacity: .78; }
 
-/* —— 2×3(基准 time=70px)—— */
+/* —— 2×3 (base time=70px) —— */
 .v-med { font-size: clamp(26px, 32cqmin, 70px); flex-direction: row; align-items: center; justify-content: center; gap: .371em; padding: .371em; }
 .v-med .dial { width: 2.086em; height: 2.086em; }
 .v-med .txt { align-items: center; text-align: center; gap: .086em; }
 .v-med .wk  { font-size: max(12px, .257em); }
 .v-med .sub { font-size: max(11px, .214em); }
 
-/* —— 2×2(基准 time=52px)—— */
+/* —— 2×2 (base time=52px) —— */
 .v-square { font-size: clamp(22px, 23cqmin, 52px); flex-direction: column; align-items: center; justify-content: center; gap: .269em; padding: .308em; }
 .v-square .dial { width: 2.46em; height: 2.46em; }
 .v-square .time { line-height: .85; letter-spacing: -.035em; }
 
-/* —— 1×2（仅时间,基准 time=66px)—— */
+/* —— 1×2 (time only, base time=66px) —— */
 .v-mini { font-size: clamp(24px, 52cqmin, 66px); align-items: center; justify-content: center; padding: 0 .333em; }
 .v-mini .time { letter-spacing: -.035em; }
 
-/* —— 表盘 —— */
+/* —— dial —— */
 .dial { flex: 0 0 auto; }
 .face { fill: var(--spark-grid); stroke: var(--fg-faint); stroke-width: 1; }
 .tick { stroke: var(--fg-muted); stroke-width: 1; stroke-linecap: round; }

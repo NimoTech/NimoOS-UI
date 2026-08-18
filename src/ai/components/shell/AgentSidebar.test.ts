@@ -27,7 +27,7 @@ describe('AgentSidebar', () => {
     localStorage.clear()
   })
 
-  it('渲染会话列表:标题/摘要,空标题回落 (未命名)', () => {
+  it('renders the session list — title/snippet, empty title falls back to (未命名)', () => {
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: 's1' },
       global: { plugins: [i18n] },
@@ -39,7 +39,7 @@ describe('AgentSidebar', () => {
     expect(items[1].find('.chat-item-title').text()).toBe('(未命名)')
   })
 
-  it('active 会话打上 data-active', () => {
+  it('marks the active session with data-active', () => {
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: 's1' },
       global: { plugins: [i18n] },
@@ -49,7 +49,7 @@ describe('AgentSidebar', () => {
     expect(items[1].attributes('data-active')).toBe('false')
   })
 
-  it('无会话时展示空态文案', () => {
+  it('shows the empty-state copy when there are no sessions', () => {
     const w = mount(AgentSidebar, {
       props: { sessions: [], activeId: null },
       global: { plugins: [i18n] },
@@ -57,12 +57,14 @@ describe('AgentSidebar', () => {
     expect(w.text()).toContain('暂无对话')
   })
 
-  // reka-ui 的 AlertDialogAction 是 DialogClose:点击真实确认按钮时先派发
-  // update:open(false) 再派发 @click 里的 confirm。deleteDlg 把 open 与待删 id
-  // 打包在同一个 ref、v-model:open 只改 .open 不碰 .id,故 confirm 处理器仍能读到
-  // 正确的 id(同 InstalledAppsPage.test.ts 的 SP5-P1 回归用例复现手法:真实挂载 +
-  // 真实 reka 弹窗 + attachTo document.body,不 mock reka)。
-  it('点击会话行 emit select;点删除只弹 AlertDialog,confirm 后才 emit delete', async () => {
+  // reka-ui's AlertDialogAction is a DialogClose: clicking the real confirm button
+  // first dispatches update:open(false), then dispatches the @click confirm handler.
+  // deleteDlg packs open and the pending-delete id into the same ref, and
+  // v-model:open only touches .open, never .id, so the confirm handler can still
+  // read the correct id (same reproduction technique as the SP5-P1 regression case
+  // in InstalledAppsPage.test.ts: a real mount + a real reka dialog + attachTo
+  // document.body, no mocking reka).
+  it('clicking a session row emits select; clicking delete only opens the AlertDialog, and delete is only emitted after confirm', async () => {
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: 's1' },
       global: { plugins: [i18n] },
@@ -73,7 +75,7 @@ describe('AgentSidebar', () => {
     expect(w.emitted('select')?.[0]).toEqual(['s1'])
 
     await items[0].find('.delete-btn').trigger('click')
-    await nextTick() // reka 把 AlertDialogContent Portal 到 document.body 是异步的
+    await nextTick() // reka portals AlertDialogContent into document.body asynchronously
 
     // Not emitted yet — only the confirm dialog should be open.
     expect(w.emitted('delete')).toBeUndefined()
@@ -83,14 +85,14 @@ describe('AgentSidebar', () => {
       .find((b) => b.textContent?.trim() === '删除')
     expect(confirmBtn).toBeTruthy()
 
-    confirmBtn!.click() // 真实 DOM click:先触发 reka 内部 onOpenChange(false),再触发 confirm
+    confirmBtn!.click() // real DOM click: triggers reka's internal onOpenChange(false) first, then confirm
     await nextTick()
 
     expect(w.emitted('delete')?.[0]).toEqual(['s1'])
     w.unmount()
   })
 
-  it('collapsed 态只渲染图标按钮,emit new/open-settings', async () => {
+  it('renders only icon buttons when collapsed, emits new/open-settings', async () => {
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: null, collapsed: true },
       global: { plugins: [i18n] },
@@ -103,7 +105,7 @@ describe('AgentSidebar', () => {
     expect(w.emitted('open-settings')).toBeTruthy()
   })
 
-  it('goBack:有历史则 router.go(-1)', async () => {
+  it('goBack: calls router.go(-1) when history exists', async () => {
     const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(2)
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: null },
@@ -114,7 +116,7 @@ describe('AgentSidebar', () => {
     historySpy.mockRestore()
   })
 
-  it('头像:无 token 时落默认图;设置了 access_token 时拼 avatar URL', () => {
+  it('avatar: falls back to the default image without a token; builds the avatar URL when access_token is set', () => {
     localStorage.setItem('access_token', 'tok-1')
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: null },
@@ -124,12 +126,14 @@ describe('AgentSidebar', () => {
     expect(img.attributes('src')).toContain('v1/users/avatar?token=tok-1')
   })
 
-  // SP8-P1c2 Task 7: avatarVersion 从组件局部 ref 上移到 useUserProfile store。
-  // 这两例证明:(1) 头像 URL 的 &v= 读的是 store 的值(初值 1),
-  // (2) store 版本变化能驱动已挂载组件的 URL 重算——这就是未来账户面板
-  // 上传头像成功后调 bumpAvatarVersion() 能让侧栏跟着刷新的证明,不需要
-  // 事件总线,不需要改 AI 区代码。
-  it('头像 URL 含 &v=<store 版本>(初值 1)', () => {
+  // SP8-P1c2 Task 7: avatarVersion was moved from a component-local ref up into
+  // the useUserProfile store. These two cases prove: (1) the avatar URL's &v=
+  // reads the store's value (initial value 1), and (2) a store version change
+  // drives a recompute of the URL in an already-mounted component — this is the
+  // proof that a future account panel can call bumpAvatarVersion() after a
+  // successful avatar upload and have the sidebar refresh along with it, with no
+  // event bus and no changes needed to the AI area's code.
+  it('the avatar URL contains &v=<store version> (initial value 1)', () => {
     localStorage.setItem('access_token', 'tok-1')
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: null },
@@ -139,7 +143,7 @@ describe('AgentSidebar', () => {
     expect(img.attributes('src')).toContain('v1/users/avatar?token=tok-1&v=1')
   })
 
-  it('store.bumpAvatarVersion() 后头像 URL 的 v 参数变化(跨组件生效)', async () => {
+  it('the avatar URL v parameter changes after store.bumpAvatarVersion() (takes effect across components)', async () => {
     localStorage.setItem('access_token', 'tok-1')
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: null },
@@ -152,7 +156,7 @@ describe('AgentSidebar', () => {
     expect(img.attributes('src')).toContain('v1/users/avatar?token=tok-1&v=2')
   })
 
-  it('用户名读 localStorage.user(nickname 优先),否则回落 User', () => {
+  it('the username reads localStorage.user (nickname takes priority), otherwise falls back to User', () => {
     localStorage.setItem('user', JSON.stringify({ nickname: '阿田', role: 'admin' }))
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: null },

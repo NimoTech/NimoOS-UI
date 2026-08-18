@@ -5,8 +5,8 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 
-// SP8-P2b Task 7 —— 承接 brief .superpowers/sdd/p2b-task-7-brief.md 用例清单(24 条)。
-// Vue2 SearchSection.vue 无既有测试,这里是新写的。
+// SP8-P2b Task 7 — follows brief .superpowers/sdd/p2b-task-7-brief.md use case list (24 cases).
+// Vue2 SearchSection.vue has no existing tests, this is newly written.
 
 const h = vi.hoisted(() => ({
   getSearchSettings: vi.fn(),
@@ -61,9 +61,9 @@ describe('SearchSection', () => {
     vi.useRealTimers()
   })
 
-  // ---- 加载与回填 (6) ----
+  // ---- Load and populate (6) ----
 
-  it('1. 完整 settings 全部回填到对应控件', async () => {
+  it('1. Fully populate all complete settings to corresponding controls', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: fullSettings })
     const w = mountSection()
     await flush()
@@ -75,7 +75,7 @@ describe('SearchSection', () => {
     expect(roots).toEqual(['/DATA', '/mnt/extra'])
   })
 
-  it('2a. getSearchSettings 返回 {settings:{...}} 信封也能取到', async () => {
+  it('2a. getSearchSettings returning {settings:{...}} envelope can also be retrieved', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: { max_total_results: 33 } })
     const w = mountSection()
     await flush()
@@ -83,7 +83,7 @@ describe('SearchSection', () => {
     expect(nums[3]).toBe('33')
   })
 
-  it('2b. getSearchSettings 返回 {data:{settings:{...}}} 信封也能取到', async () => {
+  it('2b. getSearchSettings returning {data:{settings:{...}}} envelope can also be retrieved', async () => {
     h.getSearchSettings.mockResolvedValue({ data: { settings: { max_total_results: 44 } } })
     const w = mountSection()
     await flush()
@@ -91,7 +91,7 @@ describe('SearchSection', () => {
     expect(nums[3]).toBe('44')
   })
 
-  it('3. 字段缺失时归一为默认值', async () => {
+  it('3. Missing fields normalize to default values', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     const w = mountSection()
     await flush()
@@ -101,7 +101,7 @@ describe('SearchSection', () => {
     expect(roots).toEqual(['/DATA'])
   })
 
-  it('4. getSearchSettings reject 不抛、控件留默认值，仍会调用 getFileindexStatus', async () => {
+  it('4. getSearchSettings reject does not throw, controls retain default value, still calls getFileindexStatus', async () => {
     h.getSearchSettings.mockRejectedValue(new Error('boom'))
     const w = mountSection()
     await flush()
@@ -110,7 +110,7 @@ describe('SearchSection', () => {
     expect(h.getFileindexStatus).toHaveBeenCalled()
   })
 
-  it('5. getFileindexStatus 两种信封都能取到', async () => {
+  it('5. getFileindexStatus both envelope types can be retrieved', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.getFileindexStatus.mockResolvedValue({ data: { status: 'ready', indexed_count: 7, watch_degraded: false, inotify: null } })
     const w1 = mountSection()
@@ -123,7 +123,7 @@ describe('SearchSection', () => {
     expect(w2.find('.diag-row .v').text()).toContain('建立中')
   })
 
-  it('6. getFileindexStatus reject 不抛，诊断区渲染默认值', async () => {
+  it('6. getFileindexStatus reject does not throw, diagnostic area renders default value', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.getFileindexStatus.mockRejectedValue(new Error('boom'))
     const w = mountSection()
@@ -133,9 +133,9 @@ describe('SearchSection', () => {
     expect(rows[1].text()).toContain('0')
   })
 
-  // ---- 检索参数 (6) ----
+  // ---- Retrieval parameters (6) ----
 
-  it('7. 点「语义」chip 取消勾选再点回来', async () => {
+  it('7. Click "semantic" chip to uncheck then click back', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     const w = mountSection()
     await flush()
@@ -148,7 +148,7 @@ describe('SearchSection', () => {
     expect(w.findAll('.set-chip').find((c) => c.text().includes('语义'))!.attributes('data-on')).toBe('true')
   })
 
-  it('8. 三个源全取消 -> 显示提示 + 保存按钮 disabled（对照组：有一个源时按钮可用）', async () => {
+  it('8. All three sources unchecked → show hint + save button disabled (control group: button enabled with one source)', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     const w = mountSection()
     await flush()
@@ -160,7 +160,7 @@ describe('SearchSection', () => {
     expect(w.findAll('.sk-btn.primary')[0].attributes('disabled')).toBeDefined()
   })
 
-  it('9. 点保存 -> putSearchSettings 收到恰好 5 个键，不含 fileindex 三键', async () => {
+  it('9. Click save → putSearchSettings receives exactly 5 keys, excludes three fileindex keys', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.putSearchSettings.mockResolvedValue({})
     const w = mountSection()
@@ -173,7 +173,7 @@ describe('SearchSection', () => {
     )
   })
 
-  it('10. 保存成功后显示「已保存」', async () => {
+  it('10. Display "saved" after successful save', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.putSearchSettings.mockResolvedValue({})
     const w = mountSection()
@@ -183,7 +183,7 @@ describe('SearchSection', () => {
     expect(w.find('.set-actions .hint').text()).toBe('已保存')
   })
 
-  it('11. 源为空时点保存不发请求', async () => {
+  it('11. Clicking save with empty source does not send request', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     const w = mountSection()
     await flush()
@@ -195,7 +195,7 @@ describe('SearchSection', () => {
     expect(h.putSearchSettings).not.toHaveBeenCalled()
   })
 
-  it('12. 保存失败弹 danger toast + 「保存中」复位（逻辑修正）', async () => {
+  it('12. Save failure shows danger toast + "saving" resets (logic fix)', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.putSearchSettings.mockRejectedValue({ response: { data: { message: '存不上' } } })
     const toast = useToast()
@@ -209,9 +209,9 @@ describe('SearchSection', () => {
     expect(w.findAll('.sk-btn.primary')[0].attributes('disabled')).toBeUndefined()
   })
 
-  // ---- 文件名索引 (6) ----
+  // ---- Filename index (6) ----
 
-  it('13. 添加根目录多一行，删除某行只删对应那行', async () => {
+  it('13. Add root directory adds one row, delete specific row deletes only that row', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: { fileindex_roots: ['/DATA', '/mnt/extra'] } })
     const w = mountSection()
     await flush()
@@ -225,7 +225,7 @@ describe('SearchSection', () => {
     expect(remaining).toEqual(['/mnt/extra', ''])
   })
 
-  it('14. 保存 fileindex -> payload 恰好 3 键，且 fileindex_roots 过滤掉纯空白项', async () => {
+  it('14. Save fileindex → payload has exactly 3 keys, fileindex_roots filters out pure whitespace items', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: { fileindex_roots: ['/DATA', '  ', ''] } })
     h.putSearchSettings.mockResolvedValue({})
     const w = mountSection()
@@ -239,7 +239,7 @@ describe('SearchSection', () => {
     expect(payload.fileindex_roots).toEqual(['/DATA'])
   })
 
-  it('15. 响应 {restart_required:true} 渲染警告条；false/缺失时不渲染（对照组）', async () => {
+  it('15. Response {restart_required:true} renders warning banner; false/missing does not render (control group)', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.putSearchSettings.mockResolvedValueOnce({ restart_required: true })
     const w = mountSection()
@@ -251,7 +251,7 @@ describe('SearchSection', () => {
     expect(w.find('.set-banner.warn').text()).toBe('根目录 / 索引设置已更改，需重启搜索服务后生效。')
   })
 
-  it('15b. restart_required=false 不渲染警告条', async () => {
+  it('15b. restart_required=false does not render warning banner', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.putSearchSettings.mockResolvedValue({ restart_required: false })
     const w = mountSection()
@@ -261,7 +261,7 @@ describe('SearchSection', () => {
     expect(w.find('.set-banner.warn').exists()).toBe(false)
   })
 
-  it('16. resp.data.restart_required 与 resp.restart_required 两种信封都能识别', async () => {
+  it('16. Both resp.data.restart_required and resp.restart_required envelope types can be recognized', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.putSearchSettings.mockResolvedValueOnce({ data: { restart_required: true } })
     const w = mountSection()
@@ -271,7 +271,7 @@ describe('SearchSection', () => {
     expect(w.find('.set-banner.warn').exists()).toBe(true)
   })
 
-  it('17. 保存 fileindex 失败弹 danger toast（逻辑修正）', async () => {
+  it('17. Save fileindex failure shows danger toast (logic fix)', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.putSearchSettings.mockRejectedValue({ response: { data: { message: '目录非法' } } })
     const toast = useToast()
@@ -283,7 +283,7 @@ describe('SearchSection', () => {
     expect(show).toHaveBeenCalledWith('目录非法', 3000, 'danger')
   })
 
-  it('18a. 「立即重扫」调用 rescanFileindex，按钮期间 disabled，1500ms 后 getFileindexStatus 再调一次', async () => {
+  it('18a. "Rescan now" calls rescanFileindex, button disabled during, getFileindexStatus called again after 1500ms', async () => {
     vi.useFakeTimers()
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.rescanFileindex.mockResolvedValue({})
@@ -298,7 +298,7 @@ describe('SearchSection', () => {
     expect(h.getFileindexStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('18b. 卸载后推进 1500ms，getFileindexStatus 不再被调（逻辑修正）', async () => {
+  it('18b. After unmount, advance 1500ms, getFileindexStatus no longer called (logic fix)', async () => {
     vi.useFakeTimers()
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.rescanFileindex.mockResolvedValue({})
@@ -312,9 +312,9 @@ describe('SearchSection', () => {
     expect(h.getFileindexStatus).not.toHaveBeenCalled()
   })
 
-  // ---- 诊断区 (4) ----
+  // ---- Diagnostic area (4) ----
 
-  it('19. 四态状态标签正确映射，未知值原样显示', async () => {
+  it('19. Four-state status label correctly mapped, unknown values displayed as-is', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.getFileindexStatus.mockResolvedValue({ status: 'ready', indexed_count: 0, watch_degraded: false, inotify: null })
     const w1 = mountSection(); await flush()
@@ -333,7 +333,7 @@ describe('SearchSection', () => {
     expect(w4.find('.diag-row .v').text()).toContain('weird')
   })
 
-  it('20. inotify 为 null 不渲染相关行；有值时渲染上限数字与「（推荐 N）」（对照组）', async () => {
+  it('20. inotify null does not render relevant row; with value renders limit number and "(recommended N)" (control group)', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.getFileindexStatus.mockResolvedValue({ status: 'ready', indexed_count: 1, watch_degraded: false, inotify: null })
     const w1 = mountSection()
@@ -353,7 +353,7 @@ describe('SearchSection', () => {
     expect(w2.find('.set-copy').exists()).toBe(false)
   })
 
-  it('21a. watch_degraded=true 渲染降级警告 + 复制框', async () => {
+  it('21a. watch_degraded=true renders degradation warning + copy box', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.getFileindexStatus.mockResolvedValue({
       status: 'ready', indexed_count: 1, watch_degraded: true,
@@ -365,7 +365,7 @@ describe('SearchSection', () => {
     expect(w.find('.set-copy').exists()).toBe(true)
   })
 
-  it('21b. max_user_watches < recommended 也渲染复制框（不依赖 watch_degraded）', async () => {
+  it('21b. max_user_watches < recommended also renders copy box (not dependent on watch_degraded)', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.getFileindexStatus.mockResolvedValue({
       status: 'ready', indexed_count: 1, watch_degraded: false,
@@ -377,7 +377,7 @@ describe('SearchSection', () => {
     expect(w.find('.set-copy').exists()).toBe(true)
   })
 
-  it('22a. 点「复制」调用 copyText(raise_cmd) 且成功弹「已复制」toast', async () => {
+  it('22a. Click "copy" calls copyText(raise_cmd), on success shows "copied" toast', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.getFileindexStatus.mockResolvedValue({
       status: 'ready', indexed_count: 1, watch_degraded: true,
@@ -394,7 +394,7 @@ describe('SearchSection', () => {
     expect(show).toHaveBeenCalledWith('已复制')
   })
 
-  it('22b. copyText reject 弹 warning toast「复制失败,请手动选择」（逻辑修正）', async () => {
+  it('22b. copyText reject shows warning toast "copy failed, please select manually" (logic fix)', async () => {
     h.getSearchSettings.mockResolvedValue({ settings: {} })
     h.getFileindexStatus.mockResolvedValue({
       status: 'ready', indexed_count: 1, watch_degraded: true,

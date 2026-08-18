@@ -22,8 +22,8 @@ function recorder(dataFor?: (verb: string, url: string) => unknown) {
   return { http, calls }
 }
 
-describe('createNotes — URL/动词表', () => {
-  it('每个方法各调一次,URL 与动词逐条吻合', async () => {
+describe('createNotes — URL/verb table', () => {
+  it('calls each method once, URL and verb match line by line', async () => {
     const { http, calls } = recorder((verb, url) => {
       if (url === '/ai/agent/notes' && verb === 'get') return { notes: [] }
       if (url.endsWith('/backlinks')) return { backlinks: [{ id: 'x' }] }
@@ -74,7 +74,7 @@ describe('createNotes — URL/动词表', () => {
     ])
   })
 
-  it('list 把查询参数放进 params,并 map 成 camelCase', async () => {
+  it('list puts query params into params, and maps to camelCase', async () => {
     const { http, calls } = recorder(() => ({ notes: [{ id: 'n1', title: 't', type: 'note', status: 'draft', revision: 1, source_refs: [{ session_id: 's' }] }] }))
     const out = await createNotes(http).list({ status: 'draft', limit: 200 })
     expect(calls[0].cfg).toEqual({ params: { type: '', status: 'draft', limit: 200 } })
@@ -83,13 +83,13 @@ describe('createNotes — URL/动词表', () => {
       path: '', body: undefined }])
   })
 
-  it('list 默认参数与 Vue2 一致(type/status 空串、limit 100)', async () => {
+  it('list default params match Vue2 (type/status empty string, limit 100)', async () => {
     const { http, calls } = recorder(() => ({ notes: [] }))
     await createNotes(http).list()
     expect(calls[0].cfg).toEqual({ params: { type: '', status: '', limit: 100 } })
   })
 
-  it('dirInfo / listDistillJobs 的查询参数', async () => {
+  it('dirInfo / listDistillJobs query params', async () => {
     const { http, calls } = recorder((_v, url) =>
       url.endsWith('/dir-info') ? { exists: 1, empty: 0 } : { jobs: [], counts: {} })
     const n = createNotes(http)
@@ -98,27 +98,27 @@ describe('createNotes — URL/动词表', () => {
     await n.listDistillJobs('failed', 200)
     expect(calls[1].cfg).toEqual({ params: { limit: 200, status: 'failed' } })
     await n.listDistillJobs()
-    expect(calls[2].cfg).toEqual({ params: { limit: 200 } })   // 无 status 键
+    expect(calls[2].cfg).toEqual({ params: { limit: 200 } })   // no status key
   })
 
-  it('backlinks / getDistillStatus 的 null 兜底', async () => {
+  it('backlinks / getDistillStatus fall back on null', async () => {
     const { http } = recorder(() => ({}))
     const n = createNotes(http)
     expect(await n.backlinks('n1')).toEqual([])
     expect(await n.getDistillStatus()).toEqual({ pending: 0, distilled: 0, quotaRemaining: 0, backgroundModel: '' })
   })
 
-  // 评审 Important:getSettings/getNotesSettings 都打 /ai/agent/notes/settings,
-  // 光靠 URL/动词表分辨不出内部各自调了哪个归一化器——同一份后端响应喂给两者,
-  // 必须各自钉住字段数与缺省值,「归一化器用错」才会精确报红(而不是仍然全绿)。
-  it('getSettings 只归一化出 2 个字段(notesRoot/autoExtract),不含沉淀字段', async () => {
+  // Review important: getSettings/getNotesSettings both hit /ai/agent/notes/settings,
+  // so the URL/verb table alone can't tell which normalizer each one calls internally —— feeding the same backend response to both,
+  // each one's field count and defaults must be pinned separately, so "used the wrong normalizer" fails precisely (instead of staying all-green).
+  it('getSettings normalizes only 2 fields (notesRoot/autoExtract), no distillation fields', async () => {
     const { http } = recorder(() => ({ notes_root: '/DATA/Notes', auto_extract: true }))
     const out = await createNotes(http).getSettings()
     expect(out).toEqual({ notesRoot: '/DATA/Notes', autoExtract: true })
     expect(Object.keys(out)).toEqual(['notesRoot', 'autoExtract'])
   })
 
-  it('getNotesSettings 对同一份响应归一化出 5 个字段,沉淀字段各走缺省值', async () => {
+  it('getNotesSettings normalizes the same response into 5 fields, distillation fields each fall back to their default', async () => {
     const { http } = recorder(() => ({ notes_root: '/DATA/Notes', auto_extract: true }))
     const out = await createNotes(http).getNotesSettings()
     expect(out).toEqual({
@@ -130,7 +130,7 @@ describe('createNotes — URL/动词表', () => {
     )
   })
 
-  it('putSettings 用 buildSettingsBody 发 body,返回值只 2 个字段', async () => {
+  it('putSettings sends the body via buildSettingsBody, return value has only 2 fields', async () => {
     const { http, calls } = recorder(() => ({ notes_root: '/x', auto_extract: true }))
     const out = await createNotes(http).putSettings({ notesRoot: '/x', autoExtract: true })
     expect(calls[0].body).toEqual({ notes_root: '/x', mode: 'adopt', auto_extract: true })
@@ -138,7 +138,7 @@ describe('createNotes — URL/动词表', () => {
     expect(Object.keys(out)).toEqual(['notesRoot', 'autoExtract'])
   })
 
-  it('putNotesSettings 用 buildNotesSettingsBody 发 body(键名与 buildSettingsBody 不同),返回值 5 个字段', async () => {
+  it('putNotesSettings sends the body via buildNotesSettingsBody (key names differ from buildSettingsBody), return value has 5 fields', async () => {
     const { http, calls } = recorder(() => ({ notes_root: '/x', auto_extract: true, distill_daily_cap: 20 }))
     const out = await createNotes(http).putNotesSettings({ distillDailyCap: 20 })
     expect(calls[0].body).toEqual({ distill_daily_cap: 20 })
@@ -152,8 +152,8 @@ describe('createNotes — URL/动词表', () => {
   })
 })
 
-describe('notes 纯函数(移植 Vue2 notesService.spec.js)', () => {
-  it('normalizeNote 把 snake_case 映射成 camelCase', () => {
+describe('notes pure functions (ported from Vue2 notesService.spec.js)', () => {
+  it('normalizeNote maps snake_case to camelCase', () => {
     expect(normalizeNote({ id: 'n1', title: 't', description: 'd', type: 'insight',
       status: 'draft', tags: ['a'], source_refs: [{ path: '/DATA/x.pdf' }],
       created_by: 'pipeline', revision: 3, updated_at: 99, path: '1/x.md', body: 'B' }))
@@ -162,31 +162,31 @@ describe('notes 纯函数(移植 Vue2 notesService.spec.js)', () => {
         revision: 3, updatedAt: 99, path: '1/x.md', body: 'B' })
   })
 
-  it('normalizeNote 容忍缺省可选字段', () => {
+  it('normalizeNote tolerates missing optional fields', () => {
     const n = normalizeNote({ id: 'n2', title: 't', type: 'note', status: 'curated', revision: 1 })
     expect(n.tags).toEqual([])
     expect(n.sourceRefs).toEqual([])
     expect(n.body).toBe(undefined)
   })
 
-  it('buildCreateBody 发 snake_case', () => {
+  it('buildCreateBody sends snake_case', () => {
     expect(buildCreateBody({ title: 'T', content: 'C', noteType: 'note', tags: ['x'], sourceRefs: [], description: 'd' }))
       .toEqual({ title: 'T', content: 'C', note_type: 'note', tags: ['x'], source_refs: [], description: 'd' })
   })
 
-  it('buildCreateBody 的默认值', () => {
+  it('buildCreateBody default values', () => {
     expect(buildCreateBody({ title: 'T', content: 'C' }))
       .toEqual({ title: 'T', content: 'C', note_type: 'note', tags: [], source_refs: [], description: '' })
   })
 
-  it('buildUpdateBody 丢掉 undefined 字段但保留 revision', () => {
+  it('buildUpdateBody drops undefined fields but keeps revision', () => {
     expect(buildUpdateBody({ expectedRevision: 2, content: 'C' }))
       .toEqual({ expected_revision: 2, content: 'C' })
     expect(buildUpdateBody({ expectedRevision: 7, title: 'T', status: 'curated', tags: [], description: '' }))
       .toEqual({ expected_revision: 7, title: 'T', status: 'curated', tags: [], description: '' })
   })
 
-  it('buildSettingsBody 只发给出的字段,notesRoot 带 mode', () => {
+  it('buildSettingsBody only sends the given fields, notesRoot carries mode', () => {
     expect(buildSettingsBody({ notesRoot: '/DATA/N', mode: 'migrate' }))
       .toEqual({ notes_root: '/DATA/N', mode: 'migrate' })
     expect(buildSettingsBody({ autoExtract: false })).toEqual({ auto_extract: false })
@@ -195,14 +195,14 @@ describe('notes 纯函数(移植 Vue2 notesService.spec.js)', () => {
     expect(buildSettingsBody()).toEqual({})
   })
 
-  it('normalizeSettings 的默认值(auto_extract 缺省为 true)', () => {
+  it('normalizeSettings default values (auto_extract defaults to true)', () => {
     expect(normalizeSettings({ notes_root: '/DATA/Notes', auto_extract: false }))
       .toEqual({ notesRoot: '/DATA/Notes', autoExtract: false })
     expect(normalizeSettings({}).autoExtract).toBe(true)
     expect(normalizeSettings().notesRoot).toBe('')
   })
 
-  it('normalizeNotesSettings 的沉淀字段默认值', () => {
+  it('normalizeNotesSettings default values for distillation fields', () => {
     expect(normalizeNotesSettings(null))
       .toEqual({ notesRoot: '', autoExtract: true, distillRoots: [], distillDailyCap: 50, backgroundModel: '' })
     expect(normalizeNotesSettings({ distill_roots: ['/a', 1], distill_daily_cap: 0 }).distillRoots)
@@ -211,12 +211,12 @@ describe('notes 纯函数(移植 Vue2 notesService.spec.js)', () => {
     expect(normalizeNotesSettings({ distill_daily_cap: 'x' }).distillDailyCap).toBe(50)
   })
 
-  it('buildNotesSettingsBody 只发给出的字段', () => {
+  it('buildNotesSettingsBody only sends the given fields', () => {
     expect(buildNotesSettingsBody({ distillDailyCap: 20 })).toEqual({ distill_daily_cap: 20 })
     expect(buildNotesSettingsBody({})).toEqual({})
   })
 
-  it('normalizeDistillJobs 映射行与 counts,并容忍非数组', () => {
+  it('normalizeDistillJobs maps rows and counts, and tolerates non-arrays', () => {
     expect(normalizeDistillJobs({ jobs: [{ file_path: '/a', status: 'failed', attempts: 2, last_error: 'e', enqueued_at: 1, updated_at: 2 }], counts: { pending: 3 } }))
       .toEqual({ jobs: [{ filePath: '/a', status: 'failed', origin: 'auto', attempts: 2, lastError: 'e', enqueuedAt: 1, updatedAt: 2 }],
                  counts: { pending: 3, running: 0, failed: 0 } })
@@ -224,7 +224,7 @@ describe('notes 纯函数(移植 Vue2 notesService.spec.js)', () => {
     expect(normalizeDistillJobs(null)).toEqual({ jobs: [], counts: { pending: 0, running: 0, failed: 0 } })
   })
 
-  it('isDistillableName 大小写不敏感,且与 DISTILL_EXTS 同源', () => {
+  it('isDistillableName is case-insensitive, and stays in sync with DISTILL_EXTS', () => {
     expect(isDistillableName('A.PDF')).toBe(true)
     expect(isDistillableName('a.md')).toBe(true)
     expect(isDistillableName('a.png')).toBe(false)

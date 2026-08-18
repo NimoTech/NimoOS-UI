@@ -1,19 +1,18 @@
 <!--
-  SP8-P2a Task 7 —— 1:1 移植自 Vue2 src/views/AI/Settings/SettingsRail.vue(113 行)。
+  SP8-P2a Task 7 — 1:1 ported from Vue2 src/views/AI/Settings/SettingsRail.vue (113 lines).
 
-  差异(与 AgentSidebar.vue 的既有口径一致,非新偏离):
-  - `$EventBus` 的 `avatar-changed` 订阅(Vue2 :84-95)整段不移植 —— New-UI 没有
-    事件总线,共享的 avatarVersion 改由 Pinia store 提供,见
-    `src/stores/userProfile.ts` 头注释(那里写了完整理由,以及为什么这不是
-    功能缺失而是把能力挪到了正确的位置)。本文件与 AgentSidebar.vue 用的是
-    同一套机制。
-  - `$store.state.user` → New-UI 没有响应式 user store,直接读
-    `localStorage['user']`(与 access_token 同款落盘方式),与 AgentSidebar.vue
-    同口径。
-  - 头像 URL 前缀 `/v1/users/avatar?token=`(带前导斜杠)。Vue2 源文件
-    (:51)是不带斜杠的 `'v1/users/avatar?token='`;本仓挂在 `/app/` 基座下,
-    不带斜杠会把请求解析成相对于当前路由的路径而 404 —— 这是 P1a 终审已经
-    修过的坑,照 AgentSidebar.vue 的版本,不照 Vue2 改回去。
+  Differences (consistent with existing approach in AgentSidebar.vue, not new divergence):
+  - `$EventBus` `avatar-changed` subscription (Vue2 :84-95) entire section not ported — New-UI has no
+    event bus, shared avatarVersion now provided by Pinia store, see
+    `src/stores/userProfile.ts` header comment (complete rationale written there, and why this is
+    not a missing feature but moving capability to the correct location). This file and AgentSidebar.vue
+    use the same mechanism.
+  - `$store.state.user` → New-UI has no reactive user store, directly reads
+    `localStorage['user']` (same persistence method as access_token), consistent with AgentSidebar.vue.
+  - Avatar URL prefix `/v1/users/avatar?token=` (with leading slash). Vue2 source file
+    (:51) has no slash: `'v1/users/avatar?token='`; this repo sits under `/app/` base,
+    without slash the request would be parsed relative to current route and 404 — this is a bug
+    that P1a final review already fixed, follow AgentSidebar.vue version, not reverting to Vue2.
 -->
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'

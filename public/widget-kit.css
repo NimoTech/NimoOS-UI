@@ -1,24 +1,25 @@
-/* NimoOS Widget Kit v1 — 第三方桌面小组件设计套件
- * 用法:桌面以 iframe 打开你的 widget 页,并附 ?theme=dark|light&lang=zh_cn&home=<桌面origin>
+/* NimoOS Widget Kit v1 — Third-party desktop widget design kit
+ * Usage: the desktop opens your widget page in an iframe with query params ?theme=dark|light&lang=zh_cn&home=<desktop origin>
  *   <script>
  *     const q = new URLSearchParams(location.search)
  *     document.documentElement.dataset.theme = q.get('theme') || 'dark'
  *     const l = document.createElement('link'); l.rel = 'stylesheet'
  *     l.href = (q.get('home') || '') + '/app/widget-kit.css?v=2'; document.head.appendChild(l)
  *   </script>
- * 也可把本文件拷进你的应用(vendoring),离线可用。
- * token 与 NimoOS 桌面 theme.css 对齐;组件类以 .nk- 前缀。 */
+ * Alternatively, you can vendor this file into your app for offline use.
+ * Tokens align with the NimoOS desktop theme.css; component classes use the .nk- prefix. */
 
 :root {
-  /* 必须与宿主桌面一致:iframe 内外 color-scheme 不一致时 Chrome 会在透明 iframe
-     后强制垫不透明白底(白底白字事故 2026-07-15),透明背景全靠这行 */
+  /* Must match the host desktop: when color-scheme inside and outside the iframe are inconsistent,
+     Chrome will force an opaque white background behind the transparent iframe (white-on-white bug
+     2026-07-15); transparent background relies entirely on this line */
   color-scheme: dark;
   --nk-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --nk-num-font: system-ui, -apple-system, "Segoe UI", sans-serif;
   --nk-radius: 18px;
   --nk-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  /* dark(桌面 blue 主题)为默认 */
-  --nk-bg: transparent;              /* 卡片壳由桌面画,widget 页保持透明底 */
+  /* dark (desktop blue theme) is the default */
+  --nk-bg: transparent;              /* Card shell is drawn by the desktop; widget page maintains transparent background */
   --nk-fg: #ffffff;
   --nk-muted: rgba(255, 255, 255, 0.74);
   --nk-faint: rgba(255, 255, 255, 0.52);
@@ -52,7 +53,7 @@ body {
 }
 *, *::before, *::after { box-sizing: inherit; }
 
-/* ── 组件类 ─────────────────────────────────────────── */
+/* ── Component classes ───────────────────────────────────── */
 .nk-title { font-size: 13px; font-weight: 600; color: var(--nk-muted); letter-spacing: 0.02em; margin: 0 0 6px; }
 .nk-stat { font-family: var(--nk-num-font); font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .nk-stat small { font-size: 14px; font-weight: 500; color: var(--nk-muted); margin-left: 3px; }

@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { ref, computed } from 'vue'
 // The app's own i18n singleton, which vitest.setup.ts already installs into every mount via
 // `config.global.plugins`. Building a second instance here and passing it through
 // `global.plugins` (as several older test files still do) installs vue-i18n twice into the same
@@ -31,6 +32,10 @@ const svc = vi.hoisted(() => ({
     // this stub the settings store's fetchAiFeatures catches a TypeError and console.errors on
     // every single mount, which buries any real failure in the test output.
     getConfig: vi.fn(async (): Promise<unknown> => ({})),
+    // Fix-12 (owner acceptance, 2026-08-14): PhotoLightbox.vue's own render needs these once it
+    // actually mounts (v-if opens) -- this page never mounted a `<PhotoLightbox>` before.
+    originalUrl: vi.fn((id: string) => `mock://original/${id}`),
+    liveUrl: vi.fn((id: string) => `mock://live/${id}`),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -42,7 +47,18 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 // different object whose `openAt` is still the unpatched original, so the spy is never
 // invoked (established precedent: PhotosSmartViewDetail.test.ts:33-39 hit the exact same
 // trap first and mocks the whole module instead — same fix here).
-const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
+//
+// Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>`
+// (it never did before). That component's own internals call `useLightbox()` too and read
+// `lb.open.value`/`lb.list.value`/etc directly in a `watch()` and its template's `v-if` -- the
+// original `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after this
+// fix crashed every existing test in this file. `vi.hoisted()` runs before `vue` itself is
+// initialised (Vitest hoists `vi.mock`/`vi.hoisted` above regular imports), so real `ref()`s
+// can't be constructed inside it -- `lbMock` starts as a plain placeholder (identity fixed by
+// `vi.hoisted`), then immediately after normal imports settle (below), its properties are
+// replaced in place with real `ref()`s/a `computed()` via `Object.assign` on the same object
+// reference the mock factory already closed over.
+const lbMock = vi.hoisted(() => ({ openAt: vi.fn<(...args: unknown[]) => void>() }))
 vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
 
 import PhotosMomentDetail from './PhotosMomentDetail.vue'
@@ -53,8 +69,50 @@ import photosMomentDetailRaw from './PhotosMomentDetail.vue?raw'
 import { extractStyleBlock, winningHoverBackground } from '../photos/components/__tests__/cssCascade'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosMoments, type Moment } from '../photos/stores/moments'
+import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
 import zh from '../i18n/zh_cn'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+
+// Fix-12: fill in `lbMock` (declared above, before `vue` was ready) with real `ref()`s now that
+// normal imports have settled -- see that declaration's own comment for why this two-step
+// construction is necessary. Mutates the same object identity the `vi.mock` factory above
+// already closed over.
+const lbOpen = ref(false)
+const lbList = ref<Array<{ id: string | number }>>([])
+const lbIndex = ref(0)
+// `current`/`detail` mirror the real module's own `computed(() => list.value[index.value] ??
+// null)` (useLightbox.ts) -- `PhotoLightbox.vue`'s own `doDelete()`/`onAddToAlbum()` read
+// `lb.current.value` to know which asset id to emit, so this must actually track `openAt`'s
+// argument, not stay permanently null.
+const lbCurrent = computed(() => lbList.value[lbIndex.value] ?? null)
+Object.assign(lbMock, {
+  open: lbOpen,
+  list: lbList,
+  index: lbIndex,
+  current: lbCurrent,
+  detail: lbCurrent,
+  searchQuery: ref(''),
+  startMs: ref(0),
+  ocrLines: ref([]),
+  hasPrev: ref(false),
+  hasNext: ref(false),
+  isFav: ref(false),
+  openAt: vi.fn((photo: { id: string | number }, list: Array<{ id: string | number }>) => {
+    lbOpen.value = true
+    lbList.value = list
+    lbIndex.value = Math.max(0, list.findIndex((p) => String(p.id) === String(photo.id)))
+  }),
+  close: vi.fn(() => { lbOpen.value = false }),
+  prev: vi.fn(),
+  next: vi.fn(),
+  goTo: vi.fn(),
+  hydrateDetail: vi.fn(),
+  reconcileFav: vi.fn(),
+  toggleFav: vi.fn(),
+  __resetForTest: vi.fn(() => { lbOpen.value = false; lbList.value = []; lbIndex.value = 0 }),
+})
 
 const RAW = {
   id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', cover_asset_id: 'c1',
@@ -117,6 +175,12 @@ beforeEach(() => {
   svc.photos.pinMomentAssets.mockResolvedValue({})
   svc.photos.excludeMomentAssets.mockResolvedValue({})
   svc.photos.getTimeline.mockResolvedValue([])
+  // Fix-12: the lightbox's own open/list/index refs are real, live state now (not just a
+  // call-history spy) -- reset them too, or a test that opened the lightbox would leak
+  // `open=true` into the next one.
+  lbOpen.value = false
+  lbList.value = []
+  lbIndex.value = 0
 })
 
 describe('cold deep link (a New-UI-only path — the backend has no GET /moments/:id)', () => {
@@ -575,6 +639,69 @@ describe('the two photo grids', () => {
     const [photo, list] = lbMock.openAt.mock.calls[0] as [{ id: unknown }, Array<{ id: unknown }>]
     expect(photo.id).toBe('f1')
     expect(list.map((p) => p.id)).toEqual(['f1'])
+  })
+
+  // Fix-12 (owner acceptance, 2026-08-14): this page always called `lightbox.openAt` (the two
+  // cases above already cover that), but never mounted a `<PhotoLightbox>` of its own -- nothing
+  // on this page's own tree ever rendered the photo. These assert the DOM actually appears and
+  // that the wired events invoke the right underlying store actions.
+  it('clicking a tile renders the lightbox DOM (not just calling openAt)', async () => {
+    mockAssets([], [{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    expect(w.find('.lightbox').exists()).toBe(false)
+    await w.findAll('[data-test="mo-all-tile"]')[0].trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.lightbox').exists()).toBe(true)
+  })
+
+  // Plan F Task 5 (2026-08-15): flipped from OUTSIDE to INSIDE -- the Fix-8 round 4 rule this
+  // test used to assert no longer applies. Plan F Tasks 3-5 re-skinned PhotoLightbox.vue's DOM/
+  // CSS onto parity's own grid shape and retired the local skeleton CSS that used to duplicate
+  // parity's `.photos-root .lightbox`/`.lb-*` selectors (Task 5), removing the same-specificity
+  // cascade tie that made nesting unsafe. See task-5-report.md for the full sweep.
+  it('the lightbox renders INSIDE .photos-root (Plan F Task 5: the re-skin removed the F8-r4 cascade tie)', async () => {
+    mockAssets([], [{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    await w.findAll('[data-test="mo-all-tile"]')[0].trigger('click')
+    await w.vm.$nextTick()
+    const lightbox = w.get('.lightbox').element
+    expect(lightbox.closest('.photos-root')).not.toBeNull()
+  })
+
+  it('@delete deletes the underlying asset via timeline.deleteAssets and refreshes this view', async () => {
+    mockAssets([], [{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+    const timeline = useTimelineStore()
+    const deleteSpy = vi.spyOn(timeline, 'deleteAssets').mockResolvedValue(1)
+    svc.photos.getMomentAssets.mockClear()
+
+    await w.findAll('[data-test="mo-all-tile"]')[0].trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta-danger').trigger('click')
+    await flushPromises()
+
+    expect(deleteSpy).toHaveBeenCalledWith(['a1'])
+    // load() refreshes this view's own data after the delete lands.
+    expect(svc.photos.getMomentAssets).toHaveBeenCalled()
+  })
+
+  it('@add-to-album opens AlbumPickerDialog for the current photo', async () => {
+    mockAssets([], [{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    await w.findAll('[data-test="mo-all-tile"]')[0].trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.lb-add-album').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.get('[data-test="album-picker-overlay"]').element).toBeTruthy()
   })
 
   // Strengthened beyond the brief's original assertion (self-review requirement: a test
@@ -1045,5 +1172,26 @@ describe('delete moment', () => {
     await w.find('[data-test="mo-more"]').trigger('click')
     expect(w.find('[data-test="mo-delete"]').text()).toContain(zh.photosMoDeleteMoment)
     expect(w.find('[data-test="mo-delete"]').text()).toContain(zh.photosSvPhotosStayLibrary)
+  })
+})
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): moment detail is nested inside
+// PhotosSmartViewsView in Vue2 (activeNav==='smart', "Moments dedicated page" comment,
+// NimoOS-UI PhotosTimeline.vue:1024-1033) -- same nav as the Moments · For You list page, so
+// title='For You' and sub=the topbar's own default full-library computation (no 'smart' entry
+// in topbarSubContext's navMap, PhotosTimeline.vue:229-234).
+describe('Fix-1 item 1: PhotosTopbar restored (title=For You, default full-library sub)', () => {
+  it('renders the topbar with title=For You, no search box', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail('m1', 'zh_cn')
+    expect(w.findComponent(PhotosTopbar).exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosMoForYou)
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail('m1', 'zh_cn')
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
   })
 })

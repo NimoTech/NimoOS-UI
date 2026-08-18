@@ -28,7 +28,7 @@ const isNarrow = ref(false)
 function resize() {
   const el = areaEl.value
   if (!el) return
-  isNarrow.value = el.clientWidth < 720 // 窄屏流式(替代 vue-breakpoint-mixin)
+  isNarrow.value = el.clientWidth < 720 // narrow screen responsive (replaces vue-breakpoint-mixin)
   box.value = contentsBox(el.clientWidth, el.clientHeight)
 }
 
@@ -36,7 +36,7 @@ function goVirtual(virtualPath: string) {
   router.push('/files/' + virtualPathToRouteParam(virtualPath))
 }
 
-// self 已由 store 置顶(index 0);展示顺序表决定圆环占位(Vue2 initIndexArray)
+// self is already placed at top of store (index 0); display order array determines ring position (Vue2 initIndexArray)
 const placed = computed(() =>
   drop.peers.map((p, i) => ({
     peer: p,
@@ -90,7 +90,7 @@ onMounted(() => {
   window.addEventListener('resize', resize)
   resize()
   drop.init()
-  if (!files.disks.length) files.loadRoots() // 侧栏盘符列表(对齐 SharesPage;漏掉则 DISKS 区恒空)
+  if (!files.disks.length) files.loadRoots() // sidebar disk list (align with SharesPage; if omitted DISKS area will remain empty)
   offUnloadGuard = installDropUnloadGuard(() => drop.hasActiveTransfers())
 })
 onBeforeUnmount(() => {
@@ -142,9 +142,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Drop 页与 SharesPage 的关键差异:本页主区内容全是绝对定位(不撑高度),
-   容器必须给出确定高度——height:100%(而非 min-height)+ drop-main 拉伸,
-   否则 .drop-main 塌缩到标题高,resize() 量出 ~56px,contentsBox 算出负几何,气泡全部飞出可视区。 */
+/* Key difference between Drop page and SharesPage: this page's main area content is entirely
+   absolute positioned (doesn't expand height), so the container must provide a definite height
+   —— height:100% (not min-height) + drop-main stretch. Otherwise .drop-main collapses to
+   title height, resize() measures ~56px, contentsBox calculates negative geometry, bubbles
+   fly out of viewport entirely. */
 .files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .drop-main { position: relative; flex: 1; align-self: stretch; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
 .drop-title { align-self: flex-start; margin: 16px 20px; font-size: 18px; color: var(--fg); }
@@ -153,7 +155,7 @@ onBeforeUnmount(() => {
   position: relative; left: auto; bottom: auto; transform: none;
   display: flex; flex-wrap: wrap; justify-content: center; gap: 28px; padding: 24px; width: 100%;
 }
-/* 脉冲波纹背景:CSS 替代 Vue2 GSAP DropBg */
+/* pulse ripple background: CSS replaces Vue2 GSAP DropBg */
 .drop-pulse { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); pointer-events: none; }
 .drop-pulse i {
   position: absolute; left: 50%; bottom: -40px; transform: translateX(-50%);

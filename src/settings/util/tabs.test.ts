@@ -8,7 +8,7 @@ import {
   railTabsFor,
 } from './tabs'
 
-describe('settings tabs 模型', () => {
+describe('settings tabs model', () => {
   it('has 10 tabs in Vue2 order (8 rail items + account + developer)', () => {
     expect(SETTINGS_TABS).toEqual([
       'general',
@@ -37,18 +37,18 @@ describe('settings tabs 模型', () => {
     ])
   })
 
-  it('默认 tab 是 general', () => {
+  it('default tab is general', () => {
     expect(DEFAULT_TAB).toBe('general')
   })
 
-  it('每个 tab 都有文案 key', () => {
+  it('every tab has a label key', () => {
     for (const t of SETTINGS_TABS) {
       expect(typeof TAB_LABEL_KEY[t], t).toBe('string')
       expect(TAB_LABEL_KEY[t].length, t).toBeGreaterThan(0)
     }
   })
 
-  it('isSettingsTab 只认已知 id', () => {
+  it('isSettingsTab only recognizes known ids', () => {
     expect(isSettingsTab('general')).toBe(true)
     expect(isSettingsTab('system-status')).toBe(true)
     expect(isSettingsTab('nope')).toBe(false)
@@ -62,12 +62,12 @@ describe('settings tabs 模型', () => {
     expect(railTabsFor('admin')).toEqual(RAIL_TABS)
   })
 
-  it('非 admin 看不到 folder-permissions(Vue2 visibleTabs L1034)', () => {
+  it('a non-admin does not see folder-permissions (Vue2 visibleTabs L1034)', () => {
     expect(railTabsFor('user')).not.toContain('folder-permissions')
     expect(railTabsFor('user')).toHaveLength(7)
   })
 
-  it('role 缺失按非 admin 处理(保守:不泄漏管理项)', () => {
+  it('a missing role is treated as non-admin (conservative: does not leak admin entries)', () => {
     expect(railTabsFor(undefined)).not.toContain('folder-permissions')
   })
 })

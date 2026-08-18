@@ -8,6 +8,9 @@ vi.mock('@nimotech/nimoos-service', async () => {
     service: {
       folder: { getList: vi.fn(async () => ({ content: [
         { name: 'a', path: '/DATA/a', is_dir: true }, { name: 'f.txt', path: '/DATA/f.txt', is_dir: false },
+        // hidden entries: same filter rules as Files area (dot-prefix + lost+found), selector must not show
+        { name: '.system_data', path: '/DATA/.system_data', is_dir: true },
+        { name: 'lost+found', path: '/DATA/lost+found', is_dir: true },
       ] })) },
       storage: { list: vi.fn() }
     }
@@ -28,10 +31,20 @@ describe('useFoldersStore', () => {
       await s.loadFolder('/DATA')
       expect(s.cache['/DATA']).toEqual([{ name: 'a', path: '/DATA/a' }])
     })
+
+    // home add panel folder list must hide system entries by the same rules as Files area,
+    // otherwise directories like .system_data can be seen and dragged to desktop (user reported 2026-08-11).
+    it('hides dot-entries and lost+found like the files area', async () => {
+      const s = useFoldersStore()
+      await s.loadFolder('/DATA')
+      const names = (s.cache['/DATA'] ?? []).map((x) => x.name)
+      expect(names).not.toContain('.system_data')
+      expect(names).not.toContain('lost+found')
+    })
   })
 
-  describe('loadDisks(经 service.storage.list)', () => {
-    it('根挂载点折算为 /DATA、label 兜底 NimoOS-HD、usb 标记', async () => {
+  describe('loadDisks (via service.storage.list)', () => {
+    it('root mount point converts to /DATA, label defaults to NimoOS-HD, usb marked', async () => {
       vi.mocked(service.storage.list).mockResolvedValue([
         { type: 'nvme', children: [{ mount_point: '/', label: '' }] },
         { type: 'usb', children: [{ mount_point: '/mnt/u1', label: 'U盘' }] },
@@ -44,8 +57,8 @@ describe('useFoldersStore', () => {
         { name: 'U盘', path: '/mnt/u1', usb: true },
       ])
     })
-    it('失败置空不抛(重试用尽之后)', async () => {
-      // 假时钟:loadDisks 现在会重试两次(约 4s 窗口),真时钟会白等 4 秒。
+    it('failure returns empty without throwing (after retries exhausted)', async () => {
+      // fake timers: loadDisks now retries twice (~4s window), real timers would wait 4s for nothing.
       vi.useFakeTimers()
       vi.mocked(service.storage.list).mockRejectedValue(new Error('x'))
       const s = useFoldersStore()
@@ -57,7 +70,7 @@ describe('useFoldersStore', () => {
       vi.useRealTimers()
     })
 
-    it('瞬时失败先重试,不再一次判死', async () => {
+    it('transient failure retries first, does not fail immediately', async () => {
       vi.useFakeTimers()
       vi.mocked(service.storage.list)
         .mockRejectedValueOnce(new Error('transient'))

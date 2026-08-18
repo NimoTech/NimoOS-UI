@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-// mock 共享包,避免真实网络
+// mock the shared package, avoid real network calls
 vi.mock('@nimotech/nimoos-service', async () => {
   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
   return {

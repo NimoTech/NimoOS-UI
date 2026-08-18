@@ -2,9 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { useFoldersStore } from '../../home/stores/folders'
+import { useFolderSizesStore } from './folderSizes'
 import type { DisplayNames } from '../util/pathUtils'
 import { fileExt } from '../util/ext'
 import { folderListErrorMsg } from '../util/folderListError'
+import { isHiddenEntry } from '../../util/hiddenEntries'
 
 export interface FileEntry {
   name: string
@@ -13,6 +15,10 @@ export interface FileEntry {
   size?: number | string
   date?: string
   write?: boolean
+  /** Synthetic optimistic entry for an in-flight upload (see
+   *  upload/uploadPlaceholders.ts). Not a real on-disk entry — the tile renders
+   *  it as uploading and it can't be opened. */
+  uploading?: boolean
   extensions?: {
     share?: { shared?: string }
     // Upload batch status the backend attaches to listing entries (NimoOS
@@ -21,8 +27,6 @@ export interface FileEntry {
     upload?: { broken?: boolean | string; batchId?: string }
   } | null
 }
-
-const HIDDEN = new Set(['lost+found'])
 
 export const useFilesStore = defineStore('files', () => {
   const displayNames = ref<DisplayNames>({})
@@ -34,8 +38,8 @@ export const useFilesStore = defineStore('files', () => {
   // Empty string = no error. See load() for why this had to exist.
   const error = ref('')
 
-  // displayNames = disks 派生的 map 叠加 mountNames(网络挂载的 host 名)。
-  // 单独抽出以便 loadRoots() 重建磁盘 map 时不丢失 setMountNames 写入的网络挂载名。
+  // displayNames = disks-derived map overlaid with mountNames (host names from network mounts).
+  // Separated to prevent losing network mount names written by setMountNames when loadRoots() rebuilds the disk map.
   function rebuildDisplayNames() {
     const map: DisplayNames = {}
     for (const d of disks.value) map[d.path] = d.name
@@ -49,8 +53,8 @@ export const useFilesStore = defineStore('files', () => {
     rebuildDisplayNames()
   }
 
-  // 由 mountsStore.loadMounts() 调用,注册网络挂载 /mnt/<host> → host 的显示名映射,
-  // 使 toVirtualPath/toRealPath 对网络挂载路径同样生效(不泄漏 /mnt/* 到 URL/面包屑/剪贴板)。
+  // Called by mountsStore.loadMounts() to register display name mapping for network mounts /mnt/<host> → host,
+  // so that toVirtualPath/toRealPath also work on network mount paths (do not leak /mnt/* to URL/breadcrumb/clipboard).
   function setMountNames(names: DisplayNames) {
     mountNames.value = names
     rebuildDisplayNames()
@@ -62,12 +66,15 @@ export const useFilesStore = defineStore('files', () => {
 
   async function load(realPath: string) {
     clearSelection()
+    // New listing, new world: computed folder sizes from the previous view
+    // must not leak into this one (see folderSizes.ts for the epoch guard).
+    useFolderSizesStore().reset()
     loading.value = true
     error.value = ''
     try {
       const data = await service.folder.getList(realPath)
       const content: FileEntry[] = (data && (data as { content?: FileEntry[] }).content) || []
-      entries.value = content.filter((e) => !e.name.startsWith('.') && !HIDDEN.has(e.name))
+      entries.value = content.filter((e) => !isHiddenEntry(e.name))
       currentPath.value = realPath
     } catch (e) {
       // This used to be swallowed into an empty listing, which renders exactly

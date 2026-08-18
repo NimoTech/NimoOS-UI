@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue:2-28,
+// 1:1 Port from Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue:2-28,
 // test cases ported from ContextUsageBar.spec.js:8-52 (pure-function part only;
 // the Vue2 spec's `rendering` describe block covers SFC mounting, which is out
 // of scope for this pure-module task).
@@ -25,8 +25,8 @@ describe('levelFor', () => {
   it('75 → warn', () => { expect(levelFor(75)).toBe('warn') })
   it('95 → danger', () => { expect(levelFor(95)).toBe('danger') })
   // Boundary cases not covered by the Vue2 spec.
-  it('70 → warn(边界)', () => { expect(levelFor(70)).toBe('warn') })
-  it('90 → danger(边界)', () => { expect(levelFor(90)).toBe('danger') })
+  it('70 → warn (boundary)', () => { expect(levelFor(70)).toBe('warn') })
+  it('90 → danger (boundary)', () => { expect(levelFor(90)).toBe('danger') })
 })
 
 describe('dashArrayFor', () => {
@@ -34,10 +34,10 @@ describe('dashArrayFor', () => {
   it('15 → "<filled> <circumference>"', () => {
     expect(dashArrayFor(15)).toBe(`${fmt(15)} ${RING_C.toFixed(2)}`)
   })
-  it('110 → 截顶到满圆', () => {
+  it('110 → clamped to full circle', () => {
     expect(dashArrayFor(110)).toBe(`${RING_C.toFixed(2)} ${RING_C.toFixed(2)}`)
   })
-  it('0 → 零长弧', () => {
+  it('0 → zero-length arc', () => {
     expect(dashArrayFor(0)).toBe(`0.00 ${RING_C.toFixed(2)}`)
   })
 })

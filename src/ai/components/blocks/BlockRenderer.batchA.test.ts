@@ -1,5 +1,5 @@
-// SP8-P1b Task 8 —— 块渲染器批次 A 冒烟测试:17 个 1:1 移植的渲染器
-// (含 4 张确认卡 + MaxTurnsCard 的 store 交互)+ BlockRenderer 全量 BLOCK_MAP 分发。
+// SP8-P1b Task 8 — Block renderer batch A smoke tests: 17 ported renderers
+// (includes 4 confirmation cards + MaxTurnsCard store interaction) + full BLOCK_MAP dispatch.
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -31,7 +31,7 @@ const globalOpts = { plugins: [i18n] }
 describe('BlockRenderer — full BLOCK_MAP dispatch', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('已映射类型(如 tool/thinking)分发到真实渲染器,不再降级为 chip', () => {
+  it('mapped types (e.g. tool/thinking) dispatch to actual renderers, no longer degrade to chip', () => {
     const w1 = mount(BlockRenderer, { props: { block: { type: 'tool', name: 'x' } } }, )
     expect(w1.find('.block-chip').exists()).toBe(false)
     expect(w1.find('.tool-card').exists()).toBe(true)
@@ -41,31 +41,31 @@ describe('BlockRenderer — full BLOCK_MAP dispatch', () => {
     expect(w2.find('.thinking').exists()).toBe(true)
   })
 
-  it('未映射类型仍降级为灰 chip', () => {
+  it('unmapped types still degrade to gray chip', () => {
     const w = mount(BlockRenderer, { props: { block: { type: 'still_unmapped' } } })
     expect(w.find('.block-chip').text()).toBe('[still_unmapped]')
   })
 
-  it('mcp_elicit_form 分发到 McpElicitFormCard(非灰 chip,且是表单卡而非 URL 卡)', () => {
+  it('mcp_elicit_form dispatches to McpElicitFormCard (not gray chip, form card not URL card)', () => {
     const w = mount(BlockRenderer, {
       props: { block: { type: 'mcp_elicit_form', confirmId: 'c1', fields: [] } },
       global: globalOpts,
     })
     expect(w.find('.block-chip').exists()).toBe(false)
-    // .mcc-perm 是两张卡共有的根类,不足以区分分发到了哪一张 —— 用各卡独有的
-    // 结构判定:表单卡有 .mcc-fields / <form>,URL 卡没有。
+    // .mcc-perm is the root class shared by both cards, not sufficient to distinguish which one.
+    // Use card-specific structure: form card has .mcc-fields / <form>, URL card does not.
     expect(w.find('.mcc-fields').exists()).toBe(true)
     expect(w.find('form').exists()).toBe(true)
     expect(w.find('.mcc-url').exists()).toBe(false)
   })
 
-  it('mcp_elicit_url 分发到 McpElicitUrlCard(非灰 chip,且是 URL 卡而非表单卡)', () => {
+  it('mcp_elicit_url dispatches to McpElicitUrlCard (not gray chip, URL card not form card)', () => {
     const w = mount(BlockRenderer, {
       props: { block: { type: 'mcp_elicit_url', confirmId: 'c2', url: 'https://x.example' } },
       global: globalOpts,
     })
     expect(w.find('.block-chip').exists()).toBe(false)
-    // 同上:用 URL 卡独有的 .mcc-url 结构区分,不是共享的 .mcc-perm 根类。
+    // Same as above: use URL card-specific .mcc-url structure to distinguish, not the shared .mcc-perm root class.
     expect(w.find('.mcc-url').exists()).toBe(true)
     expect(w.find('.mcc-fields').exists()).toBe(false)
     expect(w.find('form').exists()).toBe(false)
@@ -73,7 +73,7 @@ describe('BlockRenderer — full BLOCK_MAP dispatch', () => {
 })
 
 describe('ActionsRow', () => {
-  it('渲染 items 列表,每项显示 label', () => {
+  it('render items list, each item displays label', () => {
     const w = mount(ActionsRow, { props: { items: [{ label: 'Do it', icon: 'check', primary: true }] } })
     expect(w.text()).toContain('Do it')
     expect(w.findAll('button').length).toBe(1)
@@ -81,7 +81,7 @@ describe('ActionsRow', () => {
 })
 
 describe('McpWarningCard', () => {
-  it('展示 server/error 插值文案', () => {
+  it('display server/error interpolated text', () => {
     const w = mount(McpWarningCard, { props: { server: 'my-mcp', error: 'timeout' }, global: globalOpts })
     expect(w.text()).toContain('my-mcp')
     expect(w.text()).toContain('timeout')
@@ -89,7 +89,7 @@ describe('McpWarningCard', () => {
 })
 
 describe('StorageCard', () => {
-  it('渲染 used/total 及分类明细', () => {
+  it('render used/total and category breakdown', () => {
     const w = mount(StorageCard, {
       props: { used: 2.5, total: 10, label: 'NIMO HOME', breakdown: [{ name: 'Photos', value: 1.2, color: '#000' }] },
     })
@@ -99,7 +99,7 @@ describe('StorageCard', () => {
 })
 
 describe('SearchResultsCard', () => {
-  it('渲染 query/kind 与结果条目', () => {
+  it('render query/kind and result entries', () => {
     const w = mount(SearchResultsCard, {
       props: { query: 'invoice', kind: 'Files', results: [{ title: 'a.pdf', snippet: 'snip', path: '/a.pdf', score: 0.8 }] },
     })
@@ -110,7 +110,7 @@ describe('SearchResultsCard', () => {
 })
 
 describe('ProgressCard', () => {
-  it('渲染 title 与完成计数', () => {
+  it('render title and completion count', () => {
     const w = mount(ProgressCard, {
       props: { title: 'Uploading', items: [{ name: 'f1', pct: 100 }, { name: 'f2', pct: 40 }] },
     })
@@ -120,7 +120,7 @@ describe('ProgressCard', () => {
 })
 
 describe('VideoCard', () => {
-  it('渲染 title/duration', () => {
+  it('render title/duration', () => {
     const w = mount(VideoCard, { props: { title: 'Clip', duration: '01:30', seed: 2 } })
     expect(w.text()).toContain('Clip')
     expect(w.text()).toContain('01:30')
@@ -128,7 +128,7 @@ describe('VideoCard', () => {
 })
 
 describe('FileListCard', () => {
-  it('渲染 title 与文件条目', () => {
+  it('render title and file entries', () => {
     const w = mount(FileListCard, {
       props: { title: 'Results', files: [{ name: 'a.txt', path: '/a.txt', size: '1KB', kind: 'txt' }] },
     })
@@ -138,13 +138,13 @@ describe('FileListCard', () => {
 })
 
 describe('ThinkingBlock', () => {
-  it('streaming 时显示 Thinking + 内容常展开', () => {
+  it('show Thinking + content always expanded when streaming', () => {
     const w = mount(ThinkingBlock, { props: { text: 'reasoning...', streaming: true } })
     expect(w.text()).toContain('Thinking')
     expect(w.find('.thinking-content').exists()).toBe(true)
   })
 
-  it('非 streaming 时默认折叠,点击展开显示 text', async () => {
+  it('when not streaming, default collapsed, click to expand and show text', async () => {
     const w = mount(ThinkingBlock, { props: { text: 'reasoning...', streaming: false } })
     expect(w.find('.thinking-content').exists()).toBe(false)
     await w.find('.thinking').trigger('click')
@@ -154,7 +154,7 @@ describe('ThinkingBlock', () => {
 })
 
 describe('ImageGridCard', () => {
-  it('渲染 title 与图片格数', () => {
+  it('render title and image grid count', () => {
     const w = mount(ImageGridCard, {
       props: { title: 'Sunsets', images: [{ seed: 1 }, { seed: 2 }], count: 12 },
     })
@@ -164,7 +164,7 @@ describe('ImageGridCard', () => {
 })
 
 describe('ToolCard', () => {
-  it('渲染工具名,点击展开显示 sections', async () => {
+  it('render tool name, click to expand and show sections', async () => {
     const w = mount(ToolCard, {
       props: { name: 'read_file', state: 'success', sections: [{ label: 'OUTPUT', code: 'hello' }] },
     })
@@ -183,7 +183,7 @@ describe('ToolCard', () => {
 describe('ConfirmCard', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('点击 Accept 调用 store.confirmAgentAction(confirmId, true)', async () => {
+  it('clicking Accept calls store.confirmAgentAction(confirmId, true)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(ConfirmCard, {
@@ -196,7 +196,7 @@ describe('ConfirmCard', () => {
     expect(spy).toHaveBeenCalledWith('c1', true)
   })
 
-  it('点击 Deny 调用 store.confirmAgentAction(confirmId, false)', async () => {
+  it('clicking Deny calls store.confirmAgentAction(confirmId, false)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(ConfirmCard, { props: { confirmId: 'c1', description: 'x' }, global: globalOpts })
@@ -229,7 +229,7 @@ describe('ConfirmCard', () => {
 describe('PermissionRequestCard', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('点击 Allow 调用 store.confirmAgentAction(confirmId, true)', async () => {
+  it('clicking Allow calls store.confirmAgentAction(confirmId, true)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(PermissionRequestCard, {
@@ -240,7 +240,7 @@ describe('PermissionRequestCard', () => {
     expect(spy).toHaveBeenCalledWith('c2', true)
   })
 
-  it('点击 Deny 调用 store.confirmAgentAction(confirmId, false)', async () => {
+  it('clicking Deny calls store.confirmAgentAction(confirmId, false)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(PermissionRequestCard, { props: { confirmId: 'c2', path: '/DATA/x' }, global: globalOpts })
@@ -252,7 +252,7 @@ describe('PermissionRequestCard', () => {
 describe('McpPermissionCard', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('点击 Allow once 调用 store.confirmAgentAction(confirmId, true, false)', async () => {
+  it('clicking Allow once calls store.confirmAgentAction(confirmId, true, false)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(McpPermissionCard, {
@@ -264,7 +264,7 @@ describe('McpPermissionCard', () => {
     expect(spy).toHaveBeenCalledWith('c3', true, false)
   })
 
-  it('点击 Always allow 调用 store.confirmAgentAction(confirmId, true, true)', async () => {
+  it('clicking Always allow calls store.confirmAgentAction(confirmId, true, true)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(McpPermissionCard, { props: { confirmId: 'c3', server: 'srv', tool: 'search' }, global: globalOpts })
@@ -272,7 +272,7 @@ describe('McpPermissionCard', () => {
     expect(spy).toHaveBeenCalledWith('c3', true, true)
   })
 
-  it('点击 Deny 调用 store.confirmAgentAction(confirmId, false, false)', async () => {
+  it('clicking Deny calls store.confirmAgentAction(confirmId, false, false)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(McpPermissionCard, { props: { confirmId: 'c3', server: 'srv', tool: 'search' }, global: globalOpts })
@@ -284,7 +284,7 @@ describe('McpPermissionCard', () => {
 describe('McpInstallCard', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('点击 Register 调用 store.confirmAgentAction(confirmId, true, false)', async () => {
+  it('clicking Register calls store.confirmAgentAction(confirmId, true, false)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(McpInstallCard, {
@@ -296,7 +296,7 @@ describe('McpInstallCard', () => {
     expect(spy).toHaveBeenCalledWith('c4', true, false)
   })
 
-  it('点击 Deny 调用 store.confirmAgentAction(confirmId, false, false)', async () => {
+  it('clicking Deny calls store.confirmAgentAction(confirmId, false, false)', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
     const w = mount(McpInstallCard, { props: { confirmId: 'c4', name: 'my-server' }, global: globalOpts })
@@ -338,7 +338,7 @@ describe('McpInstallCard', () => {
 describe('MaxTurnsCard', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
-  it('点击 Resume 调用 store.continueRun()', async () => {
+  it('clicking Resume calls store.continueRun()', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'continueRun').mockResolvedValue(undefined)
     const w = mount(MaxTurnsCard, { props: { maxTurns: 25 }, global: globalOpts })
@@ -347,7 +347,7 @@ describe('MaxTurnsCard', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('resumed=true 时按钮禁用,不再触发 continueRun', async () => {
+  it('when resumed=true, button is disabled and no longer triggers continueRun', async () => {
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'continueRun').mockResolvedValue(undefined)
     const w = mount(MaxTurnsCard, { props: { maxTurns: 25, resumed: true }, global: globalOpts })
@@ -359,7 +359,7 @@ describe('MaxTurnsCard', () => {
 })
 
 describe('McpCallCard', () => {
-  it('渲染 server/tool,点击展开显示 args', async () => {
+  it('render server/tool, click to expand and show args', async () => {
     const w = mount(McpCallCard, {
       props: { server: 'drive', tool: 'list_files', args: '{"path":"/"}', state: 'success', result: '[]' },
       global: globalOpts,
@@ -374,12 +374,12 @@ describe('McpCallCard', () => {
 })
 
 describe('PhotoGridCard', () => {
-  it('渲染照片格数,无照片时展示空态', () => {
+  it('render photo grid count, show empty state when there are no photos', () => {
     const w = mount(PhotoGridCard, { props: { query: 'sunset', photos: [] }, global: globalOpts })
     expect(w.find('.pg-empty').exists()).toBe(true)
   })
 
-  it('有照片时渲染缩略图格子', () => {
+  it('render thumbnail grid when photos are present', () => {
     const w = mount(PhotoGridCard, {
       props: { photos: [{ id: 'p1', name: 'a.jpg', thumbUrl: '/thumb/p1' }] },
       global: globalOpts,

@@ -1,7 +1,8 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/stream/MessageList.vue。
-  1b 接回 TimelineMinimap(1a 版本去掉了它,busy 占位 markup 原样保留——1a 阶段
-  store.busy 恒 false 不会触发,1b 起 store.busy 真实随流式切换,故随之激活)。
+  1:1 port from Vue2 src/views/AI/Agent/stream/MessageList.vue.
+  1b re-adds TimelineMinimap (1a version removed it; busy placeholder markup kept as-is —
+  in 1a stage store.busy is always false so wouldn't trigger; from 1b on store.busy actually
+  toggles with streaming, so placeholder activates).
 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
@@ -42,7 +43,7 @@ function onScroll() {
   activeIdx.value = idx
 }
 
-// TimelineMinimap 的 @jump 调用这个,滚动到对应消息。
+// Called by TimelineMinimap's @jump, scrolls to corresponding message.
 function jumpTo(i: number) {
   const sc = wrap.value
   if (!sc) return

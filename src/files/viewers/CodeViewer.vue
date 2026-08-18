@@ -23,8 +23,8 @@ const host = ref<HTMLElement | null>(null)
 const dirty = ref(false)
 const confirmOpen = ref(false)
 let view: EditorView | null = null
-// 组件在异步 onMounted 的 await 期间可能已被卸载(用户快速关闭覆盖层)——
-// 卸载后必须放弃构造编辑器,否则会产生 onBeforeUnmount 跳过销毁的分离 EditorView 泄漏。
+// The component may be unmounted during await in async onMounted (user rapidly closes the overlay) —
+// after unmount we must abandon editor construction, otherwise we get orphaned EditorView leaks from skipped onBeforeUnmount cleanup.
 let disposed = false
 
 // Vue2 CodeEditor showed the full path as a breadcrumb strip below the header

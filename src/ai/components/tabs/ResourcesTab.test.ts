@@ -1,9 +1,10 @@
-// 移植自 Vue2 tests/resourcesTabBatch.test.js(164 行,DOM+emit 级 9 断言)+
-// 新增 6 条(授权段/附件段 emit 与禁用态、下载链接、snapshot_missing 硬禁用、
-// commit 按钮禁用条件、三段空态)。SP8-P1c2 Task 12。
+// Ported from Vue2 tests/resourcesTabBatch.test.js (164 lines, DOM+emit level 9 assertions) +
+// added 6 new (authorized/attachment section emits and disabled state, download link,
+// snapshot_missing hard disable, commit button disable conditions, three section empty states).
+// SP8-P1c2 Task 12.
 //
-// propsData → props / w.destroy() → w.unmount() / stubbed $t → 真 zh_cn i18n
-// (createI18n),对应本仓库既有约定(见 ActivityTab.test.ts/SystemTab.test.ts)。
+// propsData → props / w.destroy() → w.unmount() / stubbed $t → real zh_cn i18n (createI18n),
+// matches this repo's existing convention (see ActivityTab.test.ts/SystemTab.test.ts).
 vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>()
   return {
@@ -70,7 +71,7 @@ describe('ResourcesTab — batch group rendering (ported)', () => {
     expect(batch.text()).toContain('2')
   })
 
-  it('clicking 整批撤销 emits revert-batch with the batchId', async () => {
+  it('clicking batch-revert emits revert-batch with the batchId', async () => {
     const w = track(mountTab({ stagedChanges: [BATCH_RUN] }))
     const btn = w.find('.rt-batch-revert')
     expect(btn.exists()).toBe(true)
@@ -176,9 +177,9 @@ describe('ResourcesTab — authorized resources section (new)', () => {
     expect(btn.attributes('disabled')).toBeDefined()
   })
 
-  // F1(终审 opus 复查)—— 流式注入的授权资源(agentStore.ts:488
-  // appendVisibleResource({path, kind}))没有 id。点 × 必须走
-  // remove-resource-by-path,而不是把 undefined 硬塞进 remove-resource。
+  // F1 (final review Opus check) — streamed injected authorized resources (agentStore.ts:488
+  // appendVisibleResource({path, kind})) lack id. Click × must use
+  // remove-resource-by-path, not hardcode undefined into remove-resource.
   it('id-less resource (streamed, no id) × emits remove-resource-by-path with the path, and does NOT emit remove-resource', async () => {
     const w = track(mountTab({
       visibleResources: [{ path: '/DATA/streamed-dir', kind: 'folder' }],
@@ -190,9 +191,9 @@ describe('ResourcesTab — authorized resources section (new)', () => {
     expect(w.emitted('remove-resource')).toBeFalsy()
   })
 
-  // 判别力自检专用例:id === 0 是合法 id(falsy 但非 undefined),必须走
-  // remove-resource,而不是被真值判断误判成"无 id"。分流条件必须是
-  // `r.id !== undefined`,不能是 `r.id ?`(见 onRemoveResource() 注释)。
+  // Discriminative self-check example: id === 0 is a valid id (falsy but not undefined),
+  // must use remove-resource, not misidentified as "no id" by truthiness check. Split condition must
+  // be `r.id !== undefined`, not `r.id ?` (see onRemoveResource() comment).
   it('resource with id: 0 (legitimate falsy id) × emits remove-resource with payload 0, not remove-resource-by-path', async () => {
     const w = track(mountTab({
       visibleResources: [{ id: 0, path: '/DATA/zero-id', kind: 'file' }],
@@ -242,8 +243,9 @@ describe('ResourcesTab — attachments section (new)', () => {
 })
 
 describe('ResourcesTab — turn-level revert disabled by snapshot_missing (new)', () => {
-  // 两项:仅其中一项 snapshot_missing,用于区分 .some()(正确实现,禁用)与
-  // .every()(回归后的错误实现,不禁用)—— 单项分组两者结果一致,无法做判别。
+  // Two items: only one has snapshot_missing, to distinguish .some() (correct implementation,
+  // disabled) vs .every() (regressed wrong implementation, not disabled) — single-item grouping
+  // gives same result for both, can't tell them apart.
   it('disables the whole-turn revert button when any (not all) item has snapshot_missing', () => {
     const g: StagedGroup = {
       run_id: 'run3',
@@ -274,9 +276,10 @@ describe('ResourcesTab — turn-level revert disabled by snapshot_missing (new)'
 })
 
 describe('ResourcesTab — staged item size 0-byte deviation (new, F1)', () => {
-  // 有意背离 Vue2(ResourcesTab.vue:99/:117 `it.size_bytes ? … : '—'` 短路):
-  // 0 字节暂存项这里渲染 '0 B',不是 '—'。断言必须同时覆盖 size_bytes 缺失仍显示 '—',
-  // 否则测试无法区分"0 → '0 B'"与"任何 falsy → '0 B'"这两种(错误的)实现。
+  // Intentional divergence from Vue2 (ResourcesTab.vue:99/:117 `it.size_bytes ? … : '—'` short-circuit):
+  // 0-byte staged item renders '0 B' here, not '—'. Assertion must also cover size_bytes missing
+  // still shows '—', otherwise test can't distinguish between "0 → '0 B'" and "any falsy → '0 B'"
+  // (two wrong implementations).
   it('renders "0 B" for a staged item with size_bytes: 0, and "—" when size_bytes is absent', () => {
     const g: StagedGroup = {
       run_id: 'run5',

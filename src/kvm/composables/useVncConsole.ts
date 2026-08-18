@@ -4,14 +4,15 @@ import RFB from '@novnc/novnc'
 import { service } from '@nimotech/nimoos-service'
 import type { KvmVM, KvmVncInfo } from '@nimotech/nimoos-service'
 
-// noVNC 控制台生命周期。逐字对 NimoOS-UI/src/components/KVM/KVMFullPage.vue
+// noVNC console lifecycle. Character-for-character matches NimoOS-UI/src/components/KVM/KVMFullPage.vue
 // disconnectVNC(:944-954)/connectVNC(:956-1018)/toggleModifier(:1020-1029)/
 // releaseModifiers(:1031-1040)/sendKey(:1042-1046)/sendCtrlAltDel(:1048-1053)
-// (2026-08-02 核对,brief 草稿行号偏前)。
+// (verified 2026-08-02, brief draft line numbers slightly off).
 //
-// `rfb` 特意是闭包里的裸变量、不包 ref() —— 同 Vue2 把 rfbInstance 放在组件 data 之外
-// 一个模块级普通变量的理由一致:RFB 内部持有 WebSocket/canvas 等复杂又频繁变动的对象,
-// 没有任何消费方需要它响应式,包一层只会让 Vue 试图深度代理内部结构,徒增开销。
+// `rfb` is intentionally a bare variable in closure, not wrapped in ref() — same reason as Vue2
+// putting rfbInstance outside component data as a module-level plain variable: RFB internally
+// holds complex, frequently-changing objects like WebSocket/canvas; no consumer needs it reactive,
+// wrapping only makes Vue try deep-proxying internal structure, pure overhead.
 
 type Modifiers = { ctrl: boolean; alt: boolean; shift: boolean; win: boolean }
 type SpicePorts = { spicePort: number; spiceTlsPort: number }
@@ -29,26 +30,29 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
   const modifiers = ref<Modifiers>({ ctrl: false, alt: false, shift: false, win: false })
 
   let rfb: RFB | null = null
-  // 代际计数器。每次 connect() 自增并记下 myGen;await 之后比对 gen 是否还是自己发起的
-  // 那一次,不是就丢弃结果。
+  // Generation counter. Each connect() increments and records myGen; after await, compare if
+  // gen is still from this invocation, else discard result.
   //
-  // ⚠️ 与 Vue2 的偏离(SP9-P5 登记):Vue2 connectVNC(:956-1018)拿到 /vnc 响应后直接建连,
-  // 完全没有代际判定。快速切换 VM 时,先发的那次请求可能晚于后发的一次到达,于是把 A
-  // 机器的画面接到了已经切到 B 的容器上(且 B 刚建好的 RFB 又被 A 的迟到结果覆盖)。
-  // 这里加 gen 守卫,过期的结果一律丢弃,不产生任何副作用(既不建连、也不报错、更不
-  // 动 errorKey/connected —— 那些字段这一刻属于"更新的一次"调用,迟到者没资格覆盖)。
+  // ⚠️ Deviation from Vue2 (SP9-P5 logged): Vue2's connectVNC (:956-1018) connects immediately
+  // after /vnc response, with no generation check. On quick VM switch, the earlier request might
+  // arrive after the later one, attaching VM A's display to container already switched to B (and
+  // B's freshly-built RFB gets overwritten by A's late result). Generation guard added here:
+  // stale results discarded entirely, no side effects (no connection, no error, untouched
+  // errorKey/connected — those fields belong to "the newer" call at this moment, stale arrivals
+  // have no right to override).
   let gen = 0
 
   let spiceCb: ((vmId: string, ports: SpicePorts) => void) | null = null
-  /** spice 端口只通过这个回调交给调用方(KvmPage/useVmList),composable 自己不摸 vms 列表
-   * ——保持"数据层归数据层管"的既有约定(同 useVmList 的 onVncShouldConnect 写法)。 */
+  /** Spice ports passed to caller (KvmPage/useVmList) only via this callback, composable doesn't touch vms list
+   * — maintains established "data layer managed by data layer" convention (same pattern as useVmList's onVncShouldConnect). */
   function onSpicePorts(cb: (vmId: string, ports: SpicePorts) => void): void {
     spiceCb = cb
   }
 
-  /** 只销毁旧 RFB 实例 + 清掉容器里残留的 canvas,不碰 modifiers/connected/errorKey——
-   * 对应 Vue2 connectVNC 里 `new RFB` 前那几行(:995-998)。这几行只是给"马上要建的新
-   * 连接"腾地方,不是一次真正意义上的断开,所以不能等价于下面完整的 disconnect()。 */
+  /** Destroy old RFB instance + clear leftover canvas from container, don't touch
+   * modifiers/connected/errorKey — corresponds to lines before `new RFB` in Vue2's connectVNC
+   * (:995-998). These lines just make room for the "about to build" new connection, not a true
+   * disconnect, so not equivalent to the full disconnect() below. */
   function destroyRfb(): void {
     if (rfb) {
       rfb.disconnect()
@@ -57,7 +61,7 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
     hostEl.value?.querySelectorAll('canvas').forEach((c) => c.remove())
   }
 
-  /** 照 Vue2 releaseModifiers(:1031-1040):把当前按下的修饰键逐个发送释放事件。 */
+  /** Follow Vue2's releaseModifiers (:1031-1040): send release events for each currently-pressed modifier key. */
   function releaseModifiers(): void {
     if (!rfb) return
     ;(Object.keys(modifiers.value) as (keyof Modifiers)[]).forEach((k) => {
@@ -68,14 +72,16 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
     })
   }
 
-  /** 照 Vue2 disconnectVNC(:944-954):先放开修饰键(否则卡在按下态),再销毁连接。
+  /** Follow Vue2's disconnectVNC (:944-954): release modifiers first (else they stay pressed),
+   * then destroy connection.
    *
-   * ⚠️ 与 Vue2 的偏离(SP9-P5 登记,代际守卫的延伸):这里额外让 gen 前进一步。Vue2
-   * 完全没有代际概念,disconnectVNC 只负责清理"已经建立"的连接。但这个实现里
-   * disconnect() 还会被外部直接调用(VM 停止事件、组件卸载的 dispose()),如果那一刻
-   * 正好有一个 connect() 还在 await getVNC() 的路上,不前进 gen 的话它稍后拿到结果时
-   * 会看见 gen 没变、误以为自己仍是"最新一次",于是在用户已经明确要求断开之后又把画面
-   * 重新接上。前进 gen 让这类迟到的 connect() 在下面 connect() 内部的守卫处被丢弃。 */
+   * ⚠️ Deviation from Vue2 (SP9-P5 logged, generation guard extension): also advance gen here.
+   * Vue2 has no generation concept; disconnectVNC just cleans up "already established"
+   * connections. But here disconnect() is called externally too (VM stop event, component
+   * unmount's dispose()), and if a connect() is mid-await-getVNC() at that moment, without
+   * advancing gen it will see gen unchanged later, thinking it's "still the latest", reattaching
+   * display after user explicitly requested disconnect. Advancing gen makes late-arriving
+   * connect() get discarded at guard inside connect() below. */
   function disconnect(): void {
     releaseModifiers()
     gen += 1
@@ -85,13 +91,13 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
   }
 
   async function connect(vm: KvmVM): Promise<void> {
-    // 1: 不是运行态直接断开返回(Vue2 :960-963)。
+    // 1: If not running state, disconnect and return directly (Vue2 :960-963).
     if (vm.state !== 'running') {
       disconnect()
       return
     }
 
-    // 2: 自增代际,记下这一次调用专属的世代号。
+    // 2: Increment generation, record this call's unique generation number.
     const myGen = ++gen
     errorKey.value = '' // Vue2 :965
 
@@ -100,22 +106,22 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
       // 3
       info = await service.kvm.getVNC(vm.id)
     } catch {
-      // 迟到的失败结果不该覆盖后来者已经写下的状态(同代际守卫的思路)。
+      // Late-arriving failure shouldn't override state written by later caller (same generation guard logic).
       if (myGen !== gen) return
       disconnect()
       errorKey.value = 'kvmVncFetchFailed'
       return
     }
 
-    // 4: 代际守卫——见文件顶部注释,修 Vue2 缺失的必要修正。
+    // 4: Generation guard — see top of file comment, necessary fix for Vue2 bug.
     if (myGen !== gen) return
 
-    // 5: spice 端口只通过回调交出去,不在这里直接改 vms 列表(brief 约定)。
+    // 5: Pass spice ports only via callback, don't directly modify vms list here (brief contract).
     spiceCb?.(vm.id, { spicePort: info.spicePort, spiceTlsPort: info.spiceTlsPort })
 
-    // 6: brief 草稿写的是 `wsPort ?? vncPort`,但后端 vncWebsocketPort 缺席时给的是数字
-    // 0(不是 null/undefined),`??` 对 0 不会 fallback,会拼出 `ws://host:0`。这里按
-    // Vue2 原文(:991-993 的三元表达式,真值判断)用 `||`,0 才会正确让位给 vncPort。
+    // 6: Brief draft said `wsPort ?? vncPort`, but backend returns 0 (not null/undefined) when
+    // vncWebsocketPort missing, and ?? won't fallback from 0, producing `ws://host:0`. Following
+    // Vue2 original (:991-993 ternary, truthy check) use `||`, 0 correctly yields to vncPort.
     const wsPort = info.vncWebsocketPort
     const vncPort = info.vncPort
     if (!wsPort && !vncPort) {
@@ -124,59 +130,64 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
       return
     }
 
-    // 7: ⚠️ 浏览器直连宿主机端口,不走网关、无鉴权(本机 ws 口是 5700)。
+    // 7: ⚠️ Browser connects directly to host port, not via gateway, no auth (local ws port is 5700).
     const wsUrl = `ws://${window.location.hostname}:${wsPort || vncPort}`
 
-    // 8: 销毁旧 RFB + 清残留 canvas,再建新连接(Vue2 :995-1004)。
+    // 8: Destroy old RFB + clear leftover canvas, then build new connection (Vue2 :995-1004).
     destroyRfb()
     const host = hostEl.value
     if (!host) {
-      // 评审 Minor:正常流程下 ConsoleStage 已经挂载好了,这条分支理论上不该触发——
-      // 但万一触发,旧连接已经被上面 destroyRfb() 销毁,不出声的话就是"悄悄断线、
-      // 什么都不说"。加一句 warn,至少排障时能看出原因(不写进 errorKey,因为这不是
-      // 用户能通过界面文案理解/处理的错误,是前端自身的挂载时序问题)。
+      // Review Minor: normal flow has ConsoleStage already mounted, this branch shouldn't trigger
+      // in theory — but if it does, old connection is already destroyed by destroyRfb() above,
+      // and silent failure means "silent disconnect, no explanation". Add warn so at least we
+      // can see the reason during troubleshooting (don't write to errorKey, this isn't a user-facing
+      // error they can understand/handle via UI copy, it's front-end mounting timing issue).
       console.warn('[KVM] connect(): host element missing, skip RFB construction')
       return
     }
 
-    // 评审 Important #1:Vue2 connectVNC(:999-1013)把 `new RFB(...)` + 两个
-    // addEventListener 整个包在 try/catch 里,失败时 `this.vncError = e.message`。
-    // 这里漏了这层是未申报的偏离——HTTPS 页面下 `new WebSocket('ws://…')` 会**同步抛
-    // SecurityError**(混合内容策略),URL 非法同理。没有 try/catch 的话,这次 connect()
-    // 调用方(KvmPage 里两处都是 `void vnc.connect(...)`,没人接 rejection)会导致一个
-    // 未处理的 promise rejection,用户只看到空白占位层,什么线索都没有。照 Vue2 补上。
+    // Review Important #1: Vue2's connectVNC (:999-1013) wraps `new RFB(...)` + both
+    // addEventListeners in try/catch, on failure sets `this.vncError = e.message`. Missing this
+    // layer was undeclared deviation — on HTTPS pages `new WebSocket('ws://…')` throws
+    // SecurityError **synchronously** (mixed content policy), invalid URLs same. Without try/catch,
+    // this connect() caller (both places in KvmPage are `void vnc.connect(...)`, no one catches
+    // rejection) gets an unhandled promise rejection, user sees blank placeholder, no clues.
+    // Add per Vue2.
     //
-    // errorKey 这里装的是**原始异常信息**(e.message),不是 i18n key——ConsoleStage
-    // 渲染处本来就是 `te(errorKey) ? t(errorKey) : errorKey` 的写法,te() 对任意非法
-    // key 的字符串天然返回 false,原始异常信息会直接原样显示,不会被误当成键名喷出来。
+    // errorKey here holds **raw exception message** (e.message), not i18n key — ConsoleStage
+    // render uses `te(errorKey) ? t(errorKey) : errorKey`, te() naturally returns false for any
+    // illegal key string, raw exception displays as-is, won't be misinterpreted as key name.
     try {
       rfb = new RFB(host, wsUrl)
 
-      // 申报偏离(用户 2026-08-03 真机验收后拍板,两条一起)——
+      // Declared deviation (user decision after 2026-08-03 device acceptance, both rules at once) —
       //
-      // ⚠️ 大前提:RFB 构造函数**只读** credentials / shared / repeaterID / wsProtocols
-      // 四项(core/rfb.js:28-32),其余选项一律静默忽略;scaleViewport / resizeSession /
-      // showDotCursor 全是构造后才生效的存取器属性(:345-371),默认全 false(:299-302)。
-      // Vue2(:1001-1004)把 scaleViewport:true / resizeSession:false 写在构造参数里,
-      // 因此**这两项在旧 UI 里从来没生效过**。探针(真 noVNC 连真机 5700 口)实测:照
-      // Vue2 写法连上后 scaleViewport 恒为 false、画布 style.cursor 恒为 "none"。
-      // 所以这里不再传那个恒被忽略的选项对象,改为构造后逐项赋值。
+      // ⚠️ Key premise: RFB constructor **only reads** credentials / shared / repeaterID / wsProtocols
+      // (:core/rfb.js:28-32), silently ignores everything else; scaleViewport / resizeSession /
+      // showDotCursor are all accessor properties that only work post-construction (:345-371),
+      // default all false (:299-302). Vue2 (:1001-1004) passed scaleViewport:true / resizeSession:false
+      // in constructor params, so **these never worked in old UI**. Probe (real noVNC to real device
+      // port 5700): following Vue2's approach, scaleViewport stays false after connection, canvas
+      // style.cursor stays "none". So don't pass the options object that gets ignored, assign each
+      // post-construction instead.
       //
-      // ① 光标:客户机不下发光标图案时(QEMU + Alpine 文本控制台正是如此),noVNC 在连上
-      //    那一刻(:577-578,attach 完立即 _refreshCursor)拿空图案去更新,走
-      //    core/util/cursor.js:80 的 w/h===0 分支 → clear() → 给画布写内联 `cursor: none`,
-      //    鼠标一进黑框就隐形,连右缘 80px 唤出工具条都不好瞄。赋 true 后 noVNC 补画一个
-      //    小圆点;客户机自绘光标时 _shouldShowDotCursor()(:3033)返回 false,仍用客户机
-      //    的光标,不会双光标。
-      // ② 缩放:Vue2 传 true 的本意就是要缩放适配窗口(只是没生效),这里让它真的生效,
-      //    高分辨率客户机的画面才不会超出框只看得到左上角。
-      // ③ resizeSession 显式赋 false:与 Vue2 的意图一致(不要求客户机改分辨率),值本身
-      //    就是 noVNC 默认值,写出来是为了让三项开关在同一处一目了然。
+      // ① Cursor: when guest doesn't send cursor image (QEMU + Alpine text console does),
+      //    noVNC at connection moment (:577-578, calls _refreshCursor right after attach) updates
+      //    with empty image, takes w/h===0 branch in core/util/cursor.js:80 → clear() → writes
+      //    inline `cursor: none` to canvas, disappears when mouse enters black frame, hard to aim
+      //    even 80px right edge for toolbar. Setting true makes noVNC draw a small dot; when guest
+      //    draws its own, _shouldShowDotCursor() (:3033) returns false, uses guest's, no double
+      //    cursor.
+      // ② Scale: Vue2 passing true meant scaling to fit window (just didn't work), making it really
+      //    work here so high-res guest display doesn't overflow frame showing only top-left corner.
+      // ③ resizeSession explicitly set false: consistent with Vue2 intent (don't require guest
+      //    resolution change), value itself is noVNC default, writing it out for all three switches
+      //    visible together.
       rfb.showDotCursor = true
       rfb.scaleViewport = true
       rfb.resizeSession = false
 
-      // 9
+      // 9: Add event listeners for connection state
       rfb.addEventListener('connect', () => { connected.value = true })
       rfb.addEventListener('disconnect', () => { connected.value = false })
     } catch (e) {
@@ -185,7 +196,7 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
     }
   }
 
-  /** 照 Vue2 toggleModifier(:1020-1029)。 */
+  /** Follow Vue2's toggleModifier (:1020-1029). */
   function toggleModifier(name: keyof Modifiers): void {
     if (!rfb) return
     const next = !modifiers.value[name]
@@ -193,7 +204,7 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
     modifiers.value[name] = next
   }
 
-  /** 照 Vue2 sendKey(:1042-1046):RFB 抛异常时吞掉、只 warn,不冒泡。 */
+  /** Follow Vue2's sendKey (:1042-1046): swallow RFB exceptions, only warn, don't bubble. */
   function sendKey(keysym: number): void {
     if (!rfb) return
     try {
@@ -203,7 +214,7 @@ export function useVncConsole(hostEl: Ref<HTMLElement | null>) {
     }
   }
 
-  /** 照 Vue2 sendCtrlAltDel(:1048-1053):先清空全部修饰键状态,再调用专用方法。 */
+  /** Follow Vue2's sendCtrlAltDel (:1048-1053): clear all modifier state first, then call dedicated method. */
   function sendCtrlAltDel(): void {
     if (!rfb) return
     modifiers.value = { ctrl: false, alt: false, shift: false, win: false }

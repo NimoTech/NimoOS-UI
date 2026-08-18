@@ -18,7 +18,7 @@ import { useToast } from '../../stores/toast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// useInstallFlow 依赖 useI18n → 需在组件 setup 内调用(仓内 composable 测试惯例)
+// useInstallFlow depends on useI18n → must be called inside a component setup (repo convention for composable tests)
 function mountFlow() {
   let flow!: ReturnType<typeof useInstallFlow>
   mount(defineComponent({ setup() { flow = useInstallFlow(); return () => null } }), {
@@ -29,13 +29,13 @@ function mountFlow() {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  localStorage.clear() // installProgress 任务表落盘,不清会跨用例恢复出上个用例的任务
+  localStorage.clear() // installProgress persists its task table; without clearing, tasks leak across test cases
   svc.appstore.getAppCompose.mockReset().mockResolvedValue('services: {}')
   svc.compose.install.mockReset().mockResolvedValue(undefined)
 })
 
 describe('beforeInstallText', () => {
-  it('null/缺失 → 空串;命中本语言;en_US 大写键 fallback(resolveAppText)', () => {
+  it('null/missing → empty string; matches language; en_US uppercase key fallback (resolveAppText)', () => {
     expect(beforeInstallText(null, 'zh_cn')).toBe('')
     expect(beforeInstallText({ before_install: null }, 'zh_cn')).toBe('')
     expect(beforeInstallText({ before_install: { zh_cn: '注意' } }, 'zh_cn')).toBe('注意')
@@ -44,7 +44,7 @@ describe('beforeInstallText', () => {
 })
 
 describe('parseInstallError', () => {
-  it('提取 message + ports_in_use(容忍 tcp/TCP 大小写与数组形态)', () => {
+  it('extract message + ports_in_use (tolerate tcp/TCP case and array form)', () => {
     const e = { response: { data: { message: 'conflict', data: { ports_in_use: { TCP: [80], udp: [53] } } } } }
     expect(parseInstallError(e)).toEqual({ message: 'conflict', ports: ['80/tcp', '53/udp'] })
     expect(parseInstallError({ response: { data: { message: 'bad yaml' } } })).toEqual({ message: 'bad yaml', ports: [] })
@@ -55,7 +55,7 @@ describe('parseInstallError', () => {
 describe('useInstallFlow', () => {
   const app: InstallCandidate = { id: 'jellyfin', title: 'Jellyfin', icon: 'i.png' }
 
-  it('无 tips 直装:getAppCompose → dry_run → install → track', async () => {
+  it('no tips direct install: getAppCompose → dry_run → install → track', async () => {
     const flow = mountFlow()
     const progress = useInstallProgressStore()
     flow.requestInstall(app)
@@ -66,7 +66,7 @@ describe('useInstallFlow', () => {
     expect(progress.tasks['jellyfin']).toMatchObject({ title: 'Jellyfin', icon: 'i.png' })
   })
 
-  it('有 tips 先弹确认;confirm 先读后关再装(P1 reka 前车之鉴)', async () => {
+  it('with tips show confirmation first; confirm reads then closes then installs (P1 reka cautionary tale)', async () => {
     const flow = mountFlow()
     flow.requestInstall({ ...app, tips: { before_install: { zh_cn: '先看这个' } } })
     expect(flow.tipsDlg.value.open).toBe(true)
@@ -78,7 +78,7 @@ describe('useInstallFlow', () => {
     expect(flow.tipsDlg.value.open).toBe(false)
   })
 
-  it('dry_run 400 → toast、不发真装、不 track', async () => {
+  it('dry_run 400 → toast, no real install, not tracked', async () => {
     svc.compose.install.mockRejectedValueOnce({ response: { data: { message: 'invalid compose' } } })
     const flow = mountFlow()
     const toast = useToast()
@@ -90,7 +90,7 @@ describe('useInstallFlow', () => {
     expect(useInstallProgressStore().tasks['jellyfin']).toBeUndefined()
   })
 
-  it('端口冲突 → appsInstallPortConflict 文案', async () => {
+  it('port conflict → appsInstallPortConflict copy', async () => {
     svc.compose.install.mockRejectedValueOnce({
       response: { data: { message: 'conflict', data: { ports_in_use: { tcp: [80] } } } },
     })
@@ -101,14 +101,14 @@ describe('useInstallFlow', () => {
     expect(spy.mock.calls[0][0]).toContain('80/tcp')
   })
 
-  it('安装中重复 requestInstall 被忽略;error 态可重装(track 覆盖)', async () => {
+  it('duplicate requestInstall while installing is ignored; error state can reinstall (track overwrite)', async () => {
     const flow = mountFlow()
     const progress = useInstallProgressStore()
     flow.requestInstall(app)
     await flushPromises()
     flow.requestInstall(app)
     await flushPromises()
-    expect(svc.compose.install).toHaveBeenCalledTimes(2) // 仍是第一轮的 2 次
+    expect(svc.compose.install).toHaveBeenCalledTimes(2) // Still the 2 calls from the first round
     progress.onEvent('app:install-error', { 'app:name': 'jellyfin', message: 'x' })
     flow.requestInstall(app)
     await flushPromises()

@@ -1,6 +1,6 @@
-// SP8-P5b Task 4 —— 移植自 Vue2 `src/views/AI/Knowledge/QueueView.vue:393-404`
-// (main@7a6ee6b7)。三处「照抄的怪行为」各有一条专门用例把返回值钉死,见下方
-// 标注「蓝本 QueueView.vue:<line> 的行为,照抄不改」的用例。
+// SP8-P5b Task 4 —— Ported from Vue2 `src/views/AI/Knowledge/QueueView.vue:393-404`
+// (main@7a6ee6b7). Three "copied quirky behaviors" each have a dedicated test pinning the
+// return value; see tests marked "original QueueView.vue:<line> behavior, copied verbatim".
 import { describe, it, expect } from 'vitest'
 import { distillIconState, basename, dirname } from './queueView'
 
@@ -17,16 +17,16 @@ describe('distillIconState', () => {
     expect(distillIconState({ status: 'failed' })).toBe('failed')
   })
 
-  // 蓝本 QueueView.vue:396 的行为,照抄不改:
+  // Original QueueView.vue:396 behavior, copied verbatim:
   // `return 'failed' // failed + skipped share the same danger tone`
-  // skipped 与 failed 共用同一个 'failed' 返回值(同一个 danger 图标态),
-  // 不是给 skipped 单独一个状态。
+  // skipped and failed share same 'failed' return (same danger icon state),
+  // not a separate state for skipped.
   it('skipped status shares the failed danger tone — QueueView.vue:396, copied verbatim', () => {
     expect(distillIconState({ status: 'skipped' })).toBe('failed')
   })
 
-  // 蓝本 QueueView.vue:393-397 没有第三个 `if`,所有非 pending/running 的
-  // status(含未知值、缺省值)一律落穿到最后一行的 'failed' —— 不是 'pending'。
+  // Original QueueView.vue:393-397 has no third `if`, all non-pending/running
+  // status (unknown, default) fall through to final 'failed' —— not 'pending'.
   it('unknown status falls through to failed, not pending — QueueView.vue:393-397, copied verbatim', () => {
     expect(distillIconState({ status: 'some-unrecognized-status' })).toBe('failed')
   })
@@ -37,9 +37,9 @@ describe('distillIconState', () => {
 })
 
 describe('basename', () => {
-  // 蓝本 QueueView.vue:398 的行为,照抄不改:
-  // `basename(p) { return p ? (...) : '—' }` —— 空值返回 U+2014 破折号 '—',
-  // 不是连字符 '-'。
+  // Original QueueView.vue:398 behavior, copied verbatim:
+  // `basename(p) { return p ? (...) : '—' }` —— empty returns U+2014 em dash '—',
+  // not hyphen '-'.
   it("empty/null/undefined return the em dash '—', not a hyphen — QueueView.vue:398, copied verbatim", () => {
     expect(basename('')).toBe('—')
     expect(basename(null)).toBe('—')
@@ -59,26 +59,26 @@ describe('basename', () => {
     expect(basename('/a/b/')).toBe('b')
   })
 
-  // 兜底分支:`p.split('/').filter(Boolean).pop() || p`。当 p 本身只由斜杠
-  // 组成时,filter(Boolean) 后数组为空,pop() 返回 undefined,`|| p` 落回
-  // 原始输入本身(而不是破折号,因为 p 本身是真值)。
+  // Fallback branch: `p.split('/').filter(Boolean).pop() || p`. When p is only slashes,
+  // after filter(Boolean) array is empty, pop() returns undefined, `|| p` falls back to
+  // raw input itself (not em dash, p is truthy).
   it('path made only of slashes falls back to the raw input via `|| p`', () => {
     expect(basename('/')).toBe('/')
   })
 })
 
 describe('dirname', () => {
-  // 蓝本 QueueView.vue:399-404 的行为,照抄不改:
-  // `if (!p) return ''` —— 空路径返回空串,不是 '/'。
+  // Original QueueView.vue:399-404 behavior, copied verbatim:
+  // `if (!p) return ''` —— empty path returns empty string, not '/'.
   it("empty/null/undefined return '' — QueueView.vue:399-404, copied verbatim", () => {
     expect(dirname('')).toBe('')
     expect(dirname(null)).toBe('')
     expect(dirname(undefined)).toBe('')
   })
 
-  // 蓝本 QueueView.vue:399-404 的行为,照抄不改:单段路径(无 '/')经
-  // `parts.pop()` 后 parts 变空数组,`'/' + parts.join('/') + '/'` 拼接出 '//'
-  // —— 这是蓝本自身的怪行为,不是应该被"改对"成 '/' 的 bug。
+  // Original QueueView.vue:399-404 behavior, copied verbatim: single-segment path (no '/')
+  // after `parts.pop()` becomes empty array, `'/' + parts.join('/') + '/'` concatenates to '//'
+  // —— this is original quirk, not a bug to be "fixed" to '/'.
   it("single-segment path (no slash) returns '//', not '/' — QueueView.vue:399-404, copied verbatim", () => {
     expect(dirname('foo.txt')).toBe('//')
     expect(dirname('foo.txt')).not.toBe('/')

@@ -65,7 +65,7 @@ export default {
   settingsDownloadCancelled: 'Download cancelled',
   settingsDownloadCancelFailed: 'Failed to cancel download',
   settingsUpgradeFailed: 'There seems to be a problem with the upgrade process, please try again!',
-  // ── P1 电源流 ──
+  // ── P1 power flow ──
   settingsShutdown: 'Shutdown',
   settingsRestart: 'Restart',
   settingsShutdownConfirmTitle: 'Shut down the system?',
@@ -103,7 +103,7 @@ export default {
   settingsHttpsCertFiles: 'Certificate Files',
   settingsHttpsBothFiles: 'Please upload both PEM and CRT files.',
   settingsHttpsUploadFailed: 'Failed to upload certificate',
-  // ── P2 network ──(英文一律是 Vue2 的 key 字面量本身)
+  // ── P2 network ── (the English side is always the Vue2 key literal itself)
   settingsNetConnection: 'Connection',
   settingsNetEmpty: 'No network interfaces found',
   settingsNetLoading: 'Loading...',
@@ -238,6 +238,12 @@ export default {
   settingsTermUnavailableHint: 'The system terminal backend (/v1/sys/wsssh) has been disabled; the terminal and its security policy are unavailable.',
   settingsTermFullscreen: 'Fullscreen',
   settingsTermExitFullscreen: 'Exit fullscreen',
+  // Log paging (no Vue2 counterpart: it rendered the whole file in one go)
+  settingsTermLogsOlder: '‹ Older',
+  settingsTermLogsNewer: 'Newer ›',
+  settingsTermLogsPage: 'Page {page} of {total}',
+  settingsTermLogsLive: 'Live',
+  settingsTermLogsPaused: 'Live refresh paused — go back to page 1 to resume',
   settingsStoreEntryTitle: 'Open Storage',
   settingsStoreEntrySub: 'Disks, storage volumes, RAID and snapshots are managed in the Storage section.',
   settingsStoreTotal: 'Total Storage',

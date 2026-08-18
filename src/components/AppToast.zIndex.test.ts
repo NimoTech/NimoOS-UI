@@ -1,30 +1,38 @@
-// 约定守卫(docs/THEMING.md §8):**toast 必须高于全仓所有模态遮罩**。
+// Convention guard (docs/THEMING.md §8): **toasts must sit above every modal scrim in the repo**.
 //
-// 为什么需要一条测试:遮罩都带 backdrop-filter,压在遮罩下方的 toast 不是"偏灰"而是
-// **完全读不到**。本期评审抓到的真实后果 —— 三条「失败了但刻意保留弹窗让用户重试」的路径
-// (人物改名失败 / 建相册失败 / 命名未命名人物失败)全部把失败原因藏在 z-index 220 的
-// .pd-scrim / .cad-overlay 底下,用户只看到按钮"没反应",反复重试。
+// Why this needs a test: the scrims all carry backdrop-filter, so a toast buried under one is not
+// "a bit gray" but **completely unreadable**. Real consequence caught in this sprint's review —
+// three "failed but the dialog is deliberately kept open for retry" paths (rename person failed /
+// create album failed / name unnamed person failed) all hid the failure reason under the
+// z-index 220 .pd-scrim / .cad-overlay (since Plan D Task 4: renamed to .person-dialog-scrim,
+// now 200, via the Vue2-parity stylesheet — still below toast either way); users only saw a
+// button that "did nothing" and kept retrying.
 //
-// jsdom 不做级联样式计算,mount 后读不出跨组件的层叠关系,只能对 <style> 原文做数值断言
-// (同 color-guard.test.ts / PersonAssetGrid.test.ts 已确立的 `?raw` 先例)。
+// jsdom does no cascade computation, so cross-component stacking cannot be read after mount; the
+// only option is numeric assertions on the raw <style> text (same `?raw` precedent established by
+// color-guard.test.ts / PersonAssetGrid.test.ts).
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// 【SP8-P6-T3 合流】样式表的读法从 `import.meta.glob(...'?raw')` 换成 node:fs,并补上 `.scss`。
+// [SP8-P6-T3 merge] Stylesheet reads switched from `import.meta.glob(...'?raw')` to node:fs, and
+// `.scss` was added.
 //
-// 🔴 换读法的原因(比"漏了 .scss"更严重):vitest 的 CSSEnablerPlugin 把 css/scss **一律
-// 整体替换成空串**,而且**不看查询串** —— `?raw` 对它无效。实测本仓:
-//     vue : 340 个文件,340 个非空
-//     css :   5 个文件,  0 个非空(theme.css 等全是 len=0)
-//     scss:   9 个文件,  0 个非空
-// 也就是说,这道「全仓任何其它 z-index 都严格低于 toast」的守卫,**此前只看得见 .vue**,
-// 5 个独立 .css 从来就是空壳;若只是照搬 glob 再加一行 `.scss`,新加的 9 个 .scss 同样会是
-// 空壳 —— 守卫会"绿"得毫无判别力。这正是 photosSlice.test.ts / knowledgeStyles.test.ts
-// 文件头记的同一个坑(「读盘一律 node:fs,`?raw` 恒空」),这里沿用它们的既定手法。
+// 🔴 Why the read method changed (worse than just "missed .scss"): vitest's CSSEnablerPlugin
+// replaces css/scss **wholesale with empty strings**, and it **ignores the query string** —
+// `?raw` has no effect on it. Measured in this repo:
+//     vue : 340 files, 340 non-empty
+//     css :   5 files,   0 non-empty (theme.css etc. all len=0)
+//     scss:   9 files,   0 non-empty
+// So the "every other z-index in the repo is strictly below the toast" guard **could only see
+// .vue files**; the 5 standalone .css were always empty shells. Copying the glob and adding a
+// `.scss` line would leave the 9 new .scss files as empty shells too — the guard would be "green"
+// with zero discriminating power. This is the same pit recorded at the top of photosSlice.test.ts /
+// knowledgeStyles.test.ts ("always read from disk via node:fs; `?raw` is always empty"), and we
+// follow their established approach here.
 //
-// .vue 仍走 glob(它不受 CSSEnablerPlugin 影响,实测 340/340 非空)。
+// .vue still goes through glob (unaffected by CSSEnablerPlugin; measured 340/340 non-empty).
 const SRC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 function collectStylesheets(dir: string, out: Record<string, string> = {}): Record<string, string> {
@@ -45,7 +53,7 @@ const files: Record<string, string> = {
   ...collectStylesheets(SRC_DIR),
 }
 
-// .vue 只看 <style> 块;.css/.scss 看全文。刻意与 color-guard 用同一提取思路,但这里不需要行号。
+// .vue: only <style> blocks; .css/.scss: whole file. Deliberately the same extraction approach as color-guard, but line numbers are not needed here.
 function styleText(rel: string, src: string): string {
   if (rel.endsWith('.css') || rel.endsWith('.scss')) return src
   const re = /<style[^>]*>([\s\S]*?)<\/style>/gi
@@ -55,8 +63,8 @@ function styleText(rel: string, src: string): string {
   return out
 }
 
-// 只认 `z-index: <整数>`(负值/auto/inherit 与本约定无关)。注释里的数字不会被误抓 ——
-// 正则要求紧跟 `z-index:`。
+// Only match `z-index: <integer>` (negative/auto/inherit are irrelevant to this convention).
+// Numbers inside comments cannot be misdetected — the regex requires them right after `z-index:`.
 function zIndexes(css: string): number[] {
   const out: number[] = []
   const re = /z-index\s*:\s*(\d+)/g
@@ -74,27 +82,29 @@ function relOf(path: string): string {
 const toastRaw = Object.entries(files).find(([p]) => relOf(p) === TOAST)?.[1] ?? ''
 const toastZ = Math.max(...zIndexes(styleText(TOAST, toastRaw)))
 
-describe('浮层层级约定(THEMING.md §8): toast 高于所有模态遮罩', () => {
-  // 🔴 取数有效性闸(SP8-P6-T3 补):上面那条全仓断言只要取到空内容就会**恒真**。
-  // 本仓已经因此空转过一次(css/scss 走 `?raw` 全是空串,守卫只看得见 .vue 却一直显示绿)。
-  // 这条把"确实读到了样式表、且确实扫得出 z-index"钉死,空壳化会立刻打红而不是静默通过。
-  it('取数有效:.vue 与 .css/.scss 都读到了非空内容,且扫得出 z-index', () => {
+describe('Convention guard (THEMING.md §8): toasts must be above all modal scrims', () => {
+  // 🔴 Data-validity gate (added in SP8-P6-T3): the repo-wide assertion above becomes **vacuously
+  // true** whenever it reads empty content. This repo already spun idle once because of that
+  // (css/scss via `?raw` were all empty strings; the guard only saw .vue yet stayed green).
+  // This test pins "stylesheets were actually read, and z-index can actually be scanned", so
+  // hollowing-out turns red immediately instead of passing silently.
+  it('Data validity: .vue and .css/.scss were both read with non-empty content, and z-index was successfully scanned', () => {
     const nonEmpty = (pred: (r: string) => boolean) =>
       Object.entries(files).filter(([p, v]) => pred(relOf(p)) && typeof v === 'string' && v.length > 0)
     const vues = nonEmpty((r) => r.endsWith('.vue'))
     const sheets = nonEmpty((r) => r.endsWith('.css') || r.endsWith('.scss'))
-    expect(vues.length, '.vue 一个都没读到,取数方式失效了').toBeGreaterThan(100)
-    expect(sheets.length, '独立样式表一个都没读到(`?raw` 恒空的老坑)').toBeGreaterThan(5)
+    expect(vues.length, 'No .vue files were read, data reading method failed').toBeGreaterThan(100)
+    expect(sheets.length, 'Standalone stylesheets not read at all (old pitfall: `?raw` always empty)').toBeGreaterThan(5)
     const sheetZ = sheets.flatMap(([p, v]) => zIndexes(styleText(relOf(p), v)))
-    expect(sheetZ.length, '独立样式表里一个 z-index 都没扫到,守卫等于空转').toBeGreaterThan(0)
+    expect(sheetZ.length, 'No z-index scanned from standalone stylesheets, the guard is doing nothing').toBeGreaterThan(0)
   })
 
-  it('AppToast .toast-stack 的 z-index 能被读出且是最高档', () => {
+  it('AppToast .toast-stack z-index can be read and is the highest tier', () => {
     expect(Number.isFinite(toastZ)).toBe(true)
     expect(toastZ).toBeGreaterThan(0)
   })
 
-  it('全仓任何其它 z-index 都严格低于 toast', () => {
+  it('All other z-indexes in the repo are strictly below toast', () => {
     const offenders: string[] = []
     for (const [path, src] of Object.entries(files)) {
       const rel = relOf(path)
@@ -105,24 +115,31 @@ describe('浮层层级约定(THEMING.md §8): toast 高于所有模态遮罩', (
     }
     expect(
       offenders,
-      `\n以下浮层与 toast 同层或更高,toast 会被它们(多带 backdrop-filter)压住而读不到。\n`
-        + `按 docs/THEMING.md §8 的阶梯下调这些值,不要抬高 toast:\n${offenders.join('\n')}`,
+      `\nThe following layers are at the same level or higher than toast; toast will be hidden under them (many with backdrop-filter).\n`
+        + `Lower these values per the hierarchy in docs/THEMING.md §8; do not raise the toast:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 
-  // 本期评审命中的三条路径的两个具体遮罩,单独钉一遍(上一条即使被人放宽也还有这道)。
+  // Pin the two concrete scrims from the three review-hit paths individually (even if someone relaxes the previous test, this one remains).
+  //
+  // Plan D Task 4 update: both rules moved out of their component's own local `<style
+  // scoped>` block (now deleted) into the global parity stylesheet — `.pd-scrim` was
+  // renamed to the Vue2 anchor `.person-dialog-scrim` and now lives in
+  // photos-people.scss; `.cad-overlay` kept its name (ClusterActionDialog.vue's classes
+  // don't change per Plan D) but its rule now lives in that same parity file too. Point
+  // both rows at the file that actually carries the rule now.
   it.each([
-    ['src/views/PhotosPersonDetail.vue', '.pd-scrim'],
-    ['src/photos/components/ClusterActionDialog.vue', '.cad-overlay'],
-  ])('%s 的 %s 低于 toast', (rel, selector) => {
+    ['src/photos/styles/vue2-parity/photos-people.scss', '.person-dialog-scrim'],
+    ['src/photos/styles/vue2-parity/photos-people.scss', '.cad-overlay'],
+  ])('%s %s is below toast', (rel, selector) => {
     const src = Object.entries(files).find(([p]) => relOf(p) === rel)?.[1]
-    expect(src, `${rel} 未被 glob 收到`).toBeTruthy()
+    expect(src, `${rel} not collected by glob`).toBeTruthy()
     const css = styleText(rel, src as string)
-    // 取该选择器所在规则块里的 z-index。
+    // Take the z-index from the rule block containing this selector.
     const block = new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(css)
-    expect(block, `${rel} 里找不到 ${selector} 规则块`).toBeTruthy()
+    expect(block, `Cannot find ${selector} rule block in ${rel}`).toBeTruthy()
     const z = zIndexes((block as RegExpExecArray)[1])
-    expect(z.length, `${selector} 规则块里没有 z-index`).toBe(1)
+    expect(z.length, `No z-index in ${selector} rule block`).toBe(1)
     expect(z[0]).toBeLessThan(toastZ)
   })
 })

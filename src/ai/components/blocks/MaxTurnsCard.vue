@@ -1,10 +1,10 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/MaxTurnsCard.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/MaxTurnsCard.vue -->
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
 
-// BlockRenderer 用 v-bind="block" 透传,故 block.resumed 自动映射到此 prop。
+// BlockRenderer passes through via v-bind="block", so block.resumed automatically maps to this prop.
 const props = withDefaults(defineProps<{ maxTurns?: number; resumed?: boolean }>(), { maxTurns: 0, resumed: false })
 const { t } = useI18n()
 const store = useProvidedAgentStore()

@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ThinkingBlock.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/ThinkingBlock.vue -->
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import AgentIcon from '../icons/AgentIcon.vue'

@@ -28,6 +28,21 @@ export function createUploadBatches(http: AxiosInstance, getToken: () => string 
       await http.post(`${BASE}/${id}/abandon`)
     },
 
+    // Abandons EVERY interrupted batch whose missing files sit at or under
+    // path (the badged entry). The badge carries a single batch id while
+    // several interrupted batches can stack on one folder, so abandoning by id
+    // makes the badge come back with the next batch's id on the next listing.
+    async abandonUnder(path: string): Promise<void> {
+      await http.post(`${BASE}/abandon-under`, { path })
+    },
+
+    // Drops canceled files from the batch manifest so the batch can still
+    // complete without them; a stale manifest leaves the batch permanently
+    // incomplete and resurrects the broken badge two minutes later.
+    async removeBatchItems(id: string, relativePaths: string[]): Promise<void> {
+      await http.post(`${BASE}/${id}/remove-items`, { relativePaths })
+    },
+
     // Sent from pagehide, where axios/XHR is unreliable during page unload and
     // sendBeacon cannot carry an Authorization header — hence raw fetch with
     // keepalive. Fire-and-forget: if the signal is lost (no keepalive support,

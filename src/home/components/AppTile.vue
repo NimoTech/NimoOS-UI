@@ -21,7 +21,7 @@ import type { LayoutItem } from '../grid/types'
 import { useAppsStore } from '../stores/apps'
 
 const props = defineProps<{ item: LayoutItem }>()
-// 坏 icon URL(404/域名不存在)回落默认 glyph;icon 换新值时重试加载
+// Bad icon URL (404/domain missing) falls back to default glyph; retry loading when icon changes to new value
 const imgFailed = ref(false)
 const store = useAppsStore()
 const { t } = useI18n()
@@ -38,7 +38,7 @@ const glyphSvg = computed(() => `<svg class="icon" viewBox="0 0 24 24">${meta.va
 </script>
 <style scoped>
 /* kind-app flex column layout lives in global theme.css (.kind-app rule) */
-/* gap/字号随 --cell 等比(锚定 108px 舒适格:字号 16.7/108≈0.155),格子任意缩放形状不变 — 与 theme.css .kind-app/.app-label 同比例 */
+/* gap/font-size scale with --cell proportionally (anchored to 108px comfort grid: font-size 16.7/108≈0.155), grid scales arbitrarily with shape unchanged — proportional to theme.css .kind-app/.app-label */
 .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); height: 100%; }
 .app-tile.stopped { opacity: 0.45; filter: grayscale(0.6); }
 /* .app-ic sizing: global theme.css provides border-radius/shadow/color via .app-ic rule;

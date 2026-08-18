@@ -1,14 +1,15 @@
 <script setup lang="ts">
-// 接口列表里的一行。对位 Vue2 SettingsPanel.vue L500-577。
-// 菜单项按 wireless.mode 决定(Vue2 L545-550 的注释表):
-//   ap          → 编辑 + 切到 Wi-Fi (+ 混合,若 hybridCapable)
-//   client      → 编辑 + 切到热点   (+ 混合,若 hybridCapable)
-//   concurrent  → 只有编辑
-//   无 wireless → 只有编辑
-// 虚拟口(zt*/docker0/br-*/veth*)不给菜单,用等宽占位保持右侧对齐。
-// ⚠️ 菜单样式故意不复用 apps/components/AppActionsMenu.vue 的 .ui-drop-*:那是**非 scoped
-//    全局块**,只在该组件被 import 时注入;设置区不 import 它 → 菜单会裸奔。
-//    改用 settings.css 里自带的 .set-net-menu-*。
+// A single row in the interface list. Corresponds to Vue2 SettingsPanel.vue L500-577.
+// Menu items are decided by wireless.mode (per the comment table in Vue2 L545-550):
+//   ap          → Edit + switch to Wi-Fi (+ Hybrid, if hybridCapable)
+//   client      → Edit + switch to Hotspot (+ Hybrid, if hybridCapable)
+//   concurrent  → Edit only
+//   no wireless → Edit only
+// Virtual interfaces (zt*/docker0/br-*/veth*) get no menu; a fixed-width spacer keeps the right edge aligned.
+// ⚠️ The menu style deliberately does not reuse apps/components/AppActionsMenu.vue's .ui-drop-*:
+//    that is a **non-scoped global block**, only injected when that component is imported;
+//    the settings area does not import it → the menu would render unstyled.
+//    Use settings.css's own .set-net-menu-* instead.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -39,7 +40,7 @@ const switchable = computed(() => !!props.iface.wireless && mode.value !== 'conc
         <span class="set-net-tag">{{ iface.name }}</span>
         <span v-if="speed" class="set-net-tag">{{ speed }}</span>
         <span v-if="iface.addr" class="set-net-tag">
-          <!-- DHCP / Static 在 Vue2 侧就是硬编码英文字面量(L518),不走 i18n,照留 -->
+          <!-- DHCP / Static are hardcoded English literals on the Vue2 side (L518), not routed through i18n — kept as-is -->
           <span class="set-net-tag-key">{{ iface.dhcp ? 'DHCP' : 'Static' }}</span>
           {{ iface.addr }}
         </span>

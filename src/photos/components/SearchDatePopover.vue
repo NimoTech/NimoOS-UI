@@ -15,10 +15,14 @@
 // 文件抄(T12 那份为列表弹层做过 width prop 化等调整,照抄会串味——这正是 brief A1 那条
 // 跨任务坑的教训:T12 判定 width:320px"恒不可达"是针对列表弹层成立,对本弹层不成立)。
 //
-// token 映射(与 T12/PlaceDetailPanel 等既有先例一致的通用表,不重复展开每一条):
-// --text-1/2/3 → --fg/--fg-muted/--fg-faint;--surface-2/3 → --chip-bg/--chip-bg-hi;
-// --line → --chip-border;--menu-bg → --popup-bg;--accent-hi(本仓不存在)→ --accent-text;
-// rgba(110,91,255,0.30)(accent 30% 边框)→ --accent-soft-bd。
+// Stale-comment cleanup (Plan F Task 2): the paragraph that used to sit here described a
+// generic New-UI glass token-mapping table (--text-1/2/3 → --fg/--fg-muted/--fg-faint, etc.)
+// as this file's current design. That table stopped being true the moment the 2026-08-13
+// owner reversal (see this file's own style-block comment below) deleted every scoped color
+// rule in this component — the mapping paragraph was simply never updated to say so, leaving
+// documentation describing a state the code had already left. Removed rather than "corrected
+// in place" since there is nothing left to map: this component's style block carries zero
+// `var(--...)` references now (parity supplies every color).
 //
 // locale 转 BCP-47(A2):T9 的 rangeLabel/calDowLabels/calMonthLabel 内部已做
 // `locale.replace('_','-')`,本组件直接把 useI18n().locale.value 原样传给它们,不重复转换。
@@ -165,174 +169,29 @@ function pick(c: CalCell): void {
 </template>
 
 <style scoped>
-/* 与 T12 PhotosFilterPopover.vue 重复的外壳部分(见文件头登记):.fpop 系列 + .fpop-quick
-   + .btn 系列。数值一律照抄 photos.scss:2658-2674,不是从 T12 文件抄。 */
-.fpop {
-  position: absolute;
-  top: 36px;
-  left: 0;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  box-shadow: var(--card-shadow-hi);
-  padding: 14px;
-  width: 320px;
-  z-index: 10;
-  animation: pop-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: default;
-  text-align: left;
-}
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.96);
-  }
-}
+/* 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Fix-3 item 7 追加执行——本组件此前漏了这一轮
+   回退,brief 明确点名"align their chrome to parity like the FilterChip/Popover treatment"):
+   .fpop/.fpop-title/.fpop-row/.fpop-quick(+:hover/[data-on])/.cal-head/.cal-nav(+:hover)/.cal/
+   .cal-cell(+全部变体)/.btn/.btn-primary(+:hover 两条)这一整批 Vue2 原生 class 名字段,在
+   vue2-parity/photos.scss(:2690-2726,.btn 系列走全局 `.photos-root .btn`/`.photos-root
+   .btn-primary` 家族 :290-301)已有逐字对应的裸选择器,值就是 Vue2 原文本地 token
+   (--surface-2/3、--text-1/2/3、--line、--accent-soft、--accent-hi 等,dark 与
+   .photos-root.is-light 两套都有定义)。此前这里各自重复一份、颜色映射到本仓通用玻璃语义
+   (--popup-bg/--card-border/--card-shadow-hi/--chip-bg/--fg-muted/--accent-text 等)——那些
+   token 均未被 `.photos-root` 本地重定义,会落到 theme.css 的全局蓝紫玻璃值,靠 scoped
+   编译出的 [data-v-xxxx] 属性把优先级顶到 parity 裸选择器之上,是这份颜色错配能"赢"的唯一
+   原因。删掉这份重复,parity 的裸规则直接生效,不需要再借数据属性提权。`@keyframes pop-in`
+   同理删除——parity scss 已有同名关键帧,动画名是全局命名空间,不受 scoped 影响。
+   `.cal-cell.muted`(Vue2 photos.scss:2685)在 PhotosSearchView.vue 模板里零命中、没有消费
+   方,parity 转录了这条死 CSS,本组件原样不重复声明,不受影响。 */
 
-.fpop-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--fg-faint);
-  letter-spacing: 0.06em;
-  margin-bottom: 10px;
-}
-
+/* `.fpop-row` 的 `flex-wrap: wrap` 不是 Vue2/parity 有的属性(Vue2 photos.scss:2660 的
+   `.fpop-row` 只有 `display:flex;gap:6px;margin-bottom:6px`,没有 flex-wrap)——这是
+   New-UI 专属的加性修复:5 个快捷区间按钮在 320px 宽的弹层里不换行会在某些语言的按钮文案
+   下溢出,回退时保留这一条(只留新增属性,其余交给 parity 的裸 `.fpop-row`)。 */
 .fpop-row {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
   flex-wrap: wrap;
 }
-
-.fpop-quick {
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 99px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-.fpop-quick:hover {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-/* hover 硬约束(A7):Vue2 原文(photos.scss:2674)把 :hover 与 [data-on="true"] 写在同一条
-   规则、共享同一组值——本仓拆开写时两边数值必须一致(照抄上面 :hover 那条,不是另设一套)。
-   基类 :hover 与 [data-on="true"](未 hover)优先级相等(均为 0,2,0:一个类+一个伪类 /
-   一个类+一个属性选择器),变体必须自带 :hover 才能在"悬停一个已选中的快捷按钮"时保持选中
-   态,不被基类 hover 顶掉。 */
-.fpop-quick[data-on='true'] {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-.fpop-quick[data-on='true']:hover {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-
-.cal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 14px;
-  margin-bottom: 2px;
-}
-
-.cal-nav {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--fg-muted);
-  background: transparent;
-  border: 0;
-  transition: all 0.2s;
-}
-.cal-nav:hover {
-  background: var(--chip-bg-hi);
-  color: var(--fg);
-}
-
-.cal {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  margin-top: 12px;
-}
-.cal-cell {
-  height: 28px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.cal-cell.dow {
-  color: var(--fg-faint);
-  font-size: 10.5px;
-  font-weight: 600;
-  cursor: default;
-  height: 22px;
-}
-.cal-cell:hover {
-  background: var(--chip-bg-hi);
-}
-/* hover 硬约束(A7,本组件受此约束最集中的一处):.cal-cell:hover 与 .in/.start/.end 三个
-   变体优先级全部相等(均 0,2,0:一个类+一个伪类 / 两个类)。Vue2 靠源码顺序(变体写在
-   hover 之后)让选中态在 hover 时不被顶掉——scoped SFC 里不应该依赖这种"顺序苟活",三个
-   变体各自补 :hover,值等于未 hover 时的既有态(即选中态在 hover 下保持不变)。 */
-.cal-cell.in {
-  background: var(--accent-soft);
-  color: var(--fg);
-  border-radius: 0;
-}
-.cal-cell.in:hover {
-  background: var(--accent-soft);
-  color: var(--fg);
-}
-/* .start / .end 是 accent 实底 + 白字场景——这里 --on-accent 是合法用法(背景确为
-   var(--accent) 饱和实底)。 */
-.cal-cell.start {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: 6px 0 0 6px;
-}
-.cal-cell.start:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.cal-cell.end {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: 0 6px 6px 0;
-}
-.cal-cell.end:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-}
-.cal-cell.start.end {
-  border-radius: 6px;
-}
-.cal-cell.blank {
-  cursor: default;
-  pointer-events: none;
-}
-.cal-cell.blank:hover {
-  background: transparent;
-}
-/* .cal-cell.muted(Vue2 photos.scss:2685)在 PhotosSearchView.vue 模板里 grep 零命中,
-   没有消费方——死 CSS,不迁(A4,反向断言见测试)。 */
 
 .fpop-foot {
   display: flex;
@@ -343,35 +202,5 @@ function pick(c: CalCell): void {
 .fpop-foot .btn {
   flex: 1;
   justify-content: center;
-}
-
-.btn {
-  height: 32px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.btn:hover {
-  background: var(--chip-bg-hi);
-}
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-/* 同 T12 的既定写法(ClusterActionDialog.vue/MergeReviewDialog.vue 同款):.btn:hover 是
-   (0,2,0),会压过单类 .btn-primary(0,1,0),hover 时把 accent 实底换成 --chip-bg-hi——
-   变体自带 :hover 把 accent 实底盖回来。 */
-.btn.btn-primary:hover {
-  background: var(--accent);
-  filter: brightness(1.08);
 }
 </style>

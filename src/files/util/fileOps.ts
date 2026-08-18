@@ -26,7 +26,7 @@ export function filterActive(tasks: FileTask[]): FileTask[] {
   return tasks.filter((t) => !t.finished)
 }
 
-// 移植 Vue2 FilePanel:已完成任务的目的地 === 当前目录 → 需要 reload
+// Ported from Vue2 FilePanel: completed task's destination === current directory → need to reload
 export function shouldReload(tasks: FileTask[], currentPath: string): boolean {
   return tasks.some((t) => t.finished && t.to === currentPath)
 }
@@ -38,6 +38,25 @@ export function shouldReload(tasks: FileTask[], currentPath: string): boolean {
 // stripping it here matches that instead of passing OperateItem through as-is.
 export function buildPastePayload(o: OperateObject, to: string, style: 'overwrite' | 'rename') {
   return { type: o.type, item: o.item.map((entry) => ({ from: entry.from })), to, style }
+}
+
+// The name a moved source lands under in the destination: a move keeps the last
+// segment and swaps the parent (favorites.movePaths does the same arithmetic on
+// the favourite side).
+export function landedName(source: string): string {
+  const trimmed = source.replace(/\/+$/, '')
+  return trimmed.slice(trimmed.lastIndexOf('/') + 1)
+}
+
+// Which of `sources` can actually be seen in the destination listing. A task
+// reporting FINISHED is not by itself evidence that anything moved -- the
+// backend has been measured reporting completion for a batch it never executed
+// -- so the favourite repoint is gated on the entry really being there.
+// One listing answers for the whole batch: only the top-level sources are
+// checked, never the favourited descendants underneath them.
+export function landedSources(sources: string[], destEntries: { name: string }[]): string[] {
+  const names = new Set(destEntries.map((e) => e.name))
+  return sources.filter((s) => names.has(landedName(s)))
 }
 
 export function taskPercent(task: FileTask): number {

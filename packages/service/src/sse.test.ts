@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const refreshMock = vi.fn()
 vi.mock('./http.js', () => ({ refreshAccessToken: (...a: unknown[]) => refreshMock(...a) }))
 
-import { setConfig } from './config.js' // http.ts:3 同款 import,已证实导出
+import { setConfig } from './config.js' // same import as http.ts:3, confirmed exported
 import { sseRequest } from './sse.js'
 
 let token = 'OLD'
@@ -34,7 +34,7 @@ function sseResp(lines: string[], status = 200) {
 }
 
 describe('sseRequest', () => {
-  it('解析 data: 行并在 [DONE] 终止', async () => {
+  it('parses data: lines and stops at [DONE]', async () => {
     const fetchImpl = vi.fn(async () => sseResp(['{"a":1}', '[DONE]', '{"a":2}']))
     const evts: unknown[] = []
     const out = await sseRequest('/v1/x', { onEvent: e => evts.push(e), fetchImpl })
@@ -42,7 +42,7 @@ describe('sseRequest', () => {
     expect(evts).toEqual([{ a: 1 }])
   })
 
-  it('401 → refreshAccessToken → 用新 token 重发一次', async () => {
+  it('401 → refreshAccessToken → retries once with the new token', async () => {
     const auths: unknown[] = []
     const fetchImpl = vi.fn(async (_u: string, init: RequestInit) => {
       auths.push((init.headers as Record<string, string>).Authorization)
@@ -54,7 +54,7 @@ describe('sseRequest', () => {
     expect(out.ok).toBe(true)
   })
 
-  it('401 刷新失败 → {ok:false,status:401,error},只发一次', async () => {
+  it('401 refresh fails → {ok:false,status:401,error}, sent only once', async () => {
     const fetchImpl = vi.fn(async () => sseResp([], 401))
     refreshMock.mockRejectedValue(new Error('dead'))
     const out = await sseRequest('/v1/x', { onEvent: () => {}, fetchImpl })
@@ -62,13 +62,13 @@ describe('sseRequest', () => {
     expect(out).toMatchObject({ ok: false, status: 401 })
   })
 
-  it('204 → noContent,不读流', async () => {
+  it('204 → noContent, does not read the stream', async () => {
     const fetchImpl = vi.fn(async () => ({ ok: false, status: 204 }) as unknown as Response)
     const out = await sseRequest('/v1/x', { onEvent: () => {}, fetchImpl })
     expect(out).toEqual({ ok: true, status: 204, noContent: true })
   })
 
-  it('非2xx非401/204(如500,带body)→ {ok:false,status:500},不读流(getReader 未被调用)', async () => {
+  it('non-2xx, non-401/204 (e.g. 500, with body) → {ok:false,status:500}, does not read the stream (getReader is never called)', async () => {
     const getReaderSpy = vi.fn()
     const fetchImpl = vi.fn(async () => ({
       ok: false,
@@ -80,7 +80,7 @@ describe('sseRequest', () => {
     expect(getReaderSpy).not.toHaveBeenCalled()
   })
 
-  it('POST 带 body 与自定义头;Authorization 为裸 token', async () => {
+  it('POST with body and custom headers; Authorization is a bare token', async () => {
     let init: RequestInit | undefined
     const fetchImpl = vi.fn(async (_u: string, i: RequestInit) => { init = i; return sseResp(['[DONE]']) })
     await sseRequest('/v1/x', {
@@ -93,7 +93,7 @@ describe('sseRequest', () => {
     expect(init!.body).toBe(JSON.stringify({ q: 1 }))
   })
 
-  it('流中途出错(reader.read 拒绝,非 AbortError)→ {ok:true,status:200,error},已收到的事件不丢', async () => {
+  it('stream errors mid-way (reader.read rejects, not AbortError) → {ok:true,status:200,error}, already-received events are not lost', async () => {
     const err = new Error('network drop')
     let calls = 0
     const chunk = new TextEncoder().encode('data: {"a":1}\n')
@@ -116,13 +116,13 @@ describe('sseRequest', () => {
     expect(evts).toEqual([{ a: 1 }])
   })
 
-  it('AbortError 向外抛', async () => {
+  it('AbortError propagates outward', async () => {
     const abortErr = Object.assign(new Error('aborted'), { name: 'AbortError' })
     const fetchImpl = vi.fn(async () => { throw abortErr })
     await expect(sseRequest('/v1/x', { onEvent: () => {}, fetchImpl })).rejects.toBe(abortErr)
   })
 
-  it('重发仍 401 → 刷新成功但重连仍 401,只重发一次不循环,surfaces as {ok:false,status:401}', async () => {
+  it('retry still gets 401 → refresh succeeds but the reconnect still gets 401, retries exactly once without looping, surfaces as {ok:false,status:401}', async () => {
     const auths: (string | null)[] = []
     refreshMock.mockImplementation(async () => { token = 'NEW' })
     let calls = 0
@@ -138,7 +138,7 @@ describe('sseRequest', () => {
     expect(out).toMatchObject({ ok: false, status: 401 })
   })
 
-  it('非2xx 带 JSON body → errorBody 携带解析后的 body', async () => {
+  it('non-2xx with a JSON body → errorBody carries the parsed body', async () => {
     const resp = {
       status: 500, ok: false,
       body: { getReader: () => ({ read: async () => ({ done: true }) }) },

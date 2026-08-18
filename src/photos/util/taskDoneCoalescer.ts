@@ -9,12 +9,15 @@
 // receives the final *joined string* for the whole batch, not an array of tasks.
 // Ported as-is per "Vue2 source wins"; see task-2-report.md for the full note.
 //
-// 把「同一波」内多个任务完成事件(索引 / 视频 embedding / OCR / 人脸聚类)合并成一条提示,
-// 避免多个 toast 同时或前后叠着弹。每来一条完成事件就放进按类型去重的缓冲并重置去抖计时器,
-// 安静 delay 毫秒后(人脸扫动 ~2.2s 完成、索引 done 收尾,两者完成时刻通常相差 ~2s)
-// 按固定顺序拼成一条交给 emit。
+// Merges multiple task-done events within the "same wave" (index / video embedding / OCR /
+// face clustering) into a single notification, avoiding several toasts popping at once or
+// stacked back-to-back. Each completion event goes into a type-deduped buffer and resets the
+// debounce timer. After `delay` ms of quiet (face scan finishes in ~2.2s, index done wraps up
+// last, and the two typically land ~2s apart), the buffered messages are joined in a fixed
+// order and handed to `emit`.
 //
-// 设计为无框架依赖的纯工厂,便于单测;Vue 组件注入 messageFor / emit 即可。
+// Designed as a framework-free plain factory for easy unit testing; the Vue component just
+// injects messageFor / emit.
 
 const ORDER = ['index', 'embedding', 'ocr', 'face', 'aesthetic']
 
@@ -52,7 +55,7 @@ export function createTaskDoneCoalescer<T extends { type?: string }>(
 
   function push(task: T) {
     const msg = messageFor(task)
-    if (!msg) return // 无内容(如本次无新增人脸)不计入,也不弹
+    if (!msg) return // no content (e.g. no new faces this round) — skip, don't buffer or show
     buf[(task && task.type) || 'other'] = msg
     if (timer) clearTimeout(timer)
     timer = setTimeout(flush, delay)

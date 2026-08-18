@@ -1,4 +1,4 @@
-// 移植 engine.js 367
+// Ported from engine.js:367
 export function computeCell(availW: number, availH: number, cols: number, rows: number, gap: number): number {
   return Math.max(
     40,

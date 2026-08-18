@@ -1,63 +1,77 @@
 import { describe, it, expect } from 'vitest'
-// SP8-P2a Task 2 —— 落地时踩了两处环境差异,均只改「怎么读文件」,不改任何断言内容:
-// ① brief 原文用 resolve(__dirname, ...);本仓 package.json 是 "type": "module",
-//    __dirname 在 ESM 下不可用,改用 import.meta.url + fileURLToPath 的等价写法。
-// ② ⚠️【此条是 2026-07-30 P2a 当时的历史记录,现已不成立 —— 直接跳到本段末尾那条
-//    「SP8-P6 T10 订正」看现状,别照这段判断今天的环境】
-//    本仓 tsconfig.json 的 "types" 只有 ["vite/client","vitest/globals"],未装
-//    @types/node —— node:fs / node:path / node:url 没有类型声明,`pnpm exec
-//    vue-tsc --noEmit`(任务门三条命令之一)会报 TS2307。
-//    曾尝试改用 Vite 静态 `?raw` 导入替代 node:fs(仿 src/styles/color-guard.test.ts
-//    的 import.meta.glob 先例),但实测行为不同:vitest 自带的 CSSEnablerPlugin
-//    (node_modules/vitest 内 `vitest:css-disable` transform,enforce:"pre")只要
-//    id 匹配 css/scss 扩展名、且 `test.css.include` 未显式收录该文件,就把内容
-//    整体替换成空串——**不看 `?raw`/`?url` 查询串**,抢在 assetPlugin 的真实 raw
-//    读取之前清空。实测证实 color-guard.test.ts 现有的 `?raw` glob 对 .css 文件
-//    同样命中此坑(实测 THEME_LEN=0),只是它的裸色扫描对空字符串天然不报错,
-//    这个既有 false-negative 与本任务无关,修它需要碰
-//    `src/styles/color-guard.test.ts`,不在本任务允许改动的 4 个文件之列,不修。
-//    要在不改 vite.config.ts(加 test.css.include)、不装 @types/node、不碰
-//    tsconfig.json/package.json 的前提下解决,退回 node:fs 方案,用
-//    `@ts-expect-error` 就地抑制这三行找不到模块声明的类型错误(运行时已验证可用,
-//    见下方 vitest 实跑结果);模块解析失败后被推断的类型退化为 any,故后续两处
-//    filter 回调参数显式标注 `l: string` 以满足 noImplicitAny。
-//    🔴 【SP8-P6 T10 订正 —— 上面②那段是 P2a 当时的历史记录,现已不成立】合流后本仓
-//    已装 `@types/node`(devDependencies ^26.1.2)。tsconfig 的 `types` 数组仍只列
-//    `["vite/client","vitest/globals"]`,但那只管**全局**类型的自动引入;`node:fs` 这类
-//    **显式模块导入**照样解析得到 @types/node 的模块声明 ⇒ vue-tsc 直接通过,本文件的
-//    `@ts-expect-error` 抑制行已在合流时删除。
-//    🔴 **本条自己也被订正过一次(T10 复评抓到,留痕)**:我最初在这里写「反过来,全局
-//    `process` 之类仍然没有类型」—— **那是错的**。全仓有 7 个文件写了
-//    `/// <reference types="node" />`,该指令是**程序级**的,把 `@types/node/globals.d.ts`
-//    (含 `declare var process`)拉进整个编译程序 ⇒ 全局 `process` **是有类型的**。
-//    双向探针实证:一个既不 import `node:` 也无 reference 的新文件里写
-//    `export const b = process.platform` → `vue-tsc --noEmit` exit 0;同文件加
-//    `const wrong: number = 'string'` → TS2322 exit 2(证明探针真的进了编译程序)。
-//    `knowledge/views/DashboardView.test.ts` 那处 globalThis 窄化的注释因此**也已订正**。
-//    教训:订正别人的过时注释时,别顺手写下一条自己没验过的新断言。
-//    结论未变:仍然用 node:fs、仍然不用 `?raw`(CSSEnablerPlugin 那条坑与类型无关)。
-//    另:上面提到的「color-guard.test.ts 的 `?raw` glob 对 .css 空转」也**已经修掉了**
-//    (它现在 .css 走 node:fs、只有 .vue 保留 glob);剩下的缺口是它**不收 `.scss`**
-//    ——本期立票 I3,见 docs/vue3-migration-roadmap.md。
+// SP8-P2a Task 2 — encountered two environment differences during implementation, both only changed
+// "how to read the file", did not change any assertion content:
+// ① Original brief used resolve(__dirname, ...); this repo's package.json is "type": "module",
+//    __dirname is unavailable under ESM, changed to equivalent usage of import.meta.url + fileURLToPath.
+// ② ⚠️ 【This is historical context from 2026-07-30 P2a, now superseded — jump directly to the
+//    "SP8-P6 T10 correction" note at the end of this section for current status, don't use this
+//    section to judge today's environment】
+//    This repo's tsconfig.json "types" only has ["vite/client","vitest/globals"], @types/node
+//    not installed — node:fs / node:path / node:url have no type declarations, `pnpm exec
+//    vue-tsc --noEmit` (one of the three task gate commands) reports TS2307.
+//    Attempted to switch to Vite static `?raw` import as replacement for node:fs (following
+//    the import.meta.glob precedent in src/styles/color-guard.test.ts), but actual behavior
+//    differs: vitest's built-in CSSEnablerPlugin (the `vitest:css-disable` transform in
+//    node_modules/vitest, enforce:"pre") whenever id matches css/scss extension and
+//    `test.css.include` does not explicitly include that file, replaces the entire content with
+//    an empty string — **ignores the `?raw`/`?url` query string**, clears it before the
+//    assetPlugin's actual raw read. Testing confirms color-guard.test.ts's existing `?raw` glob
+//    hits this same pitfall for .css files (tested THEME_LEN=0), but its bare color scan doesn't
+//    error on empty string, and this pre-existing false-negative is unrelated to this task;
+//    fixing it requires touching `src/styles/color-guard.test.ts`, which is not in the 4 files
+//    allowed to be modified in this task, so it's not being fixed. To resolve this without
+//    modifying vite.config.ts (adding test.css.include), installing @types/node, or touching
+//    tsconfig.json/package.json, reverted to the node:fs approach, using `@ts-expect-error` to
+//    suppress the three lines of type errors about missing module declarations (runtime validity
+//    already verified, see vitest actual test results below); after module resolution failure the
+//    inferred type degrades to any, so the two subsequent filter callback parameters are
+//    explicitly annotated `l: string` to satisfy noImplicitAny.
+//    🔴 【SP8-P6 T10 correction — the ② section above is P2a historical context, now superseded】
+//    After merging, this repo now has `@types/node` (devDependencies ^26.1.2). The tsconfig
+//    `types` array still only lists `["vite/client","vitest/globals"]`, but that only controls
+//    **global** type auto-imports; **explicit module imports** like `node:fs` still resolve the
+//    module declarations from @types/node ⇒ vue-tsc passes directly, the `@ts-expect-error`
+//    suppression line in this file was already removed at merge time.
+//    🔴 **This item itself was corrected once (T10 re-review caught it, leaving a record)**:
+//    I initially wrote here "conversely, global `process` and such still have no types" —
+//    **that was wrong**. The entire repo has 7 files that write `/// <reference types="node" />`,
+//    that directive is **program-level**, pulling `@types/node/globals.d.ts` (containing
+//    `declare var process`) into the entire compilation program ⇒ global `process` **does have
+//    types**. Bidirectional probe verification: a new file with neither `node:` import nor
+//    reference, writing `export const b = process.platform` → `vue-tsc --noEmit` exit 0; same
+//    file adding `const wrong: number = 'string'` → TS2322 exit 2 (proves the probe actually
+//    entered the compilation program). The comment in `knowledge/views/DashboardView.test.ts`
+//    about globalThis narrowing has **also been corrected** accordingly. Lesson: when correcting
+//    someone else's outdated comments, don't casually write down a new assertion you haven't
+//    verified. Conclusion unchanged: still using node:fs, still not using `?raw` (the
+//    CSSEnablerPlugin pitfall is unrelated to types). Also: the "color-guard.test.ts's `?raw`
+//    glob idle on .css" mentioned above **has already been fixed** (now .css uses node:fs, only
+//    .vue keeps glob); the remaining gap is it **doesn't include `.scss`** — opened ticket I3
+//    this cycle, see docs/vue3-migration-roadmap.md.
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// SP8-P2a Task 2 —— 样式档是机械移植件,没有运行时行为可测。这条守卫只做两件
-// 事:①钉住「本档不得重复定义 token」这条架构约定 ②钉住选择器基座没被改名。
-// 视觉 1:1 由 reviewer 逐行 diff Vue2 原文 + 用户 :5288 验收负责,不是本测试的职责。
+// SP8-P2a Task 2 — style file is a mechanical port with no runtime behavior to test. This guard
+// only does two things: ① pin down the architectural rule "no duplicate token definitions in this
+// file" ② pin down that selector bases haven't been renamed. Visual 1:1 verification is the
+// responsibility of reviewers doing line-by-line diff against Vue2 source + user acceptance at :5288,
+// not this test's responsibility.
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const read = (p: string) => readFileSync(resolve(__dirname, p), 'utf8')
 
-// SP8-P2b Task 10 二次评审补漏 —— 之前 `.mcp-label`/`.mcp-reveal-warn` 那条 `toContain`
-// 断言只查子串,而修复本身的**注释**里就带反引号引的类名(`` `.mcp-label` ``),删掉真正
-// 的 CSS 规则、只留注释也能让断言通过(已用 RED 探针实测确认)。这里在 fixture 层面统一
-// 剥掉注释(`//` 整行注释 + `/* … */` 块注释)后再断言,本档全部 `toContain` 检查因此都
-// 只能被真实声明满足,不会被注释里提到的类名/字符串撞对。
-// 只剥「整行以 // 开头」的行注释(本档惯例,行注释永不跟在真代码后面),不做「行内任意位置
-// 的 //」全局替换 —— `.set-select` 那条 `background-image: url("data:image/svg+xml,...
-// http://www.w3.org/2000/svg...")` 规则里,数据 URI 本身含 `//`,不是注释,不能被切断。
+// SP8-P2b Task 10 secondary review gap — previously the `toContain` assertion on `.mcp-label`/
+// `.mcp-reveal-warn` only checked substrings, but the fix's own **comment** contains the backtick-
+// quoted class names (`` `.mcp-label` ``), so deleting the actual CSS rule and leaving only the
+// comment would still pass the assertion (confirmed via RED probe testing). Here at fixture level
+// we uniformly strip comments (`//` whole-line comments + `/* … */` block comments) before
+// asserting, so all `toContain` checks in this file can only be satisfied by actual declarations,
+// not by class names/strings mentioned in comments colliding with the pattern.
+// Only strip "entire line starting with //" line comments (convention in this file, line comments
+// never follow real code), not do global replacement of "//" anywhere in a line — in the
+// `.set-select` rule `background-image: url("data:image/svg+xml,... http://www.w3.org/2000/svg")`
+// the data URI itself contains `//`, which is not a comment and cannot be cut.
 function stripComments(css: string): string {
   return css
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -67,64 +81,71 @@ function stripComments(css: string): string {
 describe('settings-styles.scss', () => {
   const css = stripComments(read('./settings-styles.scss'))
 
-  it('不重复定义 token(token 只能来自 tokens.scss 的 .agent-app 作用域)', () => {
+  it('no duplicate token definitions (tokens can only come from .agent-app scope in tokens.scss)', () => {
     const declarations = css.split('\n').filter((l: string) => /^\s*--[a-z-]+\s*:/.test(l))
     expect(declarations).toEqual([])
   })
 
-  it('保留 .set-app 网格基座与两栏宽度', () => {
+  it('preserve .set-app grid base and two-column widths', () => {
     expect(css).toContain('grid-template-columns: 258px 1fr')
   })
 
-  it('保留 stack 模式的分区锚点样式', () => {
+  it('preserve section anchor styles for stack mode', () => {
     expect(css).toContain('.set-stack-item')
     expect(css).toContain('scroll-margin-top')
   })
 
-  it('保留 720px 窄屏的图标化导航栏', () => {
+  it('preserve iconified navbar for 720px narrow screen', () => {
     expect(css).toContain('@media (max-width: 720px)')
     expect(css).toContain('grid-template-columns: 60px 1fr')
   })
 
-  // SP8-P2b Task 10 评审补漏 —— McpTokensSection.vue 用了 .mcp-label/.mcp-reveal-warn
-  // 但组件零 <style> 块,首次落地时漏收 Vue2 McpTokensSection.vue:245/246 的对应规则,
-  // 补进本档后用这两条钉住选择器不会再被静默删掉。断言选择器**紧跟一个 `{`**(而不是裸
-  // 子串)、且 `.mcp-reveal-warn` 后面确实带着 `color: var(--danger)` 声明 —— 光删规则、
-  // 留注释这条会先因为上面 fixture 层的 stripComments() 就抓不到注释了,这里的 `{`/声明
-  // 断言是第二道保险(即便日后 stripComments 被削弱,裸删规则本身也过不了)。仍然**只证明
-  // 选择器与其声明存在**,不逐字比对全部取值(那部分由评审逐行比对 Vue2 源码负责,同本文件
-  // 头注释的既定分工)。
-  it('保留 McpTokensSection 明文弹窗的 .mcp-label / .mcp-reveal-warn(Vue2 :245/246 scoped 样式迁移)', () => {
+  // SP8-P2b Task 10 review gap — McpTokensSection.vue uses .mcp-label/.mcp-reveal-warn but the
+  // component has no <style> block; first landing missed collecting the corresponding rules from
+  // Vue2 McpTokensSection.vue:245/246, after adding them to this file use these two assertions
+  // to pin down selectors won't be silently deleted again. Assert selectors **immediately followed
+  // by a `{`** (not bare substring), and `.mcp-reveal-warn` indeed carries `color: var(--danger)`
+  // declaration — just deleting the rule and leaving the comment would first fail because the
+  // fixture-level stripComments() above already couldn't find the comment, the `{`/declaration
+  // assertions here are a second safeguard (even if stripComments is weakened later, bare rule
+  // deletion would still fail). Still **only proves selector and its declaration exist**, not a
+  // word-for-word comparison of all values (that part is the responsibility of reviewers doing
+  // line-by-line diff against Vue2 source, the established division of labor in this file's
+  // header comment).
+  it('preserve .mcp-label / .mcp-reveal-warn from McpTokensSection modal (Vue2 :245/246 scoped styles migration)', () => {
     expect(css).toContain('.mcp-label {')
     expect(css).toContain('.mcp-reveal-warn {')
     expect(css).toContain('color: var(--danger)')
   })
 
-  // SP8-P2b Task 12 —— ChannelsSection.vue 同样走「零 <style> 块」惯例(与 Task 10 的
-  // .mcp-label/.mcp-reveal-warn 同一分工),Vue2 sections/ChannelsSection.vue:387-410
-  // scoped 里的 .chan-* 规则(`.chan-x`/`.chan-x:hover` 已被 SkModal 的 `.sk-x` 收编,不搬)
-  // 迁到本档。同上一条的两道保险:选择器紧跟 `{`(不是裸子串、不会被注释里的反引号类名
-  // 撞对),并抓一条真实声明(`.chan-type-opt[data-active="true"]` 的
-  // `border-color: var(--accent)`)证明规则体还在,不是只剩选择器空壳。
-  // SP8-P2b 验收反馈(2026-07-30 用户拍板)—— Vue2 的 .px-open 底色是 `--accent-softer`,
-  // 浅色主题下这层极浅的强调色几乎看不见,用户原话「看不出有按钮」。改成实底强调色 + 白字
-  // (`--text-on-accent` 只在 accent 实底上可用,这里正是实底,符合既有约定)。
-  // **有意偏离 Vue2 视觉 1:1,已在 ObservabilitySection.test.ts 用例 20 与台账登记。**
-  it('.px-open 是实底强调色按钮(用户拍板偏离 Vue2 的 accent-softer)', () => {
+  // SP8-P2b Task 12 — ChannelsSection.vue likewise follows the "zero <style> block" convention
+  // (same division of labor as Task 10's .mcp-label/.mcp-reveal-warn), .chan-* rules from Vue2
+  // sections/ChannelsSection.vue:387-410 scoped (`.chan-x`/`.chan-x:hover` already incorporated
+  // by SkModal's `.sk-x`, not being ported) migrated to this file. Same two safeguards as above:
+  // selector immediately followed by `{` (not bare substring, won't be hit by backtick-quoted
+  // class names in comments), and catch one real declaration (`.chan-type-opt[data-active="true"]`
+  // with `border-color: var(--accent)`) proving the rule body is still there, not just an empty
+  // selector shell. SP8-P2b acceptance feedback (2026-07-30 user decision) — Vue2's .px-open
+  // background is `--accent-softer`, under light theme this extremely light accent color is nearly
+  // invisible, user's exact words: "can't see there's a button". Changed to solid accent color +
+  // white text (`--text-on-accent` only available on solid accent backgrounds, which is exactly
+  // what we have here, conforming to existing conventions). **Intentionally diverging from Vue2
+  // visual 1:1, already registered in ObservabilitySection.test.ts case 20 and the project log.**
+  it('.px-open is solid accent color button (user decision to diverge from Vue2 accent-softer)', () => {
     const at = css.indexOf('.px-open {')
-    expect(at, '找不到 .px-open 规则').toBeGreaterThanOrEqual(0)
+    expect(at, 'cannot find .px-open rule').toBeGreaterThanOrEqual(0)
     const rule = css.slice(at, css.indexOf('}', at))
     expect(rule).toContain('background: var(--accent)')
     expect(rule).toContain('color: var(--text-on-accent)')
-    // 反向:不能再留着旧的极浅底色
+    // Reverse: cannot keep the old extremely light background color
     expect(rule).not.toContain('--accent-softer')
   })
 
-  it('保留 ChannelsSection 的 .chan-*(Vue2 :387-410 scoped 样式迁移)', () => {
+  it('preserve .chan-* from ChannelsSection (Vue2 :387-410 scoped styles migration)', () => {
     for (const sel of [
       '.chan-bot {', '.chan-model-lbl {', '.chan-switch {', '.chan-modal-warn {',
       '.chan-modal-hint {', '.chan-type-row {', '.chan-type-opt {',
-      // 用户 2026-07-30 拍板新增:添加机器人失败的行内报错(取代 Vue2 的 danger toast)
+      // User 2026-07-30 decision: newly added inline error for bot addition failure (replaces Vue2 danger toast)
       '.chan-field-err {',
       '.chan-type-opt[data-active="true"] {', '.chan-field-hint {', '.chan-invite {',
     ]) {
@@ -134,56 +155,61 @@ describe('settings-styles.scss', () => {
   })
 })
 
-// SP8-P2b 验收缺陷(2026-07-30 用户报「浅色模式下执行步数的上下箭头底板是黑色」)——
-// 根因不是取值写错,而是**作用域漏了 `color-scheme`**:`src/styles/theme.css` 只在 `:root`
-// 声明 `color-scheme: dark`(New-UI 默认蓝/暗主题)与 `:root[data-theme="light"]` 的 light;
-// 而 AI 区自建了一层嵌套主题作用域(`SettingsPage.vue:362` / `AgentPage.vue:295` 把
-// `data-theme` 贴在 `.agent-app` 容器上,不动 `<html>`)。`color-scheme` 是可继承属性,
-// AI 区没有自己声明,于是浅色 AI 页在全局暗色主题下继承到 `dark` → 浏览器按暗色 UA 调色板
-// 画**原生控件内部**(`input[type=number]` 的上下箭头底板、原生 checkbox、插入符等),
-// 于是浅底输入框上挂一块黑箭头板。
-// Vue2 无此问题:老应用全局没有 `color-scheme: dark`(只有 Photos 一处 scoped),UA 默认按
-// 浅色画,所以这是 New-UI 独有回归(全局暗默认 + 嵌套主题作用域两件事叠出来的),不是移植走样。
-// 这条守卫钉住「AI 区两套主题块各自声明自己的 color-scheme」——只要谁把它删了就红。
+// SP8-P2b acceptance bug (2026-07-30 user reported "light mode up/down arrows for iteration count
+// have black background plate") — root cause not a wrong value, but **scope missing `color-scheme`**:
+// `src/styles/theme.css` only declares `color-scheme: dark` at `:root` (New-UI default blue/dark
+// theme) and `light` at `:root[data-theme="light"]`; meanwhile the AI area created its own nested
+// theme scope (`SettingsPage.vue:362` / `AgentPage.vue:295` place `data-theme` on the `.agent-app`
+// container, don't touch `<html>`). `color-scheme` is an inheritable property, the AI area doesn't
+// declare its own, so light AI pages under global dark theme inherit `dark` → browser draws native
+// control **internals** using dark UA palette (`input[type=number]` up/down arrow plates, native
+// checkboxes, text cursor, etc.), resulting in a black arrow plate hanging on light input boxes.
+// Vue2 has no such issue: the old app globally has no `color-scheme: dark` (only one Photos scoped),
+// UA defaults to drawing light, so this is a New-UI-specific regression (from the combination of
+// global dark default + nested theme scope), not a porting divergence. This guard pins down "AI
+// area's two theme blocks each declare their own color-scheme" — if anyone deletes it, it turns red.
 function blockOf(css: string, selector: string, fromEnd = false): string {
-  // fromEnd:`.ai-toast-scope {` 这个串也出现在两个主题块的**选择器列表**里
-  // (`.agent-app,\n.ai-toast-scope {`),从头找会命中那一整块 token 表。独立的
-  // `.ai-toast-scope` 覆盖块追加在文件末尾,故从后往前找才是它。
+  // fromEnd: `.ai-toast-scope {` appears in the **selector lists** of both theme blocks too
+  // (`.agent-app,\n.ai-toast-scope {`), searching from the start hits that entire token block.
+  // The standalone `.ai-toast-scope` override block is appended at the end of the file, so
+  // searching backward is what finds it.
   const at = fromEnd ? css.lastIndexOf(selector) : css.indexOf(selector)
-  expect(at, `tokens.scss 里找不到选择器 ${selector}`).toBeGreaterThanOrEqual(0)
+  expect(at, `cannot find selector ${selector} in tokens.scss`).toBeGreaterThanOrEqual(0)
   const rest = css.slice(at + selector.length)
   const end = rest.indexOf('\n}')
-  expect(end, `${selector} 的规则体没有闭合`).toBeGreaterThan(0)
+  expect(end, `rule body for ${selector} not closed`).toBeGreaterThan(0)
   return rest.slice(0, end)
 }
 
-describe('tokens.scss —— AI 区嵌套主题作用域必须自带 color-scheme', () => {
+describe('tokens.scss — AI area nested theme scope must bring its own color-scheme', () => {
   const css = stripComments(read('./tokens.scss'))
 
-  it('.agent-app(浅色基座)声明 color-scheme: light', () => {
+  it('.agent-app (light base) declares color-scheme: light', () => {
     expect(blockOf(css, '.agent-app,\n.ai-toast-scope {')).toContain('color-scheme: light')
   })
 
-  it('.agent-app[data-theme="dark"] 声明 color-scheme: dark', () => {
+  it('.agent-app[data-theme="dark"] declares color-scheme: dark', () => {
     expect(blockOf(css, '.agent-app[data-theme="dark"],\n.ai-toast-scope[data-theme="dark"] {'))
       .toContain('color-scheme: dark')
   })
 
-  // 【SP8-P2b 验收第 3 轮】AI 区 toast 作用域(`.ai-toast-scope`)必须①能拿到整套 AI token
-  // (靠挂在两个主题块的选择器上)②覆盖 toast 自己的那几个,否则 AppToast 会继续用全局蓝黑
-  // 主题的半透明白底 + 白字,在 AI 浅色页面上看不见。详见 aiTheme.test.ts 的根因说明。
-  it('.ai-toast-scope 挂在 AI 两套主题块的选择器上(才能拿到整套 AI token)', () => {
+  // 【SP8-P2b acceptance round 3】AI area toast scope (`.ai-toast-scope`) must ① get the full
+  // set of AI tokens (by being in selector lists of both theme blocks) ② override toast's own
+  // ones, otherwise AppToast continues using global blue-dark theme's semi-transparent white
+  // background + white text, invisible on AI light pages. See root cause explanation in
+  // aiTheme.test.ts.
+  it('.ai-toast-scope in selector lists of AI both theme blocks (to get full set of AI tokens)', () => {
     expect(css).toContain('.agent-app,\n.ai-toast-scope {')
     expect(css).toContain('.agent-app[data-theme="dark"],\n.ai-toast-scope[data-theme="dark"] {')
   })
 
-  it('.ai-toast-scope 覆盖 toast 的底色/前景色,且全部走 AI token(无裸色)', () => {
+  it('.ai-toast-scope overrides toast background/foreground colors, all using AI tokens (no bare colors)', () => {
     const rule = blockOf(css, '.ai-toast-scope {', true)
     for (const decl of ['--toast-bg:', '--toast-fg:', '--toast-warn-bg:', '--toast-warn-fg:',
       '--toast-danger-bg:', '--toast-danger-fg:', '--chip-border:']) {
-      expect(rule, `.ai-toast-scope 缺 ${decl}`).toContain(decl)
+      expect(rule, `.ai-toast-scope missing ${decl}`).toContain(decl)
     }
-    // 取值必须引用 AI token,不许写死颜色字面量
+    // Values must reference AI tokens, cannot hardcode color literals
     expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(rule).not.toMatch(/rgba?\(/)
   })
@@ -192,7 +218,7 @@ describe('tokens.scss —— AI 区嵌套主题作用域必须自带 color-schem
 describe('sk-shared.scss', () => {
   const css = stripComments(read('./sk-shared.scss'))
 
-  it('导出设置区依赖的 6 条通用类', () => {
+  it('export 6 generic classes that settings area depends on', () => {
     for (const sel of [
       '.sk-section', '.sk-section-head', '.sk-section-title',
       '.sk-section-hint', '.sk-section-body', '.sk-btn',
@@ -201,12 +227,12 @@ describe('sk-shared.scss', () => {
     }
   })
 
-  it('不重复定义 token', () => {
+  it('no duplicate token definitions', () => {
     const declarations = css.split('\n').filter((l: string) => /^\s*--[a-z-]+\s*:/.test(l))
     expect(declarations).toEqual([])
   })
 
-  it('SP8-P2b Task 1 —— 导出弹窗外壳与表单字段两组类', () => {
+  it('SP8-P2b Task 1 — export two groups of classes for modal shell and form fields', () => {
     for (const sel of [
       '.sk-modal-bg', '.sk-modal', '.sk-modal-head', '.sk-modal-title',
       '.sk-modal-body', '.sk-modal-foot', '.sk-field', '.sk-field-label', '.sk-field-hint',
@@ -215,16 +241,16 @@ describe('sk-shared.scss', () => {
     }
   })
 
-  it('SP8-P2b Task 1 —— 保留两个入场动画关键帧', () => {
+  it('SP8-P2b Task 1 — preserve two entry animation keyframes', () => {
     expect(css).toContain('@keyframes sk-fade-in')
     expect(css).toContain('@keyframes sk-pop')
   })
 
-  // SP8-P3b Task 5 —— AddSkillModal 提交前本地校验命中时用的行内错误条,先例
-  // .chan-field-err(settings-styles.scss:234)。
-  it('SP8-P3b Task 5 —— 导出行内错误类 .sk-field-err,走 --danger token 无裸色', () => {
+  // SP8-P3b Task 5 — inline error bar used when AddSkillModal's pre-submit local validation is hit,
+  // precedent .chan-field-err (settings-styles.scss:234).
+  it('SP8-P3b Task 5 — export inline error class .sk-field-err, uses --danger token no bare colors', () => {
     const at = css.indexOf('.sk-field-err {')
-    expect(at, '找不到 .sk-field-err 规则').toBeGreaterThanOrEqual(0)
+    expect(at, 'cannot find .sk-field-err rule').toBeGreaterThanOrEqual(0)
     const rule = css.slice(at, css.indexOf('}', at))
     expect(rule).toContain('color: var(--danger)')
     expect(rule).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
@@ -232,21 +258,22 @@ describe('sk-shared.scss', () => {
   })
 })
 
-// SP8-P3a 整期终审 I1 守卫 —— `.empty-title`/`.empty-sub` 与 `agent-styles.scss`
-// 的 `.agent-app .empty-title`/`.agent-app .empty-sub` 同优先级碰撞(详见
-// skills-styles.scss:424-450 的三件套注释)。New-UI 独有回归,不是 Vue2 走样:
-// Vue2 蓝本 `Settings/Settings.vue:2` 根节点只有 `class="set-app"`,不含
-// `agent-app`,这两条规则在 Vue2 里永不相遇;New-UI `SettingsPage.vue:371`
-// 根节点是 `agent-app set-app`,两条规则同时命中同一个空态元素,同优先级下
-// 全靠 `router/index.ts` 的 import 顺序侥幸决胜,且 agent-styles 没声明的属性
-// (letter-spacing/margin/color)会直接泄漏进来。
+// SP8-P3a cycle-end review guard I1 — `.empty-title`/`.empty-sub` and `.agent-app .empty-title`/
+// `.agent-app .empty-sub` from `agent-styles.scss` have specificity collision (see three-item
+// comment block at skills-styles.scss:424-450). New-UI-specific regression, not Vue2 divergence:
+// Vue2 baseline `Settings/Settings.vue:2` root node only has `class="set-app"`, no `agent-app`,
+// these two rules never meet in Vue2; New-UI `SettingsPage.vue:371` root node is `agent-app set-app`,
+// both rules hit the same empty-state element simultaneously, at equal specificity solely depend
+// on import order in `router/index.ts` to win by luck, and properties not declared in agent-styles
+// (letter-spacing/margin/color) leak through directly.
 //
-// 这里不写死「(0,2,0)/(0,3,0)」这两个魔法数字,而是写一个极简 SCSS 嵌套解析器,
-// 从**两个文件的真实源码**里各自数出选择器链上的 class 数,再比大小——
-// 万一将来谁改了 agent-styles.scss 的包裹层级、或谁把 skills-styles.scss 的
-// `.sk-detail` 前缀删掉退回原样,这条守卫都会自动跟着算出错的比较结果而报红,
-// 不依赖任何写死的先验数字。
-describe('skills-styles.scss —— .empty-title/.empty-sub 空态样式(整期终审 I1 守卫)', () => {
+// Rather than hardcoding the two magic numbers "(0,2,0)/(0,3,0)", wrote a minimal SCSS nested
+// parser that counts class numbers in selector chains from **actual source code of both files**,
+// then compares them — if anyone later changes agent-styles.scss's nesting levels, or anyone
+// deletes the `.sk-detail` prefix in skills-styles.scss and reverts, this guard automatically
+// calculates the wrong comparison result and turns red, doesn't depend on any hardcoded prior
+// knowledge numbers.
+describe('skills-styles.scss — .empty-title/.empty-sub empty-state styles (cycle-end review guard I1)', () => {
   const css = stripComments(read('./skills-styles.scss'))
   const agentCss = stripComments(read('./agent-styles.scss'))
 
@@ -254,10 +281,10 @@ describe('skills-styles.scss —— .empty-title/.empty-sub 空态样式(整期�
     return (selector.match(/\.[a-zA-Z][\w-]*/g) || []).length
   }
 
-  // 给定 CSS 全文与目标选择器(必须整段精确等于某条嵌套规则的选择器,如
-  // '.empty-title'),扫描 `{`/`}` 维护一个「当前嵌套选择器栈」，命中时返回
-  // 从最外层到它自己的整条选择器链。用于算「实际生效」的嵌套特异度，而不是
-  // 只看它自己那一行的选择器文本。
+  // Given CSS full text and target selector (must exactly equal the selector of some nested rule,
+  // e.g. '.empty-title'), scan `{`/`}` maintaining a "current nesting selector stack", return the
+  // entire selector chain from outermost to itself when hit. Used to calculate the "actually
+  // effective" nested specificity, not just looking at the selector text on that one line.
   function ancestorChain(text: string, targetSelector: string): string[] {
     const stack: string[] = []
     let i = 0
@@ -281,30 +308,30 @@ describe('skills-styles.scss —— .empty-title/.empty-sub 空态样式(整期�
       }
       i++
     }
-    throw new Error(`在 CSS 里找不到嵌套规则 ${targetSelector}`)
+    throw new Error(`cannot find nested rule ${targetSelector} in CSS`)
   }
 
   function nestedSpecificity(text: string, targetSelector: string): number {
     return ancestorChain(text, targetSelector).reduce((sum, sel) => sum + classCount(sel), 0)
   }
 
-  it('.empty-title 在 skills-styles.scss 里的真实嵌套特异度高于 agent-styles.scss 的版本', () => {
+  it('.empty-title actual nested specificity in skills-styles.scss higher than agent-styles.scss version', () => {
     const skillsSpec = nestedSpecificity(css, '.empty-title')
     const agentSpec = nestedSpecificity(agentCss, '.empty-title')
-    expect(agentSpec, 'agent-styles.scss 的 .empty-title 嵌套特异度').toBe(2) // 已知基线 (0,2,0),验证解析器本身没读错
-    expect(skillsSpec, 'skills-styles.scss 的 .empty-title 嵌套特异度必须确定性压过 agent-styles').toBeGreaterThan(agentSpec)
+    expect(agentSpec, 'agent-styles.scss .empty-title nested specificity').toBe(2) // known baseline (0,2,0), verify parser itself reads correctly
+    expect(skillsSpec, 'skills-styles.scss .empty-title nested specificity must deterministically exceed agent-styles').toBeGreaterThan(agentSpec)
   })
 
-  it('.empty-sub 在 skills-styles.scss 里的真实嵌套特异度高于 agent-styles.scss 的版本', () => {
+  it('.empty-sub actual nested specificity in skills-styles.scss higher than agent-styles.scss version', () => {
     const skillsSpec = nestedSpecificity(css, '.empty-sub')
     const agentSpec = nestedSpecificity(agentCss, '.empty-sub')
-    expect(agentSpec, 'agent-styles.scss 的 .empty-sub 嵌套特异度').toBe(2)
-    expect(skillsSpec, 'skills-styles.scss 的 .empty-sub 嵌套特异度必须确定性压过 agent-styles').toBeGreaterThan(agentSpec)
+    expect(agentSpec, 'agent-styles.scss .empty-sub nested specificity').toBe(2)
+    expect(skillsSpec, 'skills-styles.scss .empty-sub nested specificity must deterministically exceed agent-styles').toBeGreaterThan(agentSpec)
   })
 
-  it('.empty-title 显式中和 agent-styles 会泄漏的 letter-spacing/margin(Vue2 两者皆无,回默认值)', () => {
+  it('.empty-title explicitly neutralizes letter-spacing/margin that agent-styles leaks (Vue2 has neither, revert to defaults)', () => {
     const outerAt = css.indexOf('.sk-detail .sk-detail-empty-inner {')
-    expect(outerAt, '找不到确定性胜出的 .sk-detail .sk-detail-empty-inner 覆盖块').toBeGreaterThanOrEqual(0)
+    expect(outerAt, 'cannot find deterministically winning .sk-detail .sk-detail-empty-inner override block').toBeGreaterThanOrEqual(0)
     const rest = css.slice(outerAt)
     const titleAt = rest.indexOf('.empty-title {')
     expect(titleAt).toBeGreaterThanOrEqual(0)
@@ -315,7 +342,7 @@ describe('skills-styles.scss —— .empty-title/.empty-sub 空态样式(整期�
     expect(titleRule).toContain('margin: 0')
   })
 
-  it('.empty-sub 显式中和 agent-styles 会泄漏的 color/margin(Vue2 无自身 color——继承父级 --text-tertiary;无 margin)', () => {
+  it('.empty-sub explicitly neutralizes color/margin that agent-styles leaks (Vue2 has no own color—inherits parent --text-tertiary; no margin)', () => {
     const outerAt = css.indexOf('.sk-detail .sk-detail-empty-inner {')
     expect(outerAt).toBeGreaterThanOrEqual(0)
     const rest = css.slice(outerAt)

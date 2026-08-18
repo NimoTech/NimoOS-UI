@@ -1,5 +1,5 @@
 // Mock skeleton copied from ./agentTransport.test.ts:1-19 (SP8-P1b, reviewed) — mocks
-// sseRequest itself (not fetch), matching the "照它的形状写" instruction in
+// sseRequest itself (not fetch), matching the "follow its shape" instruction in
 // p3b-task-3-brief.md. sseRequest's own fetch/401/[DONE]/framing behavior is exercised by
 // .sp8/NimoOS-Service/src/sse.test.ts and is out of scope here.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -30,8 +30,9 @@ describe('runSkillTest', () => {
     expect(opts.method).toBe('POST')
     expect(opts.body).toEqual({ prompt: 'hello there', network: false })
     expect(opts.signal).toBe(signal)
-    // 钉住"不无端偏离":Vue2 streamSkillTest (ai.js:204-258) 从未发过 Language 头,
-    // 本文件也不加(与 runAgentRun 不同,runAgentRun 加是因为它的 Vue2 蓝本加了)。
+    // Pin down "does not diverge without reason": Vue2 streamSkillTest (ai.js:204-258) never sent
+    // Language header, this file doesn't add one either (unlike runAgentRun, which adds it because
+    // its Vue2 blueprint did).
     expect(opts.headers ?? {}).not.toHaveProperty('Language')
     expect(onError).not.toHaveBeenCalled()
   })

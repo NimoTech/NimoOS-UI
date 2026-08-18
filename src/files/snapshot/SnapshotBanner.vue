@@ -5,15 +5,15 @@ import { formatSnapshotBannerTime, type SnapshotBrowseInfo } from '../util/snaps
 
 const props = defineProps<{
   info: SnapshotBrowseInfo | null
-  /** 恢复在途:禁用按钮,防重复提交 */
+  /** Restoring in progress: disable button to prevent duplicate submission */
   restoring: boolean
-  /** 当前有没有可恢复的选中项 */
+  /** Whether there are currently selected items that can be restored */
   canRestore: boolean
-  /** 加分项(Critical 1 修复的一部分):`<挂载点>/.snapshots` 容器目录本身——没有具体
-   *  快照名,parseSnapshotBrowsePath 对它返回 null,所以 info 恒为 null,没有时间可显示。
-   *  但只读锁已经生效,不该让用户看见一个"什么提示都没有"的只读横幅缺失——给一句
-   *  无时间的引导文案,没有恢复/退出按钮(两者都没有明确目标:没有选中快照就没有
-   *  "恢复到哪个快照",也没有"退出"要回去的相对路径)。 */
+  /** Bonus item (part of Critical 1 fix): the `<mount-point>/.snapshots` container directory itself — has no specific
+   *  snapshot name; parseSnapshotBrowsePath returns null for it, so info is always null and no time can be shown.
+   *  But the read-only lock is already in effect, so we should not show users a silent read-only banner — provide a
+   *  timeless guidance text without restore/exit buttons (neither has a clear target: without a selected snapshot there is no
+   *  snapshot to restore to, nor is there a relative path for exit to return to). */
   isContainer?: boolean
   // Fix-wave I4: SnapshotSelectionToolbar's restore button already shows this;
   // this banner's own restore button fires the exact same `browse.restore(...)`
@@ -50,12 +50,12 @@ function onRestore() {
         : t('snapBrowseRestore') }}</button>
       <button class="snap-banner-btn snap-banner-exit" @click="emit('exit')">{{ t('snapBrowseExit') }}</button>
     </div>
-    <!-- 常驻提示,不是一次性 toast:Vue2 M2-F2 的教训是一闪而过的提示没人看见,
-         而"选中之后还要点恢复"这一步不说清楚,用户会以为进来就能改。 -->
+    <!-- Persistent hint, not a one-time toast. From Vue2 M2-F2 we learned: a fleeting prompt is not seen.
+         Without clarity that you must "select, then click restore", users think they can edit right upon entering. -->
     <div class="snap-banner-hint">{{ t('snapBrowseHint') }}</div>
   </div>
-  <!-- `.snapshots` 容器目录本身:没有具体快照名,没有时间可显示,也没有恢复/退出的
-       明确目标——只给一句无时间的引导文案,不摆按钮。 -->
+  <!-- `.snapshots` container directory itself: has no specific snapshot name, no time to display, and no clear
+       target for restore/exit — only provide timeless guidance text without buttons. -->
   <div v-else-if="props.isContainer" class="snap-banner">
     <div class="snap-banner-row">
       <span class="snap-banner-text">{{ t('snapBrowseContainerHint') }}</span>
@@ -64,8 +64,8 @@ function onRestore() {
 </template>
 
 <style scoped>
-/* 配色复用既有的"值得注意但不是错误"语义 token(--dem-*),与存储区快照时间线的
-   preop 徽章同一套色,不新造一个黄色。 */
+/* Reuse the existing "noteworthy but not an error" semantic token (--dem-*), same color as the
+   preop badge in the storage snapshot timeline — don't create a new yellow. */
 .snap-banner {
   display: flex; flex-direction: column; gap: 2px;
   padding: 8px 12px; margin-bottom: 10px;

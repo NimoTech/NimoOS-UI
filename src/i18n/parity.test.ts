@@ -4,35 +4,36 @@ import enBase from './en_us'
 import zhSp9 from './zh_cn.sp9'
 import enSp9 from './en_us.sp9'
 
-// SP9 起文案分片(spec §4.2)。断言对象是「合并后」的集合 —— 只测基座会漏掉分片里的缺键。
+// The catalogue is sharded; assertions run against the *merged* set -- checking the base
+// alone would miss a key that is only missing from a shard.
 const zh: Record<string, unknown> = { ...zhBase, ...zhSp9 }
 const en: Record<string, unknown> = { ...enBase, ...enSp9 }
 
 describe('i18n locale parity', () => {
-  it('en_us 与 zh_cn 顶层 key 集合完全一致(含 sp9 分片)', () => {
+  it('en_us and zh_cn have identical top-level key sets (shards included)', () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(zh).sort())
   })
 
-  it('en_us 值均为非空字符串', () => {
+  it('every en_us value is a non-empty string', () => {
     for (const [k, v] of Object.entries(en)) {
       expect(typeof v, `key ${k}`).toBe('string')
       expect((v as string).length, `key ${k}`).toBeGreaterThan(0)
     }
   })
 
-  it('zh_cn 值均为非空字符串', () => {
+  it('every zh_cn value is a non-empty string', () => {
     for (const [k, v] of Object.entries(zh)) {
       expect(typeof v, `key ${k}`).toBe('string')
       expect((v as string).length, `key ${k}`).toBeGreaterThan(0)
     }
   })
 
-  it('分片不得覆盖基座已有 key(静默改文案)', () => {
+  it('a shard must not override a key the base already has (that silently rewrites copy)', () => {
     const dup = Object.keys(zhSp9).filter((k) => k in zhBase)
-    expect(dup, `sp9 分片与基座 key 冲突: ${dup.join(', ')}`).toEqual([])
+    expect(dup, `shard keys colliding with the base: ${dup.join(', ')}`).toEqual([])
   })
 
-  it('抽查若干英文文案', () => {
+  it('spot-checks a few English strings', () => {
     expect(en.cpu).toBe('CPU')
     expect(en.memory).toBe('Memory')
     expect(en.filesTitle).toBe('Files')
@@ -40,9 +41,9 @@ describe('i18n locale parity', () => {
   })
 })
 
-/* P6a-T4:地点域键的完整性与术语守卫。 */
-describe('photosPlaces 键(SP7-P6a)', () => {
-  it('六个大洲键齐备,且 regionLabelKey 的返回值全部有译文', async () => {
+/* P6a-T4: completeness and terminology guard for the places-domain keys. */
+describe('photosPlaces keys (SP7-P6a)', () => {
+  it('all six continent keys are present, and every regionLabelKey return value has a translation', async () => {
     const { regionLabelKey } = await import('../photos/util/placesMap')
     for (const id of ['asia', 'americas', 'europe', 'africa', 'oceania', 'antarctica']) {
       const k = regionLabelKey(id)!
@@ -51,15 +52,15 @@ describe('photosPlaces 键(SP7-P6a)', () => {
     }
   })
 
-  it('中文文案不含工程词「簇」「聚类」「气泡」', () => {
+  it('the Chinese copy avoids the engineering words 「簇」「聚类」「气泡」', () => {
     const bad = Object.entries(zh)
       .filter(([k]) => k.startsWith('photosPlaces'))
       .filter(([, v]) => typeof v === 'string' && /簇|聚类|气泡/.test(v))
     expect(bad).toEqual([])
   })
 
-  /* P6b-T1:地点详情面板键的完整性与插值槽守卫。 */
-  it('P6b 地点键在两个 locale 都存在且无空值', () => {
+  /* P6b-T1: completeness and interpolation-slot guard for the place detail panel keys. */
+  it('the P6b place keys exist in both locales with no empty values', () => {
     const keys = ['photosPlacesHomeBase', 'photosPlacesSpotResetName', 'photosPlacesCoverPageInfo',
       'photosPlacesInsightHome', 'photosPlacesInsightHomeBase', 'photosPlacesVisitHistory']
     for (const k of keys) {
@@ -67,7 +68,7 @@ describe('photosPlaces 键(SP7-P6a)', () => {
       expect(String((en as Record<string, unknown>)[k] ?? '')).not.toBe('')
     }
   })
-  it('insight 键的插值占位符两个 locale 完全一致(漏一个槽 <i18n-t> 会静默丢内容)', () => {
+  it('insight keys have identical interpolation slots in both locales (a missing slot makes <i18n-t> silently drop content)', () => {
     const slots = (s: string) => (s.match(/\{[a-zA-Z]+\}/g) ?? []).sort()
     for (const k of ['photosPlacesInsightMostPhotographed', 'photosPlacesInsightTopSpot',
       'photosPlacesInsightCompanions', 'photosPlacesInsightHome']) {

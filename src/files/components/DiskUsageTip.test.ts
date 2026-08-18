@@ -3,7 +3,8 @@ import { mount } from '@vue/test-utils'
 import DiskUsageTip from './DiskUsageTip.vue'
 import type { DiskDetail } from '../stores/diskUsage'
 
-// i18n 由 vitest.setup.ts 全局装好,这里不再另建实例(重复安装会打 [Vue warn])。
+// i18n is globally set up by vitest.setup.ts, so we don't create another instance here
+// (installing again would trigger [Vue warn]).
 function mountTip(detail: DiskDetail) {
   return mount(DiskUsageTip, { props: { detail } })
 }

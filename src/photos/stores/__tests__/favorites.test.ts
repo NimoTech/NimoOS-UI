@@ -24,34 +24,34 @@ describe('photosFavorites store', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  it('reconcileFavIds 播种 favIds(String 归一)、isFav 按值比较', async () => {
+  it('reconcileFavIds seeds favIds (String normalized); isFav compares by value', async () => {
     const s = usePhotosFavorites()
     await s.reconcileFavIds()
     expect(s.isFav('a')).toBe(true)
     expect(s.isFav('zzz')).toBe(false)
   })
-  it('reconcileFavIds 容忍 null(?? [])', async () => {
+  it('reconcileFavIds tolerates null (?? [])', async () => {
     ;(service.photos.listFavoriteIds as any).mockResolvedValueOnce(null)
     const s = usePhotosFavorites()
     await s.reconcileFavIds()
     expect(s.favIds.size).toBe(0)
   })
-  it('toggle 乐观翻转 + 成功后失效 favoritesList', async () => {
+  it('toggle flips optimistically + invalidates favoritesList on success', async () => {
     const s = usePhotosFavorites()
     await s.fetchFavorites()
     expect(s.favoritesLoaded).toBe(true)
     await s.toggle('a')
     expect(s.isFav('a')).toBe(true)
     expect(service.photos.favorite).toHaveBeenCalledWith('a')
-    expect(s.favoritesLoaded).toBe(false) // 失效,下次重取
+    expect(s.favoritesLoaded).toBe(false) // invalidated, refetched next time
   })
-  it('toggle 失败回滚', async () => {
+  it('toggle rolls back on failure', async () => {
     ;(service.photos.favorite as any).mockRejectedValueOnce(new Error('x'))
     const s = usePhotosFavorites()
     await s.toggle('new1')
-    expect(s.isFav('new1')).toBe(false) // 回滚
+    expect(s.isFav('new1')).toBe(false) // rolled back
   })
-  it('recordView 60s 节流:窗口内同 id 只上报一次', () => {
+  it('recordView 60s throttle: the same id within the window is only reported once', () => {
     vi.useFakeTimers(); vi.setSystemTime(0)
     const s = usePhotosFavorites()
     s.recordView('a'); s.recordView('a')
@@ -61,67 +61,69 @@ describe('photosFavorites store', () => {
     expect(service.photos.recordView).toHaveBeenCalledTimes(2)
     vi.useRealTimers()
   })
-  it('recordView 节流边界:恰好 60_000ms 时应上报(< 而非 <=)', () => {
+  it('recordView throttle boundary: should report at exactly 60_000ms (< not <=)', () => {
     vi.useFakeTimers(); vi.setSystemTime(0)
     const s = usePhotosFavorites()
     s.recordView('b')
     expect(service.photos.recordView).toHaveBeenCalledTimes(1)
-    vi.setSystemTime(60_000) // 60000 - 0 = 60000, not < 60000 → should report
+    vi.setSystemTime(60_000) // 60000 - 0 = 60000, not < 60000 -> should report
     s.recordView('b')
     expect(service.photos.recordView).toHaveBeenCalledTimes(2)
     vi.useRealTimers()
   })
-  it('fetchFavorites 映射 assetToPhoto + favoritesMonths 分组', async () => {
+  it('fetchFavorites maps through assetToPhoto + groups favoritesMonths', async () => {
     const s = usePhotosFavorites()
     await s.fetchFavorites()
     expect(s.favoritesList?.length).toBe(1)
     expect(s.favoritesMonths[0].key).toBe('2026-05')
   })
-  it('fetchFavorites 失败:favoritesList 置空但 favoritesLoaded 保持 false(与"确认零收藏"可区分,留给视图重试)', async () => {
+  it('fetchFavorites failure: favoritesList is cleared but favoritesLoaded stays false (distinguishable from "confirmed zero favorites", left for the view to retry)', async () => {
     ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('network'))
     const s = usePhotosFavorites()
     await s.fetchFavorites()
     expect(s.favoritesList).toEqual([])
     expect(s.favoritesLoaded).toBe(false)
   })
-  // Task 9(P3 遗留收口):新增 loadError 标志,语义与 favoritesLoaded 完全独立——
-  // 失败时 loadError=true 但 favoritesLoaded 仍保持 false(两者不可合并/不可互相替代)。
-  it('fetchFavorites 失败:loadError 置真,favoritesLoaded 保持假(两者语义不同)', async () => {
+  // Task 9 (P3 leftover, closed out): added a loadError flag whose semantics are entirely
+  // independent of favoritesLoaded -- on failure loadError=true while favoritesLoaded stays
+  // false (the two must not be merged or substituted for each other).
+  it('fetchFavorites failure: loadError becomes true, favoritesLoaded stays false (they have different semantics)', async () => {
     ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('network'))
     const s = usePhotosFavorites()
     await s.fetchFavorites()
     expect(s.loadError).toBe(true)
     expect(s.favoritesLoaded).toBe(false)
   })
-  it('重试成功后 loadError 归假', async () => {
+  it('loadError becomes false again after a successful retry', async () => {
     ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('network'))
     const s = usePhotosFavorites()
     await s.fetchFavorites()
     expect(s.loadError).toBe(true)
-    await s.fetchFavorites() // 重试:这次成功(mockRejectedValueOnce 只吃一次)
+    await s.fetchFavorites() // retry: succeeds this time (mockRejectedValueOnce only fires once)
     expect(s.loadError).toBe(false)
     expect(s.favoritesLoaded).toBe(true)
   })
-  it('成功路径 loadError 保持/归假(不会被残留的上次失败污染)', async () => {
+  it('the success path keeps/resets loadError to false (not polluted by a leftover previous failure)', async () => {
     const s = usePhotosFavorites()
     await s.fetchFavorites()
     expect(s.loadError).toBe(false)
   })
-  // 评审 Important 1 补的挡门用例:重试本身也失败——loadError 必须仍然是真(不能被"进入
-  // 重试"这件事本身清空),favoritesList/favoritesLoaded 的状态也要与"一次都没成功过"一致。
-  it('reject → retry → reject:结束后 loadError 仍为真,favoritesList/favoritesLoaded 与未成功过一致', async () => {
+  // Review Important 1's added guard case: the retry itself also fails -- loadError must
+  // still be true (must not be cleared merely by "entering a retry"), and
+  // favoritesList/favoritesLoaded's state must also be consistent with "never succeeded once".
+  it('reject -> retry -> reject: loadError is still true afterward, favoritesList/favoritesLoaded are consistent with never having succeeded', async () => {
     ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('e1'))
     const s = usePhotosFavorites()
     await s.fetchFavorites()
     expect(s.loadError).toBe(true)
 
     ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('e2'))
-    await s.fetchFavorites() // 重试,仍失败
+    await s.fetchFavorites() // retry, still fails
     expect(s.loadError).toBe(true)
     expect(s.favoritesList).toEqual([])
     expect(s.favoritesLoaded).toBe(false)
   })
-  it('exportZip 走 exportFavoritesUrl', () => {
+  it('exportZip goes through exportFavoritesUrl', () => {
     const s = usePhotosFavorites()
     s.exportZip()
     expect(service.photos.exportFavoritesUrl).toHaveBeenCalled()

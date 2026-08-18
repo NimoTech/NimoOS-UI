@@ -15,24 +15,24 @@ const mountIt = (props: Record<string, unknown> = {}) =>
 beforeEach(() => { document.body.innerHTML = '' })
 
 describe('SnapshotDeleteDialog', () => {
-  it('正文含被删快照的时间,并说明当前文件不受影响', async () => {
+  it('the body includes the deleted snapshot time and notes the current files are unaffected', async () => {
     const w = mountIt(); await w.vm.$nextTick()
     const msg = document.body.querySelector('.sdd-msg') as HTMLElement
     expect(msg.textContent).toContain('2026/7/27 09:00:00')
   })
-  it('点删除 → emit confirm(无 payload)', async () => {
+  it('clicking delete emits confirm (no payload)', async () => {
     const w = mountIt(); await w.vm.$nextTick()
     ;(document.body.querySelector('.sdd-ok') as HTMLButtonElement).click()
     expect(w.emitted('confirm')).toHaveLength(1)
     expect(w.emitted('confirm')![0]).toEqual([])
   })
-  it('点取消 → emit update:open(false),不 emit confirm', async () => {
+  it('clicking cancel emits update:open(false) and does not emit confirm', async () => {
     const w = mountIt(); await w.vm.$nextTick()
     ;(document.body.querySelector('.sdd-cancel') as HTMLButtonElement).click()
     expect(w.emitted('update:open')![0]).toEqual([false])
     expect(w.emitted('confirm')).toBeUndefined()
   })
-  it('busy 时两个按钮都禁用(防连点)', async () => {
+  it('disables both buttons while busy (prevents repeated clicks)', async () => {
     const w = mountIt({ busy: true }); await w.vm.$nextTick()
     expect((document.body.querySelector('.sdd-ok') as HTMLButtonElement).disabled).toBe(true)
     expect((document.body.querySelector('.sdd-cancel') as HTMLButtonElement).disabled).toBe(true)

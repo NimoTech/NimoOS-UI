@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 Agent;字面色值为作用域内既有体系,豁免全局 token 规则。
+// Ported 1:1 from Vue2 Agent; literal color values are part of the existing scope system and are exempt from the global token rules.
 // AI Agent page styles. All rules scoped under .agent-app to prevent
 // collision with the rest of NimoOS UI.
 // Source: design/ai_agent_design/styles.css.
@@ -1329,7 +1329,7 @@
   50% { height: 90%; }
 }
 
-/* P1a 终审#5:theme.css 的 :root[data-theme=light] *::-webkit-scrollbar-thumb 与本文件同特异度且后加载生效,这里加倍类名夺回 */
+/* P1a final review #5: theme.css's :root[data-theme=light] *::-webkit-scrollbar-thumb has the same specificity as this file and loads after it takes effect; here we double the class names to regain priority */
 .agent-app .scroll.scroll::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 999px;

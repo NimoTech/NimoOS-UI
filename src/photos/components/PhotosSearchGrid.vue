@@ -1,27 +1,28 @@
 <script setup lang="ts">
-// SP7-P7a-T15: PhotosSearchGrid.vue —— 搜索结果双档网格(最佳匹配 + 折叠长尾)+
-// 无限滚动 sentinel。
+// SP7-P7a-T15: PhotosSearchGrid.vue — search results two-tier grid (best match + collapsed tail) +
+// infinite scroll sentinel.
 // Ported from Vue2 NimoOS-UI src/views/Photos/PhotosSearchView.vue:
-//   :241-279 (模板:结果网格 + 折叠条 + sentinel)
-//   :405-415 (showLoadMoreSentinel,sentinel 门控 —— 由宿主 T16 依据 store 状态算,
-//             作为 showSentinel prop 传入本组件,本组件不重算)
-//   :694-721 (loadMore + IntersectionObserver —— 逻辑已抽进 useInfiniteScroll composable)
+//   :241-279 (template: results grid + collapse bar + sentinel)
+//   :405-415 (showLoadMoreSentinel, sentinel control — computed by host T16 based on store state,
+//             passed as showSentinel prop to this component, this component does not recompute)
+//   :694-721 (loadMore + IntersectionObserver — logic extracted into useInfiniteScroll composable)
 //
-// 渲染项清单对照(Vue2 :241-279 逐项 → 本组件落点):
-//   .photos-wrap.scroll(D7,本仓自己写 flex:1 + overflow-y:auto)→ .photos-wrap(ref rootRef)
-//   .grid[data-density=comfortable] + v-for best → 第一个 .grid(恒渲染,tile 抽为 SearchResultTile)
-//   v-if moreTierResults.length → template(用 more.length 判断)
-//     .more-results-bar(chevD/chevR + photosSearchResultsCount)→ 按钮 + toggleMore
-//     v-if moreExpanded → 第二个 .grid → v-for more 出 tile
+// Render item checklist mapping (Vue2 :241-279 item-by-item → landing in this component):
+//   .photos-wrap.scroll(D7, this repo writes flex:1 + overflow-y:auto)→ .photos-wrap(ref rootRef)
+//   .grid[data-density=comfortable] + v-for best → first .grid (always rendered, tile extracted as SearchResultTile)
+//   v-if moreTierResults.length → template (use more.length check)
+//     .more-results-bar(chevD/chevR + photosSearchResultsCount)→ button + toggleMore
+//     v-if moreExpanded → second .grid → v-for more tiles
 //     v-if showSentinel → .load-more-sentinel(ref sentinelRef)
 //       v-if loadingMore → .load-more-status(photosSearchLoading)
 //
-// D2(控制器裁定,列宽偏离登记):brief 结构规格 6 自相矛盾(既要求照搬 Vue2 固定
-// 7 列,又要求复用 PhotosGrid 的自适应列宽)。裁定:照 PhotosGrid.vue 的默认(comfortable)
-// `.grid` 规则(`repeat(auto-fill, minmax(140px, 1fr))` + `gap: 4px`),不是 Vue2
-// photos.scss:318 的 `repeat(7, 1fr)` 固定列——理由:①同区视觉一致优先(P3 已为整个
-// 相册区做过这个决定,搜索页不该开倒车)②这是相对 Vue2 的刻意偏离,非漏做。本组件
-// 不接 density prop(Vue2 搜索结果写死 comfortable,照搬,见下方样式块)。
+// D2 (controller decision, column width deviation logging): brief spec 6 self-contradictory
+// (both demands copy Vue2 fixed 7 columns AND demands reusing PhotosGrid's adaptive column width).
+// Decision: follow PhotosGrid.vue's default (comfortable) `.grid` rule (`repeat(auto-fill, minmax(140px, 1fr))` + `gap: 4px`),
+// not Vue2 photos.scss:318's `repeat(7, 1fr)` fixed column — reason: ① visual consistency within zone takes priority
+// (P3 already made this decision for the entire photos zone, search page should not revert) ② this is a deliberate
+// deviation from Vue2, not an omission. This component does not accept density prop (Vue2 search results hardcode comfortable,
+// copying as-is, see style block below).
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ScoredPhoto } from '../util/searchSort'
@@ -48,10 +49,10 @@ const { t } = useI18n()
 const rootRef = ref<HTMLElement | null>(null)
 const sentinelRef = ref<HTMLElement | null>(null)
 
-// D8(T11 交接,务必不再"保护"一层):store 的 loadMore 已经自带 loadingMore/exhausted
-// 入口短路 + 过期响应 seq 守卫(src/photos/stores/search.ts),这里只管把 IO 命中原样
-// 转发成 load-more 事件,不额外加防抖/节流——本期已四次栽在"composable 又包一层守卫、
-// 和 store 的守卫叠成遮蔽"上。
+// D8 (T11 handoff, must not "protect" with another layer): store's loadMore already has loadingMore/exhausted
+// entry short-circuit + stale response seq guard (src/photos/stores/search.ts), this component just passes through
+// IO hits as load-more events without adding extra debounce/throttle — this cycle has crashed four times on
+// "composable adds another guard layer, stacking with store's guard into occlusion".
 useInfiniteScroll({
   target: sentinelRef,
   root: rootRef,
@@ -65,10 +66,10 @@ function toggleMore(): void {
 </script>
 
 <template>
-  <!-- fix round 1 · M-4(评审并入):两处 data-density="comfortable" 是 1:1 照搬 Vue2
-       DOM(Vue2 :242/:260 的 .grid[data-density]),但本组件不接 density prop、样式块
-       里也没有任何 [data-density] 选择器消费它——属性本身是死属性,保留只为 DOM 结构
-       与 Vue2 一致,不是遗漏。 -->
+  <!-- fix round 1 · M-4 (merged in review): two instances of data-density="comfortable" are 1:1 copy of Vue2
+       DOM (Vue2 :242/:260 .grid[data-density]), but this component does not accept density prop, and no [data-density]
+       selector in the style block consumes it — the attribute itself is dead, kept only for DOM structure alignment
+       with Vue2, not an omission. -->
   <div class="photos-wrap" ref="rootRef">
     <div class="grid" data-density="comfortable">
       <SearchResultTile v-for="r in best" :key="r.p.id" :result="r" @open="emit('open', $event)" />
@@ -98,54 +99,51 @@ function toggleMore(): void {
 </template>
 
 <style scoped>
-/* D7(控制器裁定,fix round 1 · M-1 补全):Vue2 靠全局 .scroll 类(photos.scss:98,
-   overflow-y:auto)+ 内联 style="flex:1;padding-top:0"。**但 D7 原文不完整**——
-   `.photos-wrap` 自己还有一条规则(photos.scss:300)`.photos-root .photos-wrap {
-   overflow-y: auto; position: relative; }` + `:301` 的
-   `.photos-root .photos-wrap::-webkit-scrollbar { width: 0; }`,即该容器 Vue2 契约
-   实际是两条规则 3 个声明(:300 的 overflow-y/position 两条 + :301 的 width 一条)+
-   内联 flex/padding-top,不是只有 overflow-y:auto 一条(fix 波 F4 回源核对更正:此前
-   误写成"4 个声明"——算上全局 `.scroll { overflow-y: auto }`(:98)那第 4 条才凑得到 4,
-   但 `.scroll` 是另一个类、不归在这两条规则体里,不能一起计数)。
-   本仓 scoped SFC 没有全局 .scroll/.photos-root 类,这里补全自己写:
-   ① position:relative(当前无视觉差异——本组件的绝对定位元素都在各自 .tile 的
-   定位上下文里——但这是被静默丢弃的声明,补上而不是省略)。
-   ② 滚动条隐藏:改用本仓既定惯例 `display: none` + `scrollbar-width: none` 这一对
-   声明,不是 Vue2 字面的 `width: 0`——先例 PhotosGrid.vue:420(.scrubber)、
-   PhotoFilmstrip.vue:148(.lb-strip),T8-M2 已确立"滚动条只隐藏不重画"的统一手法,
-   效果与 Vue2 的 width:0 同为隐藏,只是写法对齐本仓其他组件。相对 Vue2 的偏离,
-   已双处登记(此处 + 报告)。
-   fix 波 F4 回源核对更正、fix wave follow-up · N2 措辞再订正(隐藏效果的主因):
-   真正让"滚动条隐藏"这个效果生效的主因不是 `::-webkit-scrollbar { display: none }`
-   这条规则本身,而是 `.photos-wrap` 上的 `scrollbar-width: none`——`theme.css`
-   (:3-6)对 `*` 设了标准 `scrollbar-width: thin`,Chrome 121+ 起只要元素命中过标准
-   `scrollbar-width` 属性,就整体禁用该元素上 `::-webkit-scrollbar` 系列的定制
-   (2026-07-22 真机踩坑结论,`LogsPane.vue:36-38` 已登记同一件事)——也就是说
-   `::-webkit-scrollbar { display: none }` 这条规则本身在这些浏览器上是死规则,
-   真正起作用的是 `scrollbar-width: none`,此前的登记把这两者的主次关系写反了。 */
+/* D7 (controller decision, fix round 1 · M-1 completion): Vue2 relies on global .scroll class (photos.scss:98,
+   overflow-y:auto) + inline style="flex:1;padding-top:0". **But D7 original text incomplete** —
+   `.photos-wrap` itself has another rule (photos.scss:300) `.photos-root .photos-wrap {
+   overflow-y: auto; position: relative; }` + `:301`'s
+   `.photos-root .photos-wrap::-webkit-scrollbar { width: 0; }`, so this container's Vue2 contract
+   is actually two rules 3 declarations (:300's overflow-y/position two + :301's width one) +
+   inline flex/padding-top, not just overflow-y:auto alone (fix wave F4 source recheck correction: previously
+   miswritten as "4 declarations" — counting global `.scroll { overflow-y: auto }` (:98) that 4th makes 4,
+   but `.scroll` is another class, not part of these two rule bodies, cannot be counted together).
+   This repo's scoped SFC lacks global .scroll/.photos-root classes, here fill in own:
+   ① position:relative (currently no visual difference — this component's absolutely positioned elements
+   are all in their own .tile positioning context — but this is a silently discarded declaration, added rather than omitted).
+   ② scrollbar hiding: change to this repo's established convention `display: none` + `scrollbar-width: none` pair,
+   not Vue2's literal `width: 0` — precedent PhotosGrid.vue:420(.scrubber),
+   PhotoFilmstrip.vue:148(.lb-strip), T8-M2 established unified "scrollbar hide-only, no redraw" method,
+   effect same as Vue2's width:0 hiding, just aligned to other components in this repo. Deviation from Vue2,
+   registered in two places (here + report).
+   fix wave F4 source recheck correction, fix wave follow-up · N2 wording recorrect (root cause of hide effect):
+   the real reason "scrollbar hide" effect works is not `::-webkit-scrollbar { display: none }`
+   this rule itself, but `.photos-wrap`'s `scrollbar-width: none` — `theme.css`
+   (:3-6) sets standard `scrollbar-width: thin` on `*`, since Chrome 121+ once an element hits the standard
+   `scrollbar-width` property, it entirely disables `::-webkit-scrollbar` series customization on that element
+   (2026-07-22 live machine learning conclusion, `LogsPane.vue:36-38` already logged same thing) — that is,
+   `::-webkit-scrollbar { display: none }` this rule itself is dead on these browsers,
+   real effect comes from `scrollbar-width: none`, previous logging reversed the priority order of these two. */
 .photos-wrap { flex: 1; overflow-y: auto; position: relative; scrollbar-width: none; }
 .photos-wrap::-webkit-scrollbar { display: none; }
 
-/* D2(见上方 script 注释):照 PhotosGrid.vue 的默认(comfortable)自适应列宽,不是
-   Vue2 photos.scss:318 的固定 7 列——这是相对 Vue2 的刻意偏离,已登记。 */
+/* D2 (see script comment above): follow PhotosGrid.vue's default (comfortable) adaptive column width, not
+   Vue2 photos.scss:318's fixed 7 columns — this is a deliberate deviation from Vue2, logged. */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; padding: 0 32px 40px; }
 
-/* Vue2 photos.scss:2711-2718(.more-results-bar + :hover)。token 映射照本期既定表:
-   --surface-2→--chip-bg / --surface-3→--chip-bg-hi / --line→--card-border /
-   --text-1→--fg / --text-2→--fg-muted(SmartViewCreateDialog.vue:43-45 四档映射)。 */
-.more-results-bar {
-  display: flex; align-items: center; gap: 6px;
-  margin: 4px 32px 16px; padding: 9px 14px;
-  border-radius: 8px; border: 1px dashed var(--card-border);
-  background: var(--chip-bg); color: var(--fg-muted);
-  font-size: 12px; font-weight: 500; cursor: pointer;
-}
-.more-results-bar:hover { background: var(--chip-bg-hi); color: var(--fg); }
-
-/* Vue2 photos.scss:2722-2726(.load-more-sentinel/.load-more-status)。 */
-.load-more-sentinel {
-  display: flex; align-items: center; justify-content: center;
-  height: 1px; margin: 4px auto 24px; padding: 20px 0;
-}
-.load-more-status { font-size: 12px; font-weight: 500; color: var(--fg-faint); }
+/* 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+   this component was missed in that round): the three Vue2-native class names
+   .more-results-bar (+:hover) / .load-more-sentinel / .load-more-status already have
+   character-for-character bare selectors in vue2-parity/photos.scss (:2743-2757), whose values
+   are Vue2's own local tokens (--line/--surface-2/--surface-3/--text-1/--text-2/--text-3,
+   defined in both the dark block and the .photos-root.is-light block). This file used to carry
+   a duplicate of each, mapped onto the repo-wide glass semantics
+   (--card-border/--chip-bg/--chip-bg-hi/--fg-muted/--fg/--fg-faint) — none of which
+   `.photos-root` redefines locally, so they fell through to theme.css's global accent-toned
+   glass values, and the [data-v-xxxx] attribute that scoped compilation adds pushed them above
+   the parity bare selectors. Dropping the duplicate lets the parity rules apply directly, with
+   no attribute-driven specificity boost needed. `.photos-wrap` and `.grid` (the deliberate
+   deviations registered as D2/D7) are unaffected and stay in this component — they are not
+   Vue2-native class names or values, so parity has no same-named bare selector to hand them
+   over to. */
 </style>

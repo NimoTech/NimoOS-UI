@@ -31,8 +31,17 @@ export function useAddPanel(dims: Dims) {
 
   const widgetUsed = (key: string) => layout.items.some((it) => it.kind === 'widget' && it.key === key)
   const appWidgetUsed = (key: string) => layout.items.some((it) => it.kind === 'appwidget' && it.key === key)
-  const dupWidget = (desc: Desc) =>
-    (desc.kind === 'widget' && widgetUsed(desc.key)) || (desc.kind === 'appwidget' && appWidgetUsed(desc.key))
+  const appUsed = (key: string) => layout.items.some((it) => it.kind === 'app' && it.key === key)
+  const folderUsed = (path: string) => layout.items.some((it) => it.kind === 'folder' && it.path === path)
+  // Duplicate check covers the four kinds widget/appwidget/app/folder; other kinds may be added repeatedly.
+  // Folders compare by path: same-named folders on different disks may coexist.
+  const isDuplicate = (desc: Desc) =>
+    (desc.kind === 'widget' && widgetUsed(desc.key)) ||
+    (desc.kind === 'appwidget' && appWidgetUsed(desc.key)) ||
+    (desc.kind === 'app' && appUsed(desc.key)) ||
+    (desc.kind === 'folder' && folderUsed(desc.path ?? ''))
+  const existsMsgKey = (kind: Desc['kind']) =>
+    kind === 'app' ? 'addPanelAppExists' : kind === 'folder' ? 'addPanelFolderExists' : 'addPanelWidgetExists'
 
   function defaultSize(kind: string, key: string): [number, number] {
     if (kind === 'widget') return WIDGETS[key]?.default ?? [2, 2]
@@ -41,7 +50,7 @@ export function useAddPanel(dims: Dims) {
   }
 
   function pinToFree(desc: Desc): boolean {
-    if (dupWidget(desc)) return false
+    if (isDuplicate(desc)) { ui.showToast(i18n.global.t(existsMsgKey(desc.kind))); return false }
     const pos = firstFree(desc.w, desc.h, layout.items, dims)
     if (!pos) { ui.showToast(i18n.global.t('addPanelFull')); return false }
     layout.pin({ ...desc, c: pos.c, r: pos.r })
@@ -50,7 +59,7 @@ export function useAddPanel(dims: Dims) {
   }
 
   function spawnPlace(desc: Desc, tc: number, tr: number): boolean {
-    if (dupWidget(desc)) { ui.showToast(i18n.global.t('addPanelWidgetExists')); return false }
+    if (isDuplicate(desc)) { ui.showToast(i18n.global.t(existsMsgKey(desc.kind))); return false }
     const others = planFootprint(tc, tr, desc.w, desc.h, null, layout.items, dims)
     if (!others) { ui.showToast(i18n.global.t('addPanelNoRoom')); return false }
     layout.applyPlan(others as PlanEntry[])
@@ -60,7 +69,7 @@ export function useAddPanel(dims: Dims) {
   }
 
   function toggleWidget(key: string, w: number, h: number) {
-    if (dupWidget({ kind: 'widget', key, w, h })) {
+    if (isDuplicate({ kind: 'widget', key, w, h })) {
       const it = layout.items.find((i) => i.kind === 'widget' && i.key === key)
       if (it) { layout.remove(it.id); layout.save(); ui.showToast(i18n.global.t('addPanelRemovedToast')) }
     } else pinToFree({ kind: 'widget', key, w, h })

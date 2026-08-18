@@ -9,14 +9,14 @@ const VOL = {
 }
 
 describe('VolumeCard', () => {
-  it('渲染名称、文件系统、已用/总量', () => {
+  it('renders name, filesystem, and used/total size', () => {
     const w = mount(VolumeCard, { props: { volume: VOL } })
     expect(w.text()).toContain('NimoOS-HD')
     expect(w.text()).toContain('EXT4')
-    expect(w.text()).toContain('119 GB') // fmtSize(127495537152):≥100 取整 → "119 GB"
+    expect(w.text()).toContain('119 GB') // fmtSize(127495537152): ≥100 rounds to an integer → "119 GB"
     expect(w.text()).toContain('477 GB') // fmtSize(512110190592) → "477 GB"
   })
-  it('进度条按占用率上色分级', () => {
+  it('colors the progress bar by usage tier', () => {
     const ok = mount(VolumeCard, { props: { volume: VOL } })
     expect(ok.find('.vc-fill.ok').exists()).toBe(true)
     const warn = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 85 } } })
@@ -24,18 +24,18 @@ describe('VolumeCard', () => {
     const danger = mount(VolumeCard, { props: { volume: { ...VOL, usePercent: 95 } } })
     expect(danger.find('.vc-fill.danger').exists()).toBe(true)
   })
-  it('系统卷:显示 OS 徽标、无移除按钮、无格式化按钮', () => {
+  it('system volume: shows OS badge, no remove button, no format button', () => {
     const w = mount(VolumeCard, { props: { volume: { ...VOL, isSystem: true } } })
     expect(w.find('.vc-os').exists()).toBe(true)
     expect(w.find('.vc-act.danger').exists()).toBe(false)
     expect(w.find('.vc-act').exists()).toBe(false)
   })
-  it('非系统卷:点移除按钮 emit unmount', async () => {
+  it('non-system volume: clicking remove emits unmount', async () => {
     const w = mount(VolumeCard, { props: { volume: VOL } })
     await w.find('.vc-act.danger').trigger('click')
     expect(w.emitted('unmount')).toHaveLength(1)
   })
-  it('非系统卷:点格式化按钮 emit format', async () => {
+  it('non-system volume: clicking format emits format', async () => {
     const w = mount(VolumeCard, { props: { volume: VOL } })
     const fmtBtn = w.findAll('.vc-act').find((b) => !b.classes('danger'))!
     await fmtBtn.trigger('click')

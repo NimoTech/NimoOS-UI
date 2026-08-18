@@ -1,44 +1,44 @@
-// 音频转录 / 摘要数据。
-// 数据来源：用户放在 /DATA/Media/audio/ 的重新标注字幕（S01E04_speaker_labeled.txt / .srt，
-// 2026-07-17 人工重标版；.txt 为按 SRT 块号对齐、按说话轮次拆分的人工整理稿，以它为准）。
-// 说话人分离沿用匿名编号约定：主要说话人按首次出现顺序编号 Speaker 1–6；
-// 配角（旧友/护士/披萨小哥/小孩/球场广播/合唱）不标 speaker（UI 视为「未分离」）；
-// 标注稿中归属存疑（(?)/存疑）的台词同样不标 speaker。
-// 设备上没有实时语音转写服务（无 whisper），所以这里是「预生成」的固定数据；
-// 接入真实后端（NimoOS-AI + STT/分段/向量化）后，把 lookupTranscript 换成异步请求即可，UI 不用改。
-// key = 文件名小写（当前绑定 /DATA/Media/audio/S01E04.mp3；文件改名后这里也要跟着改）。
+// Audio transcript / summary data.
+// Data source: user-provided reannotated subtitles in /DATA/Media/audio/ (S01E04_speaker_labeled.txt / .srt,
+// manually reannotated 2026-07-17; .txt is human-edited, aligned by SRT block, split by speaker turns, use that as reference).
+// Speaker separation uses anonymous numbering: main speakers numbered Speaker 1–6 by first appearance order;
+// walk-ons (old friends / nurse / pizza guy / kid / rink PA / chorus) not labeled as speaker (UI treats as "not separated");
+// lines with uncertain attribution ((?) / uncertain) in the annotation also not labeled as speaker.
+// No real-time speech transcription service on device (no whisper), so this is "pre-generated" fixed data;
+// after backend integration (NimoOS-AI + STT/segmentation/vectorization), swap lookupTranscript for async request, UI unchanged.
+// key = lowercase filename (currently bound to /DATA/Media/audio/S01E04.mp3; update here if filename changes).
 
 export interface TranscriptSegment {
-  /** 起始时间，格式 m:ss，用于展示与点击跳转 */
+  /** Start time, format m:ss, for display and click-to-seek */
   t: string
   text: string
-  /** 说话人 id（说话人分离）——对应 AudioTranscript.speakers；缺省表示未分离 */
+  /** Speaker ID (speaker separation) — corresponds to AudioTranscript.speakers; absent means not separated */
   speaker?: string
-  /** 是否金句/重点句（重点高光）——后端标注；缺省 false */
+  /** Whether key/important sentence (highlight) — backend-annotated; default false */
   highlight?: boolean
 }
-/** 智能章节：把转录按主题切段，标题可点击跳转到 t。 */
+/** Smart chapters: segment transcript by topic, title is clickable to seek to t. */
 export interface TranscriptChapter {
-  /** 章节标题 */
+  /** Chapter title */
   title: string
-  /** 章节起点时间 m:ss（对齐某个分段的 t） */
+  /** Chapter start time m:ss (aligned with some segment's t) */
   t: string
 }
-/** 说话人（说话人分离）：给 segment.speaker 提供显示名。 */
+/** Speaker (speaker separation): provides display name for segment.speaker. */
 export interface TranscriptSpeaker {
   id: string
   name: string
 }
 export interface AudioTranscript {
-  /** 一段话摘要 */
+  /** Summary of the audio */
   summary: string
-  /** 关键词标签 */
+  /** Keyword tags */
   keywords: string[]
-  /** 分段转录（顺序即时间顺序） */
+  /** Segmented transcript (order is chronological) */
   segments: TranscriptSegment[]
-  /** 智能章节（可选）——为空则不显示章节头 */
+  /** Smart chapters (optional) — empty means no chapter headers shown */
   chapters?: TranscriptChapter[]
-  /** 说话人名单（可选）——为空则不显示说话人标签 */
+  /** Speaker list (optional) — empty means no speaker labels shown */
   speakers?: TranscriptSpeaker[]
 }
 
@@ -310,12 +310,12 @@ const TRANSCRIPTS: Record<string, AudioTranscript> = {
   },
 }
 
-/** 按文件名查转录；未命中返回 null。 */
+/** Look up transcript by filename; return null if not found. */
 export function lookupTranscript(fileName: string): AudioTranscript | null {
   return TRANSCRIPTS[fileName.toLowerCase()] ?? null
 }
 
-/** m:ss / h:mm:ss → 秒，用于点击分段跳转播放器。 */
+/** m:ss / h:mm:ss → seconds, for click-to-seek in player. */
 export function parseTimestamp(ts: string): number {
   const parts = ts.split(':').map((n) => parseInt(n, 10))
   if (parts.some((n) => Number.isNaN(n))) return 0

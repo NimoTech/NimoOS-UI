@@ -185,172 +185,53 @@ function onToggleFold(rId: string): void {
 </template>
 
 <style scoped>
-/* 照 photos-places.scss:39-190(跳过 :80-95 死码 .rail-segments/.rail-seg)。
-   token 映射:--text-1/2/3 → --fg/--fg-muted/--fg-subtle;--surface-2 → --chip-bg;
-   --line → --card-border;--surface-1(Vue2 侧栏底色,brief 映射表未列)→ --panel-bg
-   (theme.css:162-163 注释"侧栏大面板玻璃……文件区侧栏用",语义与此处一致);
-   --accent-soft 同名已有;Vue2 的 accent-rgb 0.22 透明度 → --accent-soft-2(brief 指定)。
-   .is-active 自身的 background/border-color(accent-rgb 0.10/0.30)与 .thumb::after 的
-   accent-rgb 0.18 —— 评审 I1 裁定:这三处要数值级精确复刻,不能从 --accent-soft 三档
-   就近凑(那是设计判断,不是移植判断),已在 theme.css 新增专用 token
-   --place-row-bg/--place-row-border/--place-thumb-active,取值与登记依据见该文件注释
-   与 docs/THEMING.md。 */
-.map-rail {
-  border-right: 1px solid var(--card-border);
-  background: var(--panel-bg);
-  display: flex; flex-direction: column;
-  min-height: 0;
-}
-.map-rail-head {
-  padding: 16px 18px 12px;
-  border-bottom: 1px solid var(--card-border);
-}
-.map-rail-head h2 {
-  font-family: var(--font);
-  font-size: 18px; font-weight: 600; margin: 0 0 4px;
-  color: var(--fg);
-}
-.map-rail-head .sub {
-  font-size: 11.5px; color: var(--fg-subtle);
-  display: flex; gap: 5px; align-items: center;
-}
-.map-rail-head .sub b { color: var(--fg); font-weight: 600; }
+/* Shadowing cleanup (Plan E Task 3, 2026-08-15): parity `photos-places.scss:39-190`
+   (`.map-rail` family) now governs the vast majority of this component's chrome — it was
+   already a byte-for-byte structural match, just pointed at global New-UI theme tokens
+   (--fg/--card-border/--panel-bg/--chip-bg/--accent-soft-2/--accent-text/--skeleton-bg)
+   instead of the local `.photos-root`-scoped Vue2-precise tokens (--text-1/--line/
+   --surface-1/--surface-2/an accent-rgb-channel alpha blend/--accent-ink) that parity
+   itself consumes. Since this component always renders inside `.photos-root`, the old scoped
+   rules were shadowing parity's correct local-token values via `[data-v-xxxx]`
+   specificity — same bug pattern as PhotosFilterChip.vue's 2026-08-13 fix round; the old
+   per-rule "token mapping" comment this replaces was that fix's self-documentation, not a
+   design requirement, so it goes with the rules it justified. Two things earn a spot below
+   as documented survivors rather than deletion; everything else has been removed. Kept
+   `.rail-empty-state`/`.rail-place-skeleton` family relocated into parity's own New-UI
+   additions (photos-places.scss, right after `.rail-place.is-active .count`) — Vue2 has no
+   loaded-gate/skeleton concept for this view at all, so there's nowhere in parity's own
+   Vue2-derived rules for them to land; this is a pure relocation of identical values, not a
+   redesign. */
 
-.map-search {
-  position: relative;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--card-border);
-}
-.map-search input {
-  width: 100%;
-  height: 30px; border: none; background: var(--chip-bg);
-  border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 12px;
-  padding: 0 12px 0 32px;
-  outline: none;
-}
-.map-search input::placeholder { color: var(--fg-subtle); }
-.map-search input:focus { box-shadow: 0 0 0 1.5px var(--accent-soft); }
-.map-search .search-ic {
-  position: absolute; left: 22px; top: 50%; transform: translateY(-50%);
-  color: var(--fg-subtle); pointer-events: none;
-}
+/* cssCascade hover-lock safety net (PlacesRail.test.ts's own two `hoverBackgroundRules`/
+   `winningHoverBackground` assertions read this component's *own* `<style>` text via
+   `?raw`, per the project-wide hover-cascade-lock convention — see cssCascade.ts's doc
+   comment and its many other consumers). Parity's own `.rail-place:hover` /
+   `.rail-place.is-active` pair (photos-places.scss:152-156) relies on source order alone
+   (is-active written after hover, so it wins the specificity tie) — that's faithful to
+   Vue2, which has no such defensive convention, but it means parity alone doesn't give
+   PlacesRail.test.ts's own-file assertions anything to find. These two rules exist only to
+   lock in *cascade priority* inside this file, not to re-declare different colors — both
+   values are copied verbatim from parity's `.rail-place:hover` / `.rail-place.is-active` so
+   there is no color-flip between the hover and non-hover states of an active row. Keep
+   these two values in lockstep with parity if it ever changes. */
+.rail-place:hover { background: var(--surface-2); }
+/* theme-exception: the accent-rgb-channel alpha blend below is not an escape from the token
+   system — the R/G/B channels come entirely from the `--accent-rgb` token (which has its own
+   dark/light values), only the 0.10 alpha is a literal, and this is the exact idiom parity's
+   own `.rail-place.is-active` rule uses for the same property. */
+.rail-place.is-active:hover { background: rgba(var(--accent-rgb), 0.10); }
 
-.rail-list {
-  flex: 1; overflow-y: auto;
-  padding: 6px 8px 16px;
-  display: flex; flex-direction: column;
-  gap: 2px;
-}
-
-.rail-region-head {
-  font-size: 10px; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--fg-subtle);
-  padding: 14px 10px 6px;
-  display: flex; justify-content: space-between; align-items: center;
-  cursor: pointer; user-select: none;
-  transition: color 0.15s;
-}
-.rail-region-head:hover { color: var(--fg-muted); }
-.rail-region-head:first-child { padding-top: 4px; }
-.rail-region-head em { color: var(--fg-subtle); font-style: normal; font-weight: 400; letter-spacing: 0; font-size: 11px; text-transform: none; }
-.rail-region-head-left {
-  display: flex; align-items: center; gap: 4px;
-}
-.rail-region-chevron {
-  transition: transform 0.2s;
-}
-.rail-region-chevron.is-collapsed { transform: rotate(-90deg); }
-
-/* Fold animation: grid-template-rows 1fr→0fr tracks the group's real height,
-   so variable-length city lists collapse smoothly without max-height guesses.
-   Rows stay mounted (overflow clips them), keeping lazy thumbs loaded. */
-.rail-group-fold {
-  display: grid;
-  grid-template-rows: 1fr;
-  transition: grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.rail-group-fold.is-folded { grid-template-rows: 0fr; }
-.rail-group-fold-inner {
-  min-height: 0;
-  overflow: hidden;
-  display: flex; flex-direction: column;
-  gap: 2px;
-}
-
-.rail-place {
-  display: grid;
-  grid-template-columns: 40px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid transparent;
-  transition: background 0.12s, border-color 0.12s;
-}
-.rail-place:hover { background: var(--chip-bg); }
-.rail-place.is-active {
-  background: var(--place-row-bg);
-  border-color: var(--place-row-border);
-}
-/* 基类 hover 铁律:.rail-place:hover 与 .rail-place.is-active 都改 background,
-   两者选择器优先级相同((0,2,0) vs (0,2,0))。本文件里 .is-active 恰好写在
-   .rail-place:hover 之后,靠书写顺序也能赢——但这不可靠(P5 真机验收出过白底
-   白字事故,原因正是"靠顺序"这条假设某次被违反)。这条 :hover 规则的优先级是
-   (0,3,0)(两个 class + 一个伪类),严格高于基类的 (0,2,0),不管两条基础规则
-   谁写在前面,.is-active 在 hover 态下永远赢——不依赖书写顺序。
-   删码验证钉住这点:cssCascade.ts 的 hoverBackgroundRules() 断言"是否存在一条
-   命中 is-active 且比基类 :hover 更高优先级的规则",删掉本行会让那条用例变红;
-   若只断言 winningHoverBackground() 在当前书写顺序下选中谁,会因为上面这个
-   "恰好顺序正确"的假象而测不出删码(已用真实删码实验验证并记入报告)。 */
-.rail-place.is-active:hover { background: var(--place-row-bg); }
-/* 评审 M3:Vue2 photos-places.scss 这处缩略图占位底是写死的纯黑;这里改用 --chip-bg
-   (随主题走),不是精确复刻那个 theme-invariant 的黑底——同 PhotosPlaces.vue
-   `.map-tip .thumb` 已登记的 D3 裁定(surface treatment 归 New-UI 重塑),这里补齐同一条
-   登记。 */
-.rail-place .thumb {
-  width: 40px; height: 40px; border-radius: 6px;
-  overflow: hidden; background: var(--chip-bg);
-  position: relative;
-}
-.rail-place .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.rail-place.is-active .thumb::after {
-  content: "";
-  position: absolute; inset: 0;
-  background: var(--place-thumb-active);
-}
-.rail-place .body { min-width: 0; }
-.rail-place .name {
-  font-size: 13px; font-weight: 500;
-  color: var(--fg);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.rail-place .meta {
-  font-size: 11px; color: var(--fg-subtle);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  margin-top: 1px;
-}
-.rail-place .count {
-  font-family: ui-monospace, monospace;
-  font-size: 11px; font-weight: 600;
-  color: var(--fg-muted);
-  padding: 3px 7px; border-radius: 99px;
-  background: var(--chip-bg);
-}
-.rail-place.is-active .count { background: var(--accent-soft-2); color: var(--accent-text); }
-
-/* 空态/骨架(New-UI 新增,偏离登记 9——Vue2 没有这层门控)。 */
-.rail-empty-state {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; padding: 40px 16px; color: var(--fg-muted); text-align: center; font-size: 12px;
-}
-.rail-empty-title { font-size: 13px; font-weight: 600; color: var(--fg); }
-.rail-empty-hint { font-size: 11.5px; }
-.rail-place-skeleton {
-  height: 56px; border-radius: 10px; background: var(--skeleton-bg);
-  margin: 1px 0;
-}
+/* D3 surface-treatment ruling (established precedent: PhotosPlaces.vue's `.map-tip .thumb`,
+   parity's own `.places-cover-portal .cp-head-thumb` New-UI-additions section): Vue2's
+   thumbnail placeholder background is a theme-invariant literal solid black; the
+   surface/chrome color a loading placeholder sits on is New-UI's to reshape, not a value
+   that needs pixel-precise Vue2 replication (unlike the accent-tinted *content* states
+   above, which do). Kept local rather than moved to parity because it's a deliberate,
+   already-reviewed deviation from parity's own value, not an omission parity should carry.
+   Fix-1 item 6 (2026-08-16): `background` corrected from the global `--chip-bg` to local
+   `--surface-2` — the D3 reshape must still land on a Photos-local, is-light-aware token (the
+   global one only follows the app-wide `[data-theme]` attribute, not Photos' own private
+   `.photos-root.is-light` toggle). */
+.rail-place .thumb { background: var(--surface-2); }
 </style>

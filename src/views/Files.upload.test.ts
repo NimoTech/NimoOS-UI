@@ -11,6 +11,13 @@ import { useFoldersStore } from '../home/stores/folders'
 import { useUploadsStore } from '../files/stores/uploads'
 import { useToast } from '../stores/toast'
 import { service } from '@nimotech/nimoos-service'
+import { readDroppedEntries } from '../files/upload/dropEntries'
+import { joinPath } from '../files/util/pathOps'
+
+// Empty-dir wiring tests below drive onDrop through the real .files-main drop
+// handler, so readDroppedEntries (which normally walks a real DataTransfer via
+// webkitGetAsEntry) needs to be stubbed to hand back a canned {files, emptyDirs} tree.
+vi.mock('../files/upload/dropEntries', () => ({ readDroppedEntries: vi.fn() }))
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -26,6 +33,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
           { name: 'existing.txt', path: '/DATA/existing.txt', is_dir: false },
         ],
       })),
+      create: vi.fn().mockResolvedValue(undefined),
     },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
@@ -111,6 +119,58 @@ describe('Files.vue upload wiring', () => {
     await flushPromises()
 
     expect(showSpy).toHaveBeenCalledWith('「AppData/x」位于受保护目录,已跳过。')
+  })
+
+  // bug.txt #2: at maximum folder depth the backend's tus ingest fails silently on
+  // ENAMETOOLONG after the client already reported success. commitSelectedFiles now
+  // filters over-long entries out before they ever reach the upload queue.
+  it('drops an entry whose relativePath segment exceeds NAME_MAX and toasts filesUploadPathTooLong, but still enqueues the normal one', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const files = useFilesStore()
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    const tooLong = { name: 'x'.repeat(256), webkitRelativePath: '' } as unknown as File
+    const ok = { name: 'ok.txt', webkitRelativePath: '' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([tooLong, ok])
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith([
+      { file: ok, targetPath: files.currentPath, relativePath: 'ok.txt', conflictPolicy: '' },
+    ])
+    expect(showSpy).toHaveBeenCalledWith(zh.filesUploadPathTooLong.replace('{count}', '1'))
+  })
+
+  it('does not toast filesUploadPathTooLong when every entry is within limits', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    const a = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
+    const b = { name: 'b.txt', webkitRelativePath: '' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([a, b])
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][0]).toHaveLength(2)
+    expect(showSpy).not.toHaveBeenCalledWith(expect.stringContaining(zh.filesUploadPathTooLong.split('{count}')[1]))
   })
 
   it('refill: only re-enqueues entries named in the missing list, against the batch target_path', async () => {
@@ -310,5 +370,206 @@ describe('Files.vue upload wiring', () => {
     expect(service.uploadBatches.getBatch).toHaveBeenCalledWith('b1')
     expect(body().find('.ubm-missing-title').exists()).toBe(true)
     expect(body().text()).toContain('Trip/a.jpg')
+  })
+
+  // Finding (Important): commitSelectedFiles's length preflight (see the tests above)
+  // used to run only over `normalized` file entries — the `emptyDirs` array coming out
+  // of a drag-drop batch skipped it entirely, so an over-long empty folder sailed past
+  // the toast and hit the backend's bare "Fail" instead. These two tests drive the real
+  // onDrop handler (mocking readDroppedEntries, same seam dropEntries.test.ts exercises
+  // in isolation) to lock in that dirs now go through the SAME fitsLimits check as
+  // files, folded into the SAME toast rather than a second one.
+  it('drop: an over-long empty dir is filtered like an over-long file, folded into ONE combined filesUploadPathTooLong toast', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const files = useFilesStore()
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const createSpy = vi.mocked(service.folder.create)
+    createSpy.mockClear()
+
+    const tooLongFile = { file: new File(['x'], 'tooLongFile'), relativePath: 'x'.repeat(256) }
+    const okFile = { file: new File(['x'], 'ok.txt'), relativePath: 'ok.txt' }
+    vi.mocked(readDroppedEntries).mockResolvedValue({
+      files: [tooLongFile, okFile],
+      emptyDirs: ['y'.repeat(256), 'SmallDir'],
+    })
+
+    await w.find('.files-main').trigger('drop', { dataTransfer: {} })
+    await flushPromises()
+
+    // Only the within-limits file reaches the upload queue.
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith([
+      { file: okFile.file, targetPath: files.currentPath, relativePath: 'ok.txt', conflictPolicy: '' },
+    ])
+    // Only the within-limits dir gets created.
+    expect(createSpy).toHaveBeenCalledTimes(1)
+    expect(createSpy).toHaveBeenCalledWith(joinPath(files.currentPath, 'SmallDir'))
+    // Combined count = 1 too-long file + 1 too-long dir, as ONE toast — not a separate
+    // count:1 toast for the file and another count:1 toast for the dir.
+    expect(showSpy).toHaveBeenCalledWith(zh.filesUploadPathTooLong.replace('{count}', '2'))
+    expect(showSpy).not.toHaveBeenCalledWith(zh.filesUploadPathTooLong.replace('{count}', '1'))
+  })
+
+  it('drop: a dirs-only batch, all within limits, still creates them and toasts filesEmptyDirsCreated (no early-return regression)', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const files = useFilesStore()
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const createSpy = vi.mocked(service.folder.create)
+    createSpy.mockClear()
+
+    vi.mocked(readDroppedEntries).mockResolvedValue({
+      files: [],
+      emptyDirs: ['DirOne', 'DirTwo'],
+    })
+
+    await w.find('.files-main').trigger('drop', { dataTransfer: {} })
+    await flushPromises()
+
+    // No files in the batch at all: addFilesToQueue must never be reached.
+    expect(spy).not.toHaveBeenCalled()
+    expect(createSpy).toHaveBeenCalledTimes(2)
+    expect(createSpy).toHaveBeenCalledWith(joinPath(files.currentPath, 'DirOne'))
+    expect(createSpy).toHaveBeenCalledWith(joinPath(files.currentPath, 'DirTwo'))
+    expect(showSpy).toHaveBeenCalledWith(zh.filesEmptyDirsCreated.replace('{count}', '2'))
+    expect(showSpy).not.toHaveBeenCalledWith(expect.stringContaining(zh.filesUploadPathTooLong.split('{count}')[1]))
+  })
+})
+
+// ── Bug 3: picking an EMPTY folder with "upload folder" ──
+//
+// Platform facts this suite is built on (verified in real Chromium 1228, not assumed):
+//   * Picking an empty folder leaves `input.files.length === 0`, `input.value === ''`
+//     and `input.webkitEntries` empty — the folder NAME is nowhere to be found.
+//   * Because the selection did not change, the browser fires `cancel`, not `change`.
+//     An empty pick is therefore indistinguishable from dismissing the dialog.
+// So the input path can never create the folder, and it cannot even report the problem:
+// reacting to `cancel` would also fire every time the user simply backs out of the dialog.
+// The degraded path therefore stays silent, and the button carries a hover hint telling
+// the user to drag empty folders in instead. The File System Access API (secure contexts
+// only) is the sole path that can actually create an empty folder from a pick.
+describe('Files.vue folder picker: empty folders', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    ;(globalThis as any).IntersectionObserver = class {
+      cb: (e: { isIntersecting: boolean }[]) => void
+      constructor(cb: any) { this.cb = cb }
+      observe() { this.cb([{ isIntersecting: true }]) }
+      disconnect() {}
+    }
+  })
+  afterEach(() => {
+    document.body.innerHTML = ''
+    delete (globalThis as any).showDirectoryPicker
+  })
+
+  async function mountFiles() {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    return w
+  }
+
+  // Fake FileSystemDirectoryHandle — only the members the walk touches.
+  function dirHandle(name: string, children: any[] = []) {
+    return { kind: 'directory', name, async *values() { for (const c of children) yield c } }
+  }
+
+  it('the upload-folder button carries a hover hint sending empty folders to drag-and-drop', async () => {
+    const w = await mountFiles()
+    // Guard against a vacuous pass: an absent i18n key and an absent `title` attribute are
+    // both `undefined`, so assert the copy exists before comparing the two.
+    expect(zh.filesUploadFolderEmptyHint).toBeTruthy()
+    expect(w.find('.tb-upload-folder').attributes('title')).toBe(zh.filesUploadFolderEmptyHint)
+  })
+
+  it('a pick that yields nothing stays silent — "empty folder" and "user backed out" are the same event', async () => {
+    delete (globalThis as any).showDirectoryPicker
+    const w = await mountFiles()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await w.find('.tb-upload-folder').trigger('click')
+    // The browser reports "nothing selected" (empty folder OR dismissed dialog) as `cancel`,
+    // with an identical empty payload either way — so there is nothing truthful to say.
+    w.find('input[webkitdirectory]').element.dispatchEvent(new Event('cancel'))
+    await flushPromises()
+
+    expect(showSpy).not.toHaveBeenCalled()
+  })
+
+  it('with the File System Access API: picking an empty folder actually creates it', async () => {
+    const picker = vi.fn(async () => dirHandle('EmptyPick'))
+    ;(globalThis as any).showDirectoryPicker = picker
+    const w = await mountFiles()
+    const files = useFilesStore()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const createSpy = vi.mocked(service.folder.create)
+    createSpy.mockClear()
+
+    await w.find('.tb-upload-folder').trigger('click')
+    await flushPromises()
+
+    expect(picker).toHaveBeenCalledTimes(1)
+    expect(createSpy).toHaveBeenCalledWith(joinPath(files.currentPath, 'EmptyPick'))
+    expect(showSpy).toHaveBeenCalledWith(zh.filesEmptyDirsCreated.replace('{count}', '1'))
+  })
+
+  it('with the File System Access API: a folder with files still uploads them, empty subdirs included', async () => {
+    const fileHandle = (name: string) => ({ kind: 'file', name, getFile: async () => new File(['x'], name) })
+    ;(globalThis as any).showDirectoryPicker = vi.fn(async () =>
+      dirHandle('Trip', [fileHandle('a.txt'), dirHandle('sub-empty')]))
+    const w = await mountFiles()
+    const files = useFilesStore()
+    const uploads = useUploadsStore()
+    const queueSpy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const createSpy = vi.mocked(service.folder.create)
+    createSpy.mockClear()
+
+    await w.find('.tb-upload-folder').trigger('click')
+    await flushPromises()
+
+    expect(queueSpy).toHaveBeenCalledWith([
+      { file: expect.any(File), targetPath: files.currentPath, relativePath: 'Trip/a.txt', conflictPolicy: '' },
+    ])
+    expect(createSpy).toHaveBeenCalledWith(joinPath(files.currentPath, 'Trip/sub-empty'))
+  })
+
+  it('dismissing the File System Access picker is silent — no toast, no folder created', async () => {
+    ;(globalThis as any).showDirectoryPicker = vi.fn(async () => {
+      throw Object.assign(new Error('The user aborted a request.'), { name: 'AbortError' })
+    })
+    const w = await mountFiles()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const createSpy = vi.mocked(service.folder.create)
+    createSpy.mockClear()
+
+    await w.find('.tb-upload-folder').trigger('click')
+    await flushPromises()
+
+    expect(createSpy).not.toHaveBeenCalled()
+    expect(showSpy).not.toHaveBeenCalled()
   })
 })

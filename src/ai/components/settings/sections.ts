@@ -1,18 +1,17 @@
-// SP8-P2a Task 3 —— 1:1 移植自 Vue2 `src/views/AI/Settings/sections.js`(64 行)。
+// SP8-P2a Task 3 — 1:1 ported from Vue2 `src/views/AI/Settings/sections.js` (64 lines).
 //
-// 左侧导航把分区归进可折叠的四个大类;右侧内容区一次渲染一个大类。
-// `stack: true` 的组把组内所有分区竖排在同一个滚动页里(点导航 → 滚过去;
-// 滚动 → 反过来更新高亮 = scroll-spy)。`stack: false` 的组一次只换一个分区,
-// 这是双栏满高布局(Skills / MCP 的列表+详情)必须的,竖排装不下。
+// Left navigation groups sections into four collapsible categories; right content area renders one category at a time.
+// `stack: true` groups stack all sections within them vertically on one scrolling page (click nav → scroll;
+// scroll → update highlight in reverse = scroll-spy). `stack: false` groups switch one section at a time,
+// required for two-column full-height layout (Skills / MCP list+details), can't fit vertically.
 //
-// section id 必须与 SettingsPage.vue 的组件映射表、以及 `?section=` 深链契约
-// 三方同步。
+// section id must stay in sync across three places: SettingsPage.vue component map, and `?section=` deep link contract.
 //
-// 与 Vue2 的两处差异(均为位置/类型,无行为改动):
-//  1. `SPLIT_SECTIONS` 在 Vue2 里定义在 `Settings.vue:92`,这里挪到本档与其它
-//     导航常量同处 —— 它描述的是导航配置的性质,理应和 GROUPS 住一起。
-//  2. `labelKey` 全部换成本仓 `aiCfg` 前缀的新键(Vue2 混用了 i18n 键与英文
-//     字面量作 key,例如 `'Local models'`;本仓统一 i18n 化,见 P1a 之后的既定政策)。
+// Two differences from Vue2 (both location/type only, no behavior change):
+//  1. `SPLIT_SECTIONS` is defined in `Settings.vue:92` in Vue2, moved here to live with other
+//     navigation constants — describes the nature of navigation config, should live with GROUPS.
+//  2. All `labelKey` values changed to new keys with `aiCfg` prefix in this repo (Vue2 mixed i18n keys with English
+//     literals as key, e.g. `'Local models'`; this repo unified to i18n, see established policy after P1a).
 
 export type SectionId =
   | 'models' | 'providers' | 'privacy' | 'thinking'
@@ -87,19 +86,19 @@ export const ALL_ITEMS: SectionItem[] = GROUPS.reduce<SectionItem[]>(
 
 export const VALID_SECTIONS: SectionId[] = ALL_ITEMS.map((i) => i.id)
 
-/** 双栏满高布局(左列表 + 右详情),不能竖排。Vue2 `Settings.vue:92`。 */
+/** Two-column full-height layout (left list + right details), can't stack vertically. Vue2 `Settings.vue:92`. */
 export const SPLIT_SECTIONS: SectionId[] = ['skills', 'mcp']
 
 /**
- * 留给后续阶段、内容区仍渲染 `SectionPlaceholder` 并弹一条 info toast 的分区。
- * SP8-P4 起**为空** —— 13 个分区全部接入真组件(`mcp` 是最后一个,P4 收口)。
- * 机制本身保留(用户 2026-07-31 明示「反转不删」):将来新增未完成分区时,
- * 把 id 加回本数组即可恢复占位行为,`SettingsPage.vue` 的分支与
- * `SectionPlaceholder.vue` 都原样留着。
+ * Deferred for future phases, content area still renders `SectionPlaceholder` and pops info toast.
+ * Empty from SP8-P4 onward — all 13 sections connected to real components (mcp is last, P4 closure).
+ * Mechanism itself retained (user explicit 2026-07-31 "reverse not delete"): when adding incomplete sections later,
+ * add id back to this array to restore placeholder behavior, branches in `SettingsPage.vue` and
+ * `SectionPlaceholder.vue` kept as-is.
  */
 export const DEFERRED_SECTIONS: SectionId[] = []
 
-/** 某个分区所属的组;未知 id 回落到第一个组(Vue2 `sections.js:62-64` 同款兜底)。 */
+/** The group a section belongs to; unknown id falls back to first group (Vue2 `sections.js:62-64` same fallback). */
 export function groupOf(sectionId: string): SectionGroup {
   return GROUPS.find((g) => g.items.some((i) => i.id === sectionId)) || GROUPS[0]
 }

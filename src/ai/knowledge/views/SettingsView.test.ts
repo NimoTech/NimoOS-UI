@@ -1,61 +1,76 @@
-// SP8-P5c Task 8 + Task 9 —— `SettingsView.vue` 的组件测试。
-// 蓝本 `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/SettingsView.vue`(322 行)。
-// **T8** 覆盖上半:服务卡 · 运行档三行(并发/设备/OCR)· 沙盒入口 · 危险区 + 对应 script
+// SP8-P5c Task 8 + Task 9 — component test for `SettingsView.vue`.
+// Blueprint: `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/SettingsView.vue` (322 lines).
+// **T8** covers upper half: service card · three config rows (concurrency/device/OCR) · sandbox
+//   entry · danger zone + corresponding script functions
 //   (`controlState` / `deviceLabel` / `togglePause` / `setConcurrency` / `setDevice` /
-//   `toggleOcr` / `goSandbox`)。
-// **T9** 覆盖下半:笔记区(目录行 + `openRootPicker` 折叠区 + `FolderBrowser` 接入 +
-//   `onPick`/`dirProbe` 四态 + 两个按钮的 disabled + 自动捕获开关)· K29 的 reka 迁移弹窗 ·
+//   `toggleOcr` / `goSandbox`).
+// **T9** covers lower half: notes section (directory row + `openRootPicker` collapsible area +
+//   `FolderBrowser` integration + `onPick`/`dirProbe` four states + two button disabled logic +
+//   auto-capture toggle) · K29 reka migration dialog ·
 //   `browserRoots` / `created` / `applyRoot` / `doMigrate` / `closeMigrate` /
-//   `toggleAutoExtract`。T9 的用例全部在文件末尾的 `═══ T9 ═══` 分隔线之后。
+//   `toggleAutoExtract`. All T9 test cases are after the `═══ T9 ═══` divider at the end.
 //
-// 🔴 **T9 对 T8 既有代码的改动仅 4 处,全部是「插入下半」被迫的机械后果**(逐处见 T9 报告 §3):
-//   ① `vi.hoisted` mock 骨架 +3 个域(`notes` / `wiki` / `folder`)—— 组件现在真的调它们;
-//   ② `mockAllOk()` **+5 行**默认值(纯新增,既有 3 行零改动)—— 否则 T8 既有用例挂载时
-//      `getSettings()` 返回 undefined,
-//      模板读 `notesSettings.notesRoot` 当场 TypeError;
-//   ③ 危险区那条断言的**定位器**(不是断言值):插入笔记区后 `.k-section` 有两个、
-//      `w.find('.k-section .k-section-head')` 会先命中笔记区(登记为 E-22);
-//   ④ 「四个 catch 都是无参 catch」那条的**计数** 4 → 8(下半新增 4 个 catch,登记为 E-23)。
-//   除此之外 T8 的每一条 `expect` 与每一个 DOM 断言**一字未动**。
+// 🔴 **T9 changes to T8 existing code in only 4 places, all mechanical byproducts of "inserting
+//   lower half"** (details in T9 report §3):
+//   ① `vi.hoisted` mock skeleton +3 fields (`notes` / `wiki` / `folder`) — component now truly
+//     calls them;
+//   ② `mockAllOk()` **+5 lines** defaults (pure addition, existing 3 lines unchanged) — otherwise
+//     T8 existing cases would fail to mount with `getSettings()` returning undefined,
+//     template reading `notesSettings.notesRoot` immediately throws TypeError;
+//   ③ danger zone assertion's **selector** (not the assertion value): after inserting notes
+//     section, `.k-section` has two, `w.find('.k-section .k-section-head')` hits notes section
+//     first (recorded as E-22);
+//   ④ "all four catches are parameterless catch" count **4 → 8** (lower half adds 4 catches,
+//     recorded as E-23).
+//   Apart from these, every T8 `expect` and DOM assertion is **verbatim unchanged**.
 //
-// ═══ mock 策略(治理 §4.1 要求显式说明) ═══
-// 🔴 **mock 共享包 `service.ai.parserStats/parserState/parserControl`,走真 `knowledgeStore`**,
-//   不 mock store。理由同 T6 `ParserStatus.test.ts`:本页每一格都要穿过 K1 降层
-//   (蓝本 `store.state.controlState` → 本仓 `store.controlState`),mock store 会把
-//   「降层与字段名到底对不对得上」这件最容易翻车的事整个绕开;走真 store 则每条渲染
-//   断言天然是集成断言 —— 少降一层或字段名错一个字母,对应那格立刻空/undefined。
-//   T9 的 `browserRoots`(K1 第二处降层,读 `store.wikiCandidates`)与 `store.loadCandidates()`
-//   同样走真 store + 真 `service.wiki.getCandidates` mock。
-// 🔴 形状:`service.ai.parserStats` / `parserState` 在包里都只 `return res.data`
-//   (`NimoOS-Service/src/ai.ts:591-596`,零转换)→ 一律 mock 成 **HTTP 原样 snake_case**,
-//   就是 fixture 原文。`parserControl` 的响应体本页不消费,mock 成 `{}`,与
-//   `parserStore.test.ts:207` / `knowledgeStore.parser.test.ts:136` / `ParserStatus.test.ts:182`
-//   逐字一致(治理 §4.1 的 red flag 自查:同一方法在两个测试文件里形状不同 = 定时炸弹)。
-// 🔴 **T9 的四个新 mock 层次,逐个与 §4.1 那张表对齐**:
-//   · `service.notes.getSettings` / `putSettings` → **camelCase 且只有
-//     `{ notesRoot, autoExtract }` 两个字段**(包内 `normalizeSettings`,
-//     `NimoOS-Service/src/notes.ts:131-137`)。**HTTP 层是 `notes_root` / `auto_extract`,
-//     而且还多带 `distill_roots` / `distill_daily_cap` / `background_model` 三个字段 ——
-//     那个归一函数把它们全丢掉了**。写 snake_case 或多带字段都是错的。
-//   · `service.notes.dirInfo` → `{ exists: boolean, empty: boolean }`(包内 `!!` 归一,`:264-267`)。
-//   · `service.wiki.getCandidates` → 已归一化数组(空时 `[]`,`wiki.ts:154-156`)。
-//   · `service.folder.getList`(经 `FolderBrowser`)→ 🔴 **`unwrap()` 后的单层
-//     `{ content: FolderEntry[] }`**(`folder.ts:7-10`),**不是** fixture 里那个三层信封。
-//     与 `FolderBrowser.test.ts:185` 的 `{ content: [] }` 逐字同形状(red flag 自查通过)。
+// ═══ mock strategy (governance §4.1 requires explicit documentation) ═══
+// 🔴 **mock shared package `service.ai.parserStats/parserState/parserControl`, use real
+//   `knowledgeStore`**, do not mock store. Same rationale as T6 `ParserStatus.test.ts`: every
+//   cell on this page must traverse K1 layer reduction
+//   (blueprint `store.state.controlState` → this repo `store.controlState`); mocking store
+//   would bypass the most error-prone thing: whether layer reduction and field names align;
+//   using real store makes every render assertion naturally an integration assertion — missing
+//   one layer or misspelling a field by one letter immediately shows empty/undefined in that cell.
+//   T9's `browserRoots` (K1's second layer reduction point, reads `store.wikiCandidates`) and
+//   `store.loadCandidates()` also use real store + real `service.wiki.getCandidates` mock.
+// 🔴 Shape: `service.ai.parserStats` / `parserState` both only `return res.data`
+//   (`NimoOS-Service/src/ai.ts:591-596`, no transformation) → mock as **raw HTTP snake_case**,
+//   the fixture verbatim. `parserControl` response body not consumed on this page, mock as `{}`,
+//   matching verbatim `parserStore.test.ts:207` / `knowledgeStore.parser.test.ts:136` /
+//   `ParserStatus.test.ts:182` (governance §4.1 red-flag self-check: same method different shapes
+//   in two test files = time bomb).
+// 🔴 **T9's four new mock layers, each aligned with §4.1 table**:
+//   · `service.notes.getSettings` / `putSettings` → **camelCase with exactly two fields
+//     `{ notesRoot, autoExtract }`** (package-internal `normalizeSettings`,
+//     `NimoOS-Service/src/notes.ts:131-137`). **HTTP layer is `notes_root` / `auto_extract`,
+//     plus three extra fields `distill_roots` / `distill_daily_cap` / `background_model` —
+//     that normalization function discards all three**. Writing snake_case or including extra
+//     fields is wrong.
+//   · `service.notes.dirInfo` → `{ exists: boolean, empty: boolean }` (package-internal `!!`
+//     normalization, `:264-267`).
+//   · `service.wiki.getCandidates` → normalized array (empty as `[]`, `wiki.ts:154-156`).
+//   · `service.folder.getList` (via `FolderBrowser`) → 🔴 **single-layer `{ content: FolderEntry[] }`
+//     after `unwrap()`** (`folder.ts:7-10`), **not** the three-layer envelope in fixture.
+//     Matches `FolderBrowser.test.ts:185` `{ content: [] }` verbatim (red-flag self-check passed).
 //
-// ═══ fixture 是抄本,不是运行时读(治理 §4.4) ═══
-// 数据逐字抄进下面 `FIXTURE-COPY-BEGIN/END` 块并注明出处,**不用 `node:fs` 读
-// `.superpowers/`** —— 那个目录被 gitignore 盖着(SP7 整个丢过一次),本分支将来要合
-// master,`src/` 下的测试跨界依赖它会以「找不到文件」的形式神秘挂掉。
-// 抄本等价性由**程序化逐字节校验**确认(输出贴在 T8 报告 §5),不是肉眼比。
-// 读 `.vue` 源文件(A-1 / 零裸色那几条)一律 `node:fs`,**不许用 Vite 的 `?raw`**
-//   (vitest 的 CSSEnablerPlugin 会把样式源换成空串 → 断言对空字符串「假通过」;
-//    先例 `knowledgeStyles.test.ts` 头注释③)。
+// ═══ fixtures are copies, not read at runtime (governance §4.4) ═══
+// Data copied verbatim into `FIXTURE-COPY-BEGIN/END` blocks below with attribution, **do not use
+// `node:fs` to read `.superpowers/`** — that directory is gitignored (entire loss in SP7 once),
+// this branch will merge to master, tests under `src/` crossing into it mysteriously fail as
+// "file not found".
+// Copy equivalence confirmed via **programmatic byte-for-byte verification** (output in T8 report
+// §5), not visual inspection.
+// Reading `.vue` source files (A-1 / no bare color rules) always use `node:fs`, **never Vite's
+// `?raw`**
+//   (vitest's CSSEnablerPlugin replaces stylesheet source with empty string → assertion against
+//    empty string "falsely passes"; precedent `knowledgeStyles.test.ts` header comment ③).
 //
-// ═══ 属性态断言口径(治理 §9 / 附录 D §D.3.1) ═══
-// `data-state` / `data-on` 都是普通 `data-*` 属性(不是布尔属性)→ 假侧渲染成字符串
-// `"false"` 而不是缺席,故一律 `toBe('true')` / `toBe('false')`,**两侧都比**,
-// 禁 `toBeUndefined()`。`disabled` 是真布尔属性,断言 DOM 属性 `el.disabled`。
+// ═══ attribute state assertion criteria (governance §9 / appendix D §D.3.1) ═══
+// `data-state` / `data-on` are normal `data-*` attributes (not boolean attributes) → SSR renders
+// as string `"false"` not missing, so always `toBe('true')` / `toBe('false')`, **both sides
+// checked**, forbid `toBeUndefined()`. `disabled` is a true boolean attribute, assert DOM property
+// `el.disabled`.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -77,14 +92,14 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC_PATH = resolve(__dirname, './SettingsView.vue')
 
-// ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
+// ── vi.hoisted mock skeleton (governance §9: avoid ESM hoisting TDZ) ──
 const ai = vi.hoisted(() => ({
   parserStats: vi.fn(),
   parserState: vi.fn(),
   parserControl: vi.fn(),
 }))
-// T9 新增三域:组件下半真的调 `service.notes.*`,`store.loadCandidates()` 真的调
-// `service.wiki.getCandidates`,`FolderBrowser` 真的调 `service.folder.getList`。
+// T9 adds three fields: lower component half truly calls `service.notes.*`, `store.loadCandidates()`
+// truly calls `service.wiki.getCandidates`, `FolderBrowser` truly calls `service.folder.getList`.
 const notes = vi.hoisted(() => ({
   getSettings: vi.fn(),
   putSettings: vi.fn(),
@@ -95,12 +110,13 @@ const folder = vi.hoisted(() => ({ getList: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai, notes, wiki, folder } }))
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (整份,GET /v1/parser/state)
-// 取自 `.superpowers/sdd/p5c-fixtures/parser-control-state.json`(2026-08-03 13:22 真机抓取)。
-// 🔴 本机当前是**暂停态**(治理 §4.3)→ 服务卡是橙灯 `[data-state="paused"]` + `⏸ 已暂停`
-// + `primary` 档的「恢复」按钮;`device:"auto"` + `resolved_device:"cpu"` → deviceLabel
-// 渲染「自动（当前 CPU）」;`ocr_enabled:false` → 开关灰档。「运行中 / 绿灯」那一档在本机
-// 看不到(点一次「恢复」会真的恢复索引),靠下面的 fixture 变体覆盖。
+// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (entire, GET /v1/parser/state)
+// From `.superpowers/sdd/p5c-fixtures/parser-control-state.json` (2026-08-03 13:22 captured on device).
+// 🔴 current device is **paused state** (governance §4.3) → service card is orange light
+// `[data-state="paused"]` + `⏸ Paused` + "Resume" button in `primary` style; `device:"auto"` +
+// `resolved_device:"cpu"` → deviceLabel renders "Auto (currently CPU)"; `ocr_enabled:false` →
+// toggle in off state. "Running / green light" state not visible on this device (clicking "Resume"
+// once would really resume indexing), covered by fixture variant below.
 const STATE: ParserControlState = {
   "paused": true,
   "concurrency": 2,
@@ -110,16 +126,18 @@ const STATE: ParserControlState = {
 }
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-stats.json  (整份,GET /v1/parser/stats)
-// 取自 `.superpowers/sdd/p5c-fixtures/parser-stats.json`(2026-08-03 13:22)。
-// 本页**不渲染 stats 里的任何字段**,但 `store.loadOverview()` 是 `Promise.all` 两发
-// (stats + state),缺一发就整体走 catch 置 `unreachable` → controlState 停在默认值。
-// 故这份 fixture 是「让 state 那一发能落地」的必需前提,不是装饰。
-// 🔴 `models[1].dim` 真机是 `null`,而 `ParserModel.dim` 是 `dim?: number`
-//   (`knowledgeStore.ts:76`;T5 的 `parserStore.ts:78` 放宽成 `number | null`,两个 store
-//   各自的类型,不在本刀范围)→ 直接标注 `: ParserStats` 会 TS 报错。**fixture 原文优先**
-//   (治理 §4.4「逐字抄」),故走 `as unknown as ParserStats` ——「后端真会回 null」正是
-//   mock 要模拟的 HTTP 原样,不许为了迁就类型而改数据。
+// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-stats.json  (entire, GET /v1/parser/stats)
+// From `.superpowers/sdd/p5c-fixtures/parser-stats.json` (2026-08-03 13:22).
+// This page **does not render any field from stats**, but `store.loadOverview()` is a
+// `Promise.all` of two calls (stats + state); missing either causes whole flow to go to catch
+// branch setting `unreachable` → controlState stays at default. Thus this fixture is a prerequisite
+// for "letting the state call land", not decoration.
+// 🔴 `models[1].dim` on device is `null`, but `ParserModel.dim` is `dim?: number`
+//   (`knowledgeStore.ts:76`; T5's `parserStore.ts:78` relaxes to `number | null`, store-specific
+//   types outside this change scope) → direct type annotation `: ParserStats` would TS error.
+//   **fixture verbatim takes priority** (governance §4.4 "copy verbatim"), so use
+//   `as unknown as ParserStats` — "backend truly returns null" is exactly what the mock simulates
+//   in raw HTTP form; never alter data to appease types.
 const STATS = {
   "queue_depth": {
     "pending": 339,
@@ -149,49 +167,58 @@ const STATS = {
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/notes-settings.json  (GET /v1/notes/settings)
-// HTTP 原文(逐字节):{"notes_root":"/DATA/Notes","auto_extract":true,"distill_roots":[],"distill_daily_cap":50,"background_model":""}
-// 取自 `.superpowers/sdd/p5c-fixtures/notes-settings.json`(2026-08-03 13:22 真机抓取)。
-// 🔴 **降层动作(治理 §4.1 / §4.4:降层要在注释里留证)**:`service.notes.getSettings` 包内走
-//   `normalizeSettings`(`NimoOS-Service/src/notes.ts:131-137`):
+// HTTP raw (byte-for-byte):{"notes_root":"/DATA/Notes","auto_extract":true,"distill_roots":[],"distill_daily_cap":50,"background_model":""}
+// From `.superpowers/sdd/p5c-fixtures/notes-settings.json` (2026-08-03 13:22 captured on device).
+// 🔴 **layer reduction action (governance §4.1 / §4.4: document reduction in comments)**:
+//   `service.notes.getSettings` package-internal goes through `normalizeSettings`
+//   (`NimoOS-Service/src/notes.ts:131-137`):
 //       notesRoot   = (r.notes_root as string) || ''
-//       autoExtract = r.auto_extract !== false        ← undefined 也归一成 true
-//   → 组件拿到的是 **camelCase 且只有下面这两个字段**;上面那三个 `distill_*` /
-//   `background_model` 被归一函数**整个丢掉**,mock 里多带一个都是错的。
+//       autoExtract = r.auto_extract !== false        ← undefined also normalizes to true
+//   → component receives **camelCase with exactly these two fields**; the three `distill_*` /
+//   `background_model` above are **entirely discarded** by the normalization function, including
+//   any extra field in mock is wrong.
 const NOTES_SETTINGS: NotesSettings = { notesRoot: '/DATA/Notes', autoExtract: true }
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/notes-dir-info-notes.json  (GET /v1/notes/dir-info?path=/DATA/Notes)
-// HTTP 原文(逐字节):{"exists":true,"empty":false}
-// 🔴 本机 `/DATA/Notes` 实测**存在且非空** → `migratable = !exists || empty` = false
-//   → 选它时「搬文件到新目录…」按钮**是灰的**(治理 §4.3 / §13,是正确行为)。
-//   包内 `dirInfo`(`notes.ts:264-267`)只做 `!!` 归一,字段名与层次都不变。
+// HTTP raw (byte-for-byte):{"exists":true,"empty":false}
+// 🔴 on device `/DATA/Notes` is confirmed **exists and not empty** → `migratable = !exists || empty` = false
+//   → when selecting it "move files to new directory…" button **is grayed out** (governance §4.3 / §13,
+//   correct behavior).
+//   Package-internal `dirInfo` (`notes.ts:264-267`) only does `!!` normalization, field names and
+//   layer structure unchanged.
 const DIR_INFO_NOTES = { exists: true, empty: false }
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/wiki-candidates.json  (GET /v1/wiki/candidates)
-// HTTP 原文(逐字节):[]
-// 🔴 本机实测空数组(HTTP 200,秒回)→ `pickerRoots([])` 走**兜底三根**
-//   (`System (/DATA)` / `/media` / `/mnt`),这是真机走到的路径,不是死代码。
-//   包内 `getCandidates`(`wiki.ts:154-156`)已 `|| []` 归一,层次不变。
+// HTTP raw (byte-for-byte):[]
+// 🔴 device test confirms empty array (HTTP 200, immediate response) → `pickerRoots([])` goes to
+//   **three fallback roots** (`System (/DATA)` / `/media` / `/mnt`), this is the path device
+//   actually takes, not dead code.
+//   Package-internal `getCandidates` (`wiki.ts:154-156`) already normalizes with `|| []`, layer
+//   structure unchanged.
 const WIKI_CANDIDATES: never[] = []
 // FIXTURE-COPY-END
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * `service.folder.getList` 的返回形状 —— 🔴 **单层** `{ content: FolderEntry[] }`
- * (`folder.ts:7-10` 已 `unwrap()`),与 `FolderBrowser.test.ts:185` 逐字同形状。
- * 🔴 **不抄 `folder-list-DATA.json` 那 18 项**:本文件没有一条断言依赖目录列表的内容
- * (列表渲染、排序、隐藏项过滤全部由 `FolderBrowser.test.ts` 用真 18 项 fixture 覆盖);
- * 这里只需要「点根目录那一行能走通」,喂空目录即可(治理 §4.4:用不到就不抄)。
+ * Return shape of `service.folder.getList` — 🔴 **single layer** `{ content: FolderEntry[] }`
+ * (already `unwrap()` in `folder.ts:7-10`), matches `FolderBrowser.test.ts:185` verbatim.
+ * 🔴 **do not copy the 18 items from `folder-list-DATA.json`**: this file has no assertions
+ * depending on directory list content (list rendering, sorting, hidden item filtering all covered
+ * by `FolderBrowser.test.ts` with real 18-item fixture); here we only need "clicking the root
+ * directory row can proceed", feeding empty directory suffices (governance §4.4: don't copy what
+ * you don't use).
  */
 const EMPTY_LISTING = { content: [] }
 
-/** 两发全成功,喂 fixture 原文;控制动作返回 `{}`。 */
+/** Both calls succeed, feed fixture verbatim; control action returns `{}`. */
 function mockAllOk(): void {
   ai.parserStats.mockResolvedValue(STATS)
   ai.parserState.mockResolvedValue(STATE)
   ai.parserControl.mockResolvedValue({})
-  // T9:下半的四个只读/写入口默认全成功,喂 fixture 抄本(层次见文件头 mock 策略)。
+  // T9: four lower read/write entry points default to all success, feed fixture copies (layer
+  // structure see mock strategy in file header).
   notes.getSettings.mockResolvedValue(NOTES_SETTINGS)
   notes.putSettings.mockResolvedValue(NOTES_SETTINGS)
   notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
@@ -206,7 +233,10 @@ function makeRouter() {
     history: createWebHashHistory('/app/'),
     routes: [
       { path: '/ai/knowledge/settings', name: 'KnowledgeSettings', component: SettingsView },
-      // 【订正,SP8-P5d Task 9,治理 §15.2】蓝本 `:318` 的 `goSandbox()` 目标;生产里这条路由早已反转成真正的 ParserTest(P5c-T10 产出),本文件路由表的 stub 只管 href 能否解析,与生产是否占位无关。
+      // [Correction, SP8-P5d Task 9, governance §15.2] Blueprint `:318` target of `goSandbox()`;
+      // in production this route has long been flipped to the real ParserTest (P5c-T10 output),
+      // stub in this file's route table only manages href resolution, unrelated to production
+      // presence.
       { path: '/ai/parser/test', name: 'AIParserTest', component: { template: '<div />' } },
     ],
   })
@@ -215,9 +245,10 @@ function makeRouter() {
 }
 
 /**
- * 挂载。`controlState` 在生产里由 `KnowledgeLayout.vue:186` 的 `loadOverview()` 填充
- * (本页自己不发只读请求),测试里显式先跑一次同一个 action —— 走真 store、真 service
- * mock,K1 降层与 snake_case 字段名都在这条路径上被验到。
+ * Mount. In production `controlState` is populated by `KnowledgeLayout.vue:186`'s `loadOverview()`
+ * (this page itself doesn't issue read-only requests); in test explicitly run the same action once
+ * first — use real store, real service mock, K1 layer reduction and snake_case field names are
+ * both verified on this path.
  */
 async function mountPage(state?: Partial<ParserControlState>) {
   if (state) ai.parserState.mockResolvedValue({ ...STATE, ...state })
@@ -231,21 +262,25 @@ async function mountPage(state?: Partial<ParserControlState>) {
   return { w, store, router }
 }
 
-/** VTU 的 `.text()` 只 trim 不折叠内部空白;跨行拼接的文案统一归一后再比。 */
+/** VTU's `.text()` only trims, doesn't collapse internal whitespace; normalize multi-line copy
+ * before comparing. */
 const norm = (s: string): string => s.replace(/\s+/g, ' ').trim()
 
-// ── 定位小工具 ──
-// 🔴 不用 `:nth-of-type()`:危险区那张卡里的 `.k-set-row` 也是它父元素的第 1 个 div,
-//   选择器会同时命中(现在恰好因为它没有 `.k-radio-group` 而不出错,那是运气不是设计)。
-//   改成「先取运行档那张卡,再在卡内取行」。T9 往「运行档卡」与「沙盒入口」之间插入笔记区
-//   之后,`.k-set-card` 的下标 1 仍是运行档卡(笔记那张卡在它之后),本组定位不受影响。
+// ── locator utilities ──
+// 🔴 don't use `:nth-of-type()`: the `.k-set-row` in the danger zone card is also the first div
+// of its parent element, selector would match both (currently happens not to error because it has
+// no `.k-radio-group`, that's luck not design).
+//   Switch to "first get the config card, then get the row within the card". After T9 inserts
+//   the notes section between "config card" and "sandbox entry", `.k-set-card` index 1 is still
+//   the config card (notes card comes after it), this locator group not affected.
 const knobCard = (w: ReturnType<typeof mount>) => w.findAll('.k-set-card')[1]!
 const knobRows = (w: ReturnType<typeof mount>) => knobCard(w).findAll('.k-set-row')
 const concBtns = (w: ReturnType<typeof mount>) => knobRows(w)[0]!.findAll('.k-radio-group button')
 const devBtns = (w: ReturnType<typeof mount>) => knobRows(w)[1]!.findAll('.k-radio-group button')
 const devLabelB = (w: ReturnType<typeof mount>) => knobRows(w)[1]!.find('.k-set-row-desc b')
-/** 危险区那个 `.k-section` —— 按语义(卡上有 `.k-set-danger`)定位,不用下标。
- *  T9 插入笔记区后 `.k-section` 有两个,`find('.k-section …')` 会先命中笔记区(E-22)。 */
+/** danger zone's `.k-section` — locate by semantics (card has `.k-set-danger`), not by index.
+ *  After T9 inserts notes section `.k-section` has two, `find('.k-section …')` hits notes section
+ *  first (E-22). */
 const dangerSection = (w: ReturnType<typeof mount>) =>
   w.findAll('.k-section').find((s) => s.find('.k-set-card.k-set-danger').exists())!
 
@@ -261,21 +296,22 @@ afterEach(() => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 三层壳(蓝本 :2-4,逐层照抄)', () => {
-  it('根 .k-view > .k-scroll > .k-scroll-inner,四块内容都在最内层', async () => {
+describe('SettingsView — three wrapper layers (blueprint :2-4, copy each layer)', () => {
+  it('root .k-view > .k-scroll > .k-scroll-inner, four content blocks all in innermost', async () => {
     const { w } = await mountPage()
     const root = w.element as HTMLElement
     expect(root.tagName).toBe('DIV')
     expect(root.className).toBe('k-view')
     expect(w.find('.k-view > .k-scroll > .k-scroll-inner').exists()).toBe(true)
-    // 本刀四块:服务卡 / 运行档卡 / 沙盒入口 / 危险区(两张 .k-set-card 在最内层直挂)
-    // (子选择器写全路径 —— jsdom 的 querySelectorAll 不接受以 `>` 开头的相对选择器)
+    // this cycle four blocks: service card / config card / sandbox entry / danger zone
+    // (write full path in child selector — jsdom querySelectorAll doesn't accept relative
+    // selectors starting with `>`)
     expect(w.findAll('.k-scroll-inner > .k-set-card')).toHaveLength(2)
     expect(w.find('.k-scroll-inner > .k-sandbox-link').exists()).toBe(true)
     expect(w.find('.k-scroll-inner > .k-section').exists()).toBe(true)
   })
 
-  it('不挂 .parser-app(治理 §6.1 落地约束 4:本页在 KnowledgeLayout 下,不自建滚动容器)', async () => {
+  it('no .parser-app class (governance §6.1 landing constraint 4: this page is under KnowledgeLayout, does not build its own scroll container)', async () => {
     const { w } = await mountPage()
     expect(w.find('.parser-app').exists()).toBe(false)
     expect((w.element as HTMLElement).classList.contains('parser-app')).toBe(false)
@@ -283,8 +319,8 @@ describe('SettingsView —— 三层壳(蓝本 :2-4,逐层照抄)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 服务卡两态(蓝本 :7-19)', () => {
-  it('本机实测 paused:true —— 灯 data-state="paused"、文案「⏸ 已暂停」+ 副行、按钮 primary + play + 「恢复」', async () => {
+describe('SettingsView — service card two states (blueprint :7-19)', () => {
+  it('device test paused:true — light data-state="paused", text "⏸ Paused" + secondary line, button primary + play + "Resume"', async () => {
     const { w } = await mountPage()
     const card = w.find('.k-set-card.k-set-svc')
     expect(card.exists()).toBe(true)
@@ -298,7 +334,7 @@ describe('SettingsView —— 服务卡两态(蓝本 :7-19)', () => {
     expect(btn.text()).toBe('恢复')
   })
 
-  it('fixture 变体 paused:false —— 灯 data-state="running"、文案「✅ 运行中」+ 副行、按钮 outline + pause + 「暂停」', async () => {
+  it('fixture variant paused:false — light data-state="running", text "✅ Running" + secondary line, button outline + pause + "Pause"', async () => {
     const { w } = await mountPage({ paused: false })
     const card = w.find('.k-set-card.k-set-svc')
     expect(card.find('.k-svc-light').attributes('data-state')).toBe('running')
@@ -310,14 +346,14 @@ describe('SettingsView —— 服务卡两态(蓝本 :7-19)', () => {
     expect(btn.text()).toBe('暂停')
   })
 
-  it('N16:`⏸` / `✅` 在 t() **里面** —— 键值自带 emoji(不是模板拼的)', () => {
+  it('N16: `⏸` / `✅` **inside** t() — key value includes emoji (not template-composed)', () => {
     const zh = zhCn as Record<string, string>
     const en = enUs as Record<string, string>
     expect(zh.aiKbSetSvcPausedLine).toBe('⏸ 已暂停')
     expect(zh.aiKbSetSvcRunningLine).toBe('✅ 运行中')
     expect(en.aiKbSetSvcPausedLine).toBe('⏸ Paused')
     expect(en.aiKbSetSvcRunningLine).toBe('✅ Running')
-    // 反过来:按钮那两个键**不含**任何 emoji(符号一个都没往里挪)
+    // conversely: button's two keys **do not include** any emoji (no symbols moved into them)
     expect(zh.aiKbResume).toBe('恢复')
     expect(zh.aiKbPause).toBe('暂停')
     expect(zh.aiKbResume).not.toMatch(/[⏸✅▶🧪⚠]/u)
@@ -326,8 +362,8 @@ describe('SettingsView —— 服务卡两态(蓝本 :7-19)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 运行档 · 并发行(蓝本 :22-34)', () => {
-  it('三行标题 / 中文行 / 描述逐字', async () => {
+describe('SettingsView — config card · concurrency row (blueprint :22-34)', () => {
+  it('three lines: title / Chinese / description verbatim', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[0]!
     expect(row.find('.k-set-row-title').text()).toBe('同时处理几个文件')
@@ -335,25 +371,25 @@ describe('SettingsView —— 运行档 · 并发行(蓝本 :22-34)', () => {
     expect(row.find('.k-set-row-desc').text()).toBe('数值越大越快、越占资源。NAS 空闲时建议 4。')
   })
 
-  it('🔴 按钮文字**就是数字** —— 没有档位名称(`Power-saving`/`Balanced`/`Full power` 是 ParserStatus 的)', async () => {
+  it('🔴 button text **is just the number** — no level names (`Power-saving`/`Balanced`/`Full power` belong to ParserStatus)', async () => {
     const { w } = await mountPage()
     const btns = concBtns(w)
     expect(btns).toHaveLength(3)
     expect(btns.map((b) => b.text())).toEqual(['1', '2', '4'])
-    // 判据:若有人把 ParserStatus 那套 N17 数组下标写法搬过来,这四条会同时报红
+    // test criterion: if someone copies ParserStatus's N17 array-index notation, these four would all fail
     const page = w.text()
     for (const s of ['省电', '平衡', '全力', 'Power-saving', 'Balanced', 'Full power']) {
       expect(page).not.toContain(s)
     }
   })
 
-  it('🔴 data-on 两侧 —— 本机 concurrency:2 时只有第二档是 "true"', async () => {
+  it('🔴 data-on both sides — on device with concurrency:2 only second level is "true"', async () => {
     const { w } = await mountPage()
     const btns = concBtns(w)
     expect(btns.map((b) => b.attributes('data-on'))).toEqual(['false', 'true', 'false'])
   })
 
-  it('🔴 data-on 两侧 —— fixture 变体 concurrency:1 / concurrency:4', async () => {
+  it('🔴 data-on both sides — fixture variants concurrency:1 / concurrency:4', async () => {
     const { w } = await mountPage({ concurrency: 1 })
     expect(
       concBtns(w).map((b) => b.attributes('data-on')),
@@ -368,93 +404,95 @@ describe('SettingsView —— 运行档 · 并发行(蓝本 :22-34)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 运行档 · 设备行(蓝本 :36-49)', () => {
-  it('三行标题 / 中文行 + 三档文案(「自动」走 i18n,裸 GPU / CPU 是硬编码技术标识符)', async () => {
+describe('SettingsView — config card · device row (blueprint :36-49)', () => {
+  it('three lines: title / Chinese + three level text ("Auto" via i18n, bare GPU / CPU are hardcoded tech identifiers)', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[1]!
     expect(row.find('.k-set-row-title').text()).toBe('推理设备')
     expect(row.find('.k-set-row-cn').text()).toBe('推理设备 · 仅维护者关心')
     expect(devBtns(w).map((b) => b.text())).toEqual(['自动', 'GPU', 'CPU'])
-    // 蓝本 `:46-47` 那两串刻意不进 i18n(N22 同族)→ 源码里是**裸字面量**,不经 t()
+    // blueprint `:46-47` those two deliberately skip i18n (N22 same family) → in source **bare literals**,
+    // not via t()
     const src: string = readFileSync(SRC_PATH, 'utf8')
     expect(src).toContain('@click="setDevice(\'cuda\')">GPU<')
     expect(src).toContain('@click="setDevice(\'cpu\')">CPU<')
   })
 
-  it('🔴 data-on 两侧 —— 本机 device:"auto" 时只有第一档 "true"', async () => {
+  it('🔴 data-on both sides — on device with device:"auto" only first level is "true"', async () => {
     const { w } = await mountPage()
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['true', 'false', 'false'])
   })
 
-  it('🔴 第二档吃 `cuda` **和** `gpu` 两个值(蓝本 :46)—— cuda 命中', async () => {
+  it('🔴 second level accepts **both** `cuda` **and** `gpu` values (blueprint :46) — cuda matches', async () => {
     const { w } = await mountPage({ device: 'cuda' })
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['false', 'true', 'false'])
   })
 
-  it('🔴 第二档吃 `cuda` **和** `gpu` 两个值(蓝本 :46)—— gpu 也命中(漏掉后半会渲染成全 false)', async () => {
+  it('🔴 second level accepts **both** `cuda` **and** `gpu` values (blueprint :46) — gpu also matches (missing second half renders all false)', async () => {
     const { w } = await mountPage({ device: 'gpu' })
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['false', 'true', 'false'])
   })
 
-  it('🔴 data-on 两侧 —— device:"cpu" 时只有第三档 "true"', async () => {
+  it('🔴 data-on both sides — when device:"cpu" only third level is "true"', async () => {
     const { w } = await mountPage({ device: 'cpu' })
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['false', 'false', 'true'])
   })
 
-  it('未知档位(后端将来加新值)—— 三档全 "false",不误亮', async () => {
+  it('unknown level (backend may add new values later) — all three "false", no false positives', async () => {
     const { w } = await mountPage({ device: 'mps' })
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['false', 'false', 'false'])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— deviceLabel 四分支 + 空值兜底(蓝本 :216-223)', () => {
+describe('SettingsView — deviceLabel four branches + null fallback (blueprint :216-223)', () => {
   const label = (w: ReturnType<typeof mount>) =>
     norm(knobRows(w)[1]!.find('.k-set-row-desc').text())
 
-  it('分支①`auto` —— 本机 resolved_device:"cpu" → 「当前用: 自动（当前 CPU）」(toUpperCase)', async () => {
+  it('branch ① `auto` — on device resolved_device:"cpu" → "Currently using: Auto (currently CPU)"(toUpperCase)', async () => {
     const { w } = await mountPage()
     expect(label(w)).toBe('当前用： 自动（当前 CPU）')
     expect(devLabelB(w).text()).toBe('自动（当前 CPU）')
   })
 
-  it('分支①边界 —— resolved_device 为空串 → 渲染「自动（当前 ）」不炸', async () => {
+  it('branch ① edge case — resolved_device is empty string → renders "Auto (currently )" without error', async () => {
     const { w } = await mountPage({ resolved_device: '' })
     expect(devLabelB(w).text()).toBe('自动（当前 ）')
   })
 
-  it('🔴 分支①边界 —— 后端漏 `resolved_device` 字段时,蓝本的 `(r || "")` 兜底才真正起作用', async () => {
-    // 判据:去掉 `(r || '')` → `undefined.toUpperCase()` 抛 TypeError → 本条报红。
-    // (空串那条**验不到**这个兜底:`''.toUpperCase()` 本来就合法 —— 第一版就是只有空串那条,
-    //  探针当场发现它对「删掉兜底」零判别力。)
+  it('🔴 branch ① edge case — when backend omits `resolved_device` field, blueprint\'s `(r || "")` fallback truly activates', async () => {
+    // test criterion: remove `(r || '')` → `undefined.toUpperCase()` throws TypeError → test fails.
+    // (empty string case **cannot verify** this fallback: `''.toUpperCase()` is legal anyway —
+    //  first version only had empty string case, probe immediately saw zero discrimination against
+    //  "remove fallback".)
     const { w } = await mountPage({ resolved_device: undefined as unknown as string })
     expect(devLabelB(w).text()).toBe('自动（当前 ）')
   })
 
-  it('分支②`cuda` → 裸 `GPU (CUDA)`(注意与 setDevice toast 里那个裸 `GPU` 不同,蓝本两处不同)', async () => {
+  it('branch ② `cuda` → bare `GPU (CUDA)` (note differs from bare `GPU` in setDevice toast, blueprint different in two places)', async () => {
     const { w } = await mountPage({ device: 'cuda' })
     expect(devLabelB(w).text()).toBe('GPU (CUDA)')
   })
 
-  it('分支②`gpu` 也走 `GPU (CUDA)`(蓝本 :220 的 `d === "cuda" || d === "gpu"`)', async () => {
+  it('branch ② `gpu` also goes to `GPU (CUDA)` (blueprint :220 `d === "cuda" || d === "gpu"`)', async () => {
     const { w } = await mountPage({ device: 'gpu' })
     expect(devLabelB(w).text()).toBe('GPU (CUDA)')
   })
 
-  it('分支③`cpu` → 裸 `CPU`', async () => {
+  it('branch ③ `cpu` → bare `CPU`', async () => {
     const { w } = await mountPage({ device: 'cpu' })
     expect(devLabelB(w).text()).toBe('CPU')
   })
 
-  it('分支④兜底 → 原样返回 `d`(不是空、不是 undefined)', async () => {
+  it('branch ④ fallback → return `d` as-is (not empty, not undefined)', async () => {
     const { w } = await mountPage({ device: 'mps' })
     expect(devLabelB(w).text()).toBe('mps')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 运行档 · OCR 行(蓝本 :51-60)', () => {
-  it('标题 / 中文行 + `.warn` 警示行:句号与后半句的位置逐字照抄(蓝本 :56)', async () => {
+describe('SettingsView — config card · OCR row (blueprint :51-60)', () => {
+  it('title / Chinese line + `.warn` warning line: period and second half position copy verbatim (blueprint :56)', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[2]!
     expect(row.find('.k-set-row-title').text()).toBe('扫描件文字识别 (OCR)')
@@ -464,31 +502,31 @@ describe('SettingsView —— 运行档 · OCR 行(蓝本 :51-60)', () => {
     expect(warn.findComponent(KIcon).props('name')).toBe('danger')
     expect(warn.findComponent(KIcon).props('size')).toBe(11)
     expect(norm(warn.text())).toBe('开启后速度慢 5-10×')
-    // 句号在 `</span>` **外面**,后半句紧跟其后 —— 位置错了这条就红
+    // period **outside** `</span>`, second half immediately follows — wrong position fails test
     expect(norm(row.find('.k-set-row-desc').text())).toBe('开启后速度慢 5-10×. 只对扫描 PDF 有用。')
   })
 
-  it('🔴 data-on 两侧 —— 本机 ocr_enabled:false → "false"', async () => {
+  it('🔴 data-on both sides — on device ocr_enabled:false → "false"', async () => {
     const { w } = await mountPage()
     expect(w.find('.k-sw').attributes('data-on')).toBe('false')
   })
 
-  it('🔴 data-on 两侧 —— fixture 变体 ocr_enabled:true → "true"', async () => {
+  it('🔴 data-on both sides — fixture variant ocr_enabled:true → "true"', async () => {
     const { w } = await mountPage({ ocr_enabled: true })
     expect(w.find('.k-sw').attributes('data-on')).toBe('true')
   })
 
-  it('🔴 `!!` 双取反照抄(蓝本 :59)—— 后端漏 `ocr_enabled` 字段时仍是 "false",不是 "undefined"', async () => {
-    // 判据:去掉 `!!` → `String(undefined)` === "undefined" → 本条报红
-    // (`.k-sw[data-on="true"]` 是 CSS 选择器,`"undefined"` 会让开关卡在灰档且语义不明)
+  it('🔴 `!!` double negation copy verbatim (blueprint :59) — when backend omits `ocr_enabled` field still is "false", not "undefined"', async () => {
+    // test criterion: remove `!!` → `String(undefined)` === "undefined" → test fails
+    // (`.k-sw[data-on="true"]` is CSS selector, `"undefined"` would get toggle stuck on gray with unclear semantics)
     const { w } = await mountPage({ ocr_enabled: undefined as unknown as boolean })
     expect(w.find('.k-sw').attributes('data-on')).toBe('false')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 四个动作各自的 setControl 载荷(蓝本 :282-315)', () => {
-  it('paused:true 点按钮 → setControl("resume")', async () => {
+describe('SettingsView — four action setControl payloads each (blueprint :282-315)', () => {
+  it('paused:true click button → setControl("resume")', async () => {
     const { w } = await mountPage()
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
@@ -496,21 +534,21 @@ describe('SettingsView —— 四个动作各自的 setControl 载荷(蓝本 :28
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'resume' })
   })
 
-  it('paused:false 点按钮 → setControl("pause")', async () => {
+  it('paused:false click button → setControl("pause")', async () => {
     const { w } = await mountPage({ paused: false })
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'pause' })
   })
 
-  it('🔴 并发 → setControl("set_concurrency", { n })—— 键名是 `n`,不是 `concurrency`', async () => {
+  it('🔴 concurrency → setControl("set_concurrency", { n }) — key is `n`, not `concurrency`', async () => {
     const { w } = await mountPage()
     await concBtns(w)[2]!.trigger('click')
     await flushPromises()
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'set_concurrency', n: 4 })
   })
 
-  it('设备三档 → setControl("set_device", { device })', async () => {
+  it('device three levels → setControl("set_device", { device })', async () => {
     const { w } = await mountPage()
     const btns = devBtns(w)
     await btns[0]!.trigger('click')
@@ -518,14 +556,14 @@ describe('SettingsView —— 四个动作各自的 setControl 载荷(蓝本 :28
     expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_device', device: 'auto' })
     await btns[1]!.trigger('click')
     await flushPromises()
-    // 第二个按钮点下去发的是 `cuda`(不是 `gpu`)—— 蓝本 :46 的 @click 是 setDevice('cuda')
+    // second button sends `cuda` (not `gpu`) — blueprint :46 @click is setDevice('cuda')
     expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_device', device: 'cuda' })
     await btns[2]!.trigger('click')
     await flushPromises()
     expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_device', device: 'cpu' })
   })
 
-  it('OCR 开关 → setControl("set_ocr", { enabled: !当前值 })两侧', async () => {
+  it('OCR toggle → setControl("set_ocr", { enabled: !current_value }) both sides', async () => {
     const { w } = await mountPage()
     await w.find('.k-sw').trigger('click')
     await flushPromises()
@@ -540,24 +578,25 @@ describe('SettingsView —— 四个动作各自的 setControl 载荷(蓝本 :28
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 成功 toast 各自的键(蓝本 :285/:293/:302/:311)', () => {
-  it('🔴 恢复 → 「已继续」(不是「已暂停」)—— 见文件头「偏离,§2」:蓝本这里两档全反', async () => {
-    // 关键前提:`setControl` 内部 `await loadOverview()` 会把 controlState 换成**新值**。
-    // 这里让第二次 `parserState` 返回 `paused:false`(后端真的恢复了)—— 蓝本的写法此时
-    // 读到的是新值 false → 会弹「已暂停」;本仓用 `await` 之前存下的 `wasPaused` → 「已继续」。
-    // 判据:把 `wasPaused` 换回蓝本的「await 之后再读 controlState.paused」→ 本条报红。
+describe('SettingsView — success toast keys each (blueprint :285/:293/:302/:311)', () => {
+  it('🔴 resume → "Resumed" (not "Paused") — see file header "divergence, §2": blueprint both levels inverted here', async () => {
+    // key prerequisite: inside `setControl` `await loadOverview()` swaps controlState to **new value**.
+    // here make second `parserState` return `paused:false` (backend truly resumed) — blueprint code at this
+    // point reads new value false → would toast "Paused"; this repo saves `wasPaused` before await
+    // → "Resumed".
+    // test criterion: swap `wasPaused` back to blueprint's "read controlState.paused after await" → test fails.
     ai.parserState.mockResolvedValueOnce(STATE).mockResolvedValue({ ...STATE, paused: false })
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
-    expect(store.controlState.paused).toBe(false) // 后端已刷新(前提成立)
+    expect(store.controlState.paused).toBe(false) // backend refreshed (prerequisite met)
     expect(toast).toHaveBeenCalledWith('已继续')
   })
 
-  it('🔴 暂停 → 「已暂停」(同上,反向)', async () => {
-    // 🔴 不能走 `mountPage({ paused: false })`:那个参数内部会再调一次
-    // `mockResolvedValue`,把这里排好的「第二发返回 paused:true」冲掉。
+  it('🔴 pause → "Paused" (same as above, reversed)', async () => {
+    // 🔴 cannot use `mountPage({ paused: false })`: that parameter internally calls
+    // `mockResolvedValue` again, clobbering "second call returns paused:true" that we set here.
     ai.parserState
       .mockResolvedValueOnce({ ...STATE, paused: false })
       .mockResolvedValue({ ...STATE, paused: true })
@@ -569,7 +608,7 @@ describe('SettingsView —— 成功 toast 各自的键(蓝本 :285/:293/:302/:3
     expect(toast).toHaveBeenCalledWith('已暂停')
   })
 
-  it('并发 → 「并发改为 4」(`aiKbSetConcurrencySet` 带 {n})', async () => {
+  it('concurrency → "Concurrency changed to 4" (`aiKbSetConcurrencySet` with {n})', async () => {
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await concBtns(w)[2]!.trigger('click')
@@ -577,7 +616,7 @@ describe('SettingsView —— 成功 toast 各自的键(蓝本 :285/:293/:302/:3
     expect(toast).toHaveBeenCalledWith('并发改为 4')
   })
 
-  it('设备 → 「推理设备：自动 / CPU / GPU」(label 三元照抄:auto 走 i18n,另两个裸串)', async () => {
+  it('device → "Inference device: Auto / CPU / GPU" (label ternary copy verbatim: auto via i18n, other two bare strings)', async () => {
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     const btns = devBtns(w)
@@ -589,11 +628,11 @@ describe('SettingsView —— 成功 toast 各自的键(蓝本 :285/:293/:302/:3
     expect(toast).toHaveBeenLastCalledWith('推理设备：CPU')
     await btns[1]!.trigger('click')
     await flushPromises()
-    // 🔴 裸 `GPU`,**不是** deviceLabel 里的 `GPU (CUDA)` —— 蓝本 :301 与 :220 刻意不同
+    // 🔴 bare `GPU`, **not** `GPU (CUDA)` in deviceLabel — blueprint :301 vs :220 intentionally different
     expect(toast).toHaveBeenLastCalledWith('推理设备：GPU')
   })
 
-  it('OCR → 「OCR 已开启」/「OCR 已关闭」两侧', async () => {
+  it('OCR → "OCR enabled" / "OCR disabled" both sides', async () => {
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await w.find('.k-sw').trigger('click')
@@ -608,7 +647,7 @@ describe('SettingsView —— 成功 toast 各自的键(蓝本 :285/:293/:302/:3
     expect(toast2).toHaveBeenLastCalledWith('OCR 已关闭')
   })
 
-  it('toast 走 store.toast(K27)→ 真的落进全局 toast 栈(2400ms 档,knowledgeStore.ts:311-313)', async () => {
+  it('toast goes through store.toast(K27) → truly lands in global toast stack (2400ms level, knowledgeStore.ts:311-313)', async () => {
     const { w } = await mountPage()
     await w.find('.k-sw').trigger('click')
     await flushPromises()
@@ -617,12 +656,13 @@ describe('SettingsView —— 成功 toast 各自的键(蓝本 :285/:293/:302/:3
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K30(K5 同族)—— 四个 catch **不回显后端文本**。落地判据是**排除式断言**:
-// 让 `parserControl` reject 一个带可识别文本的错误,断言 toast 文本、全局 toast 栈、
-// 整页 DOM 三处都**不含**那段文本,且 toast **逐字**等于固定键的值。
-// ⚠️ 探针文本只出现在本文件里,**故意不出现在 `SettingsView.vue` 的注释里**
-// (治理 §9 第九条:否定式断言撞注释 = 假报红,T6 栽过一次)。
-describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:295/:304/:313 拼 e.message)', () => {
+// 🔴 K30 (K5 same family) — four catches **do not expose backend text**. Landing criterion is
+// **exclusion assertion**: have `parserControl` reject an error with identifiable text, assert
+// toast text, global toast stack, whole page DOM three places **do not contain** that text,
+// and toast **exactly equals** fixed-key value.
+// ⚠️ probe text only appears in this file, **intentionally omitted from `SettingsView.vue` comments**
+// (governance §9 clause 9: negation assertion hits comment = false positive, T6 fell for this once).
+describe('SettingsView — K30: four catches exclusion assertions (blueprint :287/:295/:304/:313 + e.message)', () => {
   const PROBE = 'PROBE-BACKEND-DETAIL-7c41f9'
 
   async function failing(state?: Partial<ParserControlState>) {
@@ -640,7 +680,7 @@ describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:2
     expect(w.html()).not.toContain(PROBE)
   }
 
-  it('catch① togglePause → 只弹「操作失败」,零后端文本', async () => {
+  it('catch① togglePause → only toast "Operation failed", zero backend text', async () => {
     const { w, toast } = await failing()
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
@@ -649,7 +689,7 @@ describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:2
     assertNoLeak(w, toast)
   })
 
-  it('catch② setConcurrency → 只弹「操作失败」,零后端文本', async () => {
+  it('catch② setConcurrency → only toast "Operation failed", zero backend text', async () => {
     const { w, toast } = await failing()
     await concBtns(w)[0]!.trigger('click')
     await flushPromises()
@@ -658,7 +698,7 @@ describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:2
     assertNoLeak(w, toast)
   })
 
-  it('catch③ setDevice → 只弹「切换失败」(专属键,不是「操作失败」),零后端文本', async () => {
+  it('catch③ setDevice → only toast "Switch failed" (dedicated key, not "Operation failed"), zero backend text', async () => {
     const { w, toast } = await failing()
     await devBtns(w)[2]!.trigger('click')
     await flushPromises()
@@ -668,7 +708,7 @@ describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:2
     assertNoLeak(w, toast)
   })
 
-  it('catch④ toggleOcr → 只弹「操作失败」,零后端文本', async () => {
+  it('catch④ toggleOcr → only toast "Operation failed", zero backend text', async () => {
     const { w, toast } = await failing()
     await w.find('.k-sw').trigger('click')
     await flushPromises()
@@ -677,23 +717,23 @@ describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:2
     assertNoLeak(w, toast)
   })
 
-  it('源码侧:每个 catch 都不读 `e`(零 `e.message` / 零 `e.response` / 零 `e.detail`)', () => {
+  it('source side: each catch does not read `e` (zero `e.message` / zero `e.response` / zero `e.detail`)', () => {
     const src: string = readFileSync(SRC_PATH, 'utf8')
     const code = blankComments(src)
     expect(code).not.toMatch(/\.message\b/)
     expect(code).not.toMatch(/\.response\b/)
     expect(code).not.toMatch(/\.detail\b/)
-    // 全部 catch 都是无参 `catch {`(连错误对象都不接)。
-    // 🔴 E-23(T9 被迫改的**计数**,断言语义未变):T8 时 4 个(togglePause /
-    // setConcurrency / setDevice / toggleOcr),T9 下半再加 4 个(created 的 getSettings
-    // 吞错保默认 / onPick / toggleAutoExtract / applyRoot)→ 共 8 个。
+    // all catches are parameterless `catch {` (don't even accept the error object).
+    // 🔴 E-23 (T9 forced **count** change, assertion semantics unchanged): T8 had 4 (togglePause /
+    // setConcurrency / setDevice / toggleOcr), T9 lower half adds 4 more (created getSettings
+    // error-swallow-default / onPick / toggleAutoExtract / applyRoot) → total 8.
     expect((code.match(/\}\s*catch\s*\{/g) || []).length).toBe(8)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
-  it('图标 / 文案 / 副行 / 末尾 chev 逐字(N16:🧪 在 t() 外面)', async () => {
+describe('SettingsView — sandbox entry (blueprint :158-166)', () => {
+  it('icon / text / secondary line / trailing chev verbatim (N16: 🧪 outside t())', async () => {
     const { w } = await mountPage()
     const link = w.find('a.k-sandbox-link')
     expect(link.exists()).toBe(true)
@@ -702,14 +742,14 @@ describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
     expect(icons[0]!.props('name')).toBe('test')
     expect(icons[0]!.props('size')).toBe(20)
     expect(link.find('.k-sandbox-icon').exists()).toBe(true)
-    // ⚠️ `.text()` 取的是 textContent —— 相邻 <div> 之间**没有**空格,别自己补
+    // ⚠️ `.text()` gets textContent — **no** space between adjacent `<div>`s, don't add one
     expect(norm(link.text())).toBe('🧪 测试沙盒单文件试解析，不写入索引')
     expect(icons[1]!.props('name')).toBe('chev')
     expect(icons[1]!.props('size')).toBe(14)
     expect(icons[1]!.props('color')).toBe('var(--text-tertiary)')
   })
 
-  it('点一下 → router.push("/ai/parser/test")(蓝本 :316-319)', async () => {
+  it('click once → router.push("/ai/parser/test") (blueprint :316-319)', async () => {
     const { w, router } = await mountPage()
     const push = vi.spyOn(router, 'push')
     await w.find('a.k-sandbox-link').trigger('click')
@@ -718,7 +758,7 @@ describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
     expect(router.currentRoute.value.path).toBe('/ai/parser/test')
   })
 
-  it('`@click.prevent` —— 是裸 `<a>`(无 href),不会触发浏览器导航', async () => {
+  it('`@click.prevent` — bare `<a>` (no href), won\'t trigger browser navigation', async () => {
     const { w } = await mountPage()
     const a = w.find('a.k-sandbox-link')
     expect((a.element as HTMLElement).hasAttribute('href')).toBe(false)
@@ -729,21 +769,23 @@ describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 危险区(蓝本 :168-186)', () => {
-  it('区头:⚠️ 标题(内联 var(--danger))+ 「即将上线」提示', async () => {
+describe('SettingsView — danger zone (blueprint :168-186)', () => {
+  it('zone header: ⚠️ title (inline var(--danger)) + "Coming soon" notice', async () => {
     const { w } = await mountPage()
-    // 🔴 E-22(T9 插入笔记区后被迫改的**定位器**,断言值一字未动):`.k-section` 现在有
-    // **两个**(笔记区在前、危险区在后),原来的 `w.find('.k-section .k-section-head')`
-    // 会先命中笔记区。改成按语义定位(带 `.k-set-danger` 卡的那个 section),不用下标。
+    // 🔴 E-22 (T9 forced **selector** change after inserting notes section, assertion value untouched):
+    // `.k-section` now has **two** (notes section first, danger zone second), old
+    // `w.find('.k-section .k-section-head')` would hit notes section first. Switch to semantic
+    // locator (section with `.k-set-danger` card), no index needed.
     const head = dangerSection(w).find('.k-section-head')
     const title = head.find('.k-section-title')
     expect(title.text()).toBe('⚠️ 危险区')
-    // Vue 会把静态 style 属性重新序列化,故用 toContain 钉 token(内联值本来就已是 var(),零字面量)
+    // Vue re-serializes static style attribute, so use toContain to pin token (inline value already
+    // var(), no literals)
     expect(title.attributes('style')).toContain('var(--danger)')
     expect(head.find('.k-section-hint').text()).toBe('即将上线')
   })
 
-  it('🔴 重建按钮硬编码 disabled(蓝本 :181,永远不可点)+ 旁边有「即将上线」徽标', async () => {
+  it('🔴 rebuild button hardcoded disabled (blueprint :181, never clickable) + "Coming soon" badge beside it', async () => {
     const { w } = await mountPage()
     const card = w.find('.k-set-card.k-set-danger')
     expect(card.exists()).toBe(true)
@@ -757,7 +799,7 @@ describe('SettingsView —— 危险区(蓝本 :168-186)', () => {
     expect(btn.text()).toBe('重建…')
   })
 
-  it('点它什么都不发生(治理 §13:清单只能验「是灰的 + 有徽标」)', async () => {
+  it('clicking it does nothing (governance §13: spec only verifies "is gray + has badge")', async () => {
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await w.find('button.k-btn.danger').trigger('click')
@@ -768,18 +810,20 @@ describe('SettingsView —— 危险区(蓝本 :168-186)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 治理 §9.2 —— 「必须用键 A、不许用键 B,理由是 en 不同」这类纪律,**只比 zh 的断言
-// 零判别力**(T6 评审 I-1 实证:换成被禁键 47/47 全绿)。本页命中 **4 对**同族:
-//   ① N21 #1  aiKbResume           en `Resume`        zh 恢复      ← 本页必须用
-//              aiKbRebuild          en `Rebuild`       zh 恢复      ← 被禁(Vue2 错译)
-//   ② N21 #2  aiKbSetSandboxTitle  en `Test Sandbox`  zh 测试沙盒  ← 本页必须用
-//              aiKbPrTestLink       en `Test sandbox`  zh 测试沙盒  ← ParserStatus 的
-//   ③ 🔴 T8 全表重扫新发现:aiKbDeviceAuto en `Auto` / aiCfgAutoPlaceholder en `auto`(小写)
-//   ④ 🔴 T8 全表重扫新发现:aiKbSwitchFailed en `Switch failed` / aiCfgToggleFailed en `Toggle failed`
-// 重扫方法与完整结论见 T8 报告 §6(本页 33 个键 × 全表 1499 键,zh 撞车 15 对,
-// 其中 en 不同的 4 对全部落在本组断言里,余零)。
-// 🔴 locale 是全局单例 → 必须 try/finally 还原,否则污染同文件后续用例。
-describe('SettingsView —— 🔴 §9.2:en 档强断言(zh 撞车、只有 en 能判别)', () => {
+// 🔴 governance §9.2 — rules like "must use key A, forbidden key B, reason: en differs" **show
+// zero discrimination in zh-only assertions** (T6 review I-1 proof: swap to forbidden key,
+// 47/47 pass). This page hits **4 pairs** of same family:
+//   ① N21 #1  aiKbResume           en `Resume`        zh 恢复      ← this page must use
+//              aiKbRebuild          en `Rebuild`       zh 恢复      ← forbidden (Vue2 mistranslation)
+//   ② N21 #2  aiKbSetSandboxTitle  en `Test Sandbox`  zh 测试沙盒  ← this page must use
+//              aiKbPrTestLink       en `Test sandbox`  zh 测试沙盒  ← ParserStatus's
+//   ③ 🔴 T8 full table rescan discovery: aiKbDeviceAuto en `Auto` / aiCfgAutoPlaceholder en `auto` (lowercase)
+//   ④ 🔴 T8 full table rescan discovery: aiKbSwitchFailed en `Switch failed` / aiCfgToggleFailed en `Toggle failed`
+// Rescan method and complete conclusions in T8 report §6 (this page 33 keys × full table 1499 keys,
+// zh collisions 15 pairs, of which en-different 4 pairs all land in this assertion group, remainder zero).
+// 🔴 locale is global singleton → must restore with try/finally, else pollutes following test cases
+// in file.
+describe('SettingsView — 🔴 §9.2: en-only strong assertions (zh collisions, only en can discriminate)', () => {
   const localeRef = i18n.global.locale as unknown as { value: string }
 
   async function mountInEn(state?: Partial<ParserControlState>) {
@@ -794,19 +838,19 @@ describe('SettingsView —— 🔴 §9.2:en 档强断言(zh 撞车、只有 en �
     }
   }
 
-  it('①正向:en 档恢复按钮逐字 `Resume`;反向:整页不出现 `Rebuild`(=aiKbRebuild 的 en 值)', async () => {
+  it('① forward: en-only resume button exactly `Resume`; reverse: whole page no `Rebuild` (=en value of aiKbRebuild)', async () => {
     const { w, restore } = await mountInEn()
     try {
       expect(w.find('.k-svc-state button').text()).toBe('Resume')
       expect(w.find('.k-svc-state button').text()).not.toBe('Rebuild')
-      // 整页也扫一遍(危险区那句 `Rebuild all indexes` 是 aiKbSetRebuildAll,不是裸 `Rebuild`)
+      // scan whole page too (danger zone's `Rebuild all indexes` is aiKbSetRebuildAll, not bare `Rebuild`)
       expect(w.find('.k-svc-state').text()).not.toContain('Rebuild')
     } finally {
       restore()
     }
   })
 
-  it('①另一侧:paused:false 时 en 档按钮逐字 `Pause`', async () => {
+  it('① other side: paused:false en-only button exactly `Pause`', async () => {
     const { w, restore } = await mountInEn({ paused: false })
     try {
       expect(w.find('.k-svc-state button').text()).toBe('Pause')
@@ -815,10 +859,11 @@ describe('SettingsView —— 🔴 §9.2:en 档强断言(zh 撞车、只有 en �
     }
   })
 
-  it('②正向:en 档沙盒标题逐字 `Test Sandbox`(大写 S);反向:不等于 `Test sandbox`(=aiKbPrTestLink)', async () => {
+  it('② forward: en-only sandbox title exactly `Test Sandbox` (capital S); reverse: not `Test sandbox` (=aiKbPrTestLink)', async () => {
     const { w, restore } = await mountInEn()
     try {
-      // `<a>` 的第 2 个直接子 div 是文案列,其第 1 个 div 是标题行(第 1 个子 div 是图标)
+      // `<a>`'s 2nd direct child div is the copy column, its 1st div is title row
+      // (its 1st child div is icon)
       const line = w.findAll('a.k-sandbox-link > div')[1]!.findAll('div')[0]!.text()
       expect(line).toBe('🧪 Test Sandbox')
       expect(line).not.toContain('Test sandbox')
@@ -830,13 +875,14 @@ describe('SettingsView —— 🔴 §9.2:en 档强断言(zh 撞车、只有 en �
     }
   })
 
-  it('③正向:en 档设备第一档逐字 `Auto`(大写 A);反向:不是 `auto`(=aiCfgAutoPlaceholder 的 en 值)', async () => {
+  it('③ forward: en-only device first level exactly `Auto` (capital A); reverse: not `auto` (=en value of aiCfgAutoPlaceholder)', async () => {
     const { w, restore } = await mountInEn()
     try {
       const first = devBtns(w)[0]!
       expect(first.text()).toBe('Auto')
       expect(first.text()).not.toBe('auto')
-      // 同族证据:两个键 zh 逐字相同、en 只差首字母大小写 → 只有 en 档能判别
+      // same-family evidence: two keys zh verbatim identical, en differs only in first letter case
+      // → only en locale can discriminate
       expect((zhCn as Record<string, string>).aiCfgAutoPlaceholder).toBe(
         (zhCn as Record<string, string>).aiKbDeviceAuto,
       )
@@ -846,7 +892,7 @@ describe('SettingsView —— 🔴 §9.2:en 档强断言(zh 撞车、只有 en �
     }
   })
 
-  it('④正向:en 档 setDevice 失败 toast 逐字 `Switch failed`;反向:不是 `Toggle failed`(=aiCfgToggleFailed)', async () => {
+  it('④ forward: en-only setDevice failure toast exactly `Switch failed`; reverse: not `Toggle failed` (=aiCfgToggleFailed)', async () => {
     const { w, store, restore } = await mountInEn()
     try {
       ai.parserControl.mockRejectedValue(new Error('boom'))
@@ -864,46 +910,49 @@ describe('SettingsView —— 🔴 §9.2:en 档强断言(zh 撞车、只有 en �
     }
   })
 
-  it('切回 zh 后服务卡仍是「恢复」(证明 locale 已还原、无污染)', async () => {
+  it('switch back to zh service card is still "Resume" (proves locale restored, no pollution)', async () => {
     const { w } = await mountPage()
     expect(w.find('.k-svc-state button').text()).toBe('恢复')
   })
 
-  // 🔴 裁定 A-1(设备「自动」用 `aiKbDeviceAuto`,不复用 `aiKbOriginAuto`)的守卫**只能落在
-  // 源码上**:两个键 en 与 zh **双双逐字相同**(`Auto` / `自动`)→ 任何渲染断言都没有判别力。
-  // ⚠️ 断言必须钉「`t()` 调用形状」而不是裸子串:本页与本文件的注释里都写着「不复用
-  // `aiKbOriginAuto`」,`not.toContain('aiKbOriginAuto')` 会撞上注释而**假报红**
-  // (治理 §9 第九条,T6 栽过)。故先 `blankComments()` 再钉调用形状。
-  it('🔴 A-1:模板用 `t(\'aiKbDeviceAuto\')`,零 `t(\'aiKbOriginAuto\')` 调用', () => {
+  // 🔴 ruling A-1 (device "Auto" uses `aiKbDeviceAuto`, doesn't reuse `aiKbOriginAuto`) guard **can only land in
+  // source code**: two keys en and zh **both exactly identical** (`Auto` / `自动`) → any render assertion
+  // has zero discrimination.
+  // ⚠️ assertion must pin "`t()` call shape" not bare substring: this page and comments in this file both
+  // say "no reuse of `aiKbOriginAuto`", `not.toContain('aiKbOriginAuto')` would hit comment and
+  // **false-positive** (governance §9 clause 9, T6 fell for this).
+  // So first `blankComments()` then pin call shape.
+  it('🔴 A-1: template uses `t(\'aiKbDeviceAuto\')`, zero `t(\'aiKbOriginAuto\')` calls', () => {
     const src: string = readFileSync(SRC_PATH, 'utf8')
     const code = blankComments(src)
     expect(code).toContain("t('aiKbDeviceAuto')")
     expect(code).not.toMatch(/\bt\(\s*['"]aiKbOriginAuto['"]/)
     const zh = zhCn as Record<string, string>
     const en = enUs as Record<string, string>
-    // 实证「为什么必须走源码」:两档都同值,渲染永远分不出来
+    // proof "why must use source code": both locales same value, render can never tell apart
     expect(zh.aiKbDeviceAuto).toBe(zh.aiKbOriginAuto)
     expect(en.aiKbDeviceAuto).toBe(en.aiKbOriginAuto)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 守卫缺口③ / ③′ —— 「模板零裸色」。
-// 🔴 本文件**不复制**那个脆弱的非贪婪正则(治理 §9 缺口③′ 明令「别再复制」);
-//   `.vue` 侧的模板零裸色守卫已由 T8 在 `src/ai/styles/knowledgeStyles.test.ts` 里
-//   **统一改成贪婪匹配 + 覆盖度自检**,并对 `src/ai/knowledge/**/*.vue` 逐个扫描
-//   (本文件对应的 `SettingsView.vue` 在那份清单里)。
-//   这里只留两条本文件独有的、与那条中央守卫不重复的断言。
-describe('SettingsView —— 零 <style> 块 + 全文件零色字面量', () => {
-  it('零 `<style>` 块(设置页整段 scss 由 T2a 搬进 knowledge.scss,本文件不 import 样式)', () => {
+// guard gap ③ / ③′ — "template zero bare color".
+// 🔴 this file **does not copy** that fragile non-greedy regex (governance §9 gap ③′ explicitly
+//   "stop copying"); template zero-bare-color guard on `.vue` side already unified by T8 in
+//   `src/ai/styles/knowledgeStyles.test.ts` to **greedy match + coverage self-check**, and scanned
+//   each `src/ai/knowledge/**/*.vue` (this file's `SettingsView.vue` is in that list).
+//   Here only keep two assertions unique to this file, not duplicating central guard.
+describe('SettingsView — zero `<style>` block + whole file zero color literals', () => {
+  it('zero `<style>` block (settings page all SCSS moved to knowledge.scss by T2a, this file no style import)', () => {
     const src: string = readFileSync(SRC_PATH, 'utf8')
     expect(src).not.toMatch(/^<style/m)
     expect(src).not.toContain("import '../../styles/")
   })
 
-  it('🔴 整个文件(含注释,剥掉 var()/color-mix() 之后)零 hex / rgb / hsl —— 比只扫模板更严', () => {
-    // 本文件零 `<style>` 块 → 全文件扫描是「模板零裸色」的**严格超集**,而且不需要任何
-    // `<template>` 边界锚定(缺口③′ 的成因就是那个锚定)。治理 §6 R5:注释里也不许有色字面量。
+  it('🔴 whole file (incl. comments, after stripping var()/color-mix()) zero hex / rgb / hsl — stricter than just template scan', () => {
+    // file has zero `<style>` block → whole-file scan is **strict superset** of "template zero bare color",
+    // needs no `<template>` boundary anchor (gap ③′'s cause is that anchor). governance §6 R5: no
+    // color literals in comments either.
     const src: string = readFileSync(SRC_PATH, 'utf8')
     const scrubbed = stripCalls(src, ['var(', 'color-mix('])
     expect(scrubbed).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
@@ -912,12 +961,13 @@ describe('SettingsView —— 零 <style> 块 + 全文件零色字面量', () =>
   })
 })
 
-// ── 小工具(与 `knowledgeStyles.test.ts` / `ParserStatus.test.ts` 同款手法)──
+// ── utilities (same technique as `knowledgeStyles.test.ts` / `ParserStatus.test.ts`) ──
 
 /**
- * 「保行版」剥注释(治理 §9 第八条):注释内容换成等量空格,**保留所有换行** ——
- * 删除式剥注释会把换行也吃掉,让报出来的行号偏移几十行。
- * 覆盖 `<!-- -->`(SFC 模板/文件头)· `/* *\/`(JSDoc)· `//`(行注释)。
+ * "preserve-lines" comment stripper (governance §9 clause 8): replace comment content with equal
+ * spaces, **preserve all newlines** —
+ * deleting comments eats newlines too, offsetting reported line numbers by dozens.
+ * Covers `<!-- -->` (SFC template/file header) · `/* *\/` (JSDoc) · `//` (line comments).
  */
 function blankComments(src: string): string {
   const blank = (m: string) => m.replace(/[^\n]/g, ' ')
@@ -927,7 +977,7 @@ function blankComments(src: string): string {
     .replace(/(^|[^:'"\\])\/\/[^\n]*/g, (m, p1: string) => p1 + ' '.repeat(m.length - p1.length))
 }
 
-/** 逐字符扫描配对括号,整段剥掉 `var(...)` / `color-mix(...)`(支持嵌套 fallback)。 */
+/** Scan paired parens char-by-char, strip `var(...)` / `color-mix(...)` segments (supports nested fallback). */
 function stripCalls(s: string, prefixes: string[]): string {
   let out = ''
   let i = 0
@@ -956,16 +1006,16 @@ function stripCalls(s: string, prefixes: string[]): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ═════════════════ 以下为 T9(蓝本下半:笔记区 + 迁移弹窗)═════════════════
+// ═════════════════ Below is T9 (blueprint lower half: notes section + migration dialog) ═════════════════
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * K29 / P5b 交接项 #3 —— `DialogPortal to=".knowledge-app"` 的宿主。
- * `SettingsView` 单独挂载时不在 `.knowledge-app` 子树里(生产环境宿主由
- * `KnowledgeLayout.vue` 提供),测试必须自己在 body 里放一个同名宿主。
- * 🔴 **`to` 只认第一个同名宿主** → 每个用例只放一个;`afterEach` 里的
- * `document.body.innerHTML = ''` 负责清掉,不会串到下一条。
- * 先例:`QueueView.test.ts` 的 `withHost()`。
+ * K29 / P5b handoff item #3 — host for `DialogPortal to=".knowledge-app"`.
+ * When `SettingsView` mounts standalone, it's not in `.knowledge-app` subtree (production host
+ * provided by `KnowledgeLayout.vue`), test must place one same-named host in body itself.
+ * 🔴 **`to` only recognizes first host with matching name** → one host per test case; `afterEach`'s
+ * `document.body.innerHTML = ''` cleans it up, won't leak to next case.
+ * Precedent: `QueueView.test.ts`'s `withHost()`.
  */
 function withHost(): HTMLElement {
   const host = document.createElement('div')
@@ -974,7 +1024,7 @@ function withHost(): HTMLElement {
   return host
 }
 
-/** 可控 promise —— 交错路径用(同 `FolderBrowser.test.ts` 的手法)。 */
+/** Controllable promise — for interleaved paths (same technique as `FolderBrowser.test.ts`). */
 function makeDeferred<T>() {
   let resolve!: (v: T) => void
   let reject!: (e: unknown) => void
@@ -987,13 +1037,13 @@ function makeDeferred<T>() {
 
 type DirInfo = { exists: boolean; empty: boolean }
 
-// ── 下半的定位小工具 ──
-// `.k-set-card` 的下标:0 服务卡 / 1 运行档卡 / **2 笔记卡** / 3 危险区卡。
+// ── lower-half locator utilities ──
+// `.k-set-card` indices: 0 service card / 1 config card / **2 notes card** / 3 danger card.
 const notesCard = (w: ReturnType<typeof mount>) => w.findAll('.k-set-card')[2]!
 const notesRows = (w: ReturnType<typeof mount>) => notesCard(w).findAll('.k-set-row')
 const folderRow = (w: ReturnType<typeof mount>) => notesRows(w)[0]!
 const captureRow = (w: ReturnType<typeof mount>) => notesRows(w)[1]!
-/** 「更改 / 取消」按钮 —— 折叠区展开时行内还有两个动作按钮,它恒是**最后**一个。 */
+/** "Change / Cancel" button — when collapsible opens, row has two action buttons inline, it's always **last**. */
 const changeBtn = (w: ReturnType<typeof mount>) => {
   const bs = folderRow(w).findAll('button')
   return bs[bs.length - 1]!
@@ -1007,26 +1057,26 @@ const fbRows = (w: ReturnType<typeof mount>) => folderRow(w).findAll('.fb-row')
 const captureSw = (w: ReturnType<typeof mount>) => captureRow(w).find('.k-sw')
 const isDisabled = (x: { element: Element }) => (x.element as HTMLButtonElement).disabled
 
-/** 点「更改」展开折叠区(等 `loadCandidates` 与 `nextTick` 里的 `fb.reset()` 都落地)。 */
+/** Click "Change" to expand collapsible (waits for `loadCandidates` and `fb.reset()` in `nextTick` to land). */
 async function openPicker(w: ReturnType<typeof mount>): Promise<void> {
   await changeBtn(w).trigger('click')
   await flushPromises()
   await nextTick()
 }
 
-/** 在 `FolderBrowser` 根层点第 `idx` 个卷 → 触发 `@pick`(真 DOM 路径,不是手 emit)。 */
+/** Click volume `idx` at `FolderBrowser` root → trigger `@pick` (real DOM path, not manual emit). */
 async function pickRoot(w: ReturnType<typeof mount>, idx = 0): Promise<void> {
   await fbRows(w)[idx]!.trigger('click')
   await flushPromises()
 }
 
-/** 回到 `FolderBrowser` 根层(点第一个面包屑,`go('')` 不 emit pick、不发请求)。 */
+/** Return to `FolderBrowser` root (click first breadcrumb, `go('')` doesn't emit pick or issue request). */
 async function backToRoot(w: ReturnType<typeof mount>): Promise<void> {
   await folderRow(w).findAll('.fb-crumb')[0]!.trigger('click')
   await flushPromises()
 }
 
-/** 勾上迁移确认框(`v-model` 监听 change)。 */
+/** Check the migration acknowledgement checkbox (`v-model` listens to change). */
 async function tickAck(host: HTMLElement): Promise<void> {
   const check = host.querySelector('.kn-checkline input') as HTMLInputElement
   check.checked = true
@@ -1038,20 +1088,21 @@ const dangerFootBtn = (host: HTMLElement) =>
   host.querySelector('.k-modal-foot button.k-btn.danger') as HTMLButtonElement
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 治理 §4.1 —— mock **层次**的守卫(评审「缺口猎①」,本期第 5 次「产品代码对、守卫为零」)。
-// 评审探针:把 `notes.getSettings` 的 mock **多带** `distill_roots` / `distill_daily_cap` /
-// `background_model` → **112/112 全绿**。即「camelCase 且**恰好两个字段**」这一半此前只由台账里
-// 的 `p5c-task-9-fixture-verify.mjs` 守,**不进三门** → 谁把 fixture 抄本改成 HTTP 原样
-// snake_case、或顺手多带几个字段,三门抓不到。这里把键集钉成集合相等断言。
-describe('SettingsView/T9 —— §4.1:fixture 抄本的 mock 层次(键集相等)', () => {
-  it('🔴 notes 两份抄本是**降层后**的形状:键集恰好相等,一个都不多不少', () => {
-    // `service.notes.getSettings/putSettings` 包内走 `normalizeSettings`
-    // (`NimoOS-Service/src/notes.ts:131-137`)→ **camelCase 且只有这两个键**;
-    // HTTP 层那三个 `distill_roots` / `distill_daily_cap` / `background_model` 被它丢掉了。
+// 🔴 governance §4.1 — guard for mock **layer** (review "gap hunt ①", 5th time this period
+// "product code correct, guard zero"). Review probe: give `notes.getSettings` mock **extra**
+// `distill_roots` / `distill_daily_cap` / `background_model` → **112/112 pass**. The half about
+// "camelCase and **exactly two fields**" was only guarded by `p5c-task-9-fixture-verify.mjs` in
+// ledger **not entering three gates** → whoever turns fixture copy into raw HTTP snake_case or
+// casually adds fields, three gates miss it. Here pin key set to equality assertion.
+describe('SettingsView/T9 — §4.1: fixture copy mock layer (key set equality)', () => {
+  it('🔴 notes two copies are **after layer reduction** shape: key set exactly equal, not one more or less', () => {
+    // `service.notes.getSettings/putSettings` package-internal goes through `normalizeSettings`
+    // (`NimoOS-Service/src/notes.ts:131-137`) → **camelCase with exactly these two keys**;
+    // the three HTTP-layer `distill_roots` / `distill_daily_cap` / `background_model` are discarded.
     expect(Object.keys(NOTES_SETTINGS)).toEqual(['notesRoot', 'autoExtract'])
-    // `dirInfo`(`notes.ts:264-267`)只做 `!!` 归一,键名/层次不变。
+    // `dirInfo` (`notes.ts:264-267`) only does `!!` normalization, keys/layer unchanged.
     expect(Object.keys(DIR_INFO_NOTES)).toEqual(['exists', 'empty'])
-    // 反向:snake_case 一个都不许出现在抄本里(写成 HTTP 原样就是错的层次)
+    // reverse: not one snake_case in the copy (writing as raw HTTP is wrong layer)
     for (const k of [...Object.keys(NOTES_SETTINGS), ...Object.keys(DIR_INFO_NOTES)]) {
       expect(k).not.toContain('_')
     }
@@ -1059,59 +1110,59 @@ describe('SettingsView/T9 —— §4.1:fixture 抄本的 mock 层次(键集相�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView/T9 —— 笔记区静态渲染(蓝本 :63-102)', () => {
-  it('区头:📝 标题 + 提示(N16:emoji 在 t() 外面)', async () => {
+describe('SettingsView/T9 — notes section static render (blueprint :63-102)', () => {
+  it('section header: 📝 title + hint (N16: emoji outside t())', async () => {
     const { w } = await mountPage()
-    // 笔记区是第一个 .k-section(危险区在沙盒入口之后)
+    // notes section is first `.k-section` (danger zone after sandbox entry)
     const sec = w.findAll('.k-section')[0]!
     expect(sec.find('.k-section-title').text()).toBe('📝 知识笔记')
     expect(sec.find('.k-section-hint').text()).toBe('笔记 = 磁盘上的 Markdown 文件')
-    // 反向:那个键本身**不含** emoji(一个符号都没往 t() 里挪)
+    // reverse: the key itself **does not include** emoji (no symbols moved into t())
     const zh = zhCn as Record<string, string>
     expect(zh.aiKbSetNotesSection).toBe('知识笔记')
     expect(zh.aiKbSetNotesSection).not.toMatch(/[📝⏸✅🧪⚠]/u)
   })
 
-  it('笔记目录行:标题 / 中文行 / 描述 + <code> 显示 fixture 的 notesRoot', async () => {
+  it('notes directory row: title / Chinese / description + <code> showing fixture notesRoot', async () => {
     const { w } = await mountPage()
     const row = folderRow(w)
     expect(row.find('.k-set-row-title').text()).toBe('笔记目录')
     expect(row.find('.k-set-row-cn').text()).toBe('笔记 Markdown 文件的存放位置')
     expect(row.find('.k-set-row-desc code').text()).toBe('/DATA/Notes')
-    // 破折号与后半句的位置逐字照抄蓝本 :77
+    // em-dash and second half position copy verbatim blueprint :77
     expect(norm(row.find('.k-set-row-desc').text())).toBe(
       '/DATA/Notes — 每个用户一个子目录;文件是纯 Markdown。',
     )
-    // 折叠区默认收起 → 没有 FolderBrowser、没有两个动作按钮
+    // collapsible default closed → no FolderBrowser, no two action buttons
     expect(row.find('.fb').exists()).toBe(false)
     expect(row.find('.kn-pick-actions').exists()).toBe(false)
     expect(changeBtn(w).classes()).toEqual(['k-btn', 'outline'])
     expect(changeBtn(w).text()).toBe('更改')
   })
 
-  it('🔴 N7 同族:notesRoot 为空串时走 `|| "/DATA/Notes"` 兜底(不是渲染成空)', async () => {
-    // 判据:删掉 `|| '/DATA/Notes'` → <code> 变空 → 本条报红
+  it('🔴 N7 same family: notesRoot empty string uses `|| "/DATA/Notes"` fallback (not render empty)', async () => {
+    // test criterion: remove `|| '/DATA/Notes'` → <code> becomes empty → test fails
     notes.getSettings.mockResolvedValue({ notesRoot: '', autoExtract: true })
     const { w } = await mountPage()
     await flushPromises()
     expect(folderRow(w).find('.k-set-row-desc code').text()).toBe('/DATA/Notes')
   })
 
-  it('🔴 created 的 catch 吞错保默认:getSettings reject 时页面照样渲染 + 走兜底', async () => {
-    // 蓝本 `:229` 的 `catch (e) { /* keep defaults */ }`。判据:改成弹 toast / 抛出去 → 报红。
+  it('🔴 created catch swallows error, keeps defaults: page still renders when getSettings rejects + uses fallback', async () => {
+    // blueprint `:229` `catch (e) { /* keep defaults */ }`. test criterion: change to toast/throw → test fails.
     notes.getSettings.mockRejectedValue(new Error('boom'))
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await flushPromises()
     expect(folderRow(w).find('.k-set-row-desc code').text()).toBe('/DATA/Notes')
-    expect(captureSw(w).attributes('data-on')).toBe('true') // 默认 autoExtract: true
+    expect(captureSw(w).attributes('data-on')).toBe('true') // default autoExtract: true
     expect(toast).not.toHaveBeenCalled()
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => {
-  it('标题 / 中文行 / 描述逐字;本机 auto_extract:true → 开关绿档、`.warn` 行**不渲染**', async () => {
+describe('SettingsView/T9 — auto-capture row two states (blueprint :104-116)', () => {
+  it('title / Chinese / description verbatim; on device auto_extract:true → toggle green, `.warn` line **not rendered**', async () => {
     const { w } = await mountPage()
     const row = captureRow(w)
     expect(row.find('.k-set-row-title').text()).toBe('自动沉淀对话洞见')
@@ -1120,11 +1171,11 @@ describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => 
       '会话空闲后,值得保留的结论会自动存为「AI 草稿」笔记,等你确认。',
     )
     expect(captureSw(w).attributes('data-on')).toBe('true')
-    // 治理 §13:本机数据下这一行不渲染,是**正确行为**
+    // governance §13: doesn't render on device data, is **correct behavior**
     expect(row.find('.k-set-row-desc .warn').exists()).toBe(false)
   })
 
-  it('autoExtract:false → 开关灰档 + `.warn` 提示行渲染(含 danger 图标与文案)', async () => {
+  it('autoExtract:false → toggle off + `.warn` hint line renders (with danger icon and text)', async () => {
     notes.getSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: false })
     const { w } = await mountPage()
     await flushPromises()
@@ -1136,8 +1187,8 @@ describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => 
     expect(norm(warn.text())).toBe('已关闭 — 排队中的草稿也会被丢弃')
   })
 
-  it('🔴 `!!` 双取反照抄(蓝本 :115)—— autoExtract 缺席时是 "false",不是 "undefined"', async () => {
-    // 判据:去掉 `!!` → `String(undefined)` === "undefined" → 本条报红。
+  it('🔴 `!!` double negation copy verbatim (blueprint :115) — autoExtract missing is "false", not "undefined"', async () => {
+    // test criterion: remove `!!` → `String(undefined)` === "undefined" → test fails.
     notes.getSettings.mockResolvedValue({
       notesRoot: '/DATA/Notes',
       autoExtract: undefined,
@@ -1147,14 +1198,15 @@ describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => 
     expect(captureSw(w).attributes('data-on')).toBe('false')
   })
 
-  it('autoExtract 为 true 时开关绿档且 `.warn` 行不渲染(蓝本 data() 默认值那一侧)', async () => {
-    // 🔴 **本条只声明组件层语义,不再声明「归一化」**(评审 I-1:原用例名写的
-    //   「后端漏 `auto_extract` → 包内 `r.auto_extract !== false` 归一成 true」**零判别力** ——
-    //   mock 打在**包边界**上,`normalizeSettings` 根本不进回路,本条与上一条的红/绿表现完全相同)。
-    //   那条不变量**归上游守**:`NimoOS-Service/src/notes.test.ts:198-203`;评审变异实测
-    //   「改 Service 的 `normalizeSettings` → New-UI 112/112 全绿、上游那条报红」。
-    //   本仓字面上也补不了:`normalizeSettings` 没从包 index 导出。
-    //   → 组件侧能验的就只有「拿到 `true` 就渲染成开」这一条,本条只声明它。
+  it('autoExtract true toggle green and `.warn` line not rendered (blueprint data() default side)', async () => {
+    // 🔴 **this case only asserts component-level semantics, no longer asserts "normalization"** (review I-1:
+    //   original case name "backend omits `auto_extract` → package `r.auto_extract !== false` normalizes to true"
+    //   **zero discrimination** — mock hits **package boundary**, `normalizeSettings` doesn't enter loop, this case
+    //   and previous have identical pass/fail behavior).
+    //   that invariant **belongs to upstream guard**: `NimoOS-Service/src/notes.test.ts:198-203`; review mutation test
+    //   "modify Service `normalizeSettings` → New-UI 112/112 pass, upstream fails".
+    //   this repo literally can't supplement it: `normalizeSettings` not exported from package index.
+    //   → component side can only verify "receives `true` renders open", this case just asserts that.
     notes.getSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: true })
     const { w } = await mountPage()
     await flushPromises()
@@ -1162,7 +1214,7 @@ describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => 
     expect(captureRow(w).find('.warn').exists()).toBe(false)
   })
 
-  it('点开关 → putSettings({ autoExtract: false })(载荷只带这一个字段)+ toast「已关闭」+ 开关翻档', async () => {
+  it('click toggle → putSettings({ autoExtract: false }) (payload one field only) + toast "Auto-capture disabled" + toggle flips', async () => {
     notes.putSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: false })
     const { w, store } = await mountPage()
     await flushPromises()
@@ -1176,7 +1228,7 @@ describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => 
     expect(captureRow(w).find('.warn').exists()).toBe(true)
   })
 
-  it('反向:autoExtract:false 时点开关 → putSettings({ autoExtract: true }) + toast「已开启」', async () => {
+  it('reverse: autoExtract:false click toggle → putSettings({ autoExtract: true }) + toast "Auto-capture enabled"', async () => {
     notes.getSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: false })
     notes.putSettings.mockResolvedValue({ notesRoot: '/DATA/Notes', autoExtract: true })
     const { w, store } = await mountPage()
@@ -1191,20 +1243,20 @@ describe('SettingsView/T9 —— 自动捕获行两态(蓝本 :104-116)', () => 
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView/T9 —— openRootPicker(蓝本 :232-240,承接 Vue2 既有单测两条行为)', () => {
-  it('点「更改」展开:按钮变 ghost + 文案变「取消」、FolderBrowser 出现、loadCandidates 被调', async () => {
+describe('SettingsView/T9 — openRootPicker (blueprint :232-240, continues Vue2 existing two behaviors)', () => {
+  it('click "Change" to expand: button becomes ghost + text changes to "Cancel", FolderBrowser appears, loadCandidates called', async () => {
     const { w } = await mountPage()
     expect(wiki.getCandidates).not.toHaveBeenCalled()
     await openPicker(w)
     expect(changeBtn(w).classes()).toEqual(['k-btn', 'ghost'])
     expect(changeBtn(w).text()).toBe('取消')
     expect(folderRow(w).find('.fb').exists()).toBe(true)
-    // ⚠️ 交接项 #7:`loadCandidates()` **不传 silent**(蓝本也不传参)
+    // ⚠️ handoff item #7: `loadCandidates()` **no silent parameter** (blueprint also no params)
     expect(wiki.getCandidates).toHaveBeenCalledTimes(1)
     expect(wiki.getCandidates).toHaveBeenCalledWith()
   })
 
-  it('本机 wiki/candidates = [] → 根层走 pickerRoots 的兜底三根(K1:store.wikiCandidates)', async () => {
+  it('on device wiki/candidates = [] → root level uses pickerRoots three fallback roots (K1: store.wikiCandidates)', async () => {
     const { w } = await mountPage()
     await openPicker(w)
     expect(fbRows(w).map((r) => r.find('.fb-name').text())).toEqual([
@@ -1214,48 +1266,48 @@ describe('SettingsView/T9 —— openRootPicker(蓝本 :232-240,承接 Vue2 既�
     ])
   })
 
-  it('候选非空时根层用候选(证明 browserRoots 真读的是 store.wikiCandidates)', async () => {
+  it('when candidates non-empty root level uses candidates (proves browserRoots truly reads store.wikiCandidates)', async () => {
     wiki.getCandidates.mockResolvedValue([
       { path: '/mnt/pool', type: 'volume', label: 'Pool' },
       { path: '/mnt/bare', type: 'volume' },
     ])
     const { w } = await mountPage()
     await openPicker(w)
-    // 第二项没有 label → FolderBrowser 模板的 `r.label || r.path` 兜底
+    // second item no label → FolderBrowser template `r.label || r.path` fallback
     expect(fbRows(w).map((r) => r.find('.fb-name').text())).toEqual(['Pool', '/mnt/bare'])
   })
 
-  it('再点一次收起(承接 Vue2 spec「再点一次关闭不抛错」)', async () => {
+  it('click once more to close (continues Vue2 spec "clicking again doesn\'t error")', async () => {
     const { w } = await mountPage()
     await openPicker(w)
     await changeBtn(w).trigger('click')
     await flushPromises()
     expect(folderRow(w).find('.fb').exists()).toBe(false)
     expect(changeBtn(w).text()).toBe('更改')
-    // 关闭那次**不**再拉候选(蓝本的 if 只在打开分支里)
+    // closing **doesn't** fetch candidates again (blueprint if only in open branch)
     expect(wiki.getCandidates).toHaveBeenCalledTimes(1)
   })
 
-  it('🔴 承接 Vue2 spec「重开时清掉上次的 path」—— 连带清掉上次的 dirProbe 徽标', async () => {
+  it('🔴 continue Vue2 spec "reopen clears previous path" — also clears previous dirProbe badge', async () => {
     const { w } = await mountPage()
     await openPicker(w)
     await pickRoot(w, 0)
     expect(folderRow(w).find('.kn-picked code').text()).toBe('/DATA')
     expect(badge(w).exists()).toBe(true)
-    // 收起 → 重开
+    // close → reopen
     await changeBtn(w).trigger('click')
     await flushPromises()
     await openPicker(w)
-    // 判据:删掉 `rootPicker.path = ''` → .kn-picked 还在 → 报红;
-    //       删掉 `dirProbe = { state: '', … }` → 徽标还在 → 也报红
+    // test criterion: remove `rootPicker.path = ''` → .kn-picked still there → test fails;
+    //                 remove `dirProbe = { state: '', … }` → badge still there → also fails
     expect(folderRow(w).find('.kn-picked').exists()).toBe(false)
     expect(badge(w).exists()).toBe(false)
     expect(wiki.getCandidates).toHaveBeenCalledTimes(2)
   })
 
-  it('🔴 展开时下一帧调 FolderBrowser 的 reset()(蓝本 :238 的 $nextTick + $refs.fb 守卫)', async () => {
-    // 只有这一条把 FolderBrowser 换成 stub —— 它是唯一需要观测 `fb.value.reset()` 被调用的
-    // 用例;其余用例一律用**真** FolderBrowser(pick 路径要走真组件)。
+  it('🔴 on expand next frame calls FolderBrowser reset() (blueprint :238 `$nextTick` + `$refs.fb` guard)', async () => {
+    // only this case swaps FolderBrowser for stub — it's the only one needing to observe
+    // `fb.value.reset()` being called; rest always use **real** FolderBrowser (pick path uses real component).
     const resetSpy = vi.fn()
     const router = makeRouter()
     await router.isReady()
@@ -1282,7 +1334,7 @@ describe('SettingsView/T9 —— openRootPicker(蓝本 :232-240,承接 Vue2 既�
     await flushPromises()
     expect(w.find('.fb-stubbed').exists()).toBe(true)
     expect(resetSpy).toHaveBeenCalledTimes(1)
-    // 收起那一次**不**调 reset(蓝本的 if 只在打开分支里)
+    // closing **doesn't** call reset (blueprint if only in open branch)
     await changeBtn(w).trigger('click')
     await nextTick()
     await flushPromises()
@@ -1291,8 +1343,8 @@ describe('SettingsView/T9 —— openRootPicker(蓝本 :232-240,承接 Vue2 既�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组合(蓝本 :83-85 / :248)', () => {
-  it('①loading —— [data-s="archived"]「检查中…」(探针在飞时)', async () => {
+describe('SettingsView/T9 — dirProbe four-state badge + migratable three-combination logic (blueprint :83-85 / :248)', () => {
+  it('① loading — [data-s="archived"] "Checking..." (probe in flight)', async () => {
     const d = makeDeferred<DirInfo>()
     notes.dirInfo.mockReturnValue(d.promise)
     const { w } = await mountPage()
@@ -1304,7 +1356,7 @@ describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组
     await flushPromises()
   })
 
-  it('②done + migratable(目录**不存在**)—— [data-s="curated"]「空目录 · 可迁移」', async () => {
+  it('② done + migratable (directory **does not exist**) — [data-s="curated"] "Empty directory · migratable"', async () => {
     notes.dirInfo.mockResolvedValue({ exists: false, empty: false })
     const { w } = await mountPage()
     await openPicker(w)
@@ -1313,7 +1365,7 @@ describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组
     expect(badge(w).text()).toBe('空目录 · 可迁移')
   })
 
-  it('②done + migratable(目录**存在且空**)—— 同一档', async () => {
+  it('② done + migratable (directory **exists and empty**) — same level', async () => {
     notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
     const { w } = await mountPage()
     await openPicker(w)
@@ -1321,7 +1373,7 @@ describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组
     expect(badge(w).attributes('data-s')).toBe('curated')
   })
 
-  it('③done + !migratable(本机 /DATA/Notes fixture:存在且非空)—— [data-s="draft"]「非空目录 — 只能指向」', async () => {
+  it('③ done + !migratable (on device /DATA/Notes fixture: exists and not empty) — [data-s="draft"] "Non-empty directory — pointer only"', async () => {
     notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
     const { w } = await mountPage()
     await openPicker(w)
@@ -1330,9 +1382,9 @@ describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组
     expect(badge(w).text()).toBe('非空目录 — 只能指向')
   })
 
-  it('🔴 migratable 判据是 `!exists || empty`(**或**,不是且)—— 改成 && 时两侧会塌成 draft', async () => {
-    // 判别力说明:`!exists && empty` 下 {exists:false,empty:false} → false → draft;
-    // {exists:true,empty:true} 也 → false → draft。本条把两侧摆在一起当回归锚点。
+  it('🔴 migratable criterion is `!exists || empty` (**or**, not and) — swap to && both sides collapse to draft', async () => {
+    // discrimination explanation: under `!exists && empty` {exists:false,empty:false} → false → draft;
+    // {exists:true,empty:true} also → false → draft. This case puts both sides together as regression anchor.
     notes.dirInfo.mockResolvedValueOnce({ exists: false, empty: false })
     const { w } = await mountPage()
     await openPicker(w)
@@ -1345,7 +1397,7 @@ describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组
     expect(badge(w).attributes('data-s')).toBe('curated')
   })
 
-  it('🔴 ④error —— **三档徽标一个都不出**(蓝本没有第四个分支),但 .kn-picked 仍在', async () => {
+  it('🔴 ④ error — **all three badges absent** (blueprint has no fourth branch), but `.kn-picked` remains', async () => {
     notes.dirInfo.mockRejectedValue(new Error('boom'))
     const { w } = await mountPage()
     await openPicker(w)
@@ -1355,20 +1407,20 @@ describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组
     expect(badge(w).exists()).toBe(false)
   })
 
-  it('「已选择:」前缀与 <code> 的位置逐字(蓝本 :82,冒号是模板里的裸 ASCII)', async () => {
+  it('"Selected:" prefix and <code> position verbatim (blueprint :82, colon is bare ASCII in template)', async () => {
     notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
     const { w } = await mountPage()
     await openPicker(w)
     await pickRoot(w, 0)
-    // ⚠️ `</code>` 与徽标 `<span>` 之间**没有空格**:两者在模板里跨行相邻,Vue 的
-    //   `whitespace: 'condense'`(默认)把「只含换行的空白节点」整个删掉。蓝本 `:82-83`
-    //   是同样的跨行相邻写法、同样的编译口径 → 渲染逐字一致,别自己补空格。
+    // ⚠️ **no space** between `</code>` and badge `<span>`: adjacent across lines in template, Vue's
+    //   `whitespace: 'condense'` (default) entirely removes "whitespace nodes containing only newlines".
+    //   Blueprint `:82-83` same cross-line adjacency, same compilation stance → render verbatim, don't add space.
     expect(norm(folderRow(w).find('.kn-picked').text())).toBe('已选择: /DATA空目录 · 可迁移')
-    // 冒号后面**有**一个空格(那是模板里 `}}: <code>` 的裸 ASCII 空格,不是换行)
+    // **one space** after colon (that's bare ASCII space in template `}}: <code>`, not newline)
     expect(folderRow(w).find('.kn-picked').text()).toContain('已选择: ')
   })
 
-  it('.kn-pick-note 长说明逐字(带中文引号)', async () => {
+  it('.kn-pick-note long note verbatim (with Chinese quotes)', async () => {
     const { w } = await mountPage()
     await openPicker(w)
     expect(folderRow(w).find('.kn-pick-note').text()).toBe(
@@ -1378,34 +1430,34 @@ describe('SettingsView/T9 —— dirProbe 四态徽标 + migratable 判据三组
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 治理 §5.2 + §9.1 —— `onPick` 的两处过期守卫。
-describe('SettingsView/T9 —— onPick 过期守卫(蓝本 :241-253,两处守卫)', () => {
-  it('🔴 交错路径:先点 A 再点 B、**A 的响应后到** → dirProbe 是 B 的结果(成功分支那处守卫)', async () => {
+// 🔴 governance §5.2 + §9.1 — two stale guards for `onPick`.
+describe('SettingsView/T9 — onPick stale guards (blueprint :241-253, two guards)', () => {
+  it('🔴 interleaved path: click A then B, **A response arrives late** → dirProbe is B result (success branch guard)', async () => {
     const dA = makeDeferred<DirInfo>()
     const dB = makeDeferred<DirInfo>()
     notes.dirInfo.mockImplementation((p: string) => (p === '/DATA' ? dA.promise : dB.promise))
     const { w } = await mountPage()
     await openPicker(w)
-    await pickRoot(w, 0) // A = /DATA(探针在飞)
+    await pickRoot(w, 0) // A = /DATA (probe in flight)
     await backToRoot(w)
-    await pickRoot(w, 1) // B = /media(探针在飞)
+    await pickRoot(w, 1) // B = /media (probe in flight)
     expect(notes.dirInfo.mock.calls.map((c: unknown[]) => c[0])).toEqual(['/DATA', '/media'])
     expect(folderRow(w).find('.kn-picked code').text()).toBe('/media')
 
-    // 后发(B)先回 → 落地
+    // later call (B) returns first -> lands
     dB.resolve({ exists: true, empty: true })
     await flushPromises()
     expect(badge(w).attributes('data-s')).toBe('curated')
 
-    // 先发(A)后回 → 🔴 必须被守卫挡住,不许把 B 的 curated 覆盖成 draft
-    // 判据:拿掉成功分支那处 `if (rootPicker.path !== path) return` → 变 draft → 报红
+    // earlier call (A) returns later -> 🔴 must be blocked by the guard, must not overwrite B's curated with draft
+    // criterion: drop the success branch's `if (rootPicker.path !== path) return` -> turns into draft -> test goes red
     dA.resolve({ exists: true, empty: false })
     await flushPromises()
     expect(badge(w).attributes('data-s')).toBe('curated')
     expect(folderRow(w).find('.kn-picked code').text()).toBe('/media')
   })
 
-  it('🔴 交错路径 · catch 侧:A 后到且是**失败** → 不许把 B 的成功徽标擦成 error(catch 那处守卫)', async () => {
+  it('🔴 interleaved path · catch side: A response late and **fails** → don\'t erase B\'s success badge into error (catch guard)', async () => {
     const dA = makeDeferred<DirInfo>()
     const dB = makeDeferred<DirInfo>()
     notes.dirInfo.mockImplementation((p: string) => (p === '/DATA' ? dA.promise : dB.promise))
@@ -1417,26 +1469,26 @@ describe('SettingsView/T9 —— onPick 过期守卫(蓝本 :241-253,两处守�
     dB.resolve({ exists: false, empty: false })
     await flushPromises()
     expect(badge(w).attributes('data-s')).toBe('curated')
-    // 判据:拿掉 catch 里的 `if (rootPicker.path === path)` → 徽标整个消失 → 报红
+    // test criterion: remove `if (rootPicker.path === path)` from catch → badge disappears entirely → test fails
     dA.reject(new Error('late failure'))
     await flushPromises()
     expect(badge(w).exists()).toBe(true)
     expect(badge(w).attributes('data-s')).toBe('curated')
   })
 
-  it('同一路径的失败**要**落地成 error 档(守卫是「只挡过期的」,不是「全挡」)', async () => {
+  it('same path failure **must** land in error level (guard is "stale-only", not "all-blocking")', async () => {
     notes.dirInfo.mockRejectedValue(new Error('boom'))
     const { w } = await mountPage()
     await openPicker(w)
     await pickRoot(w, 0)
-    expect(badge(w).exists()).toBe(false) // error 档三徽标都不出
-    // 且「搬文件」在 error 档下**仍可点**(disabled 的第二个条件要求 state === 'done')
+    expect(badge(w).exists()).toBe(false) // error level all three badges absent
+    // and "move files" **still clickable** under error level (second disabled condition requires state === 'done')
     expect(isDisabled(moveBtn(w))).toBe(false)
   })
 
-  it('🔴 §9.1 —— **两实例交错**:各自拿到自己的结果,互不覆盖(守卫变量必须是组件本地)', async () => {
-    // 判据:把 `rootPicker` 挪到模块级(另开一个 `<script>` 块)→ 两个实例串号 →
-    // 两边渲染成同一个路径 → 本条报红。
+  it('🔴 §9.1 — **two instances interleaved**: each gets own result, no overlap (guard var must be component-local)', async () => {
+    // test criterion: move `rootPicker` to module level (open new `<script>` block) → two instances get crossed →
+    // both sides render same path → test fails.
     const dA = makeDeferred<DirInfo>()
     const dB = makeDeferred<DirInfo>()
     notes.dirInfo.mockImplementation((p: string) => (p === '/DATA' ? dA.promise : dB.promise))
@@ -1444,10 +1496,10 @@ describe('SettingsView/T9 —— onPick 过期守卫(蓝本 :241-253,两处守�
     const { w: w2 } = await mountPage()
     await openPicker(w1)
     await openPicker(w2)
-    await pickRoot(w1, 0) // 实例 1 选 /DATA
-    await pickRoot(w2, 1) // 实例 2 选 /media
+    await pickRoot(w1, 0) // instance 1 selects /DATA
+    await pickRoot(w2, 1) // instance 2 selects /media
 
-    // 交错回:实例 2 先回、实例 1 后回
+    // interleaved return: instance 2 returns first, instance 1 returns later
     dB.resolve({ exists: true, empty: true })
     await flushPromises()
     dA.resolve({ exists: true, empty: false })
@@ -1455,14 +1507,14 @@ describe('SettingsView/T9 —— onPick 过期守卫(蓝本 :241-253,两处守�
 
     expect(folderRow(w1).find('.kn-picked code').text()).toBe('/DATA')
     expect(folderRow(w2).find('.kn-picked code').text()).toBe('/media')
-    expect(badge(w1).attributes('data-s')).toBe('draft') // /DATA 非空
-    expect(badge(w2).attributes('data-s')).toBe('curated') // /media 空
+    expect(badge(w1).attributes('data-s')).toBe('draft') // /DATA not empty
+    expect(badge(w2).attributes('data-s')).toBe('curated') // /media empty
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView/T9 —— 两个动作按钮的 disabled(蓝本 :88 / :91)', () => {
-  it('没选路径 → **两个都灰**(「仅指向」的唯一条件 / 「搬文件」的第一个条件)', async () => {
+describe('SettingsView/T9 — two action buttons disabled (blueprint :88 / :91)', () => {
+  it('no path selected → **both gray** ("point to" only condition / "move files" first condition)', async () => {
     const { w } = await mountPage()
     await openPicker(w)
     expect(adoptBtn(w).exists()).toBe(true)
@@ -1470,7 +1522,7 @@ describe('SettingsView/T9 —— 两个动作按钮的 disabled(蓝本 :88 / :91
     expect(isDisabled(moveBtn(w))).toBe(true)
   })
 
-  it('选了路径 + 探针 done + **可迁移** → 两个都可点', async () => {
+  it('path selected + probe done + **migratable** → both clickable', async () => {
     notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
     const { w } = await mountPage()
     await openPicker(w)
@@ -1479,8 +1531,8 @@ describe('SettingsView/T9 —— 两个动作按钮的 disabled(蓝本 :88 / :91
     expect(isDisabled(moveBtn(w))).toBe(false)
   })
 
-  it('🔴 选了路径 + 探针 done + **不可迁移**(本机 /DATA/Notes 那档)→ 「仅指向」可点、「搬文件」灰', async () => {
-    // 判据:删掉 disabled 的第二个条件 → 「搬文件」变可点 → 本条报红
+  it('🔴 path selected + probe done + **not migratable** (on device /DATA/Notes level) → "point to" clickable, "move files" gray', async () => {
+    // test criterion: remove second disabled condition → "move files" becomes clickable → test fails
     notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
     const { w } = await mountPage()
     await openPicker(w)
@@ -1489,7 +1541,7 @@ describe('SettingsView/T9 —— 两个动作按钮的 disabled(蓝本 :88 / :91
     expect(isDisabled(moveBtn(w))).toBe(true)
   })
 
-  it('选了路径 + 探针仍 loading → 「搬文件」**可点**(第二个条件要求 state === "done")', async () => {
+  it('path selected + probe still loading → "move files" **clickable** (second condition requires state === "done")', async () => {
     const d = makeDeferred<DirInfo>()
     notes.dirInfo.mockReturnValue(d.promise)
     const { w } = await mountPage()
@@ -1501,7 +1553,7 @@ describe('SettingsView/T9 —— 两个动作按钮的 disabled(蓝本 :88 / :91
     await flushPromises()
   })
 
-  it('两个按钮的图标 / 文案逐字(蓝本 :89 / :93)', async () => {
+  it('two buttons icon / text verbatim (blueprint :89 / :93)', async () => {
     const { w } = await mountPage()
     await openPicker(w)
     expect(adoptBtn(w).findComponent(KIcon).props('name')).toBe('folder')
@@ -1512,7 +1564,7 @@ describe('SettingsView/T9 —— 两个动作按钮的 disabled(蓝本 :88 / :91
     expect(moveBtn(w).text()).toBe('迁移文件到新目录…')
   })
 
-  it('🔴 点「搬文件」只开弹窗,**一个请求都不发**(蓝本 :92 就是 `migrating = true`)', async () => {
+  it('🔴 click "move files" only opens dialog, **no requests** (blueprint :92 is just `migrating = true`)', async () => {
     withHost()
     notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
     const { w } = await mountPage()
@@ -1525,10 +1577,10 @@ describe('SettingsView/T9 —— 两个动作按钮的 disabled(蓝本 :88 / :91
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K29 —— 迁移确认弹窗转 reka 原语(蓝本 :120-156 是裸 .k-modal-bg + @click)。
-// portal 目标 `.knowledge-app` 只认第一个同名宿主 → 每条用例先 `withHost()`。
-describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
-  /** 打开折叠区、选一个目录、点「搬文件」→ 弹窗开。 */
+// 🔴 K29 — migration confirmation dialog becomes reka primitives (blueprint :120-156 is bare .k-modal-bg + @click).
+// portal target `.knowledge-app` only recognizes first same-named host → each case calls `withHost()` first.
+describe('SettingsView/T9 — K29: reka migration confirmation dialog', () => {
+  /** Open collapsible, select directory, click "move files" → dialog opens. */
   async function openModal(dirInfo: DirInfo = { exists: true, empty: true }) {
     const host = withHost()
     notes.dirInfo.mockResolvedValue(dirInfo)
@@ -1542,7 +1594,7 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     return { ...m, host }
   }
 
-  it('默认不渲染;点「搬文件」后 portal 到 .knowledge-app,head/body/foot 内容逐字', async () => {
+  it('default not rendered; after clicking "move files" portals to .knowledge-app, head/body/foot content verbatim', async () => {
     const host = withHost()
     notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
     const { w } = await mountPage()
@@ -1556,46 +1608,46 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     await flushPromises()
     const modal = host.querySelector('.k-modal')
     expect(modal).not.toBeNull()
-    // 遮罩类名照抄蓝本 :121
+    // overlay class copy verbatim blueprint :121
     expect(host.querySelector('.k-modal-bg')).not.toBeNull()
-    // head:标题 + × 按钮
+    // head: title + × button
     expect(modal!.querySelector('.k-modal-head .k-modal-title')!.textContent).toBe('迁移笔记文件?')
     expect(modal!.querySelector('.k-modal-head button.k-modal-x')).not.toBeNull()
     const titleEl = modal!.querySelector('.k-modal-title') as HTMLElement
     expect(titleEl.id).toBe(modal!.getAttribute('aria-labelledby'))
     expect(modal!.querySelectorAll('[id]')).toHaveLength(1)
-    // body:旧路径 → 新路径
+    // body: old path → new path
     const path = modal!.querySelector('.kn-mig-path')!
     expect(path.querySelector('span')!.textContent).toBe('/DATA/Notes')
     expect(path.querySelector('b')!.textContent).toBe('/DATA')
-    // body:三条要求
+    // body: three requirements
     const lis = Array.from(modal!.querySelectorAll('.kn-mig-req li'))
     expect(lis).toHaveLength(3)
     expect(norm(lis[0]!.textContent!)).toBe('目标目录必须为空 — 非空目录后端会拒绝迁移。')
     expect(norm(lis[1]!.textContent!)).toBe('文件会被移动(不是复制),原目录随后为空。')
     expect(norm(lis[2]!.textContent!)).toBe('迁移期间笔记短暂只读,通常几秒内完成。')
-    // body:勾选行
+    // body: acknowledgement line
     const check = modal!.querySelector('.kn-checkline input') as HTMLInputElement
     expect(check.type).toBe('checkbox')
     expect(norm(modal!.querySelector('.kn-checkline')!.textContent!)).toBe(
       '我已了解这是移动磁盘文件的操作',
     )
-    // foot:取消 + danger 开始迁移
+    // foot: cancel + danger start migration
     const footBtns = Array.from(modal!.querySelectorAll('.k-modal-foot button'))
     expect(footBtns.map((b) => norm(b.textContent!))).toEqual(['取消', '开始迁移'])
     expect(footBtns[0]!.className).toBe('k-btn ghost')
     expect(footBtns[1]!.className).toBe('k-btn danger')
   })
 
-  it('🔴 N7 同族第二处:notesRoot 为空串时弹窗旧路径也走 `|| "/DATA/Notes"` 兜底(蓝本 :129)', async () => {
-    // 第一版漏了这条 —— 探针 P10b(只删弹窗那处兜底)当时 111/111 全绿,**零判别力**。
-    // 蓝本把同一个兜底写了**两处**(:77 目录行 + :129 弹窗旧路径),两处都要有用例。
+  it('🔴 N7 same family second place: notesRoot empty string also uses `|| "/DATA/Notes"` fallback in dialog old path (blueprint :129)', async () => {
+    // first version missed this — probe P10b (removed only dialog fallback) 111/111 all pass, **zero discrimination**.
+    // blueprint has same fallback in **two places** (:77 directory row + :129 dialog old path), both need test case.
     notes.getSettings.mockResolvedValue({ notesRoot: '', autoExtract: true })
     const { host } = await openModal()
     expect(host.querySelector('.kn-mig-path span')!.textContent).toBe('/DATA/Notes')
   })
 
-  it('弹窗内的 KIcon 逐个:× 的 x/13 · 箭头 arrowRight/13/var(--warning) · 底部 upload/12', async () => {
+  it('KIcons in dialog each: × is x/13 · arrow arrowRight/13/var(--warning) · bottom upload/12', async () => {
     const { w } = await openModal()
     const icons = w.findAllComponents(KIcon)
     const head = icons.find((i) => i.props('name') === 'x')!
@@ -1603,13 +1655,13 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     const arrow = icons.find((i) => i.props('name') === 'arrowRight')!
     expect(arrow.props('size')).toBe(13)
     expect(arrow.props('color')).toBe('var(--warning)')
-    // upload 有两个(折叠区那个按钮 + 弹窗底部),两个 size 都是 12
+    // upload two (collapsible button + dialog bottom), both size 12
     const uploads = icons.filter((i) => i.props('name') === 'upload')
     expect(uploads).toHaveLength(2)
     expect(uploads.map((i) => i.props('size'))).toEqual([12, 12])
   })
 
-  it('🔴 第一条 <li> 的 :color 三元 —— 可迁移侧三个 check 全 var(--success),且无红色 <b>', async () => {
+  it('🔴 first <li> ternary :color — migratable side three checks all var(--success), no red <b>', async () => {
     const { w, host } = await openModal({ exists: true, empty: true })
     const checks = w.findAllComponents(KIcon).filter((i) => i.props('name') === 'check')
     expect(checks).toHaveLength(3)
@@ -1622,9 +1674,9 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     expect(host.querySelector('.kn-mig-req li b')).toBeNull()
   })
 
-  it('🔴 三元另一侧 —— 目标非空时第一个 check 变 var(--danger) + 渲染红色 <b> 补充句', async () => {
-    // 🔴 这一档要绕过「搬文件」按钮(非空时它是灰的)—— 先在**可迁移**目录上打开弹窗,
-    // 再把探针换成非空重新 pick(弹窗已开,`migrating` 不受 pick 影响)。
+  it('🔴 ternary other side — target non-empty first check becomes var(--danger) + renders red <b> addendum', async () => {
+    // 🔴 this level must bypass "move files" button (gray when non-empty) — first open dialog on **migratable**
+    // directory, then swap probe to non-empty, re-pick (dialog already open, `migrating` unaffected by pick).
     const { w, host } = await openModal({ exists: true, empty: true })
     expect(host.querySelector('.kn-mig-req li b')).toBeNull()
     notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
@@ -1643,14 +1695,14 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     expect(b!.getAttribute('style')).toContain('var(--danger)')
   })
 
-  it('🔴 migrateAck 门控 danger 按钮两侧:未勾选 → 灰;勾选后 → 可点', async () => {
+  it('🔴 migrateAck gates danger button both sides: unchecked → gray; checked → clickable', async () => {
     const { host } = await openModal()
     expect(dangerFootBtn(host).disabled).toBe(true)
     await tickAck(host)
     expect(dangerFootBtn(host).disabled).toBe(false)
   })
 
-  it('点 × 关闭弹窗且不发请求', async () => {
+  it('click × close dialog and no request', async () => {
     const { host } = await openModal()
     await tickAck(host)
     ;(host.querySelector('.k-modal-x') as HTMLElement).click()
@@ -1660,15 +1712,15 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     expect(notes.putSettings).not.toHaveBeenCalled()
   })
 
-  it('🔴 closeMigrate 清 migrateAck:关掉再打开,勾选框是**未勾**、danger 按钮回到灰', async () => {
-    // 判据:`closeMigrate` 只清 `migrating` 不清 `migrateAck` → 重开后 danger 直接可点 → 报红
+  it('🔴 closeMigrate clears migrateAck: close then reopen, checkbox **unchecked**, danger button back to gray', async () => {
+    // test criterion: `closeMigrate` only clears `migrating` not `migrateAck` → danger directly clickable after reopen → test fails
     const { w, host } = await openModal()
     await tickAck(host)
     expect(dangerFootBtn(host).disabled).toBe(false)
     ;(host.querySelector('.k-modal-x') as HTMLElement).click()
     await nextTick()
     await flushPromises()
-    // 重开
+    // reopen
     await moveBtn(w).trigger('click')
     await nextTick()
     await flushPromises()
@@ -1676,7 +1728,7 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     expect(dangerFootBtn(host).disabled).toBe(true)
   })
 
-  it('点「取消」关闭且不发请求', async () => {
+  it('click "Cancel" close and no request', async () => {
     const { host } = await openModal()
     const cancel = Array.from(host.querySelectorAll('.k-modal-foot button')).find(
       (b) => norm(b.textContent!) === '取消',
@@ -1688,10 +1740,10 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
     expect(notes.putSettings).not.toHaveBeenCalled()
   })
 
-  it('点遮罩(弹窗外)关闭;点弹窗内不关闭(reka pointerDownOutside 等价蓝本 @click/@click.stop)', async () => {
+  it('click overlay (outside dialog) close; click inside dialog no close (reka pointerDownOutside equivalent blueprint @click/@click.stop)', async () => {
     const { host } = await openModal()
-    // reka 的 usePointerDownOutside 用 setTimeout(0) 延后挂 document 监听(见
-    // node_modules/reka-ui/dist/DismissableLayer/utils.js 头注释)—— 补一次真宏任务 tick。
+    // reka's usePointerDownOutside delays with setTimeout(0) to attach document listener (see
+    // node_modules/reka-ui/dist/DismissableLayer/utils.js header) — add real macrotask tick.
     await new Promise((resolve) => setTimeout(resolve, 0))
     ;(host.querySelector('.k-modal-title') as HTMLElement).dispatchEvent(
       new Event('pointerdown', { bubbles: true }),
@@ -1708,8 +1760,8 @@ describe('SettingsView/T9 —— K29:reka 迁移确认弹窗', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView/T9 —— applyRoot 两个 mode + doMigrate 的先关后发(蓝本 :267-281)', () => {
-  it('「仅指向」→ putSettings({ notesRoot, mode: "adopt" })、关折叠区、toast「笔记目录已更新」', async () => {
+describe('SettingsView/T9 — applyRoot two modes + doMigrate close-then-send (blueprint :267-281)', () => {
+  it('"Point to" → putSettings({ notesRoot, mode: "adopt" }), close collapsible, toast "Notes directory updated"', async () => {
     notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
     notes.putSettings.mockResolvedValue({ notesRoot: '/DATA', autoExtract: true })
     const { w, store } = await mountPage()
@@ -1722,17 +1774,19 @@ describe('SettingsView/T9 —— applyRoot 两个 mode + doMigrate 的先关后�
     expect(notes.putSettings).toHaveBeenCalledTimes(1)
     expect(notes.putSettings).toHaveBeenCalledWith({ notesRoot: '/DATA', mode: 'adopt' })
     expect(toast).toHaveBeenCalledWith('笔记目录已更新')
-    // 折叠区收起 + <code> 换成后端返回的新值
+    // collapsible closed + <code> swaps to new value backend returned
     expect(folderRow(w).find('.fb').exists()).toBe(false)
     expect(folderRow(w).find('.k-set-row-desc code').text()).toBe('/DATA')
   })
 
-  it('🔴 「开始迁移」→ mode: "migrate"(第二个取值),且**先关弹窗再发请求**(蓝本 :268-269 的顺序)', async () => {
-    // 🔴 判别「先关后发」的**唯一可观测差别**是「请求在飞的那段时间弹窗在不在」——
-    //   所以 `putSettings` 必须挂在一个可控 promise 上。
-    //   (第一版在 mockImplementation 里查 DOM,查到的是**尚未 flush** 的 DOM:
-    //    `closeMigrate()` 与 `putSettings()` 之间没有 await,Vue 还没重渲染 → 恒 false。
-    //    那不是「顺序错」,是「探针问对象错了」。)
+  it('🔴 "Start migration" → mode: "migrate" (second value), and **close dialog then send request** (blueprint :268-269 order)', async () => {
+    // 🔴 the **only observable difference** distinguishing "close then send" is "whether the
+    //   dialog is still open while the request is in flight" -- so `putSettings` must hang off
+    //   a controllable promise.
+    //   (the first version checked the DOM inside mockImplementation, but that DOM had **not yet
+    //    flushed**: there's no await between `closeMigrate()` and `putSettings()`, so Vue hasn't
+    //    re-rendered yet -> always false.
+    //    that wasn't "wrong order", it was "probing the wrong thing".)
     const host = withHost()
     notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
     const d = makeDeferred<NotesSettings>()
@@ -1747,14 +1801,14 @@ describe('SettingsView/T9 —— applyRoot 两个 mode + doMigrate 的先关后�
     await flushPromises()
     await tickAck(host)
     dangerFootBtn(host).click()
-    // reka 的 FocusScope 卸载要多走一轮微任务(`data-focus-scope-unmounting`),
-    // 只 `nextTick()` 的话节点还挂着(`data-state="closed"`)。`flushPromises()`
-    // 只排微任务,**不会**让 `d.promise` 兑现 —— 请求仍在飞。
+    // reka's FocusScope unmount takes one extra microtask tick (`data-focus-scope-unmounting`);
+    // a bare `nextTick()` still leaves the node mounted (`data-state="closed"`). `flushPromises()`
+    // only drains microtasks, it **will not** make `d.promise` settle -- the request is still in flight.
     await nextTick()
     await flushPromises()
     await nextTick()
-    // 请求还在飞 —— 弹窗**已经关了**。
-    // 判据:把 doMigrate 里的 closeMigrate() 挪到 await 之后 → 弹窗此刻仍在 → 报红。
+    // the request is still in flight -- the dialog **is already closed**.
+    // criterion: move closeMigrate() in doMigrate to after the await -> dialog would still be open here -> test goes red.
     expect(notes.putSettings).toHaveBeenCalledWith({ notesRoot: '/DATA', mode: 'migrate' })
     expect(host.querySelector('.k-modal')).toBeNull()
 
@@ -1766,13 +1820,13 @@ describe('SettingsView/T9 —— applyRoot 两个 mode + doMigrate 的先关后�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K30 —— 下半的两处 catch **不回显后端文本**(蓝本 `applyRoot` 读
-// `e.response.data.detail`、`toggleAutoExtract` 读 `e.message`)。
-// 判据是**排除式断言**:让 `putSettings` reject 一个**既带 response.data.detail 又带
-// message** 的错误,断言 toast / 全局 toast 栈 / 整页 DOM 三处都不含那两段文本。
-// ⚠️ 探针文本只出现在本文件里,**故意不出现在 `SettingsView.vue` 的注释里**
-// (治理 §9 第九条:否定式断言撞注释 = 假报红,T6 栽过一次)。
-describe('SettingsView/T9 —— K30:下半两处 catch 的排除式断言', () => {
+// 🔴 K30 — lower two catches **do not expose backend text** (blueprint `applyRoot` reads
+// `e.response.data.detail`, `toggleAutoExtract` reads `e.message`).
+// Criterion is **exclusion assertion**: have `putSettings` reject error with **both response.data.detail
+// and message**, assert toast / global stack / whole DOM three don't contain either.
+// ⚠️ probe text only in this file, **intentionally absent from `SettingsView.vue` comments**
+// (governance §9 clause 9: negation hits comment = false positive, T6 fell for this).
+describe('SettingsView/T9 — K30: lower two catches exclusion assertions', () => {
   const PROBE_DETAIL = 'PROBE-NOTES-DETAIL-3b9d20'
   const PROBE_MSG = 'PROBE-NOTES-MESSAGE-8e15af'
 
@@ -1796,7 +1850,7 @@ describe('SettingsView/T9 —— K30:下半两处 catch 的排除式断言', () 
     }
   }
 
-  it('catch⑤ applyRoot("adopt")→ 只弹「操作失败」,零后端 detail / 零 e.message', async () => {
+  it('catch⑤ applyRoot("adopt") → only toast "Operation failed", zero backend detail / zero e.message', async () => {
     notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
     const { w, store } = await mountPage()
     await flushPromises()
@@ -1808,12 +1862,12 @@ describe('SettingsView/T9 —— K30:下半两处 catch 的排除式断言', () 
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
     expect(toast).toHaveBeenCalledWith('操作失败')
-    // 失败时折叠区**不关**(蓝本的 `rootPicker.open = false` 在 await 之后、catch 之外)
+    // on failure collapsible **doesn't close** (blueprint `rootPicker.open = false` after await, outside catch)
     expect(folderRow(w).find('.fb').exists()).toBe(true)
     assertNoLeak(w, toast)
   })
 
-  it('catch⑥ toggleAutoExtract → 只弹「操作失败」,零后端文本,且开关不翻档', async () => {
+  it('catch⑥ toggleAutoExtract → only toast "Operation failed", zero backend text, toggle doesn\'t flip', async () => {
     const { w, store } = await mountPage()
     await flushPromises()
     rejectingPut()
@@ -1822,11 +1876,11 @@ describe('SettingsView/T9 —— K30:下半两处 catch 的排除式断言', () 
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
     expect(toast).toHaveBeenCalledWith('操作失败')
-    expect(captureSw(w).attributes('data-on')).toBe('true') // 失败 → 值不动
+    expect(captureSw(w).attributes('data-on')).toBe('true') // failure → value stays
     assertNoLeak(w, toast)
   })
 
-  it('catch⑤ 的 migrate 分支同样只弹固定键(400 非空目标那条真实路径)', async () => {
+  it('catch⑤ migrate branch also only toasts fixed key (400 non-empty target real path)', async () => {
     const host = withHost()
     notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
     const { w, store } = await mountPage()
@@ -1848,13 +1902,14 @@ describe('SettingsView/T9 —— K30:下半两处 catch 的排除式断言', () 
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 治理 §9.2 + §9.3 —— **双向**同族扫描的常驻守卫。
-// T9 用到的 29 个键 × 全表(真实模块导入,1595 键 —— 订正历史见下方断言处的注释)双向比对:
-//   方向 1(§9.2):zh 撞车 → en 是否不同   → 实测 9 对撞车,en **全部相同**
-//   方向 2(§9.3):en 撞车 → zh 是否不同   → 实测 9 对撞车,zh **全部相同**
-// → **本刀余零同族对**(不需要新的 en 档正/反向断言;T8 那四对的断言原样保留、一字未动)。
-// 下面两条把「零」钉成常驻断言:将来谁加一个「zh 同 / en 不同」的键,必须按 N21 登记。
-describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对', () => {
+// 🔴 governance §9.2 + §9.3 — **bidirectional** same-family scan permanent guards.
+// T9 uses 29 keys × full table (real module import, 1595 keys — correction history in assertions below)
+//   bidirectional compare:
+//   direction 1 (§9.2): zh collision → en differs?   → verified 9 collisions, en **all same**
+//   direction 2 (§9.3): en collision → zh differs?   → verified 9 collisions, zh **all same**
+// → **this change zero same-family pairs** (need no new en +/reverse assertions; T8's four keep as-is).
+// Two cases below pin "zero" as permanent assertion: whoever adds "zh same / en different" key must register by N21.
+describe('SettingsView/T9 — §9.2/§9.3 bidirectional same-family scan: this change zero pairs', () => {
   const T9_KEYS = [
     'aiKbSetNotesSection', 'aiKbSetNotesSectionHint', 'aiKbSetNotesFolder',
     'aiKbSetNotesFolderCn', 'aiKbSetNotesFolderDesc', 'aiKbSetSelected',
@@ -1870,30 +1925,38 @@ describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对'
   const zh = zhCn as Record<string, string>
   const en = enUs as Record<string, string>
 
-  it('本刀 29 个键在两档都存在(键名回附录 A + 语言包双向核准过 —— E-18 的教训)', () => {
+  it('all 29 keys added by this cut exist in both locales (key names traced back to Appendix A + bidirectional locale-pack verification -- lesson from E-18)', () => {
     expect(T9_KEYS).toHaveLength(29)
     for (const k of T9_KEYS) {
       expect(typeof zh[k], `zh_cn.ts 缺 ${k}`).toBe('string')
       expect(typeof en[k], `en_us.ts 缺 ${k}`).toBe('string')
     }
-    // 全表键数用**真实模块导入**计(治理 §9.3 第 2 条:文本解析会少算)。
-    // 原为 1503(P5c-T9 引入的快照,此后从未改过);P5d-T1 加 92 键后订正为 1595 ——
-    // 依据协调者裁定 R15 / E-43(该快照与本用例被测对象——T9 自己的 29 个键——无关,
-    // 只是恰好嵌在同一条用例里,每个后续加键的期都会撞上它一次;D-3 已挂账交 P5e 拍板
-    // 是否改成下限断言,本次只订正数字,不重构这条守卫)。
-    // P5c-T9 引入快照 → P5d-T1 订正 1503→1595(裁定 R15 / 勘误 E-43)→ P5e 依据治理 §0.1
-    // (债务票 D-3)改为下限断言。原两行:
+    // Full-table key count is computed via **real module import** (governance §9.3 clause 2:
+    // text parsing would undercount).
+    // Originally 1503 (the snapshot introduced by P5c-T9, never touched since); after P5d-T1
+    // added 92 keys it was corrected to 1595 --
+    // per coordinator ruling R15 / E-43 (this snapshot is unrelated to what this test case actually
+    // covers -- T9's own 29 keys -- it just happens to be embedded in the same test case, so every
+    // subsequent key-adding milestone collides with it once; D-3 is filed pending P5e's decision on
+    // whether to switch to a lower-bound assertion; this pass only corrects the number, it does not
+    // refactor this guard).
+    // P5c-T9 introduced the snapshot -> P5d-T1 corrected 1503->1595 (ruling R15 / erratum E-43) ->
+    // P5e switched to a lower-bound assertion per governance §0.1 (debt ticket D-3). The original
+    // two lines were:
     //   expect(Object.keys(zh)).toHaveLength(1595)
     //   expect(Object.keys(en)).toHaveLength(1595)
-    // 精确的键集一致性由 src/i18n/parity.test.ts 守(它断言 zh/en 键集完全相等,比「两个数字
-    // 相等」强);快照唯一多出的价值是「键总数不会下降」(防批量误删),下限断言恰好只保留
-    // 这个价值,同时让「每个加键的期都红在一个与该期毫不相干的文件里」的跨期陷阱永久归零。
-    // 下限值 = P5e Task 1 落地后的实测值(真实模块导入,治理 §9.3 第 2 条:文本解析会少算)。
+    // Exact key-set parity is guarded by src/i18n/parity.test.ts (it asserts the zh/en key sets are
+    // fully equal, stronger than "two numbers being equal"); the snapshot's only added value was
+    // "the total key count never drops" (guards against bulk accidental deletion), and the lower-
+    // bound assertion preserves exactly that value while permanently zeroing out the cross-milestone
+    // trap of "every key-adding milestone goes red in a file that has nothing to do with it".
+    // Lower bound = the measured value after P5e Task 1 landed (real module import, governance §9.3
+    // clause 2: text parsing would undercount).
     expect(Object.keys(zh).length).toBeGreaterThanOrEqual(1648)
     expect(Object.keys(en).length).toBeGreaterThanOrEqual(1648)
   })
 
-  it('🔴 方向 1(§9.2):zh 撞车的对里,en **没有**一对不同(有就必须按 N21 登记)', () => {
+  it('🔴 direction 1 (§9.2): among zh-colliding pairs, en has **no** differing pair (if any, must register via N21)', () => {
     const bad: string[] = []
     for (const k of T9_KEYS) {
       for (const o of Object.keys(zh)) {
@@ -1904,7 +1967,7 @@ describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对'
     expect(bad).toEqual([])
   })
 
-  it('🔴 方向 2(§9.3):en 撞车的对里,zh **没有**一对不同(镜像方向,T8 评审加的)', () => {
+  it('🔴 direction 2 (§9.3): among en-colliding pairs, zh has **no** differing pair (mirror direction, added by T8 review)', () => {
     const bad: string[] = []
     for (const k of T9_KEYS) {
       for (const o of Object.keys(en)) {
@@ -1915,7 +1978,7 @@ describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对'
     expect(bad).toEqual([])
   })
 
-  it('实测的 8 对撞车确实存在且两档同值(证明上面两条不是「扫不到东西」的空转)', () => {
+  it('the 8 measured colliding pairs genuinely exist and match in both locales (proves the two tests above are not just scanning nothing)', () => {
     const pairs: Array<[string, string]> = [
       ['aiKbCancel', 'filesCancel'],
       ['aiKbCancel', 'startAppCancel'],
@@ -1934,19 +1997,19 @@ describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对'
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView/T9 —— 源码侧:K29 的 reka 原语与 portal 目标真的用上了', () => {
-  it('DialogPortal 的 to 指向 .knowledge-app + 遮罩/内容用 reka 原语(K7 同族,SP8 已爆三次)', () => {
+describe('SettingsView/T9 — source side: K29 reka primitives and portal target truly used', () => {
+  it('DialogPortal to targets .knowledge-app + overlay/content use reka primitives (K7 same family, SP8 exposed thrice)', () => {
     const src: string = readFileSync(SRC_PATH, 'utf8')
     const code = blankComments(src)
     expect(code).toContain('<DialogPortal to=".knowledge-app" defer>')
     expect(code).toContain('<DialogOverlay class="k-modal-bg">')
     expect(code).toContain('style="width: min(460px, 100%)"')
-    // 反面:蓝本那套裸 div 写法不许残留(先剥注释,否则会撞上文件头的引述而假报红)
+    // negative: blueprint bare div syntax must not linger (strip comments first, else hits file header quote → false positive)
     expect(code).not.toMatch(/v-if="migrating"/)
     expect(code).not.toMatch(/@click\.stop/)
   })
 
-  it('弹窗任何关闭路径都走 closeMigrate(不是直接写 migrating = $event)', () => {
+  it('dialog any close path uses closeMigrate (not directly write migrating = $event)', () => {
     const src: string = readFileSync(SRC_PATH, 'utf8')
     const code = blankComments(src)
     expect(code).toContain('@update:open="onMigrateOpenChange"')

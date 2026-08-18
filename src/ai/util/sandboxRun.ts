@@ -1,30 +1,34 @@
-// SP8-P3b Task 2 —— 对齐 Vue2 src/views/AI/Skills/TestPanel.vue:160-172 的 SSE 事件归约逻辑。
+// SP8-P3b Task 2 — align with Vue2 src/views/AI/Skills/TestPanel.vue:160-172 SSE event reduction logic.
 //
-// Vue2 每收到一片 message/message_delta/text 就 push 一个新的字符串到 output.steps
-// （:162 `this.output.steps.push(ev.content)`），逐词流式发送时会在结果列表里炸出一大堆
-// 单字/单词的独立行，而不是一段连续文本。后端 message_delta 是逐词发的
-// （NimoOS-AI/agent/agent.py:1266,1284），Vue2 这里没适配。
-// 【拍板偏离 D2，见 p3b-common-constraints.md §3.1】本仓改成：连续的文本片如果上一步也是
-// text，就把新内容追加到同一步里；工具调用（tool_call）仍然单独起一行。
+// Vue2 pushes a new string to output.steps every time it receives a message/message_delta/text chunk
+// (:162 `this.output.steps.push(ev.content)`); when streaming word-by-word, the result list explodes
+// with many individual characters/words on separate lines instead of continuous text. The backend sends
+// message_delta word-by-word (NimoOS-AI/agent/agent.py:1266,1284), and Vue2 here has not adapted.
+// [Agreed to deviate from D2, see p3b-common-constraints.md §3.1] This repo changes to: if a continuous
+// text chunk follows a text step, append the new content to the same step; tool calls (tool_call) still
+// start on separate lines.
 //
-// 纯函数：不读时钟（elapsedMs 由调用方传入，便于测试），不就地修改传入的 state，
-// 每次返回一个新对象（包括 steps 数组本身，即使内容未变也返回新引用是可接受的——
-// 但为避免不必要的对象抖动，无变化路径直接原样返回入参 s）。
+// Pure function: does not read the clock (elapsedMs is passed by caller for testing convenience),
+// does not modify the passed state in place. Returns a new object each time (including the steps
+// array itself; returning a new reference even if content is unchanged is acceptable — but to avoid
+// unnecessary object churn, the unchanged path returns the input s unchanged).
 //
-// 不实现 `tokens`：Vue2 模板 TestPanel.vue:70-73 有 `output.tokens != null` 分支，
-// 但 `output.tokens` 全组件从未被赋值（`data()` 里初始化为 null 后再无写入点）——
-// 是死分支。照 P3a 处理 trigger_human 的先例，此处不复刻这个字段，SandboxState 类型上
-// 没有 tokens，.test.ts 里有一条探针钉死这一点。
+// Do not implement `tokens`: Vue2 template TestPanel.vue:70-73 has an `output.tokens != null` branch,
+// but `output.tokens` is never assigned anywhere in the component (initialized to null in `data()` then
+// no more writes) — it is a dead branch. Following the pattern of handling trigger_human in P3a, we do
+// not replicate this field here; SandboxState type has no tokens, and .test.ts has a probe assertion
+// pinning down this fact.
 
 export type SandboxStep = { kind: 'text' | 'tool'; text: string }
 
-// 【P3b 终审 I2】`failed` 与 `error` 解耦。设计 §5 写的是「error = String(ev.content
-// ?? '')(空则留空，由 UI 填本地化兜底文案）」——本 reducer 一直照做，但在这个改动
-// 之前状态上没有独立的失败标志，TestPanel 只能拿 `sandbox.error` 非空来判定"失败"。
-// 后端 `NimoOS-AI/agent/agent.py:999` 发的是 `{"type":"error","content": str(e)}`，
-// `str(e)` 对某些异常（如不带消息构造的异常）是空串——此时 `error === ''`，消费端会
-// 把一次真实失败误判为成功。`failed` 只在收到 `error` 事件时置真，与 content 文本
-// 是否为空完全无关；`error` 继续只承载"要不要显示后端原文"这一件事。
+// [P3b final review I2] `failed` and `error` decoupled. Design §5 states "error = String(ev.content
+// ?? '') (empty leaves it empty, UI fills in localized fallback text)" — this reducer has always followed
+// this, but before this change the state had no independent failure flag, so TestPanel could only use
+// `sandbox.error` being non-empty to determine "failed". The backend sends `{"type":"error","content": str(e)}`
+// (NimoOS-AI/agent/agent.py:999); for some exceptions (like exceptions constructed without a message),
+// str(e) is an empty string — then `error === ''`, and consumers would misclassify a real failure as success.
+// `failed` is set to true only when an `error` event is received, completely independent of whether the
+// content text is empty; `error` continues to only carry "whether to display the raw backend response".
 export type SandboxState = {
   steps: SandboxStep[]
   ms: number | null
@@ -38,9 +42,9 @@ export function initSandboxState(): SandboxState {
 }
 
 /**
- * 对齐 Vue2 TestPanel.vue run() 里 onEvent 回调（:158-172）。
- * 事件取舍见 p3b-task-2-brief.md §2.1 的表；忽略 thinking/tool_result/confirmation_required
- * 等其余事件类型。返回新的 SandboxState，不修改入参 s 或 s.steps。
+ * Align with Vue2 TestPanel.vue run() onEvent callback (:158-172).
+ * Event selection/rejection see table in p3b-task-2-brief.md §2.1; ignore thinking/tool_result/confirmation_required
+ * and other event types. Returns a new SandboxState, does not modify input s or s.steps.
  */
 export function reduceSandboxEvent(
   s: SandboxState,
@@ -70,7 +74,7 @@ export function reduceSandboxEvent(
   }
 
   if (type === 'error') {
-    // failed=true 无条件置(与 content 是否为空无关，见上方类型注释——P3b 终审 I2）。
+    // failed=true is set unconditionally (independent of whether content is empty, see type annotation above — P3b final review I2).
     return { ...s, error: String(ev.content ?? ''), failed: true }
   }
 

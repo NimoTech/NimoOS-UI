@@ -6,6 +6,7 @@
 // 的),只 mock 共享包 service。useLightbox 是模块级单例,同 PhotosSmartViewDetail.test.ts
 // 的既有手法直接 mock 整个模块。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -26,7 +27,34 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
+// Plan F Task 5: PhotoLightbox is now actually mounted in PhotosSearch.vue's template (this page
+// never had a mount before -- see task-5-report.md), so this mock must satisfy every property/
+// method PhotoLightbox.vue's own setup script touches unconditionally (its two `watch()` calls
+// read `lb.index.value`/`lb.open.value`/`lb.current.value` at setup time regardless of whether
+// the lightbox is ever opened). Plain `{ value: ... }` objects (not real Vue `ref()`s) are enough
+// here -- this file's ~100 other tests never open the lightbox, so `open.value` stays `false`
+// forever and the `v-if` gate keeps the rest of PhotoLightbox's template from ever evaluating;
+// no reactivity is needed for a value that never changes. The dedicated "click result opens
+// lightbox" test lives in PhotosSearch.lightbox.test.ts instead, using the real useLightbox()
+// singleton (same split as Photos.vue/Photos.lightbox.test.ts).
+const lbMock = vi.hoisted(() => ({
+  open: { value: false },
+  current: { value: null },
+  detail: { value: null },
+  list: { value: [] },
+  index: { value: 0 },
+  isFav: { value: false },
+  hasPrev: { value: false },
+  hasNext: { value: false },
+  ocrLines: { value: [] },
+  startMs: { value: 0 },
+  openAt: vi.fn(),
+  close: vi.fn(),
+  prev: vi.fn(),
+  next: vi.fn(),
+  goTo: vi.fn(),
+  toggleFav: vi.fn(),
+}))
 vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
 
 import PhotosSearch from '../PhotosSearch.vue'
@@ -144,7 +172,7 @@ describe('路由 query 驱动', () => {
     // 先真的选中并提交一个过滤(type=OCR),确认它在换词后被清空——只开弹层不 Apply
     // 不构成"过滤生效"的证据(chipActive 判据看的是 filters,不是 openPop)。
     await w.get('[data-test="chip-type"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     expect(w.get('[data-test="chip-type"] .fchip').attributes('data-on')).toBe('true')
     await router.push('/photos/search?q=def')
@@ -182,8 +210,8 @@ describe('路由 query 驱动', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     expect(spy).toHaveBeenCalledTimes(1)
-    await w.get('.photos-search-bar input').setValue('abc')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('abc')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     expect(spy).toHaveBeenCalledTimes(2)
     expect(spy).toHaveBeenNthCalledWith(2, 'abc')
@@ -213,6 +241,84 @@ describe('预搜索态', () => {
     const replaceSpy = vi.spyOn(router, 'replace')
     await chips[1].trigger('click')
     expect(replaceSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'b' } })
+  })
+})
+
+// Fix-4 (owner-directed addition, 2026-08-17), no Vue2 source: a clear-history affordance.
+// Clicking wipes the persisted localStorage key and the reactive `history` ref together, so both
+// render spots -- the prestate `.prestate-recent` chips block and the results-state
+// `.search-history` row -- empty in the same tick (their existing v-if guards already hide on an
+// empty array).
+describe('Fix-4: 清除搜索历史', () => {
+  it('history 非空时渲染 .prestate-recent-head 里的清除按钮(data-test=search-history-clear)', async () => {
+    localStorage.setItem('nimo_search_history', JSON.stringify(['c', 'b', 'a']))
+    const { w } = await mountSearch('/photos/search')
+    expect(w.find('[data-test="search-history-clear"]').exists()).toBe(true)
+  })
+
+  it('history 为空 → 不渲染 .prestate-recent 整块(含清除按钮)', async () => {
+    const { w } = await mountSearch('/photos/search')
+    expect(w.find('.prestate-recent').exists()).toBe(false)
+    expect(w.find('[data-test="search-history-clear"]').exists()).toBe(false)
+  })
+
+  it('点清除 → localStorage 键被删、.prestate-recent 整块(含 chips)消失', async () => {
+    localStorage.setItem('nimo_search_history', JSON.stringify(['c', 'b', 'a']))
+    const { w } = await mountSearch('/photos/search')
+    expect(w.findAll('[data-test="prestate-chip"]')).toHaveLength(3)
+
+    await w.get('[data-test="search-history-clear"]').trigger('click')
+
+    expect(localStorage.getItem('nimo_search_history')).toBeNull()
+    expect(w.find('.prestate-recent').exists()).toBe(false)
+    expect(w.findAll('[data-test="prestate-chip"]')).toHaveLength(0)
+  })
+
+  it('清除后导航到有结果的查询态 → .search-history 结果态历史行也不再出现(同一个 history ref)', async () => {
+    localStorage.setItem('nimo_search_history', JSON.stringify(['b', 'a']))
+    const { w, router } = await mountSearch('/photos/search')
+    await w.get('[data-test="search-history-clear"]').trigger('click')
+
+    await router.push('/photos/search?q=other')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('.search-history').exists()).toBe(false)
+  })
+})
+
+// ── Plan F Task 1: D13 topbar alignment ───────────────────────────────────
+// Vue2 ground truth (NimoOS-UI PhotosSearchView.vue + PhotosTopbar.vue) has exactly ONE
+// search input on this page — the shared topbar's `.search` box — and this page's own hero
+// is a pure TEXT echo row (`.search-query` + `.kw` spans), never an editable input. New-UI's
+// own PhotosSearchBar.vue (a D13 deviation: a second, page-body-local editable input) has been
+// retired: grep-confirmed no other consumer remains, so the component + its test file were
+// deleted outright rather than left dead in the tree.
+describe('顶栏搜索框:PhotosSearchBar 退场,topbar 的 .search 是唯一输入框(Plan F Task 1)', () => {
+  it('顶栏搜索框回显路由 q 的值', async () => {
+    const { w } = await mountSearch('/photos/search?q=sunset')
+    await flushPromises()
+    expect((w.get('.topbar .search input').element as HTMLInputElement).value).toBe('sunset')
+  })
+
+  it('q 为空 → 顶栏搜索框也是空', async () => {
+    const { w } = await mountSearch('/photos/search')
+    expect((w.get('.topbar .search input').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('页面里只有一个 input(顶栏那个),不再渲染 PhotosSearchBar 的独立输入框', async () => {
+    const { w } = await mountSearch('/photos/search?q=sunset')
+    await flushPromises()
+    expect(w.findAll('input')).toHaveLength(1)
+    expect(w.find('.photos-search-bar').exists()).toBe(false)
+  })
+
+  it('hero 区没有 input,只有 .search-query 文本回显(+ .kw 高亮)', async () => {
+    svc.photos.smartSearch.mockResolvedValue([rawAsset('a')])
+    const { w } = await mountSearch('/photos/search?q=my%20videos')
+    await flushPromises()
+    expect(w.find('[data-test="search-hero"] input').exists()).toBe(false)
+    expect(w.find('[data-test="search-query"]').exists()).toBe(true)
   })
 })
 
@@ -314,7 +420,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
     expect(w.findAll('.tile')).toHaveLength(2)
 
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click') // 勾选第一个地点
+    await w.get('.fpop-item').trigger('click') // 勾选第一个地点
     expect(w.findAll('.tile')).toHaveLength(2) // 未提交,结果不变
   })
 
@@ -326,7 +432,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click') // Apply
     expect(w.findAll('.tile')).toHaveLength(1)
     expect(w.get('[data-test="chip-place"] .fchip').attributes('data-on')).toBe('true')
@@ -340,7 +446,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.fpop-quick').trigger('click') // Cancel(fpop-quick 的第一个是 Cancel)
     expect(w.findAll('.tile')).toHaveLength(2)
     expect(w.get('[data-test="chip-place"] .fchip').attributes('data-on')).toBe('false')
@@ -354,7 +460,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await w.vm.$nextTick()
     expect(w.find('.fpop-list').exists()).toBe(false) // 弹层已关
@@ -380,7 +486,7 @@ describe('filteredResults', () => {
   // type 分支的谓词全部取反,49/49 仍全绿。这里补三条真正设置 `filters.type` 的用例
   // (通过 type chip 的 PhotosFilterPopover 选中对应项 → Apply),brief Step 1 明确要求
   // "五种过滤各一条"。type chip 的 items 固定顺序是 `['Photos','OCR','Videos']`
-  // (`TYPE_ITEMS`),`.nav-item` 按同一顺序渲染,按下标选择对应项。
+  // (`TYPE_ITEMS`),`.fpop-item` 按同一顺序渲染,按下标选择对应项。
   it('type=Photos(下标 0)→ 只剩非视频、非 OCR 的照片', async () => {
     svc.photos.smartSearch.mockResolvedValue([
       rawAsset('photo1', { mimeType: 'image/jpeg', hasOcr: false }),
@@ -390,7 +496,7 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-type"] .fchip').trigger('click')
-    await w.findAll('.nav-item')[0].trigger('click') // Photos
+    await w.findAll('.fpop-item')[0].trigger('click') // Photos
     await w.get('.btn.btn-primary').trigger('click')
     const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
     expect(ids).toHaveLength(1)
@@ -406,7 +512,7 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-type"] .fchip').trigger('click')
-    await w.findAll('.nav-item')[1].trigger('click') // OCR
+    await w.findAll('.fpop-item')[1].trigger('click') // OCR
     await w.get('.btn.btn-primary').trigger('click')
     const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
     expect(ids).toHaveLength(1)
@@ -422,7 +528,7 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-type"] .fchip').trigger('click')
-    await w.findAll('.nav-item')[2].trigger('click') // Videos
+    await w.findAll('.fpop-item')[2].trigger('click') // Videos
     await w.get('.btn.btn-primary').trigger('click')
     const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
     expect(ids).toHaveLength(1)
@@ -483,7 +589,7 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click') // 选 Tokyo(排第一,频次高)
+    await w.get('.fpop-item').trigger('click') // 选 Tokyo(排第一,频次高)
     await w.get('.btn.btn-primary').trigger('click')
     await w.get('[data-test="chip-people"] .fchip').trigger('click')
     await w.get('.face-cell').trigger('click')
@@ -501,7 +607,7 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -525,7 +631,7 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -553,7 +659,7 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -578,7 +684,7 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -620,17 +726,17 @@ describe('filters.album', () => {
     await flushPromises()
     // 选 A → Apply(请求在途)。
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     // 重开弹层,取消 A → Apply(filters.album = null)。
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click') // 再点一次 = 取消勾选
+    await w.get('.fpop-item').trigger('click') // 再点一次 = 取消勾选
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     // 再选 A → Apply(第一次请求仍未 resolve,这次调用会被 store 自己短路掉)。
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     // 第一次真正的请求这时才姗姗来迟,带着真实数据。
@@ -653,13 +759,13 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click') // 选 A(id 1,慢响应,尚未 resolve)
+    await w.get('.fpop-item').trigger('click') // 选 A(id 1,慢响应,尚未 resolve)
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     // 切到 B(id 2,快响应)之前,先重开弹层。
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
     // 取消 A,勾选 B。
-    const items = w.findAll('.nav-item')
+    const items = w.findAll('.fpop-item')
     await items[0].trigger('click') // 取消 A
     await items[1].trigger('click') // 勾选 B
     await w.get('.btn.btn-primary').trigger('click')
@@ -888,12 +994,12 @@ describe('搜索历史', () => {
   // 测试要补上等待)。
   it('onSubmit("abc") → localStorage 里是 ["abc"];再 "def" → ["def","abc"]', async () => {
     const { w } = await mountSearch('/photos/search')
-    await w.get('.photos-search-bar input').setValue('abc')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('abc')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['abc'])
-    await w.get('.photos-search-bar input').setValue('def')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('def')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['def', 'abc'])
   })
@@ -901,8 +1007,8 @@ describe('搜索历史', () => {
   it('重复 "abc" → 去重提前:["abc","def"]', async () => {
     localStorage.setItem('nimo_search_history', JSON.stringify(['def', 'abc']))
     const { w } = await mountSearch('/photos/search')
-    await w.get('.photos-search-bar input').setValue('abc')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('abc')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['abc', 'def'])
   })
@@ -910,8 +1016,8 @@ describe('搜索历史', () => {
   it('超过 6 条 → 只留 6', async () => {
     localStorage.setItem('nimo_search_history', JSON.stringify(['1', '2', '3', '4', '5', '6']))
     const { w } = await mountSearch('/photos/search')
-    await w.get('.photos-search-bar input').setValue('7')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('7')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     const stored = JSON.parse(localStorage.getItem('nimo_search_history')!)
     expect(stored).toHaveLength(6)
@@ -922,8 +1028,8 @@ describe('搜索历史', () => {
     const { w } = await mountSearch('/photos/search')
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota') })
     await expect(
-      w.get('.photos-search-bar input').setValue('boom').then(() =>
-        w.get('.photos-search-bar input').trigger('keydown.enter')),
+      w.get('.topbar .search input').setValue('boom').then(() =>
+        w.get('.topbar .search input').trigger('keydown.enter')),
     ).resolves.not.toThrow()
     spy.mockRestore()
   })
@@ -1120,12 +1226,30 @@ describe('路由', () => {
     const resolved = appRouter.resolve('/photos/search')
     expect(resolved.name).toBe('photos-search')
   })
+
+  // Fix-4 item 2 (owner acceptance, 2026-08-13): PhotosTopbar 的 back 按钮(Vue2 searchMode 的
+  // chevL,Fix-3 item 7 接线)点击后应导航回 /photos——不是 router.back()(深链/新开标签页
+  // 没有历史记录可退),onBack() 的既定实现是 router.push('/photos')。
+  it('点 PhotosTopbar 的返回键 → router.push("/photos")', async () => {
+    const { w, router } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const pushSpy = vi.spyOn(router, 'push')
+    // 限定在 .topbar 内查找——PhotosSidebar 自己也有 .icon-btn(折叠抽屉触发/主题切换),
+    // 裸 `.icon-btn` 会连带把它们一起选中。
+    const icons = w.findAll('.topbar .icon-btn')
+    // 第一个是折叠按钮,第二个是 back=true 时渲染的返回键(PhotosTopbar.vue 结构规格)。
+    expect(icons).toHaveLength(2)
+    await icons[1]!.trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith('/photos')
+  })
 })
 
 // ── fix round 1 · I4:8 枚本文件新增内联 svg 的 glyph 精确复刻 ──────────────────
-// 本文件另有一枚(search 图标,用在预搜索态 chip)+ PhotosSearchBar.vue 的 search 图标
-// 已在各自组件的测试文件里断言。评审同时改坏 clock 与 map 两枚的 d 值 → 上一轮 49/49
-// 全绿,本轮给 9 枚(8 枚本文件 + 已在 PhotosSearchBar.test.ts 断言的 1 枚)逐一补断言。
+// 本文件另有一枚(search 图标,用在预搜索态 chip)+ 顶栏 PhotosTopbar.vue 的 search 图标
+// 已在各自组件的测试文件里断言(Plan F Task 1:此前是 PhotosSearchBar.vue 断言这一枚,
+// 该组件已随本任务退场,同款断言现在活在 PhotosTopbar.test.ts 里)。评审同时改坏 clock
+// 与 map 两枚的 d 值 → 上一轮 49/49 全绿,本轮给 9 枚(8 枚本文件 + 已在 PhotosTopbar.test.ts
+// 断言的 1 枚)逐一补断言。
 describe('glyph 精确复刻(逐字符抄自 Vue2 PhotosIcon.vue)', () => {
   it('预搜索态 search chip 图标的 path d', async () => {
     localStorage.setItem('nimo_search_history', JSON.stringify(['a']))
@@ -1216,21 +1340,41 @@ describe('样式:hover 硬约束(cssCascade)', () => {
     expect(winner.selector).toContain('data-saved')
   })
 
-  it('.prestate-chip 存在 :hover 规则(cssCascade 视角的最小合规性检查)', () => {
+  // Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward) — same rollback treatment
+  // as PhotosFilterChip.vue/PhotosFilterPopover.vue's own 2026-08-13 rollback: `.prestate-chip`
+  // is genuine Vue2-sourced CSS (Vue2 photos.scss:2781 has this exact hover rule too, not a
+  // New-UI additive enhancement like `.sort button`/`.save-smart` above), and
+  // vue2-parity/photos.scss already carries it verbatim — the local scoped duplicate (which used
+  // to reach for New-UI's global `--accent-text` instead of the correct local `--accent-hi`) is
+  // deleted, not re-pointed at the right token, since parity's own copy is already correct.
+  it('本组件 scoped style 不再含 .prestate-chip 颜色规则(已整体移交 parity)', () => {
     const style = extractStyleBlock(photosSearchRaw)
-    // .prestate-chip 是 `.search-prestate .prestate-chip` 后代选择器,两个类都要喂给
-    // 匹配器(cssCascade.ts 的匹配是"选择器里出现的每个 class 都必须在允许集合内",不是
-    // 结构化的后代关系判定)。
-    const winner = winningHoverBackground(style, ['prestate-chip', 'search-prestate'])
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors.some((s) => s.includes('prestate-chip'))).toBe(false)
+  })
+
+  it('parity scss:.search-prestate .prestate-chip:hover 规则含 :hover', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const winner = winningHoverBackground(parityScss, ['prestate-chip', 'search-prestate'])
     expect(winner.selector).toContain(':hover')
     expect(winner.selector).toContain('prestate-chip')
   })
 })
 
 describe('样式:非颜色视觉属性锚定(先锚定规则体再断言属性)', () => {
-  it('.search-prestate .nimo-orb / .empty-search .nimo-orb 都是 68×68', () => {
+  // Fix-3 item 7: `.nimo-orb`(含 `.search-prestate .nimo-orb`/`.empty-search .nimo-orb` 两个
+  // 尺寸变体)与 `.empty-search .conditions .fchip` 已随 2026-08-13 回退整体移交
+  // vue2-parity/photos.scss——本组件不再自带这几条规则,断言对象改成共享 parity 文件。
+  it('本组件 scoped style 不再含 .nimo-orb/.empty-search .conditions .fchip 规则(已整体移交 parity)', () => {
     const style = extractStyleBlock(photosSearchRaw)
-    const rules = parseCssRules(style)
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors.some((s) => s.includes('nimo-orb'))).toBe(false)
+    expect(selectors.some((s) => s === '.empty-search .conditions .fchip')).toBe(false)
+  })
+
+  it('parity scss:.search-prestate .nimo-orb / .empty-search .nimo-orb 都是 68×68', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rules = parseCssRules(parityScss)
     for (const sel of ['.search-prestate .nimo-orb', '.empty-search .nimo-orb']) {
       const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === sel)
       expect(rule, `未找到规则:${sel}`).toBeDefined()
@@ -1239,9 +1383,9 @@ describe('样式:非颜色视觉属性锚定(先锚定规则体再断言属性)'
     }
   })
 
-  it('.empty-search .conditions .fchip 紧凑高度是 26px', () => {
-    const style = extractStyleBlock(photosSearchRaw)
-    const rule = parseCssRules(style).find(
+  it('parity scss:.empty-search .conditions .fchip 紧凑高度是 26px', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
       (r) => r.selectors.length === 1 && r.selectors[0] === '.empty-search .conditions .fchip',
     )
     expect(rule).toBeDefined()

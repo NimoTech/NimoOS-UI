@@ -74,3 +74,23 @@ describe('upload batches REST', () => {
   afterEach(() => vi.unstubAllGlobals())
   beforeEach(() => vi.clearAllMocks())
 })
+
+describe('server-side ledger cleanup', () => {
+  it('abandonUnder posts the badged entry path so every stacked batch clears at once', async () => {
+    const http = fakeHttp({ data: { abandoned: 2 } })
+    const api = createUploadBatches(http, () => 'tok')
+    await api.abandonUnder('/DATA/Media/Trip')
+    expect(http.post).toHaveBeenCalledWith('/v2/nimoos/file/upload-batches/abandon-under', {
+      path: '/DATA/Media/Trip',
+    })
+  })
+
+  it('removeBatchItems posts the canceled relative paths', async () => {
+    const http = fakeHttp({ data: { removed: true } })
+    const api = createUploadBatches(http, () => 'tok')
+    await api.removeBatchItems('b1', ['Trip/a.jpg'])
+    expect(http.post).toHaveBeenCalledWith('/v2/nimoos/file/upload-batches/b1/remove-items', {
+      relativePaths: ['Trip/a.jpg'],
+    })
+  })
+})

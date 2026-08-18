@@ -7,16 +7,14 @@ import type { FileEntry } from '../stores/files'
  * wins only when it holds more than one entry AND the right-clicked entry is
  * part of it. Otherwise the action applies to the clicked entry alone.
  *
- * This is defence-in-depth, not a bug fix: the pre-existing, divergent logic
- * this replaces ("any non-empty selection wins") was never actually observable
- * through the UI, because `Files.vue`'s `onItemContextmenu` (`:81-85`) always
- * collapses the selection to the clicked entry via `files.selectOnly()`
- * (`files.ts:145`) *before* the menu opens or this function is consulted —
- * right-clicking an unselected entry already leaves the selection holding only
- * that entry by the time anything here runs. What this buys instead is a
- * single source of truth: both the action dispatch and the menu's
- * single-vs-multi shape read this one function, so they cannot drift apart
- * even though today they'd happen to agree anyway.
+ * Since 2026-08-13 this is the actual mechanism, not defence-in-depth:
+ * `Files.vue`'s `onItemContextmenu` no longer touches the selection on
+ * right-click (it used to collapse it via `files.selectOnly()`, which lit up
+ * the row and summoned the top SelectionToolbar for a plain right-click — an
+ * owner-requested removal). A right-clicked entry outside the selection is
+ * therefore genuinely targeted alone while the selection stays intact, and
+ * both the action dispatch and the menu's single-vs-multi shape read this one
+ * function, so they cannot drift apart.
  *
  * @param entry the right-clicked entry, or null for toolbar batch entry points
  * @param selected the current selection, in listing order

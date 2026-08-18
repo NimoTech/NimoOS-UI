@@ -17,7 +17,7 @@ describe('GridCanvas', () => {
     const cells = w.findAll('[data-id]')
     expect(cells).toHaveLength(2)
     const clock = w.get('[data-kind="widget"]')
-    // grid-column 起始列 = c
+    // grid-column start column = c
     expect(clock.attributes('style')).toContain('grid-column: 1 / span 2')
     expect(clock.attributes('style')).toContain('grid-row: 1 / span 2')
     expect(clock.text()).toContain('时间')

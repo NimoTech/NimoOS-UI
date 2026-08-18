@@ -38,7 +38,7 @@ export function widgetSize(key: string): WidgetSize | undefined {
 export { APP_WIDGET_SIZE } from './appWidgetSize'
 
 export function sizeOfItem(it: { kind: string; key: string }): WidgetSize | undefined {
-  // 应用自带范围就用自带的(夹进全局),否则全局 2×1..4×4
+  // Use the app's own declared range if present (clamped into the global bounds), else global 2×1..4×4
   if (it.kind === 'appwidget') return appWidgetRange(useAppsStore().app(it.key)?.widget)
   if (it.kind === 'widget') return widgetSize(it.key)
   return undefined

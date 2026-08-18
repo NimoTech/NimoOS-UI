@@ -37,7 +37,7 @@ describe('photosSettings store · aiFeatures', () => {
     vi.clearAllMocks()
   })
 
-  it('缺字段一律按开启(Vue2 `d.xEnabled !== false` 口径)', async () => {
+  it('missing fields default to enabled (Vue2\'s `d.xEnabled !== false` rule)', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
     const s = usePhotosSettingsStore()
     await s.fetchAiFeatures()
@@ -45,17 +45,17 @@ describe('photosSettings store · aiFeatures', () => {
     expect(s.aiFeaturesLoaded).toBe(true)
   })
 
-  it('只有显式 false 才关', async () => {
+  it('only an explicit false turns it off', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({
       aiFeatures: { faces: false, scenes: true, ocr: 0, smartview: null },
     })
     const s = usePhotosSettingsStore()
     await s.fetchAiFeatures()
-    // ocr: 0 与 smartview: null 都不是显式 false ⇒ 按开启
+    // Neither ocr: 0 nor smartview: null is an explicit false ⇒ treated as enabled
     expect(s.aiFeatures).toEqual({ faces: false, scenes: true, ocr: true, smartview: true })
   })
 
-  it('真实后端形状(扁平 xxxEnabled 字段,非 aiFeatures 嵌套)也要读对', async () => {
+  it('the real backend shape (flat xxxEnabled fields, not nested under aiFeatures) must also be read correctly', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({
       watchDirs: ['/DATA/Gallery'],
       retentionDays: 30,
@@ -69,7 +69,7 @@ describe('photosSettings store · aiFeatures', () => {
     expect(s.aiFeatures).toEqual({ faces: false, scenes: true, ocr: false, smartview: true })
   })
 
-  it('取数失败:按全开处理,且 aiFeaturesLoaded 保持 false(可与「确认全关」区分)', async () => {
+  it('fetch failure: treated as all-enabled, and aiFeaturesLoaded stays false (distinguishable from "confirmed all-off")', async () => {
     vi.mocked(service.photos.getConfig).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
     await s.fetchAiFeatures()
@@ -78,22 +78,25 @@ describe('photosSettings store · aiFeatures', () => {
   })
 })
 
-// P8a-T6:侧栏(全相册区共用组件)与各视图现在都会在各自 onMounted 里调
-// fetchAiFeatures() —— store 是单例,同一帧内多个消费方挂载会并发调用。这两条锁住
-// 「在途去重」的两个必要行为:去重生效 + 不是永久缓存。
-describe('photosSettings store · fetchAiFeatures 在途去重(P8a-T6)', () => {
+// P8a-T6: the sidebar (a component shared across the whole Photos area) and each view
+// now call fetchAiFeatures() in their own onMounted — the store is a singleton, so
+// multiple consumers mounting within the same frame will call it concurrently. These two
+// cases lock in the two required behaviors of "in-flight dedup": dedup takes effect + it
+// is not a permanent cache.
+describe('photosSettings store · fetchAiFeatures in-flight dedup (P8a-T6)', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('fetchAiFeatures 并发去重:两个消费方同时挂载只发一次 getConfig', async () => {
+  it('fetchAiFeatures concurrent dedup: two consumers mounting simultaneously only issue one getConfig', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
     const s = usePhotosSettingsStore()
     const [a, b] = await Promise.all([s.fetchAiFeatures(), s.fetchAiFeatures()])
     expect(service.photos.getConfig).toHaveBeenCalledTimes(1)
-    // 两个并发调用者拿到的是同一次取数的结果,不是各自独立的返回值对象身份要求,但值必须一致。
+    // Both concurrent callers get the result of the same fetch — not a requirement that
+    // they're the same return-value object identity, but the values must match.
     expect(a).toEqual(b)
   })
 
-  it('去重不是永久缓存:上一次结算后再调会重新发请求', async () => {
+  it('dedup is not a permanent cache: calling again after the previous fetch has settled issues a new request', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
     const s = usePhotosSettingsStore()
     await s.fetchAiFeatures()
@@ -101,7 +104,7 @@ describe('photosSettings store · fetchAiFeatures 在途去重(P8a-T6)', () => {
     expect(service.photos.getConfig).toHaveBeenCalledTimes(2)
   })
 
-  it('三个并发调用者同样只发一次(不是"恰好 2 个"才生效的偶然实现)', async () => {
+  it('three concurrent callers likewise only issue one request (not an implementation that happens to only work for "exactly 2")', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
     const s = usePhotosSettingsStore()
     await Promise.all([s.fetchAiFeatures(), s.fetchAiFeatures(), s.fetchAiFeatures()])
@@ -112,7 +115,7 @@ describe('photosSettings store · fetchAiFeatures 在途去重(P8a-T6)', () => {
 describe('photosSettings store · setAiFeature', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('保存成功:开关落到新值', async () => {
+  it('save succeeds: the toggle lands on the new value', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
     vi.mocked(service.photos.updateConfig).mockResolvedValue(undefined)
     const s = usePhotosSettingsStore()
@@ -122,7 +125,7 @@ describe('photosSettings store · setAiFeature', () => {
     expect(s.aiFeatures.faces).toBe(false)
   })
 
-  it('写回时把当前 watchDirs/retentionDays 随同回传(共享包 updateConfig 是位置参数,watchDirs 必填且后端非空校验)', async () => {
+  it('writes back the current watchDirs/retentionDays alongside (the shared package\'s updateConfig takes positional args, watchDirs is required and the backend rejects empty)', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({
       watchDirs: ['/DATA/Gallery', '/DATA/Media'],
       retentionDays: 45,
@@ -140,17 +143,17 @@ describe('photosSettings store · setAiFeature', () => {
     )
   })
 
-  it('保存失败:开关回滚到上一个已知好值(Vue2 :274-278 的回滚语义)', async () => {
+  it('save fails: the toggle rolls back to the last known-good value (Vue2 :274-278\'s rollback semantics)', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
     vi.mocked(service.photos.updateConfig).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
     await s.fetchAiFeatures()
     const ok = await s.setAiFeature('ocr', false)
     expect(ok).toBe(false)
-    expect(s.aiFeatures.ocr).toBe(true) // 回滚
+    expect(s.aiFeatures.ocr).toBe(true) // rolled back
   })
 
-  it('乐观更新:await 之前开关已是新值(UI 立即响应,不等网络)', async () => {
+  it('optimistic update: the toggle is already the new value before awaiting (UI responds immediately, does not wait on the network)', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: {} })
     let release: (() => void) | undefined
     vi.mocked(service.photos.updateConfig).mockImplementation(
@@ -159,7 +162,7 @@ describe('photosSettings store · setAiFeature', () => {
     const s = usePhotosSettingsStore()
     await s.fetchAiFeatures()
     const p = s.setAiFeature('scenes', false)
-    expect(s.aiFeatures.scenes).toBe(false) // 在途已生效,写回前还有一次 getConfig() 微任务才到 updateConfig
+    expect(s.aiFeatures.scenes).toBe(false) // already in effect while in flight — there's still a getConfig() microtask before updateConfig is reached
     await vi.waitFor(() => { if (!release) throw new Error('updateConfig not yet called') })
     release?.()
     await p
@@ -169,7 +172,7 @@ describe('photosSettings store · setAiFeature', () => {
 describe('photosSettings store · storage & about', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('取数成功:storage 落值、storageError 假', async () => {
+  it('fetch succeeds: storage lands, storageError is false', async () => {
     vi.mocked(service.photos.getStorage).mockResolvedValue({
       diskTotalBytes: 2e12, diskFreeBytes: 1e12, prunableBytes: 5e8,
       photosBytes: 3e11, videosBytes: 2e11, rawBytes: 1e11, cacheBytes: 1e10, aiBytes: 5e9,
@@ -180,7 +183,7 @@ describe('photosSettings store · storage & about', () => {
     expect(s.storageError).toBe(false)
   })
 
-  it('取数失败:storage 置 null 且 storageError 为真(Vue2 :387-397 的两分支)', async () => {
+  it('fetch fails: storage is set to null and storageError is true (Vue2 :387-397\'s two branches)', async () => {
     vi.mocked(service.photos.getStorage).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
     await s.fetchStorage()
@@ -188,14 +191,14 @@ describe('photosSettings store · storage & about', () => {
     expect(s.storageError).toBe(true)
   })
 
-  it('后端返空体也算失败态(Vue2 :391 的 storageError = !this.storage)', async () => {
+  it('an empty response body from the backend also counts as a failure state (Vue2 :391\'s storageError = !this.storage)', async () => {
     vi.mocked(service.photos.getStorage).mockResolvedValue(null as never)
     const s = usePhotosSettingsStore()
     await s.fetchStorage()
     expect(s.storageError).toBe(true)
   })
 
-  it('fetchAbout 成功落值', async () => {
+  it('fetchAbout succeeds and lands its value', async () => {
     vi.mocked(service.photos.getAbout).mockResolvedValue({
       version: '1.2.3', deviceName: 'NAS', indexCoverage: 80,
       indexLastBuilt: '2026-08-01T00:00:00Z', librarySince: '2020-01-01T00:00:00Z',
@@ -205,7 +208,7 @@ describe('photosSettings store · storage & about', () => {
     expect(s.about?.deviceName).toBe('NAS')
   })
 
-  it('fetchAbout 失败置 null', async () => {
+  it('fetchAbout failure sets it to null', async () => {
     vi.mocked(service.photos.getAbout).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
     await s.fetchAbout()
@@ -213,10 +216,10 @@ describe('photosSettings store · storage & about', () => {
   })
 })
 
-describe('photosSettings store · retention & scanInterval 回滚', () => {
+describe('photosSettings store · retention & scanInterval rollback', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('setRetention 失败要回滚 —— Vue2 的 retention watcher 只弹 toast 不回滚,是缺陷,本期改正', async () => {
+  it('setRetention failure must roll back — Vue2\'s retention watcher only pops a toast and never rolls back, which is a defect this phase fixes', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ retentionDays: 30 })
     vi.mocked(service.photos.updateConfig).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
@@ -226,7 +229,7 @@ describe('photosSettings store · retention & scanInterval 回滚', () => {
     expect(s.retentionDays).toBe(30)
   })
 
-  it('setScanInterval 失败要回滚(Vue2 :447-457 本就有 prev 回滚)', async () => {
+  it('setScanInterval failure must roll back (Vue2 :447-457 already had a prev rollback)', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ scanInterval: 1440 })
     vi.mocked(service.photos.updateConfig).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
@@ -236,14 +239,14 @@ describe('photosSettings store · retention & scanInterval 回滚', () => {
     expect(s.scanIntervalMinutes).toBe(1440)
   })
 
-  it('scanInterval 允许 0(关闭自动重扫)—— 不能被 `|| 1440` 之类的假值兜底吃掉', async () => {
+  it('scanInterval allows 0 (disables auto rescan) — must not be swallowed by a falsy fallback like `|| 1440`', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({ scanInterval: 0 })
     const s = usePhotosSettingsStore()
     await s.fetchScanInterval()
     expect(s.scanIntervalMinutes).toBe(0)
   })
 
-  it('setScanInterval 写回时把 scanInterval 放进 extra 参数,watchDirs/retention 用当前值回传', async () => {
+  it('setScanInterval writes scanInterval into the extra param, and passes watchDirs/retention back with their current values', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({
       watchDirs: ['/DATA/Gallery'], retentionDays: 30, scanInterval: 1440,
     })
@@ -256,19 +259,21 @@ describe('photosSettings store · retention & scanInterval 回滚', () => {
   })
 })
 
-describe('photosSettings store · rebuildIndex 的 409 分支', () => {
+describe('photosSettings store · rebuildIndex\'s 409 branch', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('正常路径返回新 taskId', async () => {
+  it('the normal path returns a new taskId', async () => {
     vi.mocked(service.photos.rebuildIndex).mockResolvedValue({ taskId: 't-1' })
     const s = usePhotosSettingsStore()
     await expect(s.rebuildIndex()).resolves.toBe('t-1')
   })
 
-  it('409 = 已有重建在跑:不抛错,调用 timeline.fetchTasks() 刷新一次后返回运行中那条 rebuild 任务的 id(Vue2 :458-473)', async () => {
+  it('409 = a rebuild is already running: doesn\'t throw, calls timeline.fetchTasks() once to refresh, then returns the id of the running rebuild task (Vue2 :458-473)', async () => {
     vi.mocked(service.photos.rebuildIndex).mockRejectedValue({ response: { status: 409 } })
-    // fetchTasks 的 mock 实现负责把 tasks 填充为「刷新后」的样子 —— 断言的是 rebuildIndex
-    // 真的调用了 fetchTasks() 才拿到这条任务,而不是提前埋好的静态状态(见文件头注释)。
+    // The fetchTasks mock implementation is responsible for filling tasks in with its
+    // "post-refresh" shape — this asserts that rebuildIndex genuinely called
+    // fetchTasks() to obtain this task, rather than reading pre-seeded static state
+    // (see the file-header comment).
     const timeline = { tasks: [] as Array<{ id: string; type: string }>, fetchTasks: vi.fn() }
     timeline.fetchTasks.mockImplementation(async () => {
       timeline.tasks = [{ id: 't-running', type: 'rebuild' }]
@@ -279,7 +284,7 @@ describe('photosSettings store · rebuildIndex 的 409 分支', () => {
     expect(timeline.fetchTasks).toHaveBeenCalledTimes(1)
   })
 
-  it('409 但刷新后的任务列表里没有 rebuild 类型任务:返回空字符串', async () => {
+  it('409, but the refreshed task list has no rebuild-type task: returns an empty string', async () => {
     vi.mocked(service.photos.rebuildIndex).mockRejectedValue({ response: { status: 409 } })
     const timeline = { tasks: [] as Array<{ id: string; type: string }>, fetchTasks: vi.fn() }
     timeline.fetchTasks.mockImplementation(async () => {
@@ -290,7 +295,7 @@ describe('photosSettings store · rebuildIndex 的 409 分支', () => {
     await expect(s.rebuildIndex()).resolves.toBe('')
   })
 
-  it('非 409 错误照常抛出', async () => {
+  it('a non-409 error is thrown as usual', async () => {
     vi.mocked(service.photos.rebuildIndex).mockRejectedValue({ response: { status: 500 } })
     const s = usePhotosSettingsStore()
     await expect(s.rebuildIndex()).rejects.toBeTruthy()
@@ -300,43 +305,43 @@ describe('photosSettings store · rebuildIndex 的 409 分支', () => {
 describe('photosSettings store · pruneCache / triggerScan / reclusterFaces', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('pruneCache 返回 freedBytes', async () => {
+  it('pruneCache returns freedBytes', async () => {
     vi.mocked(service.photos.pruneCache).mockResolvedValue({ freedBytes: 12345 })
     const s = usePhotosSettingsStore()
     await expect(s.pruneCache()).resolves.toBe(12345)
   })
 
-  it('pruneCache 空体按 0 处理', async () => {
+  it('pruneCache treats an empty body as 0', async () => {
     vi.mocked(service.photos.pruneCache).mockResolvedValue(null as never)
     const s = usePhotosSettingsStore()
     await expect(s.pruneCache()).resolves.toBe(0)
   })
 
-  it('pruneCache 失败向上抛(视图层负责 toast,同 Vue2 各动作)', async () => {
+  it('pruneCache failure propagates up (the view layer is responsible for the toast, same as every other Vue2 action)', async () => {
     vi.mocked(service.photos.pruneCache).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
     await expect(s.pruneCache()).rejects.toBeTruthy()
   })
 
-  it('triggerScan 成功返回 true', async () => {
+  it('triggerScan success returns true', async () => {
     vi.mocked(service.photos.triggerScan).mockResolvedValue(undefined)
     const s = usePhotosSettingsStore()
     await expect(s.triggerScan()).resolves.toBe(true)
   })
 
-  it('triggerScan 失败向上抛', async () => {
+  it('triggerScan failure propagates up', async () => {
     vi.mocked(service.photos.triggerScan).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
     await expect(s.triggerScan()).rejects.toBeTruthy()
   })
 
-  it('reclusterFaces 成功返回 true', async () => {
+  it('reclusterFaces success returns true', async () => {
     vi.mocked(service.photos.reclusterFaces).mockResolvedValue(undefined)
     const s = usePhotosSettingsStore()
     await expect(s.reclusterFaces()).resolves.toBe(true)
   })
 
-  it('reclusterFaces 失败向上抛', async () => {
+  it('reclusterFaces failure propagates up', async () => {
     vi.mocked(service.photos.reclusterFaces).mockRejectedValue(new Error('boom'))
     const s = usePhotosSettingsStore()
     await expect(s.reclusterFaces()).rejects.toBeTruthy()
@@ -346,7 +351,7 @@ describe('photosSettings store · pruneCache / triggerScan / reclusterFaces', ()
 describe('photosSettings store · reset', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('reset 恢复所有字段到文档默认值', async () => {
+  it('reset restores every field to its documented default', async () => {
     vi.mocked(service.photos.getConfig).mockResolvedValue({
       aiFeatures: { faces: false }, retentionDays: 90, scanInterval: 0,
     })
@@ -362,13 +367,15 @@ describe('photosSettings store · reset', () => {
     await s.fetchAiFeatures()
     await s.fetchRetention()
     await s.fetchScanInterval()
-    await s.fetchStorage() // storage 非空、storageError 假
-    await s.fetchAbout()   // about 非空(修 Minor 3:此前从未取过,断言是空判定平凡真)
-    // storage/storageError 在本店里由同一次 fetchStorage 联动置值,取不到「storage 非空
-    // 且 storageError 为真」同时成立的真实路径 —— 直接写 ref 造一个非默认值,只是为了让
-    // reset() 之后的 storageError 断言不再平凡为真(修 Minor 3),不代表真实调用路径。
+    await s.fetchStorage() // storage non-null, storageError false
+    await s.fetchAbout()   // about non-null (fix Minor 3: never fetched before this, so the null check was trivially true)
+    // storage/storageError are set together by the same fetchStorage call in this store,
+    // so there's no real call path where "storage is non-null and storageError is true"
+    // both hold — writing the ref directly to a non-default value here is purely to keep
+    // the storageError assertion after reset() from being trivially true (fix Minor 3), it
+    // doesn't represent a real call path.
     s.storageError = true
-    // reset 前哨兵:证明下面的 reset() 断言不是从默认值开始的空转
+    // Pre-reset sentinel: proves the reset() assertions below aren't vacuously starting from the default values
     expect(s.about).not.toBeNull()
     expect(s.storage).not.toBeNull()
     expect(s.storageError).toBe(true)

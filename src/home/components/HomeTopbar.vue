@@ -45,7 +45,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 .bar-btn:hover { background: var(--chip-bg-hi); }
 .bar-btn .icon { width: 16px; height: 16px; }
 
-/* search-btn: glass pill with magnifier icon — matches 搜索组件.dc.html topbar button */
+/* search-btn: glass pill with magnifier icon — matches search component.dc.html topbar button */
 .search-btn { padding-left: 13px; }
 .search-btn .ic { width: 17px; height: 17px; }
 
@@ -54,7 +54,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 /* edit-btn active — maps #editBtn[aria-pressed="true"] from base.css:41 */
 .edit-btn[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
 
-/* ≤720px 手机启动器为只读:隐藏添加/编辑入口(排序增删在桌面做),保留搜索与主题切换 */
+/* ≤720px mobile launcher is read-only: hide add/edit entries (reordering and add/remove are done on desktop), keep search and theme toggle */
 @media (max-width: 720px) {
   .add-btn, .edit-btn { display: none; }
 }

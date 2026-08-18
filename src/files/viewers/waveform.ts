@@ -1,12 +1,12 @@
-// 音频波形模块:合成占位(纯函数) + 真实解码(浏览器编排) + 会话级缓存。
-// 设计:docs/superpowers/specs/2026-07-10-new-ui-audio-real-waveform-design.md
-// 策略:打开即渲染合成波形(0 延迟),后台解码真实音频后无缝替换;
-//       超 50MB / 任一失败 → 静默保持合成,功能永不退化。
+// Audio waveform module: synthetic placeholder (pure functions) + real decoding (browser orchestration) + session-level cache.
+// Design: docs/superpowers/specs/2026-07-10-new-ui-audio-real-waveform-design.md
+// Strategy: render the synthetic waveform immediately on open (0 latency), then seamlessly swap in the real audio decoded in the background;
+//           over 50MB / any failure → silently keep the synthetic one, never degrading the feature.
 
-/** 进度条竖条数(与 MediaViewer 渲染一致) */
+/** Number of bars in the progress strip (matches MediaViewer rendering) */
 export const WAVE_N = 96
 
-// —— 以下两个 PRNG 辅助从 MediaViewer.vue 原样迁入,不改行为 ——
+// —— The two PRNG helpers below are moved verbatim from MediaViewer.vue, behavior unchanged ——
 function hashStr(s: string): number {
   let h = 2166136261
   for (let i = 0; i < s.length; i++) {
@@ -26,8 +26,8 @@ function mulberry32(a: number): () => number {
 }
 
 /**
- * 合成波形:seed(文件名)确定性生成「像语音」的包络——
- * 交替「说话簇」(正弦升降包络 + 抖动)与「静音间隙」(幅值 0 → 只留虚线基线)。
+ * Synthetic waveform: deterministically generate a "speech-like" envelope from the seed (file name) —
+ * alternating "speech clusters" (sine rise/fall envelope + jitter) and "silence gaps" (amplitude 0 → only the dashed baseline remains).
  */
 export function synthWaveform(seed: string, n: number): number[] {
   const rnd = mulberry32(hashStr(seed || 'audio'))
@@ -50,9 +50,9 @@ export function synthWaveform(seed: string, n: number): number[] {
 }
 
 /**
- * 分桶取峰:把解码后的单声道样本压成 n 条。
- * 每桶取 |max|(peak,非 RMS),按全局最大归一化到 [0,1];真静音桶保持 0。
- * 桶边界按比例索引(而非固定桶宽),len < n 时相邻桶共享样本,天然不崩。
+ * Bucketed peaks: compress the decoded mono samples into n bars.
+ * Each bucket takes |max| (peak, not RMS), normalized to [0,1] by the global max; truly silent buckets stay 0.
+ * Bucket boundaries use proportional indexing (not a fixed bucket width); when len < n adjacent buckets share samples, so it naturally never breaks.
  */
 export function bucketPeaks(samples: Float32Array, n: number): number[] {
   const out = new Array<number>(n).fill(0)
@@ -72,10 +72,10 @@ export function bucketPeaks(samples: Float32Array, n: number): number[] {
   return max === 0 ? out : out.map((v) => v / max)
 }
 
-// —— 会话级内存缓存:单条仅 96 个 number,不设淘汰;刷新即清 ——
+// —— Session-level in-memory cache: each entry is just 96 numbers, no eviction; cleared on refresh ——
 const cache = new Map<string, number[]>()
 
-/** 缓存键 = path|size|date(FileEntry 无 mtime,用 date;缺失位留空串)。 */
+/** Cache key = path|size|date (FileEntry has no mtime, so use date; missing parts stay empty strings). */
 export function waveCacheKey(e: { path: string; size?: number | string; date?: string }): string {
   return `${e.path}|${e.size ?? ''}|${e.date ?? ''}`
 }
@@ -87,9 +87,9 @@ export function setCachedWave(key: string, bars: number[]): void {
 }
 
 /**
- * 解码真实波形:fetch 整个文件 → AudioContext.decodeAudioData → 取第 1 声道 → bucketPeaks。
- * 大小闸:Content-Length > maxBytes 直接放弃;无该头则边读边计字节,超限即中止——
- * 避免无头大文件读爆内存。任一异常(含 AbortError)→ null,调用方静默保持合成波形。
+ * Decode the real waveform: fetch the whole file → AudioContext.decodeAudioData → take channel 1 → bucketPeaks.
+ * Size gate: give up immediately if Content-Length > maxBytes; without that header, count bytes while reading and abort once over the limit —
+ * keeps a large header-less file from blowing up memory. Any exception (including AbortError) → null, and the caller silently keeps the synthetic waveform.
  */
 export async function decodeWaveform(
   url: string,
@@ -104,7 +104,7 @@ export async function decodeWaveform(
     }
     const lenHeader = res.headers.get('content-length')
     if (lenHeader && Number(lenHeader) > opts.maxBytes) {
-      void res.body.cancel().catch(() => {}) // 主动取消响应体,立即释放连接(否则 >50MB 挡下的请求会一直挂着)
+      void res.body.cancel().catch(() => {}) // proactively cancel the body to release the connection now (otherwise a request blocked at >50MB would hang forever)
       return null
     }
 
@@ -121,7 +121,7 @@ export async function decodeWaveform(
       }
       chunks.push(value)
     }
-    // 用显式 ArrayBuffer 承接,避免 Uint8Array#buffer 的 ArrayBufferLike 类型歧义。
+    // Use an explicit ArrayBuffer to avoid the ArrayBufferLike type ambiguity of Uint8Array#buffer.
     const ab = new ArrayBuffer(total)
     const buf = new Uint8Array(ab)
     let off = 0
@@ -133,7 +133,7 @@ export async function decodeWaveform(
     const ctx = new AudioContext()
     try {
       const audio = await ctx.decodeAudioData(ab)
-      // 只取第 1 声道(省内存);bucketPeaks 返回后不再持有 AudioBuffer,任其回收。
+      // Take only channel 1 (saves memory); after bucketPeaks returns, the AudioBuffer is no longer held and can be collected.
       return bucketPeaks(audio.getChannelData(0), n)
     } finally {
       void ctx.close().catch(() => {})

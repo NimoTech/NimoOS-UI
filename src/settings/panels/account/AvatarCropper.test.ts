@@ -9,7 +9,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { users: { saveAvatar: (...a: unknown[]) => saveAvatar(...a) } },
 }))
 
-// cropper 是 canvas 库,jsdom 里跑不动真实渲染 —— 只桩掉组件、保留它的 props 与 change 契约。
+// cropper is a canvas library; real rendering can't run in jsdom — stub the components only, keeping their props and change contract.
 vi.mock('vue-advanced-cropper', () => ({
   Cropper: {
     name: 'Cropper',
@@ -27,9 +27,10 @@ vi.mock('vue-advanced-cropper/dist/style.css', () => ({}))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// ⚠️ 花括号、不要写成 `beforeEach(() => mock.mockReset().mockResolvedValue(x))` ——
-// 那种链式写法会把 mock 当 teardown 回调返回给 vitest,测试后被再调一次,
-// 抛错实现产生的 rejected promise 没人 await → 报成 Unknown Error(本期 ChangePasswordForm 栽过)。
+// ⚠️ Use braces; do not write `beforeEach(() => mock.mockReset().mockResolvedValue(x))` —
+// that chained form returns the mock to vitest as a teardown callback, which gets called
+// again after the test; the rejected promise from a throwing implementation is never
+// awaited → reported as Unknown Error (ChangePasswordForm hit this in this sprint).
 beforeEach(() => {
   saveAvatar.mockReset()
   saveAvatar.mockResolvedValue(undefined)
@@ -47,15 +48,15 @@ function emitChange(w: ReturnType<typeof mountCropper>, toDataURL = () => 'data:
   return canvas
 }
 
-describe('AvatarCropper —— 对位 Vue2 state 4(:746-760)+ saveAvatar(:442-462)', () => {
-  it('把 src 透给 Cropper,并渲染右侧圆形预览与「预览」字样', () => {
+describe('AvatarCropper —— corresponds to Vue2 state 4 (:746-760) + saveAvatar (:442-462)', () => {
+  it('passes src through to Cropper, and renders the circular preview and "Preview" label on the right', () => {
     const w = mountCropper('blob:abc')
     expect(w.find('[data-test="cropper-stub"]').attributes('data-src')).toBe('blob:abc')
     expect(w.find('[data-test="preview-stub"]').exists()).toBe(true)
     expect(w.text()).toContain(zh.settingsAccPreview)
   })
 
-  it('stencil 是 1:1 方形、canvas 输出 160×160、最小 80×80(Vue2 props 逐字)', () => {
+  it('stencil is a 1:1 square, canvas outputs 160×160, min 80×80 (Vue2 props verbatim)', () => {
     const c = mountCropper().findComponent({ name: 'Cropper' })
     expect(c.props('stencilProps')).toEqual({ aspectRatio: 1 })
     expect(c.props('canvas')).toEqual({ height: 160, width: 160 })
@@ -64,30 +65,30 @@ describe('AvatarCropper —— 对位 Vue2 state 4(:746-760)+ saveAvatar(:442-46
     expect(c.props('debounce')).toBe(false)
   })
 
-  it('defaultSize 优先可见区域,没有则用整图尺寸(Vue2 :383-388)', () => {
+  it('defaultSize prefers the visible area, falling back to the full image size when absent (Vue2 :383-388)', () => {
     const c = mountCropper().findComponent({ name: 'Cropper' })
     const fn = c.props('defaultSize') as (a: unknown) => unknown
     expect(fn({ imageSize: { width: 10, height: 20 }, visibleArea: { width: 3, height: 4 } })).toEqual({ width: 3, height: 4 })
     expect(fn({ imageSize: { width: 10, height: 20 } })).toEqual({ width: 10, height: 20 })
   })
 
-  it('还没 change 过(无 canvas)时 submit 直接失败,不发请求', async () => {
+  it('submit fails immediately and sends no request when change hasn\'t fired yet (no canvas)', async () => {
     const w = mountCropper()
     expect(await submitOf(w)).toBe(false)
     expect(saveAvatar).not.toHaveBeenCalled()
   })
 
-  it('change 后 submit 上传 canvas.toDataURL() 的 PNG dataURL', async () => {
+  it('after change, submit uploads the PNG dataURL from canvas.toDataURL()', async () => {
     const w = mountCropper()
     const canvas = emitChange(w)
     await w.vm.$nextTick()
     expect(await submitOf(w)).toBe(true)
-    // 后端只 strip `data:image/png;base64,` —— toDataURL 必须无参(默认 PNG)
+    // The backend only strips `data:image/png;base64,` — toDataURL must take no args (defaults to PNG)
     expect(canvas.toDataURL).toHaveBeenCalledWith()
     expect(saveAvatar).toHaveBeenCalledWith('data:image/png;base64,PNGDATA')
   })
 
-  it('上传失败返回 false,并把错误内联显示(C6,不用 toast)', async () => {
+  it('returns false on upload failure, and displays the error inline (C6, no toast)', async () => {
     saveAvatar.mockImplementation(async () => {
       throw Object.assign(new Error('req failed'), { response: { data: { message: '写盘失败' } } })
     })
@@ -99,7 +100,7 @@ describe('AvatarCropper —— 对位 Vue2 state 4(:746-760)+ saveAvatar(:442-46
     expect(w.find('[data-test="acc-crop-error"]').text()).toBe('写盘失败')
   })
 
-  it('后端没给 message 时回退成 axios 的 message', async () => {
+  it('falls back to axios\' message when the backend gives none', async () => {
     saveAvatar.mockImplementation(async () => { throw new Error('Network Error') })
     const w = mountCropper()
     emitChange(w)
@@ -109,7 +110,7 @@ describe('AvatarCropper —— 对位 Vue2 state 4(:746-760)+ saveAvatar(:442-46
     expect(w.find('[data-test="acc-crop-error"]').text()).toBe('Network Error')
   })
 
-  it('上传在途时不许再次提交', async () => {
+  it('does not allow resubmitting while an upload is in flight', async () => {
     let resolve!: () => void
     saveAvatar.mockReturnValue(new Promise<void>((r) => { resolve = r }))
     const w = mountCropper()
@@ -122,7 +123,7 @@ describe('AvatarCropper —— 对位 Vue2 state 4(:746-760)+ saveAvatar(:442-46
     await p
   })
 
-  it('重新提交会清掉上一次的错误提示', async () => {
+  it('resubmitting clears the previous error message', async () => {
     saveAvatar.mockImplementationOnce(async () => { throw new Error('X') })
     const w = mountCropper()
     emitChange(w)

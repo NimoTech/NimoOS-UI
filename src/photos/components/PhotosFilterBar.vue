@@ -1,30 +1,55 @@
 <script setup lang="ts">
-// SP7-P7b-T2: PhotosFilterBar.vue —— EXIF 筛选条(漏斗 + 年份/位置/相机三胶囊)。
-// 逐字对应 Vue2 NimoOS-UI src/views/Photos/PhotosFilterBar.vue(312 行)。
-// 胶囊本体与列表型弹层复用 P7a 建的两个基元(D14):PhotosFilterChip / PhotosFilterPopover。
+// SP7-P7b-T2: PhotosFilterBar.vue — EXIF filter bar (funnel + three pills: year/location/camera).
+// Line-for-line port of Vue2 NimoOS-UI src/views/Photos/PhotosFilterBar.vue (312 lines).
+// The pill itself and the list-style popover reuse the two primitives built in P7a (D14): PhotosFilterChip / PhotosFilterPopover.
 //
-// 偏离登记 1(数据源外注):Vue2 组件内部直接读
-// `this.$store.getters['photos/displayMonths']` 取 facet 源,因为它在 Vue2 只有一个挂载点
-// (时间线工具栏)。New-UI 有两个消费方且数据源不同——时间线页读 timeline store,跳库页读
-// usePlaceAssets 的一次性结果——所以 facet 源改由宿主以 `photos` prop 注入。必要偏离。
+// Deviation log 1 (data source injected from outside): Vue2 reads
+// `this.$store.getters['photos/displayMonths']` directly inside the component for the facet source, because in Vue2 it only
+// has one mount point (the timeline toolbar). New-UI has two consumers with different data sources — the timeline page reads
+// the timeline store, the drilldown page reads usePlaceAssets's one-shot result — so the facet source is instead injected by
+// the host via the `photos` prop. A necessary deviation.
 //
-// 偏离登记 2(D19,chipKeys):Vue2 三个胶囊恒显示。跳库页(/photos/places/:key)按 D19 只
-// 显示年份+相机——回源 Vue2 PhotosTimeline.vue:167,spot 分支明确只把 years/cameras 传给
-// applyExifFilters、把 places 丢掉(注释自陈「城市已框定,再套位置文本会误杀」),照搬等于
-// 在独立页面上摆一个点了没反应的死胶囊。chipKeys 默认三个全开,时间线页不传即与 Vue2 一致。
+// Deviation log 2 (D19, chipKeys): Vue2 always shows all three pills. The drilldown page (/photos/places/:key) per D19
+// shows only year + camera — tracing back to Vue2 PhotosTimeline.vue:167, the spot branch explicitly passes only
+// years/cameras to applyExifFilters and drops places (the comment states outright "the city is already scoped, layering
+// a location-text filter on top would misfire"), copying it verbatim would mean putting a dead pill that does nothing when
+// clicked on a standalone page. chipKeys defaults to all three enabled; the timeline page doesn't pass it, matching Vue2.
 //
-// 偏离登记 3(F1,Vue2 缺陷):Vue2 availYears(:99-102)用
-// `String(new Date(p.date).getFullYear())` 直接入 Set,遇到不可解析的 date 会塞进字面量
-// "NaN";而过滤谓词那侧走 photoYear() 返回空串 ⇒ 用户能在下拉里选到一个永远匹配不上的
-// NaN 选项。这里 facet 侧改调同一个 photoYear(),空串跳过。
+// Deviation log 3 (F1, a Vue2 defect): Vue2's availYears (:99-102) puts
+// `String(new Date(p.date).getFullYear())` straight into the Set — an unparseable date lands in the Set as the literal
+// string "NaN"; but the filter predicate side goes through photoYear(), which returns an empty string ⇒ users can pick
+// a NaN option from the dropdown that will never match anything. Here the facet side is switched to call that same
+// photoYear(), skipping the empty string.
 //
-// 登记 4(自动展开的外部触发方在本仓已不存在):Vue2 的 anyActive watcher 是为了承接
-// 「从地点页跳过来时外部往 activeFilters.places 塞值」这条路径;New-UI 的城市跳转走独立
-// 路由页(D6),时间线的 filter 不会被外部写。watcher 与 mounted 检查仍照抄——「清除全部
-// 后收起、再从别处恢复筛选」这类自身路径下仍有意义,且保持行为对等。
+// Log 4 (the external trigger for auto-expand no longer exists in this repo): Vue2's anyActive watcher exists to catch
+// the path where "jumping over from the places page pushes a value into activeFilters.places externally"; New-UI's city
+// navigation goes through its own route page (D6), so the timeline's filter is never written from outside. The watcher
+// and the mounted check are still ported as-is — "collapse after clear all, then restore a filter from elsewhere" is
+// still meaningful along this component's own paths, and keeps behavior equivalent.
 //
-// 不做 Esc 关弹层:Vue2 本组件没有 keydown 监听,1:1 不擅自加(搜索页那条 Esc 是它自己的
-// 结构规格 19,不外溢到这里)。
+// No Esc-closes-popover: Vue2's own component has no keydown listener, and a strict 1:1 port doesn't add one on its own
+// initiative (the Esc handling on the search page is that page's own structural spec 19, and doesn't spill over here).
+//
+// Plan B Task 5 (2026-08-12, "toolbar + FilterBar reskin"):
+// ① Popover max-height: Vue2 PhotosFilterBar.vue:29 has an inline `max-height:260px`; the shared primitive
+//   PhotosFilterPopover originally hardcoded a default of 280 (matching the search side), and the 260 discrepancy was
+//   logged as "hand off to P7b/T16" — this task wires it up, adding a maxHeight prop passing 260 (see the matching log
+//   at the top of PhotosFilterPopover.vue).
+// ② The five classes .exif-filter/.exif-funnel/.exif-badge/.exif-chiprow/.exif-clear serve only this component
+//   (confirmed via grep across the whole repo — zero other consumers), and the color tokens in the style block below
+//   are changed back from the generic app tokens P7b wrote at the time (--fg/--chip-bg/--accent-soft-bd etc., which
+//   resolve to the site's glassmorphism palette) to the Vue2 original's --surface-2/--text-1/2/3/--line-strong/
+//   --accent-glow/--accent-hi token names — the `.photos-root` block in src/photos/styles/vue2-parity/photos.scss
+//   (built by T3/T4 for Plan B, a line-for-line local dark-variant table matching Vue2 photos.scss) redefines this set
+//   of names, and when P7b wrote this style block that file didn't exist yet (the component comment at the time also
+//   said "--line-strong doesn't exist in this repo, confirmed via grep — zero hits" — that statement was true before
+//   the parity scss landed, it no longer is). After switching back to the same-named tokens, the values follow
+//   .photos-root's local definitions, matching Vue2 line-for-line — this isn't a newly invented palette.
+//   .fchip/.fchip-wrap/.fchip-x (PhotosFilterChip.vue) and .fpop* (PhotosFilterPopover.vue)
+//   are out of scope for this change — these two primitives are shared by six consumers at once, including
+//   PhotosSearch/SmartView/Settings/the date and people popovers, so recoloring them uniformly is a cross-panel visual
+//   decision that's out of scope for this task's "toolbar + FilterBar's two pills", and is logged as follow-up work
+//   (see the concerns section of task-5-report.md).
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosFilterChip from './PhotosFilterChip.vue'
@@ -50,8 +75,8 @@ const emit = defineEmits<{ (e: 'update:filter', v: ExifFilterValue): void }>()
 
 const { t } = useI18n()
 
-// chipKey → 该维度在 filter 上的数组键(同名)+ i18n 标签键 + 图标。
-// 顺序照 Vue2 CHIPS(:74-78):年份 / 位置 / 相机。
+// chipKey → the array key for this dimension on filter (same name) + i18n label key + icon.
+// Order follows Vue2 CHIPS (:74-78): year / location / camera.
 const CHIP_DEFS: Array<{ key: ChipKey; labelKey: string; icon: 'clock' | 'map' | 'settings' }> = [
   { key: 'years', labelKey: 'photosFilterYear', icon: 'clock' },
   { key: 'places', labelKey: 'photosFilterLocation', icon: 'map' },
@@ -63,17 +88,17 @@ const openPop = ref<ChipKey | null>(null)
 const draft = ref<Partial<Record<ChipKey, string[]>>>({})
 let ovT: ReturnType<typeof setTimeout> | null = null
 
-// ── facet:整个数据源里真实存在的取值 ────────────────────────────────────────
+// ── facet: values that actually exist across the whole data source ────────────────────────────────────────
 const availYears = computed(() => {
   const set = new Set<string>()
   props.photos.forEach((p) => {
-    const y = photoYear(p) // F1:走同一个谓词,不可解析日期返回空串 → 不入列表
+    const y = photoYear(p) // F1: goes through the same predicate — an unparseable date returns an empty string → excluded from the list
     if (y) set.add(y)
   })
-  return [...set].sort().reverse() // 照 Vue2 :103,字符串序倒排 = 年份从新到旧
+  return [...set].sort().reverse() // matches Vue2 :103 — reverse string sort = years newest to oldest
 })
 
-// 照 Vue2 facet()(:151-159):去重 + localeCompare 升序(带重音/中日韩名字排序才正常)。
+// Matches Vue2 facet() (:151-159): dedupe + localeCompare ascending (needed for correct sorting of accented/CJK names).
 function facet(extract: (p: FilterablePhoto) => string): string[] {
   const set = new Set<string>()
   props.photos.forEach((p) => {
@@ -95,8 +120,9 @@ const chips = computed(() => CHIP_DEFS
   .filter(c => props.chipKeys.includes(c.key))
   .map(c => ({ ...c, label: t(c.labelKey), items: itemsByKey.value[c.key] })))
 
-// 角标只数「可见」维度(D19 的直接推论):不可见的维度用户既看不到也清不掉,
-// 把它算进角标会让用户面对一个数不出来的数字。时间线页三个胶囊全可见,与 Vue2 等价。
+// The badge only counts "visible" dimensions (a direct consequence of D19): a dimension the user can't see, they also
+// can't clear — counting it toward the badge would show the user a number they can't account for. All three pills are
+// visible on the timeline page, matching Vue2.
 const activeCount = computed(() =>
   chips.value.reduce((n, c) => n + (props.filter[c.key] || []).length, 0))
 const anyActive = computed(() => activeCount.value > 0)
@@ -104,23 +130,26 @@ const anyActive = computed(() => activeCount.value > 0)
 const emptyHint = computed(() =>
   openPop.value === 'places' ? t('photosSearchNoLocationDataYet') : t('photosSearchNothingHereYet'))
 
-// 偏离登记 5(挂载时已带筛选值 → 首帧就该是展开态,不等一次异步更新):Vue2 在 mounted()
-// 钩子里对 this.expanded 赋值,Vue2 的响应式更新同样是异步 nextTick——Vue2 模板测试若不等
-// tick 本来就看不到这次赋值,只是 Vue2 项目没有对等的挂载即断言的单测。Vue3 +
-// @vue/test-utils 下由 onMounted 内部改 ref 触发的重渲染是排到 microtask 才 flush,
-// 若测试在 mount() 后不 await 就直接断言 class,会读到挂载前的初始值(已用一次性最小复现
-// 用例验证:onMounted 里改 ref,不 await 就断言不到)。本组件要求「挂载时已有筛选值 → 立刻
-// 展开」在不 await 的调用点也成立,所以 expanded 的初始值直接取 anyActive(挂载那一刻 props
-// 已经就位,能同步算出),不依赖 onMounted 才去 set true——onMounted 里仍然调用 expand()
-// 是为了补上 450ms 溢出定时器这条副作用(该值已是 true 时重复赋值不会引发多余渲染)。
+// Deviation log 5 (a filter value is already present at mount → the very first frame should already be expanded, no
+// waiting for one async update): Vue2 assigns this.expanded inside the mounted() hook, and Vue2's reactive updates are
+// likewise flushed asynchronously via nextTick — a Vue2 template test that doesn't await a tick simply wouldn't see this
+// assignment either, it's just that the Vue2 project never had an equivalent "assert right at mount" unit test. Under
+// Vue3 + @vue/test-utils, a re-render triggered by a ref change inside onMounted is only flushed on a microtask, so a
+// test that asserts a class right after mount() without awaiting will read the pre-mount initial value (already
+// verified with a minimal one-off repro: change a ref inside onMounted, assert without awaiting, and you can't observe
+// it). This component requires that "a filter value is already present at mount → expand immediately" also hold at a
+// call site that doesn't await, so expanded's initial value is taken directly from anyActive (props are already in
+// place the instant mounting happens, so it can be computed synchronously) rather than relying on onMounted to set it
+// true — onMounted still calls expand(), to re-arm the 450ms overflow-timer side effect (re-assigning a value that's
+// already true doesn't trigger an extra render).
 const expanded = ref(anyActive.value)
 const overflowOpen = ref(false)
 
-// ── 展开 / 收起(照 Vue2 :160-180)────────────────────────────────────────────
+// ── expand / collapse (matches Vue2 :160-180) ────────────────────────────────────────────
 function expand(): void {
   expanded.value = true
-  // 宽度过渡期间让 chiprow 保持裁剪,过渡结束后再放开 overflow,
-  // 否则胶囊弹层会在展开动画途中被裁掉一角。
+  // Keep chiprow clipped during the width transition, and only release overflow once the transition ends —
+  // otherwise the pill's popover gets a corner clipped off mid-expand-animation.
   if (ovT) clearTimeout(ovT)
   ovT = setTimeout(() => { overflowOpen.value = true }, 450)
 }
@@ -138,7 +167,7 @@ function toggleExpand(): void {
 watch(anyActive, (active) => { if (active && !expanded.value) expand() })
 onMounted(() => { if (anyActive.value) expand() })
 
-// ── 胶囊 / 弹层交互(照 Vue2 :181-217)───────────────────────────────────────
+// ── pill / popover interaction (matches Vue2 :181-217) ───────────────────────────────────────
 function chipActive(key: ChipKey): boolean {
   return (props.filter[key] || []).length > 0
 }
@@ -152,7 +181,7 @@ function togglePop(key: ChipKey): void {
     return
   }
   openPop.value = key
-  // 打开时把已提交值快照进草稿——编辑在点「提交」之前一律不生效。
+  // Snapshot the already-committed value into the draft on open — edits never take effect before clicking "Apply".
   draft.value = { ...draft.value, [key]: [...(props.filter[key] || [])] }
 }
 function cancelPop(): void { openPop.value = null }
@@ -162,8 +191,9 @@ function applyPop(key: ChipKey): void {
 }
 function clearChip(key: ChipKey): void { emitPatch({ [key]: [] }) }
 function clearAll(): void {
-  // 三个维度一起清(即便某些胶囊按 chipKeys 不可见)——不可见维度上残留的值同样该被
-  // 「清除全部」带走,留着会变成用户看不见也清不掉的幽灵筛选。
+  // Clear all three dimensions together (even ones whose pill is hidden by chipKeys) — a leftover value on a hidden
+  // dimension should still be swept up by "Clear all"; leaving it behind would become a ghost filter the user can
+  // neither see nor clear.
   emitPatch({ years: [], places: [], cameras: [] })
   openPop.value = null
 }
@@ -171,10 +201,11 @@ function emitPatch(patch: Partial<ExifFilterValue>): void {
   emit('update:filter', { ...props.filter, ...patch })
 }
 
-// ── 点外部关弹层 ─────────────────────────────────────────────────────────────
-// Vue2(:136-142)在 mounted 里无条件挂 document 监听、处理器内 `if (!this.openPop) return`
-// 早退。这里改用本仓既有惯例(PhotosSearch.vue:522-530):只在弹层开着时挂监听,关掉即摘。
-// 行为等价,少一个常驻全局监听。
+// ── close popover on outside click ─────────────────────────────────────────────────────────────
+// Vue2 (:136-142) unconditionally attaches a document listener in mounted, with an early return in the handler via
+// `if (!this.openPop) return`. Here it's changed to this repo's existing convention (PhotosSearch.vue:522-530): only
+// attach the listener while the popover is open, and detach it as soon as it closes. Behavior is equivalent, one
+// fewer standing global listener.
 function onDocMousedown(e: MouseEvent): void {
   const el = rootRef.value
   if (el && !el.contains(e.target as Node)) cancelPop()
@@ -195,7 +226,7 @@ onBeforeUnmount(() => {
       type="button" class="exif-funnel" :class="{ on: expanded || anyActive }"
       :title="t('photosFilterByExif')" data-test="exif-funnel" @click="toggleExpand"
     >
-      <!-- glyph 逐字符抄自 Vue2 PhotosIcon.vue name==='filter' 分支;size=15。 -->
+      <!-- glyph copied character-for-character from Vue2 PhotosIcon.vue's name==='filter' branch; size=15. -->
       <svg
         width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
@@ -213,8 +244,8 @@ onBeforeUnmount(() => {
         @toggle="togglePop(chip.key)" @clear="clearChip(chip.key)"
       >
         <template #icon>
-          <!-- glyph 逐字符抄自 Vue2 PhotosIcon.vue 对应 name 分支;尺寸由基元的
-               .fchip-icon :deep(svg) 焊死在 13×13,这里不写 width/height。 -->
+          <!-- glyph copied character-for-character from Vue2 PhotosIcon.vue's corresponding name branch; size is
+               pinned to 13×13 by the primitive's .fchip-icon :deep(svg), so width/height aren't written here. -->
           <svg
             v-if="chip.icon === 'clock'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
@@ -235,6 +266,7 @@ onBeforeUnmount(() => {
         <PhotosFilterPopover
           v-if="openPop === chip.key"
           :title="chip.label" :items="chip.items" :selected="draft[chip.key] || []" :width="240"
+          :max-height="260"
           :search-placeholder="t('photosSearchSearchLabel', { label: chip.label })"
           :empty-hint="emptyHint"
           @update:selected="(v) => (draft = { ...draft, [chip.key]: v })"
@@ -251,17 +283,20 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* token 映射(沿用 PhotosFilterChip.vue 顶部那张四档表,不重复展开):
-   Vue2 --surface-2 → --chip-bg · --text-1/2/3 → --fg/--fg-muted/--fg-faint ·
-   --accent-hi → --accent-text · 角标原为写死的纯白文字 → --on-accent。
-   Vue2 --line-strong 与 --accent-glow 在本仓都不存在(已 grep theme.css 确认零命中):
-   前者取 --chip-border(同 PhotosFilterPopover.vue:273-281 的既有判定),后者取
-   --accent-soft-bd(accent 家族里描边档,同 PhotosFilterChip.vue [data-on] 边框的映射)。 */
+/* Plan B Task 5's token approach (see module comment ② above): no longer mapped to generic app tokens, use
+   the token names from Vue2 photos.scss's original text directly — at render time this resolves inside .photos-root, to
+   the line-for-line local dark-variant table in src/photos/styles/vue2-parity/photos.scss that mirrors Vue2
+   (--surface-2/--text-1/2/3/--line-strong/--accent-soft/--accent-glow/--accent-hi),
+   so the values match Vue2, not a newly invented palette. The badge's `color: white` matches
+   Vue2 PhotosFilterBar.vue:262's hardcoded value character-for-character (the same precedent as parity scss's own
+   .btn-primary's `color: white` — parity scss is the exception zone that transcribes Vue2 CSS verbatim, and doesn't
+   follow the site-wide "colors always go through tokens" rule; this follows that same precedent, it isn't this
+   component opening its own loophole). */
 .exif-filter {
   display: inline-flex;
   align-items: center;
   align-self: center;
-  /* 锁死在标签胶囊的高度,免得这个 flex item 把工具栏那一行撑高或错位。 */
+  /* Pinned to the label pill's height, so this flex item doesn't stretch or misalign the toolbar row. */
   height: 32px;
   min-width: 0;
 }
@@ -271,37 +306,38 @@ onBeforeUnmount(() => {
   height: 32px;
   flex-shrink: 0;
   border-radius: 9999px;
-  border: 1px solid var(--chip-border);
-  background: var(--chip-bg);
-  color: var(--fg-muted);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.25s;
 }
-/* fix round 1(评审必修 1,人已裁定):Vue2 原文
-   NimoOS-UI/src/views/Photos/PhotosFilterBar.vue:251 只改 color/border-color,
-   背景保持 --surface-2(→ --chip-bg)不动;此前这里多写了一行
-   `background: var(--chip-bg-hi)`,是简报文本本身的漂移,不是抄错——已按「界面严格 1:1」
-   铁律删掉,不补偏离登记(这不是有意偏离,是订正)。 */
+/* fix round 1 (review-mandatory 1, owner's call already made): Vue2's original
+   NimoOS-UI/src/views/Photos/PhotosFilterBar.vue:251 only changes color/border-color,
+   the background stays at --surface-2; a line `background: var(--chip-bg-hi)` had crept in here previously — a drift
+   in the brief text itself, not a copying error — already removed per the "strictly 1:1 on visuals" hard rule, no
+   deviation log added (this isn't an intentional deviation, it's a correction). */
 .exif-funnel:hover {
-  color: var(--fg);
-  border-color: var(--accent-soft-bd);
+  color: var(--text-1);
+  border-color: var(--accent-glow);
 }
 .exif-funnel.on {
   background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
-  color: var(--accent-text);
+  border-color: var(--accent-glow);
+  color: var(--accent-hi);
 }
-/* hover 硬约束:基类 .exif-funnel:hover 是 (0,2,0),变体 .exif-funnel.on 也是 (0,2,0)
-   —— 平手,靠书写顺序苟活(本区已栽四次的形态)。变体自带 :hover,数值等于未 hover 的
-   .on 态,即「已激活的漏斗在悬停时保持 accent 外观」——这正是 Vue2 里靠「.on 写在
-   :hover 之后」隐含表达的语义,这里显式化。 */
+/* hover specificity hard constraint: the base class .exif-funnel:hover is (0,2,0), and the variant .exif-funnel.on is
+   also (0,2,0) — a tie, surviving only by source order (a shape that has bitten this area four times already). The
+   variant carries its own :hover, with a value equal to the un-hovered .on state — i.e. "an already-active funnel
+   keeps its accent look while hovered" — this is exactly the semantics Vue2 expressed implicitly by writing ".on
+   after :hover", made explicit here. */
 .exif-funnel.on:hover {
   background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
-  color: var(--accent-text);
+  border-color: var(--accent-glow);
+  color: var(--accent-hi);
 }
 .exif-badge {
   position: absolute;
@@ -312,15 +348,17 @@ onBeforeUnmount(() => {
   padding: 0 3px;
   border-radius: 9999px;
   background: var(--accent);
-  color: var(--on-accent);
+  color: white; /* theme-exception: Vue2 PhotosFilterBar.vue:262 hardcodes the same value, parity scss's own
+  .btn-primary (photos.scss:272) already got the owner's sign-off on this same precedent — the badge sits on
+  .photos-root's local purple accent, and doesn't participate in the site-wide theme switch */
   font-size: 9px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-/* 原地横向展开:过渡期间靠 max-width 裁剪,过渡结束由 .ov 放开 overflow,
-   好让胶囊弹层能溢出容器。 */
+/* Expands horizontally in place: clipped via max-width during the transition, and .ov releases overflow once
+   the transition ends, so the pill's popover can spill outside the container. */
 .exif-chiprow {
   display: inline-flex;
   align-items: center;
@@ -339,8 +377,8 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 .exif-filter.ov .exif-chiprow { overflow: visible; }
-/* .fchip-wrap 是 PhotosFilterChip 的根节点——scoped CSS 下子组件根节点同时带父组件的
-   scope 属性,所以这里能直接选到它,不需要 :deep()。 */
+/* .fchip-wrap is PhotosFilterChip's root node — under scoped CSS a child component's root node also carries the
+   parent component's scope attribute, so it can be selected directly here, no :deep() needed. */
 .exif-chiprow .fchip-wrap {
   transform: translateX(-10px);
   opacity: 0;
@@ -356,12 +394,12 @@ onBeforeUnmount(() => {
   height: 30px;
   border: none;
   background: none;
-  color: var(--fg-faint);
+  color: var(--text-3);
   font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
   border-radius: 9999px;
   transition: color 0.2s;
 }
-.exif-clear:hover { color: var(--fg); }
+.exif-clear:hover { color: var(--text-1); }
 </style>

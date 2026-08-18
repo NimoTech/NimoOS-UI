@@ -8,11 +8,11 @@ import { i18n } from '../../i18n'
 const api = { getSettings: vi.fn(), updateSettings: vi.fn() }
 vi.mock('@nimotech/nimoos-service', () => ({ service: { get kvm() { return api } } }))
 
-// 评审 Important #2:需要在组件外部观察 useKvmHostInfo() 返回的 settings ref 有没有被
-// 污染——但组件不通过 props/emit 暴露这个内部 composable 实例。这里用 vi.mock 包一层
-// "转发到真实实现,但把每次调用的返回值记下来"的薄壳(不是替换行为,是真实的
-// useKvmHostInfo 逻辑本身,只是多了一个可供测试断言的"旁路观察点"),不需要改动
-// 生产代码(不新增 defineExpose 之类的测试专用钩子)。
+// Review Important #2: need to observe outside the component whether useKvmHostInfo()'s returned settings ref has been
+// polluted—but the component doesn't expose this internal composable instance via props/emit. Here we use vi.mock
+// to wrap a thin shell "forward to real implementation but record each call's return value" (not replacing behavior,
+// is the real useKvmHostInfo logic itself, just with an added "side-channel observation point" available for test
+// assertions); no need to modify production code (don't add test-only hooks like defineExpose).
 type HostInfoModule = typeof import('../composables/useKvmHostInfo')
 let lastHostInfo: ReturnType<HostInfoModule['useKvmHostInfo']> | null = null
 vi.mock('../composables/useKvmHostInfo', async (importOriginal) => {
@@ -34,10 +34,11 @@ const REAL = {
 }
 
 let w: VueWrapper | null = null
-// 硬约束 5:brief 逐字稿的 `mk` 是同步函数。实测 reka-ui 2.10(本仓库既有版本)的
-// DialogPortal/DialogContent 首次挂载要等下一个 microtask(nextTick)才把内容真正落地到
-// document.body——与 KvmDialog.test.ts / src/components/ui/Dialog.test.ts 已确立的写法
-// 一致。这里把 `mk` 改成 async 并在 mount 之后 `await nextTick()`,断言内容一个不减。
+// Hard constraint 5: the `mk` in brief's verbatim text is a sync function. Testing with reka-ui 2.10 (this repo's
+// existing version) shows that DialogPortal/DialogContent on first mount requires waiting for the next microtask
+// (nextTick) to actually mount content into document.body—consistent with the established pattern in
+// KvmDialog.test.ts / src/components/ui/Dialog.test.ts. Here we make `mk` async and `await nextTick()` after mount;
+// all assertions remain unchanged.
 const mk = async () => {
   w = mount(KvmGlobalSettingsDialog, {
     props: { open: true }, global: { plugins: [i18n] }, attachTo: document.body,
@@ -56,7 +57,7 @@ afterEach(() => { w?.unmount(); w = null; document.body.innerHTML = '' })
 const q = (sel: string) => document.body.querySelector(sel) as HTMLElement
 
 describe('KvmGlobalSettingsDialog', () => {
-  it('打开即拉设置并回填四个字段', async () => {
+  it('opens and fetches settings, fills four fields', async () => {
     const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
     expect(api.getSettings).toHaveBeenCalledTimes(1)
     expect((q('input[name="storagePath"]') as HTMLInputElement).value).toBe('/DATA/KVM')
@@ -66,12 +67,12 @@ describe('KvmGlobalSettingsDialog', () => {
       (q('.cv-switch input') as HTMLInputElement).checked).toBe(false)
   })
 
-  it('标题是「系统设置」(Vue2 那个 key 是 Settings,zh_CN.json 译作系统设置)', async () => {
+  it('title displays translated "system settings" (Vue2 key Settings, zh_CN.json translation)', async () => {
     await mk(); await new Promise((r) => setTimeout(r))
     expect(q('.create-vm-title').textContent).toContain('系统设置')
   })
 
-  it('点保存 → 只发 4 个可写字段 → emit update:open=false + saved(评审修复:通知父组件回灌它自己那份 useKvmHostInfo)', async () => {
+  it('clicking save → sends only 4 writable fields → emits update:open=false + saved (review fix: notify parent to re-fetch its own useKvmHostInfo)', async () => {
     const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
     ;(q('.cv-primary-btn') as HTMLButtonElement).click()
     await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
@@ -82,10 +83,10 @@ describe('KvmGlobalSettingsDialog', () => {
     expect(wr.emitted('saved')).toHaveLength(1)
   })
 
-  // 评审修复配套:失败分支不该 emit saved(没有新值可回灌,父组件也不该白跑一次
-  // getSettings)——同一份判别力问题(硬约束 Global Constraint #15):如果不单独断言
-  // 失败分支,光看上面那条"成功→emit saved"不能证明这个 emit 是"只在成功时"发出的。
-  it('保存失败不 emit saved', async () => {
+  // Review fix companion: failure branch shouldn't emit saved (no new value to backfill, parent also shouldn't
+  // unnecessarily fetch again)—same discriminative power problem (hard constraint Global Constraint #15): without
+  // separately asserting the failure branch, just the above "success → emit saved" can't prove this emit only fires "on success".
+  it('save failure doesn\'t emit saved', async () => {
     api.updateSettings.mockRejectedValue(new Error('storage path not writable'))
     const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
     ;(q('.cv-primary-btn') as HTMLButtonElement).click()
@@ -93,7 +94,7 @@ describe('KvmGlobalSettingsDialog', () => {
     expect(wr.emitted('saved')).toBeUndefined()
   })
 
-  it('保存失败 → 弹窗内联 .cv-error 显示后端 message,弹窗不关(硬约束 7)', async () => {
+  it('save failure → dialog inline .cv-error displays backend message, dialog stays open (hard constraint 7)', async () => {
     api.updateSettings.mockRejectedValue(new Error('storage path not writable'))
     const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
     ;(q('.cv-primary-btn') as HTMLButtonElement).click()
@@ -102,7 +103,7 @@ describe('KvmGlobalSettingsDialog', () => {
     expect(wr.emitted('update:open')).toBeUndefined()
   })
 
-  it('保存成功弹全局 toast「设置已保存」', async () => {
+  it('save success shows global toast "settings saved"', async () => {
     const { useToast } = await import('../../stores/toast')
     const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
     ;(q('.cv-primary-btn') as HTMLButtonElement).click()
@@ -110,30 +111,30 @@ describe('KvmGlobalSettingsDialog', () => {
     expect(useToast().toasts.map((x) => x.text)).toContain('设置已保存')
   })
 
-  // 评审 Important #1:上面「打开即拉设置并回填四个字段」那条断言的是 autostart:false,
-  // 而 checkbox 在完全没有 v-model 接线时默认就是 unchecked——那条断言区分不出「接对了」
-  // 和「根本没接」。这里用 autostart:true 的 fixture,断言开关真的翻成 checked。
-  it('评审 Important #1:autostart:true 时开关回填为 checked(区分"接对了"与"根本没接线")', async () => {
+  // Review Important #1: the above "opens and fetches settings, fills four fields" test asserts autostart:false,
+  // but checkbox defaults to unchecked when not wired with v-model—that assertion can't distinguish "wired correctly"
+  // from "not wired at all". Here we use autostart:true fixture to assert the switch actually flips to checked.
+  it('review Important #1: autostart:true fills switch as checked (distinguish "wired correctly" from "not wired at all")', async () => {
     api.getSettings.mockResolvedValue({ ...REAL, autostart: true })
     const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
     expect((q('.cv-switch input') as HTMLInputElement).checked).toBe(true)
   })
 
-  // 评审 Important #2:brief Step 5 明确要求"表单编辑用本地副本,不要直接双向绑
-  // useKvmHostInfo() 的 settings ref"——理由是 Task 7(创建弹窗)要拿 settings 当默认值,
-  // 这里改了值又取消,脏值不该污染共享 state。之前只实现了隔离,没有测试证明它;这里补上:
-  // 编辑输入框 → 点关闭(不点保存)→ 断言 useKvmHostInfo() 返回的 settings ref 仍是
-  // fetch 回来的原值,没有被这次编辑污染。
-  it('评审 Important #2:改了值但取消(不保存)不污染共享 settings state', async () => {
+  // Review Important #2: brief Step 5 explicitly requires "form editing uses local copy, don't directly two-way bind
+  // useKvmHostInfo()'s settings ref"—reason is Task 7 (create dialog) needs settings as default values; edit values here
+  // then cancel, dirty values shouldn't pollute shared state. Previously only implemented isolation without test proof; here
+  // we add it: edit input field → click close (don't click save) → assert useKvmHostInfo()'s returned settings ref is still
+  // the original fetched value, not polluted by this edit.
+  it('review Important #2: edits values but canceling (don\'t save) doesn\'t pollute shared settings state', async () => {
     const wr = await mk(); await new Promise((r) => setTimeout(r)); await wr.vm.$nextTick()
 
     const input = q('input[name="storagePath"]') as HTMLInputElement
     input.value = '/tmp/somewhere-else'
     input.dispatchEvent(new Event('input'))
     await wr.vm.$nextTick()
-    expect(input.value).toBe('/tmp/somewhere-else') // 确认编辑确实生效,排除"根本没改上"的假阳性
+    expect(input.value).toBe('/tmp/somewhere-else') // confirm edit actually took effect, exclude false positive of "didn't edit at all"
 
-    ;(q('.create-vm-close') as HTMLButtonElement).click() // 触发关闭,不经过保存
+    ;(q('.create-vm-close') as HTMLButtonElement).click() // trigger close, bypass save
     await wr.vm.$nextTick()
 
     expect(lastHostInfo?.settings.value.storagePath).toBe('/DATA/KVM')

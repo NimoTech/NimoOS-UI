@@ -14,7 +14,7 @@ const { t } = useI18n()
 
 const name = ref('')
 const diskIndex = ref(0)
-// 每次打开重置为默认名 + 预选第一块盘;immediate 兜住「初始即 open:true」的挂载
+// Reset to the default name + preselect the first disk every time it opens; immediate covers the mount case where open is already true initially
 watch(
   () => props.open,
   (o) => {
@@ -25,7 +25,7 @@ watch(
   },
   { immediate: true },
 )
-// Vue2 同款:名称只允许 \w 与连字符
+// Same as Vue2: name only allows \w and hyphens
 function onNameInput(e: Event) {
   const el = e.target as HTMLInputElement
   name.value = el.value.replace(/[^\w-]/g, '')
@@ -76,11 +76,13 @@ function submit(format: boolean) {
 }
 .cs-input:focus { border-color: var(--accent); }
 .cs-select { appearance: auto; }
-/* `.cs-input` 把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
- * 作者一旦给 <select> 指定背景,Chrome 就把它带到弹出列表上,而原生 option **不渲染 gradient**
- * (退回浏览器默认白底),配上近白的 --fg 就是白底白字。根节点的 color-scheme: dark 救不了
- * (作者背景优先)。注意背景来自 `.cs-input` 这个**共用类**,不是 select 专用的 `.cs-select` ——
- * 只盯 select 专用类会找不到源头。守卫:styles/selectPopup.test.ts。 */
+/* `.cs-input` sets background to var(--chip-bg) —— under the dark theme it is a **translucent, near-light gradient**.
+ * Once the author gives a <select> its own background, Chrome carries it over to the popup list, but a native option
+ * **does not render a gradient** (it falls back to the browser's default light background), and combined with a
+ * near-light --fg that becomes light-on-light (invisible text). The root's color-scheme: dark cannot save it
+ * (the author's background wins). Note the background comes from the shared class `.cs-input`, not the
+ * select-specific `.cs-select` —— watching only the select-specific class will miss the actual source. Guarded by:
+ * styles/selectPopup.test.ts. */
 .cs-select option,
 .cs-select optgroup {
   background-color: var(--set-option-bg);

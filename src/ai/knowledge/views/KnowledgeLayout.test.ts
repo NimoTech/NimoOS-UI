@@ -1,25 +1,30 @@
-// SP8-P5a Task 10 —— KnowledgeLayout 外壳测试。
-// 测试骨架逐字取自任务 brief(`.superpowers/sdd/p5a-task-10-brief.md` Step 2），
-// 按治理文件 §9「测试质量」与协调者追加要求补强了三类断言（见每处注释标注
-// 「补强」）：
-//   1) rail 的 [data-active] 断言从「只查当前项+一项对照」扩到「当前项 true、
-//      其余全部 8 项 false」——只测一项对照抓不到「全都 active」的回归。
-//   2) 移动端 tabs 补了前 4 项文案与 NAV 前 4 项一致的断言（brief 原版只测数量
-//      与 data-active）。
-//   3) K8 rail 页脚用户名补了 4 种 localStorage 形态的独立用例（brief 原版没有
-//      覆盖这块——K8 是本任务在治理文件里被单独点名的写法，必须有回归钉子）。
+// SP8-P5a Task 10 — KnowledgeLayout shell test.
+// Test skeleton is copied verbatim from the task brief (`.superpowers/sdd/p5a-task-10-brief.md` Step 2),
+// with three classes of assertions strengthened per governance doc §9 "Test Quality" and
+// coordinator requests (marked "strengthened" at each location):
+//   1) rail [data-active] assertion expanded from "check current item + one reference" to
+//      "current item true, all other 8 items false" — checking only one reference misses
+//      the "all active" regression.
+//   2) mobile tabs gained assertion that first 4 labels match NAV's first 4 items (original
+//      brief only tested count and data-active).
+//   3) K8 rail footer username gained 4 independent test cases for different localStorage states
+//      (original brief had no coverage — K8 is the write pattern explicitly named in the
+//      governance doc, so it needs a regression hook).
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
-// 【测试脚手架 bug,已修正】brief Step 2 原文没有 mock `@nimotech/nimoos-service`。
-// `onMounted` 会真的调用 `store.loadOverview()`/`refreshNotesDraftCount()`,在没
-// spy 掉这两个 action 的用例里(比如「unreachable 时出警示条」),jsdom 环境下的
-// 真实网络请求会失败并把 `unreachable` 提前置 true,导致「初始不出警示条」断言
-// 假红——这是网络竞态,不是实现的 bug。照 T6 `knowledgeStore.parser.test.ts`
-// 已确立的 `vi.hoisted` + `vi.mock('@nimotech/nimoos-service', …)` 写法补上,
-// 让未显式 spy loadOverview 的用例也能拿到确定性的空结果。
+// [Test scaffolding bug, fixed] The original brief Step 2 did not mock
+// `@nimotech/nimoos-service`. `onMounted` will actually call
+// `store.loadOverview()`/`refreshNotesDraftCount()`. In test cases that don't spy on
+// these two actions (e.g., "warning banner appears when unreachable"), real network
+// requests in the jsdom environment fail and prematurely set `unreachable` to true,
+// causing the "no warning banner initially" assertion to false-positive — this is a
+// network race condition, not an implementation bug. Following the established
+// `vi.hoisted` + `vi.mock('@nimotech/nimoos-service', …)` pattern in T6's
+// `knowledgeStore.parser.test.ts`, we add the mock so test cases that don't explicitly
+// spy on loadOverview also get deterministic empty results.
 const ai = vi.hoisted(() => ({
   parserStats: vi.fn().mockResolvedValue({
     queue_depth: { pending: 0, running: 0, failed: 0, done: 0 },
@@ -43,23 +48,25 @@ import { i18n } from '../../../i18n'
 import KnowledgeLayout from './KnowledgeLayout.vue'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 
-// 真实 i18n(不许手写子集 —— P1c2 记账 minor:手写子集会让键名拼错抓不到)
+// Real i18n (don't hand-write a subset — P1c2 entry: hand-writing subsets causes key
+// name typos to go undetected)
 //
-// 【测试脚手架 bug,已修正】brief Step 2 原文把顶层路由 `/ai/knowledge` 的
-// `component` 也设成 `KnowledgeLayout`,同时又把 `KnowledgeLayout` 直接
-// mount 成测试根组件。这会导致 KnowledgeLayout 模板里那唯一一个
-// `<router-view/>` 在渲染树里没有任何「外层 router-view」注入 depth,于是它
-// 自己就是 depth 0——而 depth 0 匹配到的恰好还是 `KnowledgeLayout` 自身,
-// 于是它把自己再渲染一遍(第二遍里 depth 1 才真正匹配到 Stub)。实测过:
-// `w.findAll('.knowledge-app')` 长度为 2、`.k-rail-item` 从 9 变 18、
-// `loadOverview` 因 onMounted 触发两次而被记两次——全部指向同一个根因,不是
-// 实现的 bug。生产环境不会有这个问题:真正挂载 KnowledgeLayout 的是
-// App.vue 自己的最外层 `<router-view/>`(depth 0 在那一层被吃掉),
-// KnowledgeLayout 内部的 `<router-view/>` 因此天然是 depth 1,匹配到的是
-// 子页面而不是自己。这里改成扁平路由(顶层路径直接指向 Stub,不再让
-// KnowledgeLayout 出现在路由表里),单测里 KnowledgeLayout 的
-// `<router-view/>` 就是 depth 0,直接匹配到 Stub,行为与生产环境（只是深度
-// 平移了一层）等价,且不再自我递归。
+// [Test scaffolding bug, fixed] The original brief Step 2 set the top-level route
+// `/ai/knowledge`'s `component` to `KnowledgeLayout` while also directly mounting
+// `KnowledgeLayout` as the test root component. This causes the single `<router-view/>`
+// in KnowledgeLayout's template to have no "outer router-view" injected depth in the
+// render tree, so it becomes depth 0 itself — and depth 0 happens to match
+// `KnowledgeLayout` itself, so it re-renders itself (depth 1 in the second render
+// finally matches the Stub). Empirically observed: `w.findAll('.knowledge-app')` length
+// is 2, `.k-rail-item` goes from 9 to 18, `loadOverview` is counted twice because
+// onMounted fires twice — all point to the same root cause, not an implementation bug.
+// Production has no such issue: the real parent of KnowledgeLayout is App.vue's
+// outermost `<router-view/>` (depth 0 is consumed there), so KnowledgeLayout's inner
+// `<router-view/>` is naturally depth 1, matching child pages not itself. Here we
+// flatten the routes (top-level path points directly to Stub, KnowledgeLayout no
+// longer appears in the route table). Now in unit tests KnowledgeLayout's
+// `<router-view/>` is depth 0, matches Stub directly, behaves equivalently to
+// production (just shifted one level deeper) and doesn't self-recurse.
 const Stub = { template: '<div class="stub-child"/>' }
 function makeRouter(path = '/ai/knowledge') {
   const router = createRouter({
@@ -90,7 +97,7 @@ beforeEach(() => {
 })
 
 describe('KnowledgeLayout — rail', () => {
-  it('渲染 9 个导航项,顺序与 Vue2 一致', async () => {
+  it('renders 9 nav items in the same order as Vue2', async () => {
     const { w } = await mountLayout()
     const items = w.findAll('.k-rail-item')
     expect(items).toHaveLength(9)
@@ -107,7 +114,7 @@ describe('KnowledgeLayout — rail', () => {
     ])
   })
 
-  it('每项 href 是 hash 深链,dashboard 不带子路径', async () => {
+  it('each item has a hash deep link, dashboard has no subpath', async () => {
     const { w } = await mountLayout()
     const hrefs = w.findAll('.k-rail-item').map((i) => i.attributes('href'))
     expect(hrefs[0]).toBe('#/ai/knowledge')
@@ -115,7 +122,7 @@ describe('KnowledgeLayout — rail', () => {
     expect(hrefs[8]).toBe('#/ai/knowledge/settings')
   })
 
-  it('当前 tab 的 data-active 为 "true",其余全部 8 项为 "false"(补强:原版只对照两项,抓不到「全都 active」的回归)', async () => {
+  it('current tab has data-active="true", other 8 items have "false" (strengthened: original only compared two, misses "all active" regression)', async () => {
     const { w } = await mountLayout('/ai/knowledge/queue')
     const items = w.findAll('.k-rail-item')
     items.forEach((item, idx) => {
@@ -123,7 +130,7 @@ describe('KnowledgeLayout — rail', () => {
     })
   })
 
-  it('点导航项走 router.push,已在当前页则不 push', async () => {
+  it('clicking nav items calls router.push, no push if already on current page', async () => {
     const { w, router } = await mountLayout('/ai/knowledge/queue')
     const push = vi.spyOn(router, 'push')
     await w.findAll('.k-rail-item')[5].trigger('click')
@@ -132,38 +139,39 @@ describe('KnowledgeLayout — rail', () => {
     expect(push).toHaveBeenCalledWith('/ai/knowledge/notes')
   })
 
-  // 【评审 Important 开放发现 3,2026-08-01 补】rail 9 项与移动端 5 项的图标名
-  // (NAV[].icon)跟 KIcon.PATHS 之间没有任何断言绑定——KIcon.test.ts 那份 22 项
-  // 硬编码数组与 NAV 完全解耦,如果 NAV 里某个图标名手滑写错(比如 KIcon 内部改名
-  // 后 NAV 忘了同步),KIcon 会静默渲染一个空 `<svg></svg>`(可见的空白图标),但
-  // 现有用例(渲染 9 个导航项/href/data-active)全都不看 svg 内容,抓不到。
-  // RED 探针实测:把 `NAV[0].icon` 从 'home' 改成 'homez' → 全量全绿。
-  it('rail 9 项与移动端 5 项渲染出的 svg 图标内容非空(防 NAV 图标名手滑成不存在的 glyph)', async () => {
+  // [Review Important finding 3, added 2026-08-01] Icon names (NAV[].icon) and
+  // KIcon.PATHS have no assertion binding — KIcon.test.ts's hardcoded 22-item array is
+  // completely decoupled from NAV. If an icon name in NAV has a typo (e.g., NAV forgets
+  // to sync after KIcon renames internally), KIcon silently renders an empty `<svg></svg>`
+  // (visible blank icon), but existing test cases (render 9 nav items / href / data-active)
+  // never inspect svg content, so they miss it. RED probe confirmed: changing
+  // `NAV[0].icon` from 'home' to 'homez' → all tests still pass.
+  it('rail 9 items and mobile 5 items render non-empty svg icons (guard against NAV icon name typos becoming non-existent glyphs)', async () => {
     const { w } = await mountLayout()
     const railSvgs = w.findAll('.k-rail-item svg')
     expect(railSvgs).toHaveLength(9)
     railSvgs.forEach((svg, idx) => {
-      expect(svg.element.innerHTML, `rail item #${idx} 的图标渲染为空`).not.toBe('')
+      expect(svg.element.innerHTML, `rail item #${idx} icon renders empty`).not.toBe('')
     })
     const mobileSvgs = w.findAll('.k-mobile-tab svg')
     expect(mobileSvgs).toHaveLength(5)
     mobileSvgs.forEach((svg, idx) => {
-      expect(svg.element.innerHTML, `移动端 tab #${idx} 的图标渲染为空`).not.toBe('')
+      expect(svg.element.innerHTML, `mobile tab #${idx} icon renders empty`).not.toBe('')
     })
   })
 })
 
-describe('KnowledgeLayout — router-view 出口', () => {
-  // 【评审 Minor,2026-08-01 补】`<router-view/>` 渲染出的子页面(测试里是 Stub)
-  // 之前没有任何用例查过,补一条最基础的存在性断言。
-  it('渲染当前路由匹配的子组件', async () => {
+describe('KnowledgeLayout — router-view outlet', () => {
+  // [Review Minor, added 2026-08-01] The child page rendered by `<router-view/>`
+  // (Stub in tests) was never tested before. Adding a basic existence assertion.
+  it('renders the child component matched by the current route', async () => {
     const { w } = await mountLayout()
     expect(w.find('.stub-child').exists()).toBe(true)
   })
 })
 
-describe('KnowledgeLayout — 徽标', () => {
-  it('failed > 0 时 queue 出数字徽标,=0 时不出', async () => {
+describe('KnowledgeLayout — badges', () => {
+  it('queue shows numeric badge when failed > 0, no badge when =0', async () => {
     const { w } = await mountLayout()
     const s = useKnowledgeStore()
     s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 3, done: 0 } }
@@ -175,7 +183,7 @@ describe('KnowledgeLayout — 徽标', () => {
     expect(w.findAll('.k-rail-item')[5].find('.k-badge').exists()).toBe(false)
   })
 
-  it('草稿 > 0 时 notes 徽标带 data-tone="warn"', async () => {
+  it('notes badge has data-tone="warn" when draft count > 0', async () => {
     const { w } = await mountLayout()
     useKnowledgeStore().setNotesDraftCount(2)
     await flushPromises()
@@ -185,8 +193,8 @@ describe('KnowledgeLayout — 徽标', () => {
   })
 })
 
-describe('KnowledgeLayout — 索引器状态块', () => {
-  it('三态:unreachable → error/离线;paused → paused/已暂停;否则 running/已收录数', async () => {
+describe('KnowledgeLayout — indexer status block', () => {
+  it('three states: unreachable → error/offline; paused → paused/paused; else running/indexed count', async () => {
     const { w } = await mountLayout()
     const s = useKnowledgeStore()
     s.unreachable = true
@@ -204,52 +212,56 @@ describe('KnowledgeLayout — 索引器状态块', () => {
     s.stats = { ...s.stats, indexed_files: 1234 }
     await flushPromises()
     expect(w.find('.k-rail-svc-dot').attributes('data-state')).toBe('running')
-    // 【终审 Minor,收紧】原 toContain('1,234') 是弱断言——'11,234'.includes('1,234')
-    // 为真,读错字段拿到 11234 这类错抓不到。改成整串精确匹配(toLocaleString 输出）。
+    // [Final review Minor, tightened] Original toContain('1,234') was weak assertion — '11,234'.includes('1,234')
+    // is true, misses errors like reading wrong field and getting 11234. Changed to exact
+    // full-string match (toLocaleString output).
     expect(w.find('.k-rail-svc-meta').text()).toBe('运行中 · 1,234 已收录')
   })
 })
 
 describe('KnowledgeLayout — topbar / banner', () => {
-  it('标题与副标题按当前 tab 取 TITLES,dashboard 的副标题不带子路径', async () => {
+  it('title and subtitle are taken from TITLES for current tab, dashboard subtitle has no subpath', async () => {
     const { w } = await mountLayout()
     expect(w.find('.k-topbar-title').text()).toBe('概览')
     expect(w.find('.k-topbar-sub').text()).toBe('Dashboard · /ai/knowledge')
   })
 
-  it('N8:rail 第 9 项是「系统设置」而 topbar 标题是「高级设置」', async () => {
+  it('N8: rail item 9 is "System Settings" while topbar title is "Advanced Settings"', async () => {
     const { w } = await mountLayout('/ai/knowledge/settings')
     expect(w.findAll('.k-rail-item')[8].find('.k-rail-item-cn').text()).toBe('系统设置')
     expect(w.find('.k-topbar-title').text()).toBe('高级设置')
-    // 补强:显式断言两者不相等,防止未来有人把两个键合并成一个(N8 的直接回归钉子)。
+    // Strengthened: explicitly assert they are not equal, prevent future merging of the two
+    // keys into one (direct regression hook for N8).
     expect(w.findAll('.k-rail-item')[8].find('.k-rail-item-cn').text()).not.toBe(
       w.find('.k-topbar-title').text(),
     )
   })
 
-  // 【评审 Important 开放发现 4,2026-08-01 补】TITLES 9 项原来只钉住 dashboard(默认档)
-  // 与 settings(N8)两项,wiki/queue 两项跟 N8 同性质的「titleKey 与 nav 短语不同」
-  // 刻意差异(Wiki vs Wiki map、Queue vs Job Queue)零覆盖;`.k-topbar-sub` 也只测过
-  // dashboard 那条「不带子路径」分支,`'/' + currentTab` 那条分支从没有对照用例
-  // (治理文件 §9:「A 与 B 二选一必须两边都有对照用例」)。
-  // RED 探针实测:把 `TITLES.queue.titleKey` 从 'aiKbTitleJobQueue' 改成
-  // 'aiKbNavQueue'(与 nav 键合并)→ queue 用例精确报红。
-  it('wiki:标题取 aiKbTitleWikiMap,副标题带 /wiki 子路径', async () => {
+  // [Review Important finding 4, added 2026-08-01] TITLES originally only pinned
+  // dashboard (default) and settings (N8). wiki/queue have the same nature as N8
+  // ("titleKey differs from nav phrase"; Wiki vs Wiki map, Queue vs Job Queue) but had
+  // zero coverage. `.k-topbar-sub` also only tested the dashboard "no subpath" branch;
+  // the `'/' + currentTab` branch never had a reference case (governance §9: "A vs B
+  // binary choice must have reference cases on both sides"). RED probe confirmed: changing
+  // `TITLES.queue.titleKey` from 'aiKbTitleJobQueue' to 'aiKbNavQueue' (merge with nav
+  // key) → queue test fails precisely.
+  it('wiki: title from aiKbTitleWikiMap, subtitle includes /wiki subpath', async () => {
     const { w } = await mountLayout('/ai/knowledge/wiki')
     expect(w.find('.k-topbar-title').text()).toBe('Wiki 导航')
     expect(w.find('.k-topbar-sub').text()).toBe('Wiki · /ai/knowledge/wiki')
   })
 
-  it('queue:标题取 aiKbTitleJobQueue(≠ nav 的「任务」),副标题带 /queue 子路径(主钉子,判别力强于 wiki)', async () => {
+  it('queue: title from aiKbTitleJobQueue (≠ nav "Task"), subtitle includes /queue subpath (main hook, stronger discrimination than wiki)', async () => {
     const { w } = await mountLayout('/ai/knowledge/queue')
     expect(w.find('.k-topbar-title').text()).toBe('任务队列')
     expect(w.find('.k-topbar-sub').text()).toBe('Job Queue · /ai/knowledge/queue')
-    // wiki 与 nav 中文值恰好都是「Wiki 导航」(N8 说明栏已注),判别力天然弱;
-    // queue 的 nav 中文是「任务」、title 中文是「任务队列」,两者不同,才是真正的钉子。
+    // wiki's nav and title both happen to be "Wiki Navigation" (noted in N8 description),
+    // so discrimination is naturally weak. queue's nav is "Task", title is "Task Queue",
+    // they differ — that's the real hook.
     expect(w.find('.k-topbar-title').text()).not.toBe('任务')
   })
 
-  it('unreachable 时出警示条,否则不出', async () => {
+  it('shows warning banner when unreachable, else no banner', async () => {
     const { w } = await mountLayout()
     expect(w.find('.k-banner').exists()).toBe(false)
     useKnowledgeStore().unreachable = true
@@ -257,7 +269,7 @@ describe('KnowledgeLayout — topbar / banner', () => {
     expect(w.find('.k-banner').attributes('data-tone')).toBe('warn')
   })
 
-  it('刷新按钮重载 overview 并 toast', async () => {
+  it('refresh button reloads overview and toasts', async () => {
     const { w } = await mountLayout()
     const s = useKnowledgeStore()
     const load = vi.spyOn(s, 'loadOverview').mockResolvedValue()
@@ -269,8 +281,8 @@ describe('KnowledgeLayout — topbar / banner', () => {
   })
 })
 
-describe('KnowledgeLayout — 移动端 tabs', () => {
-  it('只渲染前 4 项 + More,More 在后 5 个 tab 任一激活时高亮', async () => {
+describe('KnowledgeLayout — mobile tabs', () => {
+  it('renders only first 4 items + More, More highlights when any of last 5 tabs active', async () => {
     const { w } = await mountLayout('/ai/knowledge/queue')
     const tabs = w.findAll('.k-mobile-tab')
     expect(tabs).toHaveLength(5)
@@ -278,7 +290,7 @@ describe('KnowledgeLayout — 移动端 tabs', () => {
     expect(tabs[0].attributes('data-active')).toBe('false')
   })
 
-  it('前 4 项文案与 NAV 前 4 项一致(补强:brief 原版没测内容,只测了数量)', async () => {
+  it('first 4 items match NAV first 4 items (strengthened: original only tested count)', async () => {
     const { w } = await mountLayout()
     const tabs = w.findAll('.k-mobile-tab')
     expect(tabs.slice(0, 4).map((t) => t.find('span').text())).toEqual([
@@ -290,7 +302,7 @@ describe('KnowledgeLayout — 移动端 tabs', () => {
     expect(tabs[4].find('span').text()).toBe('浏览更多')
   })
 
-  it('More 跳到 allowlist(照抄 Vue2)', async () => {
+  it('More navigates to allowlist (copied from Vue2)', async () => {
     const { w, router } = await mountLayout()
     const push = vi.spyOn(router, 'push')
     await w.findAll('.k-mobile-tab')[4].trigger('click')
@@ -298,35 +310,36 @@ describe('KnowledgeLayout — 移动端 tabs', () => {
   })
 })
 
-describe('KnowledgeLayout — K8 rail 页脚用户名', () => {
-  // 补强(brief 原版没有覆盖):K8 是治理文件单独点名、逐字复用
-  // SettingsRail.vue:75-86 的写法,必须有独立回归钉子,四种 localStorage 形态各一条。
-  it('localStorage 里有 nickname 时优先显示 nickname', async () => {
+describe('KnowledgeLayout — K8 rail footer username', () => {
+  // Strengthened (original brief had no coverage): K8 is the write pattern explicitly
+  // named in the governance doc, verbatim reuse of SettingsRail.vue:75-86. Needs
+  // independent regression hooks — one test case per localStorage state variant.
+  it('prioritize nickname when present in localStorage', async () => {
     localStorage.setItem('user', JSON.stringify({ nickname: '阿囧', username: 'jiong' }))
     const { w } = await mountLayout()
     expect(w.find('.k-rail-foot').text()).toBe('NimoOS · 阿囧')
   })
 
-  it('只有 username 时回落到 username', async () => {
+  it('fall back to username when only username present', async () => {
     localStorage.setItem('user', JSON.stringify({ username: 'jiong' }))
     const { w } = await mountLayout()
     expect(w.find('.k-rail-foot').text()).toBe('NimoOS · jiong')
   })
 
-  it('localStorage 里的 JSON 损坏时回落到「你」', async () => {
+  it('fall back to "you" when JSON in localStorage is corrupted', async () => {
     localStorage.setItem('user', '{not valid json')
     const { w } = await mountLayout()
     expect(w.find('.k-rail-foot').text()).toBe('NimoOS · 你')
   })
 
-  it('localStorage 没有 user 键时回落到「你」', async () => {
+  it('fall back to "you" when localStorage has no user key', async () => {
     const { w } = await mountLayout()
     expect(w.find('.k-rail-foot').text()).toBe('NimoOS · 你')
   })
 })
 
-describe('KnowledgeLayout — 生命周期', () => {
-  it('挂载时拉一次 overview 与草稿数', async () => {
+describe('KnowledgeLayout — lifecycle', () => {
+  it('fetch overview and draft count once on mount', async () => {
     setActivePinia(createPinia())
     const s = useKnowledgeStore()
     const load = vi.spyOn(s, 'loadOverview').mockResolvedValue()
@@ -336,7 +349,7 @@ describe('KnowledgeLayout — 生命周期', () => {
     expect(draft).toHaveBeenCalledTimes(1)
   })
 
-  it('10 秒轮询;document.hidden 时跳过;卸载时清定时器', async () => {
+  it('polls every 10 seconds; skips when document.hidden; clears timer on unmount', async () => {
     vi.useFakeTimers()
     setActivePinia(createPinia())
     const s = useKnowledgeStore()
@@ -350,13 +363,13 @@ describe('KnowledgeLayout — 生命周期', () => {
     expect(load).toHaveBeenCalledTimes(2)
     const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
     vi.advanceTimersByTime(10000)
-    expect(load).toHaveBeenCalledTimes(2) // 跳过
+    expect(load).toHaveBeenCalledTimes(2) // skipped
     hidden.mockReturnValue(false)
     vi.advanceTimersByTime(10000)
     expect(load).toHaveBeenCalledTimes(3)
     w.unmount()
     vi.advanceTimersByTime(30000)
-    expect(load).toHaveBeenCalledTimes(3) // 已清
+    expect(load).toHaveBeenCalledTimes(3) // cleared
     vi.useRealTimers()
   })
 })

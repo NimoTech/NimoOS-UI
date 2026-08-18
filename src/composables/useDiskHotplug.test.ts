@@ -25,7 +25,7 @@ describe('useDiskHotplug', () => {
   beforeEach(() => { vi.useFakeTimers(); for (const k in handlers) delete handlers[k]; for (const k in offs) delete offs[k] })
   afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 
-  it('mount 时订阅 added/removed 且 loadOnMount 默认立即 refresh 一次', () => {
+  it('On mount, subscribe to added/removed and loadOnMount defaults to immediate refresh once', () => {
     const refresh = vi.fn()
     mount(host(refresh))
     expect(refresh).toHaveBeenCalledTimes(1)
@@ -33,13 +33,13 @@ describe('useDiskHotplug', () => {
     expect(typeof handlers['local-storage:disk:removed']).toBe('function')
   })
 
-  it('loadOnMount:false 时 mount 不 refresh', () => {
+  it('When loadOnMount:false, mount does not refresh', () => {
     const refresh = vi.fn()
     mount(host(refresh, { loadOnMount: false }))
     expect(refresh).not.toHaveBeenCalled()
   })
 
-  it('500ms 防抖:连发多次事件只刷新一次', () => {
+  it('500ms debounce: multiple consecutive events trigger refresh only once', () => {
     const refresh = vi.fn()
     mount(host(refresh, { loadOnMount: false }))
     handlers['local-storage:disk:added']()
@@ -50,14 +50,14 @@ describe('useDiskHotplug', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
-  it('unmount 调两个 off-fn 且清定时器', () => {
+  it('unmount calls both off-fns and clears timer', () => {
     const refresh = vi.fn()
     const w = mount(host(refresh, { loadOnMount: false }))
-    handlers['local-storage:disk:added']() // 挂起一个未触发的防抖
+    handlers['local-storage:disk:added']() // Suspend a pending debounce
     w.unmount()
     expect(offs['local-storage:disk:added']).toHaveBeenCalledTimes(1)
     expect(offs['local-storage:disk:removed']).toHaveBeenCalledTimes(1)
     vi.advanceTimersByTime(500)
-    expect(refresh).not.toHaveBeenCalled() // 卸载后不再触发
+    expect(refresh).not.toHaveBeenCalled() // Does not trigger after unmount
   })
 })

@@ -1,6 +1,7 @@
-// 拖拽文件夹上传:用 webkitGetAsEntry 递归读取目录,保留 relativePath(供受保护
-// 目录判断 + 批聚合)。与 Photos 的 collectFilesFromDataTransfer 不同:不按媒体
-// 类型过滤(文件管理器通用),不跳过隐藏文件。纯逻辑,无 Vue/store 依赖。
+// Drag-drop folder upload: use webkitGetAsEntry to recursively read directories, preserve
+// relativePath (for protected directory checks + batch aggregation). Unlike Photos'
+// collectFilesFromDataTransfer: no media type filtering (generic file manager), no hidden file skipping.
+// Pure logic, no Vue/store dependencies.
 
 interface FsEntry {
   isFile: boolean
@@ -11,6 +12,7 @@ interface FsEntry {
   createReader?: () => { readEntries: (ok: (e: FsEntry[]) => void, err?: () => void) => void }
 }
 export interface DroppedFile { file: File; relativePath: string }
+export interface DroppedTree { files: DroppedFile[]; emptyDirs: string[] }
 
 function stripLead(p: string): string { return p.replace(/^\/+/, '') }
 
@@ -36,7 +38,7 @@ function entryToFile(entry: FsEntry): Promise<File | null> {
   })
 }
 
-async function walk(entry: FsEntry | null, out: DroppedFile[]): Promise<void> {
+async function walk(entry: FsEntry | null, out: DroppedFile[], emptyDirs: string[]): Promise<void> {
   if (!entry) return
   if (entry.isFile) {
     const f = await entryToFile(entry)
@@ -45,13 +47,20 @@ async function walk(entry: FsEntry | null, out: DroppedFile[]): Promise<void> {
   }
   if (entry.isDirectory && entry.createReader) {
     const children = await readAllEntries(entry.createReader())
-    for (const child of children) await walk(child, out)
+    // Empty directories: the entire pipeline only has "file" entities; directories are a side
+    // effect of files landing on disk. Do not record relative paths here—empty directories
+    // will vanish from upload (bug.txt #4). Record only leaves: parent paths are filled by
+    // backend MkdirAll. webkitdirectory selector cannot obtain empty directories per spec;
+    // that code path cannot be fixed; only drag-drop reaches here.
+    if (!children.length) { emptyDirs.push(stripLead(entry.fullPath || entry.name)); return }
+    for (const child of children) await walk(child, out, emptyDirs)
   }
 }
 
-export async function readDroppedEntries(dt: DataTransfer | null): Promise<DroppedFile[]> {
+export async function readDroppedEntries(dt: DataTransfer | null): Promise<DroppedTree> {
   const out: DroppedFile[] = []
-  if (!dt) return out
+  const emptyDirs: string[] = []
+  if (!dt) return { files: out, emptyDirs }
   const items = dt.items as unknown as (DataTransferItem & { webkitGetAsEntry?: () => FsEntry | null })[] | null
   const supportsEntries = !!(items && items.length && items[0].webkitGetAsEntry)
   if (supportsEntries) {
@@ -62,11 +71,11 @@ export async function readDroppedEntries(dt: DataTransfer | null): Promise<Dropp
       if (items![i].kind === 'file') entries.push(items![i].webkitGetAsEntry!())
     }
     for (const entry of entries) {
-      try { await walk(entry, out) } catch (e) { console.error('[files][drop] walk failed', e) }
+      try { await walk(entry, out, emptyDirs) } catch (e) { console.error('[files][drop] walk failed', e) }
     }
-    return out
+    return { files: out, emptyDirs }
   }
-  // Fallback: flat file list (no folder traversal possible).
+  // Fallback: flat file list (no folder traversal possible, so no directories at all).
   for (const f of Array.from(dt.files || [])) out.push({ file: f, relativePath: f.name })
-  return out
+  return { files: out, emptyDirs }
 }

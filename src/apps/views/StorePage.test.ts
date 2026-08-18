@@ -44,7 +44,7 @@ const CATALOG = {
     nextcloud: { title: { en_us: 'Nextcloud' }, tagline: { en_us: 'File sync' }, icon: '', category: 'Cloud' },
   },
 }
-// nextcloud 带 tips.before_install:用于「先弹须知」用例(D3),jellyfin 保持已装态不变
+// nextcloud carries tips.before_install: for the "show notice first" case (D3); jellyfin stays installed
 const CATALOG_WITH_TIPS = {
   installed: ['jellyfin'],
   list: {
@@ -56,13 +56,14 @@ const CATALOG_WITH_TIPS = {
   },
 }
 
-// 显式把 pinia 实例挂到 mount 的 global.plugins——仅靠 setActivePinia() 在本文件这种
-// 多用例连续 mount 同一带多个 composable(useInstallFlow/useDeviceArch/useInstallProgressStore)
-// 的页面时,曾观测到后挂载的组件绑定到早前某次 beforeEach 创建的 pinia 实例(Pinia 在无
-// app.use(pinia) 时退化为 getActivePinia() 全局变量,时序上不够稳固)。显式传入杜绝此类漂移。
+// Explicitly attach the pinia instance to mount's global.plugins — with setActivePinia() alone,
+// when this file mounts the same page (which uses several composables:
+// useInstallFlow/useDeviceArch/useInstallProgressStore) across consecutive test cases, later mounts
+// were observed binding to a pinia instance created by an earlier beforeEach (without app.use(pinia),
+// Pinia degrades to the getActivePinia() global, which is timing-fragile). Passing it explicitly rules out this drift.
 let pinia: ReturnType<typeof createPinia>
 
-/** T6 新增两例的挂载 helper:withTips 切换目录/Featured 用的 mock 数据,Portal 断言需要真 DOM */
+/** Mount helper for the two cases added in T6: withTips switches the mock data used for catalog/Featured; Portal assertions need a real DOM */
 function mountPage(opts: { withTips?: boolean } = {}) {
   svc.appstore.listApps.mockResolvedValue(opts.withTips ? CATALOG_WITH_TIPS : CATALOG)
   return mount(StorePage, { global: { plugins: [i18n, pinia] }, attachTo: document.body })
@@ -86,25 +87,25 @@ describe('StorePage', () => {
     push.mockClear(); replace.mockClear()
   })
 
-  it('进区拉目录+Featured;渲染卡片网格与已装徽章', async () => {
+  it('Enter area, fetch catalog + Featured; render card grid with installed badge', async () => {
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
-    expect(svc.appstore.listApps).toHaveBeenCalledWith({})               // 目录
+    expect(svc.appstore.listApps).toHaveBeenCalledWith({})               // catalog
     expect(svc.appstore.listApps).toHaveBeenCalledWith({ recommend: true }) // Featured
-    // 用同一份 CATALOG 兜底两路调用(目录+Featured),T4 起页面同时挂 FeaturedStrip——
-    // 主网格卡片数收窄到 .apps-grid 范围内断言,避免把 Featured 带的卡片也计入
+    // the same CATALOG backs both calls (catalog + Featured); since T4 the page also mounts FeaturedStrip —
+    // narrow the main-grid card count assertion to .apps-grid so Featured strip cards are not counted
     expect(w.find('.apps-grid').findAll('.store-card')).toHaveLength(2)
     expect(w.text()).toContain('已安装') // jellyfin ∈ installed
   })
 
-  it('目录为空 → 空态提示(非报错,spec §7.5)', async () => {
+  it('Catalog is empty → empty state hint (not an error, spec §7.5)', async () => {
     svc.appstore.listApps.mockResolvedValue({ installed: [], list: {} })
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
     expect(w.text()).toContain('没有找到应用')
   })
 
-  it('加载失败 → 错误态 + 重试按钮,点击重拉', async () => {
+  it('Load fails → error state + retry button, click to reload', async () => {
     svc.appstore.listApps.mockRejectedValue(new Error('boom'))
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -115,7 +116,7 @@ describe('StorePage', () => {
     expect(w.findAll('.store-card')).toHaveLength(2)
   })
 
-  it('搜索输入 250ms 防抖后 replace 路由 query(前端过滤,深链)', async () => {
+  it('Search input debounced 250ms then replace route query (frontend filtering, deep link)', async () => {
     vi.useFakeTimers()
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -126,7 +127,7 @@ describe('StorePage', () => {
     vi.useRealTimers()
   })
 
-  it('组件卸载后清理防抖定时器——不应在卸载后(如已跳转详情页)仍触发 replace', async () => {
+  it('Clean up debounce timer after component unmount — should not trigger replace after unmount (e.g., already navigated to detail page)', async () => {
     vi.useFakeTimers()
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -137,7 +138,7 @@ describe('StorePage', () => {
     vi.useRealTimers()
   })
 
-  it('?search= 生效时前端过滤;点卡片进详情', async () => {
+  it('When ?search= takes effect, frontend filtering; click card to go to detail', async () => {
     routeQuery.search = 'jelly'
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
@@ -147,14 +148,14 @@ describe('StorePage', () => {
     expect(push).toHaveBeenCalledWith({ name: 'apps-store-detail', params: { id: 'jellyfin' } })
   })
 
-  it('点分类 chip → replace query;?category= 变化由 watch 重拉(后端参数)', async () => {
+  it('Click category chip → replace query; ?category= changes are reloaded by watch (backend parameter)', async () => {
     routeQuery.category = 'Media'
     mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
     expect(svc.appstore.listApps).toHaveBeenCalledWith({ category: 'Media' })
   })
 
-  it('Featured 带只在 无搜索+全部分类+全部来源 时显示', async () => {
+  it('Featured strip only shows when there is no search + all categories + all sources', async () => {
     const w = mount(StorePage, { global: { plugins: [i18n, pinia] } })
     await flushPromises()
     expect(w.find('.featured-strip').exists()).toBe(true)
@@ -166,7 +167,7 @@ describe('StorePage', () => {
     expect(w2.find('.featured-strip').exists()).toBe(false)
   })
 
-  it('点卡片安装钮走真实链路:dry_run→install→出现安装中%', async () => {
+  it('Click card install button, follow real path: dry_run→install→show installing %', async () => {
     svc.appstore.getAppCompose.mockResolvedValue('services: {}')
     svc.compose.install.mockResolvedValue(undefined)
     const w = await mountPage()
@@ -175,12 +176,12 @@ describe('StorePage', () => {
     await flushPromises()
     expect(svc.compose.install).toHaveBeenNthCalledWith(1, 'services: {}', { dryRun: true, checkPortConflict: true })
     expect(svc.compose.install).toHaveBeenNthCalledWith(2, 'services: {}', { checkPortConflict: true })
-    expect(w.find('.store-install').text()).toContain('0') // track 后 percent=0 → 安装中 0%
+    expect(w.find('.store-install').text()).toContain('0') // after track percent=0 → installing 0%
     w.unmount()
   })
 
-  it('带 before_install 的应用:先弹须知,确认后才安装', async () => {
-    // fixture 的 list 里给该应用带 tips.before_install.zh_cn
+  it('App with before_install: show notice first, only install after confirmation', async () => {
+    // the fixture's list gives this app tips.before_install.zh_cn
     svc.appstore.getAppCompose.mockResolvedValue('services: {}')
     const w = await mountPage({ withTips: true })
     await flushPromises()

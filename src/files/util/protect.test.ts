@@ -7,22 +7,23 @@ function e(p: Partial<FileEntry>): FileEntry {
 }
 
 describe('protect', () => {
-  it('PROTECTED 列出 5 个系统默认文件夹', () => {
+  it('PROTECTED lists 5 system default folders', () => {
     expect(PROTECTED).toEqual(['AppData', 'Documents', 'Downloads', 'Gallery', 'Media'])
   })
-  it('保护:系统默认文件夹(dir 且 name 命中)不可操作', () => {
+  it('protection: system default folders (dir and name match) not operable', () => {
     expect(canOperate(e({ name: 'Documents', is_dir: true, path: '/DATA/Documents' }))).toBe(false)
   })
-  it('同名文件(非 dir)不受保护', () => {
+  it('files with same name (not dir) are not protected', () => {
     expect(canOperate(e({ name: 'Documents', is_dir: false }))).toBe(true)
   })
-  it('普通文件夹可操作', () => {
+  it('regular folders are operable', () => {
     expect(canOperate(e({ name: 'MyStuff', is_dir: true }))).toBe(true)
   })
-  it('已分享的目录不可操作', () => {
-    expect(canOperate(e({ name: 'Shared', is_dir: true, extensions: { share: { shared: 'true' } } }))).toBe(false)
+  it('shared directories can be deleted/cut/renamed (backend cleans up sharing records itself, Vue2 never blocks either)', () => {
+    const shared = { name: 'aaa', path: '/media/RAID_x/aaa', is_dir: true, extensions: { share: { shared: 'true' } } } as unknown as FileEntry
+    expect(canOperate(shared)).toBe(true)
   })
-  it('挂载点不可操作', () => {
+  it('mount points not operable', () => {
     expect(canOperate(e({ name: 'Disk', is_dir: true, extensions: { mounted: true } as any }))).toBe(false)
   })
 })
@@ -86,12 +87,12 @@ describe('operableEntries', () => {
     expect(skipped).toBe(1)
   })
 
-  it('counts shared folders and mount points as skipped, not just system folders', () => {
+  it('counts mount points as skipped but lets shared folders through (bug.txt #7)', () => {
     const shared = e({ name: 'Shared', is_dir: true, extensions: { share: { shared: 'true' } } })
     const mount = e({ name: 'Disk', is_dir: true, extensions: { mounted: true } as any })
     const { targets, skipped } = operableEntries([shared, mount])
-    expect(targets).toEqual([])
-    expect(skipped).toBe(2)
+    expect(targets).toEqual([shared])
+    expect(skipped).toBe(1)
   })
 
   it('reports nothing skipped when every entry is operable', () => {

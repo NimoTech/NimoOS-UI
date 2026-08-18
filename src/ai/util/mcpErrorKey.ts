@@ -1,28 +1,32 @@
-// SP8-P4 Task 3 —— MCP 分区的「后端串 → i18n 键」映射。
+// SP8-P4 Task 3 — MCP partition "backend string → i18n key" mapping.
 //
-// 为什么不用 `apiError.apiErrorMessage`:它的文件头自己写了警告
-// (`apiError.ts:18-20`)——返回值仍可能是后端英文原文(FastAPI 的 `detail`
-// 直接透传),只适合“暂时兜个底”的场合,不满足“界面永不回显后端原文”这条
-// 硬约束。本文件与 `channelsFormat.addBotErrorKey`(`:65-76`)同一分工:纯函数
-// 只把后端错误归一成 i18n **键**,不碰 vue-i18n,调用方 `t()` 出当前语言的文案。
+// Why not use `apiError.apiErrorMessage`: its file header has its own warning
+// (`apiError.ts:18-20`) — return value may still be backend English original (FastAPI's
+// `detail` passed through directly), only suited for "temporary fallback", doesn't meet the
+// hard constraint "UI never echoes backend original". This file shares the same role as
+// `channelsFormat.addBotErrorKey` (`:65-76`): pure function only unifies backend errors to
+// i18n **keys**, doesn't touch vue-i18n, caller uses `t()` to get current language copy.
 //
-// 取值链与 channelsFormat/skillsErrorKey 同一惯例:同时读 Go 服务的
-// `response.data.message` 与 FastAPI 的 `response.data.detail`(该接口今天全部
-// 走 Go,但沿用双读不增加成本,防将来改道);匹配前 trim + toLowerCase。
+// Extraction chain follows same convention as channelsFormat/skillsErrorKey: reads both Go
+// service `response.data.message` and FastAPI `response.data.detail` (this interface is all
+// Go today, but dual-read doesn't add cost, guards against future rerouting); trim +
+// toLowerCase before matching.
 //
-// 后端串权威源(已回源逐条核实,见任务报告——brief/设计文档抄的行号与此处实测有
-// 一两行出入,已在报告里申报,不影响串本身):
-//   - `NimoOS-AI/route/v2/mcp.go:277,282,286`(validateAndClean 的三条 400)
-//   - `mcp.go:152,168,186,332,441`(五处 404 "mcp server not found";brief 只列了
-//     152/187/332 三处,实测还有 168、441 两处未被抄到——同一条串,不影响映射)
-//   - `mcp.go:351`(502 agent unreachable,`c.JSON` 直出,不经 echo.HTTPError)
-//   - `pkg/mcpparse/mcpparse.go:36,47,62,76,138`(parse 的五条 400)
-//   - `agent/mcp_client/client.py:437,448,453,456`(test_server 的 4 个 error_key)
+// Backend string authority sources (already cross-referenced line-by-line, see task report —
+// brief/design doc line numbers have one or two line offset from actual test, reported in
+// report, doesn't affect the strings themselves):
+//   - `NimoOS-AI/route/v2/mcp.go:277,282,286` (validateAndClean three 400s)
+//   - `mcp.go:152,168,186,332,441` (five 404 "mcp server not found"; brief only lists
+//     152/187/332 three, test shows 168, 441 two more not copied — same string, doesn't
+//     affect mapping)
+//   - `mcp.go:351` (502 agent unreachable, `c.JSON` direct output, not via echo.HTTPError)
+//   - `pkg/mcpparse/mcpparse.go:36,47,62,76,138` (parse five 400s)
+//   - `agent/mcp_client/client.py:437,448,453,456` (test_server four error_keys)
 
 import type { McpTestView } from '../types/mcpServer'
 
-/** 对齐 channelsFormat.ts:66-70 / skillsErrorKey.ts:33-40 的取错误串形状:
- *  同时读 Go 的 `message` 与 FastAPI 的 `detail`,取到就 trim + toLowerCase。 */
+/** Align with channelsFormat.ts:66-70 / skillsErrorKey.ts:33-40 error string extraction:
+ *  read both Go `message` and FastAPI `detail`, if found trim + toLowerCase. */
 function rawMessage(e: unknown): string {
   const data = (e as { response?: { data?: unknown } } | null | undefined)?.response?.data
   const raw = data && typeof data === 'object'
@@ -35,9 +39,9 @@ function statusOf(e: unknown): number | undefined {
   return (e as { response?: { status?: unknown } } | null | undefined)?.response?.status as number | undefined
 }
 
-/** 后端 `validateAndClean`(`mcp.go:273-289`)三条 400 + 404 "mcp server not found"
- *  → i18n 键;其余(未知 400/500/网络错/无 response)一律落既有通用兜底键
- *  `aiCfgSaveFailed`,绝不回显后端原文。 */
+/** Backend `validateAndClean` (`mcp.go:273-289`) three 400s + 404 "mcp server not found"
+ *  → i18n key; rest (unknown 400/500/network error/no response) all fall back to existing
+ *  generic key `aiCfgSaveFailed`, never echo backend original. */
 export function saveServerErrorKey(e: unknown): string {
   const s = rawMessage(e)
   if (s === 'url required for http/sse') return 'aiMcpSrvErrUrlRequired'
@@ -47,11 +51,11 @@ export function saveServerErrorKey(e: unknown): string {
   return 'aiCfgSaveFailed'
 }
 
-/** `mcpparse.Parse`(`mcpparse.go:36,47,62,76,138`)五条 400 → 四个键(两条措辞
- *  合并成 `aiMcpSrvParseErrNoCommand`,见测试注释);其余落 `aiMcpSrvParseFailed`。
- *  ⚠️ 必须用相等匹配,不能用 `startsWith`/`includes` 判 "no command" 前缀——
- *  否则 "no command (only environment variables)" 会被误判成
- *  "no command after parsing" 类,测试已钉死这条优先级。 */
+/** `mcpparse.Parse` (`mcpparse.go:36,47,62,76,138`) five 400s → four keys (two wordings
+ *  merged into `aiMcpSrvParseErrNoCommand`, see test comment); rest fall back to
+ *  `aiMcpSrvParseFailed`. ⚠️ must use equality match, not `startsWith`/`includes` for
+ *  "no command" prefix — else "no command (only environment variables)" would be
+ *  misclassified as "no command after parsing" type, test pins this priority. */
 export function parseCommandErrorKey(e: unknown): string {
   const s = rawMessage(e)
   if (s === 'empty command') return 'aiMcpSrvParseErrEmpty'
@@ -62,16 +66,17 @@ export function parseCommandErrorKey(e: unknown): string {
   return 'aiMcpSrvParseFailed'
 }
 
-/** `detail` 只在是字符串时保留,否则归一成 `''`——后端英文原文一律不上界面
- *  (那些走 `error`/`error_key` 之外的自由文本字段,见 D8)。 */
+/** `detail` only kept if string, else normalized to `''` — backend English original never
+ *  reaches UI (free-text fields outside `error`/`error_key`, see D8). */
 function detailOf(body: unknown): string {
   const d = (body as { detail?: unknown } | null | undefined)?.detail
   return typeof d === 'string' ? d : ''
 }
 
-/** `POST .../test` 200 裸响应体(`agent/mcp_client/client.py:432-461`)→ 视图。
- *  成功态 `tool_count ?? 0` / `tools` 非数组归一成 `[]`;失败态按 `error_key`
- *  四值查表,`error`(后端拼好的英文串)永不进入视图,只有 `msgKey` + `detail`。 */
+/** `POST .../test` 200 raw response body (`agent/mcp_client/client.py:432-461`) → view.
+ *  Success: `tool_count ?? 0` / `tools` non-array normalized to `[]`; failure: lookup
+ *  `error_key` against four values, `error` (backend English string) never enters view,
+ *  only `msgKey` + `detail`. */
 export function toTestView(body: unknown): McpTestView {
   if (!body || typeof body !== 'object') {
     return { ok: false, msgKey: 'aiMcpSrvTestFailed', detail: '' }
@@ -103,10 +108,6 @@ export function toTestView(body: unknown): McpTestView {
   }
 }
 
-/** 抛出的错误(HTTP 层失败,不是 200 里的 `{ok:false,...}`)→ 视图。
- *  `mcp.go:351` 的 502 `{ok:false,error:"agent unreachable"}` 与 404
- *  `mcp server not found` 各给专用键,其余一律通用兜底,body 的字符串
- *  永不放进 `detail`(那是后端英文原文)。 */
 /** Task 20 fix round -- `stale_reason_key` (one of the backend's
  *  `service.StaleReasonXxx` codes: `config_changed`/`tool_removed`/
  *  `schema_changed`/`stale`, see `NimoOS-AI/service/mcp_approvals.go`) →
@@ -127,6 +128,10 @@ export function staleReasonKeyToI18nKey(key: string | undefined): string | undef
   return key ? STALE_REASON_KEY_TO_I18N[key] : undefined
 }
 
+/** Thrown error (HTTP layer failure, not `{ok:false,...}` at 200) → view.
+ *  `mcp.go:351` 502 `{ok:false,error:"agent unreachable"}` and 404
+ *  `mcp server not found` each get dedicated key, rest all fall back to generic,
+ *  body strings never go into `detail` (that's backend English original). */
 export function toTestViewFromError(e: unknown): McpTestView {
   const status = statusOf(e)
   const data = (e as { response?: { data?: unknown } } | null | undefined)?.response?.data

@@ -7,6 +7,20 @@ import PhotoInfoPanel from '../PhotoInfoPanel.vue'
 // 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到)——同 P6b-T7 的
 // 「先锚定规则体、再断言属性」体例。
 import PANEL_SRC from '../PhotoInfoPanel.vue?raw'
+// Plan F Task 5: `.lb-info`'s `grid-area`/`.map-mini`'s `height` no longer have local copies
+// (retired -- both were byte-duplicates of parity's own `.photos-root .lb-info`/`.map-mini`, see
+// PhotoInfoPanel.vue's scoped-style retirement note). Read parity's source instead now that it's
+// what actually governs.
+// Read via node:fs rather than a Vite `?raw` import -- Vite's CSS/SCSS handling intercepts
+// `.scss?raw` before the raw-loader can return it (empirically empty in this project's vitest
+// setup); every other guard test reading vue2-parity/*.scss uses fs for the same reason.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const PARITY_SRC = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 import { osmEmbedSrc } from '../util/osmMap'
 import { usePhotosPeople } from '../../stores/people'
 import type { Photo } from '../../util/assetToPhoto'
@@ -103,6 +117,68 @@ describe('PhotoInfoPanel', () => {
     expect(w.find('.map-pin').exists()).toBe(true)
   })
 
+  // Plan F Task 3: root class renamed from the invented `.info-panel` to parity's real anchor
+  // `.lb-info` (grid-area: info), and `.map-mini`'s height corrected to parity's 132px.
+  // Plan F Task 5: both style assertions below are retargeted to parity's source -- `grid-area`/
+  // `height` no longer have local copies (retired as byte-duplicates, see PhotoInfoPanel.vue's
+  // scoped-style retirement note); parity's `.photos-root .lb-info`/`.photos-root .map-mini`
+  // solely govern now that this component nests inside `.photos-root`.
+  describe('结构:.lb-info 锚点 + grid-area(Plan F Task 3, retargeted to parity in Task 5)', () => {
+    it('根元素渲染为 .lb-info(不是旧的 .info-panel)', () => {
+      const w = mountPanel(makePhoto())
+      expect(w.find('.lb-info').exists()).toBe(true)
+      expect(w.find('.info-panel').exists()).toBe(false)
+    })
+
+    it('.lb-info 规则里带 grid-area: info(作为 PhotoLightbox 网格的直接子元素)', () => {
+      const m = /\.photos-root \.lb-info\s*\{([^}]*)\}/.exec(PARITY_SRC)
+      expect(m).not.toBeNull()
+      expect(m![1]).toMatch(/grid-area:\s*info/)
+    })
+
+    it('.map-mini 高度对齐 Vue2/parity 的 132px(此前是 140px)', () => {
+      const m = /\.photos-root \.map-mini\s*\{([^}]*)\}/.exec(PARITY_SRC)
+      expect(m).not.toBeNull()
+      expect(m![1]).toMatch(/height:\s*132px/)
+    })
+  })
+
+  // I3 (final review, 2026-08-15): `.lb-info { display:flex; flex-direction:column; gap:16px }` +
+  // `.info-section { ...; gap:6px }` were an unregistered pixel deviation -- Vue2 stacks sections
+  // flush (padding 12px 20px + border-bottom, no gap at all, parity :690-691), not with a 16px/6px
+  // flex gap layered on top. Assert both rules stop declaring flex/flex-direction/gap so parity's
+  // flush stacking governs.
+  describe('.lb-info / .info-section 不再叠加 flex gap(I3, 对齐 Vue2 的贴靠堆叠)', () => {
+    // 只在真正的 <style scoped> 块内找规则 -- 本文件顶部 template 注释里就引用过
+    // "`.lb-info { grid-area: info; ... }`" 这样一段解释性文字(描述 parity 的规则长什么样),
+    // 若直接对整份 PANEL_SRC 用无锚定正则,会先命中注释里的这段示例文本而不是真正的 CSS 规则,
+    // 静默产生假阳性(2026-08-15 final review 排查实证过)。
+    const STYLE_BLOCK = /<style[^>]*>([\s\S]*)<\/style>/.exec(PANEL_SRC)![1]
+
+    it('.lb-info 本地规则不声明 display/flex-direction/gap', () => {
+      const m = /\.lb-info\s*\{([^}]*)\}/.exec(STYLE_BLOCK)
+      expect(m, '找不到 .lb-info 规则').not.toBeNull()
+      expect(m![1]).not.toMatch(/display:\s*flex/)
+      expect(m![1]).not.toMatch(/flex-direction/)
+      expect(m![1]).not.toMatch(/gap/)
+    })
+
+    it('.info-section 本地规则不声明 display/flex-direction/gap', () => {
+      const m = /(?<!\.)\.info-section\s*\{([^}]*)\}/.exec(STYLE_BLOCK)
+      expect(m, '找不到 .info-section 规则').not.toBeNull()
+      expect(m![1]).not.toMatch(/display:\s*flex/)
+      expect(m![1]).not.toMatch(/flex-direction/)
+      expect(m![1]).not.toMatch(/gap/)
+    })
+
+    it('parity 的 .photos-root .info-section 仍是 padding + border-bottom 的贴靠堆叠', () => {
+      const m = /\.photos-root \.info-section\s*\{([^}]*)\}/.exec(PARITY_SRC)
+      expect(m, '找不到 parity 的 .photos-root .info-section').not.toBeNull()
+      expect(m![1]).toMatch(/padding:\s*12px 20px/)
+      expect(m![1]).toMatch(/border-bottom/)
+    })
+  })
+
   // 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的页脚文字(Report a problem /
   // Make a Donation / Website and API terms)。iframe 跨域、内部元素无法用 CSS 隐藏,
   // 只能外层裁切;裁切必须上下对称,否则 OSM 自己的标记会掉到 .map-pin 下方错位。
@@ -157,7 +233,8 @@ describe('PhotoInfoPanel', () => {
     expect(w.findAll('.face-chip')).toHaveLength(2)
     expect(w.find('.face-chip img').exists()).toBe(false) // people list empty → no unique match, placeholder only
     expect(w.find('[data-section="nimo-sees"]').exists()).toBe(true)
-    expect(w.findAll('.tag-chip')).toHaveLength(2)
+    // Plan F Task 3: renamed from `.tag-chip` to parity's real anchor `.tag[data-kind="ai"]`.
+    expect(w.findAll('.tag[data-kind="ai"]')).toHaveLength(2)
   })
 
   // Task 15B(SP7-P5 两笔记账收口):人脸 chip 真头像。前置事实纠正(见 task-15-brief.md):
@@ -222,20 +299,38 @@ describe('PhotoInfoPanel', () => {
     })
   })
 
-  it('does not render the ask-nimo hand-off button (removed delta)', () => {
-    const w = mountPanel(makePhoto())
-    expect(w.text()).not.toContain('Nimo')
-    expect(w.find('.give-nimo').exists()).toBe(false)
+  // Fix-2 item 2 (owner acceptance, 2026-08-16): the "Hand off to Nimo" button is restored per
+  // Vue2 PhotosLightbox.vue:84-87 -- this case used to assert its ABSENCE (Task 7's original
+  // delta #1); flipped to assert presence + a safe no-op click (real wiring is Plan G's job, same
+  // precedent as PersonHero.vue's onAskNimo).
+  describe('「交给 Nimo」按钮(Fix-2 item 2,Vue2 PhotosLightbox.vue:84-87 复原)', () => {
+    it('渲染 .give-nimo,data-test=lb-give-nimo,文案取 photosHandOffToNimo', () => {
+      const w = mountPanel(makePhoto())
+      const btn = w.find('[data-test="lb-give-nimo"]')
+      expect(btn.exists()).toBe(true)
+      expect(btn.classes()).toContain('give-nimo')
+      expect(btn.text()).toBe(zh.photosHandOffToNimo)
+    })
+
+    it('点击不抛异常(no-op,真接线属 Plan G)', async () => {
+      const w = mountPanel(makePhoto())
+      await expect(w.find('[data-test="lb-give-nimo"]').trigger('click')).resolves.not.toThrow()
+    })
+
+    it('visible=false 时按钮也不渲染(随整个面板一起隐藏)', () => {
+      const w = mountPanel(makePhoto(), false)
+      expect(w.find('[data-test="lb-give-nimo"]').exists()).toBe(false)
+    })
   })
 
   it('renders nothing when visible=false', () => {
     const w = mountPanel(makePhoto(), false)
-    expect(w.find('.info-panel').exists()).toBe(false)
+    expect(w.find('.lb-info').exists()).toBe(false)
   })
 
   it('renders nothing when photo is null', () => {
     const w = mountPanel(null, true)
-    expect(w.find('.info-panel').exists()).toBe(false)
+    expect(w.find('.lb-info').exists()).toBe(false)
   })
 
   it('copies the file path via the clipboard util and flips to the copied label for ~2s', async () => {
@@ -252,5 +347,30 @@ describe('PhotoInfoPanel', () => {
     await Promise.resolve()
     expect(w.text()).not.toContain(zh.photosCopied)
     vi.useRealTimers()
+  })
+
+  // Fix-2 item 2 (owner acceptance, 2026-08-16): slide-in open/close transition, an owner-directed
+  // net addition over Vue2 (which has none -- bare `v-if`, see this component's Fix-2 style-block
+  // comment). jsdom doesn't run CSS transitions, so this is a raw-source assertion (same idiom as
+  // PhotoLightbox.test.ts's own `.lb-swap-*`/`.lb-confirm` transition-name/timing checks).
+  describe('详情栏开合的滑入过渡(Fix-2 item 2,owner-directed net addition)', () => {
+    it('<aside class="lb-info"> 被 <transition name="lb-info-slide"> 包裹', () => {
+      expect(PANEL_SRC).toMatch(/<transition name="lb-info-slide">\s*<aside v-if="visible && photo" class="lb-info">/)
+    })
+
+    it('过渡时长/缓动用房子统一的 cubic-bezier(0.22, 0.61, 0.36, 1),只变 transform/opacity', () => {
+      const activeRule = /\.lb-info-slide-enter-active,\s*\.lb-info-slide-leave-active\s*\{([^}]*)\}/.exec(PANEL_SRC)
+      expect(activeRule, '找不到 .lb-info-slide-enter-active/-leave-active 规则').not.toBeNull()
+      expect(activeRule![1]).toMatch(/transition:\s*transform 0\.28s cubic-bezier\(0\.22, 0\.61, 0\.36, 1\), opacity 0\.22s cubic-bezier\(0\.22, 0\.61, 0\.36, 1\)/)
+    })
+
+    it('进入前/离开后状态:向右偏移 + 透明,不含任何布局属性(不会挤动 .lb-main)', () => {
+      const endStateRule = /\.lb-info-slide-enter-from,\s*\.lb-info-slide-leave-to\s*\{([^}]*)\}/.exec(PANEL_SRC)
+      expect(endStateRule, '找不到 .lb-info-slide-enter-from/-leave-to 规则').not.toBeNull()
+      const body = endStateRule![1]
+      expect(body).toMatch(/transform:\s*translateX\(24px\)/)
+      expect(body).toMatch(/opacity:\s*0/)
+      expect(body).not.toMatch(/width|height|margin|padding|grid/)
+    })
   })
 })

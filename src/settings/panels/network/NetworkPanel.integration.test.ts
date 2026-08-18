@@ -6,7 +6,7 @@ import zh from '../../../i18n/zh_cn'
 import zhSp9 from '../../../i18n/zh_cn.sp9'
 import type { NetworkInterfaceConfig, NetworkInterfaceUpdate } from '@nimotech/nimoos-service'
 
-// ── 真机 fixture(curl 实证 2026-07-31;只留界面用到的字段)────────────────────
+// ── real-device fixture (verified via curl, 2026-07-31; only the fields the UI uses are kept) ────────────────────
 const HTTP_NET = [
   { name: 'enp2s0', state: 'up', addr: '192.168.1.143', speed: 1000, max_speed: 1000 },
   { name: 'enp4s0', state: 'down', addr: '', speed: 0, max_speed: 1000 },
@@ -46,7 +46,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
     (e as { response?: { data?: { error?: string } } })?.response?.data?.error,
 }))
 
-// MessageBus:把注册的 handler 抓出来,测试里手动喂推送
+// MessageBus: capture the registered handler so the test can manually feed it pushes
 let busHandler: ((props: unknown) => void) | null = null
 vi.mock('../../../composables/useMessageBus', () => ({
   useMessageBus: () => ({
@@ -67,8 +67,8 @@ beforeEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('NetworkPanel —— 列表装配', () => {
-  it('三行:enp2s0(up/1 Gbps/DHCP+IP)、enp4s0(down)、wlp1s0(config 里没有也要在)', async () => {
+describe('NetworkPanel —— list assembly', () => {
+  it('three rows: enp2s0 (up/1 Gbps/DHCP+IP), enp4s0 (down), wlp1s0 (must appear even though not in config)', async () => {
     const w = mountIt(); await flushPromises()
     const rows = w.findAll('.set-net-row')
     expect(rows).toHaveLength(3)
@@ -81,13 +81,13 @@ describe('NetworkPanel —— 列表装配', () => {
     w.unmount()
   })
 
-  it('小标题是「连接」', async () => {
+  it('subtitle reads "连接"', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.text()).toContain('连接')
     w.unmount()
   })
 
-  it('config 端点返回 null 也不炸,列表照出(降级)', async () => {
+  it('does not crash when the config endpoint returns null; the list still renders (degraded mode)', async () => {
     api.configs = null
     const w = mountIt(); await flushPromises()
     expect(w.findAll('.set-net-row')).toHaveLength(3)
@@ -96,8 +96,8 @@ describe('NetworkPanel —— 列表装配', () => {
   })
 })
 
-describe('NetworkPanel —— 5 秒实时流(用户 2026-07-31 拍板接上)', () => {
-  it('推送到达后 IP / 状态跟着变', async () => {
+describe('NetworkPanel —— 5-second live stream (user signed off on wiring this up, 2026-07-31)', () => {
+  it('IP / state update once the push arrives', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.findAll('.set-net-row')[1].text()).not.toContain('10.0.0.9')
 
@@ -113,8 +113,8 @@ describe('NetworkPanel —— 5 秒实时流(用户 2026-07-31 拍板接上)', (
     w.unmount()
   })
 
-  it('⚠️ 推送里 max_speed 恒 0,速率标签**不许**变形(MaxSpeedMemo 生效)', async () => {
-    // 造一个 2.5G 上限、协商在 1G 的口 —— 这是本机看不出来、别的机器一定会闪的形态
+  it('⚠️ max_speed is always 0 in the push, the speed label **must not** distort (MaxSpeedMemo takes effect)', async () => {
+    // Construct an interface with a 2.5G cap negotiated down to 1G — a shape this machine can't reveal but other machines will definitely flicker on
     api.net = [{ name: 'enp2s0', state: 'up', addr: '192.168.1.143', speed: 1000, max_speed: 2500 }]
     const w = mountIt(); await flushPromises()
     expect(w.findAll('.set-net-row')[0].text()).toContain('1 Gbps / 2.5 Gbps')
@@ -128,7 +128,7 @@ describe('NetworkPanel —— 5 秒实时流(用户 2026-07-31 拍板接上)', (
   })
 })
 
-describe('NetworkPanel —— 切模式两步流程(Vue2 switchWifiMode :2199-2234)', () => {
+describe('NetworkPanel —— two-step mode-switch flow (Vue2 switchWifiMode :2199-2234)', () => {
   const WIFI_CFG: NetworkInterfaceConfig[] = [
     ...CONFIGS,
     {
@@ -140,14 +140,14 @@ describe('NetworkPanel —— 切模式两步流程(Vue2 switchWifiMode :2199-22
   async function openSwitchConfirm(target: 'ap' | 'concurrent' = 'ap') {
     api.configs = WIFI_CFG
     const w = mountIt(); await flushPromises()
-    // reka 菜单在 jsdom 里不便真开 → 直接触发子组件事件(第三行是 wlp1s0)
+    // The reka menu is awkward to actually open in jsdom → fire the child component event directly (the third row is wlp1s0)
     const row = w.findAllComponents({ name: 'NetworkIfaceRow' })[2]
     row.vm.$emit('switchMode', target)
     await flushPromises()
     return w
   }
 
-  it('先弹确认框,文案带目标模式与网卡名', async () => {
+  it('pops the confirmation dialog first, with copy carrying the target mode and interface name', async () => {
     const w = await openSwitchConfirm()
     expect(body().text()).toContain('切换模式')
     expect(body().text()).toContain('切换到 热点？这将改变 wlp1s0 的工作模式。')
@@ -155,28 +155,28 @@ describe('NetworkPanel —— 切模式两步流程(Vue2 switchWifiMode :2199-22
     w.unmount()
   })
 
-  it('点取消:一个 PUT 都不发,配置弹窗不开', async () => {
+  it('clicking cancel: no PUT is sent, the config dialog does not open', async () => {
     const w = await openSwitchConfirm()
-    await body().findAll('.ui-dialog-footer .ui-btn')[0].trigger('click') // 第一个是 Cancel
+    await body().findAll('.ui-dialog-footer .ui-btn')[0].trigger('click') // the first one is Cancel
     await flushPromises()
     expect(api.putCalls).toEqual([])
     expect(body().find('.set-net-save').exists()).toBe(false)
     w.unmount()
   })
 
-  it('点确认:先裸切 {name, wireless:{mode}},再打开配置弹窗,并重取 config', async () => {
+  it('clicking confirm: first flips the bare {name, wireless:{mode}}, then opens the config dialog and refetches config', async () => {
     const w = await openSwitchConfirm()
     const before = api.getCalls
     await body().findAll('.ui-dialog-footer .ui-btn')[1].trigger('click')
     await flushPromises()
     expect(api.putCalls).toEqual([{ name: 'wlp1s0', wireless: { mode: 'ap' } }])
     expect(api.getCalls).toBeGreaterThan(before)
-    expect(body().find('.set-net-save').exists()).toBe(true)   // 配置弹窗开了
-    expect(body().find('.set-net-apssid').exists()).toBe(true) // 且已经是热点表单
+    expect(body().find('.set-net-save').exists()).toBe(true)   // the config dialog opened
+    expect(body().find('.set-net-apssid').exists()).toBe(true) // and it's already the hotspot form
     w.unmount()
   })
 
-  it('裸切失败:**不开配置弹窗** —— 移植纪律 #3(Vue2 只 console.error 就继续开)', async () => {
+  it('bare-flip fails: **the config dialog does not open** —— porting discipline #3 (Vue2 just console.errors and keeps going)', async () => {
     api.putError = { response: { data: { error: 'failed to apply gateway rules' } } }
     const w = await openSwitchConfirm()
     await body().findAll('.ui-dialog-footer .ui-btn')[1].trigger('click')
@@ -185,7 +185,7 @@ describe('NetworkPanel —— 切模式两步流程(Vue2 switchWifiMode :2199-22
     w.unmount()
   })
 
-  it('切混合模式:配置弹窗以 concurrent 双 tab 打开', async () => {
+  it('switching to hybrid mode: the config dialog opens with the concurrent dual-tab layout', async () => {
     const w = await openSwitchConfirm('concurrent')
     await body().findAll('.ui-dialog-footer .ui-btn')[1].trigger('click')
     await flushPromises()
@@ -195,8 +195,8 @@ describe('NetworkPanel —— 切模式两步流程(Vue2 switchWifiMode :2199-22
   })
 })
 
-describe('NetworkPanel —— 编辑与保存后刷新', () => {
-  it('行的 edit 事件打开配置弹窗(标题按类型派生)', async () => {
+describe('NetworkPanel —— edit and refresh after save', () => {
+  it('a row\'s edit event opens the config dialog (title is derived from the type)', async () => {
     const w = mountIt(); await flushPromises()
     w.findAllComponents({ name: 'NetworkIfaceRow' })[0].vm.$emit('edit')
     await flushPromises()
@@ -204,7 +204,7 @@ describe('NetworkPanel —— 编辑与保存后刷新', () => {
     w.unmount()
   })
 
-  it('弹窗 saved:重取 config(不再有 Vue2 那个 4×2s 轮询 —— 实时流已经在刷 addr)', async () => {
+  it('dialog saved: refetches config (no more of Vue2\'s 4×2s polling —— the live stream is already refreshing addr)', async () => {
     const w = mountIt(); await flushPromises()
     const before = api.getCalls
     w.findComponent({ name: 'NetworkIfaceConfigDialog' }).vm.$emit('saved')
@@ -214,8 +214,8 @@ describe('NetworkPanel —— 编辑与保存后刷新', () => {
   })
 })
 
-describe('NetworkPanel —— 空态', () => {
-  it('utilization 没给 net 时显示「未找到网络接口」', async () => {
+describe('NetworkPanel —— empty state', () => {
+  it('shows "未找到网络接口" when utilization does not supply net', async () => {
     api.net = null
     const w = mountIt(); await flushPromises()
     expect(w.get('.set-net-empty').text()).toContain('未找到网络接口')

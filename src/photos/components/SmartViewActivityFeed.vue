@@ -1,23 +1,23 @@
 <script setup lang="ts">
-// SP7-P7a-T8: SmartViewActivityFeed.vue —— 智能视图详情页右栏第 4 段:活动流。
-// 照 Vue2 NimoOS-UI src/views/Photos/PhotosSmartViewDetail.vue:211-229(模板)、
-// :270-280(activityText)、:318-324(activity computed,`seeds: a.assetIds`)移植;
-// 样式 photos-smartview.scss:606-625(+ :211-221 的占位缩略图内联 style,改成 class)。
+// SP7-P7a-T8: SmartViewActivityFeed.vue — activity feed, 4th section in smart view detail page right column.
+// Based on Vue2 NimoOS-UI src/views/Photos/PhotosSmartViewDetail.vue:211-229 (template),
+// :270-280 (activityText), :318-324 (activity computed, `seeds: a.assetIds`), ported;
+// styles from photos-smartview.scss:606-625 (+ placeholder thumbnail inline style from :211-221, converted to class).
 //
-// ── 未知 eventType(structural spec 表格最后一行,照 P6b insight 未知 key 的同款处置,
-//    登记)──────────────────────────────────────────────────────────────────────
-// Vue2 activityText() 的 default 分支(:278)把后端原始 eventType 字符串直接渲染给
-// 用户。New-UI 改成:该行整体跳过 + console.warn 一次,不让内部枚举值泄漏到界面上。
+// — Unknown eventType (last row of structural spec table, same handling as P6b insight unknown key,
+//    entry) ──────────────────────────────────────────────────────────────────────
+// Vue2 activityText()'s default branch (:278) renders the backend's raw eventType string directly
+// to users. New-UI changes to: skip the line entirely + console.warn once, don't let internal enum values leak to the UI.
 //
-// ── 零 v-html(§7e-6)────────────────────────────────────────────────────────
-// fix round 1 · I3(Important,控制器回源核实 zh_CN.json 后纠正):matched(1 张)/
-// matched(N 张)两条文案的 `<b>` 在 Vue2 里包的都是"插值 + 语言相关静态词"整个短语——
-// `<b>1 张新照片</b>` 与 `<b>{n} 张新照片</b>` 形态完全对称,不是"一条包整短语、一条只
-// 包数字"。第一轮把 N 张这条简化成只加粗 `{n}` 本身,导致活动流里相邻两行一行整短语粗、
-// 一行只有数字粗——不是"与 Vue2 略有差异",是自相矛盾。改法:两条都拆成"主句键 + 加粗
-// 短语键"对称处理——`photosSvActOneMatchedBold`(已有)与新增的
-// `photosSvActNMatchedBold`(值 `'{n} 张新照片'`/`'{n} new photos'`,自带插值,渲染时走
-// `t('photosSvActNMatchedBold', { n })` 再包 `<b>`),两条键形态完全一致,零 v-html。
+// — Zero v-html (§7e-6) ────────────────────────────────────────────────────────
+// fix round 1 · I3 (Important, controller verified against zh_CN.json and corrected): matched (1 photo)/
+// matched (N photos) — the `<b>` in both texts wraps the entire phrase "interpolation + language-specific static word" —
+// `<b>1 new photo</b>` and `<b>{n} new photos</b>` are completely symmetric in form, not 'one wraps the whole phrase, one only
+// wraps the digit'. Round 1 simplified the N photos version to only bold `{n}` itself, causing adjacent rows in the activity feed to have one line with the whole phrase bold,
+// and one with only the digit bold — not 'slightly different from Vue2', but self-contradictory. Solution: split both into 'main sentence key + bold
+// phrase key' symmetrically — `photosSvActOneMatchedBold` (already exists) and newly added
+// `photosSvActNMatchedBold` (value `'{n} new photos'`, self-contained interpolation; Chinese equivalent in zh_CN.json, rendered via
+// `t('photosSvActNMatchedBold', { n })` then wrapped in `<b>`), both keys have identical form, zero v-html.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -31,8 +31,8 @@ const { t, locale } = useI18n()
 type Kind = 'created' | 'updated' | 'matchedOne' | 'matchedN' | 'exported' | 'renamed' | 'convertedFromAlbumN' | 'convertedFromAlbum'
 interface Row { a: SmartViewActivity; kind: Kind; n: number }
 
-// 未知 eventType 在这里被过滤掉(不进 rows),因此模板里不需要任何"默认/兜底"分支——
-// 这本身就是「跳过该行」这个处置的实现位置。
+// Unknown eventType is filtered out here (doesn't enter rows), so the template doesn't need any 'default/fallback' branch —
+// this is the implementation location of 'skip that row' handling itself.
 const rows = computed<Row[]>(() => {
   const out: Row[] = []
   for (const a of props.activity) {
@@ -44,7 +44,7 @@ const rows = computed<Row[]>(() => {
         out.push({ a, kind: 'updated', n: 0 })
         break
       case 'matched': {
-        // 照搬 Vue2 :271:`(a.assetIds && a.assetIds.length) || 0`。
+        // Copied from Vue2 :271: `(a.assetIds && a.assetIds.length) || 0`.
         const n = (a.assetIds && a.assetIds.length) || 0
         out.push({ a, kind: n === 1 ? 'matchedOne' : 'matchedN', n })
         break
@@ -115,28 +115,28 @@ function timeOf(a: SmartViewActivity): string {
 </template>
 
 <style scoped>
-/* 段标题同 SmartViewSidePanel.vue 的 .sv-side-section h3(scss:528-536)——两个组件各自
-   scoped,不能跨组件共享样式,这里另写一份等价定义(同本区既有先例:PlaceInsights.vue
-   与 PlaceDetailPanel.vue 各自持有一份 .detail-section h4)。 */
+/* Section title same as SmartViewSidePanel.vue's .sv-side-section h3 (scss:528-536) — each of the two components is
+   scoped, can't share styles across components, so we write an equivalent definition here (same as existing precedent in this area: PlaceInsights.vue
+   and PlaceDetailPanel.vue each have their own .detail-section h4). */
 .sv-side-section { margin-bottom: 24px; }
 .sv-side-section h3 {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--fg-faint); margin: 0 0 10px;
+  color: var(--text-3); margin: 0 0 10px;
 }
 
-/* ── 活动流(scss:606-625)── */
+/* — Activity feed (scss:606-625) — */
 .sv-activity { display: flex; flex-direction: column; gap: 10px; }
 .sv-activity-row { display: flex; gap: 8px; font-size: 11.5px; align-items: flex-start; }
 .sv-activity-thumbs { display: flex; gap: 2px; flex-shrink: 0; }
 .sv-activity-thumbs img { width: 26px; height: 26px; border-radius: 4px; object-fit: cover; }
-/* Vue2 :219-221 内联 style(width/height/border-radius/background/display/
-   align-items/justify-content)逐属性对照迁移;图标色 --accent-hi → --accent-text
-   (同文件头 token 映射)。 */
+/* Vue2 :219-221 inline style (width/height/border-radius/background/display/
+   align-items/justify-content) migrated line-by-line by attribute; icon color --accent-hi → --accent-text
+   (same as file header token mapping). */
 .sv-activity-placeholder {
   width: 26px; height: 26px; border-radius: 4px; background: var(--accent-soft);
-  display: flex; align-items: center; justify-content: center; color: var(--accent-text);
+  display: flex; align-items: center; justify-content: center; color: var(--accent-hi);
 }
-.sv-activity-text { flex: 1; color: var(--fg-muted); line-height: 1.4; }
-.sv-activity-text b { color: var(--fg); font-weight: 600; }
-.sv-activity-time { color: var(--fg-subtle); font-size: 10.5px; }
+.sv-activity-text { flex: 1; color: var(--text-2); line-height: 1.4; }
+.sv-activity-text b { color: var(--text-1); font-weight: 600; }
+.sv-activity-time { color: var(--text-4); font-size: 10.5px; }
 </style>

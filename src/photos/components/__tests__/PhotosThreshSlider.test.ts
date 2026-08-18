@@ -1,6 +1,6 @@
-// SP7-P7a-T5 fix round 1 · I1: PhotosThreshSlider.vue —— 智能视图「质量阈值」滑块基元。
-// 从 SmartViewCreateDialog.vue 抽出复用于 T5/T8/T14,契约(props/emits)已冻结,这里独立
-// 覆盖它自己的结构 + emit + 样式(消费方 T5 的测试只需覆盖"接线对不对",不需要重复这些)。
+// SP7-P7a-T5 fix round 1 · I1: PhotosThreshSlider.vue — quality threshold slider primitive in smart view.
+// Extracted from SmartViewCreateDialog.vue for reuse in T5/T8/T14, contract (props/emits) frozen,
+// independently covers its own structure + emit + styling (consumer T5's test only needs to verify "wiring", not repeat these).
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -15,8 +15,8 @@ function mountSlider(props: { value: number; min?: number; max?: number }) {
   return mount(PhotosThreshSlider, { props, global: { plugins: [i18n] } })
 }
 
-describe('结构 + 默认 min/max', () => {
-  it('渲染 range(默认 min=50 max=99)+ 三档标尺', () => {
+describe('structure + default min/max', () => {
+  it('renders range (default min=50 max=99) + three-level marks', () => {
     const w = mountSlider({ value: 80 })
     const input = w.find('[data-test="pts-range"]')
     expect(input.attributes('type')).toBe('range')
@@ -30,7 +30,7 @@ describe('结构 + 默认 min/max', () => {
     expect(marks[2]!.text()).toBe(zh.photosSvStrict)
   })
 
-  it('min/max 可覆盖默认值', () => {
+  it('min/max can override defaults', () => {
     const w = mountSlider({ value: 10, min: 0, max: 20 })
     const input = w.find('[data-test="pts-range"]')
     expect(input.attributes('min')).toBe('0')
@@ -39,28 +39,29 @@ describe('结构 + 默认 min/max', () => {
 })
 
 describe('emit', () => {
-  it('拖动 → emit input 带数字(不是字符串)', async () => {
+  it('dragging → emits input with number (not string)', async () => {
     const w = mountSlider({ value: 80 })
     await w.find('[data-test="pts-range"]').setValue('92')
     expect(w.emitted('input')).toEqual([[92]])
   })
 })
 
-// ── 样式(fix round 1 · I1 的核心):先锚定规则体、再断言属性,全文件级 toContain 恒真不算 ──
-describe('样式:轨道 + thumb + marks 间距(此前全仓零 slider-thumb,真机会退化成默认灰控件)', () => {
-  it('.sv-slider 是 appearance:none 的 accent 渐变轨,轨道高度 6px', () => {
+// ── styling (core of fix round 1 · I1): anchor rule body first, then assert properties, file-level toContain doesn't count ──
+describe('styling: track + thumb + marks spacing (previously zero slider-thumb across repo, device would degrade to default gray control)', () => {
+  it('.sv-slider is appearance:none accent-gradient track, track height 6px', () => {
     const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-slider')
     expect(rule).toBeDefined()
     expect(rule?.body).toMatch(/appearance:\s*none/)
     expect(rule?.body).toContain('background: linear-gradient(to right, var(--accent-soft-2), var(--accent))')
-    // fix 波 F6(终审必修项,变异实证:6px→16px 改了,116 例全绿——之前这条轨道高度
-    // 零断言)。本组件被 SearchSaveSmartView / SmartViewCreateDialog / T6 三处复用,
-    // 轨道高被改坏没人接得住,补进这条既有已锚定的规则体断言里,不新开一条测试。
+    // fix wave F6 (final review required item, mutation proof: changing 6px→16px all 116 cases pass——
+    // previously this track height had zero assertion). This component is reused in 3 places:
+    // SearchSaveSmartView / SmartViewCreateDialog / T6; if track height is broken no one catches it,
+    // added to existing anchored rule body assertion here, not opening a new test.
     expect(rule?.body).toContain('height: 6px')
   })
 
-  it('::-webkit-slider-thumb 是 18px 圆 + accent 描边 + accent 光晕', () => {
+  it('::-webkit-slider-thumb is 18px circle + accent border + accent glow', () => {
     const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
     const rule = rules.find((r) => r.selectors.some((s) => s.includes('::-webkit-slider-thumb')))
     expect(rule).toBeDefined()
@@ -71,7 +72,7 @@ describe('样式:轨道 + thumb + marks 间距(此前全仓零 slider-thumb,真�
     expect(rule?.body).toContain('box-shadow: 0 2px 8px var(--accent-soft-2)')
   })
 
-  it('::-moz-range-thumb 同样存在(补 Vue2 的缺——Vue2 只写了 webkit,Firefox 会退化成默认控件)', () => {
+  it('::-moz-range-thumb exists too (filling Vue2 gap——Vue2 only had webkit, Firefox degrades to default control)', () => {
     const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
     const rule = rules.find((r) => r.selectors.some((s) => s.includes('::-moz-range-thumb')))
     expect(rule).toBeDefined()
@@ -79,16 +80,16 @@ describe('样式:轨道 + thumb + marks 间距(此前全仓零 slider-thumb,真�
     expect(rule?.body).toContain('border: 2px solid var(--accent)')
   })
 
-  it('.sv-slider-marks 含 margin-top: 4px(Vue2 原值,此前漏移植)', () => {
+  it('.sv-slider-marks contains margin-top: 4px (Vue2 original value, previously missed porting)', () => {
     const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-slider-marks')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('margin-top: 4px')
   })
 
-  // fix round 1(task-8 评审同批发现,控制器授权补):Vue2 photos.scss:2817 的低优先级
-  // 裸 .sv-slider 把 cursor:pointer 挂在轨道本身(不只是 thumb 伪元素上),之前漏了。
-  it('.sv-slider 轨道本身也有 cursor: pointer(不只是 thumb 伪元素)', () => {
+  // fix round 1 (discovered in task-8 review batch, controller-authorized addition): low-priority
+  // bare .sv-slider in Vue2 photos.scss:2817 has cursor:pointer on track itself (not just thumb pseudo-element), previously missed.
+  it('.sv-slider track itself also has cursor: pointer (not just thumb pseudo-element)', () => {
     const rules = parseCssRules(extractStyleBlock(photosThreshSliderRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-slider')
     expect(rule).toBeDefined()

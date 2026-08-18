@@ -1,7 +1,9 @@
-// SP7-P7a-T14: SearchPeoplePopover.vue —— 搜索栏「人物」筛选弹层测试。
-// 挂 i18n(真实 zh_cn/en_us 词条),不需要 Pinia(本组件不接触 store)。mock 共享包
-// @nimotech/nimoos-service(PersonAvatar 内部会调 personFaceThumbnailUrl)。
+// SP7-P7a-T14: SearchPeoplePopover.vue — tests for search bar "People" filter popover.
+// Mounts with i18n (real zh_cn/en_us entries), no Pinia needed (component does not
+// touch store). Mocks shared package @nimotech/nimoos-service (PersonAvatar calls
+// personFaceThumbnailUrl internally).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -17,7 +19,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 import SearchPeoplePopover from '../SearchPeoplePopover.vue'
 import searchPeoplePopoverRaw from '../SearchPeoplePopover.vue?raw'
 import type { PersonOption } from '../../util/searchUnderstood'
-import { extractStyleBlock, parseCssRules, winningHoverBackground } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
@@ -42,68 +44,68 @@ beforeEach(() => {
   svc.photos.personFaceThumbnailUrl.mockClear()
 })
 
-describe('结构清点', () => {
-  it('4 人 → 4 个 .face-cell', () => {
+describe('structure inventory', () => {
+  it('4 people → 4 .face-cell elements', () => {
     const w = mountPop({ people: people(), selected: [] })
     expect(w.findAll('.face-cell')).toHaveLength(4)
   })
 
-  it('people 为空 → 空态文案、0 格', () => {
+  it('people is empty → empty state text and 0 cells', () => {
     const w = mountPop({ people: [], selected: [] })
     expect(w.findAll('.face-cell')).toHaveLength(0)
     expect(w.get('[data-test="people-empty"]').text()).toBe(zh.photosSearchNoPeopleDetectedYet)
   })
 })
 
-describe('头像三级兜底(复用 PersonAvatar)', () => {
-  it('coverFaceId 非空 → 有 img,且 personFaceThumbnailUrl 收到该人 id', () => {
+describe('avatar three-level fallback (reuses PersonAvatar)', () => {
+  it('coverFaceId non-empty → has img, and personFaceThumbnailUrl receives that person id', () => {
     const w = mountPop({ people: people(), selected: [] })
     const cells = w.findAll('.face-cell')
-    // Sara(第 1 个)有 coverFaceId
+    // Sara (first) has coverFaceId
     expect(cells[0]!.find('[data-test="avatar-img"]').exists()).toBe(true)
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith('1', 'face-1')
   })
 
-  it('coverFaceId 为空 → 无 img,显示名字首字母', () => {
+  it('coverFaceId empty → no img, show name initial', () => {
     const w = mountPop({ people: people(), selected: [] })
     const cells = w.findAll('.face-cell')
-    // Tom(第 2 个)无 coverFaceId
+    // Tom (second) has no coverFaceId
     expect(cells[1]!.find('[data-test="avatar-img"]').exists()).toBe(false)
     expect(cells[1]!.find('[data-test="avatar-initial"]').text()).toBe('T')
   })
 })
 
-describe('选中态', () => {
-  it('selected 含某人名 → 该格 data-on="true",其余 false', () => {
+describe('selected state', () => {
+  it('selected contains someone → that cell has data-on="true", others false', () => {
     const w = mountPop({ people: people(), selected: ['Tom'] })
     const cells = w.findAll('.face-cell')
     expect(cells[0]!.attributes('data-on')).toBe('false')
     expect(cells[1]!.attributes('data-on')).toBe('true')
   })
 
-  it('点格 → update:selected 增删(新数组,不原地改)', async () => {
+  it('clicking cell → update:selected adds/removes (new array, not in-place)', async () => {
     const selected = ['Tom']
     const snapshot = [...selected]
     const w = mountPop({ people: people(), selected })
     const cells = w.findAll('.face-cell')
-    await cells[0]!.trigger('click') // 点 Sara(未选)→ 增
+    await cells[0]!.trigger('click') // click Sara (not selected) → add
     expect(w.emitted('update:selected')).toEqual([[['Tom', 'Sara']]])
-    expect(selected).toEqual(snapshot) // 原 prop 数组未被就地改
+    expect(selected).toEqual(snapshot) // original prop array unchanged
 
-    await cells[1]!.trigger('click') // 点 Tom(已选)→ 删
+    await cells[1]!.trigger('click') // click Tom (already selected) → remove
     expect(w.emitted('update:selected')![1]).toEqual([[]])
   })
 })
 
-describe('搜索过滤', () => {
-  it('大小写不敏感', async () => {
+describe('search filter', () => {
+  it('case insensitive', async () => {
     const w = mountPop({ people: people(), selected: [] })
     await w.get('[data-test="people-search"]').setValue('SA')
     expect(w.findAll('.face-cell')).toHaveLength(1)
     expect(w.get('.face-cell-name').text()).toBe('Sara')
   })
 
-  it('过滤到 0 → 空态', async () => {
+  it('filter to 0 → empty state', async () => {
     const w = mountPop({ people: people(), selected: [] })
     await w.get('[data-test="people-search"]').setValue('zzz-nonexistent')
     expect(w.findAll('.face-cell')).toHaveLength(0)
@@ -111,52 +113,56 @@ describe('搜索过滤', () => {
   })
 })
 
-describe('Apply 按钮计数文案', () => {
-  it('selected 为空 → 不含括号', () => {
+describe('Apply button count text', () => {
+  it('selected is empty → no parentheses', () => {
     const w = mountPop({ people: people(), selected: [] })
     const btn = w.get('[data-test="people-apply-btn"]')
     expect(btn.text()).not.toMatch(/\(\d+\)/)
     expect(btn.text()).toBe(zh.photosSearchApply)
   })
 
-  it('2 人 → 含 (2)', () => {
+  it('2 people → contains (2)', () => {
     const w = mountPop({ people: people(), selected: ['Sara', 'Tom'] })
     const btn = w.get('[data-test="people-apply-btn"]')
     expect(btn.text()).toBe(`${zh.photosSearchApply} (2)`)
   })
 })
 
-describe('计数千分位跟 locale', () => {
-  // fix round 1 · M3(评审变异实证):旧写法 `/toLocaleString\(\s*\S+/` 没有区分力——
-  // `)` 本身就是 `\S`,这条正则连裸调用 `toLocaleString()` 都能匹配上(把展开量词换回
-  // 裸调用后 19 例仍然全绿,评审已用变异证实)。改成直接钉住实际传的标识符
-  // `toLocaleString(localeTag)`,删掉参数或换成裸调用都会让这条断言变红。
-  it('源文本里 toLocaleString(localeTag) 是带标识符实参的调用,不是裸调用', () => {
+describe('count thousand separator follows locale', () => {
+  // fix round 1 · M3 (review mutation evidence): old pattern `/toLocaleString\(\s*\S+/`
+  // has no discrimination power — `)` itself is `\S`, so the regex even matches
+  // bare `toLocaleString()` call (changing back from quantified to bare still passes
+  // 19 cases; review confirmed via mutation). Changed to pin the actual identifier
+  // `toLocaleString(localeTag)` — removing param or changing to bare call turns red.
+  it('source text: toLocaleString(localeTag) is a call with identifier arg, not bare', () => {
     expect(searchPeoplePopoverRaw).toMatch(/toLocaleString\(\s*localeTag\s*\)/)
   })
 
-  // fix round 1 · M3(评审变异实证):这条渲染断言本身对"是否真的传了 localeTag"没有
-  // 区分力——'zh-cn'/'en-us'/裸调用(取运行环境默认 locale)三者对 1200 这个数字的千分位
-  // 分组符输出恰好相同(都是逗号),换 locale 或去掉参数都不会让这个具体数字的渲染结果
-  // 变化。它仍然值得留着做"渲染确实带千分位分隔符"的基本回归锚点(不是恒真断言——如果
-  // 漏加分隔符或改成裸拼数字会红),但**真正钉住"用的是 localeTag 变量"这件事的是上面
-  // 那条源文本正则**,不是这条渲染断言;二者职责不同,不要指望这条替上面那条兜底。
-  it('Alice 的 count=1200 渲染为带千分位分隔符的字符串(基本回归锚点,非 locale 区分力来源)', () => {
+  // fix round 1 · M3 (review mutation evidence): this render assertion itself has
+  // no discrimination power for "whether localeTag was really passed" — 'zh-cn' /
+  // 'en-us' / bare call (runtime default locale) all produce identical thousand-separator
+  // output for 1200 (all comma); changing locale or removing param doesn't change the
+  // rendered result for this specific number. Still worth keeping as a basic regression
+  // anchor for "render actually has thousand-separator" (not a tautology — dropping
+  // separator or changing to bare string concatenation turns red), but **the real pin
+  // on "using localeTag variable" is the source text regex above**, not this render
+  // assertion; different responsibilities, don't expect this to cover for the above.
+  it("Alice's count=1200 renders as string with thousand separator (basic regression anchor, not locale discrimination source)", () => {
     const w = mountPop({ people: people(), selected: [] })
     const cells = w.findAll('.face-cell')
     expect(cells[2]!.get('.face-cell-count').text()).toBe((1200).toLocaleString('zh-cn'))
   })
 })
 
-describe('死代码不迁(反向断言)', () => {
-  it('源文本不含 "?" 三元分支,也不含 photosSearchUnnamed 键', () => {
+describe('dead code not migrated (negative assertions)', () => {
+  it('source text does not contain "?" ternary or photosSearchUnnamed key', () => {
     expect(searchPeoplePopoverRaw).not.toContain("'?'")
     expect(searchPeoplePopoverRaw).not.toContain('photosSearchUnnamed')
   })
 })
 
-describe('脚部按钮 + 冒泡', () => {
-  it('点 Cancel → emit cancel;点 Apply → emit apply', async () => {
+describe('footer buttons + bubbling', () => {
+  it('click Cancel → emit cancel; click Apply → emit apply', async () => {
     const w = mountPop({ people: people(), selected: [] })
     await w.get('[data-test="people-cancel-btn"]').trigger('click')
     expect(w.emitted('cancel')).toHaveLength(1)
@@ -164,7 +170,7 @@ describe('脚部按钮 + 冒泡', () => {
     expect(w.emitted('apply')).toHaveLength(1)
   })
 
-  it('点弹层内部空白不冒泡到宿主(根 @click.stop)', async () => {
+  it('clicking empty space inside popover does not bubble to host (root @click.stop)', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     let hostClicked = false
@@ -182,29 +188,53 @@ describe('脚部按钮 + 冒泡', () => {
   })
 })
 
-describe('样式', () => {
-  it('cssCascade:.btn.btn-primary 的 hover 胜出规则含 :hover 且含 -primary', () => {
+// 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
+// this component was missed in that round, and the brief names it explicitly: "align their
+// chrome to parity like the FilterChip/Popover treatment"): the whole colour rule set
+// .fpop/.fpop-search/.face-pop-grid/.face-cell-name/.face-cell-count/.fpop-quick(+:hover)/
+// .btn/.btn-primary(+:hover) has been removed wholesale from this component's scoped style and
+// handed to the bare selectors in vue2-parity/photos.scss (:2690-2726; the .btn family goes
+// through the global `.photos-root .btn` / `.photos-root .btn-primary` rules at :290-301). The
+// hover hard constraint and the non-colour visual properties are now checked against that
+// shared parity file instead; `.fpop`'s fixed width is no longer a CSS rule either (it moved
+// to an inline `style="width: 300px"` in the template, overriding parity's default 320px, the
+// same idiom as PhotosFilterPopover.vue's `:style` override), so this reads the rendered DOM's
+// inline style after mounting rather than parsing the <style> block.
+describe('styles: the .fpop/.face-pop-grid/.btn families are now owned by the shared parity scss (no longer this component own scoped style)', () => {
+  it('this component scoped style keeps only .face-pop-empty / the .face-cell selection ring / .fpop-foot (+ child selectors) — the rules parity does not cover', () => {
     const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const winner = winningHoverBackground(style, ['btn', 'btn-primary'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('-primary')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors).toEqual([
+      '.face-pop-empty',
+      '.face-cell :deep(.person-avatar-ring)',
+      '.face-cell[data-on="true"] :deep(.person-avatar-ring)',
+      '.fpop-foot',
+      '.fpop-foot .fpop-quick',
+      '.fpop-foot .btn',
+    ])
   })
 
-  it('.face-pop-grid 规则含 grid-template-columns: repeat(4, 1fr)', () => {
-    const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.face-pop-grid')
+  it('parity scss: .photos-root .btn-primary:hover comes after .photos-root .btn:hover (on hover the primary button accent fill covers the base class hover fill, as Vue2 wrote it)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const baseHoverIdx = parityScss.indexOf('.photos-root .btn:hover')
+    const primaryHoverIdx = parityScss.indexOf('.photos-root .btn-primary:hover')
+    expect(baseHoverIdx).toBeGreaterThan(-1)
+    expect(primaryHoverIdx).toBeGreaterThan(baseHoverIdx)
+  })
+
+  it('parity scss: the .face-pop-grid rule contains grid-template-columns: repeat(4,1fr)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.face-pop-grid')
     expect(rule).toBeDefined()
-    expect(rule?.body).toContain('repeat(4, 1fr)')
+    expect(rule?.body.replace(/\s/g, '')).toContain('repeat(4,1fr)')
   })
 
-  it('.fpop 规则宽度是 300px(不是 prop)', () => {
-    const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
-    expect(rule).toBeDefined()
-    expect(rule?.body).toContain('width: 300px')
+  it('the rendered .fpop element carries an inline width of 300px (not a prop, overriding parity default of 320px)', () => {
+    const w = mountPop({ people: people(), selected: [] })
+    expect(w.get('.fpop').attributes('style')).toContain('width: 300px')
   })
 
-  it('.fpop-foot 规则 margin-top 是 14px(与 T12/T13 的 12px 不同,逐条声明真实差异)', () => {
+  it('the .fpop-foot rule margin-top is 14px (unlike the 12px in SearchDatePopover.vue/PhotosFilterPopover.vue — the real difference declared per item)', () => {
     const style = extractStyleBlock(searchPeoplePopoverRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-foot')
     expect(rule).toBeDefined()

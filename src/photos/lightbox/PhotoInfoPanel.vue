@@ -3,6 +3,8 @@
 // 纯展示组件:props { photo, visible },emits 无。
 // delta(见 task-7-brief.md):
 //   1) 删「交给 Nimo」/「Hand off to Nimo」按钮(Vue2 :84-87)——本组件不渲染任何 ask-nimo 交互。
+//      [Fix-2 item 2, owner acceptance 2026-08-16]:按钮已加回,见下方 `.give-nimo`/onGiveNimo ——
+//      这条 delta 只是历史记录,当前不再成立。
 //   2) tags/scene/faces 在 P2 时间线路径恒为空 → 对应段落整体隐藏(v-if 挡在外层 div 上),保留结构以便后续接入真实数据后无需改模板。
 //
 // Task 15B(SP7-P5 两笔记账收口)人脸 chip 真头像 —— 前置事实纠正(task-15-brief.md):
@@ -63,6 +65,14 @@ const faceEntries = computed(() =>
   faces.value.map((f) => ({ name: f, person: resolvePersonByName(people.people, f) })),
 )
 
+// Fix-2 item 2 (owner acceptance, 2026-08-16): "Hand off to Nimo" button, restored per Vue2
+// PhotosLightbox.vue:84-87 (`.give-nimo`, dropped by this component's original Task 7 delta #1
+// -- see this file's header comment). Real wiring (opening the Ask Nimo popover/composing the
+// canned "Edit this photo: {title}" prompt Vue2 emits) belongs to Plan G -- same no-op-function
+// precedent as PersonHero.vue's onAskNimo.
+// wired in Plan G (Ask Nimo)
+function onGiveNimo(): void {}
+
 // —— 复制文件路径 ——(HTTP 非安全上下文兜底走 src/files/util/clipboard.ts 既有 copyText)
 const justCopied = ref(false)
 let copiedTimer: ReturnType<typeof setTimeout> | null = null
@@ -81,7 +91,29 @@ async function onCopyPath(): Promise<void> {
 </script>
 
 <template>
-  <aside v-if="visible && photo" class="info-panel scroll">
+  <!-- Plan F Task 3: root class renamed from the invented `.info-panel` to parity's real
+       anchor `.lb-info` (Vue2 PhotosLightbox.vue:74 `<aside class="lb-info scroll">`, parity
+       photos.scss:677 `.photos-root .lb-info { grid-area: info; ... }`). This component is
+       mounted as a direct child of PhotoLightbox's `.lightbox` grid (see that file's
+       scoped-style header comment) and needs the `grid-area: info` placement itself -- kept
+       local/scoped here rather than in the parent, since the parent doesn't otherwise reach
+       into this component's box model. -->
+  <transition name="lb-info-slide">
+  <aside v-if="visible && photo" class="lb-info">
+    <!-- Fix-2 item 2 (owner acceptance, 2026-08-16): "Hand off to Nimo" button, restored per Vue2
+         PhotosLightbox.vue:84-87. Positioned as the panel's first child (Vue2's own position: right
+         after the title/subtitle header block, before the first info section -- this component
+         never rendered that header block at all, see Plan F Task 3's delta note in PhotoLightbox.vue,
+         so "first child of the panel" is the closest faithful placement without inventing new
+         header markup). `.give-nimo`'s CSS already existed in parity's stylesheet, unused, since
+         Plan F Task 5 (vue2-parity/photos.scss `.photos-root .give-nimo`) -- only the markup was
+         missing. `.nimo-orb`'s inline 16x16 size matches Vue2's own inline style byte-exact
+         (structural sizing, not a color -- not subject to the token-guard). -->
+    <button type="button" class="give-nimo" data-test="lb-give-nimo" @click="onGiveNimo">
+      <span class="nimo-orb" style="width:16px;height:16px;flex:none"></span>
+      {{ t('photosHandOffToNimo') }}
+    </button>
+
     <!-- 图片:相机与拍摄 -->
     <div v-if="!photo.isVideo" class="info-section">
       <div class="info-label">{{ t('photosInfoCameraCapture') }}</div>
@@ -144,7 +176,11 @@ async function onCopyPath(): Promise<void> {
     <div v-if="tags.length > 0" class="info-section" data-section="nimo-sees">
       <div class="info-label">{{ t('photosInfoNimoSees') }}<template v-if="photo.scene"> · {{ photo.scene }}</template></div>
       <div class="tag-row">
-        <span v-for="tag in tags" :key="tag" class="tag-chip">{{ tag }}</span>
+        <!-- Plan F Task 3: renamed from the invented `.tag-chip` to parity's real anchor
+             `.tag[data-kind="ai"]` (Vue2 PhotosLightbox.vue:137, parity photos.scss:696-697).
+             This section only ever renders Nimo-recognized tags (the "Nimo sees" section),
+             so data-kind is unconditionally "ai", matching Vue2's own hard-coded value. -->
+        <span v-for="tag in tags" :key="tag" class="tag" data-kind="ai">{{ tag }}</span>
       </div>
     </div>
 
@@ -159,33 +195,71 @@ async function onCopyPath(): Promise<void> {
       </div>
     </div>
   </aside>
+  </transition>
 </template>
 
 <style scoped>
-.info-panel {
-  width: 360px;
-  max-width: 100%;
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: var(--panel-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius);
-  box-shadow: var(--panel-shadow);
-  backdrop-filter: var(--blur);
-  color: var(--fg);
-}
-.info-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.info-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted); }
-.info-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; }
-.info-row .k { color: var(--fg-muted); flex: 0 0 auto; }
-.info-row .v { color: var(--fg); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Plan F Task 5: the Task 3 "card look" deviation on `.lb-info` (border/border-radius/box-
+   shadow/backdrop-filter/background/padding/overflow-y, all self-contained so the panel stayed
+   legible while rendering standalone outside `.photos-root`) is retired now that this component
+   actually nests inside `.photos-root` -- parity's own `.photos-root .lb-info` (photos.scss:685-
+   689: `grid-area: info; background: var(--surface-1); border-left: 1px solid var(--line);
+   overflow-y: auto; padding: 18px 0;`) is a bare flush panel and now governs those properties
+   alone (this was the exact "revisit when Task 5 re-nests" flagged by that original comment).
+   Layout structure with no parity counterpart survives: `max-width`/`box-sizing` (defensive floor
+   for the narrow-screen media query below, which switches this element out of grid flow
+   entirely) and `color` (parity never sets a base text color on the panel itself, each child sets
+   its own).
 
-.map-mini { position: relative; border-radius: 10px; overflow: hidden; height: 140px; border: 1px solid var(--card-border); }
+   I3 (final review, 2026-08-15): `display: flex; flex-direction: column; gap: 16px` here, plus
+   `.info-section`'s own `display: flex; flex-direction: column; gap: 6px` below, were an
+   unregistered pixel deviation -- Vue2 stacks `.info-section`s flush against each other (parity
+   :690-691: `padding: 12px 20px; border-bottom: 1px solid var(--line)` is the ONLY spacing
+   mechanism between sections, no gap layered on top). Both flex/flex-direction/gap declarations
+   deleted so parity's flush, padding+border-driven stacking is what actually governs, matching
+   Vue2's real vertical rhythm instead of an extra 16px/6px gap Vue2 never had. */
+/* Fix-2 item 4 (owner acceptance, 2026-08-16): `color: var(--fg)` was New-UI's *global* text
+   token -- it only follows the app-wide `[data-theme]` attribute on `<html>`, not Photos' own
+   PRIVATE light/dark toggle (`usePhotosTheme()`/`.photos-root.is-light`, see
+   src/photos/composables/usePhotosTheme.ts). In the very common "Photos-light + app-global-dark"
+   combination this stayed white/washed-out on the now-near-white `.lb-info` panel -- the owner's
+   acceptance screenshot's "info panel text illegible" report. `--text-1` is this area's own
+   `.photos-root`/`.photos-root.is-light`-scoped token (vue2-parity/photos.scss), the one parity's
+   own `.info-title`/row text already uses -- same fix shape as the Places-area sweep this same day
+   (photosGlassSurfaces.test.ts's "Places 区不再消费全局玻璃/文本 token" describe block). */
+.lb-info {
+  max-width: 100%;
+  box-sizing: border-box;
+  color: var(--text-1);
+}
+.info-section { min-width: 0; }
+/* `.info-label` retired -- byte-duplicate of parity's `.photos-root .info-label` (font-size/
+   font-weight/color/text-transform/letter-spacing all collide; parity additionally sets
+   `margin-bottom`). */
+/* `.info-row`'s own `display`/`justify-content`/`gap`/`font-size` collide with parity's
+   `.photos-root .info-row` (which also adds `padding: 4px 0`) -- retired, only `align-items:
+   baseline` survives (parity doesn't set it, and it only takes effect once `display: flex` is
+   in play, which parity's own copy already supplies). */
+.info-row { align-items: baseline; }
+/* `.k`'s `color` collides with parity's `.photos-root .info-row .k`; only `flex: 0 0 auto`
+   (parity doesn't set it) survives, keeping the label from shrinking. */
+.info-row .k { flex: 0 0 auto; }
+/* `.v`'s `color`/`text-align` collide with parity's `.photos-root .info-row .v` (which also adds
+   `font-variant-numeric: tabular-nums`); only the truncation trio survives (parity doesn't set
+   any of them). */
+.info-row .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* `.map-mini`'s `position`/`border-radius`/`overflow`/`height` collide with parity's
+   `.photos-root .map-mini` (height already matched byte-exact per the prior Task 4 fix, parity
+   additionally sets `margin-top`/`background`) -- retired; only the `border` survives (parity's
+   own map area has none, but this component's border ring doesn't conflict with any parity
+   property and isn't part of the "card look" being un-done above). New-UI addition, no Vue2
+   source (M6): Vue2's own `.map-mini` (PhotosLightbox.vue:119-122) has no border ring at all --
+   this is a New-UI-only visual accent with nothing to cite on the Vue2 side, kept because it
+   doesn't collide with any parity-declared property. */
+/* Fix-2 item 4: `--card-border` (global) → `--line` (this area's own is-light-aware token),
+   same root cause as `.lb-info`'s color fix above. */
+.map-mini { border: 1px solid var(--line); }
 /* 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的那条页脚文字
    (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms)。
    iframe 是跨域的,内部元素无法用 CSS 隐藏,只能靠外层裁切;实测在 328px 宽处那条页脚会
@@ -206,40 +280,71 @@ async function onCopyPath(): Promise<void> {
   /* theme-exception: 同上,投影为固定暗色描边 */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
-.map-pin {
-  position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
-  transform: translate(-50%, -50%); border-radius: 50%;
-  background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent);
-  pointer-events: none;
-}
+/* Plan F Task 5: `.map-pin` retired -- byte-duplicate anchor of parity's `.photos-root .map-pin`,
+   which additionally corrects the anchor point (`transform: translate(-50%, -100%)`, a bottom-
+   anchored teardrop pin vs this rule's centered dot) and size (14px vs 10px) to match Vue2's
+   real pin exactly; nothing here survives that parity doesn't already cover. */
 
-.face-row, .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.face-chip {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px;
-  border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--chip-bg);
-}
-.face-avatar {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 600;
-  color: var(--fg); background: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-.tag-chip { display: inline-flex; padding: 4px 10px; border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--chip-bg); }
+/* Plan F Task 5: `.face-row`/`.tag-row` retired -- byte-duplicate of parity's own
+   `.photos-root .face-row`/`.photos-root .tag-row` (display/flex-wrap/gap all collide; only the
+   gap value differs, 8px here vs parity's 6px -- parity's now governs alone). */
+/* `.face-chip` retired -- collides with parity's `.photos-root .face-chip` on every property it
+   declares (display/align-items/gap/padding/border-radius/font-size/background); parity
+   additionally adds a `border`, nothing survives locally. */
+/* `.face-avatar` retired -- collides with parity's `.photos-root .face-avatar` on every property
+   (display/align-items/justify-content/width/height/border-radius/font-size/font-weight/color/
+   background); parity's is Vue2's literal pastel gradient avatar, this component's `color-mix`
+   approximation is superseded. */
+/* `.tag`'s `padding`/`border-radius`/`font-size`/`color`/`background` collide with parity's
+   `.photos-root .tag` (which additionally adds a `border`); only `display: inline-flex` survives
+   (parity leaves display unset, relying on the element's own inline default -- harmless either
+   way since this component's tag chips are text-only, no icon needing flex centering). */
+.tag { display: inline-flex; }
+/* `.tag[data-kind="ai"]`'s `background`/`color` collide with parity's own modifier (which
+   additionally adds `border-color`) -- retired, nothing left to declare locally. */
 
-.path-row { display: flex; align-items: center; gap: 8px; }
-.path-text { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Plan F Task 5: `.path-row` retired -- byte-duplicate of parity's `.photos-root .path-row`
+   (display/align-items/gap all collide, identical values too); parity additionally adds
+   padding/border-radius/background/border/font/color -- a bonus "code chip" look this component
+   never had, now inherited for free. `.path-text` has no parity counterpart (parity's own
+   `.path-row` uses a bare text node + a `.open` action link, not a wrapper span) and survives
+   unchanged; `.copy-btn` likewise shares no class name with parity's differently-named `.open`
+   link, so there is no collision to resolve there either. */
+/* Fix-2 item 4: `.path-text`/`.copy-btn` swept the same way -- `--fg-muted`/`--fg`/
+   `--card-border`/`--chip-bg-hi` (global, app-theme-only) → `--text-2`/`--line`/`--surface-3`
+   (this area's own is-light-aware tokens). */
+.path-text { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .copy-btn {
   flex: 0 0 auto; font-size: 12px; padding: 4px 10px; border-radius: 8px;
-  border: 1px solid var(--card-border); background: transparent; color: var(--fg); cursor: pointer;
+  border: 1px solid var(--line); background: transparent; color: var(--text-2); cursor: pointer;
 }
-.copy-btn:hover { background: var(--chip-bg-hi); }
+.copy-btn:hover { background: var(--surface-3); }
 
 /* 窄屏:桌面态右栏 → 底部浮层/全宽覆盖(独立浮层,不接 useSidebarDrawer——那是侧栏专用) */
 @media (max-width: 768px) {
-  .info-panel {
+  .lb-info {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto;
     width: auto; max-height: 70vh;
     border-radius: var(--radius) var(--radius) 0 0;
     border-bottom: none;
   }
+}
+
+/* Fix-2 item 2 (owner acceptance, 2026-08-16): slide-in transition for the panel opening/closing
+   -- an owner-directed net addition, Vue2 has none (its `.lb-info` just appears/disappears with
+   `v-if`, no `<transition>` wrapper at all). Kept tasteful and consistent with this lightbox's
+   existing animation vocabulary: the house cubic-bezier(0.22, 0.61, 0.36, 1) easing (same curve as
+   `.lb-swap-*`/`.lb-ocr-pulse` in vue2-parity/photos.scss), transform+opacity only (no layout
+   properties, so it can't reflow `.lb-main` mid-transition), ~0.2-0.3s duration band. Slides in
+   from the right since the panel occupies the grid's right-hand column (`grid-area: info`,
+   `grid-template-columns: 1fr 360px`). */
+.lb-info-slide-enter-active,
+.lb-info-slide-leave-active {
+  transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.22s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.lb-info-slide-enter-from,
+.lb-info-slide-leave-to {
+  transform: translateX(24px);
+  opacity: 0;
 }
 </style>

@@ -36,13 +36,13 @@ const gdriveOpen = ref(false)
 const { t } = useI18n()
 const dropNavIcon = dropAsset('drop_icon')
 
-// 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)
+// Drawer state: must destructure (nested ref won't auto-unwrap in template; drawer.isNarrow always true is a pitfall)
 const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
 
-// 任何路由变化(点收藏/磁盘/共享/互传导航)后抽屉自动收起;桌面态 close 是 no-op。
+// Drawer auto-closes after any route change (clicking favorites/disks/shares/transfers nav); on desktop, close is a no-op.
 watch(() => route.fullPath, () => closeDrawer())
 
-// ESC 关抽屉。注:预览器(ViewerShell)有自己的 ESC;抽屉只在窄屏打开时监听,冲突面可忽略。
+// ESC closes the drawer. Note: the viewer (ViewerShell) has its own ESC; drawer only listens when open on narrow screens, collision is negligible.
 function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
 watch(drawerOpen, (o) => {
   if (o) document.addEventListener('keydown', onDrawerKeydown)
@@ -146,8 +146,9 @@ function openAuthWindow(name: string, rawAuthUrl: string) {
   )
 }
 function openCloudAuth(driver: CloudDriver) {
-  // Google Drive 走 BYO:弹表单让用户填自己的 client_id/client_secret(对齐 Vue2 auth() 分流);
-  // 其余驱动(Dropbox/OneDrive)凭据已烤入后端,直接开授权窗
+  // Google Drive uses BYO: show form to let users fill their own client_id/client_secret
+  // (align with Vue2 auth() branching); other drivers (Dropbox/OneDrive) have credentials
+  // baked into backend, open auth window directly.
   if (driver.name === 'Google Drive') {
     gdriveOpen.value = true
     return
@@ -167,8 +168,9 @@ function onDrop(i: number) {
   dragIndex.value = null
 }
 
-// localStorage 不是响应式:drop 后仅靠 files.disks 无法触发重算(读到的是缓存,拖拽项会弹回)。
-// orderVersion 作为显式响应式触发器,写入顺序后自增,强制 computed 重新读取最新 readOrder()。
+// localStorage is not reactive: after drop, relying on files.disks alone won't trigger recalc
+// (reads are cached, dragged item snaps back). orderVersion is an explicit reactive trigger:
+// after writing order, increment it to force computed to re-read latest readOrder().
 const orderVersion = ref(0)
 const orderedDisks = computed(() => {
   orderVersion.value
@@ -193,7 +195,7 @@ function onDiskDrop(i: number) {
 <template>
   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
   <aside class="files-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
-    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏仍走顶栏,抽屉内不重复 -->
+    <!-- Desktop: back home + title incorporated into sidebar glass panel (AreaShell top bar hidden in same area); narrow screens still use top bar, drawer doesn't repeat -->
     <div v-if="!isNarrow" class="side-top">
       <h1 class="side-app-title">{{ t('filesTitle') }}</h1>
       <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('filesBackHome') }}</button>
@@ -310,8 +312,9 @@ function onDiskDrop(i: number) {
 </template>
 
 <style scoped>
-/* 桌面态:整条侧栏装进一块大毛玻璃面板(复用主页小组件卡同款 token 五件套),
-   align-self:stretch 与右侧内容区等高,左右两栏视觉分离。抽屉态在 .is-drawer 里覆盖回贴边样式。 */
+/* Desktop: entire sidebar sits in a large frosted glass panel (reuses home widget card's token set),
+   align-self:stretch matches right content area height, left/right columns visually separated.
+   Drawer state overrides to edge-aligned style in .is-drawer. */
 .files-sidebar {
   flex: 0 0 220px; align-self: stretch; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 18px;
@@ -320,7 +323,7 @@ function onDiskDrop(i: number) {
   border-radius: var(--radius); box-shadow: var(--panel-shadow);
   backdrop-filter: var(--blur);
 }
-/* 标题打头、回主页键并排贴右;标题字号随视口缩放(clamp 下 20px 上 28px) */
+/* Title leading, back home button aligned to right; title font size scales with viewport (clamp 20px to 28px) */
 .side-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .side-home-btn { font-size: 13px; flex: 0 0 auto; }
 .side-app-title { font-size: clamp(20px, 1.8vw, 28px); font-weight: 600; margin: 0 0 0 2px; color: var(--fg); }
@@ -331,26 +334,27 @@ function onDiskDrop(i: number) {
 .side-empty { font-size: 12px; color: var(--fg-muted, #9aa4bf); padding: 4px 8px; }
 .side-list { list-style: none; margin: 0; padding: 0; }
 .side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
-/* 悬停/选中不用 --chip-bg(纸感主题为纯白,刷在面板上白上白不可见),改用可见对比:
-   悬停=chip 高亮档,选中=accent 淡染,两套主题都有反馈 */
+/* Hover/active don't use --chip-bg (paper theme is pure white, white-on-white invisible on panel),
+   use visible contrast instead: hover = chip highlight tier, active = accent tint,
+   both themes have feedback */
 .side-item:hover { background: var(--chip-bg-hi); }
 .side-item.active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .side-icon { width: 20px; height: 20px; flex: 0 0 auto; }
 .side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-remove { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 14px; }
 .side-item:hover .side-remove { opacity: 1; }
-/* 容量详情把手:与 eject 同一 hover 显隐节奏。default 光标(不是 pointer)——它不导航,
-   悬停即出信息,点击刻意无动作。 */
+/* Capacity detail handle: same hover show/hide timing as eject. default cursor (not pointer) —
+   it doesn't navigate, hover shows info, click intentionally does nothing. */
 .side-dots { opacity: 0; background: none; border: none; color: var(--fg-muted, #9aa4bf); cursor: default; font-size: 14px; line-height: 1; padding: 0 2px; }
 .side-item:hover .side-dots { opacity: 1; }
 
-/* 窄屏抽屉:遮罩 + 侧栏浮层覆盖(z-index 备忘:ViewerShell=200、MediaViewer ask 面板=240、
-   ui-ctx 默认 120 → 抽屉 150/151 压住内容、避让预览器) */
+/* Narrow-screen drawer: scrim + sidebar overlay (z-index memo: ViewerShell=200, MediaViewer ask panel=240,
+   ui-ctx default 120 → drawer 150/151 covers content, yields to viewer) */
 .side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
 .files-sidebar.is-drawer {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
   padding: 16px; background: var(--card-bg); backdrop-filter: var(--blur);
-  /* 覆盖桌面玻璃卡样式:抽屉贴左滑出,直角无投影,只留右描边 */
+  /* Override desktop glass card style: drawer slides in from left, right angles no shadow, only right border */
   border: none; border-right: 1px solid var(--card-border);
   border-radius: 0; box-shadow: none;
   transform: translateX(-105%); transition: transform 0.25s var(--ease);

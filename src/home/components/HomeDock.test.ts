@@ -5,7 +5,7 @@ import { useAppsStore } from '../stores/apps'
 import { __resetDockForTest } from '../composables/useDock'
 import HomeDock from './HomeDock.vue'
 
-// P8 cutover:dock 的 files 图标改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。
+// P8 cutover: dock's files icon changed to in-app router.push, need to mock router singleton (vi.mock is hoisted before imports).
 vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
 import { router } from '../../router'
 
@@ -27,12 +27,12 @@ describe('HomeDock', () => {
     useAppsStore()
     const w = mount(HomeDock)
     await w.get('.dock-toggle').trigger('click')
-    expect(w.text()).toContain('设置') // settings 在 more 区
+    expect(w.text()).toContain('设置') // settings in more zone
   })
 
-  // ── 展开态点击直接打开(spec 2026-07-17-dock-expanded-click-open)──
-  // capture 生效期间浏览器会把 click 派发给 capture 元素而不是图标按钮,
-  // 所以"按下就抓指针"= 展开态点击全哑。锁死"越过拖动阈值才抓"这一不变量。
+  // ── Expanded state click opens directly (spec 2026-07-17-dock-expanded-click-open) ──
+  // During capture, browser dispatches click to capture element, not icon button,
+  // so "capture on press" = expanded clicks all dead. Lock down invariant "only capture after crossing drag threshold".
   it('expanded: pointerdown alone does NOT capture the pointer; crossing the drag threshold does', async () => {
     useAppsStore()
     const w = mount(HomeDock)
@@ -41,18 +41,18 @@ describe('HomeDock', () => {
     const captured: number[] = []
     nav.setPointerCapture = ((id: number) => { captured.push(id) }) as never
     await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 7, clientX: 100, clientY: 100 })
-    expect(captured.length).toBe(0) // 纯点击不被劫持
+    expect(captured.length).toBe(0) // pure click not hijacked
     const move = new Event('pointermove') as PointerEvent
-    Object.assign(move, { pointerId: 7, clientX: 120, clientY: 100 }) // 越过 5px 阈值
+    Object.assign(move, { pointerId: 7, clientX: 120, clientY: 100 }) // crosses 5px threshold
     window.dispatchEvent(move)
-    expect(captured).toEqual([7]) // 真拖动才接管
+    expect(captured).toEqual([7]) // real drag takes over
     const up = new Event('pointerup') as PointerEvent
     Object.assign(up, { pointerId: 7, clientX: 120, clientY: 100 })
     window.dispatchEvent(up)
   })
 
-  // SP9-P8 cutover:settings 从整页跳 /#/legacy 改成应用内 router.push('/settings')。
-  // 断言方式与 useOpenAction.test.ts 同一套(那里是单元级,这里是 dock 点击链路级)。
+  // SP9-P8 cutover: settings changed from full-page jump /#/legacy to in-app router.push('/settings').
+  // Assertion pattern same as useOpenAction.test.ts (that's unit level, this is dock click flow level).
   it('expanded: clicking an app opens it and auto-collapses the dock', async () => {
     useAppsStore()
     const hrefs: string[] = []
@@ -66,8 +66,8 @@ describe('HomeDock', () => {
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
   })
 
-  // 回退可逆也要在 dock 这条链路上验一次:flag 命中时仍整页跳老桌面,且 dock 照样收起。
-  it('expanded: 回退 flag strangler:disabled:/settings==1 时 settings 仍整页跳 /#/legacy', async () => {
+  // Fallback reversibility also needs one verification on dock's path: when flag is hit, still full-page jump to old desktop, dock collapses normally.
+  it('expanded: fallback flag strangler:disabled:/settings==1 still full-page jumps settings to /#/legacy', async () => {
     useAppsStore()
     localStorage.setItem('strangler:disabled:/settings', '1')
     const hrefs: string[] = []
@@ -92,7 +92,7 @@ describe('HomeDock', () => {
   })
 })
 
-// ── 手机端:固定 5 位 + 全部应用抽屉(spec 2026-07-18-mobile-home-launcher 增量)──
+// ── Mobile: fixed 5 slots + all-apps drawer (spec 2026-07-18-mobile-home-launcher increment) ──
 describe('HomeDock mobile (≤720px)', () => {
   const stubMobile = () =>
     vi.stubGlobal('matchMedia', (q: string) => ({
@@ -115,7 +115,7 @@ describe('HomeDock mobile (≤720px)', () => {
     await w.get('.dock-toggle').trigger('click')
     const sheet = document.body.querySelector('.allapps-sheet')
     expect(sheet).not.toBeNull()
-    // 全量 = fav(5) + more(≥1,含设置),多于 dock 条上的 4+1
+    // Full set = fav(5) + more(≥1, includes settings), more than 4+1 on dock bar
     expect(sheet!.querySelectorAll('.dock-app').length).toBeGreaterThanOrEqual(6)
     ;(sheet!.querySelector('.dock-app') as HTMLElement).click()
     await w.vm.$nextTick()
@@ -124,7 +124,7 @@ describe('HomeDock mobile (≤720px)', () => {
   })
 
   it('desktop keeps the horizontal expand behavior (no sheet)', async () => {
-    useAppsStore() // 无 matchMedia stub → isMobile=false
+    useAppsStore() // no matchMedia stub → isMobile=false
     const w = mount(HomeDock)
     await w.get('.dock-toggle').trigger('click')
     expect(document.body.querySelector('.allapps-sheet')).toBeNull()

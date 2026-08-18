@@ -1,14 +1,14 @@
 <!--
-  SP8-P2a Task 6 —— 1:1 移植自 Vue2 `src/views/AI/Settings/SetSwitch.vue`(25 行)。
+  SP8-P2a Task 6 — 1:1 ported from Vue2 `src/views/AI/Settings/SetSwitch.vue` (25 lines).
 
-  自绘开关:结构就是一个 div,视觉全靠 `.sw` / `.sw[data-on]` 的 CSS 规则
-  (见 src/ai/styles/sk-shared.scss —— 该规则原在 Vue2
-  `src/views/AI/Skills/skills-styles.scss:235-249`,Task 2 抽取 sk-shared.scss
-  时按行号范围摘录漏收了这段,Task 6 grep 复核后补上,见该档追加处的来源注释)。
+  Self-drawn toggle: structure is just a div, visual entirely from `.sw` / `.sw[data-on]` CSS rules
+  (see src/ai/styles/sk-shared.scss — that rule originally lived in Vue2
+  `src/views/AI/Skills/skills-styles.scss:235-249`, Task 2 extraction of sk-shared.scss
+  missed this segment by line range, Task 6 grep verification and added it, see source comment at addition site in that file).
 
-  【框架 API 差异,非行为改动】Vue2 的 v-model 契约是 `$emit('input', v)`,
-  Vue3 是 `update:modelValue`。Vue2 同时还发了 `change`,而全部调用点用的都是
-  `@change` —— 所以这里两个都发,调用点写法(`@change="v => ..."`)一字不用改。
+  【Framework API difference, not behavior change】Vue2's v-model contract is `$emit('input', v)`,
+  Vue3 is `update:modelValue`. Vue2 also emitted `change`, and all call sites used
+  `@change` — so both are emitted here, call site syntax (`@change="v => ..."`) unchanged.
 -->
 <script setup lang="ts">
 const props = withDefaults(

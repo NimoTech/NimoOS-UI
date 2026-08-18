@@ -1,23 +1,24 @@
 <!--
-  1:1 逐字港 Vue2 src/views/AI/Agent/shell/ModelPicker.vue(127 行)。
+  1:1 character-for-character port from Vue2 src/views/AI/Agent/shell/ModelPicker.vue (127 lines).
 
-  Vue2-ism 转换清单(SP8-P1c2 Task 9):
+  Vue2-ism conversion checklist (SP8-P1c2 Task 9):
   - `directives: { 'click-outside': {...bind/unbind} }` → `useClickOutside`
-    composable(见 ../../composables/useClickOutside.ts 顶部注释)。
-  - `<template v-for="grp in cloudGroups">` 的 `:key="grp.providerId"` 在 Vue2
-    源码(:28-38)里落在了子元素 `.model-subgroup-label` 上而不是 `<template>`
-    本身——Vue3 对此会告警/错乱(`<template>` 作为 v-for 根时 key 必须直接标在
-    `<template>` 上)。这里把 key 移到了 `<template v-for>` 上,是本次移植唯一
-    需要修正的结构性问题,其余逐字保留。
-  - 补齐 Vue3 `emits` 声明(Vue2 靠隐式 `this.$emit` 不需要声明)。
+    composable (see top comment in ../../composables/useClickOutside.ts).
+  - `<template v-for="grp in cloudGroups">` with `:key="grp.providerId"` in Vue2
+    source code (:28-38) was placed on the child element `.model-subgroup-label` rather than on
+    the `<template>` itself — Vue3 warns/breaks on this (when `<template>` is the v-for root,
+    key must be placed directly on `<template>`). Here the key has been moved to `<template v-for>`,
+    which is the only structural fix needed in this port; everything else is preserved verbatim.
+  - Added Vue3 `emits` declaration (Vue2 relies on implicit `this.$emit` so no declaration needed).
 
-  「去设置」按钮(Vue2 :43 `onOpenSettings` → `$emit('open-settings')`)本身的
-  行为不变;它的**去向**由挂载点(AgentTopbar → AgentPage）决定——本期(P2 之前)
-  AgentPage 侧把它接到跟顶栏设置按钮同一个"设置页即将开启"占位 toast,而不是真的
-  跳转路由,这是 2026-07-27 的产品决策,不是本组件自己的逻辑。
+  The "Go to Settings" button (Vue2 :43 `onOpenSettings` → `$emit('open-settings')`) behavior
+  itself is unchanged; its **destination** is determined by the mount point (AgentTopbar → AgentPage) —
+  in this phase (before P2), the AgentPage side connects it to the same "settings page about to open"
+  placeholder toast as the top bar settings button, not an actual route jump. This is a product
+  decision from 2026-07-27, not this component's own logic.
 
-  纯计算逻辑(本地/云分组、size 格式化)拆到 ../../util/modelPickerView.ts,
-  组件这里只做渲染 + 交互状态(open/query)。
+  Pure calculation logic (local/cloud grouping, size formatting) extracted to ../../util/modelPickerView.ts;
+  this component only handles rendering + interaction state (open/query).
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'

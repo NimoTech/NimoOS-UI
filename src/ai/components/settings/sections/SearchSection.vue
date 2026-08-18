@@ -1,32 +1,33 @@
 <!--
-  SP8-P2b Task 7 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/SearchSection.vue(230 行)。
+  SP8-P2b Task 7 — 1:1 port from Vue2 src/views/AI/Settings/sections/SearchSection.vue (230 lines).
 
-  【D2 申报】状态留在组件本地(ref)、直调 service.ai —— 与 Vue2 归属一致(Vue2 data()
-  是组件本地状态),不做 store 集中(用户 2026-07-28 拍板)。
+  【D2 declaration】 State remains in component local (ref), direct call to service.ai —
+  consistent with Vue2 attribution (Vue2 data() is component local state),
+  no store centralization (user decision 2026-07-28).
 
-  【死字段,未移植】Vue2 :154 的 `_active`(存一份 fileindex 的「当前生效值」,注释说
-  用来判断 restart-required,但通篇再没被读取过)—— 死代码,不移植。真正的
-  restartRequired 来自后端响应里的 `restart_required` 字段(:210-212)。
+  【Dead field, not ported】 Vue2 :154 `_active` (cached "current effective value" of fileindex,
+  comment says for restart-required check, but never read elsewhere) — dead code, not ported.
+  Real restartRequired comes from `restart_required` field in backend response (:210-212).
 
-  【逻辑修正 1】Vue2 saveParams/saveFileindex/rescan 三处都没有 catch(:188-219),
-  失败时只有 finally 把 saving/rescanning 复位,用户看到「保存中…」一闪而过就没了,
-  以为存上了/重扫上了,实际没有。这里三处都补 catch + danger toast。
+  【Logic fix 1】 Vue2 saveParams/saveFileindex/rescan have no catch at three locations (:188-219);
+  on failure only finally resets saving/rescanning; user sees "Saving..." flash then disappear,
+  assumes it saved/rescanned, actually didn't. Here all three add catch + danger toast.
 
-  【逻辑修正 2】Vue2 `rescan()` 里的 `setTimeout(() => this.loadStatus(), 1500)`(:217)
-  没人清 —— 组件卸载后定时器仍会触发,回来调 `loadStatus()` 写一个已卸载组件的 state。
-  这里补 `rescanTimer` 引用 + `onUnmounted` 清掉。
+  【Logic fix 2】 Vue2 `rescan()` has `setTimeout(() => this.loadStatus(), 1500)` (:217)
+  with no cleanup — timer fires after unmount, calling `loadStatus()` on unmounted component state.
+  Here add `rescanTimer` ref + `onUnmounted` cleanup.
 
-  【逻辑修正 4】Vue2 `savedAt` 一旦置上永不清零(SearchSection.vue:199/212 —— 只在
-  saveParams/saveFileindex 成功时置 `Date.now()`,没有任何地方再置回 0),「已保存」
-  字样会永久挂在页面上(即使之后又改了值没保存)。这里改成 2 秒后自动消失
-  (`markSaved()`,并在卸载时清掉定时器),与 ExecutionSection.vue 头注释「逻辑修正 2」
-  修的是同一个 Vue2 缺陷,这里之前漏了申报,现补上。
+  【Logic fix 4】 Vue2 `savedAt` once set never clears (SearchSection.vue:199/212 — only set
+  `Date.now()` on saveParams/saveFileindex success, never set back to 0); "Saved" label hangs
+  permanently (even if value changes unsaved later). Here auto-clear after 2s (`markSaved()`
+  and cleanup timer on unmount). Same Vue2 defect as ExecutionSection.vue header's "Logic fix 2",
+  omitted from declaration there, now added here.
 
-  【逻辑修正 3】Vue2 `copyCmd()`(:220-222)只写 `navigator.clipboard?.writeText(...)`。
-  设备走明文 HTTP 局域网 IP 访问(http://192.168.x.x/)时不是安全上下文,
-  `navigator.clipboard` 为 `undefined`,可选链直接短路 —— 点了毫无反应也无提示,这是
-  真机上必然复现的缺陷。改用仓库既有的 `copyText`(带 execCommand 兜底),成功/失败都
-  给 toast 反馈。
+  【Logic fix 3】 Vue2 `copyCmd()` (:220-222) only writes `navigator.clipboard?.writeText(...)`.
+  Device over plaintext HTTP local IP (http://192.168.x.x/) is not secure context,
+  `navigator.clipboard` is `undefined`, optional chain short-circuits — click does nothing,
+  no feedback. Inevitable failure on real device. Here use repo's existing `copyText`
+  (with execCommand fallback), success/failure both show toast feedback.
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
@@ -73,7 +74,7 @@ const statusLabel = computed(() => {
     scanning: t('aiCfgIndexBuilding'),
     disabled: t('aiCfgIndexDisabled'),
   }
-  return map[status.value.status] || status.value.status // Vue2 :162 同款兜底
+  return map[status.value.status] || status.value.status // Vue2 :162 same fallback
 })
 
 onMounted(async () => {
@@ -92,14 +93,14 @@ onMounted(async () => {
     scanIntervalH.value = (s.fileindex_scan_interval_h as number) ?? 6
     roots.value = ((s.fileindex_roots as string[]) && (s.fileindex_roots as string[]).slice()) || ['/DATA']
   } catch {
-    /* Vue2 :178 同样静默 */
+    /* Vue2 :178 likewise silent */
   }
-  void loadStatus() // Vue2 :179 —— 在 try/catch 之外,设置拉失败也要拉状态
+  void loadStatus() // Vue2 :179 — outside try/catch; load status even if settings fetch fails
 })
 
 onUnmounted(() => {
   if (savedTimer) clearTimeout(savedTimer)
-  if (rescanTimer) clearTimeout(rescanTimer) // 逻辑修正 2:见文件头注释
+  if (rescanTimer) clearTimeout(rescanTimer) // Logic fix 2: see header comment
 })
 
 async function loadStatus() {
@@ -107,7 +108,7 @@ async function loadStatus() {
     const d = (await service.ai.getFileindexStatus()) as { data?: FileindexStatus } & FileindexStatus
     status.value = (d.data || d) as FileindexStatus
   } catch {
-    /* Vue2 :186 同样静默,保留默认值 */
+    /* Vue2 :186 likewise silent, keep defaults */
   }
 }
 
@@ -130,7 +131,7 @@ async function saveParams() {
     })
     markSaved()
   } catch (e) {
-    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 1
+    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // Logic fix 1
   } finally {
     saving.value = false
   }
@@ -148,7 +149,7 @@ async function saveFileindex() {
     restartRequired.value = !!body.restart_required
     markSaved()
   } catch (e) {
-    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 1
+    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // Logic fix 1
   } finally {
     saving.value = false
   }
@@ -161,7 +162,7 @@ async function rescan() {
     if (rescanTimer) clearTimeout(rescanTimer)
     rescanTimer = setTimeout(() => { void loadStatus() }, 1500)
   } catch (e) {
-    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // 逻辑修正 1
+    toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger') // Logic fix 1
   } finally {
     rescanning.value = false
   }
@@ -170,8 +171,8 @@ async function rescan() {
 async function copyCmd() {
   const cmd = status.value.inotify?.raise_cmd
   if (!cmd) return
-  // 逻辑修正 3:见文件头注释。
-  // SP8-P2b 验收第 5 轮:复制反馈(toast + 打勾态)统一走 useCopyFeedback。
+  // Logic fix 3: see header comment.
+  // SP8-P2b acceptance round 5: copy feedback (toast + checkmark state) unified via useCopyFeedback.
   await copy(cmd, 'raise-cmd')
 }
 
@@ -193,7 +194,7 @@ function toggleSource(k: SourceKey) {
       {{ t('aiCfgSearchRestartRequired') }}
     </div>
 
-    <!-- 检索参数(热生效) -->
+    <!-- Retrieval params (hot-reload) -->
     <div class="sk-section">
       <div class="sk-section-head">
         <div class="sk-section-title">{{ t('aiCfgRetrievalParams') }}</div>
@@ -260,7 +261,7 @@ function toggleSource(k: SourceKey) {
       </div>
     </div>
 
-    <!-- 文件名索引(根目录热生效;启用/扫描周期重启生效) -->
+    <!-- Filename index (roots hot-reload; enable/scan interval require restart) -->
     <div class="sk-section">
       <div class="sk-section-head">
         <div class="sk-section-title">{{ t('aiCfgFilenameIndex') }}</div>
@@ -295,7 +296,7 @@ function toggleSource(k: SourceKey) {
       </div>
     </div>
 
-    <!-- 诊断(只读) -->
+    <!-- Diagnostics (read-only) -->
     <div class="sk-section">
       <div class="sk-section-head">
         <div class="sk-section-title">{{ t('aiCfgDiagnostics') }}</div>

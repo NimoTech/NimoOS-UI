@@ -23,21 +23,21 @@ beforeEach(() => {
 })
 afterEach(() => { vi.useRealTimers() })
 
-describe('installProgress 刷新恢复(localStorage 持久化)', () => {
-  it('track/progress 落盘;新 store 实例(模拟整页刷新)恢复任务并继续吃 progress 事件', () => {
+describe('installProgress refresh recovery (localStorage persistence)', () => {
+  it('track/progress persisted to disk; new store instance (simulating full page refresh) recovers tasks and continues to consume progress events', () => {
     const s = useInstallProgressStore()
     s.track('jellyfin', 'Jellyfin', 'i.png')
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '42' })
-    // 模拟刷新:全新 pinia + 全新 store,只剩 localStorage
+    // simulate a refresh: brand-new pinia + brand-new store, only localStorage remains
     setActivePinia(createPinia())
     const s2 = useInstallProgressStore()
     expect(s2.tasks['jellyfin']).toMatchObject({ title: 'Jellyfin', icon: 'i.png', percent: 42, state: 'installing' })
-    // 恢复后是已跟踪任务:progress 事件不再被 D5 当陌生人丢弃
+    // after restore it is a tracked task: progress events are no longer dropped as strangers by D5
     s2.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '77' })
     expect(s2.tasks['jellyfin'].percent).toBe(77)
   })
 
-  it('恢复的任务重新武装 watchdog:装完(compose.get 命中)→ finish 清卡并清盘', async () => {
+  it('recovered tasks re-arm watchdog: installation complete (compose.get hit) → finish clears card and persistent storage', async () => {
     const s = useInstallProgressStore()
     s.track('jellyfin')
     setActivePinia(createPinia())
@@ -50,7 +50,7 @@ describe('installProgress 刷新恢复(localStorage 持久化)', () => {
     expect(JSON.parse(localStorage.getItem('nimoos:install-progress') || 'null')).toEqual({})
   })
 
-  it('error 任务也随刷新恢复(可 dismiss 清盘);坏 JSON 静默忽略', () => {
+  it('error tasks also recover on refresh (can dismiss to clear storage); malformed JSON silently ignored', () => {
     const s = useInstallProgressStore()
     s.track('a')
     s.onEvent('app:install-error', { 'app:name': 'a', message: 'boom' })
@@ -67,7 +67,7 @@ describe('installProgress 刷新恢复(localStorage 持久化)', () => {
 })
 
 describe('installProgress store', () => {
-  it('setup 即订阅 4 个 install 事件(应用级=后台继续)', () => {
+  it('setup immediately subscribes to 4 install events (app-level = background continues)', () => {
     useInstallProgressStore()
     const evs = busOn.mock.calls.map((c) => c[0])
     expect(evs).toEqual(expect.arrayContaining([
@@ -75,7 +75,7 @@ describe('installProgress store', () => {
     ]))
   })
 
-  it('track 建任务;progress 事件夹紧 0-100 更新', () => {
+  it('track creates task; progress events clamped to 0-100 range', () => {
     const s = useInstallProgressStore()
     s.track('jellyfin', 'Jellyfin', 'i.png')
     expect(s.tasks['jellyfin']).toMatchObject({ percent: 0, state: 'installing', title: 'Jellyfin' })
@@ -84,24 +84,24 @@ describe('installProgress store', () => {
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '400' })
     expect(s.tasks['jellyfin'].percent).toBe(100)
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': 'garbage' })
-    expect(s.tasks['jellyfin'].percent).toBe(100) // 不可解析 → 保持原值
+    expect(s.tasks['jellyfin'].percent).toBe(100) // unparseable → keep previous value
   })
 
-  it('D5:未跟踪的 progress 一律忽略(update 流复用同一事件)', () => {
+  it('D5: untracked progress always ignored (update flow reuses the same event)', () => {
     const s = useInstallProgressStore()
     s.onEvent('app:install-progress', { 'app:name': 'syncthing', 'app:progress': '30' })
     expect(s.tasks['syncthing']).toBeUndefined()
   })
 
-  it('begin 事件对未跟踪 name 建任务(他端安装也可见),app:title JSON 容忍解析', () => {
+  it('begin event creates task for untracked name (visible on other endpoints), app:title JSON parsed tolerantly', () => {
     const s = useInstallProgressStore()
     s.onEvent('app:install-begin', { 'app:name': 'navidrome', 'app:title': '{"en_us":"Navidrome"}', 'app:icon': 'n.png' })
     expect(s.tasks['navidrome']).toMatchObject({ title: 'Navidrome', icon: 'n.png', state: 'installing' })
     s.onEvent('app:install-begin', { 'app:name': 'bad', 'app:title': '{oops' })
-    expect(s.tasks['bad'].title).toBe('bad') // 解析失败退化 name
+    expect(s.tasks['bad'].title).toBe('bad') // parse failure falls back to name
   })
 
-  it('end:删任务 + 已装列表 refresh + 商店 installed 乐观 push', async () => {
+  it('end: delete task + refresh installed app list + appstore installed optimistic push', async () => {
     const s = useInstallProgressStore()
     const installed = useInstalledAppsStore()
     const store = useAppstoreStore()
@@ -113,7 +113,7 @@ describe('installProgress store', () => {
     expect(store.installed).toContain('jellyfin')
   })
 
-  it('end 对未跟踪 name 也 refresh(错过 begin 的兜底)', () => {
+  it('end refreshes even for untracked name (fallback for missed begin)', () => {
     const s = useInstallProgressStore()
     const installed = useInstalledAppsStore()
     const spy = vi.spyOn(installed, 'refresh').mockResolvedValue()
@@ -121,7 +121,7 @@ describe('installProgress store', () => {
     expect(spy).toHaveBeenCalled()
   })
 
-  it('error:任务转 error 态带 message,可 dismiss', () => {
+  it('error: task transitions to error state with message, can be dismissed', () => {
     const s = useInstallProgressStore()
     s.track('jellyfin')
     s.onEvent('app:install-error', { 'app:name': 'jellyfin', message: 'pull failed' })
@@ -130,7 +130,7 @@ describe('installProgress store', () => {
     expect(s.tasks['jellyfin']).toBeUndefined()
   })
 
-  it('watchdog:60s 静默探测 compose.get——已存在则按 end 收敛', async () => {
+  it('watchdog: 60s silent probe of compose.get — if exists, converge per end', async () => {
     const s = useInstallProgressStore()
     const installed = useInstalledAppsStore()
     vi.spyOn(installed, 'refresh').mockResolvedValue()
@@ -141,7 +141,7 @@ describe('installProgress store', () => {
     expect(s.tasks['jellyfin']).toBeUndefined()
   })
 
-  it('watchdog:连续 5 轮探不到 → error 态(message 空,UI 用 i18n 兜底)', async () => {
+  it('watchdog: 5 consecutive probes yield nothing → error state (message empty, UI uses i18n fallback)', async () => {
     const s = useInstallProgressStore()
     svc.compose.get.mockResolvedValue(undefined)
     s.track('jellyfin')
@@ -149,19 +149,19 @@ describe('installProgress store', () => {
     expect(s.tasks['jellyfin']).toMatchObject({ state: 'error', message: '' })
   })
 
-  it('progress 事件重置 watchdog 探测计数', async () => {
+  it('progress event resets watchdog probe counter', async () => {
     const s = useInstallProgressStore()
     svc.compose.get.mockResolvedValue(undefined)
     s.track('jellyfin')
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '50' })
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
-    expect(s.tasks['jellyfin'].state).toBe('installing') // 计数已被 progress 重置,尚未到 5
+    expect(s.tasks['jellyfin'].state).toBe('installing') // counter was reset by progress, not yet at 5
   })
 
-  // --- Task 3 修复(评审 4 洞) ---
+  // --- Task 3 fixes (4 review findings) ---
 
-  it('Fix1: begin 复活 error 态任务——回 installing、percent 0、message 清空', () => {
+  it('Fix1: begin revives error state tasks — back to installing, percent 0, message cleared', () => {
     const s = useInstallProgressStore()
     s.track('jellyfin', 'Jellyfin', 'i.png')
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '77' })
@@ -171,7 +171,7 @@ describe('installProgress store', () => {
     expect(s.tasks['jellyfin']).toMatchObject({ state: 'installing', percent: 0, message: '' })
   })
 
-  it('Fix1: begin 对已 installing 任务状态不变(仅续期看门狗)', () => {
+  it('Fix1: begin leaves already-installing task state unchanged (only extends watchdog)', () => {
     const s = useInstallProgressStore()
     s.track('jellyfin', 'Jellyfin', 'i.png')
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '50' })
@@ -179,7 +179,7 @@ describe('installProgress store', () => {
     expect(s.tasks['jellyfin']).toMatchObject({ state: 'installing', percent: 50, title: 'Jellyfin' })
   })
 
-  it('Fix1(Minor#2): begin 重置探测计数——已探 4 轮后 begin,再过 4 轮不应到 5 轮 error', async () => {
+  it('Fix1(Minor#2): begin resets probe counter — after 4 probes, begin is issued, then 4 more probes should not reach 5-probe error', async () => {
     const s = useInstallProgressStore()
     svc.compose.get.mockResolvedValue(undefined)
     s.track('jellyfin')
@@ -187,10 +187,10 @@ describe('installProgress store', () => {
     expect(s.tasks['jellyfin'].state).toBe('installing')
     s.onEvent('app:install-begin', { 'app:name': 'jellyfin' })
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
-    expect(s.tasks['jellyfin'].state).toBe('installing') // 计数已被 begin 重置,尚未到 5
+    expect(s.tasks['jellyfin'].state).toBe('installing') // counter was reset by begin, not yet at 5
   })
 
-  it('Fix2: dismiss 与飞行中 probe 竞态——resolve 落定后任务不复活、不触发 finish 副作用、不再排新探测', async () => {
+  it('Fix2: dismiss vs in-flight probe race condition — after resolve settles, task does not revive, does not trigger finish side effects, does not reschedule new probe', async () => {
     const s = useInstallProgressStore()
     const installed = useInstalledAppsStore()
     const store = useAppstoreStore()
@@ -199,24 +199,24 @@ describe('installProgress store', () => {
     const callsBefore = svc.compose.get.mock.calls.length
     svc.compose.get.mockImplementation(() => new Promise((resolve) => { resolveGet = resolve }))
     s.track('jellyfin')
-    await vi.advanceTimersByTimeAsync(WATCHDOG_MS) // 触发 probe,compose.get 挂起
+    await vi.advanceTimersByTimeAsync(WATCHDOG_MS) // trigger probe, compose.get stays pending
     expect(svc.compose.get.mock.calls.length - callsBefore).toBe(1)
     s.dismiss('jellyfin')
-    // 飞行中的 probe 落定时收到「已安装」的真值——若不重新读取 tasks.value,会误当仍在跟踪
-    // 而调用 finish() 产生 refresh()/installed 乐观 push 的副作用(任务明明已被用户 dismiss)
+    // the in-flight probe settles with a truthy "installed" value — without re-reading tasks.value it would
+    // mistakenly treat the task as still tracked and call finish(), causing refresh()/installed optimistic-push side effects (even though the user already dismissed it)
     resolveGet({ status: 'running' })
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
     expect(s.tasks['jellyfin']).toBeUndefined()
     expect(refreshSpy).not.toHaveBeenCalled()
     expect(store.installed).not.toContain('jellyfin')
-    // 且不应遗留死 key 导致后续再探测(退化场景:falsy 落定也不得重新 arm)
+    // and no dead key should be left behind to trigger further probing (degenerate case: a falsy settlement must not re-arm either)
     const callsAfterDismiss = svc.compose.get.mock.calls.length
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * 2)
-    expect(svc.compose.get.mock.calls.length).toBe(callsAfterDismiss) // 没有被重新 arm
+    expect(svc.compose.get.mock.calls.length).toBe(callsAfterDismiss) // not re-armed
     expect(s.tasks['jellyfin']).toBeUndefined()
   })
 
-  it('Fix3: probe 网络错不计罚——compose.get 连续 reject,5 轮后仍 installing', async () => {
+  it('Fix3: probe network errors incur no penalty — compose.get continuously rejected, still installing after 5 probes', async () => {
     const s = useInstallProgressStore()
     svc.compose.get.mockRejectedValue(new Error('network down'))
     s.track('jellyfin')

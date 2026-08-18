@@ -1,13 +1,13 @@
 import type { NormalizedAggregate } from '@nimotech/nimoos-service'
 import type { DegradeState } from './types'
 
-// spec §7.8。本区最重要的可见行为:本机四源里两源不可用,用户必须看得出
-// 「这次只搜了文件名」,而不是以为搜索就这点结果。
+// spec §7.8. Most critical visible behavior in this area: when two of the four local sources are
+// unavailable, the user must see that "this search only looked at filenames", not assume that is all the results.
 //
-// ⚠️ 「组是不是空」不能用来推「该源有没有参与」—— 实测 semantic 会返回 [](跑了,零命中),
-//    也会返回 null(没跑)。**唯一可靠的信号是 warnings。**(spec §7.10a)
-// ⚠️ notes 源本期不请求(债务 D2)。真收到 notes_unavailable 也不展示:
-//    对用户说「笔记搜索不可用」而我们压根没搜笔记,是误导。
+// ⚠️ "Whether an array is empty" cannot be used to infer "whether that source participated" —— empirically semantic returns []
+//    (ran, zero hits) or null (didn't run). **The only reliable signal is warnings.** (spec §7.10a)
+// ⚠️ notes source not requested this sprint (debt D2). Even if we receive notes_unavailable, do not display it:
+//    telling the user "note search unavailable" when we never searched notes at all would be misleading.
 
 const UNAVAILABLE_SUFFIX = '_unavailable'
 const KNOWN_SOURCES = ['semantic', 'filenames', 'images']
@@ -22,10 +22,10 @@ export function deriveDegrade(agg: NormalizedAggregate, totalRows: number): Degr
     if (w === NO_ROOTS) { noRoots = true; continue }
     if (w.endsWith(UNAVAILABLE_SUFFIX)) {
       const src = w.slice(0, -UNAVAILABLE_SUFFIX.length)
-      if (src === 'notes') continue          // 本期不请求 notes,报它是误导
+      if (src === 'notes') continue          // notes not requested this sprint, reporting it would be misleading
       if (KNOWN_SOURCES.includes(src)) { unavailableSources.push(src); continue }
     }
-    unknownWarnings.push(w)                  // 认不出的原样透出,不静默丢
+    unknownWarnings.push(w)                  // pass through unknown warnings as-is, do not silently drop
   }
 
   const empty: DegradeState['empty'] =

@@ -1,10 +1,12 @@
-<!-- 故障模拟器 P4 决策2 推迟 -->
+<!-- Failure simulator deferred by P4 decision 2 -->
 <!--
-  迁移自 NimoOS-UI/src/components/Storage/raid/RaidMatrix.vue(:12-121 矩阵主体)。
-  只迁矩阵本身(Layout/Min drives/Survives/Capacity/Read/Write/Cost/Best for/Actions 九行 × 5 级别列)。
-  明确不迁 Vue2 源 :123-200 的故障模拟器 modal(openModal/failDrive/modalStatus/rebuildAll/resetModal
-  及 survival() 判定),也不迁顶部图例(rm__legend)与 recommendedLevel 推荐徽章 —— 均超出本任务契约
-  (props 只有 diskCount/sizeBytes/selectedLevel)。
+  Migrated from NimoOS-UI/src/components/Storage/raid/RaidMatrix.vue (:12-121, the matrix body).
+  Migrates only the matrix itself (the nine rows Layout/Min drives/Survives/Capacity/Read/Write/
+  Cost/Best for/Actions x the 5 level columns).
+  Deliberately does not migrate the Vue2 source's :123-200 failure-simulator modal
+  (openModal/failDrive/modalStatus/rebuildAll/resetModal and the survival() check), nor the
+  top legend (rm__legend) or the recommendedLevel recommendation badge — all out of scope for
+  this task's contract (props are only diskCount/sizeBytes/selectedLevel).
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
@@ -20,19 +22,22 @@ const { t } = useI18n()
 
 const levels = RAID_LEVELS
 
-// Vue2 源 isAvailable(RaidMatrix.vue:244-246):RAID 10 需要 >=4 且为偶数盘,其余按 lv.min 判定。
+// Vue2 source's isAvailable (RaidMatrix.vue:244-246): RAID 10 requires >=4 drives and an even
+// count; all others are judged by lv.min.
 function isAvailable(lv: RaidLevelSpec): boolean {
   if (lv.id === 10) return props.diskCount >= 4 && props.diskCount % 2 === 0
   return props.diskCount >= lv.min
 }
 
-// Vue2 源 diskLayout(RaidMatrix.vue:255-258):盘数不足时仍按 lv.min 预览布局,而非空白。
+// Vue2 source's diskLayout (RaidMatrix.vue:255-258): when there aren't enough drives, still
+// preview the layout using lv.min rather than leaving it blank.
 function diskLayout(lv: RaidLevelSpec): RaidRole[] {
   const n = Math.max(isAvailable(lv) ? props.diskCount : lv.min, lv.min)
   return lv.layout(n)
 }
 
-// Vue2 源 capPct(RaidMatrix.vue:248-254),这里 sizeBytes 是调用方已算好的单盘有效容量(非磁盘数组)。
+// Vue2 source's capPct (RaidMatrix.vue:248-254) — here sizeBytes is the per-drive usable
+// capacity already computed by the caller (not a disk array).
 function capPct(lv: RaidLevelSpec): number {
   const n = props.diskCount
   const s = props.sizeBytes

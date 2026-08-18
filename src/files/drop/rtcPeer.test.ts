@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Peer, RTCPeer, type PeerEvents } from './rtcPeer'
-import { encodeText, ACK_TIMEOUT_MS, type TransferBrokenReason } from './protocol'
+import { encodeText, ACK_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS, type TransferBrokenReason } from './protocol'
 
-// 测试用子类:捕获 sendRaw,免 WebRTC
+// Test subclass: capture sendRaw, avoid WebRTC
 class TestPeer extends Peer {
   out: (string | ArrayBuffer)[] = []
   protected sendRaw(d: string | ArrayBuffer) { this.out.push(d) }
@@ -11,21 +11,22 @@ function makeEvents(): PeerEvents {
   return {
     onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(),
     onTransferComplete: vi.fn(), onTransferBroken: vi.fn(),
+    onPeerConnected: vi.fn(), onPeerUnreachable: vi.fn(),
   }
 }
 const jsonOut = (p: TestPeer) => p.out.filter((x): x is string => typeof x === 'string').map((s) => JSON.parse(s))
 
-describe('Peer 传输状态机(wire 形状=Vue2)', () => {
-  it('sendFiles 先发 header{name,mime,size,from},分区末发 partition;收 partition-received 续下一分区', async () => {
+describe('Peer transfer state machine (wire shape = Vue2)', () => {
+  it('sendFiles sends header{name,mime,size,from} first, then partition per section; receives partition-received to continue next section', async () => {
     const p = new TestPeer({ send: vi.fn() }, 'peer2', makeEvents())
     const file = new File([new Uint8Array(70000)], 'a.bin', { type: 'application/x-test' })
     p.sendFiles([file], 'self1')
     await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition')).toBe(true))
     const header = jsonOut(p).find((m) => m.type === 'header')
     expect(header).toEqual({ type: 'header', name: 'a.bin', mime: 'application/x-test', size: 70000, from: 'self1' })
-    expect(p.out.filter((x) => typeof x !== 'string').length).toBe(2) // 64000+6000 两块
+    expect(p.out.filter((x) => typeof x !== 'string').length).toBe(2) // 64000+6000 two chunks
   })
-  it('接收:header→二进制块→组装回调 onFileReceived + 回发 transfer-complete;进度按 ≥1% 阈值回发', () => {
+  it('receive: header → binary chunks → assemble and callback onFileReceived + send back transfer-complete; progress reports by ≥1% threshold', () => {
     const ev = makeEvents()
     const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
     p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'b.bin', mime: '', size: 8, from: 'peer2' }))
@@ -35,9 +36,9 @@ describe('Peer 传输状态机(wire 形状=Vue2)', () => {
     expect(received.from).toBe('peer2')
     expect(received.file.blob.size).toBe(8)
     expect(jsonOut(p).some((m) => m.type === 'transfer-complete')).toBe(true)
-    expect(ev.onFileProgress).toHaveBeenCalled() // 接收侧进度上报给 UI
+    expect(ev.onFileProgress).toHaveBeenCalled() // receiver-side progress reported to UI
   })
-  it('收 transfer-complete:busy 复位、出队下一个、onTransferComplete', async () => {
+  it('receive transfer-complete: reset busy, dequeue next, onTransferComplete', async () => {
     const ev = makeEvents()
     const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
     const f = (n: string) => new File([new Uint8Array(10)], n)
@@ -45,9 +46,9 @@ describe('Peer 传输状态机(wire 形状=Vue2)', () => {
     await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(1))
     p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
     expect(ev.onTransferComplete).toHaveBeenCalledOnce()
-    await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(2)) // 第二个文件开始
+    await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(2)) // second file begins
   })
-  it('sendText base64;收 text 解码回调', () => {
+  it('sendText base64; receive text and decode callback', () => {
     const ev = makeEvents()
     const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
     p.sendText('2')
@@ -256,6 +257,72 @@ describe('RTCPeer disconnect branches', () => {
 
     expect(inner.conn).not.toBeNull()
     expect(inner.conn).not.toBe(original)
+  })
+
+  // 08-13 acceptance: signaling handshake completes fully (offer/answer/ICE
+  // all in server logs), but data channel never opens and code says nothing —
+  // user sees "clicked send, nothing happened". Handshake must have a timeout;
+  // if not connected when deadline arrives, must report truthfully "unreachable".
+  it('reports a peer as unreachable when a dial never opens a channel', () => {
+    vi.useFakeTimers()
+    try {
+      const ev = makeEvents()
+      new RTCPeer({ send: vi.fn() }, 'peer2', ev) // caller: dials on construction
+      expect(ev.onPeerUnreachable).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS + 1)
+      expect(ev.onPeerUnreachable).toHaveBeenCalledWith('peer2')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stays quiet when the channel opens before the handshake bound', () => {
+    vi.useFakeTimers()
+    try {
+      const ev = makeEvents()
+      const p = new RTCPeer({ send: vi.fn() }, 'peer2', ev)
+      const channel = { binaryType: '', readyState: 'open', onmessage: null, onclose: null, onopen: null }
+      ;(p as unknown as { onChannelOpened: (c: unknown) => void }).onChannelOpened(channel)
+      expect(ev.onPeerConnected).toHaveBeenCalledWith('peer2')
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS + 1)
+      expect(ev.onPeerUnreachable).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits for onopen when the channel arrives still connecting (callee path)', () => {
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    const channel = { binaryType: '', readyState: 'connecting', onmessage: null, onclose: null, onopen: null as null | (() => void) }
+    ;(p as unknown as { onChannelOpened: (c: unknown) => void }).onChannelOpened(channel)
+    expect(ev.onPeerConnected).not.toHaveBeenCalled()
+    channel.onopen!()
+    expect(ev.onPeerConnected).toHaveBeenCalledWith('peer2')
+  })
+
+  it('reports unreachable when the connection fails before any channel opened', () => {
+    const ev = makeEvents()
+    const p = new RTCPeer({ send: vi.fn() }, 'peer2', ev)
+    const inner = (p as unknown as { conn: FakeConn | null })
+    inner.conn!.connectionState = 'failed'
+
+    ;(p as unknown as { onConnectionStateChange: () => void }).onConnectionStateChange()
+
+    expect(ev.onPeerUnreachable).toHaveBeenCalledWith('peer2')
+  })
+
+  it('wires ondatachannel for the caller too, so a peer-opened channel is never dropped', () => {
+    // After a reconnect the two ends can briefly disagree about who dials; a
+    // caller without this handler silently discards the channel the other side
+    // opened -- indistinguishable from "nothing happens".
+    const ev = makeEvents()
+    const p = new RTCPeer({ send: vi.fn() }, 'peer2', ev)
+    const inner = (p as unknown as { conn: (FakeConn & { ondatachannel: ((e: unknown) => void) | null }) | null })
+    expect(inner.conn!.ondatachannel).toBeTypeOf('function')
+    const channel = { binaryType: '', readyState: 'open', onmessage: null, onclose: null, onopen: null }
+    inner.conn!.ondatachannel!({ channel })
+    expect(ev.onPeerConnected).toHaveBeenCalledWith('peer2')
   })
 
   it('reports the cancellation once even when the channel is already gone', () => {

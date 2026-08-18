@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { browserCanDisplayImage } from '../util/browserCanDisplayImage'
 import { mapOcrBoxesToRects } from './util/ocrHighlight'
@@ -10,7 +9,6 @@ const props = defineProps<{
   mimeType: string
   ocrLines?: Array<{ box: number[] }>
 }>()
-const { t } = useI18n()
 
 // HEIC/TIFF/RAW 等浏览器无法原生解码的格式回退到已转码的大图缩略图(照 Vue2 PhotosLightbox imageSrc)
 const src = computed(() =>
@@ -78,8 +76,20 @@ function setZoom(effective: number) {
 }
 function zoomIn() { setZoom(committedZoom.value * scale.value + 0.1) }
 function zoomOut() { setZoom(committedZoom.value * scale.value - 0.1) }
+// Fix-2 item 1 (owner acceptance, 2026-08-16): the bottom zoom toolbar (both themes) is removed
+// below -- rotate() loses its only UI entry point along with it (acceptable per owner ruling:
+// zoom was the one feature explicitly named for preservation). Kept live and reachable, not
+// deleted -- still exposed via defineExpose for any future programmatic/keyboard trigger.
 function rotate() { rotation.value += 90 }
 function onWheel(e: WheelEvent) { e.deltaY < 0 ? zoomIn() : zoomOut() }
+// Fix-2 item 1: double-click companion gesture (cheap addition alongside wheel-zoom, which
+// already covers "zoom in/out must remain reachable" without any button). Toggles between the
+// current effective zoom and a fixed 2x, reusing the exact same setZoom/resetTransform mechanics
+// the (now-removed) toolbar buttons drove.
+function onDblClick() {
+  if (committedZoom.value * scale.value > 1.01) resetTransform()
+  else setZoom(2)
+}
 
 // 换图时复位变换 + 重算 OCR 覆盖层(单图无内部 index,按 assetId 换图)
 watch(() => props.assetId, () => { resetTransform(); recomputeOcrRects() })
@@ -111,9 +121,6 @@ function clampPan() {
 }
 
 function onPointerDown(e: PointerEvent) {
-  // 工具栏按钮的 pointerdown 会冒泡到舞台;若在此 setPointerCapture,指针被舞台
-  // 捕获后 click 不再派发给按钮,整排工具栏点击失效 —— 起于工具栏的按下直接放行。
-  if ((e.target as HTMLElement).closest('.img-toolbar')) return
   dragging = true
   startX = e.clientX; startY = e.clientY; baseX = tx.value; baseY = ty.value
   ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -128,15 +135,6 @@ function onPointerMove(e: PointerEvent) {
 }
 function onPointerUp() { dragging = false }
 
-// —— 工具栏 5s 无操作自动隐藏(忠于 files ImageViewer)——
-const isMoving = ref(false)
-let hideTimer: ReturnType<typeof setTimeout> | null = null
-function onMouseMove() {
-  isMoving.value = true
-  if (hideTimer) clearTimeout(hideTimer)
-  hideTimer = setTimeout(() => { isMoving.value = false; hideTimer = null }, 5000)
-}
-
 // —— OCR 覆盖层:rects 与 <img> 共享同一变换(见 .ocr-overlay 的 :style="imgStyle"),
 // 缩放/平移/旋转时随图片同步移动;.img-wrap 只是让 overlay 与 img 共享定位原点的
 // 壳(img 是其唯一内容,原点对齐),因此不必再叠加 offsetLeft/offsetTop。——
@@ -150,7 +148,6 @@ watch(() => props.ocrLines, recomputeOcrRects)
 
 let resizeObserver: ResizeObserver | undefined
 onMounted(() => {
-  onMouseMove()
   recomputeOcrRects()
   if (typeof ResizeObserver !== 'undefined' && imgEl.value) {
     resizeObserver = new ResizeObserver(recomputeOcrRects)
@@ -158,7 +155,6 @@ onMounted(() => {
   }
 })
 onBeforeUnmount(() => {
-  if (hideTimer) clearTimeout(hideTimer)
   if (commitTimer) clearTimeout(commitTimer)
   if (suppressTimer) clearTimeout(suppressTimer)
   resizeObserver?.disconnect()
@@ -171,9 +167,8 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   <div
     ref="stageEl"
     class="img-stage"
-    @mousemove="onMouseMove"
-    @touchmove="onMouseMove"
     @wheel.prevent="onWheel"
+    @dblclick="onDblClick"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
@@ -182,30 +177,33 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
     @dragstart.prevent
   >
     <div class="img-wrap">
+      <!-- Plan F Task 3: `class="img-el"` keeps its name (the zoom family's own hook -- net
+           addition over Vue2, kept per controller ruling 4) and gains parity's anchor
+           `.lb-photo` alongside it (Vue2 PhotosLightbox.vue:38-45 `<img class="lb-photo">`,
+           parity photos.scss:593-598). Both classes coexist: `.img-el` still drives the zoom/
+           pan transform + cursor rules above, `.lb-photo` is the anchor Task 4/5 will target
+           once this renders under `.photos-root`'s real parity CSS. -->
       <img
         ref="imgEl"
-        class="img-el"
+        class="img-el lb-photo"
         :src="src"
         :style="imgStyle"
         alt=""
         draggable="false"
         @load="recomputeOcrRects"
       />
-      <div v-if="ocrRects.length" class="ocr-overlay" :style="imgStyle">
+      <!-- Plan F Task 3: renamed from the invented `.ocr-overlay`/`.ocr-hit` to parity's real
+           anchors `.lb-ocr-overlay`/`.lb-ocr-hit` (Vue2 PhotosLightbox.vue:46-53, parity
+           photos.scss:604-618). Task 4 adds the `lb-ocr-pulse` entrance animation to
+           `.lb-ocr-hit`; this task only re-shapes the class names. -->
+      <div v-if="ocrRects.length" class="lb-ocr-overlay" :style="imgStyle">
         <div
           v-for="(r, i) in ocrRects"
           :key="i"
-          class="ocr-hit"
+          class="lb-ocr-hit"
           :style="{ left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }"
         />
       </div>
-    </div>
-
-    <div v-if="isMoving" class="img-toolbar">
-      <button type="button" class="tb-item" @click="zoomIn">{{ t('photosZoomIn') }}</button>
-      <button type="button" class="tb-item" @click="zoomOut">{{ t('photosZoomOut') }}</button>
-      <button type="button" class="tb-item" @click="rotate">{{ t('photosRotate') }}</button>
-      <button type="button" class="tb-item" @click="resetTransform">{{ t('photosReset') }}</button>
     </div>
   </div>
 </template>
@@ -229,16 +227,40 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
 .img-stage:active { cursor: grabbing; }
 /* .img-wrap 只按 img 的渲染尺寸收缩包裹(shrink-to-fit),使 .ocr-overlay(绝对定位、
    inset:0)的原点与 img 完全重合 —— img 是其唯一参与布局的内容,故 OCR 矩形无需
-   再叠加 offsetLeft/offsetTop 换算。 */
+   再叠加 offsetLeft/offsetTop 换算。
+
+   I2 (final review, 2026-08-15) containing-block analysis -- why `max-width: 100%;
+   max-height: 100%;` MUST stay here even though the identically-named pair was just deleted from
+   `.img-el` below: this wrap is a shrink-to-fit box (`display: inline-flex`, no explicit
+   width/height of its own) sitting between `.img-stage` (a definite, 100%-sized box -- this
+   component's own root) and the `<img class="img-el lb-photo">`. Percentages on a descendant
+   always resolve against its own containing block, i.e. THIS element, not `.img-stage` directly --
+   so for the img's `.lb-photo` max-width (now solely parity's `calc(100% - 80px)`, no local
+   competitor after the deletion below) to mean "80px in from `.img-stage`'s edge" rather than
+   something computed relative to an already shrink-wrapped, content-dependent box, this wrapper's
+   OWN percentage basis has to be a plain, unconstrained pass-through of `.img-stage`'s real size --
+   which is exactly what an unqualified `100%` here provides (it is never the binding constraint in
+   practice: the img's own max-width already caps the rendered size below `.img-stage`'s, so this
+   wrapper's shrink-to-fit width always lands under its own 100% cap and never gets clamped by it).
+   Deleting this rule instead of `.img-el`'s would reopen exactly the same problem one layer up (an
+   `.img-wrap` with no size cap at all lets an oversized photo's wrap balloon past `.img-stage`,
+   independent of whatever max-width the img itself declares) -- so this is the "sizing
+   pass-through" layer, kept deliberately, while `.img-el` below carries none of its own. */
 .img-wrap {
   position: relative;
   display: inline-flex;
   max-width: 100%;
   max-height: 100%;
 }
+/* I2 (final review, 2026-08-15): `max-width: 100%; max-height: 100%;` used to live here too --
+   at equal specificity with parity's own `.photos-root .lb-photo` (also targeting this exact
+   <img>, since it carries both classes, see the Task 3 comment above) and, being injected after
+   the parity stylesheet on every host page, this local copy always won the tie, silently
+   overriding parity's `calc(100% - 80px)`/`calc(100% - 24px)` arrow clearance with a flush 100%.
+   Deleted outright -- parity's `.lb-photo` rule is now the only max-width/max-height declaration
+   reaching this element, no tie left to win (see `.img-wrap`'s own comment above for why ITS
+   pass-through `100%` has to stay so the percentage still resolves against `.img-stage`). */
 .img-el {
-  max-width: 100%;
-  max-height: 100%;
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
@@ -246,47 +268,18 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   /* 勿加 will-change: transform —— 大图被固定成合成层后,缩放只拉伸旧瓦片不重绘,
      瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */
 }
-/* overlay 绑定与 img 完全相同的 imgStyle(transform 一致),二者共享同一未变换前的
-   包围盒(均为 .img-wrap 的 inset:0),因此缩放/平移/旋转时视觉上严丝合缝同步移动。 */
-.ocr-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.ocr-hit {
-  position: absolute;
-  border: 1.5px solid var(--accent);
-  border-radius: 3px;
-  background: var(--accent-soft);
-  box-shadow: 0 0 0 1px var(--accent-soft-bd);
-}
-.img-toolbar {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  box-shadow: var(--media-overlay-shadow);
-  background: var(--popup-bg);
-  backdrop-filter: var(--blur);
-}
-.tb-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--fg);
-  font-size: 13px;
-  white-space: nowrap;
-  cursor: pointer;
-  border-radius: 6px;
-}
-.tb-item:hover { background: var(--tool-bg-hi); }
+/* Plan F Task 5: `.lb-ocr-overlay`/`.lb-ocr-hit` are retired -- both were byte-exact duplicates
+   of parity's own `.photos-root .lb-ocr-overlay`/`.photos-root .lb-ocr-hit` (photos.scss:612-
+   626), property-for-property (including the `lb-ocr-pulse` keyframe reference, a bare top-level
+   construct that was already reachable from this component regardless of nesting -- see
+   PhotoLightbox.vue's own retirement note for the same reasoning about `lb-in`). Now that this
+   component actually renders inside `.photos-root`, parity's copies alone govern; keeping the
+   local duplicates would only be the identical same-specificity tie flagged across this whole
+   file family. */
+/* Fix-2 item 1 (owner acceptance, 2026-08-16): `.img-toolbar`/`.tb-item` (the Zoom in/Zoom out/
+   Rotate/Reset button row) are removed outright, both themes -- the owner's acceptance screenshot
+   flagged this floating box as visual clutter that also read as unreadably dark-on-light in the
+   light theme (it never had a light-mode variant of its own, only global dark-glass tokens). Zoom
+   remains reachable via wheel (onWheel, pre-existing) and the new double-click toggle (onDblClick,
+   this same file's script) -- see that function's own comment for what replaces the buttons. */
 </style>

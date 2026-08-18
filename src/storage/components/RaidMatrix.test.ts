@@ -6,24 +6,24 @@ import zh from '../../i18n/zh_cn'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// tsconfig lib 目标为 ES2020,Array.prototype.at() 需 ES2022+ 才有类型定义(vue-tsc 报 TS2550);
-// 用等价的 arr[arr.length-1] 代替 .at(-1)(与 RaidDriveBay.test.ts 同款写法)。
+// tsconfig lib target is ES2020; Array.prototype.at() needs ES2022+ type defs (vue-tsc reports TS2550);
+// use the equivalent arr[arr.length-1] instead of .at(-1) (same pattern as RaidDriveBay.test.ts).
 function lastCall<T>(calls: T[][] | undefined): T[] {
   const list = calls!
   return list[list.length - 1]
 }
 
 describe('RaidMatrix', () => {
-  it('渲染 5 个级别列', () => {
+  it('renders 5 level columns', () => {
     const w = mount(RaidMatrix, { props: { diskCount: 4, sizeBytes: 1000, selectedLevel: null }, global: { plugins: [i18n] } })
     expect(w.findAll('.rm-col')).toHaveLength(5)
   })
-  it('点 Select → emit update:selectedLevel(级别 id)', async () => {
+  it('clicking Select emits update:selectedLevel(level id)', async () => {
     const w = mount(RaidMatrix, { props: { diskCount: 4, sizeBytes: 1000, selectedLevel: null }, global: { plugins: [i18n] } })
-    await w.findAll('.rm-select')[2].trigger('click') // 第3列 = RAID5
+    await w.findAll('.rm-select')[2].trigger('click') // 3rd column = RAID5
     expect(lastCall(w.emitted('update:selectedLevel'))).toEqual([5])
   })
-  it('不渲染故障模拟器入口(推迟)', () => {
+  it('does not render the failure simulator entry (deferred)', () => {
     const w = mount(RaidMatrix, { props: { diskCount: 4, sizeBytes: 1000, selectedLevel: null }, global: { plugins: [i18n] } })
     expect(w.find('.rm-simulator').exists()).toBe(false)
     expect(w.text().toLowerCase()).not.toContain('failure simulator')

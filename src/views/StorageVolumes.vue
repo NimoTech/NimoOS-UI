@@ -27,7 +27,7 @@ async function doUnmount(password: string) {
 }
 
 const createOpen = ref(false)
-// 存储名与 RAID 名共享命名空间(Vue2 allUsedNames 同款)
+// Storage names share a namespace with RAID names (same as Vue2's allUsedNames)
 const defaultName = computed(() =>
   computeNextStorageName(DEFAULT_STORAGE_NAME, [
     ...store.volumes.map((v) => v.name),
@@ -47,7 +47,7 @@ function askFormat(v: StorageVolume) {
 }
 async function doFormat(password: string) {
   if (!pendingFormat.value) return
-  // 契约:path=分区路径,volume=挂载点(Vue2 formatStorage 同款)
+  // Contract: path=partition path, volume=mount point (same as Vue2's formatStorage)
   const ok = await store.formatVolume({
     path: pendingFormat.value.path,
     volume: pendingFormat.value.mountPoint,

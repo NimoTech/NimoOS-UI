@@ -11,36 +11,36 @@ function makeRouter() {
   })
 }
 
-describe('设置区路由', () => {
+describe('settings section routes', () => {
   beforeEach(() => localStorage.clear())
 
-  it('/settings 无记忆时重定向到 general', async () => {
+  it('/settings redirects to general when there is no memory', async () => {
     const r = makeRouter()
     await r.push('/settings')
     expect(r.currentRoute.value.path).toBe('/settings/general')
   })
 
-  it('/settings 有记忆时重定向到上次 tab', async () => {
+  it('/settings redirects to the last tab when there is memory', async () => {
     localStorage.setItem(LAST_TAB_KEY, 'network')
     const r = makeRouter()
     await r.push('/settings')
     expect(r.currentRoute.value.path).toBe('/settings/network')
   })
 
-  it('/settings 记忆是非法值时重定向到 general', async () => {
+  it('/settings redirects to general when the memory is an invalid value', async () => {
     localStorage.setItem(LAST_TAB_KEY, 'bogus')
     const r = makeRouter()
     await r.push('/settings')
     expect(r.currentRoute.value.path).toBe('/settings/general')
   })
 
-  it('未知 :tab 重定向到 general(不是 404)', async () => {
+  it('an unknown :tab redirects to general (not a 404)', async () => {
     const r = makeRouter()
     await r.push('/settings/nope')
     expect(r.currentRoute.value.path).toBe('/settings/general')
   })
 
-  it('9 个合法 tab 都能直接进(刷新保持)', async () => {
+  it('all 9 valid tabs can be entered directly (survives a refresh)', async () => {
     for (const t of SETTINGS_TABS) {
       const r = makeRouter()
       await r.push('/settings/' + t)
@@ -48,7 +48,7 @@ describe('设置区路由', () => {
     }
   })
 
-  it('路由有 name settings', async () => {
+  it('the route has name settings', async () => {
     const r = makeRouter()
     await r.push('/settings/apps')
     expect(r.currentRoute.value.name).toBe('settings')

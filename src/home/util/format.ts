@@ -26,7 +26,7 @@ export function heatColor(t: number | null | undefined): string {
   return t == null ? 'var(--accent)' : t < 60 ? 'var(--good)' : t < 80 ? '#ffcc66' : '#ff6b6b'
 }
 
-// engine.js 590-597 — now 注入便于测试(默认取当前时间由调用方传)
+// engine.js 590-597 — `now` is injectable for tests (defaults to current time, passed by caller)
 export function relTime(ts: number, now: number = Date.now()): string {
   const g = i18n.global
   const diff = now - ts

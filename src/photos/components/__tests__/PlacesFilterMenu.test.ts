@@ -1,5 +1,5 @@
-// Task 9(SP7-P6a 地点·地图主视图):PlacesFilterMenu.vue —— 地图工具栏 Filters 弹层。
-// 逐条对应 task-9-brief.md 的「必含测试清单」+ 六处删码验证。
+// Task 9(SP7-P6a Places - map main view): PlacesFilterMenu.vue — Map toolbar Filters popup.
+// Each item corresponds to the required test checklist in task-9-brief.md + six delete-code verification checks.
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -55,50 +55,50 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-// ── chip 徽标 / .is-active ──────────────────────────────────────────────────
-describe('chip 徽标计数', () => {
-  it('minCount+region+recentOnly+timeFilter=year 四项全中 → 徽标显示 4', () => {
+// ── chip badge / .is-active ──────────────────────────────────────────────────
+describe('chip badge count', () => {
+  it('minCount+region+recentOnly+timeFilter=year all four matched → badge shows 4', () => {
     const w = mountMenu({ filter: defaultFilter({ minCount: 10, regionFilter: 'asia', recentOnly: true, timeFilter: 'year' }) })
     expect(w.get('[data-test="pfm-badge"]').text()).toBe('· 4')
   })
 
-  it('全默认 → 徽标节点不存在', () => {
+  it('all default → badge node does not exist', () => {
     const w = mountMenu({ filter: defaultFilter() })
     expect(w.find('[data-test="pfm-badge"]').exists()).toBe(false)
   })
 
-  it('只 timeFilter=year 单独 → 徽标显示 1', () => {
+  it('only timeFilter=year alone → badge shows 1', () => {
     const w = mountMenu({ filter: defaultFilter({ timeFilter: 'year' }) })
     expect(w.get('[data-test="pfm-badge"]').text()).toBe('· 1')
   })
 })
 
 describe('chip .is-active', () => {
-  it('任一额外过滤(minCount>0)时 chip 有 .is-active', () => {
+  it('when any extra filter (minCount>0) chip has .is-active', () => {
     const w = mountMenu({ filter: defaultFilter({ minCount: 50 }) })
     expect(w.get('[data-test="pfm-chip"]').classes()).toContain('is-active')
   })
 
-  it('timeFilter !== all 时 chip 有 .is-active', () => {
+  it('when timeFilter !== all chip has .is-active', () => {
     const w = mountMenu({ filter: defaultFilter({ timeFilter: 'trip' }) })
     expect(w.get('[data-test="pfm-chip"]').classes()).toContain('is-active')
   })
 
-  it('全默认时 chip 无 .is-active', () => {
+  it('when all default chip has no .is-active', () => {
     const w = mountMenu({ filter: defaultFilter() })
     expect(w.get('[data-test="pfm-chip"]').classes()).not.toContain('is-active')
   })
 
-  it('点 chip → emit update:open 取反', async () => {
+  it('click chip → emit update:open inverted', async () => {
     const w = mountMenu({ open: false })
     await w.get('[data-test="pfm-chip"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[true]])
   })
 })
 
-// ── 最少照片数 ────────────────────────────────────────────────────────────
-describe('最少照片数五档', () => {
-  it('五个按钮渲染,0 显示"不限"', () => {
+// ── minimum photo count ────────────────────────────────────────────────────────────
+describe('minimum photo count five levels', () => {
+  it('five buttons rendered, 0 shows "No limit"', () => {
     const w = mountMenu({ open: true })
     const btns = w.findAll('[data-test="pfm-mincount-btn"]')
     expect(btns).toHaveLength(5)
@@ -107,14 +107,14 @@ describe('最少照片数五档', () => {
     expect(btns[4].text()).toBe('≥ 200')
   })
 
-  it('当前值的按钮带 .is-active', () => {
+  it('current value button has .is-active', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ minCount: 50 }) })
     const btns = w.findAll('[data-test="pfm-mincount-btn"]')
     expect(btns[2].classes()).toContain('is-active')
     expect(btns[0].classes()).not.toContain('is-active')
   })
 
-  it('点 50 → emit update:filter,minCount===50,其余字段与传入一致(整体替换非丢字段)', async () => {
+  it('click 50 → emit update:filter, minCount===50, other fields match input (full replacement not field loss)', async () => {
     const original = defaultFilter({ regionFilter: 'asia', recentOnly: true, timeFilter: 'trip' })
     const w = mountMenu({ open: true, filter: original })
     const btns = w.findAll('[data-test="pfm-mincount-btn"]')
@@ -126,35 +126,35 @@ describe('最少照片数五档', () => {
   })
 })
 
-// ── 区域 ─────────────────────────────────────────────────────────────────
-describe('区域按钮', () => {
-  it('已知 id 走译文,未知 id 回落后端 label', () => {
+// ── region ─────────────────────────────────────────────────────────────────
+describe('region buttons', () => {
+  it('known id uses translation, unknown id falls back to backend label', () => {
     const w = mountMenu({ open: true })
     const btns = w.findAll('[data-test="pfm-region-btn"]')
     expect(btns[0].text()).toBe('亚洲') // regionLabelKey('asia') → photosPlacesRegionAsia
-    expect(btns[1].text()).toBe('Backend Label') // 未知 id → 回落 r.label
+    expect(btns[1].text()).toBe('Backend Label') // unknown id → fall back to r.label
   })
 
-  it('"全部"按钮:!regionFilter 时 .is-active', () => {
+  it('"All" button: when !regionFilter has .is-active', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ regionFilter: null }) })
     expect(w.get('[data-test="pfm-region-all"]').classes()).toContain('is-active')
   })
 
-  it('点未选中的 region → regionFilter 变该 id', async () => {
+  it('click unselected region → regionFilter becomes that id', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ regionFilter: null }) })
     await w.get('[data-region-id="asia"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
     expect(next.regionFilter).toBe('asia')
   })
 
-  it('切换语义:点已选中的 region 再点一次 → regionFilter 变 null', async () => {
+  it('toggle semantic: click selected region again → regionFilter becomes null', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ regionFilter: 'asia' }) })
     await w.get('[data-region-id="asia"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
     expect(next.regionFilter).toBeNull()
   })
 
-  it('点"全部" → regionFilter 变 null(直接赋值,非切换)', async () => {
+  it('click "All" → regionFilter becomes null (direct assignment, not toggle)', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ regionFilter: 'asia' }) })
     await w.get('[data-test="pfm-region-all"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
@@ -162,9 +162,9 @@ describe('区域按钮', () => {
   })
 })
 
-// ── 日期 / 时间范围 ──────────────────────────────────────────────────────
-describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)', () => {
-  it('只填 start → emit 的 timeFilter 为 "all"', async () => {
+// ── date / time range ──────────────────────────────────────────────────────
+describe('date input — filling only one end falls back to all time (Vue2 :849 semantic)', () => {
+  it('fill only start → emitted timeFilter is "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter() })
     const startInput = w.get<HTMLInputElement>('[data-test="pfm-date-start"]')
     startInput.element.value = '2026-01-01'
@@ -174,7 +174,7 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
     expect(next.timeFilter).toBe('all')
   })
 
-  it('只填 end → emit 的 timeFilter 为 "all"', async () => {
+  it('fill only end → emitted timeFilter is "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter() })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-31'
@@ -184,7 +184,7 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
     expect(next.timeFilter).toBe('all')
   })
 
-  it('两头都填 → timeFilter 变 "custom"', async () => {
+  it('fill both ends → timeFilter becomes "custom"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-01' }) })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-31'
@@ -193,7 +193,7 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
     expect(next.timeFilter).toBe('custom')
   })
 
-  it('两头都填后清空 start → timeFilter 退回 "all"', async () => {
+  it('after filling both ends, clear start → timeFilter falls back to "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-01', customEnd: '2026-01-31', timeFilter: 'custom' }) })
     const startInput = w.get<HTMLInputElement>('[data-test="pfm-date-start"]')
     startInput.element.value = ''
@@ -203,29 +203,29 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
   })
 })
 
-// 真机验收反馈 1:「time range 中右面时间应该大于左面时间」——Vue2 两个日期输入互不约束,
-// 可以选出"结束早于起始"的倒置区间(见 setStart/setEnd 上方登记)。本仓一是给原生 input
-// 加 max/min 相互约束,二是把 timeFilter 判据收紧为"两头都填且 customEnd >= customStart"。
-describe('日期原生 min/max 相互约束(真机验收反馈 1)', () => {
-  it('起始输入的 max 等于 filter.customEnd', () => {
+// Device feedback 1: "The right time in the time range should be greater than the left time" — Vue2's two date inputs have no mutual constraints,
+// allowing selection of a "reversed" interval where end is earlier than start (see notes above setStart/setEnd). This repo does two things: first, add mutual max/min constraints to native input,
+// second, tighten the timeFilter criterion to "both ends filled AND customEnd >= customStart".
+describe('date native min/max mutual constraints (device feedback 1)', () => {
+  it('start input max equals filter.customEnd', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customEnd: '2026-02-15' }) })
     expect(w.get('[data-test="pfm-date-start"]').attributes('max')).toBe('2026-02-15')
   })
 
-  it('结束输入的 min 等于 filter.customStart', () => {
+  it('end input min equals filter.customStart', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-02-01' }) })
     expect(w.get('[data-test="pfm-date-end"]').attributes('min')).toBe('2026-02-01')
   })
 
-  it('两者为空串时,对应的 max/min 属性不出现(不是 min="" / max="")', () => {
+  it('when both are empty strings, corresponding max/min attributes do not appear (not min="" / max="")', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '', customEnd: '' }) })
     expect(w.get('[data-test="pfm-date-start"]').attributes('max')).toBeUndefined()
     expect(w.get('[data-test="pfm-date-end"]').attributes('min')).toBeUndefined()
   })
 })
 
-describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () => {
-  it('先填 end,再填一个更晚的 start(倒置)→ emit 的 timeFilter 为 "all"', async () => {
+describe('reversed interval treated as unfilled (device feedback 1, logic catch-all)', () => {
+  it('fill end first, then fill a later start (reversed) → emitted timeFilter is "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customEnd: '2026-01-10' }) })
     const startInput = w.get<HTMLInputElement>('[data-test="pfm-date-start"]')
     startInput.element.value = '2026-01-20'
@@ -235,7 +235,7 @@ describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () =>
     expect(next.timeFilter).toBe('all')
   })
 
-  it('先填 start,再填一个更早的 end(倒置)→ emit 的 timeFilter 为 "all"', async () => {
+  it('fill start first, then fill an earlier end (reversed) → emitted timeFilter is "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-20' }) })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-10'
@@ -245,7 +245,7 @@ describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () =>
     expect(next.timeFilter).toBe('all')
   })
 
-  it('合法区间(end > start)→ timeFilter 为 "custom"', async () => {
+  it('valid interval (end > start) → timeFilter is "custom"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-01' }) })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-31'
@@ -254,7 +254,7 @@ describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () =>
     expect(next.timeFilter).toBe('custom')
   })
 
-  it('两端同一天(相等)→ 也应是 "custom"(「>=」不是「>」,单日区间合法)', async () => {
+  it('both ends same day (equal) → should also be "custom" ("≥" not ">", single-day interval is valid)', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-15' }) })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-15'
@@ -264,30 +264,30 @@ describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () =>
   })
 })
 
-// ── 勾选框:只看当前行程 ────────────────────────────────────────────────────
-describe('只看当前行程勾选框', () => {
-  it('点击 emit recentOnly 取反(false → true)', async () => {
+// ── checkbox: view current trip only ────────────────────────────────────────────────────
+describe('view current trip only checkbox', () => {
+  it('click emit recentOnly inverted (false → true)', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ recentOnly: false }) })
     await w.get('[data-test="pfm-recent-checkbox"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
     expect(next.recentOnly).toBe(true)
   })
 
-  it('点击 emit recentOnly 取反(true → false)', async () => {
+  it('click emit recentOnly inverted (true → false)', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ recentOnly: true }) })
     await w.get('[data-test="pfm-recent-checkbox"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
     expect(next.recentOnly).toBe(false)
   })
 
-  it('recentOnly 为真时 .mfp-checkbox 有 .is-on 且内有 check 图标', () => {
+  it('when recentOnly is true .mfp-checkbox has .is-on and contains check icon', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ recentOnly: true }) })
     const box = w.get('[data-test="pfm-recent-checkbox"]')
     expect(box.classes()).toContain('is-on')
     expect(w.get('[data-test="pfm-tick"]').find('svg').exists()).toBe(true)
   })
 
-  it('recentOnly 为假时 .mfp-checkbox 无 .is-on 且 tick 内无图标', () => {
+  it('when recentOnly is false .mfp-checkbox has no .is-on and tick contains no icon', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ recentOnly: false }) })
     const box = w.get('[data-test="pfm-recent-checkbox"]')
     expect(box.classes()).not.toContain('is-on')
@@ -295,9 +295,9 @@ describe('只看当前行程勾选框', () => {
   })
 })
 
-// ── 重置 / 完成 ─────────────────────────────────────────────────────────────
-describe('重置与完成', () => {
-  it('重置:emit 的 filter 六个字段全回默认', async () => {
+// ── reset / done ─────────────────────────────────────────────────────────────
+describe('reset and done', () => {
+  it('reset: emitted filter all six fields back to default', async () => {
     const w = mountMenu({
       open: true,
       filter: { timeFilter: 'custom', customStart: '2026-01-01', customEnd: '2026-01-31', minCount: 100, regionFilter: 'asia', recentOnly: true },
@@ -307,7 +307,7 @@ describe('重置与完成', () => {
     expect(next).toEqual(defaultFilter())
   })
 
-  it('完成:只 emit update:open(false),不 emit filter', async () => {
+  it('done: only emit update:open(false), do not emit filter', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ minCount: 50 }) })
     await w.get('[data-test="pfm-done"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
@@ -315,9 +315,9 @@ describe('重置与完成', () => {
   })
 })
 
-// ── 浮层:document mousedown / keydown ───────────────────────────────────────
-describe('浮层规范', () => {
-  it('open=true 时 document mousedown 在容器外 → emit update:open(false)', async () => {
+// ── popup: document mousedown / keydown ───────────────────────────────────────
+describe('popup specification', () => {
+  it('when open=true document mousedown outside container → emit update:open(false)', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     const outside = document.createElement('div')
@@ -328,7 +328,7 @@ describe('浮层规范', () => {
     outside.remove()
   })
 
-  it('open=true 时 document mousedown 在容器内(弹层内部) → 不 emit', async () => {
+  it('when open=true document mousedown inside container (popup interior) → do not emit', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     w.get('[data-test="pfm-pop"]').element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
@@ -336,7 +336,7 @@ describe('浮层规范', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('Esc(document 级派发,bubbles:true) → emit update:open(false)', async () => {
+  it('Esc (document-level dispatch, bubbles:true) → emit update:open(false)', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -344,7 +344,7 @@ describe('浮层规范', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('非 Escape 键不触发关闭', async () => {
+  it('non-Escape key does not trigger close', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
@@ -352,7 +352,7 @@ describe('浮层规范', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('open=false 时 document mousedown/keydown 不再触发 emit(监听已摘)', async () => {
+  it('when open=false document mousedown/keydown no longer trigger emit (listener removed)', async () => {
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
     await w.setProps({ open: false })
@@ -366,7 +366,7 @@ describe('浮层规范', () => {
     outside.remove()
   })
 
-  it('卸载后 document 上的监听摘干净(比对函数引用)', async () => {
+  it('after unmount document listeners cleaned up (compare function references)', async () => {
     const addSpy = vi.spyOn(document, 'addEventListener')
     const w = mountMenu({ open: true })
     await w.vm.$nextTick()
@@ -383,9 +383,9 @@ describe('浮层规范', () => {
   })
 })
 
-// ── i18n 语言切换(不改变本组件行为,只做基本 sanity) ───────────────────────
-describe('英文 locale sanity', () => {
-  it('en_us 下 chip 文案与 Any/All 文案切到英文', () => {
+// ── i18n language switch (does not change component behavior, basic sanity only) ───────────────────────
+describe('English locale sanity', () => {
+  it('under en_us chip copy and Any/All copy switch to English', () => {
     const w = mountMenu({ open: true }, makeI18n('en_us'))
     expect(w.get('[data-test="pfm-chip"]').text()).toContain('Filters')
     expect(w.findAll('[data-test="pfm-mincount-btn"]')[0].text()).toBe('Any')
@@ -393,70 +393,70 @@ describe('英文 locale sanity', () => {
   })
 })
 
-// ── 样式级联(基类 + 变体 hover 优先级,jsdom 不做级联计算,读原文断言)──────────
-describe('cssCascade: 三处「基类 + 变体」hover 归属变体', () => {
+// ── CSS cascade (base class + variant hover priority, jsdom does not compute cascade, read source assertion)──────────
+describe('cssCascade: three places where base class + variant hover belongs to variant', () => {
   const styleText = extractStyleBlock(placesFilterMenuRaw)
 
-  it('.mfp-count-row button.is-active:hover 背景归属变体规则', () => {
-    // 本组件的选择器带 `.map-filter-pop ` 祖先前缀(照 Vue2 SCSS 嵌套结构),不是
-    // cssCascade.ts 文档注释假设的"单个复合选择器"——三个类都要传入才能命中该规则
-    // (util 按选择器全文里出现的所有 .class 做子集校验,不解析后代组合子)。祖先前缀
-    // 同时压在基类与变体两条规则上,不改变两者的相对优先级排序。
+  it('.mfp-count-row button.is-active:hover background belongs to variant rule', () => {
+    // This component's selectors have the `.map-filter-pop ` ancestor prefix (following Vue2 SCSS nesting structure), not
+    // the "single compound selector" assumed in cssCascade.ts documentation comments — all three classes must be passed
+    // to hit this rule (util does subset validation based on all .class appearing in the full selector, does not parse
+    // descendant combinators). The ancestor prefix applies to both base class and variant rules simultaneously, without
+    // changing their relative priority order.
     const winner = winningHoverBackground(styleText, ['map-filter-pop', 'mfp-count-row', 'is-active'])
-    // 非 hover 版本的 .is-active 规则与基类 :hover 规则同优先级(3 类/1 伪类 vs 3 类),
-    // 若只断言 selector 含 "is-active"、value 含 "--accent",在变体自己的 :hover 规则被删掉后
-    // 工具仍会靠源码顺序 tie-break 选中那条非 hover 规则、给出同样的 background 值,测试
-    // 拿不到 RED(删码验证 ⑥ 实测踩过这个假绿)。这里额外钉死 winner 必须自带显式 :hover,
-    // 证明它是靠更高优先级赢的,不是靠源码顺序苟活。
+    // The non-hover version of .is-active rule and the base class :hover rule have the same priority (3 classes/1 pseudo vs 3 classes),
+    // if we only assert that selector contains "is-active" and value contains "--accent", after the variant's own :hover rule is deleted
+    // the tool will still use source order tie-break to select that non-hover rule and give the same background value, and the test
+    // won't get RED (delete-code verification ⑥ encountered this false green in practice). Here we additionally pin down that winner
+    // must come with explicit :hover, proving it wins by higher priority, not by source order.
     expect(winner.selector).toContain('is-active')
     expect(winner.selector).toContain(':hover')
     expect(winner.value).toContain('--accent')
     expect(winner.value).not.toContain('--chip-bg-hi')
   })
 
-  it('.mfp-region-row button.is-active:hover 背景归属变体规则', () => {
+  it('.mfp-region-row button.is-active:hover background belongs to variant rule', () => {
     const winner = winningHoverBackground(styleText, ['map-filter-pop', 'mfp-region-row', 'is-active'])
     expect(winner.selector).toContain('is-active')
     expect(winner.selector).toContain(':hover')
     expect(winner.value).toContain('--accent-soft')
   })
 
-  it('.mfp-checkbox.is-on .mfp-tick 在 .mfp-checkbox:hover 态下背景归属 .is-on 变体规则', () => {
-    // .mfp-tick 本身不直接带 is-on 类(是子元素),这里断言的是"该子元素在父 hover 时
-    // 拿到的仍是 is-on 变体声明的 --accent 底色,不是基类 .mfp-checkbox:hover 的
-    // --chip-bg-hi"——用 mfp-checkbox + is-on 两个类去命中 `.mfp-checkbox.is-on:hover
-    // .mfp-tick` 这条规则本身(它是后置到 .mfp-tick 的独立规则,不落进 hoverBackgroundRules
-    // 的"复合选择器"假设,这里改为直接断言样式原文同时具备两条规则且 is-on 版本在后)。
+  it('.mfp-checkbox.is-on .mfp-tick background belongs to .is-on variant rule under .mfp-checkbox:hover state', () => {
+    // .mfp-tick itself does not directly have is-on class (it's a child element), what we assert here is "when the parent is hovered
+    // this child element still gets the --accent base color declared by the is-on variant, not the
+    // --chip-bg-hi of the base class .mfp-checkbox:hover" — using both mfp-checkbox and is-on classes to hit the `.mfp-checkbox.is-on:hover
+    // .mfp-tick` rule itself (it's an independent rule placed after .mfp-tick, doesn't fall into the "compound selector" assumption of
+    // hoverBackgroundRules, here we change to directly assert that the source style block has both rules and the is-on version comes after).
     //
-    // 评审已复核并批准的偏离登记:brief 明写"用 cssCascade 按优先级断言",这条却是裸的
-    // 子串存在性检查,不走 winningHoverBackground 的优先级计算——原因是这一对根本没有
-    // 同优先级的竞争规则:.mfp-checkbox:hover 只改自身(.mfp-checkbox)的背景,从不触碰
-    // .mfp-tick 的 border/background(已用下面的 baseRuleSelectorLine 断言核实选择器不含
-    // mfp-tick),所以真实 CSS 里不存在"基类 hover 与变体同时命中 .mfp-tick、靠优先级或
-    // 源码顺序分胜负"这个场景,套用 winningHoverBackground 的"两条规则打分选赢家"模型
-    // 反而不适配。删掉 .is-on:hover 那条防御规则时这条测试确实会红(已在删码验证 ⑥ 里
-    // 跑过),等价保护到位。**若日后有人往 .mfp-checkbox:hover 加了一条会动 .mfp-tick
-    // 背景的规则(哪怕只是后代选择器 .mfp-checkbox:hover .mfp-tick),就出现了真实的
-    // 同优先级竞争,这条测试要升级成用 winningHoverBackground 按优先级断言,不能再靠
-    // 存在性检查。**
+    // Review-approved deviation registration: brief clearly states "use cssCascade to assert by priority", but this is a bare
+    // substring existence check, does not go through winningHoverBackground's priority calculation — the reason is this pair has no
+    // competing rules with the same priority at all: .mfp-checkbox:hover only changes its own (.mfp-checkbox) background, never touches
+    // .mfp-tick's border/background (verified below using baseRuleSelectorLine assertion that the selector does not contain mfp-tick),
+    // so the real CSS does not have the scenario "base class hover and variant both hit .mfp-tick, deciding by priority or source order",
+    // applying winningHoverBackground's "score two rules pick winner" model is not suitable. When the defensive .is-on:hover rule is deleted
+    // this test will indeed turn red (already ran it in delete-code verification ⑥), equivalent protection is in place. **If someone later
+    // adds a rule to .mfp-checkbox:hover that animates .mfp-tick background (even just the descendant selector .mfp-checkbox:hover .mfp-tick),
+    // a real same-priority competition emerges, this test should be upgraded to use winningHoverBackground to assert by priority, cannot rely
+    // on existence check anymore. **
     const isOnHoverIdx = styleText.indexOf('.mfp-checkbox.is-on:hover .mfp-tick')
     const baseHoverIdx = styleText.indexOf('.mfp-checkbox:hover')
     expect(isOnHoverIdx).toBeGreaterThan(-1)
-    // 基类 hover 规则(.mfp-checkbox:hover,不含 .mfp-tick 后代)不声明 tick 的 border/background,
-    // 不会与 is-on 变体的 tick 背景产生同属性冲突——断言基类规则体本身不含 background 声明
-    // 落在 .mfp-tick 上(即选择器不含 mfp-tick)。
+    // The base class hover rule (.mfp-checkbox:hover, does not contain .mfp-tick descendant) does not declare tick's border/background,
+    // will not create same-property conflict with the is-on variant's tick background — assert that the base rule body itself does not
+    // contain background declaration on .mfp-tick (i.e., selector does not contain mfp-tick).
     expect(baseHoverIdx).toBeGreaterThan(-1)
     const baseRuleSelectorLine = styleText.slice(baseHoverIdx, styleText.indexOf('{', baseHoverIdx))
     expect(baseRuleSelectorLine).not.toContain('mfp-tick')
   })
 })
 
-// 评审 I1:Vue2 photos-places.scss:882 的 color-scheme: dark 会让 <input type="date"> 的原生
-// 部件(日历图标、未填占位文字)在浅色主题的浅底(--chip-bg/--popup-bg)上洗白到不可读。
-// 修法是删掉这一行,让根节点(theme.css :root / :root[data-theme="light"])已经按主题分设的
-// color-scheme 级联下来——本条测试钉住"不回归",不是钉住"曾经存在过"。
-describe('日期 input 不写死 color-scheme(评审 I1,防浅色主题下原生部件洗白不可读)', () => {
-  it('样式块里不出现 color-scheme(根节点 theme.css 已按主题分设,这里级联即可)', () => {
+// Review I1: Vue2 photos-places.scss:882's color-scheme: dark causes <input type="date"> native
+// components (calendar icon, unfilled placeholder text) to wash out to unreadable on light theme's light background (--chip-bg/--popup-bg).
+// The fix is to delete this line, let the root node (theme.css :root / :root[data-theme="light"]) already set by theme cascade down
+// — this test pins down "no regression", not "once existed".
+describe('date input does not hardcode color-scheme (review I1, prevent native components washing out unreadable under light theme)', () => {
+  it('color-scheme does not appear in style block (root node theme.css already set by theme, cascade here is sufficient)', () => {
     const styleText = extractStyleBlock(placesFilterMenuRaw)
     expect(styleText).not.toContain('color-scheme')
   })

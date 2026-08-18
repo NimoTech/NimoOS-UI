@@ -67,7 +67,7 @@ const mk = () =>
   })
 
 describe('AppConsolePage', () => {
-  it('单服务应用:不显示服务选择器,终端 tab 默认激活', async () => {
+  it('Single-service app: do not show service selector, terminal tab is active by default', async () => {
     svc.compose.containers.mockResolvedValue({ main: 'app', containers: { app: { ID: 'c1' } } })
     const w = mk()
     await flushPromises()
@@ -76,7 +76,7 @@ describe('AppConsolePage', () => {
     expect(w.find('[data-test="console-tab-terminal"]').attributes('aria-selected')).toBe('true')
   })
 
-  it('多服务应用:显示选择器,默认选 main;切换后 TerminalPane 拿到新容器 id', async () => {
+  it('Multi-service app: show selector, default select main; after switching, TerminalPane gets new container id', async () => {
     svc.compose.containers.mockResolvedValue({
       main: 'web',
       containers: { db: { ID: 'cdb' }, web: { ID: 'cweb' } },
@@ -91,7 +91,7 @@ describe('AppConsolePage', () => {
     expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('cdb')
   })
 
-  it('日志 tab 懒挂载:切过去才出现 LogsPane,切回终端不销毁日志轮询组件(v-show 保活)', async () => {
+  it('Logs tab lazy mount: LogsPane appears only when switched to, returning to terminal does not destroy logs polling component (v-show keeps it alive)', async () => {
     svc.compose.containers.mockResolvedValue({ main: 'app', containers: { app: { ID: 'c1' } } })
     // v-show toggling is asserted via isVisible(), which reads getComputedStyle — that only
     // reflects real inline styles when the element is connected to the live document (an
@@ -115,14 +115,15 @@ describe('AppConsolePage', () => {
     expect(w.findComponent({ name: 'TerminalPane' }).isVisible()).toBe(false)
 
     await w.find('[data-test="console-tab-terminal"]').trigger('click')
-    // 还在(v-show 隐藏,不是卸载重挂)——LogsPane 的 5s 轮询不因切 tab 中断
+    // Still exists (hidden with v-show, not unmounted and remounted) — LogsPane's 5s polling
+    // is not interrupted by tab switch
     expect(w.findComponent({ name: 'LogsPane' }).exists()).toBe(true)
     expect(w.findComponent({ name: 'LogsPane' }).isVisible()).toBe(false)
     expect(w.findComponent({ name: 'TerminalPane' }).isVisible()).toBe(true)
     w.unmount()
   })
 
-  it('日志 tab 上切服务选择器:强制切回终端 tab(隐藏挂载会把新 TerminalPane 的 fit 锁死在 80×24)', async () => {
+  it('Change service selector while on logs tab: force switch back to terminal tab (hidden mount will lock new TerminalPane\'s fit at 80×24)', async () => {
     svc.compose.containers.mockResolvedValue({
       main: 'web',
       containers: { db: { ID: 'cdb' }, web: { ID: 'cweb' } },
@@ -132,7 +133,7 @@ describe('AppConsolePage', () => {
         plugins: [i18n, pinia],
         stubs: { AreaShell: { template: '<div><slot /></div>' }, AppsSidebar: true },
       },
-      attachTo: document.body, // isVisible() 需要挂在真实 document 上才读得到 v-show 的 inline style
+      attachTo: document.body, // isVisible() needs to be mounted on real document to read inline styles of v-show
     })
     await flushPromises()
 
@@ -143,9 +144,10 @@ describe('AppConsolePage', () => {
     const sel = w.find('[data-test="console-svc-select"]')
     await sel.setValue('db')
 
-    // 服务选择器的 @change 把 tab 强制拉回 'terminal':新容器 = 新 :key = TerminalPane 重挂载,
-    // 若还停在 logs tab,这次重挂载会发生在 v-show="tab==='terminal'" 隐藏之下,FitAddon.fit()
-    // 对隐藏宿主是 no-op,连接时就以 xterm 默认 80×24 定size(PTY 不支持事后 resize)。
+    // Service selector's @change forces tab back to 'terminal': new container = new :key = TerminalPane
+    // remounted. If still on logs tab, this remount happens hidden under v-show="tab==='terminal'".
+    // FitAddon.fit() is a no-op on hidden host, so connection uses xterm default 80×24 size
+    // (PTY does not support post-resize).
     expect(w.find('[data-test="console-tab-terminal"]').attributes('aria-selected')).toBe('true')
     expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('cdb')
     expect(w.findComponent({ name: 'TerminalPane' }).isVisible()).toBe(true)
@@ -153,30 +155,32 @@ describe('AppConsolePage', () => {
     w.unmount()
   })
 
-  it('切应用(路由 name 变化)期间在日志 tab:load() 自身把 tab 重置为终端,不被 select 的 @change 二次触发', async () => {
+  it('While switching app (route name change) on logs tab: load() itself resets tab to terminal, not triggered twice by select\'s @change', async () => {
     svc.compose.containers.mockResolvedValueOnce({
       main: 'web',
       containers: { db: { ID: 'cdb' }, web: { ID: 'cweb' } },
     })
     const w = mk()
-    await flushPromises() // onMounted 的 load()(id="demo")
+    await flushPromises() // onMounted's load() (id="demo")
 
     await w.find('[data-test="console-tab-logs"]').trigger('click')
     expect(w.find('[data-test="console-tab-logs"]').attributes('aria-selected')).toBe('true')
 
-    // 换应用:load() 内部已经把 tab.value = 'terminal' 写死在 try 之前 —— 这条路径完全不经过
-    // 服务选择器的 @change 处理器,不存在“load 已重置 + @change 又重置一次”的双重触发。
+    // Switch app: load() internally has tab.value = 'terminal' hardcoded before try — this path
+    // completely skips the service selector's @change handler, avoiding "load already reset +
+    // @change resets again" double-trigger.
     svc.compose.containers.mockResolvedValueOnce({ main: 'app', containers: { app: { ID: 'c-other' } } })
     routeMock.params.name = 'other-app'
     await flushPromises()
 
     expect(w.find('[data-test="console-tab-terminal"]').attributes('aria-selected')).toBe('true')
     expect(w.findComponent({ name: 'TerminalPane' }).props('containerId')).toBe('c-other')
-    // 单服务应用,选择器不渲染 —— 顺带确认没有遗留上一个应用的多服务选择器状态
+    // Single-service app, selector not rendered — incidentally confirm there is no leftover
+    // state from previous app's multi-service selector
     expect(w.find('[data-test="console-svc-select"]').exists()).toBe(false)
   })
 
-  it('应用不存在(containers→undefined):toast + 跳回 /apps', async () => {
+  it('App does not exist (containers→undefined): toast + jump back to /apps', async () => {
     svc.compose.containers.mockResolvedValue(undefined)
     const toast = useToast()
     mk()
@@ -185,7 +189,7 @@ describe('AppConsolePage', () => {
     expect(toast.toasts.length).toBe(1)
   })
 
-  it('快速切换应用(A→B)后 A 的陈旧响应落地:不覆盖 B 的状态,不误弹 toast/跳转', async () => {
+  it('After quickly switching apps (A→B), A\'s stale response arrives: do not overwrite B\'s state, do not mistakenly toast/navigate', async () => {
     // Two controllable deferred promises — containers() call #1 (for app A, "demo") resolves
     // LAST with app B's own stale-invalid-app shape (empty containers, the 404-ish branch),
     // call #2 (for app B, "other") resolves FIRST with valid data. Regression: without the

@@ -38,7 +38,8 @@ export function useGridMeasure(gridEl: Ref<HTMLElement | null>, dockEl: Ref<HTML
     layout.clampAll({ cols: COLS, rows: ROWS })
   }
 
-  // --app-size 影响 Dock 高度→可用高度→格子尺寸,量两遍收敛(engine 383)
+  // --app-size affects Dock height → available height → cell size;
+  // measuring twice converges (engine 383)
   function relayout() { measure(); measure() }
 
   return { cols, rows, cell, gap, appSize, measure, relayout }

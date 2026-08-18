@@ -1,7 +1,7 @@
 import { ref, onMounted, onBeforeUnmount, type Ref } from 'vue'
 
-// 一次性进入视口检测:元素进入视口即置 true 并停止观察。
-// 环境无 IntersectionObserver(如 jsdom)时降级为立即可见。
+// One-time viewport detection: element enters viewport, sets true, and stops observing.
+// Degrades to immediately visible when IntersectionObserver is unavailable (e.g., jsdom).
 export function useInView(el: Ref<HTMLElement | null>): Ref<boolean> {
   const inView = ref(false)
   let observer: IntersectionObserver | null = null

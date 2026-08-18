@@ -54,23 +54,23 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('StorageDrives 热插拔接线', () => {
-  it('挂载即取数,并订阅 added/removed 两事件', async () => {
+describe('StorageDrives hot-plug wiring', () => {
+  it('fetches data right on mount, and subscribes to both the added/removed events', async () => {
     await mountView()
     expect(getDiskList).toHaveBeenCalledTimes(1)
     expect(handlers['local-storage:disk:added']).toBeTypeOf('function')
     expect(handlers['local-storage:disk:removed']).toBeTypeOf('function')
   })
-  it('热插拔 500ms 防抖合并成一次刷新', async () => {
+  it('debounces hot-plug events within 500ms into a single refresh', async () => {
     await mountView()
     getDiskList.mockClear()
     handlers['local-storage:disk:added']()
     handlers['local-storage:disk:removed']()
-    expect(getDiskList).not.toHaveBeenCalled() // handler 本身不打接口(不阻塞)
+    expect(getDiskList).not.toHaveBeenCalled() // the handler itself doesn't hit the API (non-blocking)
     vi.advanceTimersByTime(500)
     expect(getDiskList).toHaveBeenCalledTimes(1)
   })
-  it('组件卸载时退订', async () => {
+  it('unsubscribes when the component unmounts', async () => {
     const w = await mountView()
     w.unmount()
     expect(offs['local-storage:disk:added']).toHaveBeenCalled()

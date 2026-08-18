@@ -1,12 +1,16 @@
-// SP7-P8a-T3: 存储条的分段调色板 + 纯格式化函数。照 D5 / PLACE_PALETTE(P5-T12)/
-// placesMapThemes.ts(P6a)/ --badge-photo 等(P7a-T15)的既定先例:**数据可视化调色板**
-// 归 docs/THEMING.md 第0约定第三类例外 —— photos/thumbs 两段直接引用既有语义 token,
-// 其余三段(videos/raw/ai)与 other 段是 Vue2 内联的、与主题皮肤无关的分类识别色,值落在
-// theme.css 的具名 token 里(同 --badge-* 的落地方式,不是散落在 <style> 块里的字面量,
-// 也不是本 .ts 文件里的字面量——那样会在两套主题间失去"跟随皮肤微调对比度"的能力)。
+// SP7-P8a-T3: segmented palette for the storage bar + pure formatting functions. Following the
+// established precedent of D5 / PLACE_PALETTE (P5-T12) / placesMapThemes.ts (P6a) / --badge-photo
+// etc. (P7a-T15): **data-visualization palettes** fall under docs/THEMING.md's convention 0,
+// third exception category -- the photos/thumbs segments reference existing semantic tokens
+// directly, while the other three segments (videos/raw/ai) and the "other" segment are
+// classification-identity colors inlined in Vue2 that are unrelated to the theme skin; their
+// values live in named tokens in theme.css (the same landing pattern as --badge-*, not literals
+// scattered across <style> blocks, and not literals in this .ts file either -- either of those
+// would lose the ability to "track the skin's contrast tweaks" across the two themes).
 //
-// 「palette」这个文件名承载的不只是调色板——fmtGB/fmtBytes/buildBreakdown 三个格式化/
-// 分段纯函数也放在这里,是任务文件结构的既定安排(task-3-brief.md),不要拆文件。
+// The "palette" in this file's name carries more than just the palette itself -- the three
+// formatting/segmenting pure functions fmtGB/fmtBytes/buildBreakdown live here too, per the
+// task's established file layout (task-3-brief.md); don't split this file up.
 export const STORAGE_SEG_COLORS = {
   photos: 'var(--accent)',
   videos: 'var(--photos-seg-video)',
@@ -46,8 +50,9 @@ export function fmtBytes(b: number): string {
   return `${v >= 100 ? v.toFixed(0) : v.toFixed(1)} ${BYTE_UNITS[i]}`
 }
 
-// Vue2 PhotosSettings.vue:313-330 —— 段序固定;other 段只在「已用总量减去已知段合计」
-// 严格大于 0.05 GB 时追加(小于这个量的零头不值得画一段)。
+// Vue2 PhotosSettings.vue:313-330 -- segment order is fixed; the "other" segment is appended
+// only when "used total minus the sum of known segments" is strictly greater than 0.05 GB
+// (a remainder smaller than that isn't worth drawing its own segment).
 const OTHER_THRESHOLD_GB = 0.05
 export function buildBreakdown(bytes: StorageBytes, usedGB: number): StorageSeg[] {
   const gb = (b: number): number => Math.max(0, b) / 1024 ** 3

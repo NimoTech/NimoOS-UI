@@ -1,90 +1,90 @@
 <!--
-  SP8-P4 Task 6 —— 1:1 移植自 Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerDetail.vue`
-  (174 行)的 `:1-157`。Task 7(测试连接)补全了 T6 留白的三段:
-    - `:50-53` 「测试连接」按钮
-    - `:87-100` 测试提示 `.mcp-test-hint` / 结果面板 `.mcp-test-result`
-    - `:158-171` `runTest()` 方法与 `testing`/`testResult`(本仓 `testView`)状态,
-      外加 `watch(() => props.server?.id)` 里对应的重置
-  T7 的两条偏离(**D8** 错误呈现本地化 + 可折叠技术详情、**D11** 在途请求竞态守卫)
-  见 `<script>` 里 `runTest`/`reqSeq` 头注释与模板 `mcp-test-result` 分支内的注释。
+  SP8-P4 Task 6 — 1:1 ported from Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerDetail.vue`
+  (174 lines) :1-157. Task 7 (test connection) fills three gaps T6 left:
+    - :50-53 "Test connection" button
+    - :87-100 test hint `.mcp-test-hint` / result panel `.mcp-test-result`
+    - :158-171 `runTest()` method and `testing`/`testResult` (this repo `testView`) state,
+      plus corresponding reset in `watch(() => props.server?.id)`
+  T7's two deviations (**D8** error localization + collapsible technical details, **D11** in-flight request race guard)
+  see `<script>` `runTest`/`reqSeq` header comments and template `mcp-test-result` branch comments.
 
-  【Task 21(2026-08-13 mcp-progressive-disclosure 计划,删除确认的级联提示)—— 与
-  brief 文件清单的偏离,已申报】brief 把这个功能列在 "Modify: ... McpSection.vue"
-  下,但删除确认弹窗(`.sk-confirm`)从 T6 起就一直实现在**本文件**里,`McpSection.vue`
-  只是转发 `@delete` 事件、从不持有弹窗自己的状态——brief 显然没意识到这一层文件边界。
-  沿用 sections.ts 注册那条已授权的原则("与真实代码不符时以真实代码为准"),改动落在
-  这里而不是 `McpSection.vue`。级联条数的取数来源与理由见下方 `approvalCascadeCount`
-  的头注释;新增的独立删除入口(`data-test="delete-server-<id>"`,单击直开确认弹窗,
-  不需要先展开「...」菜单)见模板里该按钮旁的注释。
+  [Task 21 (2026-08-13 mcp-progressive-disclosure plan, the delete-confirm cascade
+  notice) -- declared deviation from the brief's file list] The brief lists this under
+  "Modify: ... McpSection.vue", but the delete-confirm dialog (`.sk-confirm`) has lived
+  in THIS file since T6; `McpSection.vue` only forwards the `@delete` event and never
+  owns the dialog's state -- the brief plainly missed that file boundary. Following the
+  already-authorised principle from the sections.ts registration ("where the brief and
+  the real code disagree, the real code wins"), the change lands here rather than in
+  `McpSection.vue`. Where the cascade count comes from and why is documented on
+  `approvalCascadeCount` below; the new standalone delete entry point
+  (`data-test="delete-server-<id>"`, one click straight to the confirm dialog, no need
+  to open the "..." menu first) is documented next to that button in the template.
 
-  【Task 21 fix round(评审后追加,2026-08-15)—— 上一段申报的"漏计已从服务器移除的
-  工具的授权"这个残留缺口不是架构限制,是后端一行没接的疏漏:`route/v2/mcp_approvals.go`
-  的 `Tools` handler 早就把全量、不带任何门槛的 `ListForServer` 结果取到了变量
-  `approvals` 里,只是从没把 `len(approvals)` 放上线。已在 NimoOS-AI 补上
-  `total_stored_approvals` 字段(该仓单独提交),`approvalCascadeCount` 现在优先读它,
-  只有面对没有这个字段的旧后端时才退回本文件原有的推导式——见下方该常量自己的头注释。】
+  [Task 21 fix round (added after review, 2026-08-15) -- the residual gap declared in
+  the paragraph above ("approvals for tools the server has since removed are not
+  counted") was never an architectural limit, just one line the backend had not wired
+  up: the `Tools` handler in `route/v2/mcp_approvals.go` had long since fetched the
+  full, ungated `ListForServer` result into its `approvals` variable and simply never
+  published `len(approvals)`. NimoOS-AI now ships a `total_stored_approvals` field
+  (committed separately in that repo) and `approvalCascadeCount` reads it first, falling
+  back to this file's original derivation only against a backend that predates the field
+  -- see that constant's own header comment below.]
 -->
 <!--
+  【Deviation D3, public constraint §3 #3】`SkillIcon.vue` not ported, unified to use
+  `../../icons/AgentIcon.vue` (following P3a/T5 precedent).
+  Vue2 :121 passes named color literal to delete button `SkillIcon` — this repo doesn't.
+  grep-verified `.sk-btn.danger` (sk-shared.scss:50-54) has foreground declaration built-in: background takes
+  danger semantic color `--danger`, icon/text inherit the fixed foreground color in that rule block (M7 fix round:
+  original verbatim quoted color literal from CSS source, rewritten per public constraint §6 "no color literals
+  even in comments" discipline, no longer copy source code).
+  `AgentIcon` `color` prop default is already `currentColor` (AgentIcon.vue:79),
+  SVG `stroke` uses `currentColor` (AgentIcon.vue:88) inherits button foreground declaration,
+  no need to repeat color in this component — exactly matches `SkillDetail.vue:507-510` delete button existing approach
+  (also no color passed), not a new pattern.
 
-  【偏离 D3,公共约束 §3 第 3 条】`SkillIcon.vue` 不移植,统一用
-  `../../icons/AgentIcon.vue`(承 P3a/T5 先例)。
-  Vue2 `:121` 给删除按钮的 `SkillIcon` 传了一个具名色字面量——本仓不传。
-  已 grep 确认 `.sk-btn.danger`(sk-shared.scss:50-54)自带前景色声明:背景取
-  危险语义色 `--danger`、图标/文字继承该规则块里固定写死的前景色(修复轮 M7:
-  原文逐字引用了那行 CSS 源码里的颜色字面量,按公共约束 §6「注释里也不许出现
-  颜色字面量」的纪律改写成本段描述,不再照抄源码)。
-  `AgentIcon` 的 `color` prop 默认值本就是 `currentColor`(AgentIcon.vue:79),
-  SVG `stroke` 走 `currentColor`(AgentIcon.vue:88)会继承按钮的前景色声明,
-  不需要在本组件重复书写颜色——与 `SkillDetail.vue:507-510` 删除按钮的既有写法
-  (同样不传 color)完全一致,不是新模式。
+  【Deviation D9, public constraint §3 #9】Vue2 :36-37 status dot uses inline `:style` assembling
+  `background` and `boxShadow` (two color literals, per color convention must not appear in this file, rewritten
+  as: enabled state takes semantic color `--success` solid dot + same-color semi-transparent glow ring, disabled state
+  takes semantic color `--text-quaternary` solid dot + same-color semi-transparent glow ring). This repo removes entire inline style,
+  keeps only `:data-disabled` on `.val`, colors provided by two existing static rules in `skills-styles.scss`:
+  `.sk-meta-cell .val .dot` (base state, :351-369) and `.val[data-disabled="true"] .dot` (disabled override, :370-376).
+  DOM structure identical — `<div class="val" :data-disabled="...">` wraps zero-attribute `<span class="dot" />`,
+  two selectors naturally hit by CSS cascade, zero new tokens.
 
-  【偏离 D9,公共约束 §3 第 9 条】Vue2 `:36-37` 的状态圆点用内联 `:style` 现场拼
-  `background` 与 `boxShadow`(两个色字面量,按配色约定不许出现在本文件里,已改写
-  成中文描述:「启用」态取语义色 `--success` 的实心点 + 同色半透明发光圈,「停用」态
-  取语义色 `--text-quaternary` 的实心点 + 同色半透明发光圈)。本仓整段内联 style 删掉,
-  只保留 `.val` 上的 `:data-disabled`,颜色改由 `skills-styles.scss` 已有的两条静态
-  规则供:`.sk-meta-cell .val .dot`(基础态,:351-369)与
-  `.val[data-disabled="true"] .dot`(停用态覆写,:370-376)。DOM 结构逐字相同——
-  `<div class="val" :data-disabled="...">` 包一个零属性的 `<span class="dot" />`,
-  两条选择器天然按 CSS 级联命中,零新 token。
+  【Deviation D6, public constraint §3 #6】delete confirmation modal doesn't use `SkModal`, directly hand-assembled with reka Dialog
+  primitives (`DialogRoot`/`DialogPortal`/`DialogOverlay`/`DialogContent`/`DialogTitle`), copied from
+  `../skills/SkillDetail.vue:486-517`. Rationale for two modal shells coexisting in same section (isomorphic with that file's
+  "deviation report 2"): Vue2's confirm modal (:112-125) has no title bar (title is `<h3>` in `.sk-confirm-body`),
+  `SkModal` forces render of title bar + close button, default slot wrapped in `.sk-modal-body` stacks padding with
+  `.sk-confirm-body`'s built-in padding, `.sk-modal` class also hardcoded can't add `.sk-confirm` — three reasons don't fit
+  `SkModal` shape, must hand-assemble to pixel-perfect match Vue2. `DialogPortal to=".set-app"` cannot be omitted —
+  AI region tokens defined in `.agent-app`/`.set-app` scope (tokens.scss:31), portaling to body fails all `var(--…)`
+  parsing, modal becomes transparent/wrong color (documented three times already this period). Accessibility title uses
+  `<VisuallyHidden as-child><DialogTitle>`, same precedent as `SkillDetail.vue:492`.
 
-  【偏离 D6,公共约束 §3 第 6 条】移除确认弹窗不套 `SkModal`,直接用 reka Dialog
-  原语(`DialogRoot`/`DialogPortal`/`DialogOverlay`/`DialogContent`/`DialogTitle`)
-  手拼,写法照抄 `../skills/SkillDetail.vue:486-517`。同一分区两种弹窗外壳并存的
-  理由(与该文件头注释「偏离申报 2」同构):Vue2 的确认弹窗(`:112-125`)没有标题栏
-  (标题就是 `.sk-confirm-body` 里的 `<h3>`),`SkModal` 强制渲染标题栏 + 关闭按钮、
-  默认插槽套 `.sk-modal-body` 会与 `.sk-confirm-body` 自带的 padding 叠加、
-  `.sk-modal` 类也写死加不上 `.sk-confirm`——三条都套不上 `SkModal` 的形状,必须
-  手拼才能逐像素还原 Vue2。`DialogPortal to=".set-app"` 不可省——AI 区 token 定义在
-  `.agent-app`/`.set-app` 作用域(tokens.scss:31),portal 到 body 会让 `var(--…)`
-  全部解析失败,弹窗变透明底(这条已在本期文档里记录爆过三次)。无障碍标题用
-  `<VisuallyHidden as-child><DialogTitle>`,与 `SkillDetail.vue:492` 同款先例。
+  【Click outside to close menu, coordinator ruling 5】Vue2 :143-153 is conditional add/remove of `document` `mousedown`
+  listener inside `watch(menuOpen)` + `beforeDestroy` fallback. This file per ruling uses `watch` + `onBeforeUnmount`
+  byte-for-byte equivalent (not using `useClickOutside` composable — that's P3b `SkillDetail.vue`'s implementation choice,
+  task spec explicitly requires hand-write here to match Vue2's conditional mount timing). Only listen to `mousedown`,
+  no additional `click`, no Esc — those are unreported deviations.
 
-  【外部点击关菜单,协调者裁定 5】Vue2 `:143-153` 是 `watch(menuOpen)` 里条件式
-  加/删 `document` 的 `mousedown` 监听 + `beforeDestroy` 兜底移除。本文件按裁定
-  用 `watch` + `onBeforeUnmount` 逐字等价实现(不用 `useClickOutside` composable
-  ——那是 P3b `SkillDetail.vue` 的实现选择,本任务书明确要求这里手写以对齐 Vue2
-  的条件式挂载时序)。只监听 `mousedown`,不额外监听 `click`,也不加 Esc——那些是
-  未申报的偏离。
+  【Deviation D4, public constraint §3 #4】no `console.error` (this file has no error paths anyway,
+  pure display + emit forward).
 
-  【偏离 D4,公共约束 §3 第 4 条】不写 `console.error`(本文件里也没有会产生错误
-  需要打日志的路径,纯展示 + 转发 emit)。
+  【Implementation choice, not behavior deviation】Vue2 data field name is `confirm` (boolean), this repo renames to
+  `confirmOpen` — reason identical to `SkillDetail.vue:156-158`: avoid reading ambiguity with JS global `window.confirm`,
+  pure identifier rename, DOM/behavior unchanged.
+  Vue2 `color()`/`label2()` two computed/methods are just direct forwarding to `serverColor`/`transportLabel`,
+  this repo following `McpServerGroup.vue` (T5) precedent calls utility functions directly in template,
+  no new wrapper computed added.
+  Vue2 :119 `<div class="right" style="margin-left: auto">` duplicates with
+  `sk-shared.scss:149` existing `.sk-modal-foot .right { margin-left: auto; ... }` rule (same as
+  `SkillDetail.vue:505` existing), so no duplicate inline style — visual result unchanged, not an omission.
 
-  【实现选择,非行为偏离】Vue2 data 字段名是 `confirm`(布尔),本仓改名
-  `confirmOpen`——原因与 `SkillDetail.vue:156-158` 完全相同:避免与 JS 全局
-  `window.confirm` 同名产生阅读歧义,纯标识符改名,DOM/行为不变。
-  Vue2 `color()`/`label2()` 两个 computed/方法只是对 `serverColor`/`transportLabel`
-  的直接转发,本仓比照 `McpServerGroup.vue`(T5)的先例直接在模板里调用工具函数,
-  不新增等价的包装 computed。
-  Vue2 `:119` 的 `<div class="right" style="margin-left: auto">` 与
-  `sk-shared.scss:149` 已有的 `.sk-modal-foot .right { margin-left: auto; ... }`
-  规则重复(同 `SkillDetail.vue:505` 的既有写法),故不重复书写这条内联样式——
-  视觉结果不变,不是遗漏。
-
-  零 `<style>` 块:用到的每个类均已存在于 `skills-styles.scss`
-  (`sk-detail*`/`sk-name`/`sk-meta-*`/`sk-section*`/`sk-menu`/`sk-pill-more`/
-  `sk-confirm*`)、`sk-shared.scss`(`sw`/`sk-modal*`/`sk-btn`)或 T1 的
-  `mcp-styles.scss`(`mcp-config*`/`mcp-code`)。
+  Zero `<style>` block: every class used already exists in `skills-styles.scss`
+  (`sk-detail*`/`sk-name`/`sk-meta-*`/`sk-section*`/`sk-menu`/`sk-pill-more`/`sk-confirm*`),
+  `sk-shared.scss` (`sw`/`sk-modal*`/`sk-btn`) or T1's `mcp-styles.scss` (`mcp-config*`/`mcp-code`).
 -->
 <script setup lang="ts">
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
@@ -102,10 +102,10 @@ import AgentIcon from '../../icons/AgentIcon.vue'
 import SkillTile from '../skills/SkillTile.vue'
 import McpToolList from '../sections/McpToolList.vue'
 
-// 对齐 Vue2 `props: { server: { type: Object, default: null } }`(:139)。
+// Aligned with Vue2 `props: { server: { type: Object, default: null } }` (:139).
 const props = defineProps<{ server: McpServer | null }>()
 
-// 对齐 Vue2 `$emit('toggle', …)`(:18)/`$emit('edit', …)`(:22)/`$emit('delete', …)`(:157)。
+// Aligned with Vue2 `$emit('toggle', …)` (:18)/`$emit('edit', …)` (:22)/`$emit('delete', …)` (:157).
 const emit = defineEmits<{
   (e: 'toggle', id: number, enabled: boolean): void
   (e: 'edit', server: McpServer): void
@@ -114,50 +114,51 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 后端没有图标字段,全部 MCP 服务统一用这个字形(Vue2 `data(){ glyph: SERVER_GLYPH }`,:140)。
+// Backend has no icon field, all MCP services use this glyph uniformly (Vue2 `data(){ glyph: SERVER_GLYPH }` (:140)).
 const glyph = SERVER_GLYPH
 
-// 更多菜单开合,对齐 Vue2 `data(){ menuOpen: false }`(:140)。
+// More menu expand/collapse, aligned with Vue2 `data(){ menuOpen: false }` (:140).
 const menuOpen = ref(false)
-// 删除确认弹窗,对齐 Vue2 `data(){ confirm: false }`(:140)——改名 confirmOpen,
-// 见文件头注释「实现选择,非行为偏离」。
+// Delete confirmation modal, aligned with Vue2 `data(){ confirm: false }` (:140) — renamed to confirmOpen,
+// see file header comment "Implementation choice, not behavior deviation".
 const confirmOpen = ref(false)
-// `.sk-pill-more` 按钮 + `.sk-menu` 下拉的包裹元素,对齐 Vue2 `ref="menuWrap"`(:19)。
+// Wrapper element for `.sk-pill-more` button + `.sk-menu` dropdown, aligned with Vue2 `ref="menuWrap"` (:19).
 const menuWrap = ref<HTMLElement | null>(null)
 
-// 测试连接,对齐 Vue2 `data(){ testing: false, testResult: null }`(:140)——本仓
-// `testResult` 改名 `testView`,因为存的是 T3 `toTestView`/`toTestViewFromError`
-// 映射后的 `McpTestView`(i18n 键 + detail),不是后端裸响应,改名避免与
-// `McpTestResult`(后端原始形状,types/mcpServer.ts)混淆。
+// Test connection, aligned with Vue2 `data(){ testing: false, testResult: null }` (:140) — this repo
+// renames `testResult` to `testView` because it stores the result of T3's `toTestView`/`toTestViewFromError`
+// mapped `McpTestView` (i18n key + detail), not raw backend response; renaming avoids confusion with
+// `McpTestResult` (backend original shape, types/mcpServer.ts).
 const testing = ref(false)
 const testView = ref<McpTestView | null>(null)
-// 【偏离 D11,公共约束 §3 第 11 条】Vue2 `runTest`(`:158-171`)没有请求令牌:
-// stdio 探测最长 100 秒(`NimoOS-AI/route/v2/mcp.go:346`),这期间用户切到别的
-// 服务器时,上面的 `watch(() => props.server?.id)` 已经把 `testView` 清空,
-// 但在途 promise 落地后仍会执行 `testView.value = ...`,把**旧服务器的结果**
-// 写进**新服务器的面板**——可复现的错配,不是无害的时序巧合。这里用单调递增的
-// `reqSeq` 守卫:进入时取号,`watch` 里切换服务器会让号作废,成功/失败/finally
-// 三处落地前都比对号是否还是自己发出时的那个,不是就整体丢弃(包括不复位
-// `testing`,因为那已经是新一轮的状态,由新一轮自己的 finally 负责)。
+// 【Deviation D11, public constraint §3 #11】Vue2 `runTest` (:158-171) has no request token:
+// stdio probe takes up to 100s (`NimoOS-AI/route/v2/mcp.go:346`), during which if user switches to
+// another server, the `watch(() => props.server?.id)` above already clears `testView`,
+// but when the in-flight promise lands it still executes `testView.value = ...`, writing
+// **old server's result** into **new server's panel** — reproducible mismatch, not harmless timing.
+// Here we use monotonically-increasing `reqSeq` guard: take a number on entry, switching servers in
+// `watch` invalidates the number, success/failure/finally all check before landing if number is still
+// the one sent, else discard entirely (including not reset `testing`, since that's already new-round state,
+// the new round's own finally handles it).
 const reqSeq = ref(0)
 
 // #141: the protocol-version line shown under the success panel, derived from
 // the current testView via the T8 pure function (see mcpProtocol.ts).
 const protoLine = computed(() => (testView.value ? protocolLine(testView.value) : null))
 
-// 对齐 Vue2 `runTest()`(:158-171)。
+// Aligned with Vue2 `runTest()` (:158-171).
 async function runTest() {
-  if (!props.server || testing.value) return // Vue2 :159 逐字对应
+  if (!props.server || testing.value) return // Vue2 :159 byte-for-byte match
   const seq = ++reqSeq.value
   const id = props.server.id
   testing.value = true
   testView.value = null
   try {
-    // 【偏离 D1,公共约束 §3 第 1 条】单层取数:共享包 `service.ai.testMCPServer`
-    // 已 `return res.data`(`NimoOS-Service/src/ai.ts:388-391`),后端
-    // `mcp.go:355` 是 `c.JSONBlob` 裸对象。Vue2 `:164` 的 `resp.data` 在本仓
-    // 恒为 `undefined`,会让「测试连接」**永远显示连接失败**,哪怕后端返回
-    // `ok:true`——照抄即缺陷,这里直接用 `body` 本身。
+    // 【Deviation D1, public constraint §3 #1】single layer data extraction: shared package
+    // `service.ai.testMCPServer` already `return res.data` (`NimoOS-Service/src/ai.ts:388-391`),
+    // backend `mcp.go:355` is `c.JSONBlob` raw object. Vue2 :164's `resp.data` is always
+    // `undefined` in this repo, would make "test connection" **always show failure**, even if backend returns
+    // `ok:true` — verbatim copy would be a bug, here directly use `body` itself.
     const body = await service.ai.testMCPServer(id)
     if (seq !== reqSeq.value) return
     testView.value = toTestView(body)
@@ -169,8 +170,8 @@ async function runTest() {
   }
 }
 
-// 外部点击关闭菜单,逐字等价 Vue2 `watch: { menuOpen(v) {...} }`(:143-150)+
-// `beforeDestroy`(:153)。见文件头注释「外部点击关菜单」。
+// Click outside to close menu, byte-for-byte equivalent to Vue2 `watch: { menuOpen(v) {...} }` (:143-150) +
+// `beforeDestroy` (:153). See file header comment "Click outside to close menu".
 let docListener: ((e: MouseEvent) => void) | null = null
 watch(menuOpen, (v) => {
   if (v) {
@@ -188,10 +189,10 @@ onBeforeUnmount(() => {
   if (docListener) document.removeEventListener('mousedown', docListener)
 })
 
-// 对齐 Vue2 `watch: { 'server.id'() {...} }`(:151),同一行还清了
-// `this.testing = false; this.testResult = null`。本仓额外 `reqSeq.value++`
-// ——【偏离 D11】见下方 `runTest` 头注释:让切走时仍在途的旧请求失效,落地时
-// 序号比对不通过就整体丢弃,不会把旧服务器的测试结果写进新服务器的面板。
+// Aligned with Vue2 `watch: { 'server.id'() {...} }` (:151), same line also clears
+// `this.testing = false; this.testResult = null`. This repo additionally `reqSeq.value++`
+// — 【Deviation D11】see `runTest` header comment below: make old in-flight requests invalid when switching,
+// if sequence number doesn't match on landing, discard entirely, won't write old server's test result to new server's panel.
 watch(() => props.server?.id, () => {
   menuOpen.value = false
   confirmOpen.value = false
@@ -293,29 +294,29 @@ watch(() => props.server?.id, (id) => {
   if (id !== undefined) loadTools(id)
 }, { immediate: true })
 
-// 对齐 Vue2 `closeAnd(fn)`(:155)。
+// Aligned with Vue2 `closeAnd(fn)` (:155).
 function closeAnd(fn?: () => void) {
   menuOpen.value = false
   fn?.()
 }
 
-// 对齐 Vue2 菜单第一项内联箭头 `() => $emit('edit', server)`(:22)。拆成具名函数
-// (而不是模板内联箭头函数体)是因为 vue-tsc 对 v-else 分支里 `server` 的非空窄化
-// 不会穿透进模板内联箭头函数体(TS18047),具名函数在 <script> 里用 `props.server`
-// 重新判空即可规避——与 `SkillDetail.vue` `toggleFromMenu` 头注释同款说明,行为与
-// 内联写法完全等价。
+// Aligned with Vue2 menu first item inline arrow `() => $emit('edit', server)` (:22). Split into named function
+// (not template inline arrow body) because vue-tsc's non-null narrowing for `server` in v-else branch
+// doesn't penetrate into template inline arrow body (TS18047), named function re-checks `props.server`
+// in <script> — same explanation as `SkillDetail.vue` `toggleFromMenu` header comment, behavior completely
+// equivalent to inline.
 function emitEdit() {
   const s = props.server
   if (!s) return
   emit('edit', s)
 }
 
-// 对齐 Vue2 菜单第二项内联箭头 `() => confirm = true`(:24),理由同上。
+// Aligned with Vue2 menu second item inline arrow `() => confirm = true` (:24), same rationale as above.
 function openConfirmDialog() {
   confirmOpen.value = true
 }
 
-// 对齐 Vue2 `doDelete()`(:157)。
+// Aligned with Vue2 `doDelete()` (:157).
 function doDelete() {
   const s = props.server
   if (!s) return
@@ -408,7 +409,7 @@ function doDelete() {
             <div class="sk-section-head">
               <div class="sk-section-title">{{ t('aiMcpSrvConfiguration') }}</div>
               <div class="sk-section-hint">{{ t('aiMcpSrvConfigHint') }}</div>
-              <!-- 对齐 Vue2 :50-53。 -->
+              <!-- Aligned with Vue2 :50-53. -->
               <button class="sk-btn ghost mcp-test-btn" :disabled="testing" @click="runTest">
                 <span v-if="testing" class="sk-spinner" />
                 {{ testing ? t('aiMcpSrvTesting') : t('aiMcpSrvTest') }}
@@ -474,13 +475,13 @@ function doDelete() {
                 </template>
                 <template v-else>
                   <div class="mcp-test-line">✗ {{ t(testView.msgKey) }}</div>
-                  <!-- 【偏离 D8,公共约束 §3 第 8 条】Vue2 `:98` 直接显示后端拼好的
-                       英文 error 串(`testResult.error`)。这里改成 `error_key`
-                       映射出的本地化一句话(`testView.msgKey`)+ 默认折叠的技术
-                       详情(`testView.detail`,用户 2026-07-31 拍板);后端英文
-                       原文一律不上界面。`detail` 为空时整个折叠区不渲染
-                       (`v-if="testView.detail"`)——本控件 Vue2 没有,是本期新增
-                       的、已授权的界面偏离,不是"照抄之外顺手加的东西"。 -->
+                  <!-- 【Deviation D8, public constraint §3 #8】Vue2 :98 directly shows backend-assembled
+                       English error string (`testResult.error`). Here changed to localized single sentence
+                       from `error_key` mapping (`testView.msgKey`) + default-collapsed technical
+                       details (`testView.detail`, user approved 2026-07-31); backend English
+                       original never appears on interface. Collapse section not rendered when `detail` is empty
+                       (`v-if="testView.detail"`) — this control didn't exist in Vue2, new and authorized
+                       interface deviation this period, not "added as side effect of copying". -->
                   <details v-if="testView.detail" class="mcp-test-detail">
                     <summary>{{ t('aiMcpSrvTestDetail') }}</summary>
                     <pre>{{ testView.detail }}</pre>
@@ -516,8 +517,8 @@ function doDelete() {
         </div>
       </div>
 
-      <!-- 移除确认弹窗,对齐 Vue2 :112-125。偏离 D6(见文件头注释):不套 SkModal,
-           reka 原语手拼,写法照抄 SkillDetail.vue:486-517。 -->
+      <!-- Delete confirmation modal, aligned with Vue2 :112-125. Deviation D6 (see file header):
+           doesn't use SkModal, reka primitives hand-assembled, code copied from SkillDetail.vue:486-517. -->
       <DialogRoot :open="confirmOpen" @update:open="confirmOpen = $event">
         <DialogPortal to=".set-app" defer>
           <DialogOverlay class="sk-modal-bg">
@@ -538,9 +539,9 @@ function doDelete() {
               <div class="sk-modal-foot">
                 <div class="right">
                   <button class="sk-btn ghost" @click="confirmOpen = false">{{ t('aiCancel') }}</button>
-                  <!-- 偏离 D3(见文件头注释):不传具名色,由 .sk-btn.danger 自带的
-                       前景色声明供色,AgentIcon 默认 currentColor 继承(修复轮 M7:
-                       注释不再逐字引用 CSS 源码里的颜色字面量)。 -->
+                  <!-- Deviation D3 (see file header): no named color passed, color supplied by
+                       `.sk-btn.danger`'s built-in foreground declaration, AgentIcon inherits default currentColor
+                       (M7 fix round: comments no longer quote color literals from CSS source verbatim). -->
                   <button class="sk-btn danger" @click="doDelete">
                     <AgentIcon name="trash" :size="13" /> {{ t('aiMcpSrvRemoveConfirm') }}
                   </button>

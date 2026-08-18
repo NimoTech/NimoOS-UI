@@ -9,7 +9,7 @@ import iconStorage from './icons/storage.svg'
 import iconTerminal from './icons/terminal.svg'
 
 // `label` holds an i18n key (translated at render via t(label)) — see AppTile/GridItem.
-// `icon` 来自旧 Vue2 UI(NimoOS-UI/src/assets/img/app/),cls/glyph 保留作无图兜底。
+// `icon` comes from the old Vue2 UI (NimoOS-UI/src/assets/img/app/); cls/glyph are kept as no-image fallbacks.
 // `requiresService` marks a tile that only belongs on this machine when the named
 // service is actually reachable -- KVM is optional and is not installed everywhere.
 // The static entry deliberately carries no status: the apps store decides both

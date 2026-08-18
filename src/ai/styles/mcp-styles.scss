@@ -1,24 +1,24 @@
-// SP8-P4 Task 1 —— 逐行移植自 Vue2 `NimoOS-UI/src/views/AI/MCP/mcp-styles.scss`
-// (91 行)。Vue2 原文件头就写着「layered on top of skills-styles.scss shell
-// classes」—— 本档同样只叠加 18 个 `.mcp-*` 类,分区容器/列表/详情的外壳类
-// (`.sk-col*` / `.sk-detail*` / `.sk-meta-*` / `.sk-section*` / `.sk-modal*` 等)
-// 由 `skills-styles.scss` / `sk-shared.scss` / `settings-styles.scss` 供给,
-// 本档不重复定义,详见设计文档 §4.2。
+// SP8-P4 Task 1 — line-by-line ported from Vue2 `NimoOS-UI/src/views/AI/MCP/mcp-styles.scss` (91 lines).
+// Vue2 original file header says "layered on top of skills-styles.scss shell classes" — this file
+// similarly only adds 18 `.mcp-*` classes; section container/list/detail shell classes
+// (`.sk-col*` / `.sk-detail*` / `.sk-meta-*` / `.sk-section*` / `.sk-modal*` etc.) provided by
+// `skills-styles.scss` / `sk-shared.scss` / `settings-styles.scss`; this file doesn't redefine them;
+// see design doc §4.2.
 //
-// 组织调整(非行为改变):Vue2 `.mcp-transport[data-t="stdio"]` 单独写在 `:43`
-// (原作者后补),本档把三个 transport 变体(http/sse/stdio)合并写进
-// `.mcp-transport` 的嵌套选择器里 —— 渲染结果与 Vue2 `:7-8` + `:43` 两处分开写
-// 完全等价,只是本档合并到一处以便阅读。
+// Organization adjustment (non-behavior change): Vue2 `.mcp-transport[data-t="stdio"]` written separately
+// at :43 (author supplement); this file merges three transport variants (http/sse/stdio) into
+// `.mcp-transport` nested selector — render output identical to Vue2 :7-8 + :43 written separately,
+// just merged here for readability.
 //
-// 偏离 D10(6 处 rgba 字面量 → 已有 token,tokens.scss 浅/暗两档均已核实有值):
-//   - Vue2 `:7`  `.mcp-transport[data-t="http"]`       原为青色约 14% 透明度   → var(--teal-soft)
-//   - Vue2 `:8`  `.mcp-transport[data-t="sse"]`         原为紫色约 12% 透明度   → var(--purple-soft)
-//   - Vue2 `:43` `.mcp-transport[data-t="stdio"]`       原为绿色约 14% 透明度   → var(--success-soft)
-//   - Vue2 `:74` `.mcp-test-result[data-ok="true"]`  背景 原为绿色约 10% 透明度 → var(--success-soft)
-//                                                    边框 原为绿色约 30% 透明度 → var(--success-soft-border)
-//   - Vue2 `:75` `.mcp-test-result[data-ok="false"]` 背景 原为红色约 10% 透明度 → var(--danger-soft)
-//                                                    边框 原为红色约 30% 透明度 → var(--danger-soft-border)
-// 本任务预期新增 token 数 = 0(6 个 token 全部已存在于 tokens.scss)。
+// Deviation from D10 (6 rgba literals → existing tokens; tokens.scss light/dark blocks verified to have values):
+//   - Vue2 :7  `.mcp-transport[data-t="http"]`       originally cyan ~ 14% transparency   → var(--teal-soft)
+//   - Vue2 :8  `.mcp-transport[data-t="sse"]`         originally purple ~ 12% transparency   → var(--purple-soft)
+//   - Vue2 :43 `.mcp-transport[data-t="stdio"]`       originally green ~ 14% transparency   → var(--success-soft)
+//   - Vue2 :74 `.mcp-test-result[data-ok="true"]`  bg originally green ~ 10% transparency → var(--success-soft)
+//                                                    border originally green ~ 30% transparency → var(--success-soft-border)
+//   - Vue2 :75 `.mcp-test-result[data-ok="false"]` bg originally red ~ 10% transparency → var(--danger-soft)
+//                                                    border originally red ~ 30% transparency → var(--danger-soft-border)
+// Expected new tokens in this task = 0 (all 6 tokens already exist in tokens.scss).
 
 .mcp-transport {
   font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
@@ -106,8 +106,8 @@
 .mcp-test-proto { margin-top: 6px; font-size: 13px; color: var(--text-secondary); }
 .mcp-test-proto.is-legacy { color: var(--warning); }
 
-// 【本期新增,Vue2 无对应物 —— 偏离 D8】测试失败时的「技术详情」折叠区。
-// 用原生 <details>/<summary>,无新依赖、天然可访问、无组件状态。
+// [New this phase; no Vue2 counterpart — deviation D8] "Technical details" collapsible section on test failure.
+// Uses native <details>/<summary>; no new dependencies, naturally accessible, no component state.
 .mcp-test-detail {
   margin-top: 6px;
   summary {

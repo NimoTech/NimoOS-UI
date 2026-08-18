@@ -1,7 +1,7 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/icons/AgentIcon.vue
-  (未在 Task 3 brief 文件清单中点名,但 UserMessage/AssistantMessage/EmptyState
-  三个蓝本组件都直接依赖它——作为必要的叶子依赖一并逐字移植。)
+  1:1 ported from Vue2 src/views/AI/Agent/icons/AgentIcon.vue
+  (not named in Task 3 brief file list, but UserMessage/AssistantMessage/EmptyState
+  all directly depend on it — as a necessary leaf dependency ported verbatim together.)
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
@@ -20,22 +20,22 @@ const PATHS: Record<string, string> = {
   check: '<path d="M4 10l4 4 8-8" />',
   x: '<path d="M5 5l10 10M15 5L5 15" />',
   play: '<path d="M6 4l10 6-10 6V4z" fill="currentColor" stroke="none" />',
-  // SP8-P3b Task 1 —— TestPanel(P3b)运行态用。20 单位坐标系,stroke 走 currentColor,
-  // 不传具名色。放在 play 相邻处(同属媒体控制类图标)。
+  // SP8-P3b Task 1 — used in TestPanel(P3b) running state. 20-unit coordinate system, stroke uses currentColor,
+  // no named color passed. Placed adjacent to play (same media control icon category).
   pause: '<path d="M7 4v12M13 4v12"/>',
   code: '<path d="M7 6l-4 4 4 4M13 6l4 4-4 4M11 4l-2 12" />',
   star: '<path d="M10 2l2.5 5.5 5.5.6-4 4 1 5.5L10 15l-5 2.6 1-5.5-4-4 5.5-.6L10 2z" fill="currentColor" stroke="none" />',
   download: '<path d="M10 3v10M5 9l5 5 5-5"/><path d="M3 17h14"/>',
-  // SP8-P2b 验收反馈(2026-07-30)新增:外链/在新标签页打开。20 单位坐标系,无需 scale 包裹。
-  // 「Open Phoenix」原本借用 download,语义不符(它不下载任何东西,是开一个网页)。
+  // SP8-P2b acceptance feedback (2026-07-30) new: external link / open in new tab. 20-unit coordinate system, no scale wrapper needed.
+  // "Open Phoenix" originally borrowed download, semantically incorrect (it downloads nothing, just opens a webpage).
   external: '<path d="M11 3h6v6"/><path d="M17 3l-8 8"/><path d="M15 11.5V16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5"/>',
   upload: '<path d="M10 17V7M5 11l5-5 5 5"/><path d="M3 3h14"/>',
   trash: '<path d="M3 5h14M8 5V3h4v2M5 5l1 12h8l1-12"/>',
   settings: '<g transform="scale(0.8333)"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></g>',
-  // SP8-P2b Task 1 —— 1:1 取自 Vue2 src/views/AI/Skills/SkillIcon.vue:24。
-  // 该图标画在 24 单位盒子里(cx=12/cy=8/M4 21),本档 viewBox 是 20 单位,
-  // 故按同档 settings/book 先例包 scale(0.8333)=20/24。弧线参数 `0116 0` 是
-  // SVG 允许的紧凑写法(flag 0、flag 1、x=16),照抄勿"格式化"。
+  // SP8-P2b Task 1 — 1:1 taken from Vue2 src/views/AI/Skills/SkillIcon.vue:24.
+  // That icon is drawn in a 24-unit box (cx=12/cy=8/M4 21), this file's viewBox is 20 units,
+  // so following the settings/book precedent here wrapping scale(0.8333)=20/24. Arc params `0116 0` is
+  // the compact notation SVG allows (flag 0, flag 1, x=16), copy as-is without "formatting".
   user: '<g transform="scale(0.8333)"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></g>',
   panel: '<rect x="2.5" y="3.5" width="15" height="13" rx="1.5"/><path d="M12.5 3.5v13"/>',
   panelLeft: '<rect x="2.5" y="3.5" width="15" height="13" rx="1.5"/><path d="M7.5 3.5v13"/>',
@@ -56,11 +56,11 @@ const PATHS: Record<string, string> = {
   arrowBack: '<path d="M16 10H4"/><path d="m9 5-5 5 5 5"/>',
   wrench: '<path d="M14.5 5.5a3.2 3.2 0 0 0-4.3 3.9L4 15.6 6.4 18l6.2-6.2a3.2 3.2 0 0 0 3.9-4.3l-2.1 2.1-1.9-1.9 2.1-2.1z"/>',
   speaker: '<path d="M4 8h3l4-3v10l-4-3H4V8z"/><path d="M14 7a4 4 0 0 1 0 6"/>',
-  // SP8-P2a Task 1 —— 设置区导航/顶栏图标,对齐 Vue2
-  // src/views/AI/Skills/SkillIcon.vue:43-50。
-  // 那 8 个在 SkillIcon 里是「画在 20 单位盒子里 + <g transform="scale(1.2)"> 撑到
-  // 24 单位 viewBox」;本组件 viewBox 本就是 0 0 20 20,故去掉 scale 外壳直接用
-  // 内层原始路径,坐标天然对齐。
+  // SP8-P2a Task 1 — settings navigation/topbar icons, aligned with Vue2
+  // src/views/AI/Skills/SkillIcon.vue:43-50.
+  // Those 8 in SkillIcon are "drawn in 20-unit box + <g transform="scale(1.2)"> stretched to
+  // 24-unit viewBox"; this component's viewBox is already 0 0 20 20, so removing the scale wrapper and using
+  // the raw path directly, coordinates align naturally.
   cpu: '<rect x="5" y="5" width="10" height="10" rx="2"/><rect x="8" y="8" width="4" height="4" rx="0.6"/><path d="M8 2v3M12 2v3M8 15v3M12 15v3M2 8h3M2 12h3M15 8h3M15 12h3"/>',
   cloud: '<path d="M6 15a3.5 3.5 0 0 1-.3-6.98A5 5 0 0 1 15.5 8.5 3.25 3.25 0 0 1 15 15H6z"/>',
   key: '<circle cx="7" cy="7" r="3.2"/><path d="M9.3 9.3 16 16M13 13l2-2M15 15l1.5-1.5"/>',
@@ -69,8 +69,8 @@ const PATHS: Record<string, string> = {
   steps: '<path d="M4 15h4v-4h4V7h4"/>',
   waves: '<path d="M2 7c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2M2 12c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2"/>',
   grid: '<rect x="3" y="3" width="6" height="6" rx="1.2"/><rect x="11" y="3" width="6" height="6" rx="1.2"/><rect x="3" y="11" width="6" height="6" rx="1.2"/><rect x="11" y="11" width="6" height="6" rx="1.2"/>',
-  // book 在 SkillIcon:22 是真按 24 单位坐标画的(无 scale 包裹),故这里反过来
-  // 缩到 20 单位,做法与本文件既有的 settings 图标一致。
+  // book in SkillIcon:22 is truly drawn at 24-unit coordinates (no scale wrapper), so here conversely
+  // scaled down to 20 units, following the same method as this file's existing settings icon.
   book: '<g transform="scale(0.8333)"><path d="M4 4h11a4 4 0 014 4v12H8a4 4 0 01-4-4V4z"/><path d="M4 16h15"/></g>',
 }
 

@@ -1,5 +1,5 @@
 /// <reference types="node" />
-// 显式引 node 类型而不是往 tsconfig 的 types 数组里加 "node"(同 color-guard.test.ts)。
+// Reference node types explicitly instead of adding "node" to tsconfig's types array (same as color-guard.test.ts).
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,8 +12,8 @@ import zh from '../../i18n/zh_cn'
 import zhSp9 from '../../i18n/zh_cn.sp9'
 import type { SettingsTab } from '../util/tabs'
 
-// PowerFlow(填入 .set-rail-foot,task 9)引入了 service.sys.power —— 最小 mock,
-// 这个测试文件不关心电源流本身(有 PowerFlow.test.ts 专门测),只关心它渲染出来了。
+// PowerFlow (filling .set-rail-foot, task 9) pulls in service.sys.power — minimal mock;
+// this test file doesn't care about the power flow itself (PowerFlow.test.ts covers that), only that it renders.
 vi.mock('@nimotech/nimoos-service', () => ({ service: { sys: { power: async () => {} } } }))
 
 import SettingsShell from './SettingsShell.vue'
@@ -46,7 +46,7 @@ async function mountShell(current: SettingsTab = 'general') {
 describe('SettingsShell', () => {
   beforeEach(() => localStorage.clear())
 
-  it('渲染标题与 slot 内容', async () => {
+  it('renders the title and slot content', async () => {
     const { w } = await mountShell()
     expect(w.find('.set-title').text()).toBe('设置')
     expect(w.find('.probe').text()).toBe('body')
@@ -65,7 +65,7 @@ describe('SettingsShell', () => {
     expect(items.map((i) => i.attributes('data-tab'))).toContain('folder-permissions')
   })
 
-  it('当前 tab 的 rail 项带 active', async () => {
+  it('the rail item for the current tab has active', async () => {
     localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
     const { w } = await mountShell('network')
     const active = w.findAll('.set-rail-item').filter((i) => i.classes().includes('active'))
@@ -73,20 +73,20 @@ describe('SettingsShell', () => {
     expect(active[0].attributes('data-tab')).toBe('network')
   })
 
-  it('点 rail 项 emit select', async () => {
+  it('clicking a rail item emits select', async () => {
     const { w } = await mountShell()
     await w.findAll('.set-rail-item')[2].trigger('click')
     expect(w.emitted('select')).toEqual([['network']])
   })
 
-  it('account 不在 rail 上,入口是顶部用户块(对位 Vue2 L13-20)', async () => {
+  it('account is not on the rail; the entry point is the user block at the top (corresponds to Vue2 L13-20)', async () => {
     const { w } = await mountShell()
     expect(w.findAll('.set-rail-item').map((i) => i.attributes('data-tab'))).not.toContain('account')
     await w.find('.set-user').trigger('click')
     expect(w.emitted('select')).toEqual([['account']])
   })
 
-  it('developer 不在 rail 上(入口在 general 页内)', async () => {
+  it('developer is not on the rail (its entry point is inside the general page)', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'admin' }))
     const { w } = await mountShell()
     expect(w.findAll('.set-rail-item').map((i) => i.attributes('data-tab'))).not.toContain(
@@ -94,7 +94,7 @@ describe('SettingsShell', () => {
     )
   })
 
-  it('用户块显示 nickname,缺失时退 username,再缺退 admin(Vue2 L18 同款回落链)', async () => {
+  it('the user block shows nickname, falls back to username when missing, then to admin (same fallback chain as Vue2 L18)', async () => {
     localStorage.setItem('user', JSON.stringify({ nickname: '小明', username: 'nimo' }))
     let m = await mountShell()
     expect(m.w.find('.set-user-name').text()).toBe('小明')
@@ -108,37 +108,37 @@ describe('SettingsShell', () => {
     expect(m.w.find('.set-user-name').text()).toBe('admin')
   })
 
-  it('user 存了坏 JSON 不炸,按无用户处理', async () => {
+  it('does not blow up when `user` in storage is bad JSON — treated as no user', async () => {
     localStorage.setItem('user', '{not json')
     const { w } = await mountShell()
     expect(w.find('.set-user-name').text()).toBe('admin')
     expect(w.findAll('.set-rail-item')).toHaveLength(7)
   })
 
-  it('回主页按钮 push /', async () => {
+  it('the home button pushes /', async () => {
     const { w, router } = await mountShell()
     await w.find('.set-home').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/')
   })
 
-  it('侧栏底部有电源按钮(P0 的空容器已填)', async () => {
+  it('there\'s a power button at the bottom of the rail (P0\'s empty container now filled in)', async () => {
     const { w } = await mountShell()
     expect(w.find('.set-rail-foot .pf-shutdown').exists()).toBe(true)
     expect(w.find('.set-rail-foot .pf-restart').exists()).toBe(true)
   })
 })
 
-describe('窄屏设置侧栏有可滚动提示', () => {
-  it('.set-rail-list 的窄屏分支带边缘渐隐遮罩', () => {
+describe('narrow-screen settings rail has a scrollable affordance', () => {
+  it('.set-rail-list\'s narrow-screen branch has an edge fade mask', () => {
     const src = fs.readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SettingsShell.vue'),
       'utf8',
     )
-    // 只看窄屏媒体查询那一段:宽屏是纵向排列,不需要提示。
+    // Only inspect the narrow-screen media-query section: wide screens stack vertically and need no affordance.
     const narrow = src.slice(src.indexOf('@media'))
     const rail = narrow.slice(narrow.indexOf('.set-rail-list'))
-    expect(rail).toContain('overflow-x: auto') // 防空转:布局改了就该红
+    expect(rail).toContain('overflow-x: auto') // Anti-no-op guard: should go red if the layout changes
     expect(rail).toMatch(/mask-image/)
   })
 })

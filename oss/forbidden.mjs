@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-// ─── 硬禁词:出现即失败,无白名单 ────────────────────────────────────────────
-// 注意 E4:spec §6.1 原本把 folderPermission 放在这里,那会让守卫永久红 ——
-// UserFolderPermission 是成员文件夹授权的类型名,是保留面。已降为软禁词。
+// ─── Hard forbidden words: appearance is failure, no whitelist ────────────────────────────────────────────
+// Note E4: spec §6.1 originally placed folderPermission here, which would make the guard permanently red ——
+// UserFolderPermission is a type name for member folder permissions, it is a reserved surface. Downgraded to soft forbidden word.
 export const HARD = [
   ['相册', /相册/],
   ['Nimo AI', /Nimo\s*AI/i],
@@ -18,49 +18,54 @@ export const HARD = [
   ['wikiRoot', /wikiRoot/i],
   ['192.168.1.115', /192\.168\.1\.115/],
 
-  // ── T6.5:中文硬禁词 ──────────────────────────────────────────────────
-  // 本库注释与界面文案全中文,原词表只有「相册」一个中文词,是个大盲区(见
-  // T6.5 brief 的实测表:搜索/照片/转录/说话人/知识库/向量化/智能 命中数原本全是 0)。
-  // 以下四条已在全仓 grep 核实:所有出现都属于「该剥离的 AI/音频转录功能」,
-  // 没有发现任何合法用法,故直接 HARD(不给白名单)。
-  ['说话人', /说话人/],       // 音频转录的说话人分离/diarization,仅见于 MediaViewer/theme.css/speakerWave 一族
-  ['知识库', /知识库/],       // RAG 知识库,仅见于 settingsFp(folder-permissions,AI 消费方)i18n 键
-  ['向量化', /向量化/],       // 向量化/embedding 的中文说法,仅见于 Ask Nimo 音频问答文案
-  ['问 Nimo', /问\s*Nimo/i], // "Ask Nimo" 的中文说法(audioAsk/audioAskEmpty),与「Nimo AI」分开收
+  // ── T6.5: Chinese hard forbidden words ──────────────────────────────────────────────────
+  // The whole repo's comments and UI copy are in Chinese; the original word list has only
+  // one Chinese word "相册" (photo album), which is a major blind spot (see the test table
+  // in T6.5 brief: search/photo/transcript/speaker/knowledge-base/vectorization/smart all
+  // originally had zero hits). The following four entries are verified by full-repo grep:
+  // all occurrences belong to "AI/audio-transcription features that should be removed",
+  // no legitimate uses found, so directly mark as HARD (no whitelist).
+  ['说话人', /说话人/],       // Speaker separation/diarization in audio transcription, only seen in MediaViewer/theme.css/speakerWave family
+  ['知识库', /知识库/],       // RAG knowledge base, only seen in settingsFp(folder-permissions, AI consumer) i18n key
+  ['向量化', /向量化/],       // Chinese term for vectorization/embedding, only seen in Ask Nimo audio QA copy
+  ['问 Nimo', /问\s*Nimo/i], // Chinese term for "Ask Nimo" (audioAsk/audioAskEmpty), collected separately from "Nimo AI"
 
-  // ── T6.5 复审 Important③:英文侧配对词 ─────────────────────────────────
-  // 「知识库」的英文孪生词。全仓 grep 核实(含 packages/service 与 ../NimoOS-Service):
-  // knowledge/RAG 的所有出现——settingsFpKnowledge(Desc)、en_us.sp9.ts 的
+  // ── T6.5 Review Important③: English paired words ─────────────────────────────────
+  // English counterpart of "knowledge base". Full-repo grep verification (including packages/service and ../NimoOS-Service):
+  // all occurrences of knowledge/RAG — settingsFpKnowledge(Desc), en_us.sp9.ts's
   // 'Knowledge base'/'…knowledge base (RAG).'、knowledgeRootItems/knowledgeExcludeItems/
-  // knowledgeCell/knowledgeKindOf、FolderPermColumn 的 'knowledge' 分支、'knowledge-root'/
-  // 'knowledge-exclude' 字面量——全部集中在 folder-permissions 这一个 AI 消费方(四分区面板
-  // 及其 util/test),零合法用法。用 \b 词边界,不会误伤 "acknowledge" 这类词(已 grep 确认
-  // 全仓没有这个词)。
+  // knowledgeCell/knowledgeKindOf, FolderPermColumn's 'knowledge' branch, literal 'knowledge-root'/
+  // 'knowledge-exclude' — all concentrated in a single AI consumer (folder-permissions four-panel view
+  // and its util/test), zero legitimate uses. Uses \b word boundary, won't harm words like "acknowledge"
+  // (verified by grep: no such word in the full repo).
   ['knowledge', /\bknowledge\b/i],
-  // RAG 只出现在 settingsFpKnowledgeDesc 的英文/中文值里(en_us.sp9.ts:245、zh_cn.sp9.ts:253),
-  // 同样零合法用法。要求全大写 + 词边界,避免误伤"fragment"之类含 "rag" 子串的词。
+  // RAG only appears in settingsFpKnowledgeDesc's English/Chinese values (en_us.sp9.ts:245、zh_cn.sp9.ts:253),
+  // likewise zero legitimate uses. Requires all caps + word boundary to avoid harming words like "fragment"
+  // that contain the "rag" substring.
   ['RAG', /\bRAG\b/],
 
-  // 注意:评审同时问过「smart」(对应中文「智能」)要不要收。**不收,而且不应该收**——
-  // 已用 `grep -rn -i smart --include='*.ts' --include='*.vue' src/` 核实全仓 12 处命中:
-  // 10 处是硬盘 S.M.A.R.T. 健康检测(`src/storage/**`,如 `SMART 未过("false")→ 风险边框`、
-  // `data.disks[*].health = "true" ← SMART 通过`、`100 分起扣:SMART 未过直接 0`),
-  // 与 AI 完全无关;只有 2 处是真泄漏(`en_us.sp9.ts:238` 的 `settingsFpIntro: '...smart
-  // feature's...'`、`en_us.ts:236` 的 `widgetAiDesc: 'Chat and smart suggestions'`,
-  // 这两处已经通过它们的中文孪生键——`settingsFpIntro`/`widgetAiDesc` 的中文值命中
-  // 「智能」——被抓到,T8 删中文键时英文键会一起被处理,不会漏)。10/12 是无关的磁盘功能,
-  // 词表「宁可宽」不等于「宽到把无关功能的正常代码全染红」,故不收。后人看到「智能」有词、
-  // 「smart」没词,不要顺手补上——先重读这段注释。
+  // Note: review also asked whether "smart" (corresponding to Chinese "智能") should be collected.
+  // **No, and it should not be.** — Verified with `grep -rn -i smart --include='*.ts' --include='*.vue' src/`:
+  // 10 out of 12 repo-wide hits are hard disk S.M.A.R.T. health checks (`src/storage/**`, such as
+  // `SMART failed("false") → warning border`, `data.disks[*].health = "true" ← SMART passed`,
+  // `0/100 if SMART failed`), completely unrelated to AI; only 2 are true leaks (`en_us.sp9.ts:238`
+  // `settingsFpIntro: '...smart feature's...'`, `en_us.ts:236` `widgetAiDesc: 'Chat and smart suggestions'`,
+  // these two are already caught through their Chinese counterpart keys — `settingsFpIntro`/`widgetAiDesc`
+  // Chinese values hit "智能", T8 will handle them when deleting Chinese keys, no leak). 10/12 are
+  // unrelated disk functions; the word list's "wider is better" doesn't mean "so wide it dyes all
+  // unrelated feature code red", so we don't collect it. If later someone sees "智能" in the list and
+  // "smart" not in the list and wants to add it — read this comment first.
 ].map(([word, re]) => ({ word, re }))
 
 /**
- * T6.5:把一段"已知合法的整行内容"转成整行精确匹配的正则(允许行首/行尾空白)。
- * 用于 allow 条目 —— 只匹配"这一行掐头去尾就是这段文本",行内任何增删都会让
- * 匹配失效,从而回落到"未豁免、按词表规则判断",不会带着新增的泄漏一起被放行。
- * 复审 Critical(2026-08-04)的教训:之前用「文件+关键词/键名子串」豁免,等于对
- * 整行甚至整个文件开洞——只要在被豁免的那一行混入真实 AI 泄漏也照样放行(复现
- * 见 转录/照片/搜索 三个词条各自的注释)。用 new RegExp(string) 构造而不是正则
- * 字面量,顺带省掉「行内本来就有 / 」时的转义麻烦。
+ * T6.5: Convert a "known-legitimate entire line" into an exact-match regex (allows leading/trailing whitespace).
+ * Used for allow entries — only matches "this line with ends trimmed equals this text", any
+ * addition/deletion within the line breaks the match, falling back to "not exempted, apply word list rules",
+ * never lets new leaks slip through together. Lesson from review Critical(2026-08-04): previously used
+ * "file + keyword/key-name substring" exemption, equivalent to opening a hole in the entire line or even
+ * entire file — mix real AI leak into the exempted line and it still passes (reproduced in the
+ * transcript/photo/search word entries' notes). Use new RegExp(string) construction instead of regex literals,
+ * incidentally avoids escaping "/" that's already in the line.
  */
 function exactLine(literal) {
   const escaped = literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -68,31 +73,32 @@ function exactLine(literal) {
 }
 
 /**
- * T14:pnpm-lock.yaml 是自动生成文件,不是手写代码 —— "整行精确匹配"这套武器在这里
- * 起不到应有的作用(依赖升级一次,精确到字节的哈希/版本号锚点全部作废,逼着后人重新
- * 手抄一遍,起不到"拦住手工夹带泄漏"的效果)。改用"这一行长得像 pnpm-lock 里的包名/
- * resolution/version/specifier 记录行"的**形状**规则:
- *   `resolution:` / `version:` / `specifier:` 这三个字面量键,或
- *   `'?@?[\w@/.-]+'?:` —— 可选引号 + 可选 @scope + 包名字符集(字母数字@/.-)+
- *   可选引号 + 冒号,覆盖 `'@babel/parser@7.29.7':`、`engine.io-parser@2.2.1:`、
- *   `yargs-parser: 13.1.2` 这几种 pnpm-lock 真实出现过的写法。
- * 只用于词表宁可宽也要收的 ai/search(第三方包名含这两个子串的情况事实上无法穷举:
- * @codemirror/search、未来任何名字带 "ai" 的包)。parser 走另一条更窄的路径(见下方
- * parser 词条注释)—— photo/gallery/transcript/wiki 这几个词完全不给 lockfile 开洞,
- * 依赖名里真出现就应该被抓到人工看一眼。
+ * T14: pnpm-lock.yaml is auto-generated, not hand-written code — the "exact line match" toolkit doesn't
+ * work as intended here (every dependency upgrade invalidates the byte-precise hash/version anchors,
+ * forcing someone to manually retype, ineffective at "blocking manual leak insertion"). Instead use a
+ * **shape** rule: "this line looks like a pnpm-lock package-name/resolution/version/specifier record":
+ *   `resolution:` / `version:` / `specifier:` these three literal keys, or
+ *   `'?@?[\w@/.-]+'?:` — optional quotes + optional @scope + package-name charset (alphanumeric@/.-)  +
+ *   optional quotes + colon, covers `'@babel/parser@7.29.7':`、`engine.io-parser@2.2.1:`、
+ *   `yargs-parser: 13.1.2` variations that actually appear in pnpm-lock.
+ * Only for words the list prefers to include: ai/search (third-party package names containing these
+ * substrings are impossible to exhaustively enumerate: @codemirror/search, any future package named "ai").
+ * parser goes through a narrower path (see parser word entry note below) — photo/gallery/transcript/wiki
+ * get zero lockfile exemptions, if they actually appear in dependency names someone should review manually.
  *
- * ★ 已知盲区(T15 记账,非缺陷修复):这条"形状"规则只看一行像不像 lockfile 记录行,
- * 不看包名具体是什么 —— 所以理论上,如果哪天真的引入了一个整包名恰好含 ai/search
- * 语义的私有包(例如假设的 `@nimotech/nimoos-search`),这条规则会像放行 `@codemirror/search`
- * 一样把它也放行,不会被抓到人工看一眼。当前 lockfile 里没有这种包(已 grep 核实),
- * 但后人往 lockfile 引入新依赖时,如果包名本身就是要剥离的私有服务名,不能指望这条
- * 守卫拦住 —— 需要人工留意包名,或者在这里为该具体包名加一条排除规则。
+ * ★ Known blind spot (T15 record, not defect fix): this "shape" rule only checks if a line looks like
+ * a lockfile record, doesn't examine the package name itself — so theoretically, if someone introduced
+ * a private package whose entire name happens to contain ai/search semantics (e.g. hypothetical
+ * `@nimotech/nimoos-search`), this rule would exempt it like `@codemirror/search`, wouldn't flag for
+ * manual review. Current lockfile has no such package (verified by grep), but when future dependencies
+ * are added, if a package name itself is a private service name to be removed, don't expect this guard
+ * to catch it — need manual review of package names, or add an exclusion rule for that specific package here.
  */
 const PNPM_LOCK_LINE = /^\s+(resolution|version|specifier|'?@?[\w@/.-]+'?:)/
 
-// ─── 软禁词 + 精确白名单 ────────────────────────────────────────────────────
-// allow 的每一项是「文件正则 + 该文件里允许的整行正则」。按文件+内容豁免,
-// 绝不按行号 —— 行号会漂,漂了豁免就失效,然后人就会去放宽词表。
+// ─── Soft forbidden words + exact whitelist ────────────────────────────────────────────────────
+// Each allow entry is "file regex + allowed-in-this-file entire-line regex". Exempt by file+content,
+// never by line number — line numbers shift, exemption breaks, then someone loosens the word list.
 export const SOFT = [
   {
     word: 'photo',
@@ -100,7 +106,10 @@ export const SOFT = [
     allow: [
       { file: /src\/files\/util\/fileCategories\.ts$/, re: /APPLICATION_PHOTOSHOP/ },
       { file: /src\/files\/util\/icons\.ts$/, re: /folder-pictures|APPLICATION_PHOTOSHOP/ },
-      { file: /src\/apps\/util\/importNormalize\.ts$/, re: /'pictures',\s*'photo'|除 config\/download\/pictures\/photo\/media 外/ },
+      { file: /src\/apps\/util\/importNormalize\.ts$/, re: /'pictures',\s*'photo'/ },
+      // 2026-08-14:该文件头注释已在私有侧译成英文,原来那条中文备选不再命中。
+      // 整行精确匹配,不给整个文件开洞。
+      { file: /src\/apps\/util\/importNormalize\.ts$/, re: exactLine('* **Verbatim** includes casing: apart from config/download/pictures/photo/media, the original only') },
       // T14:importNormalize.test.ts —— 同一份 Vue2 逐字移植的关键字表(volumeAutoCheck)
       // 的测试用例,'photo'/'pictures' 是 Docker 容器路径关键字,不是相册 app。整行精确
       // 匹配(exactLine),不是给整个文件的 'photo' 开洞。
@@ -126,7 +135,12 @@ export const SOFT = [
       // 同一行文本重复出现 5 次(148/160/172/192/203),exactLine 天然覆盖每一处重复。
       { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },") },
       { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine('volume-uuid="u-data" mount-point="/DATA" rel-path="Photos" folder-label="/磁盘/Photos"') },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.vue$/, re: exactLine('// /Photos/2024 打开时间机器、进去后被扔回卷根还得一层层点回来。卡片展示的就是当前') },
+      // 2026-08-14:私有侧把这条注释译成了英文,原中文整行不再命中。同样是"举例用的
+      // 普通文件夹名 /Photos/2024",不是相册 app。
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.vue$/, re: exactLine('// the snapshot root — a user opening Time Machine at /Photos/2024 got dumped back at the') },
+      // ImageViewer.vue:平铺缩放时的白色接缝说明,"the photo"是被查看的图片本身
+      // (图片预览器是保留面),与相册 app 无关。
+      { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: exactLine('stretches stale tiles without repainting, and tile seams show as white hairline grids over the photo') },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/DATA/Photos'") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/DATA/.snapshots/snap1/Photos'") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(s.browseInfo).toEqual({ mount: '/DATA', snapshotName: 'snap1', relPath: 'Photos' })") },
@@ -143,13 +157,13 @@ export const SOFT = [
       { file: /src\/files\/upload\/dropEntries\.test\.ts$/, re: exactLine("expect(rels).toEqual(['Folder/.hidden', 'Folder/notes.txt', 'Folder/photo.jpg', 'Folder/video.mp4'])") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(parseSnapshotBrowsePath('/DATA/.snapshots/snap1/Photos/2024')).toEqual({") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("mount: '/DATA', snapshotName: 'snap1', relPath: 'Photos/2024',") },
-      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('有相对路径就拼上', () => { expect(liveVolumePath('/DATA', 'Photos/2024')).toBe('/DATA/Photos/2024') })") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('concat with relative path if present', () => { expect(liveVolumePath('/DATA', 'Photos/2024')).toBe('/DATA/Photos/2024') })") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("await expect(resolveExitTarget({ mount: '/DATA', snapshotName: 's1', relPath: 'Photos/2024' }, dirExists))") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine(".resolves.toBe('/DATA/Photos/2024')") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(dirExists).toHaveBeenCalledWith('/DATA/Photos/2024')") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(parseSnapshotsContainerPath('/DATA/Photos')).toBeNull()") },
-      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('取相对卷根的路径', () => { expect(relPathUnderMount('/DATA', '/DATA/Photos/2024')).toBe('Photos/2024') })") },
-      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('容忍两侧末尾斜杠', () => { expect(relPathUnderMount('/DATA/', '/DATA/Photos/')).toBe('Photos') })") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('get relative path from volume root', () => { expect(relPathUnderMount('/DATA', '/DATA/Photos/2024')).toBe('Photos/2024') })") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('tolerate trailing slash on both sides', () => { expect(relPathUnderMount('/DATA/', '/DATA/Photos/')).toBe('Photos') })") },
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("const restore = vi.fn().mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })") },
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("item: { path: '/DATA/.snapshots/snap1/Photos/a.jpg' },") },
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(restore).toHaveBeenCalledWith({ volume_uuid: 'u-data', snapshot: 'snap1', path: 'Photos/a.jpg' })") },
@@ -224,6 +238,10 @@ export const SOFT = [
       { file: /src\/styles\/theme\.css$/, re: exactLine("/* SP11: the paper theme's text is near-black (#1c1b19), so a dark photo needs") },
       { file: /src\/styles\/theme\.css$/, re: exactLine('     15% on 2026-08-08, down from the 55% this shipped with: at 55% the photo was') },
       { file: /src\/styles\/theme\.css$/, re: exactLine('     the photo and almost all of its text. Anything the veil alone has to carry') },
+      // 2026-08-15: the English-ification sweep turned this shadow comment's "照片/视频"
+      // into "photos/videos". Same sense as the entries above -- the media the overlay
+      // sits on top of (image/video preview is a kept surface), not the photos app.
+      { file: /src\/styles\/theme\.css$/, re: exactLine("/* Shadow for overlays sitting above media (photos/videos): content color can't be") },
     ],
   },
   {
@@ -235,6 +253,10 @@ export const SOFT = [
       { file: /src\/settings\/util\/migrateBrowse\.ts$/, re: /Gallery/ },
       { file: /src\/settings\/panels\/AppsPanel\.vue$/, re: /Gallery/ },
       { file: /src\/home\/grid\/defaultLayout\.ts$/, re: /\/DATA\/Gallery/ },
+      // 2026-08-15: the frozen copy oss/files/defaultLayout.ts had its ASCII grid map
+      // translated, so the folder tile drawn as "[图库]" is now "[Gallery]". Same
+      // system default folder as the entry above, drawn instead of written as a path.
+      { file: /src\/home\/grid\/defaultLayout\.ts$/, re: exactLine('// r6  [                  ][Docs][Downloads][Media][Gallery][      ][    ][    ]') },
       { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /Gallery/ },
       // E6:Vue2 逐字移植的路径归一(应用导入时的目录归一化),/DATA/Gallery 是
       // LocalStorage 开机自建的系统目录,与相册功能无关,是保留面。
@@ -305,7 +327,12 @@ export const SOFT = [
       // 问题)。收紧为整行精确匹配:StorePage.vue 是应用商店的分类/作者/关键字过滤器
       // (spec §3.1 三个深链参数之一),与被删除的 NimoOS-Search 服务/SearchDialog.vue
       // 无关,9 处全部逐字摘自源码。
-      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 深链三参(spec §3.1):?category= / ?author= / ?search=,单一事实源=路由 query') },
+      // 2026-08-14:StorePage.vue 的四条中文注释已在私有侧译成英文,原中文整行不再命中。
+      // 说明的仍是应用商店自己的关键字过滤器(保留面),与被剥离的 NimoOS-Search 无关。
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// Three deep-link params (spec §3.1): ?category= / ?author= / ?search=; single source of truth = route query') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// Search input: write query after 250ms debounce (same as Vue2); external query changes (back navigation) flow back into the input') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// Category/author are backend parameters: refetch on query change; search is frontend-only, no refetch') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// The featured strip only shows in the unfiltered, unsearched first-screen context -- when filtering/searching, the list is the answer the user wants and the strip is noise') },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine("const search = computed(() => (typeof route.query.search === 'string' && route.query.search) || '')") },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('const searchInput = ref(search.value)') },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('watch(searchInput, (v) => {') },
@@ -324,8 +351,14 @@ export const SOFT = [
       // 重复出现两次,exactLine 天然覆盖两处)。
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("await w.get('.store-search input').setValue('jelly')") },
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("expect(replace).toHaveBeenCalledWith({ query: { search: 'jelly' } })") },
-      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('?search= 生效时前端过滤;点卡片进详情', async () => {") },
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('When ?search= takes effect, frontend filtering; click card to go to detail', async () => {") },
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("routeQuery.search = 'jelly'") },
+      // 2026-08-15:StorePage.test.ts 的三条用例标题与 Files.vue 的粘贴注释已在私有侧译成
+      // 英文,原中文整行(登记在下面 '搜索' 那条)不再命中。语义未变:应用商店自己的关键字
+      // 过滤器 / 文件区自己的文件名过滤输入框,都与被剥离的 NimoOS-Search 无关。整行精确匹配。
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('Search input debounced 250ms then replace route query (frontend filtering, deep link)', async () => {") },
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('Featured strip only shows when there is no search + all categories + all sources', async () => {") },
+      { file: /src\/views\/Files\.vue$/, re: exactLine("// Don't steal the browser's default paste when focus is in an input (rename/search/etc.); silently ignore when the clipboard holds only text.") },
       // write-root-redirect.sh / writeRootRedirect.test.ts:这里的 'search' 是浏览器
       // Location 接口的 .search 属性(URL 查询串),根重定向页把它原样透传给 /app/
       // 目标应用(连同 .hash),与被剥离的 NimoOS-Search 服务/SearchDialog.vue 毫无关系。
@@ -347,6 +380,10 @@ export const SOFT = [
       // 既有写法参考),不依赖被剥离的 NimoOS-Search 服务或 SearchDialog.vue 本身的
       // 任何功能。已用 oss/export.mjs 实测确认这条命中,逐行精确匹配登记。
       { file: /src\/components\/WallpaperDialog\.vue$/, re: exactLine('// wallpaper this dialog previews. Following SearchDialog.vue instead --') },
+      // 2026-08-14(bug.txt #2 改名长度校验):注释里的 "search result" 指文件区列表里
+      // 由搜索结果驱动的重命名(文件区自身的结果列表,保留面),与 NimoOS-Search 服务无关。
+      { file: /src\/files\/composables\/useFileOps\.ts$/, re: exactLine('// the rename is driven from a search result or the sidebar. Without this the') },
+      { file: /src\/files\/composables\/useFileOps\.test\.ts$/, re: exactLine('// two differ whenever the rename is driven from a search result or the') },
     ],
   },
   { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
@@ -407,6 +444,10 @@ export const SOFT = [
       { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("appsStoreSearch: '搜索应用…',") },
       // StorePage 这三行注释是"应用商店按关键字过滤"语义,与 AI 语义搜索无关。逐行精确匹配,
       // 不是给整个文件的"搜索"二字开洞 —— 见上方复审 Critical 的复现证据。
+      // 2026-08-15:这三行连同 StorePage.test.ts 的用例标题、Files.vue 的粘贴注释都已在
+      // 私有侧译成英文,产出树里不再出现中文原文;条目保留是因为守卫自检用它们当样本
+      // (forbidden.test.mjs 逐条构造"合法原文 + 尾部追加泄漏"),等价的英文整行登记在
+      // 上面 'search' 那条。
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框') },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 分类/作者是后端参数:query 变化即重拉;搜索纯前端不重拉') },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 推荐带只在「未过滤未搜索」的首屏语境显示——过滤/搜索时列表就是用户要的答案,带子是噪音') },
@@ -496,6 +537,10 @@ export const SOFT = [
       // 这里按**包名精确枚举**,如果 lockfile 里哪天真的出现 nimoos-parser 或任何其他
       // 新的 "*-parser" 依赖,这条正则不会匹配到它,仍然会被抓到人工看一眼。
       { file: /(^|\/)pnpm-lock\.yaml$/, re: /@babel\/(helper-string-)?parser\b|@csstools\/css-(parser-algorithms|color-parser)\b|(?:engine|socket)\.io-parser\b|yargs-parser\b/ },
+      // 2026-08-15: the English-ification sweep rendered "不依赖解析器" as
+      // "parser-independent" here. It describes the colour guard doing regex over raw
+      // source text instead of jsdom's CSSOM -- nothing to do with NimoOS-Parser.
+      { file: /src\/styles\/color-guard\.test\.ts$/, re: exactLine("// Detection method (parser-independent, so it doesn't rely on jsdom's CSSOM): strip `/* … */` **non-greedily** per CSS semantics") },
     ],
   },
   { word: 'wiki', re: /wiki/i, allow: [] },
@@ -509,33 +554,34 @@ export const SOFT = [
   },
 ]
 
-const MAX_BYTES = 2 * 1024 * 1024 // 2 MB —— 超限的文件跳过,但留痕(见 scanTree)
-const SNIFF_BYTES = 8 * 1024 // 只抽查开头 8KB 判二进制,足够且快
+const MAX_BYTES = 2 * 1024 * 1024 // 2 MB — files over limit are skipped but logged (see scanTree)
+const SNIFF_BYTES = 8 * 1024 // only scan first 8KB to judge binary, sufficient and fast
 
-// T14(B2):这两条"预期内跳过"文案原来只在 scanTree() 里出现一次、又在 export.mjs 的
-// isExpectedSkip() 里被第二次逐字硬编码比对——两处措辞必须逐字相同,改一个标点(比如
-// 顿号变逗号)就会让 export.mjs 的分类静默滑到"预期外→fatal"那一侧,而且没有任何测试
-// 会发现(tree.test.mjs 跑导出用的是 --skip-guard,根本不经过这段分类逻辑)。提成
-// 具名常量 + 导出的 isExpectedSkip(),让 scanTree 和 export.mjs 共享同一份字面量 ——
-// 结构上排除"两处文案漂移"这种可能性,而不是指望人工保持同步。
-export const SKIP_REASON_SYMLINK = '符号链接,未跟随、未扫描'
-export const SKIP_REASON_BINARY = '判定为二进制,未扫描'
+// T14(B2): these two "expected skip" messages used to appear once in scanTree(), and second time
+// hardcoded-exact-match in export.mjs's isExpectedSkip() — the two locations must be wording-identical,
+// change one punctuation (e.g. Chinese comma to ASCII comma) and export.mjs's classification silently
+// drifts to "unexpected→fatal" side, no test catches it (tree.test.mjs runs export with --skip-guard,
+// never goes through this classification logic). Factor into named constants + export isExpectedSkip(),
+// let scanTree and export.mjs share one literal — structurally eliminates "two-location wording drift"
+// possibility, not relying on manual sync.
+export const SKIP_REASON_SYMLINK = 'symbolic link, not followed, not scanned'
+export const SKIP_REASON_BINARY = 'determined to be binary, not scanned'
 
 /**
- * 判断一条 __skipped__ 记录是"预期内"(二进制/符号链接,只警告、不算失败)还是
- * "预期外"(读取失败/stat 失败/超过体积上限/目录读取失败,仍然 fatal)。
- * 精确匹配 SKIP_REASON_SYMLINK / SKIP_REASON_BINARY 这两条固定文案;其余一律落入
- * "预期外"——这也让 scanTree 未来新增的任何跳过原因默认按"预期外"处理,不会因为
- * 这里没跟着更新而被静默放过。
+ * Determine if a __skipped__ record is "expected" (binary/symlink, warning only, not failure)
+ * or "unexpected" (read failure/stat failure/over size limit/directory read failure, still fatal).
+ * Exact match SKIP_REASON_SYMLINK / SKIP_REASON_BINARY these two fixed messages; all others fall into
+ * "unexpected" — this also makes any future skip reasons added to scanTree default to "unexpected"
+ * handling, won't be silently passed because this wasn't updated.
  */
 export function isExpectedSkip(excerpt) {
   return excerpt === SKIP_REASON_SYMLINK || excerpt === SKIP_REASON_BINARY
 }
 
 /**
- * 二进制启发式:开头 8KB 里出现 NUL 字节就判定为二进制。比按扩展名判断可靠 ——
- * 这棵树里确实混着真二进制(例如 src/home/apps/icons/*.png),按 utf8 硬读会
- * 产生乱码触发的垃圾误报,还慢。
+ * Binary heuristic: if NUL byte appears in first 8KB, judge as binary. More reliable than
+ * extension-based judgment — this tree actually mixes real binaries (e.g. src/home/apps/icons/*.png),
+ * forcing utf8 read produces garbage that triggers false positives, also slow.
  */
 function looksBinary(buf) {
   const n = Math.min(buf.length, SNIFF_BYTES)
@@ -549,7 +595,7 @@ function allowed(rules, relPath, line) {
   return rules.some((r) => r.file.test(relPath) && r.re.test(line))
 }
 
-/** 扫一段文本。返回命中列表(空数组 = 干净)。 */
+/** Scan a text segment. Return list of hits (empty array = clean). */
 export function scanText(relPath, text) {
   const out = []
   const lines = text.split('\n')
@@ -568,36 +614,36 @@ export function scanText(relPath, text) {
 }
 
 /**
- * 递归扫整棵树。排除法,不是白名单法:除 `.git`/`node_modules`/`dist` 目录外,
- * **每个文件都读**。跳过绝不静默 —— 每次跳过都在返回数组里追加一条
- * `word: '__skipped__'` 的记录,消费方(Task 14 的导出流程)一旦看到这个
- * 哨兵词就知道该文件没有被内容扫描过,得自己决定要不要额外处理。
- * 纪律 #3 的精神是「守卫烂掉的标准路径是静默豁免」——不留痕的跳过等于悄悄开了个口子。
+ * Recursively scan entire tree. Exclusion-based, not whitelist-based: **read every file** except
+ * `.git`/`node_modules`/`dist` directories. Skips never silent — each skip appends a `word: '__skipped__'`
+ * record to return array, consumers (Task 14 export flow) seeing this sentinel word knows this file
+ * wasn't content-scanned, must decide if extra handling needed. Discipline #3 spirit: "guard's
+ * standard degrade path is silent exemption" — skip without trace equals quietly opening a hole.
  *
- * 跳过的情形:
- *   ① 符号链接(不跟随,不管指向文件还是目录) —— 第二轮复审 Important:本仓
- *      `.claude/worktrees/NimoOS-Service` 是一个指向目录的符号链接。
- *      `readdirSync(..., {withFileTypes:true})` 内部用 lstat,`Dirent.isDirectory()`
- *      对符号链接返回 false(不跟随),会落进"文件"分支;而 `fs.statSync`/
- *      `fs.readFileSync` 默认跟随符号链接,对指向目录的链接跟读会直接抛
- *      `EISDIR` 崩掉整个扫描。改成先用 `Dirent.isSymbolicLink()` 识别并跳过 ——
- *      符号链接指向的真实内容如果本就在树内,会通过它的真实路径被正常扫到,
- *      不会因为跳过链接本身而漏扫。
- *   ② 体积超过 MAX_BYTES 的 —— 但不是无条件按"超限"分类:先只读文件开头 SNIFF_BYTES
- *      字节做 ③ 的二进制嗅探(fs.openSync/readSync,不读整个大文件),嗅出二进制就按
- *      ③ 的 SKIP_REASON_BINARY 分类(预期内、非 fatal,与体积在上限内的二进制文件
- *      一视同仁);嗅探不出二进制才落回"超过体积上限"(预期外、仍 fatal)。2026-08-07
- *      (SP11 wallpaper 收尾票):MAX_BYTES is a scan-cost limit, not a trust boundary —
- *      a 2.2MB JPEG is no more dangerous than the sub-cap binary assets this guard
- *      already skips-and-logs. What the cap must keep catching is an oversized
- *      *text* file, which could genuinely hide a secret in a region nobody read.
- *   ③ 开头 SNIFF_BYTES(8KB)判定为二进制的(looksBinary)—— 未超限文件读整份内容后
- *      嗅探;超限文件复用同一嗅探函数,但只读开头这一段。
- *   ④ 任何 stat/read/readdir 失败的(权限问题、竞态删除等)—— 兜底 try/catch,绝不静默丢帧。
- *      超限文件的"只读开头"这一步本身也可能失败,同样归入这一类,不静默吞掉。
- *      第三轮复审顺带加固:目录本身的 `readdirSync` 之前没包 try/catch,子目录若在遍历
- *      途中被并发删除、或没有读权限,会像符号链接那次一样让整个 scanTree 崩掉;现在也
- *      计入 __skipped__。
+ * Skip cases:
+ *   ① Symbolic links (not followed, whether pointing to file or directory) — second review Important:
+ *      this repo's `.claude/worktrees/NimoOS-Service` is a symlink pointing to directory.
+ *      `readdirSync(..., {withFileTypes:true})` internally uses lstat, `Dirent.isDirectory()`
+ *      returns false for symlinks (no following), falls into "file" branch; but `fs.statSync`/
+ *      `fs.readFileSync` follow symlinks by default, reading a link pointing to directory throws
+ *      `EISDIR` crashes entire scan. Changed to use `Dirent.isSymbolicLink()` to identify and skip first ——
+ *      the real content pointed to by symlink, if already in tree, gets scanned through its real path,
+ *      won't be missed just because we skip the link itself.
+ *   ② Files over MAX_BYTES — but not unconditionally classified as "over limit": first only read
+ *      file start SNIFF_BYTES bytes for ③ binary sniffing (fs.openSync/readSync, not whole large file),
+ *      if sniffing detects binary classify as ③'s SKIP_REASON_BINARY (expected, non-fatal, same
+ *      treatment as sub-cap binary files); only when sniffing doesn't detect binary fall back to
+ *      "over size limit" (unexpected, still fatal). 2026-08-07 (SP11 wallpaper cleanup ticket):
+ *      MAX_BYTES is a scan-cost limit, not a trust boundary — a 2.2MB JPEG is no more dangerous
+ *      than the sub-cap binary assets this guard already skips-and-logs. What the cap must keep
+ *      catching is an oversized *text* file, which could genuinely hide a secret in unread region.
+ *   ③ Determined binary by first SNIFF_BYTES(8KB) (looksBinary) — after reading full content for non-over-limit files,
+ *      sniffing; over-limit files reuse same sniff function but only read the start portion.
+ *   ④ Any stat/read/readdir failure (permission issues, race deletions, etc.) — fallback try/catch, never silent frame loss.
+ *      The "read-only-start" step itself for over-limit files can also fail, same category, don't silently swallow.
+ *      Third review bonus hardening: directory's own `readdirSync` previously had no try/catch, subdirectories
+ *      if deleted concurrently during traversal or lack read permission would crash entire scanTree like symlinks
+ *      did; now also counts as __skipped__.
  */
 export function scanTree(rootDir) {
   const findings = []
@@ -608,7 +654,7 @@ export function scanTree(rootDir) {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true })
     } catch (err) {
-      skip(path.relative(rootDir, dir) || '.', `目录读取失败,未扫描:${err.message}`)
+      skip(path.relative(rootDir, dir) || '.', `directory read failed, not scanned: ${err.message}`)
       return
     }
     for (const e of entries) {
@@ -629,7 +675,7 @@ export function scanTree(rootDir) {
       try {
         stat = fs.statSync(abs)
       } catch (err) {
-        skip(rel, `stat 失败,未扫描:${err.message}`)
+        skip(rel, `stat failed, not scanned: ${err.message}`)
         continue
       }
       if (stat.size > MAX_BYTES) {
@@ -655,10 +701,10 @@ export function scanTree(rootDir) {
             fs.closeSync(fd)
           }
         } catch (err) {
-          skip(rel, `读取失败,未扫描:${err.message}`)
+          skip(rel, `read failed, not scanned: ${err.message}`)
           continue
         }
-        skip(rel, looksBinary(head) ? SKIP_REASON_BINARY : `超过 ${MAX_BYTES} 字节上限,未扫描`)
+        skip(rel, looksBinary(head) ? SKIP_REASON_BINARY : `exceeded ${MAX_BYTES} byte limit, not scanned`)
         continue
       }
 
@@ -666,7 +712,7 @@ export function scanTree(rootDir) {
       try {
         buf = fs.readFileSync(abs)
       } catch (err) {
-        skip(rel, `读取失败,未扫描:${err.message}`)
+        skip(rel, `read failed, not scanned: ${err.message}`)
         continue
       }
       if (looksBinary(buf)) {
@@ -680,82 +726,93 @@ export function scanTree(rootDir) {
   return findings
 }
 
-// ─── T15:dist 扫描 —— 构建产物是第二道后备闸,判据与源码树扫描不同 ─────────────
+// ─── T15: dist scan — build artifacts are second-stage backup gate, criteria differ from source tree scan ─────────────
 //
-// 为什么不能直接把 scanTree 指向 dist/ 了事(T15 实测过,64 条命中,逐条溯源见
-// task-15-report.md):
-//   1. **这道门防的是"我方内容(i18n 值/注释)被打进 bundle",不是审查第三方库内部
-//      写了什么。** 源码树扫描(scanText/scanTree,原样不动,仍是主防线)已经在
-//      "我方代码进产物之前"拦过一轮;dist 扫描的职责窄得多——只确认"打包这一步
-//      没有意外夹带我方泄漏",不是重新审查 pdf.js/xlsx 这些第三方库的实现。
-//   2. **ASCII 软禁词(photo/gallery/search/ai/parser/wiki/speaker/folderPermission）
-//      是通用英文子串**,压缩产物里第三方库类名(pdf.js 的 `Parser` 类)、内嵌数据
-//      (xlsx 的 Excel 97 宏函数表 `GALLERY.AREA`）、MIME 常量
-//      (`image/vnd.ms-photo`)、Rollup 生成的两字母压缩导入别名、SVG 里内嵌的
-//      base64 二进制数据,在这个规模的产物里撞上通用英文子串统计上几乎不可避免。
-//      T15 实测:64 条命中里硬禁词 0、中文软禁词 0,64 条全部是 ASCII 软禁词。
-//      **那两个 0 恰恰是"我方内容漏进 bundle"唯一会亮的信号类别**——我方注释/文案
-//      以中文为主,硬禁词是无歧义的品牌/技术栈标记,压缩后的第三方 ASCII 代码不会
-//      偶然含中文或我方品牌词。
-//   3. **exactLine() 那套逐行白名单在压缩产物里结构性失效。** 构建后整个文件常常
-//      挤在第 1 行(如 `assets/index-*.css`),路径也被内容哈希重命名
-//      (`public/widget-kit.css` 变成 `widget-kit.css`,白名单的 file 正则直接失配)。
-//      继续按"文件+整行"配白名单,等价于把白名单退化成"只要出现在这个哈希文件名
-//      的产物里就放行"——那正是本项目明令禁止的"放宽词表"的另一种写法,而且哈希
-//      文件名每次构建都变,维护上也不可持续。
+// Why can't just point scanTree at dist/ (T15 tested, 64 hits, full tracebacks in task-15-report.md):
+//   1. **This gate prevents "our content (i18n values/comments) leaking into bundle", not reviewing what third-party
+//      libraries internally wrote.** Source-tree scan (scanText/scanTree, unchanged, still primary defense line) already
+//      intercepted one round "before our code enters artifact"; dist scan's duty is much narrower — only verify "bundle
+//      step didn't accidentally mix our leaks", not re-audit pdf.js/xlsx third-party implementations.
+//   2. **ASCII soft-forbidden words (photo/gallery/search/ai/parser/wiki/speaker/folderPermission) are universal English
+//      substrings**, in minified artifacts third-party library class names (pdf.js's `Parser` class), embedded data
+//      (xlsx Excel 97 macro function table `GALLERY.AREA`), MIME constants (`image/vnd.ms-photo`), Rollup-generated
+//      two-letter compressed import aliases, SVG-embedded base64 binary data — on this artifact scale colliding with
+//      universal English substrings is statistically almost inevitable. T15 actual test: of 64 hits, hard-forbidden 0,
+//      Chinese soft-forbidden 0, all 64 are ASCII soft-forbidden. **Those two 0s are exactly the only signal class for
+//      "our content leaked into bundle"** — our comments/copy are mainly Chinese, hard-forbidden words are unambiguous
+//      brand/tech-stack marks, compressed third-party ASCII code won't accidentally contain Chinese or our brand words.
+//   3. **exactLine() per-line whitelist structurally breaks in minified output.** After build entire file often squashed to
+//      line 1 (like `assets/index-*.css`), paths also content-hash-renamed (`public/widget-kit.css` becomes `widget-kit.css`,
+//      whitelist's file regex directly won't match). Continuing to whitelist by "file + entire line" is equivalent to
+//      degrading whitelist to "as long as it appears in this hash-named artifact, pass" — exactly what this project
+//      forbids as "loosening the word list" in another form, and hash filenames change per build, not maintainable.
 //
-// 因此:dist 扫描只用 **HARD(全部,不分中英文)+ SOFT 里 word 含中文字符的条目**,
-// 明确排除纯 ASCII 的 SOFT 词。判断"是不是中文词"用 /[一-龥]/ 测试 word 本身,
-// 不硬编码词名单——以后 HARD/SOFT 加新词,这条判据自动跟着分类,不会漏。
-// HARD/SOFT 词表定义本身一个字不动;这里只是消费方,用不同的过滤条件读它们。
+// Therefore: dist scan only uses **HARD (all, English or Chinese) + SOFT entries whose word contains Chinese characters**,
+// explicitly excluding pure-ASCII SOFT words. Judge "is it a Chinese word" by testing /[一-龥]/ against the word itself,
+// don't hardcode word list — future HARD/SOFT additions auto-categorize, no leaks. HARD/SOFT word list definitions
+// unchanged; here is just consumer, reading them with different filter conditions.
 
-/** word 本身含中文字符即判定为"中文词"。不硬编码词名单,词表增删自动跟着分类。 */
+/** If word itself contains Chinese characters, judge as "Chinese word". Don't hardcode word list, additions/deletions auto-categorize. */
 function isChineseWord(word) {
   return /[一-龥]/.test(word)
 }
 
 /**
- * dist 专用内容白名单:压缩产物里"文件+行号"定位失效,改成**内容子串精确匹配**——
- * 只认逐字摘自源码的字符串本身,不看文件/行号。这两条是 T15 实测到的、当前 dist
- * 构建里仅有的两处"我方合法内容撞上中文软禁词"(均已在源码树白名单里逐行豁免过,
- * 见 forbidden.mjs SOFT 表 照片/搜索 词条的注释):
- *   - raidLevel1Usecase 的 RAID 用途说明("照片库…"),与相册 app 无关。
- *   - appsStoreSearch 的应用商店筛选框占位符,与 NimoOS-Search 服务无关。
- * 与源码树 exactLine() 同一条纪律:任何增删都会让子串匹配失效、退回"未豁免",
- * 不会带着新泄漏一起被放行。命中后**只把这段子串本身替换成等长空白再继续扫描
- * 同一行的其余内容**——不是跳过整行,因为压缩产物里一行可能是几十 KB 的整个模块,
- * 跳过整行会连同一行里其余的真实泄漏一起放过。
+ * Dist-only content allowlist. "file + line" targeting breaks down in minified
+ * output, so this matches **exact content substrings** instead — only strings
+ * copied verbatim from the source, never file/line coordinates. Every entry
+ * corresponds to a line already exempted in the source-tree allowlist (see the
+ * SOFT-table notes on the photo/search entries in this file):
+ *   - raidLevel1Usecase's RAID usage blurb ("photo library…") — unrelated to the
+ *     photos app. (T15)
+ *   - appsStoreSearch, the app-store filter placeholder — unrelated to the
+ *     NimoOS-Search service. (T15)
+ *   - themePhoto, the top-bar theme menu entry (SP11 wallpaper: pick a photo
+ *     as wallpaper) — unrelated to the photos app. Key-qualified on purpose so
+ *     a bare "photo…" elsewhere is not blanket-exempted. (2026-08-11 snapshot)
+ *   - The google-drive.html guide sentence telling the user to search for the
+ *     Drive API in the Google console — unrelated to the NimoOS-Search
+ *     service. (2026-08-11 snapshot)
+ * Same discipline as the source tree's exactLine(): any edit breaks the
+ * substring match and the line falls back to "not exempted" — a new leak can
+ * never ride along. On a match, **only the matched substring is replaced with
+ * equal-length blanks and scanning continues on the rest of the line** — the
+ * line is never skipped wholesale, because one minified line can be an entire
+ * multi-KB module and skipping it would also skip any real leak sharing it.
  */
 const DIST_ALLOW = [
   '照片库、个人 NAS、启动卷',
   '搜索应用…',
+  'themePhoto:"照片…"',
+  '搜索 <b>Google Drive API</b>',
 ]
 
 /**
- * T15(b):品牌/私有路径 grep 制度化——原来只在 T15 报告里手工跑过一次、免疫压缩
- * (查的是服务名/路由前缀这种整串字面量,不是英文子串,不会被压缩打散),现在固定
- * 成 dist 扫描的一部分,命中即 fatal。`nimoos-search|nimoos-parser|nimoos-photos|
- * nimoos-ai` 四个私有服务名不会与合法内嵌的 `@nimotech/nimoos-service` 共享包
- * 混淆——"service" 不是这四个词里任何一个的子串,也不是它们的父串。
- * `photos_data|qdrant|ollama|immich|wikiRoot|192\.168\.1\.115` 已经在 HARD 表里
- * 覆盖,这里不重复收;只新增 HARD/SOFT 都没有的两类信号:私有服务名字面量、
- * `/v1/(ai|search|photos|parser)/` 这四个被剥离服务的网关路由前缀。
+ * T15(b): Institutionalize brand/private path grep — originally manually run once in T15 report,
+ * immune to minification (searching for service names/route prefixes as complete literal strings,
+ * not English substrings, won't be scattered by minification), now fixed as part of dist scan,
+ * hit means fatal. The four private service names `nimoos-search|nimoos-parser|nimoos-photos|
+ * nimoos-ai` won't confuse with legitimate embedded `@nimotech/nimoos-service` shared package —
+ * "service" is not a substring of any of those four, nor are they substrings of it.
+ * `photos_data|qdrant|ollama|immich|wikiRoot|192\.168\.1\.115` already covered in HARD table,
+ * don't duplicate here; only add two signal classes not in HARD/SOFT: private service name literals,
+ * `/v1/(ai|search|photos|parser)/` gateway route prefixes of these four removed services.
  */
 const BRAND_RE = /nimoos-search|nimoos-parser|nimoos-photos|nimoos-ai|\/v1\/(ai|search|photos|parser)\//
 
-// dist 专属的体积上限:MAX_BYTES(2MB)是为源码树的手写文件定的,真实构建产物里
-// 单个 vendor chunk 轻松超过它(本仓实测 index-*.js 主 chunk 3.4MB、Excel 查看器
-// chunk 1.6MB)——如果沿用 2MB 上限,恰恰是内容最多、最该扫的大文件被当成"预期外
-// 跳过"而 fatal,逼着人每次都去扩体积上限,形同虚设。dist 扫描的输入是构建产物,
-// 数量少(几十到上百个 chunk),体积大但读入内存毫无压力,直接放宽到 64MB——
-// 真出现比这更大的单文件才值得让人停下来看一眼。
+// Dist-specific size limit: MAX_BYTES (2MB) is for source tree hand-written files, real build artifacts'
+// individual vendor chunks easily exceed it (this repo test: index-*.js main chunk 3.4MB, Excel viewer
+// chunk 1.6MB) — if keeping 2MB limit, exactly the largest, most-need-scanning files are "unexpected skip"
+// fatal, forcing someone to expand size limit every time, amounts to nothing. dist scan input is build artifacts,
+// quantity small (dozens to hundreds of chunks), large volume but reading into memory causes no pressure,
+// directly relax to 64MB — only if a single file actually exceeds this is it worth stopping to review.
 const DIST_MAX_BYTES = 64 * 1024 * 1024
 
 /**
- * 扫构建产物(dist/)。与 scanTree 结构相同(二进制/符号链接跳过、留痕、
- * __skipped__ 哨兵、isExpectedSkip 复用),但判词逻辑是上面这套专属规则
- * (不是 scanText),体积上限也单独放宽(DIST_MAX_BYTES,理由见上)。
- * 品牌 grep 命中打 word: 'brand-leak'。
+ * Scan build artifacts (dist/). Same structure as scanTree (binary/symlink skip, logging,
+ * __skipped__ sentinel, isExpectedSkip reuse), but word-judging logic uses the specialized
+ * rules above (not scanText), size limit also separately relaxed (DIST_MAX_BYTES, reasoning above).
+ * Brand grep hits mark word: 'brand-leak'.
  */
 export function scanDist(rootDir) {
   const words = [...HARD, ...SOFT.filter((s) => isChineseWord(s.word))]
@@ -767,7 +824,7 @@ export function scanDist(rootDir) {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true })
     } catch (err) {
-      skip(path.relative(rootDir, dir) || '.', `目录读取失败,未扫描:${err.message}`)
+      skip(path.relative(rootDir, dir) || '.', `directory read failed, not scanned: ${err.message}`)
       return
     }
     for (const e of entries) {
@@ -787,11 +844,11 @@ export function scanDist(rootDir) {
       try {
         stat = fs.statSync(abs)
       } catch (err) {
-        skip(rel, `stat 失败,未扫描:${err.message}`)
+        skip(rel, `stat failed, not scanned: ${err.message}`)
         continue
       }
       if (stat.size > DIST_MAX_BYTES) {
-        skip(rel, `超过 ${DIST_MAX_BYTES} 字节上限,未扫描`)
+        skip(rel, `exceeded ${DIST_MAX_BYTES} byte limit, not scanned`)
         continue
       }
 
@@ -799,7 +856,7 @@ export function scanDist(rootDir) {
       try {
         buf = fs.readFileSync(abs)
       } catch (err) {
-        skip(rel, `读取失败,未扫描:${err.message}`)
+        skip(rel, `read failed, not scanned: ${err.message}`)
         continue
       }
       if (looksBinary(buf)) {
@@ -811,8 +868,8 @@ export function scanDist(rootDir) {
       const lines = text.split('\n')
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
-        // 只把已知合法子串本身"挖空"成等长空白,不跳过整行——压缩产物一行可能
-        // 是几十 KB 的整个模块,跳过整行会放过同一行里其余的真实泄漏。
+        // Only "hollow out" known-legitimate substrings themselves to equal-length blanks, don't skip entire line —
+        // one minified line can be tens of KB of an entire module, skipping entire line would miss any real leaks on same line.
         let scanLine = line
         for (const allow of DIST_ALLOW) {
           if (scanLine.includes(allow)) scanLine = scanLine.split(allow).join(' '.repeat(allow.length))

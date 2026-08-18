@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted } from 'vue'
 
-// 单飞递归 setTimeout 轮询:上一拍 await 完成后才排下一拍,永不重叠。
+// Single-flight recursive setTimeout polling: schedule the next beat only after the previous
+// beat awaits, never overlapping.
 export function useGuardedPoll(
   fn: () => Promise<void> | void,
   opts: { intervalMs: number; active: () => boolean },
@@ -12,7 +13,8 @@ export function useGuardedPoll(
     try {
       if (opts.active()) await fn()
     } catch {
-      // 单拍失败吞掉,下一拍继续(调用方 fn 内部已 catch 并记 message)
+      // Swallow failure of a single beat, continue with next beat (caller's fn already catches
+      // and logs the message internally)
     }
     if (stopped) return
     timer = window.setTimeout(tick, opts.intervalMs)

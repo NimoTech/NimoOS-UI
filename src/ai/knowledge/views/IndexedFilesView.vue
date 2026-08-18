@@ -1,223 +1,255 @@
 <!--
-  SP8-P5b Task 8 —— 「已收录文件」页,第 1 刀:骨架 + 过滤条 + 表头 meta + 错误
-  横幅 + 骨架屏 + 空态。1:1 移植自 Vue2 蓝本 `NimoOS-UI` (main@7a6ee6b7)
-  `src/views/AI/Knowledge/IndexedFilesView.vue`(826 行,`git show main:` 读取,
-  治理文件 §1:工作树是旧分支不可信)。
+  SP8-P5b Task 8 — "Indexed Files" page, cut 1: skeleton + filter bar + head meta +
+  error banner + skeleton screen + empty state. 1:1 ported from Vue2 reference
+  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/IndexedFilesView.vue`
+  (826 lines, read via `git show main:`; codebase review §1: worktree is an
+  old branch and untrustworthy).
 
-  🔴 本文件三刀叠加(T8→T9→T10),物理上不能并发。**本刀范围严格是蓝本
-  `:1-142` 的模板 + 对应脚本**,范围外的东西(:143 起的 ready 态表格+分页+
-  文件详情+批量动作条+整库重建弹窗等)一个字都没有搬,故意留到 T9/T10:
-    - `pageState === 'ready'` 分支(表格主体、分页、行详情展开)—— T9/T10
+  🔴 This file is built over three cuts (T8→T9→T10) and cannot be done in parallel.
+  **This cut's scope strictly covers lines :1-142 of the reference template +
+  corresponding script**, everything else (:143 onward with ready-state table +
+  pagination + file details + batch action bar + full-rebuild modal etc) is not
+  ported at all — intentionally left for T9/T10:
+    - `pageState === 'ready'` branch (table body, pagination, row detail expand) — T9/T10
     - `selectedCount`/`overExplicitCap`/`rebuildRow`/`rebuildSelected`/
-      `openRebuildAllConfirm`/`doRebuildAll` 等动作条与确认弹窗 —— T9/T10
-    - `expSet`/`doneSet`(展开行 / 绿色闪烁反馈)—— T9/T10 才用到
-    - `EXPLICIT_REBUILD_CAP`(动作条专用上限,本刀错误横幅只用到
-      `FILTER_REBUILD_CAP`)—— T9/T10
-  本刀范围内(骨架容器 / 过滤条 7 件 / 表头 meta / 错误横幅 / 骨架屏 / 空态)
-  的 DOM 是完整的,不留半个标签、不留 TODO、不留「T9 补」的空壳。
+      `openRebuildAllConfirm`/`doRebuildAll` etc. action bar and confirm modal — T9/T10
+    - `expSet`/`doneSet` (row expand / green flash feedback) — only used in T9/T10
+    - `EXPLICIT_REBUILD_CAP` (action bar exclusive limit; this cut uses
+      `FILTER_REBUILD_CAP` for error banner only) — T9/T10
+  The DOM within this cut's scope (skeleton container / 7 filter controls /
+  head meta / error banner / skeleton screen / empty state) is complete — no
+  partial tags, no TODOs, no hollow "T9 to fill" shells.
 
-  结构对照(蓝本行区间 → 本文件):
-    :1-5     .k-view / .k-scroll / .k-scroll-inner 骨架容器
-    :6-57    过滤条 7 件(Root 下拉 / 路径前缀 / 类型前缀 / 状态下拉 /
-             仅看失败 / 清除按钮 —— 6 个可见控件,7 是任务书口径含清除按钮)
-    :60-90   表头 meta:{n} indexed files + statusSuffix · isAnyIndexing 时的
-             「自动刷新 · 30s」· 排序下拉 + 升降序按钮
-    :93-103  错误横幅(K14 / K19,见下)
-    :106-132 骨架屏(k-ftable 假表头 + 8 行 k-skel 占位)
-    :135-142 空态(含 N10 的 .k-empty-btn)
+  Structure mapping (reference line range → this file):
+    :1-5     .k-view / .k-scroll / .k-scroll-inner skeleton container
+    :6-57    7 filter controls (Root dropdown / path prefix / type prefix /
+             status dropdown / failed-only / clear button — 6 visible controls,
+             7 is task spec count including clear button)
+    :60-90   head meta: {n} indexed files + statusSuffix · "auto-refresh · 30s"
+             when isAnyIndexing · sort dropdown + sort direction button
+    :93-103  error banner (K14 / K19, see below)
+    :106-132 skeleton screen (k-ftable dummy head + 8 rows of k-skel placeholders)
+    :135-142 empty state (includes .k-empty-btn from N10)
 
-  【K13】删掉蓝本 `selTick`/`expTick`/`doneTick`(Vue2 侦测不到 Set 变更才要的
-  强制刷新土办法,Vue3 `ref` 整体替换即触发,不需要)。本刀只用到 `selSet`
-  (`_applyFilter` 里清空);`expSet`/`doneSet` 是 T9/T10 的东西,本刀不声明。
+  【K13】Remove from reference `selTick`/`expTick`/`doneTick` (Vue2 workaround
+  for Set change detection that Vue3 doesn't need — ref replacement triggers
+  reactivity automatically). This cut only uses `selSet` (cleared in
+  `_applyFilter`); `expSet`/`doneSet` are T9/T10 things, not declared here.
 
-  【N10】蓝本 `:139` 的 `.k-empty-btn` 是蓝本自身的未定义类(`git grep
-  k-empty-btn main` 只命中这一行模板,`knowledge.scss` 里根本没有这条规则)。
-  类名照抄,渲染成无样式按钮,与 Vue2 一致 —— **不进 `knowledgeStyles.test.ts`
-  白名单**(它不是 scss 类)。
+  【N10】Reference line :139's `.k-empty-btn` is an undefined class in the
+  reference itself (`git grep k-empty-btn main` hits only this template line;
+  `knowledge.scss` has no such rule). Copy the class name as-is, renders as
+  unstyled button matching Vue2 — **do not add to `knowledgeStyles.test.ts`
+  whitelist** (it's not an scss class).
 
-  【N12】`statusViewLocal` 与 `onStatusViewChange` 承接蓝本 `:496-501`(读)/
-  `:658-664`(写)的 `active` ↔ `alive` 反向映射 —— 蓝本自带注释「原型写
-  active,API 要 alive」。UI 三值 `active`/`tombstoned`/`all`,API 侧
-  `tombstoned` 字段三值 `alive`/`tombstoned`/`all`。**两个方向都照抄,不许
-  "统一成一个名字"。**
+  【N12】`statusViewLocal` and `onStatusViewChange` handle reference lines :496-501
+  (read) / :658-664 (write) `active` ↔ `alive` bidirectional mapping — reference
+  has a comment "prototype says active, API wants alive". UI has three values
+  `active`/`tombstoned`/`all`; API side `tombstoned` field has three values
+  `alive`/`tombstoned`/`all`. **Copy both directions exactly; don't try to
+  "unify into one name".**
 
-  【K14】rebuild-all 400 分支(`errorBanner` truthy)不回显后端 `detail` ——
-  警示条只留 `400 Bad Request` + 蓝本自带那行 i18n 解释(`aiKbRebuildCapHint`)。
-  🔴 设置 `errorBanner` 为非空值的 `doRebuildAll()`(蓝本 :791-809,对应确认弹窗
-  `:356-381`)是 T9/T10 的范围,本刀不声明该函数 —— 但 `errorBanner` 这个
-  local ref 本身、以及它的展示分支(:93-103)在本刀范围内,故本刀先把展示
-  逻辑做对:即便将来 T9/T10 把后端 `detail` 塞进 `errorBanner.value`,这个分支
-  也绝不会把它渲染出来。
+  【K14】rebuild-all 400 branch (`errorBanner` truthy) does not display backend
+  `detail` — warning bar only shows `400 Bad Request` + reference's i18n string
+  (`aiKbRebuildCapHint`). 🔴 The `doRebuildAll()` that sets `errorBanner` to a
+  non-null value (reference :791-809, corresponding confirm modal :356-381) is
+  T9/T10 scope — not declared in this cut. But `errorBanner` ref itself and its
+  display branch (:93-103) are within this cut's scope, so this cut gets the
+  display logic right: when T9/T10 later stores backend `detail` in
+  `errorBanner.value`, this branch will never render it.
 
-  【K19】加载错误横幅(`storeError` truthy、`errorBanner` falsy 分支)不回显
-  `e.message`(蓝本原文 `{{ storeError }}`,而 `storeError` 就是
-  `loadIndexedFiles` catch 里 `s.error = e.message`,knowledgeStore.ts:459),
-  改用固定 `aiKbLoadErrorBody`,与 P5a `loadRoots`/`aiKbOpFailed` 同一模具。
+  【K19】Load error banner (`storeError` truthy, `errorBanner` falsy branch) does
+  not display `e.message` (reference shows `{{ storeError }}`, where `storeError`
+  comes from `loadIndexedFiles` catch setting `s.error = e.message`,
+  knowledgeStore.ts:459); instead use fixed `aiKbLoadErrorBody`, same pattern as
+  P5a's `loadRoots`/`aiKbOpFailed`.
 
-  【filters 仍在 store 里】`store.indexedFiles.filters.xxx` —— P5a 治理文件 §5
-  已定「照抄」,不把 filters 搬进组件本地状态。
+  【filters still in store】`store.indexedFiles.filters.xxx` — codebase review
+  P5a §5 settled on "copy as-is", don't move filters into component local state.
 
-  【_applyFilter 语义】四件事,一件都不能少:offset 归零 + 清选择(selSet)+
-  清 errorBanner + 重载(refresh() = 先 loadIndexedFiles 后 startIndexedPolling)。
-  `clearFilters()` 复位六个筛选字段后直接调用 `_applyFilter()`(蓝本原文把
-  offset 归零/清选择/清错误横幅/重载这四行在 `clearFilters` 里又抄了一遍——
-  与 `_applyFilter` 逐字相同,机械去重,不是行为改动)。
+  【_applyFilter semantics】Four things, all essential: zero offset + clear
+  selection (selSet) + clear errorBanner + reload (refresh() = loadIndexedFiles
+  then startIndexedPolling). `clearFilters()` resets six filter fields then
+  directly calls `_applyFilter()` (reference code repeats those four lines
+  inside `clearFilters` as well — identical to `_applyFilter`, mechanical
+  deduplication, not a behavior change).
 
-  【生命周期】`onMounted` → `refresh()`(先 `loadIndexedFiles`,后
-  `startIndexedPolling`),对应蓝本 `created()`。`onUnmounted` → 停轮询,对应
-  蓝本 `beforeDestroy()`——虽然任务书的生命周期小节只点名了 created 半边,
-  但本刀已经在挂载时可能启动 30 秒轮询(`isAnyIndexing` 为真时),
-  `startIndexedPolling` 的定时器句柄是 knowledgeStore.ts 里的**模块级**变量
-  (跨 Pinia 实例共享),不停轮询会让一个测试挂载启动的定时器持续存活并触发
-  `startIndexedPolling` 自己的守卫(`if (indexedPollTimer) return`),污染
-  后续测试/挂载——与 T5(M-4)同一教训,故补上这个必要的生命周期对称,不算
-  「提前搬 T9/T10 的东西」。
+  【Lifecycle】`onMounted` → `refresh()` (loadIndexedFiles first, then
+  startIndexedPolling), corresponds to reference `created()`. `onUnmounted` →
+  stop polling, corresponds to reference `beforeDestroy()` — even though the task
+  spec only mentions created half, this cut may start 30s polling at mount time
+  (when `isAnyIndexing` is true); `startIndexedPolling`'s timer handle is a
+  **module-level** variable in knowledgeStore.ts (shared across Pinia instances),
+  and leaving it running would let a test mount's timer persist and trigger
+  `startIndexedPolling`'s own guard (`if (indexedPollTimer) return`), polluting
+  subsequent tests/mounts — same lesson as T5(M-4), so add this necessary
+  lifecycle symmetry; it doesn't count as "early-porting T9/T10 stuff".
 
-  【颜色】附录 B 已核实本文件模板零内联色字面量,不需要 §B.0 的 color-mix
-  映射;守卫缺口③(color-guard 不扫模板 `style=`)仍然存在,测试文件里补了
-  照 T5 同款的定向断言。
+  【Colors】Appendix B confirmed this file's template has zero inline color
+  literals and doesn't need §B.0's color-mix mapping; guard gap ③
+  (color-guard doesn't scan template `style=`) still exists; tests compensate
+  with targeted assertions matching T5's pattern.
 
   ══════════════════════════════════════════════════════════════════════
-  SP8-P5b Task 9 —— 第 2 刀:表头行 + 文件行 · 行内详情面板 · 分页
-  (蓝本 :146-317)。本刀落地了 T8 留的占位注释那一段。
+  SP8-P5b Task 9 — Cut 2: table header row + file rows · inline detail panel ·
+  pagination (reference :146-317). This cut lands the placeholder section T8 left.
 
-  结构对照(蓝本行区间 → 本文件):
-    :148-165 表头行(全选复选框 + 7 个列标题)
-    :168-259 文件行:三组属性态(data-selected/data-status/data-done)·
-             statusBadgeMap 四态徽标(N14)· 路径单元格(errhint/zerohint)·
-             类型标签(simplifyMime + Legacy)· 大小/时间 · 向量数
-             (data-zero)· 重建按钮(三种 title)· 展开按钮(data-open)
-    :261-293 行内详情面板:5 个字段格(tombstoned_at 条件出现)+ last_error 条
-    :298-317 分页:currentPage/pageCount/pageFrom/pageTo 四个计算 · 每页条数
-             4 档 · 上下页禁用条件
+  Structure mapping (reference line range → this file):
+    :148-165 header row (select-all checkbox + 7 column titles)
+    :168-259 file rows: three attribute states (data-selected/data-status/data-done)·
+             statusBadgeMap four-state badges (N14)· path cell (errhint/zerohint)·
+             type tag (simplifyMime + Legacy)· size/time · vector count
+             (data-zero)· rebuild button (three title variants)· expand button (data-open)
+    :261-293 inline detail panel: 5 field rows (tombstoned_at conditional) + last_error row
+    :298-317 pagination: currentPage/pageCount/pageFrom/pageTo calculations · 4-tier
+             per-page options · prev/next disabled conditions
 
-  【N14,🔴 最容易翻车】`statusBadgeMap` 的 `en` 字段蓝本是一物两用(:191 的
-  `title` 用未翻译原始英文,:197 的徽标文字用 `$t()` 翻译后的中文,靠"英文原
-  串即 i18n key"的巧合)。New-UI 键名是 aiKb*,巧合不成立,故拆成两个字段
-  `en`(只给 title)与 `key`(只给徽标文字),不合并。K20:`indexing` 的键
-  `aiKbStatusIndexing` 两档同填英文 `Indexing`(Vue2 语言包本来就没有这个
-  键,回落显示英文原串,New-UI 逐字复现这个观感)。`badgeFor()` 查不到时的
-  兜底(蓝本 :190/:194):data-s 回落 'ok'、title/文字回落 file.status 原串、
-  icon 回落 'check'。
+  【N14, 🔴 easiest to break】Reference's `statusBadgeMap` `en` field is dual-use:
+  (:191's `title` shows untranslated English; :197's badge text uses `$t()` to show
+  translated Chinese, relying on "English string = i18n key" coincidence). New-UI's
+  keys are aiKb*, so coincidence breaks; split into two fields `en` (title only)
+  and `key` (badge text only), don't merge. K20: `indexing` key `aiKbStatusIndexing`
+  fills both branches with English `Indexing` (Vue2 language pack never had this key,
+  fallback shows English original; New-UI copies exact same appearance). `badgeFor()`
+  fallback when not found (reference :190/:194): data-s falls back to 'ok',
+  title/text fall back to file.status string, icon falls back to 'check'.
 
-  【N13】`.k-status-badge-cn`(蓝本 :197)是蓝本自身的未定义类(`git grep
-  k-status-badge-cn main` 只命中这一行模板,`knowledge.scss` 里没有这条规
-  则)。类名照抄,**不进** `knowledgeStyles.test.ts` 白名单(它不是 scss
-  类),与 N10 同处理。
+  【N13】`.k-status-badge-cn` (reference :197) is an undefined class in reference
+  itself (`git grep k-status-badge-cn main` hits only this template line;
+  `knowledge.scss` has no rule). Copy the class name, **don't add to**
+  `knowledgeStyles.test.ts` whitelist (it's not an scss class), same treatment as N10.
 
-  【tomb glyph】KIcon 的 `tomb` glyph 在本文件模板里没有字面量
-  `name="tomb"`,只经 `statusBadgeMap.tombstoned.icon` 动态取到(治理 §1.2
-  已核实存在,不要因为 grep 不到字面量就去改 KIcon.vue——它在零改动清单里)。
+  【tomb glyph】KIcon's `tomb` glyph is not a literal `name="tomb"` in this
+  file's template — it comes dynamically via `statusBadgeMap.tombstoned.icon`
+  (codebase review §1.2 confirmed it exists; don't change KIcon.vue just because
+  grep doesn't find the literal — it's on the zero-change list).
 
-  【K13,expSet】`toggleExpand` 用 `expSet = ref(new Set())`,写时整体替换,
-  不引入蓝本的 `expTick`(Vue2 侦测不到 Set 变更才需要的强制刷新土办法,
-  Vue3 ref 替换即触发)。
+  【K13, expSet】`toggleExpand` uses `expSet = ref(new Set())`, replaces the
+  whole ref to trigger reactivity, doesn't use reference's `expTick` (Vue2 forced-
+  refresh workaround Vue3 ref replacement doesn't need).
 
-  【doneSet 本刀只读不写】`doneSet` 声明为空 `ref(new Set())`,`data-done`
-  绑定它但本刀代码从不写入——`_flashDone`(蓝本 :811-823,重建成功后的绿色
-  闪烁反馈)整体留给 T10。测试对 `data-done` 的"真"侧覆盖走 T8 已确立的
-  `(w.vm as unknown as {...}).xxx` 直接读写 `<script setup>` 内部 ref 的技巧
-  (与 errorBanner 同一手法),不是新增功能入口。
+  【doneSet read-only in this cut】`doneSet` declared as empty `ref(new Set())`,
+  `data-done` binds it but this cut's code never writes to it — `_flashDone`
+  (reference :811-823, green flash after rebuild success) stays in T10. Tests
+  cover the "real" side of `data-done` using T8's established technique
+  `(w.vm as unknown as {...}).xxx` for direct read-write of `<script setup>`
+  internal refs (same as errorBanner), not a new functionality entry point.
 
-  【rebuildRow 本刀是文档化占位】按钮的禁用条件 / 三种 title / 图标切换是本
-  刀范围(蓝本 :225-244,DOM 完整),但 `@click` 处理函数体的完整实现(store
-  派发 + toast + startIndexedPolling + `_flashDone`,蓝本 :760-770)要求写
-  `doneSet`——上一条已说明本刀 `doneSet` 只读不写,所以这个函数体留空占位,
-  T10 直接替换函数体即可,不改按钮 DOM、不改调用点。这是本刀唯一一处"声明
-  但函数体留空"的偏离,报告里会重点说明。
+  【rebuildRow is documentation placeholder in this cut】Button's disabled
+  condition / three title variants / icon switching are in scope (reference
+  :225-244, DOM complete), but the `@click` handler's full implementation (store
+  dispatch + toast + startIndexedPolling + `_flashDone`, reference :760-770)
+  requires writing `doneSet` — prior note says this cut keeps `doneSet` read-only,
+  so leave this function body as empty placeholder; T10 replaces just the body,
+  doesn't touch button DOM or call sites. This is the only place in this cut that
+  "declares but leaves body empty", will be highlighted in the report.
 
-  【多选复选框:read+write 都在本刀】`selSet` 是 T8 已声明的 ref,本刀补
-  `toggleRow`/`toggleAll`/`selectablePageIds`/`allSelected`/`someSelected`
-  (含 indeterminate 的 watch)——这几个是自包含的纯 Set 操作,不依赖任何
-  HTTP 派发或 T10 才有的东西(与 rebuildRow 不同),所以照 K13 的
-  `toggleExpand` 同等对待,本刀落地真实读写,不留占位。`selectedCount` /
-  `overExplicitCap` / `rebuildSelected` / 底部动作条 / 整库重建确认弹窗 才是
-  T10 的"多选"范围(依赖批量重建的 HTTP 派发)。
+  【Select-all checkbox: both read and write in this cut】`selSet` is declared
+  in T8; this cut adds `toggleRow`/`toggleAll`/`selectablePageIds`/`allSelected`/
+  `someSelected` (with indeterminate watch) — these are self-contained pure Set
+  operations not depending on any HTTP dispatch or T10-only things (unlike
+  rebuildRow), so treat same as K13's `toggleExpand`, land real read-write, no
+  placeholder. `selectedCount` / `overExplicitCap` / `rebuildSelected` / bottom
+  action bar / full-rebuild confirm modal are T10's "selection" scope (depends on
+  batch rebuild HTTP dispatch).
 
-  【本刀依然不做的(留给 T10)】`EXPLICIT_REBUILD_CAP`、`selectedCount`、
-  `overExplicitCap`、`rebuildSelected`、`openRebuildAllConfirm`、
-  `doRebuildAll`、`showRebuildAllConfirm`、底部动作条(`.k-files-actionbar`)、
-  整库重建确认弹窗、`_flashDone`(见上)、30 秒轮询在重建动作里的
-  `startIndexedPolling()` 调用、路由反转。
+  【This cut still doesn't do (left for T10)】`EXPLICIT_REBUILD_CAP`,
+  `selectedCount`, `overExplicitCap`, `rebuildSelected`, `openRebuildAllConfirm`,
+  `doRebuildAll`, `showRebuildAllConfirm`, bottom action bar (`.k-files-actionbar`),
+  full-rebuild confirm modal, `_flashDone` (above), 30s polling's
+  `startIndexedPolling()` call inside rebuild actions, route reversal.
   ══════════════════════════════════════════════════════════════════════
-  SP8-P5b Task 10 —— 第 3 刀(收官):重建三入口 + 双上限 + K7 确认弹窗 +
-  底部粘性动作条 + 轮询收口 + 路由反转。**至此蓝本 826 行全部落地,本文件
-  再无占位、无空函数体、无 TODO。**
+  SP8-P5b Task 10 — Cut 3 (final): three rebuild entry points + dual limits +
+  K7 confirm modal + sticky bottom action bar + polling closure + route reversal.
+  **From here, all 826 lines of reference are landed; this file has no more
+  placeholders, empty bodies, or TODOs.**
 
-  结构对照(蓝本行区间 → 本文件):
-    :322-353 底部粘性动作条(`.k-files-actionbar` + `data-active`)
-    :355-381 整库重建确认弹窗(K7 改 reka 原语,见下)
-    :392     `EXPLICIT_REBUILD_CAP = 500`(前端硬拦)
-    :464     `showRebuildAllConfirm` 本地开关
+  Structure mapping (reference line range → this file):
+    :322-353 sticky bottom action bar (`.k-files-actionbar` + `data-active`)
+    :355-381 full-rebuild confirm modal (K7 use reka primitives, see below)
+    :392     `EXPLICIT_REBUILD_CAP = 500` (front-end hard block)
+    :464     `showRebuildAllConfirm` local switch
     :484-485 `selectedCount` / `overExplicitCap`
-    :760-770 `rebuildRow`(T9 留的空占位,本刀补全)
+    :760-770 `rebuildRow` (T9's empty placeholder, filled in this cut)
     :772-784 `rebuildSelected`
     :786-789 `openRebuildAllConfirm`
-    :791-809 `doRebuildAll`(注意:函数自身的 `},` 在 :809,:808 只是内层
-             catch 的闭合 —— T8 报告写的 :791-808 差 1 行,已一并订正上面
-             【K14】那段的行号引用)
-    :811-823 `_flashDone`(2200 ms 绿闪)
+    :791-809 `doRebuildAll` (note: function's closing `},` is at :809; :808 is
+             inner catch close — T8 report said :791-808, off by 1; corrected
+             above in【K14】section's line refs)
+    :811-823 `_flashDone` (2200 ms green flash)
 
-  【双上限,蓝本 :392-393 / 治理 §4.4】两个常量语义不同,不许混用:
-    - `EXPLICIT_REBUILD_CAP = 500` —— 后端 `MAX_REINDEX_FILE_IDS`
-      (`service_reindex.py:26`,判据 `len < 1 || len > 500`)。
-      **前端硬拦**:`overExplicitCap` = `selectedCount > 500` →「重建选中」
-      按钮禁用 + 动作条出警告;`rebuildSelected` 里再判一次直接 return
-      (双保险,蓝本 :773 就有这一行,不是多余)。
-      🔴 判据是严格大于:500 个可以发,501 个才拦。
-    - `FILTER_REBUILD_CAP = 10000` —— 后端 `MAX_REINDEX_BY_FILTER`
-      (`service_files.py:205`,判据 `n > 10000`)。
-      **前端只警告不拦**:弹窗里内嵌超限横幅(`total > 10000` 时),
-      按钮照样能点,真拦在后端 → 400 走 K14 的警示条。
-      🔴 同样是严格大于:10000 不出横幅,10001 才出。
+  【Dual limits, reference :392-393 / codebase review §4.4】Two constants with
+  different semantics; don't mix them up:
+    - `EXPLICIT_REBUILD_CAP = 500` — backend `MAX_REINDEX_FILE_IDS`
+      (`service_reindex.py:26`, condition `len < 1 || len > 500`).
+      **Front-end hard blocks**: `overExplicitCap` = `selectedCount > 500` →
+      "rebuild selected" button disabled + action bar warning; also check again
+      in `rebuildSelected` and return directly (belt-and-suspenders; reference
+      :773 has this line, not redundant).
+      🔴 Boundary is strict greater-than: 500 files OK, 501 blocked.
+    - `FILTER_REBUILD_CAP = 10000` — backend `MAX_REINDEX_BY_FILTER`
+      (`service_files.py:205`, condition `n > 10000`).
+      **Front-end warns only, doesn't block**: embed over-limit banner in modal
+      (when `total > 10000`), button still clickable, real block is backend →
+      400 status triggers K14's warning bar.
+      🔴 Also strict greater-than: 10000 no banner, 10001 shows banner.
 
-  【K7,🔴 SP8 已在这上面爆过三次】整库重建确认弹窗改用 reka 原语
-  `DialogRoot > DialogPortal to=".knowledge-app" defer > DialogOverlay
-  .k-modal-bg > DialogContent .k-modal`,不许裸 `<div class="k-modal-bg">`
-  手搓、不许 `Teleport to="body"`。结构逐字照 T5 在 `QueueView.vue:559-583`
-  落的样板(含 reka a11y 必需的 `VisuallyHidden > DialogTitle` 与
-  `:aria-describedby="undefined"`)。蓝本 :356 的「点遮罩关闭」/ :357 的
-  `@click.stop`「点弹窗内不关闭」由 DialogContent 的 pointerDownOutside 提供
-  等价行为(T5 已为这条机制单独写过用例,本刀同款覆盖)。
-  视觉 DOM 仍是蓝本的 `.k-confirm-body` / `.k-confirm-summary` /
-  `.k-modal-foot > .right` 结构;K17 的 `.k-modal-head` 等 4 类本期不搬,
-  蓝本这个弹窗本来也没用到它们。
+  【K7, 🔴 SP8 broke three times on this】Full-rebuild confirm modal uses reka
+  primitives `DialogRoot > DialogPortal to=".knowledge-app" defer > DialogOverlay
+  .k-modal-bg > DialogContent .k-modal`, no bare `<div class="k-modal-bg">`
+  hand-rolled, no `Teleport to="body"`. Structure copies exactly from T5's
+  `QueueView.vue:559-583` template (includes reka a11y requirements
+  `VisuallyHidden > DialogTitle` and `:aria-describedby="undefined"`). Reference
+  :356's "click backdrop to close" / :357's `@click.stop` "click inside modal
+  doesn't close" equivalent provided by DialogContent's pointerDownOutside
+  (T5 has a test for this mechanism; this cut uses the same pattern). Visual DOM
+  still uses reference's `.k-confirm-body` / `.k-confirm-summary` /
+  `.k-modal-foot > .right` structure; K17's `.k-modal-head` etc 4 classes not
+  ported this time — reference's modal doesn't use them either.
 
-  【K14,真实入口到齐】本刀补上 `doRebuildAll`,`errorBanner` 第一次有了真实
-  写入口。**按 T8 的既定设计,catch 里照蓝本 :805-807 把后端 detail 取出来存
-  进 `errorBanner`(值不变),K14 的保证点在渲染层**——:625-640 那个分支只渲染
-  固定的 `400 Bad Request` + `aiKbRebuildCapHint`,后端 detail 一个字都不出现。
-  这样那条反向断言才是真的端到端(400 带 detail → DOM 不含 detail),而不是
-  只测一个手工塞进 ref 的字符串。
+  【K14, real write entry point now complete】This cut adds `doRebuildAll` so
+  `errorBanner` now has a real write entry. **Per T8's design, catch stores
+  backend `detail` per reference :805-807 into `errorBanner` (value unchanged);
+  K14's guarantee is in the render layer** — the :625-640 branch only renders
+  fixed `400 Bad Request` + `aiKbRebuildCapHint`, backend detail never appears.
+  This way the reverse assertion is truly end-to-end (400 with detail → DOM
+  lacks detail), not just testing a manually-stuffed ref string.
 
-  【K5】`rebuildRow` / `rebuildSelected` 的 catch 不回显 `e.message`
-  (蓝本 :768 / :782 是 `$t('Rebuild failed') + ': ' + e.message`),改固定
-  `aiKbRebuildFailed`,无第二句可拼故不留 `': '` 前缀 —— 与 T5 在
-  `QueueView.vue` 里 bulkCancel/cancelOne 等 catch 分支同一模具。
+  【K5】`rebuildRow` / `rebuildSelected` catch doesn't display `e.message`
+  (reference :768 / :782 show `$t('Rebuild failed') + ': ' + e.message`);
+  use fixed `aiKbRebuildFailed` instead, no second phrase to concatenate so
+  no `': '` prefix — same pattern as T5's `QueueView.vue` bulkCancel/cancelOne
+  etc. catch branches.
 
-  【属性态,附录 D §D.3 + 治理 §12 E-9】`.k-files-actionbar` 的
-  `:data-active="selectedCount > 0"` **不套 `String()`**——蓝本 :323 原文就
-  没套(附录 D §D.3 那一行明确标 ❌ 不套;E-9 已读 Vue 3 `patchAttr` 源码实证
-  `data-*` 非特殊布尔属性、`false` 照样渲染成 `"false"`,套不套渲染完全一致,
-  故按 E-9 的裁定「逐处照抄蓝本」)。
-  🔴 本刀 brief §4 那句「套 String(),照抄蓝本」自相矛盾(蓝本没套),已按
-  权威源(附录 D + 治理 §12 E-9 + 蓝本原文)照抄不套,报告里已申报。
+  【Attribute binding, appendix D §D.3 + codebase review §12 E-9】`.k-files-actionbar`'s
+  `:data-active="selectedCount > 0"` **doesn't wrap in `String()`** — reference
+  :323 doesn't wrap it either (appendix D §D.3 marks ❌ no wrap; E-9 read Vue 3's
+  `patchAttr` source proving `data-*` isn't special boolean, `false` still renders
+  as `"false"`, wrapping or not produces identical output, so per E-9's verdict
+  "copy reference exactly at each site").
+  🔴 This cut's brief §4 saying "wrap in String(), copy reference" is self-
+  contradictory (reference doesn't wrap); resolved per authoritative sources
+  (appendix D + codebase review §12 E-9 + reference text) and copied unwrapped;
+  reported above.
 
-  【_flashDone 的 setTimeout 不做卸载清理】蓝本 :817-822 没有清理,照抄。
-  2200 ms 后回调只是把一个 `ref` 换成新的 `Set`,组件已卸载时这个写入不触发
-  任何渲染、不持有 DOM 引用,不是「可复现的错误行为」,故不属于该修的逻辑
-  (治理 §2 判据)。测试里用 fake timers 在受控范围内推进。
+  【_flashDone's setTimeout doesn't cleanup on unmount】Reference :817-822 has
+  no cleanup, copy as-is. The 2200 ms callback just replaces one `ref` with a
+  new `Set`; when component unmounts the write triggers no render, holds no DOM
+  ref, is not "reproducible error behavior", so not in scope per codebase review
+  §2 criteria. Tests use fake timers to advance within controlled bounds.
 
-  【轮询收口】三个重建入口成功后各调一次 `store.startIndexedPolling()`
-  (蓝本 :764 / :780 / :803)。`onMounted → refresh()`(内含
-  `startIndexedPolling`)与 `onUnmounted → stopIndexedPolling()` **T8 已经
-  落地且完整**(见上方【生命周期】段),本刀零改动。
+  【Polling closure】Three rebuild entry points each call `store.startIndexedPolling()`
+  once on success (reference :764 / :780 / :803). `onMounted → refresh()`
+  (contains `startIndexedPolling`) and `onUnmounted → stopIndexedPolling()`
+  **T8 already lands completely** (see【Lifecycle】section above), this cut makes
+  zero changes.
   ══════════════════════════════════════════════════════════════════════
 -->
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-// T10:K7 —— 确认弹窗用 reka 原语,结构照 T5 的 QueueView.vue 样板。
+// T10:K7 — confirm modal uses reka primitives, structure copies T5's
+// QueueView.vue template.
 import {
   DialogRoot,
   DialogPortal,
@@ -234,61 +266,67 @@ import { fmtBytes, fmtRel, fmtAbs, simplifyMime, topSegment } from '../util/inde
 const { t } = useI18n()
 const store = useKnowledgeStore()
 
-/** 蓝本 :393 —— filter 模式的上限,**前端只警告不拦**(真拦在后端,超限返 400
- * 走 K14 的警示条)。两处用到:弹窗内嵌超限横幅的判据、K14 警示条的文案参数。
- * 后端常量 `MAX_REINDEX_BY_FILTER = 10000`(`service_files.py:205`,判据
- * `n > 10000` —— 严格大于,10000 不触发)。 */
+/** Reference :393 — filter mode limit, **front-end warns only, doesn't block**
+ * (real block in backend, over-limit returns 400 triggering K14's warning bar).
+ * Used in two places: condition for over-limit banner in modal, and parameter
+ * for K14's warning text. Backend constant `MAX_REINDEX_BY_FILTER = 10000`
+ * (`service_files.py:205`, condition `n > 10000` — strict greater-than,
+ * 10000 doesn't trigger). */
 const FILTER_REBUILD_CAP = 10000
 
-/** T10:蓝本 :392 —— 显式 file_ids 模式的上限,**前端硬拦**(按钮禁用 + 动作条
- * 警告 + `rebuildSelected` 里再 return 一次)。后端常量
- * `MAX_REINDEX_FILE_IDS = 500`(`service_reindex.py:26`,判据
- * `len(file_ids) < 1 || len(file_ids) > 500` —— 严格大于,500 个可以发)。 */
+/** T10: Reference :392 — explicit file_ids mode limit, **front-end hard blocks**
+ * (button disabled + action bar warning + return again in `rebuildSelected`).
+ * Backend constant `MAX_REINDEX_FILE_IDS = 500` (`service_reindex.py:26`,
+ * condition `len(file_ids) < 1 || len(file_ids) > 500` — strict greater-than,
+ * 500 files OK). */
 const EXPLICIT_REBUILD_CAP = 500
 
-/** K13 —— 本刀只用到 selSet(`_applyFilter` 清空)。 */
+/** K13 — this cut only uses selSet (cleared in `_applyFilter`). */
 const selSet = ref<Set<string>>(new Set())
 
-/** 蓝本 data() 的 `errorBanner`(:465)—— rebuild-all 400 分支的错误横幅,
- * 见文件头注释【K14】。 */
+/** Reference's data() `errorBanner` (:465) — error banner for rebuild-all 400
+ * branch, see 【K14】 in file head comment. */
 const errorBanner = ref<string | null>(null)
 
-/** T9:K13,展开行——见文件头注释【K13,expSet】。 */
+/** T9: K13, row expand — see 【K13, expSet】 in file head comment. */
 const expSet = ref<Set<string>>(new Set())
 
-/** T9 声明、T10 写入:蓝本 doneSet(:457)—— 重建成功后的 2200 ms 绿闪集合,
- * 写入口是本刀补上的 `_flashDone`(蓝本 :811-823)。 */
+/** T9 declares, T10 writes: Reference doneSet (:457) — collection for 2200 ms
+ * green flash after rebuild success; write entry is `_flashDone` added in this
+ * cut (reference :811-823). */
 const doneSet = ref<Set<string>>(new Set())
 
-/** T10:蓝本 data() 的 `showRebuildAllConfirm`(:464)—— 整库重建确认弹窗开关,
- * 页面级瞬态,组件本地 ref(治理 §5)。 */
+/** T10: Reference's data() `showRebuildAllConfirm` (:464) — full-rebuild confirm
+ * modal toggle, page-level transient state, component local ref (codebase
+ * review §5). */
 const showRebuildAllConfirm = ref(false)
 
-/** T9:蓝本 `ref="selectAllRef"`(:155)—— 命令式设置 checkbox 的
- * indeterminate(HTML 没有声明式 indeterminate attribute)。 */
+/** T9: Reference `ref="selectAllRef"` (:155) — imperatively set checkbox
+ * indeterminate (HTML has no declarative indeterminate attribute). */
 const selectAllRef = ref<HTMLInputElement | null>(null)
 
-// ── computed(蓝本对应 computed 段,本刀范围用到的那些)──
+// ── computed (reference's computed section, those used in this cut's scope) ──
 
 const total = computed<number>(() => store.indexedFiles.total)
 
-/** T9:蓝本 files(:475)—— 直接别名 store 的文件数组,减少模板里重复写
- * `store.indexedFiles.files`。 */
+/** T9: Reference files (:475) — direct alias to store's file array, avoids
+ * repeating `store.indexedFiles.files` in template. */
 const files = computed<IndexedFile[]>(() => store.indexedFiles.files)
 const storeError = computed<string | null>(() => store.indexedFiles.error)
 
-/** 蓝本 pageState —— loading 优先于 empty,empty 判据是 total === 0。 */
+/** Reference pageState — loading takes priority over empty; empty condition is
+ * total === 0. */
 const pageState = computed<'loading' | 'empty' | 'ready'>(() => {
   if (store.indexedFiles.loading) return 'loading'
   if (total.value === 0) return 'empty'
   return 'ready'
 })
 
-/** 蓝本 isAnyIndexing —— 复用 P5a 零改动清单里的 `anyIndexing`。 */
+/** Reference isAnyIndexing — reuse `anyIndexing` from P5a's zero-change list. */
 const isAnyIndexing = computed<boolean>(() => anyIndexing(store.indexedFiles.files))
 
-/** N12(读方向)—— API `tombstoned` 字段的 `alive` 映射回 UI 的 `active`,
- * 其余两值原样透传。 */
+/** N12 (read direction) — API `tombstoned` field's `alive` maps back to UI's
+ * `active`; other two values pass through as-is. */
 const statusViewLocal = computed<'active' | 'tombstoned' | 'all'>(() => {
   const tv = store.indexedFiles.filters.tombstoned
   if (tv === 'alive') return 'active'
@@ -296,7 +334,8 @@ const statusViewLocal = computed<'active' | 'tombstoned' | 'all'>(() => {
   return 'all'
 })
 
-/** 蓝本 statusSuffix —— 非「仅未删除」时在文件计数后缀括注当前状态视图。 */
+/** Reference statusSuffix — when not "active-only", append parenthetical status
+ * view to file count. */
 const statusSuffix = computed<string>(() => {
   const v = statusViewLocal.value
   if (v === 'tombstoned') return ' (' + t('aiKbStatusRemoved') + ')'
@@ -304,8 +343,8 @@ const statusSuffix = computed<string>(() => {
   return ''
 })
 
-/** 蓝本 filtersDirty —— 六个条件,一个都不能少:path_prefix / mime_prefix /
- * has_error 任一非空真值,或 tombstoned/sort/order 任一偏离默认值。 */
+/** Reference filtersDirty — six conditions, all essential: path_prefix /
+ * mime_prefix / has_error any truthy, or tombstoned/sort/order any non-default. */
 const filtersDirty = computed<boolean>(() => {
   const f = store.indexedFiles.filters
   return !!(
@@ -318,8 +357,9 @@ const filtersDirty = computed<boolean>(() => {
   )
 })
 
-/** 蓝本 derivedRoots —— best-effort:从当前页已加载文件的路径首段派生,不是
- * 服务端权威 Root 列表(蓝本原注释如此)。 */
+/** Reference derivedRoots — best-effort: derive from first path segment of
+ * loaded files on current page, not authoritative server Root list (reference's
+ * own comment says so). */
 const derivedRoots = computed<string[]>(() => {
   const segs = new Set<string>()
   store.indexedFiles.files.forEach((f) => {
@@ -330,10 +370,10 @@ const derivedRoots = computed<string[]>(() => {
   return Array.from(segs).sort()
 })
 
-/** 蓝本 rootSelect —— 从 `path_prefix` 反推 Root 下拉应显示的值:只有当
- * `path_prefix` 形如 `/<seg>/` 且 `<seg>` 确实在 `derivedRoots` 里才回显该
- * 段,否则一律回落 `'all'`(含用户手打路径前缀、或该 Root 已不在当前页数据里
- * 的情况)。 */
+/** Reference rootSelect — reverse-infer Root dropdown's display value from
+ * `path_prefix`: only show the segment if `path_prefix` matches `/<seg>/` and
+ * `<seg>` is actually in `derivedRoots`; otherwise fall back to `'all'`
+ * (includes user hand-typed prefix or Root no longer in current page data). */
 const rootSelect = computed<string>(() => {
   const pp = store.indexedFiles.filters.path_prefix
   if (!pp) return 'all'
@@ -342,8 +382,9 @@ const rootSelect = computed<string>(() => {
   return 'all'
 })
 
-// ── T9:statusBadgeMap(N14)—— 见文件头注释【N14】。`en` 只给 :title(原始
-// 英文,不翻译),`key` 只给徽标文字(i18n 键,渲染中文)。蓝本 :573-580。 ──
+// ── T9: statusBadgeMap (N14) — see 【N14】 in file head comment. `en` for
+// :title only (original English, untranslated), `key` for badge text only
+// (i18n key, renders Chinese). Reference :573-580. ──
 
 interface StatusBadgeEntry {
   en: string
@@ -358,34 +399,38 @@ const statusBadgeMap: Record<string, StatusBadgeEntry> = {
   tombstoned: { en: 'Removed', key: 'aiKbStatusRemoved', icon: 'tomb', cls: 'tombstoned' },
 }
 
-/** 蓝本 :190/:194 的兜底分支——查不到时返回 `null`,调用处的三元表达式各自
- * 回落 data-s='ok' / title=file.status / icon='check' / 文字=file.status。 */
+/** Reference :190/:194 fallback branch — return `null` when not found; ternary
+ * expressions at call sites each fall back to data-s='ok' / title=file.status /
+ * icon='check' / text=file.status. */
 function badgeFor(status: string | undefined): StatusBadgeEntry | null {
   return status ? (statusBadgeMap[status] ?? null) : null
 }
 
-/** T9:`knowledgeStore.ts`(零改动文件)里 `IndexedFile.indexed_at` /
- * `tombstoned_at` 的类型标注是 `string`,但 fixture / 真机实际给的是毫秒
- * 时间戳 `number`(与 `fmtRel`/`fmtAbs` 的形参类型一致)——这是既有类型标注
- * 的疏漏,本刀不改 store,用这个转换点吸收类型差,避免在模板里到处写
- * `as` 断言。 */
+/** T9: In `knowledgeStore.ts` (zero-change file), `IndexedFile.indexed_at` /
+ * `tombstoned_at` are type-annotated as `string`, but fixtures / real device
+ * actually provide millisecond timestamps `number` (matching `fmtRel`/`fmtAbs`
+ * parameter types) — existing type annotation oversight; this cut doesn't change
+ * store, uses this conversion point to absorb type mismatch, avoids sprinkling
+ * `as` assertions in template. */
 function ms(v: unknown): number | null | undefined {
   return v as number | null | undefined
 }
 
-/** 蓝本 filePath(:610-612)—— 只取 `paths[0].path`,没有则 `'—'`。 */
+/** Reference filePath (:610-612) — extract `paths[0].path` only, or `'—'`. */
 function filePath(file: IndexedFile): string {
   return file.paths && file.paths[0] ? file.paths[0].path : '—'
 }
 
-/** 蓝本 fileModalityKeys(:614-616)。 */
+/** Reference fileModalityKeys (:614-616). */
 function fileModalityKeys(file: IndexedFile): string[] {
   return Object.keys(file.modalities_done || {})
 }
 
-// ── T9:多选(read+write,见文件头注释【多选复选框:read+write 都在本刀】)──
+// ── T9: Multi-select (read+write, see 【Select-all checkbox: both read and
+// write in this cut】 in file head comment) ──
 
-/** 蓝本 selectablePageIds(:533-536)—— 当前页可选行(非 tombstoned)。 */
+/** Reference selectablePageIds (:533-536) — selectable rows on current page
+ * (non-tombstoned). */
 const selectablePageIds = computed<string[]>(() =>
   files.value.filter((f) => f.status !== 'tombstoned').map((f) => f.file_id),
 )
@@ -397,14 +442,15 @@ const someSelected = computed<boolean>(() =>
   selectablePageIds.value.some((id) => selSet.value.has(id)),
 )
 
-/** T10:蓝本 selectedCount(:484)/ overExplicitCap(:485)—— 判据是**严格大于**
- * `EXPLICIT_REBUILD_CAP`:选 500 个不算超限(后端 `len > 500` 才 400),
- * 501 个才超。 */
+/** T10: Reference selectedCount (:484) / overExplicitCap (:485) — condition is
+ * **strict greater-than** `EXPLICIT_REBUILD_CAP`: 500 files not over limit
+ * (backend `len > 500` gives 400), 501 files over. */
 const selectedCount = computed<number>(() => selSet.value.size)
 const overExplicitCap = computed<boolean>(() => selectedCount.value > EXPLICIT_REBUILD_CAP)
 
-// ── T9:分页(蓝本 :519-530)—— 四个计算,边界写法逐字照抄:pageCount 用
-// Math.max(1, …) 兜底至少 1 页;pageTo 用 Math.min 钳到 total,不会超出。 ──
+// ── T9: Pagination (reference :519-530) — four calculations, boundary logic
+// copied exactly: pageCount uses Math.max(1, …) to ensure at least 1 page;
+// pageTo uses Math.min to clamp to total, never exceeds. ──
 
 const currentPage = computed<number>(() => {
   const f = store.indexedFiles.filters
@@ -420,8 +466,8 @@ const pageTo = computed<number>(() =>
   Math.min(store.indexedFiles.filters.offset + store.indexedFiles.filters.limit, total.value),
 )
 
-// ── T9:indeterminate watch(蓝本 :583-592)—— HTML checkbox 没有声明式
-// indeterminate attribute,只能命令式设置。 ──
+// ── T9: indeterminate watch (reference :583-592) — HTML checkbox has no
+// declarative indeterminate attribute, must set imperatively. ──
 
 watch(someSelected, (val) => {
   const cb = selectAllRef.value
@@ -434,8 +480,9 @@ watch(allSelected, () => {
 
 // ── lifecycle ──
 
-/** 蓝本 refresh() —— 先加载,加载完成后再决定要不要起 30s 轮询
- * (`startIndexedPolling` 内部会看 `isAnyIndexing` 自行判断)。 */
+/** Reference refresh() — load first, after load completes decide whether to
+ * start 30s polling (`startIndexedPolling` internally checks `isAnyIndexing`
+ * to decide). */
 async function refresh(): Promise<void> {
   await store.loadIndexedFiles()
   store.startIndexedPolling()
@@ -445,14 +492,14 @@ onMounted(() => {
   refresh()
 })
 
-/** 蓝本 beforeDestroy() —— 见文件头注释,停轮询防止 store 模块级定时器句柄
- * 泄漏到下一个挂载实例。 */
+/** Reference beforeDestroy() — see file head comment; stop polling to prevent
+ * store's module-level timer handle leaking to next mount instance. */
 onUnmounted(() => {
   store.stopIndexedPolling()
 })
 
-// ── filter actions(全部落到 `_applyFilter`:offset 归零 + 清选择 + 清错误
-// 横幅 + 重载,一件都不能少)──
+// ── filter actions (all go through `_applyFilter`: zero offset + clear
+// selection + clear error banner + reload, all essential) ──
 
 function _applyFilter(): void {
   store.indexedFiles.filters.offset = 0
@@ -486,7 +533,8 @@ function setLegacyDoc(): void {
   _applyFilter()
 }
 
-/** N12(写方向)—— UI `active` 映射回 API 的 `alive`,其余两值原样透传。 */
+/** N12 (write direction) — UI `active` maps back to API's `alive`; other two
+ * values pass through as-is. */
 function onStatusViewChange(e: Event): void {
   const v = (e.target as HTMLSelectElement).value
   store.indexedFiles.filters.tombstoned = v === 'active' ? 'alive' : v
@@ -514,8 +562,9 @@ function toggleSortDir(): void {
   _applyFilter()
 }
 
-/** 蓝本 clearFilters —— 复位六个筛选字段,再走与 `_applyFilter` 完全相同的
- * 四件事(见文件头注释,机械去重,非行为改动)。 */
+/** Reference clearFilters — reset six filter fields, then perform same four
+ * things as `_applyFilter` (see file head comment; mechanical deduplication,
+ * not behavior change). */
 function clearFilters(): void {
   const f = store.indexedFiles.filters
   f.path_prefix = ''
@@ -527,14 +576,16 @@ function clearFilters(): void {
   _applyFilter()
 }
 
-/** 蓝本 dismissBanner —— 同时清本地 errorBanner 与 store 侧的加载错误。 */
+/** Reference dismissBanner — clear both local errorBanner and store-side load
+ * error. */
 function dismissBanner(): void {
   errorBanner.value = null
   store.indexedFiles.error = null
 }
 
-// ── T9:多选(蓝本 :730-748)—— 见文件头注释【多选复选框:read+write 都在
-// 本刀】,自包含纯 Set 操作,不依赖任何 T10 才有的东西。 ──
+// ── T9: Multi-select (reference :730-748) — see 【Select-all checkbox: both
+// read and write in this cut】 in file head comment; self-contained pure Set
+// operations, no dependency on T10-only things. ──
 
 function toggleRow(fileId: string): void {
   const s = new Set(selSet.value)
@@ -554,7 +605,8 @@ function toggleAll(): void {
   selSet.value = s
 }
 
-// ── T9:展开(蓝本 :751-757)—— K13:expSet 整体替换,不用 expTick。 ──
+// ── T9: Expand (reference :751-757) — K13: expSet replaces whole ref, don't
+// use expTick. ──
 
 function toggleExpand(fileId: string): void {
   const s = new Set(expSet.value)
@@ -563,24 +615,27 @@ function toggleExpand(fileId: string): void {
   expSet.value = s
 }
 
-// ── T10:重建三入口(蓝本 :760-809)+ 绿闪(:811-823)。T9 留的 `rebuildRow`
-// 空占位在此补全,按钮 DOM 与调用点一个字都没动。 ──
+// ── T10: Three rebuild entry points (reference :760-809) + green flash
+// (:811-823). T9's empty `rebuildRow` placeholder filled here; button DOM and
+// call sites unchanged. ──
 
-/** 后端 `POST /v1/parser/files/reindex` 的成功响应体形状(fixture
- * `p5b-fixtures/reindex-one.http` 实测:
- * `{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`)。
- * store 的 `reindexIndexedByIds`/`reindexIndexedByFilter` 返回 `unknown`
- * (零改动文件),这里做一次收窄:蓝本三处只读 `res.queued`。 */
+/** Backend `POST /v1/parser/files/reindex` success response shape (fixture
+ * `p5b-fixtures/reindex-one.http` actual test:
+ * `{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`).
+ * Store's `reindexIndexedByIds`/`reindexIndexedByFilter` return `unknown`
+ * (zero-change file); narrow here: reference only reads `res.queued` in three
+ * places. */
 type ReindexResult = { queued?: number }
 
 /**
- * 蓝本 rebuildRow(:760-770)—— 单行强制重建:
- *   ① `reindexIndexedByIds([fileId], 'rebuild row')`(store 内部会跟着重载列表)
- *   ② toast「已入队 {n} 个任务」,n 取响应体的 `queued`
- *   ③ `startIndexedPolling()` —— 刚入队的行会变 indexing,起 30 秒轮询盯着
- *   ④ `_flashDone([fileId])` —— 2200 ms 绿闪
- * catch 走 K5:固定 `aiKbRebuildFailed`,不回显 `e.message`(蓝本 :768 拼了
- * `': ' + e.message`,见文件头注释【K5】)。
+ * Reference rebuildRow (:760-770) — single-row force rebuild:
+ *   ① `reindexIndexedByIds([fileId], 'rebuild row')` (store internally reloads list)
+ *   ② toast "Queued {n} tasks", n from response `queued`
+ *   ③ `startIndexedPolling()` — enqueued row becomes indexing, 30s polling starts
+ *   ④ `_flashDone([fileId])` — 2200 ms green flash
+ * catch uses K5: fixed `aiKbRebuildFailed`, doesn't display `e.message`
+ * (reference :768 concatenates `': ' + e.message`, see 【K5】 in file head
+ * comment).
  */
 async function rebuildRow(fileId: string): Promise<void> {
   try {
@@ -595,11 +650,13 @@ async function rebuildRow(fileId: string): Promise<void> {
 }
 
 /**
- * 蓝本 rebuildSelected(:772-784)—— 批量重建当前选中行。
- * 🔴 首行的 `if (selectedCount === 0 || overExplicitCap) return` 是蓝本 :773
- * 原文,与按钮的 `:disabled` 条件重复但**不是冗余**:键盘/程序化调用绕过
- * disabled 时它是唯一的拦。照抄。
- * 成功后清空选择(蓝本 :778,不清会让动作条一直显示旧计数)。
+ * Reference rebuildSelected (:772-784) — batch rebuild selected rows.
+ * 🔴 First line `if (selectedCount === 0 || overExplicitCap) return` is
+ * reference :773 original; duplicates button `:disabled` condition but **not
+ * redundant**: keyboard/programmatic calls bypass disabled, it's the only guard.
+ * Copy as-is.
+ * Clear selection after success (reference :778; without it action bar shows
+ * stale count forever).
  */
 async function rebuildSelected(): Promise<void> {
   if (selectedCount.value === 0 || overExplicitCap.value) return
@@ -614,21 +671,24 @@ async function rebuildSelected(): Promise<void> {
   }
 }
 
-/** 蓝本 openRebuildAllConfirm(:786-789)—— `total === 0` 直接 return(按钮此时
- * 也是 disabled,同 rebuildSelected 那条双保险)。 */
+/** Reference openRebuildAllConfirm (:786-789) — return directly if
+ * `total === 0` (button also disabled at that time, same belt-and-suspenders as
+ * rebuildSelected). */
 function openRebuildAllConfirm(): void {
   if (total.value === 0) return
   showRebuildAllConfirm.value = true
 }
 
 /**
- * 蓝本 doRebuildAll(:791-809)—— 按当前筛选整批重建。
- * 🔴 `filterObj` 只带**真值/非默认**的字段,四条判据逐字照抄蓝本 :796-799:
- *   `path_prefix` / `mime_prefix` / `has_error` 各自 truthy 才带;
- *   `tombstoned` 要 **truthy 且 `!== 'all'`** 才带 —— `'all'` 意为「不限」,
- *   带上去反而会把「不限」编码成一个具体的筛选值。
- * catch:照蓝本 :805-807 取后端 detail 存进 `errorBanner`,渲染层按 K14 不回显
- * (见文件头注释【K14,真实入口到齐】)。
+ * Reference doRebuildAll (:791-809) — bulk rebuild matching current filters.
+ * 🔴 `filterObj` only includes **truthy/non-default** fields; four conditions
+ * copied exactly from reference :796-799:
+ *   `path_prefix` / `mime_prefix` / `has_error` each included only if truthy;
+ *   `tombstoned` included only if **truthy AND `!== 'all'`** — `'all'` means
+ *   "unlimited", including it would encode "unlimited" as specific filter value.
+ * catch: per reference :805-807 extract backend `detail` into `errorBanner`;
+ * render layer per K14 doesn't display it (see 【K14, real write entry point
+ * now complete】 in file head comment).
  */
 async function doRebuildAll(): Promise<void> {
   showRebuildAllConfirm.value = false
@@ -656,9 +716,11 @@ async function doRebuildAll(): Promise<void> {
 }
 
 /**
- * 蓝本 _flashDone(:811-823)—— 重建入队后给该行 2200 ms 的绿闪(`data-done`
- * 驱动 scss 的 `@keyframes row-done`)。K13:`doneSet` 整体替换,不用 doneTick。
- * 蓝本没有卸载清理,照抄(见文件头注释【_flashDone 的 setTimeout 不做卸载清理】)。
+ * Reference _flashDone (:811-823) — after rebuild enqueued, green flash for
+ * 2200 ms on that row (`data-done` drives scss `@keyframes row-done`).
+ * K13: `doneSet` replaces whole ref, don't use doneTick.
+ * Reference has no unmount cleanup, copy as-is (see
+ * 【_flashDone's setTimeout doesn't cleanup on unmount】 in file head comment).
  */
 function _flashDone(ids: string[]): void {
   const d = new Set(doneSet.value)
@@ -671,7 +733,7 @@ function _flashDone(ids: string[]): void {
   }, 2200)
 }
 
-// ── T9:分页(蓝本 :718-727,onPageSizeChange 见 :691-697)──
+// ── T9: Pagination (reference :718-727, onPageSizeChange see :691-697) ──
 
 function prevPage(): void {
   const f = store.indexedFiles.filters
@@ -685,10 +747,11 @@ function nextPage(): void {
   refresh()
 }
 
-/** 蓝本 onPageSizeChange(:691-697)—— 注意与 `_applyFilter` 不同:不清
- * `errorBanner`,只清选择 + 归零 offset + 重载,四件事里少一件。照抄不补
- * 齐(N9 同族的"照抄不许统一"判据:这不是要修的错误行为,是蓝本本来的
- * 写法)。 */
+/** Reference onPageSizeChange (:691-697) — note differs from `_applyFilter`:
+ * doesn't clear `errorBanner`, only clears selection + zeros offset + reloads,
+ * one of four things omitted. Copy as-is without padding (N9 family criterion:
+ * copy without unifying; this is not error behavior to fix, it's reference's
+ * original design). */
 function onPageSizeChange(e: Event): void {
   store.indexedFiles.filters.limit = Number((e.target as HTMLSelectElement).value)
   store.indexedFiles.filters.offset = 0
@@ -701,9 +764,9 @@ function onPageSizeChange(e: Event): void {
   <div class="k-view">
     <div class="k-scroll">
       <div class="k-scroll-inner">
-        <!-- ---- filter bar(蓝本 :6-57)---- -->
+        <!-- ---- filter bar (reference :6-57) ---- -->
         <div class="k-filter-bar">
-          <!-- Root convenience select(best-effort,derivedRoots 见上)-->
+          <!-- Root convenience select (best-effort, derivedRoots above) -->
           <div class="k-filt">
             <label class="k-filt-label">{{ t('aiKbRoot') }}</label>
             <select class="k-filt-select" :value="rootSelect" @change="onRootSelectChange">
@@ -711,7 +774,7 @@ function onPageSizeChange(e: Event): void {
               <option v-for="seg in derivedRoots" :key="seg" :value="seg">{{ seg }}</option>
             </select>
           </div>
-          <!-- Path prefix free-text(authoritative)-->
+          <!-- Path prefix free-text (authoritative) -->
           <div class="k-filt k-filt-grow">
             <label class="k-filt-label">{{ t('aiKbPathPrefix') }}</label>
             <div class="k-filt-input">
@@ -752,10 +815,11 @@ function onPageSizeChange(e: Event): void {
               </button>
             </div>
           </div>
-          <!-- Status tombstoned select(N12)-->
+          <!-- Status tombstoned select (N12) -->
           <div class="k-filt">
             <label class="k-filt-label">{{ t('aiKbStatus') }}</label>
-            <!-- N12: Prototype shows "active" but API expects "alive" for alive rows -->
+            <!-- N12: Prototype shows "active" but API expects "alive" for alive
+                 rows -->
             <select class="k-filt-select" :value="statusViewLocal" @change="onStatusViewChange">
               <option value="active">{{ t('aiKbStatusActive') }}</option>
               <option value="tombstoned">{{ t('aiKbStatusRemoved') }}</option>
@@ -778,7 +842,7 @@ function onPageSizeChange(e: Event): void {
           </button>
         </div>
 
-        <!-- ---- table head meta(蓝本 :60-90)---- -->
+        <!-- ---- table head meta (reference :60-90) ---- -->
         <div class="k-files-meta">
           <div class="k-files-count">
             <template v-if="pageState === 'ready' || pageState === 'empty'">
@@ -820,10 +884,11 @@ function onPageSizeChange(e: Event): void {
           </div>
         </div>
 
-        <!-- ---- error banner(蓝本 :93-103,K14/K19 见文件头注释)---- -->
+        <!-- ---- error banner (reference :93-103, K14/K19 see file head comment) ---- -->
         <div v-if="storeError || errorBanner" class="k-banner" data-tone="warn" style="margin: 0">
           <span class="k-banner-icon"><KIcon name="danger" :size="13" /></span>
-          <!-- K14: 不回显 errorBanner 里可能存的后端 detail,只留固定文案 -->
+          <!-- K14: Don't display backend detail possibly stored in errorBanner,
+               only fixed text -->
           <span v-if="errorBanner">
             <b>400 Bad Request</b>
             <br />
@@ -831,14 +896,15 @@ function onPageSizeChange(e: Event): void {
               {{ t('aiKbRebuildCapHint', { cap: FILTER_REBUILD_CAP.toLocaleString() }) }}
             </span>
           </span>
-          <!-- K19: 不回显 storeError(= e.message),改固定 aiKbLoadErrorBody -->
+          <!-- K19: Don't display storeError (= e.message), use fixed
+               aiKbLoadErrorBody -->
           <span v-else>
             <b>{{ t('aiKbLoadErrorLabel') }}</b> {{ t('aiKbLoadErrorBody') }}
           </span>
           <button class="k-banner-close" @click="dismissBanner">{{ t('aiKbClose') }}</button>
         </div>
 
-        <!-- ---- loading skeleton(蓝本 :106-132)---- -->
+        <!-- ---- loading skeleton (reference :106-132) ---- -->
         <template v-if="pageState === 'loading'">
           <div class="k-ftable">
             <!-- head disabled -->
@@ -867,7 +933,7 @@ function onPageSizeChange(e: Event): void {
           </div>
         </template>
 
-        <!-- ---- empty(蓝本 :135-142,N10 见文件头注释)---- -->
+        <!-- ---- empty (reference :135-142, N10 see file head comment) ---- -->
         <div v-else-if="pageState === 'empty'" class="k-empty">
           <div class="k-empty-illust"><KIcon name="layers" :size="34" /></div>
           <div class="k-empty-title">{{ t('aiKbNoMatchTitle') }}</div>
@@ -877,10 +943,10 @@ function onPageSizeChange(e: Event): void {
           </button>
         </div>
 
-        <!-- ---- ready: table + pager(蓝本 :146-317,T9)---- -->
+        <!-- ---- ready: table + pager (reference :146-317, T9) ---- -->
         <template v-else-if="pageState === 'ready'">
           <div class="k-ftable">
-            <!-- table header(蓝本 :148-165)-->
+            <!-- table header (reference :148-165) -->
             <div class="k-frow-f k-frow-fhead">
               <input
                 type="checkbox"
@@ -901,12 +967,13 @@ function onPageSizeChange(e: Event): void {
               <span />
             </div>
 
-            <!-- file rows(蓝本 :168-259)-->
+            <!-- file rows (reference :168-259) -->
             <template v-for="file in files" :key="file.file_id">
-              <!-- row(Vue3 编译器要求 v-for 的 key 放在 template 标签上,单个
-              key 覆盖这一组的 row + 可选 detail 两个兄弟节点,蓝本的
-              `:key="file.file_id + '-row'"`/`'-detail'` 两个独立 key 是 Vue2
-              写法,搬进 Vue3 会编译报错,故按 Vue3 语法调整,不是行为改动)-->
+              <!-- row: Vue3 compiler requires v-for key on template tag; single
+                   key covers both row + optional detail sibling nodes in this
+                   group. Reference's `:key="file.file_id + '-row'"`/`'-detail'`
+                   separate keys are Vue2 pattern; porting to Vue3 causes compile
+                   error, so adjusted per Vue3 syntax; not a behavior change. -->
               <div
                 class="k-frow-f"
                 :data-selected="selSet.has(file.file_id)"
@@ -921,7 +988,7 @@ function onPageSizeChange(e: Event): void {
                   @change="toggleRow(file.file_id)"
                   :title="file.status === 'tombstoned' ? t('aiKbTombstonedNoSelect') : ''"
                 />
-                <!-- status badge(N14:见文件头注释)-->
+                <!-- status badge (N14: see file head comment) -->
                 <span class="k-frow-status">
                   <span
                     class="k-status-badge"
@@ -979,7 +1046,8 @@ function onPageSizeChange(e: Event): void {
                 <span class="k-frow-num k-frow-vec" :data-zero="file.vector_count === 0">
                   {{ (file.vector_count || 0).toLocaleString() }}
                 </span>
-                <!-- rebuild button(文档化占位,见文件头注释)-->
+                <!-- rebuild button (documentation placeholder, see file head
+                     comment) -->
                 <span class="k-frow-rebuild">
                   <button
                     class="k-btn outline k-rebuild-btn"
@@ -1011,7 +1079,7 @@ function onPageSizeChange(e: Event): void {
                   <KIcon name="chevDown" :size="13" />
                 </button>
               </div>
-              <!-- expanded detail panel(蓝本 :261-293)-->
+              <!-- expanded detail panel (reference :261-293) -->
               <div v-if="expSet.has(file.file_id)" class="k-file-detail">
                 <div class="k-fd-grid">
                   <div class="k-fd-item">
@@ -1054,7 +1122,7 @@ function onPageSizeChange(e: Event): void {
             </template>
           </div>
 
-          <!-- ---- pagination(蓝本 :298-317)---- -->
+          <!-- ---- pagination (reference :298-317) ---- -->
           <div class="k-pager">
             <div class="k-pager-info">
               {{ t('aiKbShowingRange', { from: pageFrom, to: pageTo, total: total.toLocaleString() }) }}
@@ -1087,10 +1155,12 @@ function onPageSizeChange(e: Event): void {
       </div>
     </div>
 
-    <!-- ---- sticky bottom action bar(蓝本 :322-353)---- -->
-    <!-- data-active 不套 String():蓝本 :323 原文没套,附录 D §D.3 标 ❌ 不套,
-    治理 §12 E-9 裁定「逐处照抄蓝本」(Vue 3 下 data-* 的 false 照样渲染成
-    "false",套不套渲染一致)。见文件头注释【属性态】。 -->
+    <!-- ---- sticky bottom action bar (reference :322-353) ---- -->
+    <!-- data-active doesn't wrap in String(): reference :323 doesn't wrap;
+         appendix D §D.3 marks ❌ no wrap; codebase review §12 E-9 rules "copy
+         reference exactly at each site" (under Vue 3, data-* false still renders
+         as "false"; wrapping or not produces identical output).
+         See 【Attribute binding】 in file head comment. -->
     <div class="k-files-actionbar" :data-active="selectedCount > 0">
       <div class="k-ab-inner">
         <div class="k-ab-info">
@@ -1104,7 +1174,8 @@ function onPageSizeChange(e: Event): void {
           <span v-else style="color: var(--text-tertiary)">{{ t('aiKbSelectFilesHint') }}</span>
         </div>
         <div class="k-ab-actions">
-          <!-- Rebuild matching: replaces prototype's "rebuild entire root", uses current filters -->
+          <!-- Rebuild matching: replaces prototype's "rebuild entire root",
+               uses current filters -->
           <button
             class="k-btn outline"
             :disabled="total === 0"
@@ -1128,10 +1199,11 @@ function onPageSizeChange(e: Event): void {
       </div>
     </div>
 
-    <!-- ---- rebuild-all-matching confirm modal(蓝本 :355-381)---- -->
-    <!-- K7:reka Dialog 原语,portal 到知识库容器;蓝本的「点遮罩关闭 /
-    点弹窗内不关闭」由 DialogContent 的 pointerDownOutside 等价提供。
-    结构逐字照 T5 的 QueueView.vue:559-583 样板。 -->
+    <!-- ---- rebuild-all-matching confirm modal (reference :355-381) ---- -->
+    <!-- K7: reka Dialog primitives, portal to knowledge-app container;
+         reference's "click backdrop to close / click inside modal to stay" is
+         equivalent to DialogContent's pointerDownOutside behavior.
+         Structure copies exactly from T5's QueueView.vue:559-583 template. -->
     <DialogRoot :open="showRebuildAllConfirm" @update:open="showRebuildAllConfirm = $event">
       <DialogPortal to=".knowledge-app" defer>
         <DialogOverlay class="k-modal-bg">
@@ -1150,7 +1222,8 @@ function onPageSizeChange(e: Event): void {
                 {{ t('aiKbRebuildAllBody1', { n: total.toLocaleString() }) }}<br />
                 {{ t('aiKbRebuildAllBody2') }}
               </div>
-              <!-- 内嵌超限横幅:FILTER_REBUILD_CAP 前端只警告不拦,判据严格大于 -->
+              <!-- Embedded over-limit banner: FILTER_REBUILD_CAP front-end warns
+                   only, doesn't block; condition strict greater-than -->
               <div
                 v-if="total > FILTER_REBUILD_CAP"
                 class="k-banner"

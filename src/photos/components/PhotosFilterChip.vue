@@ -1,39 +1,72 @@
 <script setup lang="ts">
-// SP7-P7a-T12: PhotosFilterChip.vue —— 筛选胶囊基元(D14 两个基元之一,T13/T14/T16/P7b 消费)。
-// 逐字对应 Vue2 PhotosSearchView.vue:51-59(与 PhotosFilterBar.vue:16-24 逐字比对确认相同,
-// 唯二差别①处理器名 clearFilter/clearChip ②组件标签大小写 photos-icon/PhotosIcon,均不
-// 影响本仓落地;完整比对结论见 task-12-report.md)。结构:.fchip-wrap(position:relative,
-// 弹层定位上下文,与默认插槽挂的弹层是兄弟节点、不是父子——弹层的点击不会经过 .fchip 的
-// click 处理器)→ .fchip(:data-on,@click → toggle)内含图标插槽 + label + chevD 图标 +
-// (active 时)清除叉 → 之后默认插槽挂弹层。
+// SP7-P7a-T12: PhotosFilterChip.vue -- filter chip primitive (one of the two D14 primitives,
+// consumed by T13/T14/T16/P7b).
+// Matches Vue2 PhotosSearchView.vue:51-59 character-for-character (cross-checked against
+// PhotosFilterBar.vue:16-24 and confirmed identical; the only two differences are (1) the
+// handler names clearFilter/clearChip and (2) the component tag casing photos-icon/PhotosIcon,
+// neither of which affects the port to this repo -- full comparison writeup in
+// task-12-report.md). Structure: .fchip-wrap (position: relative, the popover positioning
+// context; the popover mounted in the default slot is a sibling, not a child -- clicks
+// inside the popover do not bubble through the .fchip click handler) -> .fchip (:data-on,
+// @click -> toggle) containing the icon slot + label + chevD icon + (when active) a clear
+// cross -> followed by the default slot mounting the popover.
 //
-// 偏离登记 1(B7 裁定,接口相对 brief 的偏离):brief 原接口是 `{ icon: string }`,喂给
-// 共享 PhotosIcon 组件的 glyph name。本仓没有 PhotosIcon.vue(已 grep 确认
-// `find src -name "PhotosIcon.vue"` 零命中,本相册区既定做法是每个组件内联 <svg>,先例
-// SmartViewCard.vue:76-88),字符串 name 在本仓无处消费——若在本基元里写死 name→svg 映射表,
-// 等于重建一份迷你 PhotosIcon,且 T13/T14/T16/P7b 会不断加新 glyph。裁定:把 icon 从
-// prop 改成具名插槽 #icon,由宿主自己内联对应的 <svg>。chevD 与 x 这两个"chip 固定结构"
-// 的 glyph(不随宿主变化)仍由本组件自己内联,不进插槽。
+// Deviation log 1 (ruled by B7, a deviation in the interface relative to the brief): the
+// brief's original interface was `{ icon: string }`, feeding a glyph name into the shared
+// PhotosIcon component. This repo has no PhotosIcon.vue (confirmed via grep --
+// `find src -name "PhotosIcon.vue"` returns zero hits; the established practice in this
+// Photos area is for each component to inline its own <svg>, precedent SmartViewCard.vue:76-88),
+// so a string name has nowhere to be consumed in this repo -- hardcoding a name -> svg map
+// inside this primitive would just rebuild a mini PhotosIcon, and T13/T14/T16/P7b would keep
+// adding new glyphs to it. Ruling: change icon from a prop to a named #icon slot, and let the
+// host inline the corresponding <svg> itself. The chevD and x glyphs, which are "fixed chip
+// structure" (they do not vary by host), are still inlined by this component itself and do
+// not go through the slot.
 //
-// 偏离登记 2(glyph 数值 1:1 复刻):下方 chevD `d="m6 9 6 6 6-6"`、x
-// `d="m6 6 12 12M18 6 6 18"` 逐字符抄自 Vue2 NimoOS-UI
-// src/views/Photos/PhotosIcon.vue 对应 name 分支(P6b 终审抓过 4 处 glyph 漏抄/错抄,三道
-// 门全测不出),测试对渲染出的 <path d> 做精确断言钉住。
+// Deviation log 2 (glyph values copied 1:1): the chevD `d="m6 9 6 6 6-6"` and x
+// `d="m6 6 12 12M18 6 6 18"` below are copied character-for-character from the Vue2 NimoOS-UI
+// src/views/Photos/PhotosIcon.vue corresponding name branch (the P6b final review caught 4
+// glyphs that were missed or copied wrong, none of which the three verification gates
+// caught), so the test pins this down with an exact assertion on the rendered <path d>.
 //
-// 偏离登记 3(token 映射,控制器裁定 B2):chevD 颜色 Vue2 原值是 var(--text-3)
-// (PhotosSearchView.vue:55),不是 brief 写的 --fg-subtle(那是 text-4)。本期已确立的
-// 四档映射(SmartViewCreateDialog.vue:43-45)text-1→--fg / text-2→--fg-muted /
-// text-3→--fg-faint / text-4→--fg-subtle,这里用 --fg-faint。
-// (ClusterActionDialog.vue:368 把 text-3 映射成 --fg-muted 是 P6b 既有代码,与本期表不
-// 一致,但那是既有代码不许动,也不作为本任务依据——本任务以 T5 的表为准。)
+// Deviation log 3 (token mapping, ruled by the controller as B2, since superseded by the
+// 2026-08-13 rollback): the Vue2 original chevD color is var(--text-3)
+// (PhotosSearchView.vue:55). T5 had mapped it through New-UI's generic four-tier token scheme
+// (text-3 -> --fg-faint) at the time, a byproduct of the "glassmorphism" exception period.
+// After the 2026-08-13 rollback this component no longer goes through the generic four-tier
+// mapping -- .photos-root defines --text-3 locally (parity scss :23-26 / light variant
+// :83-86), so chevD writes var(--text-3) directly, matching Vue2 character-for-character,
+// with no need to translate through a mapping layer any more.
 //
-// open prop:Vue2 没有对应概念(chip 的视觉态只有 data-on,没有"弹层是否展开"这个独立
-// 维度)。brief 冻结的接口里带了这个可选 prop,这里原样接住;具体消费(要不要挂 CSS 钩子)
-// 留给 T13/T14/T16,避免臆造 Vue2 不存在的视觉效果。
-// fix round 1 · M4(评审 Important 同批发现):data-open 只在 open === true 时渲染到
-// DOM(:data-open="open ? 'true' : undefined"),不恒渲染——Vue2 的 .fchip 上根本没有
-// 这个属性,默认态(open 未传或为 false)时 DOM 应与 Vue2 逐字一致,不能凭空多一个
-// data-open="false"。语义(要不要在其上挂样式)由 T13 定,当前无 CSS 消费。
+// open prop: Vue2 has no equivalent concept (the chip's visual state is only data-on,
+// there is no separate "is the popover open" dimension). The brief's frozen interface
+// includes this optional prop, so it is accepted here as-is; whether to actually consume it
+// (hook up a CSS state) is left to T13/T14/T16, to avoid inventing a visual effect that
+// does not exist in Vue2.
+// fix round 1 · M4 (found in the same batch of Important review findings): data-open is
+// only rendered to the DOM when open === true (:data-open="open ? 'true' : undefined"), it
+// is not rendered unconditionally -- Vue2's .fchip has no such attribute at all, so in the
+// default state (open not passed, or false) the DOM must match Vue2 character-for-character,
+// and must not gain an extra data-open="false" out of nowhere. Whether to attach styling to
+// it is decided by T13; there is currently no CSS consumer.
+//
+// Acceptance rollback by the owner (2026-08-13, overturning the "fourth visual exception"
+// that the owner had signed off on during Task 5 -- keeping New-UI glassmorphism for the
+// EXIF chip/popover): glassmorphism is invisible under the light theme (the glass effect
+// only reads against a dark backing with a translucent layer on top; even though the parity
+// token table gives complete light-theme values under .photos-root.is-light, the glass
+// visual language itself simply disappears against a light background). This is not "glass
+// has a bug under light theme that needs fixing" -- the ruling went the other way: withdraw
+// glass entirely and roll back to Vue2's original flat chip styling -- a pure styling change,
+// the component's Vue3 code is unchanged.
+// The style block below has shrunk accordingly: the Vue2-native class rules
+// .fchip/.fchip-wrap/.fchip-icon/.fchip-x etc. (parity scss :2614-2645 has matching bare
+// selectors character-for-character) have all been removed from here, handed over to the
+// bare rules in src/photos/styles/vue2-parity/photos.scss to take over -- that file is a
+// character-for-character transcription of the Vue2 CSS, so this component no longer needs
+// to carry its own duplicate scoped copy of the colors. What remains here is only the
+// New-UI-specific structural rule that parity genuinely does not cover (see the standalone
+// comment below on .fchip-icon :deep(svg)).
 defineProps<{
   label: string
   active: boolean
@@ -53,7 +86,7 @@ const emit = defineEmits<{
       <span>{{ label }}</span>
       <svg
         class="fchip-chevd" width="11" height="11" viewBox="0 0 24 24" fill="none"
-        stroke="var(--fg-faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        stroke="var(--text-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
       >
         <path d="m6 9 6 6 6-6" />
       </svg>
@@ -71,88 +104,47 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-/* token 映射:Vue2 --surface-2/--surface-3(实底胶囊底色/hover 底色)→ 本仓既有
-   --chip-bg/--chip-bg-hi(同 ClusterActionDialog.vue/PhotosToolbar.vue/AlbumPickerDialog.vue
-   等既有先例的通用映射);--line → --chip-border;--text-1/2/3 → --fg/--fg-muted/--fg-faint
-   (上方偏离登记 3 的四档表);--accent-hi(不存在,已 grep 确认)→ --accent-text(同
-   MergeReviewDialog.vue:249-252/PersonHero.vue:488-491 等既有先例);Vue2 的边框是一个
-   写死的 accent 紫色、透明度三成(不是 var(--accent-rgb) 写法,但同一色调同一透明度量级)
-   → 既有三档 accent 家族里最接近三成透明度的 --accent-soft-bd(dark 3.6 成 / light 3 成)。 */
-.fchip-wrap {
-  position: relative;
-  display: inline-flex;
+/* 2026-08-13 rollback: this whole batch of Vue2-native class rules --
+   .fchip-wrap/.fchip (+:hover/[data-on]/.fchip-icon)/.fchip-x (+:hover) -- already has
+   matching bare selectors character-for-character in vue2-parity/photos.scss:2614-2645
+   (.fchip-wrap/.fchip/.fchip:hover/.fchip[data-on="true"]/
+   .fchip[data-on="true"] .fchip-icon/.fchip-icon/.fchip-x/.fchip-x:hover), using the same
+   values as the Vue2 original: local tokens --surface-2/--surface-3/--line/--text-1/2/3/
+   --accent-hi etc. (both the dark set and .photos-root.is-light have definitions). This
+   used to be duplicated here separately, with colors mapped onto this repo's generic glass
+   tokens (--chip-bg/--fg-muted/--accent-text etc.), relying on the [data-v-xxxx] attribute
+   that scoped compilation emits to push specificity above the parity bare selectors -- that
+   was the only reason glassmorphism could "win". With this duplicate removed, parity's bare
+   rules simply take effect, with no need to borrow the data attribute for specificity boost
+   any more.
+   The border:0/background:transparent/cursor:pointer that used to sit on .fchip-x are
+   likewise removed, and this is not a missed port: Vue2 photos.scss:92 (parity transcription
+   at :104) already has a global reset `.photos-root button { background:
+   transparent; border:0; color:inherit; cursor:pointer; }`, and .fchip-x is a
+   `<button>` that only ever mounts inside .photos-root (true of every photos view since
+   a822ef1d), so this reset naturally covers it -- writing it again would just be two copies
+   of the same truth. The actual detail: that reset's `color: inherit` has specificity
+   (0,1,1), higher than the bare `.fchip-x` selector's (0,1,0), so .fchip-x's non-hover text
+   color actually inherits from .fchip rather than truly equalling --text-3 -- this matches
+   the real Vue2 rendering result exactly (same CSS), so it is a faithful reproduction, not a
+   new defect introduced by this repo; it is not "fixing a bug", and no extra specificity is
+   added to override it. Only `padding: 0` is kept -- no global reset clears the UA default
+   padding on a <button>, and without it the 16x16 round close cross would be stretched out
+   of shape, which is the one structural detail parity genuinely does not cover. */
+.fchip-x {
+  padding: 0;
 }
-.fchip {
-  height: 30px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 99px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg-muted);
-  font-size: 12.5px;
-  position: relative;
-  cursor: pointer;
-}
-.fchip:hover {
-  background: var(--chip-bg-hi);
-  color: var(--fg);
-}
-.fchip[data-on='true'] {
-  background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
-  color: var(--fg);
-}
-/* hover 硬约束(本任务受此约束的三处之一):基类 .fchip:hover 是 (0,2,0),变体
-   .fchip[data-on="true"] 未 hover 时只有 (0,2,0)(class + 属性选择器),二者相等 ⇒ 会靠
-   书写顺序苟活(P6a 四次事故的第二种形态)。T7 已修好 cssCascade.ts 的 classSpecificity——
-   属性选择器现在计入优先级,所以给变体自带 :hover 后是 (0,3,0),稳赢基类,不必再改成伴生
-   类。数值原样复刻未 hover 时的 [data-on] 态,即"选中态在鼠标悬停时保持不变"。 */
-.fchip[data-on='true']:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
-  color: var(--fg);
-}
-.fchip[data-on='true'] .fchip-icon {
-  color: var(--accent-text);
-}
-.fchip-icon {
-  color: var(--fg-faint);
-  display: flex;
-}
-/* fix round 1 · M3(评审并入,牵动 T13/T14/T16/P7b 四个下游):Vue2
-   PhotosSearchView.vue:53 用 <photos-icon :name="chip.icon" :size="13"/>,即 svg
-   width/height 各 13px。本组件把 icon 从字符串 prop 换成 #icon 具名插槽后,这条尺寸
-   契约不能只靠报告里一句话交代——用 :deep(svg) 把宿主传入的 svg 焊死在 13×13,不管
-   宿主内联的 svg 自己写了多大尺寸,渲染出来都会被这条规则收敛,不依赖下游任务自觉记住
-   13 这个数字。 */
+/* fix round 1 · M3 (folded in from review, affects four downstream tasks
+   T13/T14/T16/P7b): Vue2 PhotosSearchView.vue:53 uses <photos-icon :name="chip.icon"
+   :size="13"/>, i.e. an svg with width/height of 13px each. After this component switched
+   icon from a string prop to a named #icon slot, this size contract cannot just be noted
+   in a report -- :deep(svg) pins whatever svg the host passes in down to 13x13, so no
+   matter what size the host writes on its own inlined svg, the rendered result is
+   constrained by this rule, without relying on downstream tasks to remember the number 13
+   on their own. Parity scss has no equivalent rule (the Vue2 original goes through a :size
+   prop rather than a slot + CSS pin), so this is New-UI-specific and is kept. */
 .fchip-icon :deep(svg) {
   width: 13px;
   height: 13px;
-}
-.fchip-x {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  margin-left: 2px;
-  margin-right: -4px;
-  color: var(--fg-faint);
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-}
-/* Vue2 用一个跟随文字色、透明度一成的淡叠层做透明背景上的 hover 底(基于 Vue2 自己的
-   --ink 文字色 token 取一成透明度)——本仓没有 --ink 这个 RGB 三元组 token,代以语义
-   等价、两套主题都有定义的 --hover(同 PersonRelationsTab.vue:218 .rel-row:hover 的
-   既有先例)。 */
-.fchip-x:hover {
-  background: var(--hover);
-  color: var(--fg);
 }
 </style>

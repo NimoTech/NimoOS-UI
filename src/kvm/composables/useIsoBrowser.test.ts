@@ -4,7 +4,7 @@ import { useIsoBrowser } from './useIsoBrowser'
 const api = { getList: vi.fn() }
 vi.mock('@nimotech/nimoos-service', () => ({ service: { get folder() { return api } } }))
 
-// 真机 2026-08-03 `GET /v1/folder?path=/DATA` 的形状(逐字,含 size)。
+// Shape of real-device 2026-08-03 `GET /v1/folder?path=/DATA` (verbatim, including size).
 const LISTING = { content: [
   { name: '.system_data', path: '/DATA/.system_data', is_dir: true, is_symlink: false, size: 4096 },
   { name: 'Amalfi Coast', path: '/DATA/Amalfi Coast', is_dir: true, is_symlink: false, size: 4096 },
@@ -15,13 +15,13 @@ const LISTING = { content: [
 beforeEach(() => { api.getList.mockReset(); api.getList.mockResolvedValue(LISTING) })
 
 describe('useIsoBrowser', () => {
-  it('只保留目录与 .iso(照 Vue2 :310-313)', async () => {
+  it('keeps only directories and .iso files (mirrors Vue2 :310-313)', async () => {
     const s = useIsoBrowser(); await s.fetch('/DATA')
     expect(s.items.value.map((i) => i.name)).toEqual(['.system_data', 'Amalfi Coast', 'alpine-319.iso'])
     expect(s.path.value).toBe('/DATA')
   })
 
-  it('请求期间 isLoading 为真、结束转假', async () => {
+  it('isLoading is true during request, false on completion', async () => {
     let release: (v: unknown) => void = () => {}
     api.getList.mockReturnValue(new Promise((r) => { release = r }))
     const s = useIsoBrowser()
@@ -31,7 +31,7 @@ describe('useIsoBrowser', () => {
     expect(s.isLoading.value).toBe(false)
   })
 
-  it('失败时保留原 path、items 不变、isLoading 归位(照 Vue2 只 console.warn)', async () => {
+  it('on failure, original path and items unchanged, isLoading reset (mirrors Vue2 console.warn only)', async () => {
     const s = useIsoBrowser(); await s.fetch('/DATA')
     api.getList.mockRejectedValue(new Error('EACCES'))
     await s.fetch('/DATA/secret')
@@ -40,7 +40,7 @@ describe('useIsoBrowser', () => {
     expect(s.isLoading.value).toBe(false)
   })
 
-  it('up 退到父目录;根目录再 up 仍是根(照 Vue2 :323-326)', async () => {
+  it('up navigates to parent directory; root up again stays root (mirrors Vue2 :323-326)', async () => {
     const s = useIsoBrowser(); await s.fetch('/DATA/Amalfi Coast')
     await s.up()
     expect(api.getList).toHaveBeenLastCalledWith('/DATA')
@@ -48,7 +48,7 @@ describe('useIsoBrowser', () => {
     expect(api.getList).toHaveBeenLastCalledWith('/')
   })
 
-  it('后到先得:两次 fetch 交错落定时,后发起的那次赢(过期守卫)', async () => {
+  it('last one wins: when two fetches interleave, the later-issued one wins (out-of-order guard)', async () => {
     const rs: ((v: unknown) => void)[] = []
     api.getList.mockImplementation(() => new Promise((r) => { rs.push(r) }))
     const s = useIsoBrowser()
@@ -61,7 +61,7 @@ describe('useIsoBrowser', () => {
     expect(s.items.value.map((i) => i.name)).toEqual(['b.iso'])
   })
 
-  it('dispose 后落定不写 state', async () => {
+  it('after dispose, response does not write state', async () => {
     let release: (v: unknown) => void = () => {}
     api.getList.mockReturnValue(new Promise((r) => { release = r }))
     const s = useIsoBrowser()

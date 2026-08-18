@@ -1,19 +1,20 @@
-// SP8-P4 Task 2 —— 1:1 移植自 Vue2 src/views/AI/MCP/mcpServerVisual.js(15 行)。
-// 哈希算法、色板顺序、取模逐字保留;色板与 SkillTile.vue 的 SKILL_COLOR_IDS
-// 完全相同(两边都映射到 tokens.scss:236-242 的 --grad-sk-* 七个渐变 token),
-// 故不新建色板、不新增 token。
-// 【修复轮 M3】此前误写成 `:235-241`(实测 `--grad-sk-blue` 在 :236、
-// `--grad-sk-slate` 在 :242,已 grep 复核修正)。
+// SP8-P4 Task 2 — 1:1 port from Vue2 src/views/AI/MCP/mcpServerVisual.js (15 lines).
+// Hash algorithm, palette order, modulo operation preserved verbatim; palette is identical
+// to SKILL_COLOR_IDS in SkillTile.vue (both map to the seven gradient tokens --grad-sk-*
+// at tokens.scss:236-242), so no new palette or tokens are added.
+// [M3 fix round] Previously incorrectly written as `:235-241` (verified that `--grad-sk-blue`
+// is at :236 and `--grad-sk-slate` is at :242, corrected after grep verification).
 //
-// 类型放宽到 unknown:Vue2 :7 是 `String(name || '')`,对 null/undefined/数字
-// 都做了兜底,这里保持同样的宽容度(列表数据来自后端,name 理论上必为 string,
-// 但兜底是 Vue2 既有行为,不收紧)。
+// Type relaxed to unknown: Vue2 :7 is `String(name || '')`, which handles null/undefined/
+// numbers with a fallback; we maintain the same permissiveness here (list data comes from
+// backend where name is theoretically a string, but the fallback is existing Vue2 behavior
+// and should not be tightened).
 const PALETTE = ['blue', 'purple', 'pink', 'orange', 'green', 'teal', 'slate']
 
-/** Vue2 mcpServerVisual.js:4 —— 后端没有图标字段,全部 MCP 服务统一用这个字形。 */
+/** Vue2 mcpServerVisual.js:4 — Backend has no icon field; all MCP services use this glyph uniformly. */
 export const SERVER_GLYPH = 'drive'
 
-/** Vue2 mcpServerVisual.js:6-11 逐字移植。 */
+/** Vue2 mcpServerVisual.js:6-11 ported verbatim. */
 export function serverColor(name: unknown): string {
   const s = String(name || '')
   let h = 0
@@ -21,7 +22,7 @@ export function serverColor(name: unknown): string {
   return PALETTE[h % PALETTE.length]
 }
 
-/** Vue2 mcpServerVisual.js:13-15 逐字移植。 */
+/** Vue2 mcpServerVisual.js:13-15 ported verbatim. */
 export function transportLabel(t: unknown): string {
   return String(t || '').toUpperCase()
 }

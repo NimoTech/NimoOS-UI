@@ -136,9 +136,9 @@ function back() { router.push({ name: 'apps' }) }
 </template>
 
 <style scoped>
-/* 控制台页天然是"应用式"定高布局(只有 tabs+面板,无长文档内容):
-   height:100% 给下游一个确定分母,终端/日志面板才能占满剩余空间在内部滚
-   (min-height:100% 是内容驱动高度,面板会随内容长高——YAML 标签同款教训) */
+/* Console page is naturally an "application-style" fixed-height layout (tabs + panel only, no long document content):
+   height:100% gives downstream a definite denominator so terminal/logs panel can fill remaining space with internal scrolling
+   (min-height:100% is content-driven height, panel grows with content — same lesson as YAML tab) */
 .apps-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 .detail-back { font-size: 13px; margin-bottom: 14px; align-self: flex-start; }
@@ -150,6 +150,10 @@ function back() { router.push({ name: 'apps' }) }
   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
 }
 .console-svc:focus { border-color: var(--accent); }
+/* Chrome brings author background into native dropdown: semi-transparent gradient overlaid on white default ⇒ white text on white in dark theme.
+   Same fix at .set-select and 5 other places: pin option to solid token background color. */
+.console-svc option,
+.console-svc optgroup { background-color: var(--set-option-bg); color: var(--set-option-fg); }
 .console-tabs { display: flex; gap: 6px; margin-left: auto; }
 .console-tabs button {
   padding: 5px 16px; border-radius: 9px; border: 1px solid var(--card-border);

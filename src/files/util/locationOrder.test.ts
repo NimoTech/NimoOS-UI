@@ -5,20 +5,20 @@ beforeEach(() => localStorage.clear())
 
 describe('applyOrder', () => {
   const disks = [{ path: '/a' }, { path: '/b' }, { path: '/c' }]
-  it('无保存顺序 → 原样', () => {
+  it('no saved order → keep as is', () => {
     expect(applyOrder(disks, []).map((d) => d.path)).toEqual(['/a', '/b', '/c'])
   })
-  it('按保存顺序重排', () => {
+  it('reorder by saved order', () => {
     expect(applyOrder(disks, ['/c', '/a']).map((d) => d.path)).toEqual(['/c', '/a', '/b'])
   })
-  it('未记录的新盘排到已知项之后、保持相对序', () => {
+  it('unrecorded new disk placed after known items, keeps relative order', () => {
     expect(applyOrder([{ path: '/a' }, { path: '/x' }, { path: '/b' }], ['/b', '/a']).map((d) => d.path))
       .toEqual(['/b', '/a', '/x'])
   })
 })
 
-describe('order/default 持久化', () => {
-  it('order 往返', () => { writeOrder(['/a', '/b']); expect(readOrder()).toEqual(['/a', '/b']) })
-  it('default 往返', () => { writeDefault('/a'); expect(readDefault()).toBe('/a') })
-  it('缺失/损坏 → 空', () => { expect(readOrder()).toEqual([]); expect(readDefault()).toBe('') })
+describe('order/default persistence', () => {
+  it('order round-trip', () => { writeOrder(['/a', '/b']); expect(readOrder()).toEqual(['/a', '/b']) })
+  it('default round-trip', () => { writeDefault('/a'); expect(readDefault()).toBe('/a') })
+  it('missing/corrupted → empty', () => { expect(readOrder()).toEqual([]); expect(readDefault()).toBe('') })
 })

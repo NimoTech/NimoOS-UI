@@ -6,9 +6,11 @@ import { createI18n } from 'vue-i18n'
 import zh from '../../i18n/zh_cn'
 import { useFileOps } from './useFileOps'
 import { useFilesStore } from '../stores/files'
+import { useFavoritesStore } from '../stores/favorites'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useToast } from '../../stores/toast'
 import { useFileConflictsStore } from '../stores/fileConflicts'
+import { useFileOpsStore } from '../stores/fileOps'
 
 const folderCreate = vi.fn().mockResolvedValue(undefined)
 const fileCreate = vi.fn().mockResolvedValue(undefined)
@@ -19,13 +21,15 @@ const getList = vi.fn().mockResolvedValue({ content: [] })
 const fileUrl = vi.fn((p: string) => `/v3/file?token=TK&path=${encodeURIComponent(p)}`)
 const batchUrl = vi.fn((f: string) => `/v1/batch?token=TK&files=${encodeURIComponent(f)}`)
 const refreshMock = vi.fn().mockResolvedValue('new-token')
+const getCustomStorage = vi.fn().mockResolvedValue([])
+const setCustomStorage = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     folder: { create: (...a: unknown[]) => folderCreate(...a), getList: (...a: unknown[]) => getList(...a) },
     file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a), fileUrl: (...a: unknown[]) => fileUrl(...(a as [string])) },
     batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a), batchUrl: (...a: unknown[]) => batchUrl(...(a as [string])) },
-    users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+    users: { getCustomStorage: (...a: unknown[]) => getCustomStorage(...a), setCustomStorage: (...a: unknown[]) => setCustomStorage(...a) },
   },
   refreshAccessToken: (...a: unknown[]) => refreshMock(...a),
 }))
@@ -35,7 +39,7 @@ vi.mock('../util/iframeDownload', () => ({ triggerIframeDownload: (...a: unknown
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// 在组件 setup 内实例化 composable,拿到其 API
+// Instantiate the composable inside a component's setup to get its API
 function makeOps() {
   let api!: ReturnType<typeof useFileOps>
   const Host = defineComponent({ setup() { api = useFileOps(); return () => h('div') } })
@@ -43,50 +47,287 @@ function makeOps() {
   return api
 }
 
+// The MessageBus completion event for an async file task. Files.vue feeds these
+// to the fileOps store; here the submission mock stands in for that round trip.
+const finishedEvent = (to: string, status = 'FINISHED', id = 't1') => ({
+  file_operate: JSON.stringify({
+    data: [{ id, type: 'move', finished: true, status, processing_path: '', processed_size: 1, total_size: 1, to }],
+  }),
+})
+
+// POST /v1/batch/task only means "accepted"; the task itself reports back over
+// MessageBus afterwards. Make the accepted submission emit that completion.
+function completeOnSubmit(to: string, status = 'FINISHED') {
+  const store = useFileOpsStore()
+  batchTask.mockImplementation(async () => { store.ingest(finishedEvent(to, status)) })
+}
+
+// What the destination directory listing answers when the landing check reads it.
+const destHolds = (...names: string[]) =>
+  getList.mockResolvedValue({ content: names.map((name) => ({ name, path: '/x/' + name, is_dir: true })) })
+
 describe('useFileOps', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    // clearAllMocks keeps implementations, so a persistent mockImplementation
+    // set by one test would leak into the next -- restore both defaults.
+    batchTask.mockImplementation(async () => undefined)
+    getList.mockResolvedValue({ content: [] })
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
   })
 
-  it('createFolder 用当前真实路径拼子路径并 reload', async () => {
+  it('createFolder joins the sub-path onto the current real path and reloads', async () => {
     const files = useFilesStore(); files.currentPath = '/DATA/Docs'
     const ops = makeOps()
     await ops.createFolder('New Folder')
     expect(folderCreate).toHaveBeenCalledWith('/DATA/Docs/New Folder')
-    expect(getList).toHaveBeenCalledWith('/DATA/Docs') // reload 当前目录
+    expect(getList).toHaveBeenCalledWith('/DATA/Docs') // reload the current directory
   })
 
-  it('createFile 同理走 file.create', async () => {
+  it('createFile likewise goes through file.create', async () => {
     const files = useFilesStore(); files.currentPath = '/DATA'
     const ops = makeOps()
     await ops.createFile('a.txt')
     expect(fileCreate).toHaveBeenCalledWith('/DATA/a.txt')
   })
 
-  it('rename 同名直接返回不请求', async () => {
+  it('createFolder: a name over 255 bytes → toasts filesNameTooLong and sends no request', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('x'.repeat(256))
+    expect(folderCreate).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+  })
+
+  it('createFolder: the backend message is the literal "Fail" → show the local filesOpFailed copy instead of "Fail"', async () => {
+    useFilesStore().currentPath = '/DATA'
+    folderCreate.mockRejectedValueOnce(new Error('Fail'))
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('ok')
+    expect(showSpy).toHaveBeenCalledWith(zh.filesOpFailed)
+  })
+
+  it('createFolder: an error carrying detail → show the detail text verbatim', async () => {
+    useFilesStore().currentPath = '/DATA'
+    folderCreate.mockRejectedValueOnce(Object.assign(new Error('Fail'), { detail: 'no space left on device' }))
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('ok')
+    expect(showSpy).toHaveBeenCalledWith('no space left on device')
+  })
+
+  it('createFolder: name over 255 bytes → toast filesNameTooLong, sends no request', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('x'.repeat(256))
+    expect(folderCreate).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+  })
+
+  it('createFolder: backend message is the literal "Fail" → shows local filesOpFailed instead of "Fail"', async () => {
+    useFilesStore().currentPath = '/DATA'
+    folderCreate.mockRejectedValueOnce(new Error('Fail'))
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('ok')
+    expect(showSpy).toHaveBeenCalledWith(zh.filesOpFailed)
+  })
+
+  it('createFolder: error carries a detail → shows the detail text verbatim', async () => {
+    useFilesStore().currentPath = '/DATA'
+    folderCreate.mockRejectedValueOnce(Object.assign(new Error('Fail'), { detail: 'no space left on device' }))
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('ok')
+    expect(showSpy).toHaveBeenCalledWith('no space left on device')
+  })
+
+  it('rename with the same name returns immediately, no request sent', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'a.txt')
     expect(fileRename).not.toHaveBeenCalled()
   })
 
-  it('rename 用 file.rename(old,new)', async () => {
+  it('rename uses file.rename(old,new)', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
     expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/b.txt')
   })
 
-  it('remove 同步 DELETE /batch 传 JSON 字符串数组', async () => {
+  it('rename syncs the favorite pointing at the renamed entry (sidebar stays in step)', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const favs = useFavoritesStore()
+    await favs.add({ name: 'a.txt', path: '/DATA/a.txt' })
+    const ops = makeOps()
+    await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
+    expect(favs.list).toEqual([{ name: 'b.txt', path: '/DATA/b.txt' }])
+  })
+
+  it('rename failure leaves favorites untouched', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const favs = useFavoritesStore()
+    await favs.add({ name: 'a.txt', path: '/DATA/a.txt' })
+    fileRename.mockRejectedValueOnce(new Error('Fail'))
+    const ops = makeOps()
+    await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
+    expect(favs.list).toEqual([{ name: 'a.txt', path: '/DATA/a.txt' }])
+  })
+
+  // bug.txt #2, rename half: create already refuses an over-long name locally,
+  // rename went straight to the wire. The backend answers HTTP 500 with the bare
+  // literal "Fail" for ENAMETOOLONG, which errMsg() collapses into the generic
+  // "operation failed" -- the user is never told the name is the problem.
+  describe('rename length guards', () => {
+    it('refuses a name over 255 bytes with the name-too-long copy and sends nothing', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'x'.repeat(256))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+    })
+
+    it('counts bytes, not characters: 86 CJK characters are 258 bytes and are refused', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, '名'.repeat(86))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+    })
+
+    it('still accepts a name exactly on the 255-byte boundary', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'x'.repeat(255))
+      expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/' + 'x'.repeat(255))
+    })
+
+    it('refuses a target whose whole path exceeds 4095 bytes with the path-too-long copy', async () => {
+      // A parent 4025 bytes deep: each segment is well inside NAME_MAX, so only
+      // the joined path can be what is over the limit.
+      const deepDir = '/DATA' + '/' + Array.from({ length: 20 }, () => 'a'.repeat(200)).join('/')
+      useFilesStore().currentPath = deepDir
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: deepDir + '/a.txt', is_dir: false }, 'b'.repeat(100))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesPathTooLong)
+    })
+
+    // The base for rename is the entry's OWN parent, not files.currentPath: the
+    // two differ whenever the rename is driven from a search result or the
+    // sidebar. Measuring against currentPath would refuse a perfectly legal
+    // rename of a shallow entry while the user happens to be standing in a deep
+    // directory.
+    it('measures the path against the entry parent, not the directory the user is standing in', async () => {
+      useFilesStore().currentPath = '/DATA' + '/' + Array.from({ length: 20 }, () => 'a'.repeat(200)).join('/')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b'.repeat(100))
+      expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/' + 'b'.repeat(100))
+    })
+  })
+
+  it('rename syncs the favorite pointing at the renamed entry (sidebar stays in step)', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const favs = useFavoritesStore()
+    await favs.add({ name: 'a.txt', path: '/DATA/a.txt' })
+    const ops = makeOps()
+    await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
+    expect(favs.list).toEqual([{ name: 'b.txt', path: '/DATA/b.txt' }])
+  })
+
+  it('rename failure leaves favorites untouched', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const favs = useFavoritesStore()
+    await favs.add({ name: 'a.txt', path: '/DATA/a.txt' })
+    fileRename.mockRejectedValueOnce(new Error('Fail'))
+    const ops = makeOps()
+    await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
+    expect(favs.list).toEqual([{ name: 'a.txt', path: '/DATA/a.txt' }])
+  })
+
+  // bug.txt #2, rename half: create already refuses an over-long name locally,
+  // rename went straight to the wire. The backend answers HTTP 500 with the bare
+  // literal "Fail" for ENAMETOOLONG, which errMsg() collapses into the generic
+  // "operation failed" -- the user is never told the name is the problem.
+  describe('rename length guards', () => {
+    it('refuses a name over 255 bytes with the name-too-long copy and sends nothing', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'x'.repeat(256))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+    })
+
+    it('counts bytes, not characters: 86 CJK characters are 258 bytes and are refused', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, '名'.repeat(86))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+    })
+
+    it('still accepts a name exactly on the 255-byte boundary', async () => {
+      useFilesStore().currentPath = '/DATA'
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'x'.repeat(255))
+      expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/' + 'x'.repeat(255))
+    })
+
+    it('refuses a target whose whole path exceeds 4095 bytes with the path-too-long copy', async () => {
+      // A parent 4025 bytes deep: each segment is well inside NAME_MAX, so only
+      // the joined path can be what is over the limit.
+      const deepDir = '/DATA' + '/' + Array.from({ length: 20 }, () => 'a'.repeat(200)).join('/')
+      useFilesStore().currentPath = deepDir
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: deepDir + '/a.txt', is_dir: false }, 'b'.repeat(100))
+      expect(fileRename).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.filesPathTooLong)
+    })
+
+    // The base for rename is the entry's OWN parent, not files.currentPath: the
+    // two differ whenever the rename is driven from a search result or the
+    // sidebar. Measuring against currentPath would refuse a perfectly legal
+    // rename of a shallow entry while the user happens to be standing in a deep
+    // directory.
+    it('measures the path against the entry parent, not the directory the user is standing in', async () => {
+      useFilesStore().currentPath = '/DATA' + '/' + Array.from({ length: 20 }, () => 'a'.repeat(200)).join('/')
+      const ops = makeOps()
+      await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b'.repeat(100))
+      expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/' + 'b'.repeat(100))
+    })
+  })
+
+  it('remove sends DELETE /batch with a JSON string array', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.remove([{ name: 'a', path: '/DATA/a', is_dir: false }])
     expect(batchDelete).toHaveBeenCalledWith(JSON.stringify(['/DATA/a']))
   })
 
-  it('remove 受保护项被前端挡下,不请求', async () => {
+  it('remove blocks a protected item on the frontend, no request sent', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.remove([{ name: 'Documents', path: '/DATA/Documents', is_dir: true }])
@@ -131,14 +372,77 @@ describe('useFileOps', () => {
     expect(showSpy).toHaveBeenCalledWith(zh.filesProtectedDelete)
   })
 
-  it('rename 受保护项被前端挡下,不请求', async () => {
+  // Bug 5 (owner report): "create a folder, favourite it, delete it -- the
+  // favourite is still in the sidebar". The exact-path case below is what the
+  // owner described and it already worked; the descendant case is the real
+  // hole, because a favourite only ever records the folder it points at and
+  // nothing about its ancestors.
+  describe('delete keeps the favourites list consistent', () => {
+    it('drops the favourite that pointed at the deleted folder (the owner-reported scenario)', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'test_folder', path: '/DATA/Documents/test_folder' })
+      setCustomStorage.mockClear()
+      const ops = makeOps()
+      await ops.remove([{ name: 'test_folder', path: '/DATA/Documents/test_folder', is_dir: true }])
+      expect(favs.list).toEqual([])
+      expect(setCustomStorage).toHaveBeenCalledWith('favorites', [])
+    })
+
+    it('drops favourites nested under a deleted ancestor', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'b', path: '/DATA/Documents/a/b' })
+      const ops = makeOps()
+      await ops.remove([{ name: 'a', path: '/DATA/Documents/a', is_dir: true }])
+      expect(favs.list).toEqual([])
+    })
+
+    it('keeps a sibling whose path merely starts with the deleted one', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'ab', path: '/DATA/Documents/ab' })
+      const ops = makeOps()
+      await ops.remove([{ name: 'a', path: '/DATA/Documents/a', is_dir: true }])
+      expect(favs.list).toEqual([{ name: 'ab', path: '/DATA/Documents/ab' }])
+    })
+
+    // Deleting N favourited folders used to fire N full-list POSTs in series.
+    it('persists the favourites list once for a whole batch delete', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'a', path: '/DATA/Documents/a' })
+      await favs.add({ name: 'b', path: '/DATA/Documents/b' })
+      await favs.add({ name: 'c', path: '/DATA/Documents/c' })
+      setCustomStorage.mockClear()
+      const ops = makeOps()
+      await ops.remove([
+        { name: 'a', path: '/DATA/Documents/a', is_dir: true },
+        { name: 'b', path: '/DATA/Documents/b', is_dir: true },
+      ])
+      expect(favs.list).toEqual([{ name: 'c', path: '/DATA/Documents/c' }])
+      expect(setCustomStorage).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not persist when nothing deleted was favourited', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'keep', path: '/DATA/Documents/keep' })
+      setCustomStorage.mockClear()
+      const ops = makeOps()
+      await ops.remove([{ name: 'other', path: '/DATA/Documents/other', is_dir: true }])
+      expect(setCustomStorage).not.toHaveBeenCalled()
+    })
+  })
+
+  it('rename blocks a protected item on the frontend, no request sent', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.rename({ name: 'Documents', path: '/DATA/Documents', is_dir: true }, 'Docs')
     expect(fileRename).not.toHaveBeenCalled()
   })
 
-  it('copyPath 写虚拟路径(不含 /DATA)', async () => {
+  it('copyPath writes the virtual path (excluding /DATA)', async () => {
     const files = useFilesStore()
     files.displayNames = { '/DATA': 'NimoOS-HD' }
     const ops = makeOps()
@@ -148,7 +452,7 @@ describe('useFileOps', () => {
     expect(arg).not.toContain('/DATA')
   })
 
-  it('copy 把选中项真实路径写进剪贴板(type:copy)', async () => {
+  it('copy writes the real paths of the selected items into the clipboard (type:copy)', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
     const ops = makeOps()
@@ -156,12 +460,12 @@ describe('useFileOps', () => {
     expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }] })
   })
 
-  it('cut 写 type:move;受保护项被挡(不写剪贴板)', async () => {
+  it('cut writes type:move; a protected item is blocked (not written to clipboard)', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
     const ops = makeOps()
     ops.cut([{ name: 'AppData', path: '/DATA/AppData', is_dir: true } as never])
-    expect(clip.operateObject).toBeNull() // 受保护 → 挡下
+    expect(clip.operateObject).toBeNull() // protected → blocked
     ops.cut([{ name: 'a', path: '/DATA/a', is_dir: false } as never])
     expect(clip.operateObject?.type).toBe('move')
   })
@@ -226,6 +530,266 @@ describe('useFileOps', () => {
     expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'overwrite' })
     expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/b' }], to: '/DATA/dst', style: 'rename' })
     expect(clip.operateObject).toBeNull()
+  })
+
+  // A cut+paste relocates the entry, so a favourite pointing at it has exactly
+  // the same consistency duty rename() already discharges -- otherwise the
+  // sidebar keeps a row that navigates nowhere.
+  //
+  // But the repoint may only happen once the move HAS ACTUALLY HAPPENED, which
+  // is two facts, not one. `POST /v1/batch/task` returning 200 is neither of
+  // them: it only means the request was accepted, and the move runs later as an
+  // async task. On the owner's device a task that was accepted and then never
+  // executed (the backend dequeued a folder holding only empty directories as
+  // "already done") repointed the favourites anyway; six retries nested the
+  // stored paths six levels deep and left all 16 favourites pointing at paths
+  // that never existed. So: wait for the completion event, AND confirm the entry
+  // is really visible at the destination.
+  describe('paste favourite sync', () => {
+    it('repoints a favourite (and its descendants) once the move reports completion and the entry is there', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      await favs.add({ name: 'Sub', path: '/DATA/Documents/Trip/Sub' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media')
+      destHolds('Trip')
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([
+        { name: 'Trip', path: '/DATA/Media/Trip' },
+        { name: 'Sub', path: '/DATA/Media/Trip/Sub' },
+      ])
+    })
+
+    // The regression itself: accepted, never executed, nothing at the
+    // destination. Repointing here is what destroyed the owner's sidebar.
+    it('leaves favourites alone when the task claims completion but nothing landed', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      setCustomStorage.mockClear() // only the paste's own writes count below
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media')
+      destHolds() // the destination is empty: the move never ran
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+      expect(setCustomStorage).not.toHaveBeenCalled()
+      expect(warn).toHaveBeenCalled()
+      warn.mockRestore()
+    })
+
+    // A cancel moved nothing -- the same repoint would be just as wrong.
+    it('leaves favourites alone when the task comes back CANCELLED', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media', 'CANCELLED')
+      destHolds('Trip') // even if something with that name is there
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+      warn.mockRestore()
+    })
+
+    // MessageBus drops messages for slow consumers (subscriber buffer is 1), so
+    // a completion event can simply never arrive. Staying put leaves a stale
+    // favourite, which is recoverable; repointing on a guess is not.
+    it('leaves favourites alone when no completion event ever arrives', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      useFileOpsStore().settleTimeoutMs = 10
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      destHolds('Trip') // the entry IS there, but nothing said the task finished
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+      expect(warn).toHaveBeenCalled()
+      warn.mockRestore()
+    })
+
+    it('leaves favourites alone when the landing check itself cannot be read', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media')
+      getList.mockRejectedValue(new Error('offline'))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+      warn.mockRestore()
+    })
+
+    // One listing of the destination answers for the whole batch. Probing each
+    // favourite (descendants included) would fire a request per sidebar row.
+    it('reads the destination directory only, never one probe per favourite', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      await favs.add({ name: 'Sub', path: '/DATA/Documents/Trip/Sub' })
+      await favs.add({ name: 'Deep', path: '/DATA/Documents/Trip/Sub/Deep' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media')
+      destHolds('Trip')
+      const ops = makeOps()
+      await ops.paste()
+      expect(getList.mock.calls.every((c) => c[0] === '/DATA/Media')).toBe(true)
+    })
+
+    it('leaves favourites alone for a copy: the original is still where it was', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('copy', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+    })
+
+    it('does not repoint a favourite whose move the backend rejected', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      batchTask.mockRejectedValueOnce(new Error('Fail'))
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+    })
+
+    // The two batches are submitted independently and either can fail on its
+    // own, so the sync has to follow the batch that actually landed rather than
+    // the paste as a whole.
+    it('syncs only the batch that landed when the other one failed', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
+      const files = useFilesStore(); files.currentPath = '/DATA/dst'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'a', path: '/DATA/a' })
+      await favs.add({ name: 'b', path: '/DATA/b' })
+      // First call is the overwrite batch, second is the rename batch.
+      const opsStore = useFileOpsStore()
+      batchTask
+        .mockImplementationOnce(async () => { opsStore.ingest(finishedEvent('/DATA/dst')) })
+        .mockRejectedValueOnce(new Error('Fail'))
+      destHolds('a')
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [{ from: '/DATA/a', is_dir: false }],
+        renameItems: [{ from: '/DATA/b', is_dir: false }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([
+        { name: 'a', path: '/DATA/dst/a' },
+        { name: 'b', path: '/DATA/b' },
+      ])
+    })
+
+    // Same reentrancy window as F1/B7 above: resolvePaste awaits a directory
+    // listing, and the user can navigate away during it. The favourite must be
+    // repointed at the directory the paste actually submitted to.
+    it('repoints at the directory the paste started in, not wherever the user navigated to', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/a', is_dir: false }])
+      const files = useFilesStore(); files.currentPath = '/DATA/dirA'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'a', path: '/DATA/a' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockImplementation(async () => {
+        files.currentPath = '/DATA/dirB'
+        return { overwriteItems: [], renameItems: [{ from: '/DATA/a', is_dir: false }], skippedCount: 0, cancelledCount: 0 }
+      })
+      completeOnSubmit('/DATA/dirA')
+      destHolds('a')
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'a', path: '/DATA/dirA/a' }])
+    })
   })
 
   it('paste submits a single task when nothing was overwritten', async () => {
@@ -530,8 +1094,8 @@ describe('useFileOps', () => {
     expect(batchTask).not.toHaveBeenCalled()
   })
 
-  it('download 单文件 → service.file.fileUrl(真实路径) 并触发 iframe', async () => {
-    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600)) // 充裕,不刷新
+  it('download single file → service.file.fileUrl(real path) and triggers iframe', async () => {
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600)) // plenty of time left, no refresh needed
     const ops = makeOps()
     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
     expect(fileUrl).toHaveBeenCalledWith('/DATA/a.txt')
@@ -540,7 +1104,7 @@ describe('useFileOps', () => {
     expect(refreshMock).not.toHaveBeenCalled()
   })
 
-  it('download 单目录/多选 → service.batch.batchUrl(逗号连接真实路径)', async () => {
+  it('download single directory/multi-select → service.batch.batchUrl(comma-joined real paths)', async () => {
     localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600))
     const ops = makeOps()
     await ops.download([
@@ -552,30 +1116,30 @@ describe('useFileOps', () => {
     expect(triggerMock).toHaveBeenCalledTimes(1)
   })
 
-  it('download token 快过期 → 先 refreshAccessToken 再构 URL', async () => {
-    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 10)) // 10s 后过期,进缓冲
+  it('download token about to expire → refreshAccessToken first, then build the URL', async () => {
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 10)) // expires in 10s, inside the refresh buffer
     const ops = makeOps()
     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
     expect(refreshMock).toHaveBeenCalledTimes(1)
     expect(triggerMock).toHaveBeenCalledTimes(1)
   })
 
-  it('download expires_at 缺失 → 保守刷新', async () => {
+  it('download expires_at missing → refreshes conservatively', async () => {
     localStorage.removeItem('expires_at')
     const ops = makeOps()
     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
     expect(refreshMock).toHaveBeenCalledTimes(1)
   })
 
-  it('download 刷新失败 → 不触发下载', async () => {
-    localStorage.removeItem('expires_at') // 触发刷新
+  it('download refresh fails → download is not triggered', async () => {
+    localStorage.removeItem('expires_at') // triggers a refresh
     refreshMock.mockRejectedValueOnce(new Error('auth fail'))
     const ops = makeOps()
     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
     expect(triggerMock).not.toHaveBeenCalled()
   })
 
-  it('download 空选区 → 无操作', async () => {
+  it('download empty selection → no-op', async () => {
     const ops = makeOps()
     await ops.download([])
     expect(fileUrl).not.toHaveBeenCalled()
@@ -583,7 +1147,7 @@ describe('useFileOps', () => {
     expect(triggerMock).not.toHaveBeenCalled()
   })
 
-  describe('快照只读态拦截写操作', () => {
+  describe('snapshot read-only state blocks write operations', () => {
     const enterSnapshot = () => {
       const browse = useSnapshotBrowseStore()
       browse.status = 'ready'
@@ -592,32 +1156,32 @@ describe('useFileOps', () => {
       return browse
     }
 
-    it('新建文件夹被拦,不发请求', async () => {
+    it('creating a folder is blocked, no request sent', async () => {
       enterSnapshot()
       const ops = makeOps()
       await ops.createFolder('新建文件夹')
       expect(folderCreate).not.toHaveBeenCalled()
       expect(useToast().msg).toContain('只读')
     })
-    it('新建文件被拦', async () => {
+    it('creating a file is blocked', async () => {
       enterSnapshot()
       const ops = makeOps()
       await ops.createFile('a.txt')
       expect(fileCreate).not.toHaveBeenCalled()
     })
-    it('重命名被拦', async () => {
+    it('rename is blocked', async () => {
       enterSnapshot()
       const ops = makeOps()
       await ops.rename({ name: 'a', path: '/DATA/.snapshots/snap1/a', is_dir: false }, 'b')
       expect(fileRename).not.toHaveBeenCalled()
     })
-    it('删除被拦', async () => {
+    it('delete is blocked', async () => {
       enterSnapshot()
       const ops = makeOps()
       await ops.remove([{ name: 'a', path: '/DATA/.snapshots/snap1/a', is_dir: false }])
       expect(batchDelete).not.toHaveBeenCalled()
     })
-    it('粘贴被拦', async () => {
+    it('paste is blocked', async () => {
       enterSnapshot()
       const { useClipboardStore } = await import('../stores/clipboard')
       useClipboardStore().operate('copy', [{ path: '/DATA/a', is_dir: false }])
@@ -625,7 +1189,7 @@ describe('useFileOps', () => {
       await ops.paste()
       expect(batchTask).not.toHaveBeenCalled()
     })
-    it('不在快照里时这些操作照常放行', async () => {
+    it('these operations pass through normally when not inside a snapshot', async () => {
       useFilesStore().currentPath = '/DATA/Photos'
       const ops = makeOps()
       await ops.createFolder('新建文件夹')

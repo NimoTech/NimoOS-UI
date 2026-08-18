@@ -118,6 +118,38 @@ afterEach(() => {
   lb.__resetForTest()
 })
 
+// Task 1 (Plan E re-shell): brief's Step 1 RED test — the transitional AreaShell/.photos-layout
+// shell has been swapped for the same `.photos-root > .app[data-collapsed] > PhotosSidebar +
+// main.main > PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses
+// (PhotosPeople.vue/PhotosAlbums.vue's own precedent, PhotosPeople.test.ts's own re-shell test
+// as the style reference).
+describe('PhotosPlaceAssets.vue —— 换壳(Plan E Task 1)', () => {
+  it('mounts the app shell: .photos-root .app exists, PhotosTopbar title=city name with no sub, lightbox outside', async () => {
+    svc.photos.getPlace.mockResolvedValue(rawPlace('7', { city: 'Kyoto' }))
+    const { w } = await mountView('/photos/places/7')
+    expect(w.find('.photos-root .app').exists()).toBe(true)
+
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.exists()).toBe(true)
+    expect(topbar.props('title')).toBe('Kyoto')
+    // Fix round 1 · Important 1 (2026-08-14 review): Vue2 has no dedicated topbar/sub for this
+    // detail context (see this file's own Task 1 header comment). A prop-level assertion here
+    // let a real regression slip through review — PhotosTopbar's `sub` computed falls back to
+    // the library-wide count summary on an *omitted* prop (`??` only catches null/undefined,
+    // not ''), so simply not passing `sub` would render a stray, wrong subtitle under the city
+    // name. The page now passes `sub=""` (the explicit opt-out PhotosTopbar.vue was given this
+    // same fix round), and PhotosTopbar itself now renders no `.topbar-sub` node at all for an
+    // empty string — assert that DOM outcome directly, not the prop value.
+    expect(w.find('.topbar-sub').exists()).toBe(false)
+
+    // Plan F Task 5 (2026-08-15): PhotoLightbox re-nested INSIDE .photos-root -- the re-skin
+    // (Tasks 3-4) removed the scoped-vs-parity cascade tie that made nesting unsafe (F8-r4).
+    const rootEl = w.find('.photos-root').element
+    const lbComp = w.findComponent({ name: 'PhotoLightbox' })
+    expect(rootEl.contains(lbComp.element)).toBe(true)
+  })
+})
+
 describe('路由注册与解析(T8 评审硬要求 1:必须真注册、测试要真解析)', () => {
   it('真实应用路由把 /photos/places/7 解析到 name=photos-place-assets,且组件已挂上', () => {
     const match = appRouter.resolve('/photos/places/7')
@@ -188,10 +220,10 @@ describe('挂载即编排数据(参数归一 + T8 硬要求 2:面包屑从 key/s
     expect(svc.photos.listAssetsByPlace).toHaveBeenCalledWith('7', '', 500, null, null)
   })
 
-  it('标题:AreaShell 的 title 是 store.detail 回源的城市名(URL 上从不带 city 字符串)', async () => {
+  it('标题:PhotosTopbar 的 title 是 store.detail 回源的城市名(URL 上从不带 city 字符串)', async () => {
     svc.photos.getPlace.mockResolvedValue(rawPlace('7', { city: 'Kyoto' }))
     const { w } = await mountView('/photos/places/7')
-    expect(w.find('.area-title').text()).toBe('Kyoto')
+    expect(w.findComponent({ name: 'PhotosTopbar' }).props('title')).toBe('Kyoto')
   })
 
   it('标题:详情尚未到位时回落 t("photosPlaces")("地点")', async () => {
@@ -201,7 +233,7 @@ describe('挂载即编排数据(参数归一 + T8 硬要求 2:面包屑从 key/s
     await router.isReady()
     const w = mount(PhotosPlaceAssets, { global: { plugins: [router] } })
     await w.vm.$nextTick()
-    expect(w.find('.area-title').text()).toBe(zh.photosPlaces)
+    expect(w.findComponent({ name: 'PhotosTopbar' }).props('title')).toBe(zh.photosPlaces)
   })
 })
 
@@ -215,7 +247,7 @@ describe('路由参数变化重跑(SP6-P5.5 第 6 条教训:hash 路由同组件
     })
     const { w, router } = await mountView('/photos/places/7')
     expect(w.findAll('.tile')).toHaveLength(2)
-    expect(w.find('.area-title').text()).toBe('Tokyo')
+    expect(w.findComponent({ name: 'PhotosTopbar' }).props('title')).toBe('Tokyo')
 
     const getPlaceCallsBefore = svc.photos.getPlace.mock.calls.length
     const listCallsBefore = svc.photos.listAssetsByPlace.mock.calls.length
@@ -230,7 +262,7 @@ describe('路由参数变化重跑(SP6-P5.5 第 6 条教训:hash 路由同组件
     expect(svc.photos.listAssetsByPlace).toHaveBeenLastCalledWith('9', '', 500, null, null)
     // 旧数据(2 张 a1/a2)不残留,网格换成新地点的 3 张 b1/b2/b3。
     expect(w.findAll('.tile')).toHaveLength(3)
-    expect(w.find('.area-title').text()).toBe('Osaka')
+    expect(w.findComponent({ name: 'PhotosTopbar' }).props('title')).toBe('Osaka')
   })
 })
 
@@ -376,7 +408,7 @@ describe('网格 + 灯箱', () => {
   // (复选框确实没渲染出来),标题改成反映这一点。
   it('D10 落地:本页显式传 selectable=false,复选框确实不渲染', async () => {
     const { w } = await mountView('/photos/places/7')
-    expect(w.find('.tile-check').exists()).toBe(false)
+    expect(w.find('.tile-checkbox').exists()).toBe(false)
   })
 
   it('PhotosGrid emit open → lb.openAt 收到的 list 是整页 photos(D9 翻页集)', async () => {

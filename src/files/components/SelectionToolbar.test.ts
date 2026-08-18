@@ -5,7 +5,7 @@ import SelectionToolbar from './SelectionToolbar.vue'
 
 const i18n = createI18n({
   legacy: false, locale: 'zh_cn',
-  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxCopy: '复制', filesCtxCut: '剪切', filesCtxDownload: '下载', filesCtxDelete: '删除' } },
+  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '取消选择', filesCtxCopy: '复制', filesCtxCut: '剪切', filesCtxDownload: '下载', filesCtxDelete: '删除' } },
 })
 
 describe('SelectionToolbar', () => {
@@ -24,7 +24,7 @@ describe('SelectionToolbar', () => {
     expect(w.emitted('delete')).toBeTruthy()
   })
 
-  it('复制/剪切按钮 emit copy/cut', async () => {
+  it('Copy/cut buttons emit copy/cut', async () => {
     const wrapper = mount(SelectionToolbar, {
       props: { count: 2, allSelected: false, canShare: false },
       global: { plugins: [i18n] },
@@ -35,7 +35,7 @@ describe('SelectionToolbar', () => {
     expect(wrapper.emitted('cut')).toBeTruthy()
   })
 
-  it('渲染下载按钮并 emit download', async () => {
+  it('Render download button and emit download', async () => {
     const wrapper = mount(SelectionToolbar, { props: { count: 2, allSelected: false, canShare: false }, global: { plugins: [i18n] } })
     const btn = wrapper.find('.sel-download')
     expect(btn.exists()).toBe(true)

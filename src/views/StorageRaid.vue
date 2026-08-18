@@ -16,21 +16,23 @@ const store = useStorageStore()
 const router = useRouter()
 const { t } = useI18n()
 
-// 热插拔:第三个消费者,复用 T1 composable
+// Hot-plug: the third consumer, reuses the T1 composable
 useDiskHotplug(() => store.loadRaid())
 
-// 重建中时 5000ms 单飞重拉状态(活体进度);无重建则不发请求
+// While rebuilding, single-flight refetch of state every 5000ms (live progress); no request when nothing is rebuilding
 const anyRebuilding = () =>
   isRebuildingList(store.raidArrays.map((a) => resolveRaidState(a, store.raidStatusMap[String(a.id)])))
-// 换盘看板在场时也必须轮询,不能只看 anyRebuilding:刚提交那几秒内核还没接手,
-// rebuild_pct 是 -1、live_state 也还没出现 recovering,isRebuilding 为 false ——
-// 只挂 anyRebuilding 会一拍都不发请求,看板永远转下去、完成也观察不到。
+// Must also poll while the replace/reclaim board is present, not just on anyRebuilding: in the
+// few seconds right after submit the kernel hasn't taken over yet — rebuild_pct is still -1,
+// live_state hasn't reached recovering yet either (the --re-add disk is still parked in spare
+// state), and isRebuilding is false. Gating only on anyRebuilding would never fire a single
+// request, so the board would spin forever with completion never observed.
 useGuardedPoll(() => store.loadRaid(), {
   intervalMs: 5000,
-  active: () => anyRebuilding() || !!store.replaceTask,
+  active: () => anyRebuilding() || !!store.replaceTask || !!store.reclaimTask,
 })
 
-// 创建任务检测:mount 时探测一次,命中 creating 后 1500ms 单飞轮询(卡片 UI 见 T8)
+// Create-task detection: probe once on mount, then single-flight poll every 1500ms once it hits creating (card UI, see T8)
 onMounted(() => { store.detectCreatingTask() })
 useGuardedPoll(() => store.pollCreateTaskOnce(), {
   intervalMs: 1500,

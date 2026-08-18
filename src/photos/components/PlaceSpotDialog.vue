@@ -108,10 +108,14 @@ function onThumbClick(): void {
 <template>
   <div class="spot-dialog">
     <div class="spot-dialog-head">
+      <!-- Fix-1 item 6 (2026-08-16): `--accent-text` (global theme.css token, only follows the
+           app-wide theme) swapped for `--accent-hi` — Vue2's own exact value here
+           (PhotosPlacesView.vue:1194, `<PhotosIcon name="map" :size="13" color="var(--accent-hi)"
+           />`), and already Photos-local/theme-invariant (photos.scss:31). -->
       <svg
         viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        style="color: var(--accent-text); flex: none"
+        style="color: var(--accent-hi); flex: none"
       ><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" /><path d="M9 4v14M15 6v14" /></svg>
       <div style="flex:1;min-width:0">
         <div v-if="!editing" class="spot-dialog-name">
@@ -176,91 +180,55 @@ function onThumbClick(): void {
 </template>
 
 <style scoped>
-/* token 映射(Vue2 → New-UI,同 PlaceDetailPanel.vue 文件头 §6 既定表):--text-1/2/3 →
-   --fg/--fg-muted/--fg-subtle;--surface-2 → --chip-bg;--line → --card-border;
-   --r-sm → --radius-sm。 */
-.spot-dialog {
-  margin-bottom: 16px;
-  padding: 14px;
-  background: var(--accent-soft);
-  /* 本仓无 --accent-rgb token:Vue2 那条边框色(accent 的 rgb 值配 0.3 透明度)换成
-     本仓既定 --accent-soft-bd(深色主题 .36 / 浅色主题 .30,两套主题已各自定义)。 */
-  border: 1px solid var(--accent-soft-bd);
-  border-radius: 12px;
-}
-.spot-dialog-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.spot-dialog-name { font-size: 13.5px; font-weight: 600; color: var(--fg); display: flex; align-items: center; gap: 6px; }
-/* 评审修复 I1(fix round 1):Vue2 `.one-line` 是全局工具类(NimoOS-UI
-   src/assets/scss/common/_others.scss:55,-webkit-box + line-clamp:1 的单行省略写法),
-   但本仓每个 SFC 都是 scoped 孤岛、没有对应的全局样式表——`.one-line` 在这里此前是
-   一个不生效的空壳类,长地点名会换行/溢出、挤压右侧关闭钮。补一份等价的单行省略三件套,
-   同 files/viewers/ViewerShell.vue `.one-line`(:47)既有先例的写法(white-space:nowrap
-   版,视觉效果与 Vue2 的 -webkit-line-clamp:1 等价,写法更简单)。与 T3 漏
-   backdrop-filter 同一根因:改写 Vue2 内联/全局样式为本仓 scoped 写法时,逐条对照容易
-   漏,程序化断言见 PlaceSpotDialog.test.ts。min-width:0 是 flex 子项省略生效的前提
-   (否则 flex item 默认 min-width:auto,撑开而不裁切)。 */
+/* Shadowing cleanup (Plan E Task 4, 2026-08-15): most of this file's former scoped rules have
+   been deleted — they duplicated `photos-places.scss:640-672` (`.spot-dialog` family) using
+   *global* New-UI tokens (`--accent-soft-bd`/`--on-accent`/`--accent-text`/`--fg`/`--chip-bg`/
+   `--card-border`) in place of the Photos-local ones (`--accent-rgb`/white literal/`--accent-hi`/
+   `--text-1`/`--surface-2`/`--line`) parity already declares correctly for these exact
+   selectors — same bug pattern as PlacesZoomBar.vue's 2026-08-15 fix (Task 3). `.icon-btn`
+   was a second, distinct bug: its own comment claimed "this SFC has no global `.icon-btn`
+   class to reach it", but `.photos-root .icon-btn` (photos.scss:256-265, 32x32) is a *plain,
+   unscoped* selector — it reaches this component's `<button class="icon-btn">` fine, same as
+   any global stylesheet does. The local 26px override was shadowing parity's correct 32x32
+   Vue2 value; deleted so parity governs. What survives below is only what has no parity
+   counterpart at all (Vue2 inline/global-utility-class origin, or genuine New-UI additions)
+   plus the two hover-lock rules PlaceSpotDialog.test.ts pins to this file's own raw source. */
+
+/* Vue2 `.one-line` is a *global* utility class (NimoOS-UI src/assets/scss/common/_others.scss:55,
+   -webkit-box + line-clamp:1) that this app's vue2-parity port never carries (out of this
+   spec's scope) — no parity selector exists for it, so this stays a genuine local addition.
+   Equivalent single-line ellipsis, white-space:nowrap variant (same precedent as
+   files/viewers/ViewerShell.vue's own `.one-line`:47). min-width:0 is required for the
+   ellipsis to actually clip inside a flex item (otherwise min-width:auto lets it overflow). */
 .spot-dialog-name .one-line {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.spot-dialog-coords {
-  font-size: 11px; color: var(--fg-subtle);
-  /* 本仓等宽字体用既有 --num-font,不照抄 Vue2 的 ui-monospace, SFMono-Regular, monospace 字体栈。 */
-  font-family: var(--num-font);
-  margin-top: 2px;
-}
-.spot-rename-btn {
-  flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border: none; border-radius: 6px;
-  background: transparent; color: var(--fg-subtle); cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.spot-rename-btn:hover { background: var(--chip-bg); color: var(--fg); }
-.spot-rename { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.spot-rename-input {
-  flex: 1; min-width: 0; height: 26px; padding: 0 8px;
-  /* M1(评审 fix round 1,顺手登记):Vue2 这条输入框边框写的是一个带兜底值的 accent
-     半透明 token(该 token 未定义时的字面量兜底,同语义"比 accent 更浅的软边框")——
-     本仓已有恰好对应语义的 --accent-soft-bd,直接换用,不是就近凑色。 */
-  border: 1px solid var(--accent-soft-bd);
-  border-radius: 6px; background: var(--chip-bg);
-  color: var(--fg); font: inherit; font-size: 12.5px; outline: none;
-}
-.spot-rename-input:focus { border-color: var(--accent); }
-.spot-rename-save, .spot-rename-cancel, .spot-dialog-reset {
+
+/* D8 net-new (user-authorized 2026-07-31): three buttons now share this row instead of Vue2's
+   two (save/cancel) — parity's `.spot-rename` only ever needed `display:flex;align-items:
+   center;gap:6px` (still governs those), but the third `.spot-dialog-reset` button can push
+   this row past its container width, so New-UI adds a wrap fallback with no Vue2 counterpart. */
+.spot-rename { flex-wrap: wrap; }
+
+/* D8 net-new: "restore default name" button — Vue2 has no such affordance (only a
+   zero-callsite service method), so there is no parity selector to fall back on; styled as a
+   ghost button matching `.spot-rename-cancel`'s geometry (parity :659-663).
+   Fix-1 item 6 (2026-08-16): `border`/`color` corrected from the global `--card-border`/
+   `--fg-muted` (only follow the app-wide theme) to local `--line`/`--text-2` (this file's
+   header comment already made the identical correction for every other selector in this
+   family — these two survivor rules were missed in that earlier pass). */
+.spot-dialog-reset {
   flex: none; height: 26px; padding: 0 10px; border-radius: 6px;
   font: inherit; font-size: 11.5px; font-weight: 500; cursor: pointer;
-  border: 1px solid var(--card-border); background: transparent; color: var(--fg-muted);
+  border: 1px solid var(--line); background: transparent; color: var(--text-2);
 }
-.spot-rename-save { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.spot-rename-save:disabled { opacity: 0.4; pointer-events: none; }
-.spot-rename-cancel:hover { color: var(--fg); }
-/* D8(net-new):样式复用 .spot-rename-cancel 的 ghost 形态,busy 时禁用同款处理。 */
-.spot-dialog-reset:hover { color: var(--fg); }
+.spot-dialog-reset:hover { color: var(--text-1); }
 .spot-dialog-reset:disabled { opacity: 0.4; pointer-events: none; }
-.spot-dialog-stat { font-size: 11.5px; color: var(--fg-muted); margin-bottom: 10px; }
-.spot-dialog-stat b { color: var(--fg); font-weight: 600; }
-.spot-dialog-thumbs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin-bottom: 10px; }
-.spot-dialog-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; }
-.spot-dialog-btn {
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
-  height: 32px; padding: 0 12px; border-radius: 8px;
-  background: var(--accent); border: 0; color: var(--on-accent);
-  font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
-}
-/* 本仓无 --accent-hi:hover 换本仓既定写法(先例 PhotosPersonDetail.vue:1142
-   .pd-btn-primary:hover)。 */
-.spot-dialog-btn:hover { background: var(--accent); filter: brightness(1.08); }
 
-/* New-UI 补的最小几何:Vue2 该关闭钮靠全局 photos.scss 的 `.photos-root .icon-btn`
-   (32x32,见该文件 :216-224),本组件是独立 SFC 没有那层全局类,照此弹窗内其余按钮
-   (26px 高)的尺度定一份等价的 scoped 版本,不是发明新样式语言。 */
-.icon-btn {
-  flex: none;
-  width: 26px; height: 26px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: none; border-radius: 6px;
-  background: transparent; color: var(--fg-subtle); cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.icon-btn:hover { background: var(--chip-bg); color: var(--fg); }
+/* Hover-lock survivors (PlaceSpotDialog.test.ts reads this file's own raw `<style>` text via
+   `winningHoverBackground`/regex — these two rules must exist here verbatim, parity coverage
+   of the same selectors is not visible to those assertions). Values corrected to match
+   Vue2/parity exactly (`--accent-hi`, Photos-local purple) instead of the former
+   `filter: brightness(1.08)` approximation. */
+.spot-dialog-btn:hover { background: var(--accent-hi); }
 </style>

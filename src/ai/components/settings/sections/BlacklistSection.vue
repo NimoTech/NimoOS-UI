@@ -1,14 +1,15 @@
 <!--
-  SP8-P2b Task 4 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/BlacklistSection.vue(105 行)。
+  SP8-P2b Task 4 — 1:1 port from Vue2 src/views/AI/Settings/sections/BlacklistSection.vue (105 lines).
 
-  【D2 申报】本分区是 7 个分区里唯一消费 settingsStore 的一个 —— 因为 Vue2 的
-  blacklist 状态本来就在 settingsStore.js 里(其余 6 个分区在 Vue2 里是组件本地
-  data + 直调 ai.js,本期照原样保留,不做 P1 Agent 区那种 store 集中)。
-  用户 2026-07-28 拍板。
+  [D2 declaration] This section is the only one of 7 sections that consumes settingsStore —
+  because Vue2's blacklist state was already in settingsStore.js (the other 6 sections in Vue2
+  use component-local data + direct calls to ai.js, this phase keeps it as-is, not doing
+  store centralization like P1 Agent section). User decided on 2026-07-28.
 
-  【逻辑修正 1】Vue2 mounted 里 loadBlacklist 的错误是静默吞的(`catch (e) {}`),
-  这里照搬 —— 首屏加载失败不弹 toast 是有意的:该分区与另外 4 个分区同属 stack 组
-  会一起挂载,5 个分区同时弹错误 toast 会糊满屏幕。列表为空时空态文案本身就是反馈。
+  [Logic fix 1] Vue2's loadBlacklist error in mounted is silently swallowed (`catch (e) {}`),
+  copied as-is here — no toast on first screen load failure is intentional: this section and
+  4 others belong to the same stack group and mount together, 5 sections popping error toasts
+  simultaneously would clutter the screen. Empty list state message itself is feedback.
 -->
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
@@ -18,8 +19,9 @@ import { useToast } from '../../../../stores/toast'
 import { apiErrorMessage } from '../../../util/apiError'
 import AgentIcon from '../../icons/AgentIcon.vue'
 
-// 1:1 取自 Vue2 BlacklistSection.vue:56-64。内置只读黑名单,前端硬编码展示用,
-// 真正的拦截在后端。顺序与分行照抄,便于逐行对照。
+// 1:1 from Vue2 BlacklistSection.vue:56-64. Built-in read-only blacklist, hardcoded on
+// frontend for display, actual interception on backend. Order and line breaks copied exactly
+// for line-by-line comparison.
 const BUILTIN = [
   '**/.ssh/**', '**/.gnupg/**', '**/.pki/**', '**/.aws/**',
   '**/.config/gcloud/**', '**/.docker/config.json',
@@ -38,7 +40,7 @@ const newPattern = ref('')
 const adding = ref(false)
 
 onMounted(() => {
-  void store.loadBlacklist().catch(() => { /* Vue2 mounted 同样静默,见文件头注释 */ })
+  void store.loadBlacklist().catch(() => { /* Vue2 mounted silently swallows too, see file header comment */ })
 })
 
 async function add() {
@@ -59,12 +61,14 @@ async function remove(id: string | number) {
   try {
     await store.removeBlacklist(id)
   } catch (e) {
-    // 逻辑修正(final review Fix 2):原先此处兜底文案用的是 t('aiCfgDelete')(裸名词
-    // 「删除」),是本任务 brief 原文要求的写法,但最终评审判定与 McpTokensSection.vue:146 /
-    // ChannelsSection.vue:223,276 三处的既有做法不一致 —— 那三处删除失败一律兜底
-    // t('aiCfgDeleteFailed')(「删除失败」)。Vue2 两处都不构成约束(Vue2 只是裸显示
-    // e.message,可能是空串),所以这属于可改的逻辑修正,不是 1:1 违规:brief 的选择
-    // 被最终评审推翻,改成与另外三处一致的 aiCfgDeleteFailed。
+    // Logic fix (final review Fix 2): originally the fallback text here used t('aiCfgDelete')
+    // (bare noun "Delete"), which was what the brief originally specified, but final review
+    // determined it was inconsistent with existing practice in McpTokensSection.vue:146 /
+    // ChannelsSection.vue:223,276 — those three places all use t('aiCfgDeleteFailed') for
+    // delete failure fallback ("Delete failed"). Vue2 is not constraining either way (Vue2 just
+    // displays e.message bare, possibly empty string), so this is a changeable logic fix, not
+    // a violation of 1:1 copy: brief's choice was overridden by final review to match
+    // aiCfgDeleteFailed in those other three places.
     toast.show(apiErrorMessage(e, t('aiCfgDeleteFailed')), 3000, 'danger')
   }
 }

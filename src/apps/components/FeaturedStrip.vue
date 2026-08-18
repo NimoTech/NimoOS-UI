@@ -12,7 +12,7 @@ defineProps<{
 defineEmits<{ open: [id: string]; install: [id: string] }>()
 const { t } = useI18n()
 
-/** 缩略图 404 时隐藏 img,留下渐变占位底(逐项状态不值得为此建子组件) */
+/** When thumbnail 404s, hide img and leave the gradient placeholder (per-item state doesn't warrant a subcomponent) */
 function hideBroken(e: Event) {
   ;(e.target as HTMLImageElement).style.visibility = 'hidden'
 }
@@ -66,7 +66,7 @@ function hideBroken(e: Event) {
   backdrop-filter: var(--blur);
 }
 .featured-card:hover { background: var(--chip-bg-hi); }
-/* 16:9 定比容器:图片未到/加载失败时是占位底,到了铺满——防加载期布局跳动 */
+/* 16:9 aspect ratio container: placeholder background when image is missing/loading fails, fills when loaded—prevents layout jank during load */
 .featured-shot {
   aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden;
   background: var(--chip-bg);

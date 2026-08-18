@@ -1,16 +1,23 @@
 <script setup lang="ts">
-// 改密表单 —— 对位 Vue2 AccountPanel state 3(:723-744)+ savePassword(:415-440)。
+// Change-password form — corresponds to Vue2 AccountPanel state 3 (:723-744) +
+// savePassword (:415-440).
 //
-// ⛔ 这个表单提交后端会 chpasswd **写 /etc/shadow**(NimoOS-UserService route/v1/user.go:403),
-// 而 SSH 与 Web 登录都读 /etc/shadow —— 改的是机主本机的登录凭据,**不可撤销**。
-// 开发期一次都没真发过(plan D 表 / 债务 D26),覆盖靠单测。
+// ⛔ Submitting this form makes the backend run chpasswd, **writing /etc/shadow**
+// (NimoOS-UserService route/v1/user.go:403), and both SSH and web login read /etc/shadow —
+// this changes the device owner's own login credentials, **and cannot be undone**.
+// It has never actually been submitted for real during development (plan D table /
+// debt D26); coverage relies on unit tests.
 //
-// 🔧 plan C1 改正两处 Vue2 行为(不是自由发挥):
-//   ① Vue2 把失败信息塞进 `b-notification` 且带 auto-close(会自己消失,用户可能没看见)
-//      → 改成常驻内联 .set-danger,下次提交才清(C6:弹窗/表单内报错不用 toast)。
-//   ② Vue2 成功后**什么提示都没有**,只 goto(1) → 成功 toast 由宿主补(与「更改头像」一致)。
-// 校验:Vue2 靠 vee-validate 的 required/min:5 + 自己在 savePassword 里比一次 confirmation。
-// 这里自己校验(New-UI 无 vee-validate),顺序 = 空 → 不一致,与 Vue2 可见行为等价。
+// 🔧 Plan C1 corrects two pieces of Vue2 behavior (not free-form changes):
+//   ① Vue2 puts the failure message into a `b-notification` with auto-close (it disappears
+//      on its own, and the user may not have seen it) → changed to a persistent inline
+//      .set-danger, cleared only on the next submit (C6: dialog/form errors don't use a
+//      toast).
+//   ② Vue2 shows **no feedback at all** on success, just goto(1) → the success toast is
+//      supplied by the host (consistent with "change avatar").
+// Validation: Vue2 relies on vee-validate's required/min:5 plus its own confirmation
+// comparison inside savePassword. Here validation is done by hand (New-UI has no
+// vee-validate), in the order empty → mismatch, equivalent to Vue2's visible behavior.
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -55,7 +62,7 @@ defineExpose({ submit })
 
 <template>
   <div class="set-acc-pwd">
-    <!-- 蜜罐:防浏览器把用户名自动填充打到别处(Vue2 :725 逐字照抄这套内联样式) -->
+    <!-- Honeypot: keeps the browser from autofilling the username somewhere else (Vue2 :725, this inline style copied verbatim) -->
     <input
       type="text" autocomplete="username" aria-hidden="true" tabindex="-1"
       style="position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;"
@@ -63,7 +70,7 @@ defineExpose({ submit })
 
     <p v-if="error" class="set-danger" data-test="acc-pwd-error">{{ error }}</p>
 
-    <!-- .set-net-field 包一层:否则吃到 .set-input 的 width:92px(plan C7,P2 实测被截断过) -->
+    <!-- Wrapped in .set-net-field: otherwise it inherits .set-input's width:92px (plan C7, actually got clipped this way in P2) -->
     <div class="set-net-field">
       <input
         v-model="oriPassword" class="set-input" type="password" autocomplete="new-password"

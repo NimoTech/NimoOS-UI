@@ -1,18 +1,24 @@
 <script setup lang="ts">
-// 接口配置弹窗。对位 Vue2 NetworkIfaceConfigModal.vue(431 行)。
+// Interface config dialog. Maps to Vue2 NetworkIfaceConfigModal.vue (431 lines).
 //
-// 移植纪律 #5(登记):Vue2 标题写死 `Wi-Fi - {{ iface.name }}`(模板第 5 行),以太网口
-//   点「编辑」也显示「Wi-Fi - enp2s0」—— 用户 2026-07-31 拍板改成按类型派生(授权偏离 #7)。
-// 移植纪律 #4(登记):Vue2 的 scanWifi 在 `!isWifi` 早退分支不复位 scanning,
-//   且 `this.scanning = false` 不在 finally 里 → 这里用 try/finally。
-// 移植纪律 #8(登记):Vue2 的失败提示用 $buefy.toast,会被遮罩(z-index 1000 + blur)
-//   压住 + 糊掉 → 一律内联 .set-danger,且**优先显示后端 message**(network 域的错误键是
-//   `error` 而不是 `message`,共享包的 axios 拦截器认不出来,所以走 networkErrorText)。
+// Porting rule #5 (logged): Vue2 hardcodes the title as `Wi-Fi - {{ iface.name }}` (template
+//   line 5), so clicking "edit" on an Ethernet interface also shows "Wi-Fi - enp2s0" — the user
+//   decided on 2026-07-31 to derive it by type instead (authorized deviation #7).
+// Porting rule #4 (logged): Vue2's scanWifi doesn't reset scanning on the early-return `!isWifi`
+//   branch, and `this.scanning = false` isn't in a finally block → here we use try/finally.
+// Porting rule #8 (logged): Vue2's failure toast uses $buefy.toast, which gets pinned under and
+//   blurred by the overlay (z-index 1000 + blur) → always show it inline via .set-danger instead,
+//   and **prefer the backend message** (the network domain's error key is `error`, not `message`,
+//   which the shared package's axios interceptor doesn't recognize, hence going through
+//   networkErrorText).
 //
-// ⚠️ 过期守卫(newui-async-stale-guard):scanWifi 实测 ~2.3s,期间用户可能再点扫描、
-//   或关掉弹窗换另一张网卡打开 → 用代际计数器,迟到的结果直接丢弃。就地写,不抽公共 helper。
+// ⚠️ Staleness guard (newui-async-stale-guard): scanWifi measured ~2.3s in practice; during that
+//   window the user might click scan again, or close the dialog and open a different interface →
+//   use a generation counter and discard late results outright. Written inline, not extracted
+//   into a shared helper.
 //
-// ⚠️ 成功提示不在这里弹 —— 交给父层在 `saved` 事件里 toast(弹窗关掉后才没有遮罩挡着)。
+// ⚠️ The success toast doesn't fire here — that's left to the parent to toast on the `saved`
+//   event (only once the dialog closes is there no overlay blocking it).
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, networkErrorText, type WifiScanResult } from '@nimotech/nimoos-service'
@@ -52,7 +58,7 @@ const mode = computed(() => form.value.wireless.mode)
 const title = computed(() => {
   const f = props.iface
   if (!f) return ''
-  // 用表单里的当前模式派生(切了模式标题要跟着变),其余字段取 iface
+  // Derives from the form's current mode (switching modes must update the title), other fields come from iface
   const wireless = mode.value ? { mode: mode.value } : f.wireless
   return `${t(ifaceTypeKey({ ...f, wireless }))} - ${f.name}`
 })
@@ -61,12 +67,12 @@ watch(
   () => [props.open, props.iface] as const,
   ([open, iface]) => {
     if (!open || !iface) return
-    // 同步 hydrate(不是异步取值)→ 不存在「迟到的服务端值盖掉用户输入」那类问题
+    // Hydrates synchronously (not an async fetch) → no "late server value overwrites user input" class of bug
     form.value = hydrateForm(iface, { switchMode: props.switchMode, switchTab: props.switchTab })
     networks.value = []
     error.value = ''
     tab.value = 'wifi'
-    scanGen++ // 作废上一次打开时在飞的扫描
+    scanGen++ // invalidates any scan still in flight from the previous time it was opened
     if (mode.value === 'client' || mode.value === 'concurrent') void scan()
   },
   { immediate: true },
@@ -74,14 +80,14 @@ watch(
 
 async function scan() {
   const name = props.iface?.name
-  if (!name || !isWifi.value) return // 早退不动 scanning(Vue2 在这里漏了复位)
+  if (!name || !isWifi.value) return // early return leaves scanning untouched (Vue2 misses the reset here)
   const gen = ++scanGen
   scanning.value = true
   error.value = ''
   try {
     const found = await service.network.scanWifi(name)
-    if (gen !== scanGen) return // 过期结果丢弃
-    // 已保存的 SSID 没扫到(隐藏 SSID / 信号弱)→ 补一条置顶,标成已连接(Vue2 L354-357)
+    if (gen !== scanGen) return // discard the stale result
+    // Saved SSID wasn't found in the scan (hidden SSID / weak signal) → add one pinned at the top, marked connected (Vue2 L354-357)
     const ssid = form.value.wireless.ssid
     if (ssid && !found.some((n) => n.ssid === ssid)) {
       networks.value = [{ ssid, bssid: '', signal: 0, channel: 0, secure: false, connected: true }, ...found]
@@ -142,7 +148,7 @@ async function save() {
     emit('saved')
     emit('update:open', false)
   } catch (e) {
-    error.value = networkErrorText(e) || t('settingsNetApplyFailed') // 不关窗,让用户改了再试
+    error.value = networkErrorText(e) || t('settingsNetApplyFailed') // don't close the dialog, let the user fix and retry
   } finally {
     saving.value = false
   }
@@ -173,7 +179,7 @@ async function save() {
               {{ t('settingsNetTypeHotspot') }}
             </button>
           </div>
-          <!-- v-if 而非 v-show:sp8-P2a 记过 v-show 的窄屏回归坑 -->
+          <!-- v-if instead of v-show: sp8-P2a logged a narrow-screen regression caused by v-show -->
           <WifiForm
             v-if="tab === 'wifi'"
             :form="form"

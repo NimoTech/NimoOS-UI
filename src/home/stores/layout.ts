@@ -46,14 +46,19 @@ export const useLayoutStore = defineStore('home-layout', () => {
   function loadFromLocal(): Omit<LayoutItem, 'id'>[] | null {
     try {
       const a = JSON.parse(localStorage.getItem(KEY) || 'null')
-      if (Array.isArray(a) && a.length) return sanitize(a)
+      if (Array.isArray(a)) {
+        const s = sanitize(a)
+        // Empty array = user deliberately cleared the desktop, must be respected; only a non-empty
+        // array sanitized down to empty (all retired widgets) counts as "no valid save" and falls back to default.
+        if (a.length === 0 || s.length) return s
+      }
     } catch { /* ignore */ }
     return null
   }
 
   function loadInitial() {
     const stored = loadFromLocal()
-    items.value = (stored && stored.length ? stored : DEFAULT).map(tag)
+    items.value = (stored ?? DEFAULT).map(tag)
   }
 
   function serialize(): Omit<LayoutItem, 'id'>[] {
@@ -107,9 +112,13 @@ export const useLayoutStore = defineStore('home-layout', () => {
   async function loadServer() {
     try {
       let data: unknown = await service.users.getCustomStorage(SERVER_KEY)
+      // Backend returns an empty string for a never-stored key (unreadable file passed through as-is) → parse fails → null → keep current state;
+      // only a real array (even [] = user cleared the desktop elsewhere) is applied.
       if (typeof data === 'string') { try { data = JSON.parse(data) } catch { data = null } }
-      const arr = sanitize(data)
-      if (arr.length) { replaceAll(arr) }
+      if (Array.isArray(data)) {
+        const arr = sanitize(data)
+        if (data.length === 0 || arr.length) replaceAll(arr)
+      }
     } catch (e) { console.warn('[home] server layout load failed', e) }
   }
 
@@ -127,14 +136,15 @@ export const useLayoutStore = defineStore('home-layout', () => {
     } catch (e) { console.warn('[home] seen load failed', e) }
   }
 
-  // 缺席宽限期:seen 应用从 decls 消失(容器停止/删除,或 appgrid 后端 docker 枚举超时
-  // 返回空列表)后,持续缺席满该时长才清理。约 1.5 个轮询周期(30s 轮询),使 docker 一次
-  // 抖动、容器 restarting 等瞬态不清桌,而真正停止/删除的应用在 1-2 分钟内自动消失。
+  // Absence grace period: after a seen app disappears from decls (container stopped/removed, or the
+  // appgrid backend's docker enumeration timed out and returned an empty list), only clean up after it has
+  // been absent for this long. ~1.5 polling cycles (30s polling), so a single docker blip or a container in
+  // 'restarting' doesn't clear the desktop, while truly stopped/removed apps vanish within 1-2 minutes.
   const MISSING_GRACE_MS = 45_000
   const missingSince = new Map<string, number>()
 
-  /** spec §4 自动上桌:decls = 当前 appgrid 里 desktop=true 且运行中的应用(w/h 已夹紧)。
-   *  stoppedKeys = appgrid 明确报告已停止(exited/dead)的 desktop 应用:立即清理,不等宽限期。 */
+  /** spec §4 auto-pin to desktop: decls = apps currently in appgrid with desktop=true and running (w/h already clamped).
+   *  stoppedKeys = desktop apps appgrid explicitly reports as stopped (exited/dead): clean up immediately, no grace period. */
   function autoPin(decls: DesktopAppDecl[], dims: Dims, stoppedKeys: string[] = []) {
     let changed = false
     const present = new Set(decls.map((d) => d.key))
@@ -143,7 +153,7 @@ export const useLayoutStore = defineStore('home-layout', () => {
     for (const key of [...seen.value]) {
       if (present.has(key)) { missingSince.delete(key); continue }
       if (!stopped.has(key)) {
-        // 从列表里彻底消失:可能是 docker rm,也可能是枚举抖动 → 缺席宽限期去抖
+        // Vanished from the list entirely: could be docker rm, could be enumeration jitter → debounce via absence grace period
         const since = missingSince.get(key)
         if (since === undefined) { missingSince.set(key, now); continue }
         if (now - since < MISSING_GRACE_MS) continue
@@ -155,8 +165,9 @@ export const useLayoutStore = defineStore('home-layout', () => {
     }
     for (const d of decls) {
       if (seen.value.has(d.key)) {
-        // 已上桌:容器 label 收紧后声明范围可能收窄/位移，持久化尺寸需夹回当前范围，
-        // 否则锁死组件的把手已隐藏，尺寸永久停在范围外（无法自愈）。
+        // Already on the desktop: after container labels tighten, the declared range may shrink/shift; the
+        // persisted size must be clamped back into the current range, otherwise a locked widget's resize
+        // handles are hidden and its size is stuck out of range forever (cannot self-heal).
         if (d.widget) {
           const idx = items.value.findIndex((it) => it.kind === 'appwidget' && it.key === d.key)
           if (idx !== -1) {
@@ -164,11 +175,11 @@ export const useLayoutStore = defineStore('home-layout', () => {
             const [cw, ch] = clampSize(it, it.w, it.h, sizeOfItem)
             if (cw !== it.w || ch !== it.h) {
               if (fits(it.c, it.r, cw, ch, it.id, items.value, dims)) {
-                // 缩小,或放大后原地不与他人冲突
+                // Shrinking, or growing without conflicting with others in place
                 items.value = items.value.map((x) => (x.id === it.id ? { ...x, w: cw, h: ch } : x))
                 changed = true
               } else {
-                // 放大且原地冲突/越界:以其他项为障碍重新找位搬过去；找不到位则保持原样(可接受的退化)
+                // Growing with an in-place conflict/overflow: re-place it treating other items as obstacles; if no spot is found, keep as-is (acceptable degradation)
                 const others = items.value.filter((x) => x.id !== it.id)
                 const pos = firstFree(cw, ch, others, dims)
                 if (pos) {
@@ -181,22 +192,27 @@ export const useLayoutStore = defineStore('home-layout', () => {
         }
         continue
       }
-      const pos = firstFree(1, 1, items.value, dims)
-      if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
-      if (d.widget) {
+      // Not in seen doesn't mean not on the desktop: the user may have manually pinned a tile with the same
+      // key, so re-check items to avoid stacking duplicate icons/widgets (seen is still recorded below, so the next round skips this check).
+      if (!items.value.some((it) => it.kind === 'app' && it.key === d.key)) {
+        const pos = firstFree(1, 1, items.value, dims)
+        if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
+      }
+      if (d.widget && !items.value.some((it) => it.kind === 'appwidget' && it.key === d.key)) {
         const wpos = firstFree(d.widget.w, d.widget.h, items.value, dims)
         if (wpos) items.value = [...items.value, tag({ kind: 'appwidget', key: d.key, c: wpos.c, r: wpos.r, w: d.widget.w, h: d.widget.h })]
       }
-      seen.value.add(d.key) // 满桌也记 seen:不反复尝试,用户可从添加面板手动加
+      seen.value.add(d.key) // Record seen even when the desktop is full: don't retry repeatedly; the user can add manually from the add panel
       changed = true
     }
     if (changed) { save(); saveSeen() }
   }
 
-  /** 应用统一清扫:桌面 app/appwidget 磁贴的 key 已不在应用列表(liveKeys)里 → 走同一
-   *  缺席宽限期后移除,手动固定与自动上桌一视同仁(卸载/删除后桌面与 Dock/已装列表对齐)。
-   *  liveKeys 必须来自一次成功的 loadGrid(含系统应用与 LinkApp),加载失败时不要调用,
-   *  否则一次接口抖动会给全桌面起缺席计时。 */
+  /** Unified app sweep: desktop app/appwidget tiles whose key is no longer in the app list (liveKeys) →
+   *  removed after the same absence grace period, treating manual pins and auto-pins alike (after
+   *  uninstall/removal, the desktop aligns with the Dock/installed list).
+   *  liveKeys must come from one successful loadGrid (including system apps and LinkApps); do not call on
+   *  load failure, or a single API blip starts absence timers for the whole desktop. */
   function sweepGone(liveKeys: Iterable<string>) {
     const live = new Set(liveKeys)
     const now = Date.now()
@@ -214,10 +230,11 @@ export const useLayoutStore = defineStore('home-layout', () => {
     save(); saveSeen()
   }
 
-  /** 事件推送快路径:确知容器已被删除(daemon destroy 事件),立即清位,不等缺席宽限期。
-   *  默认只清 autoPin 管理(seen)的项 —— 手动固定与系统图标免疫(destroy 在应用更新/
-   *  重建时也会发,不能拿它清手动磁贴)。`force` 供「应用已卸载」这类明确信号用:
-   *  连手动固定的一并清(uninstall-end 不会在更新/重建时发,无误伤)。 */
+  /** Event-push fast path: the container is known to be deleted (daemon destroy event), so clear its slot
+   *  immediately without waiting for the absence grace period. By default only items managed by autoPin
+   *  (seen) are cleared — manual pins and system icons are immune (destroy also fires on app update/rebuild,
+   *  so it must not clear manual tiles). `force` is for explicit "app uninstalled" signals: clears manual
+   *  pins too (uninstall-end never fires on update/rebuild, so no collateral damage). */
   function evict(key: string, opts?: { force?: boolean }) {
     if (!opts?.force && !seen.value.has(key)) return
     const before = items.value.length

@@ -17,14 +17,14 @@ function aggWith(names: string[], warnings: string[] = []): NormalizedAggregate 
 beforeEach(() => { agentTool.mockReset() })
 
 describe('useSearchQuery', () => {
-  it('初始是 idle,view / degrade 都是 null', () => {
+  it('initial state is idle, view / degrade are null', () => {
     const s = useSearchQuery()
     expect(s.state.value).toBe('idle')
     expect(s.view.value).toBeNull()
     expect(s.degrade.value).toBeNull()
   })
 
-  it('空白查询词不发请求', async () => {
+  it('blank query does not send request', async () => {
     const s = useSearchQuery()
     s.query.value = '   '
     await s.run()
@@ -32,7 +32,7 @@ describe('useSearchQuery', () => {
     expect(s.state.value).toBe('idle')
   })
 
-  it('成功:searching → done,view 与 degrade 都填上,查询词已 trim', async () => {
+  it('success: searching → done, view and degrade are filled, query is trimmed', async () => {
     agentTool.mockResolvedValue(aggWith(['Receipt.pdf'], ['images_unavailable']))
     const s = useSearchQuery()
     s.query.value = '  receipt  '
@@ -45,18 +45,18 @@ describe('useSearchQuery', () => {
     expect(s.degrade.value?.unavailableSources).toEqual(['images'])
   })
 
-  it('失败:state=error,errorDetail 取后端 message,view 不被写成空结果', async () => {
+  it('failure: state=error, errorDetail from backend message, view is not set to empty result', async () => {
     agentTool.mockRejectedValue(new Error('ai service unreachable'))
     const s = useSearchQuery()
     s.query.value = 'receipt'
     await s.run()
     expect(s.state.value).toBe('error')
     expect(s.errorDetail.value).toBe('ai service unreachable')
-    expect(s.view.value).toBeNull()   // 绝不静默显示空结果(spec §7.8)
+    expect(s.view.value).toBeNull()   // must never silently display empty result (spec §7.8)
   })
 
-  it('过期守卫:先发的慢请求后回来,不许覆盖后发请求的结果', async () => {
-    // 交错路径:run#1 挂起 → run#2 立刻完成 → run#1 才 resolve
+  it('stale guard: slow request sent first must not overwrite result of later request', async () => {
+    // interleaved path: run#1 suspended → run#2 immediately completes → run#1 finally resolves
     let resolveFirst: (v: NormalizedAggregate) => void = () => {}
     agentTool
       .mockImplementationOnce(() => new Promise<NormalizedAggregate>((r) => { resolveFirst = r }))
@@ -71,11 +71,11 @@ describe('useSearchQuery', () => {
 
     resolveFirst(aggWith(['OLD.pdf']))
     await first
-    expect(s.view.value?.rows[0].name).toBe('NEW.pdf')  // 仍是新的
+    expect(s.view.value?.rows[0].name).toBe('NEW.pdf')  // still the new one
     expect(s.state.value).toBe('done')
   })
 
-  it('过期守卫:过期的失败请求不许把界面打成 error', async () => {
+  it('stale guard: stale failed request must not set UI to error state', async () => {
     let rejectFirst: (e: Error) => void = () => {}
     agentTool
       .mockImplementationOnce(() => new Promise((_, rj) => { rejectFirst = rj }))
@@ -93,7 +93,7 @@ describe('useSearchQuery', () => {
     expect(s.errorDetail.value).toBe('')
   })
 
-  it('reset 清回 idle 并作废在途请求', async () => {
+  it('reset clears back to idle and invalidates in-flight requests', async () => {
     let resolveIt: (v: NormalizedAggregate) => void = () => {}
     agentTool.mockImplementationOnce(() => new Promise<NormalizedAggregate>((r) => { resolveIt = r }))
     const s = useSearchQuery()
@@ -103,7 +103,7 @@ describe('useSearchQuery', () => {
     expect(s.state.value).toBe('idle')
     resolveIt(aggWith(['LATE.pdf']))
     await p
-    expect(s.view.value).toBeNull()   // 在途结果不许落地
+    expect(s.view.value).toBeNull()   // in-flight result must not be persisted
     expect(s.state.value).toBe('idle')
   })
 })

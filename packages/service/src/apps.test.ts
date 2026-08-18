@@ -29,7 +29,7 @@ describe('createApps.getGrid', () => {
     const a = createApps(httpReturning({ success: 200, data: { data: [{ name: 'z' }] } }))
     expect(await a.getGrid()).toEqual([{ name: 'z' }])
   })
-  it('tolerates the REAL production bare envelope {data, message} without success (2026-07-15 真机坑)', async () => {
+  it('tolerates the REAL production bare envelope {data, message} without success (2026-07-15 real-device gotcha)', async () => {
     const a = createApps(httpReturning({ data: [{ name: 'w', desktop: true }], message: 'This data is for internal use ONLY' }))
     expect(await a.getGrid()).toEqual([{ name: 'w', desktop: true }])
   })
@@ -40,8 +40,8 @@ describe('createApps.start', () => {
     const { http, calls } = httpRecordingPut()
     await createApps(http).start({ name: 'jellyfin', app_type: 'v2app' })
     expect(calls[0].url).toBe('/v2/app_management/compose/jellyfin/status')
-    // openapi RequestComposeAppStatus 是裸 JSON 字符串,axios 直接传 'start' 会发 text/plain,
-    // 必须显式 JSON.stringify + application/json
+    // openapi RequestComposeAppStatus is a bare JSON string; passing 'start' to axios directly would send text/plain,
+    // so explicit JSON.stringify + application/json is required
     expect(calls[0].body).toBe('"start"')
     expect((calls[0].config as { headers: Record<string, string> }).headers['Content-Type']).toBe('application/json')
   })

@@ -58,8 +58,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/storage/raid/create', name: 'storage-raid-create', component: StorageRaidCreate },
   { path: '/storage/raid/:id', name: 'storage-raid-detail', component: StorageRaidDetail },
   ...settingsRoutes,
-  // P5 KVM 地基(桌面磁贴翻路由归 P8,现在只能手输 #/kvm)。必须放在下面的通配兜底
-  // /files/:path(.*)* 之前,否则会被那条吃掉。
+  // P5 KVM groundwork (the desktop tile route flip belongs to P8; for now #/kvm must be
+  // typed manually). Must come before the catch-all /files/:path(.*)* below, or it gets swallowed by that route.
   { path: '/kvm', name: 'kvm', component: KvmPage },
   // SP18: admin-only web terminal (ttyd iframe). Same catch-all caveat as /kvm above.
   { path: '/terminal', name: 'terminal', component: TerminalView },
@@ -78,8 +78,8 @@ const routes: RouteRecordRaw[] = [
   // SP15-P1-T7: append only, never reorder — router/index.test.ts asserts the source line order.
   { path: '/photos/moments/:id', name: 'photos-moment-detail', component: PhotosMomentDetail },
   { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
-  // SP7-P8a-T5:只追加,不重排——须排在最后一条既有 /photos/* 之后(router/index.test.ts
-  // 用 node:fs 读源文本行序断言,而非 router.getRoutes(),见该测试文件注释)。
+  // SP7-P8a-T5: append only, never reorder — must come after the last existing /photos/*
+  // (router/index.test.ts asserts source-text line order via node:fs, not router.getRoutes(); see that test file's comments).
   { path: '/photos/settings', name: 'photos-settings', component: PhotosSettings },
   { path: '/ai', redirect: '/ai/agent' },
   { path: '/ai/agent', name: 'ai-agent', component: AgentPage },
@@ -94,7 +94,7 @@ export const router = createRouter({
   routes,
 })
 
-// 正常登录逻辑(无探针):见 guard.ts。无 token 时查一次 status 分流 login/welcome。
+// Normal login logic (no probe): see guard.ts. Without a token, query status once to route to login/welcome.
 router.beforeEach(
   authGuard({
     getToken: () => localStorage.getItem('access_token'),

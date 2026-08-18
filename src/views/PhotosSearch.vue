@@ -7,6 +7,17 @@
 // PhotosTopbar.vue、PhotosTimeline.vue:208-215(searchActive/history)、:650-668
 // (onSearch + 历史写入)。
 //
+// Plan F Task 1 (D13 alignment + root-causing the dark-band bug, 2026-08-15): this page used to
+// pass `show-search=false` to the top bar and render its own separate `PhotosSearchBar.vue` input
+// instead -- a D13 deviation from Vue2 (Vue2 has exactly one search box: the shared top bar's own
+// `.search`, the same component on both the library page and the search page). Ruling 7 (binding)
+// has corrected this: the top bar's `showSearch` is left at its default (true), a new `query` prop
+// echoes the route's `q` back into that one top-bar input, and submission routes back through
+// `@search-submit` into the existing `submitQuery()` -- reusing the exact same top-bar component
+// and the same echo/submit contract as Photos.vue's timeline page.
+// `PhotosSearchBar.vue` has been retired: a grep confirmed this file was its only consumer before
+// deletion, so the component and its test file were deleted together (no dead code left behind).
+//
 // ★ 架构差异(结构规格 7,§7e-3):Vue2 里 `query` 是父组件(PhotosTimeline)下发的
 // prop,真正触发 smartSearch 的是 `onSearch()`(提交时一次性 dispatch),`query` 自身
 // 的 watcher 只负责"重置筛选 chip + 套用 understood 预填"。New-UI 是真路由,地址栏的
@@ -17,19 +28,26 @@ import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
-import PhotosSearchBar from '../photos/components/PhotosSearchBar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosFilterChip from '../photos/components/PhotosFilterChip.vue'
 import PhotosFilterPopover from '../photos/components/PhotosFilterPopover.vue'
 import SearchDatePopover from '../photos/components/SearchDatePopover.vue'
 import SearchPeoplePopover from '../photos/components/SearchPeoplePopover.vue'
 import SearchSaveSmartView from '../photos/components/SearchSaveSmartView.vue'
 import PhotosSearchGrid from '../photos/components/PhotosSearchGrid.vue'
+import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
+import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
 import { usePhotosSearch } from '../photos/stores/search'
 import { usePhotosPeople } from '../photos/stores/people'
 import { usePhotosAlbums } from '../photos/stores/albums'
+import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosTrash } from '../photos/stores/trash'
 import { useLightbox } from '../photos/lightbox/useLightbox'
+import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import { useToast } from '../stores/toast'
 import { understood, type PersonOption, type UnderstoodKind, type UnderstoodToken } from '../photos/util/searchUnderstood'
 import { queryParts } from '../photos/util/searchQueryParts'
@@ -46,12 +64,22 @@ const router = useRouter()
 // toLocaleString 会抛 RangeError,一律要转破折号形式(既定写法,照 SearchPeoplePopover.vue
 // :59-63 / SmartViewCard.vue:38 等既有先例)。
 const { t, locale } = useI18n()
+const { themeClass } = usePhotosTheme()
+// Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): shell migration onto the
+// `.app` CSS Grid + PhotosTopbar, matching the six pages already migrated (Photos.vue's Task 3/4,
+// PhotosAlbums.vue's Plan C Task 2). `collapsed`/`toggle` is the same shared module-singleton
+// composable every migrated page already consumes — this page is not a new instance of the
+// collapse state, just another consumer of it.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const localeTag = computed(() => locale.value.replace('_', '-'))
 const search = usePhotosSearch()
 const people = usePhotosPeople()
 const albums = usePhotosAlbums()
+const timeline = useTimelineStore()
+const trash = usePhotosTrash()
 const lb = useLightbox()
 const toast = useToast()
+const photosToast = usePhotosToast()
 
 // ── query:从路由读,只读 computed,永远不直接赋值(§7e-3 的可证伪守卫)───────────
 const query = computed(() => String(route.query.q ?? ''))
@@ -110,8 +138,27 @@ function writeHistory(q: string): void {
   }
 }
 
-// 提交一个词:用路由 replace 同步地址栏。onSubmit(PhotosSearchBar)、预搜索态的最近搜索
-// chip、hero 里的历史词,三处入口共用同一份逻辑。
+// Fix-4 (owner-directed addition, 2026-08-17), no Vue2 source: Vue2 never had a clear-history
+// affordance at all. Wipes both the persisted localStorage key and the reactive `history` ref
+// together, in the same tick, so BOTH render spots -- the prestate `.prestate-recent` chips block
+// and the results-state `.search-history` row -- empty immediately. Their existing `v-if`
+// conditions (`history.length` / `history.length > 1`) already hide on an empty array; no extra
+// wiring needed there.
+function clearHistory(): void {
+  try {
+    localStorage.removeItem(HISTORY_KEY)
+  } catch {
+    // Same broad-catch precedent as readHistory/writeHistory above -- a storage failure here
+    // shouldn't crash the page, it should just leave the reactive ref (cleared below) as the
+    // source of truth for this session.
+  }
+  history.value = []
+}
+
+// Submitting a term: syncs the address bar via router replace. The top bar PhotosTopbar's
+// search-submit (since Plan F Task 1, replacing the now-retired PhotosSearchBar), the recent-
+// search chips in the pre-search state, and the history terms in the hero all share this same
+// logic.
 //
 // fix round 1 · I1(评审查实的真缺陷,Important):历史写入**不在这里做**,而是挪到下面
 // 的主 query watcher 里(非空分支)——见该 watcher 上方的详细登记。这里只剩路由跳转。
@@ -128,6 +175,18 @@ function submitQuery(q: string): void {
     return
   }
   void router.replace({ path: '/photos/search', query: q ? { q } : {} })
+}
+
+// Fix-3 item 7: PhotosTopbar's `back` button (Vue2 searchMode's chevL, PhotosTopbar.vue:6-8,
+// `$emit('exit-search')` → `this.$store.dispatch('photos/clearSearch')`). Vue2 exits back to
+// the SAME component (the timeline underneath, still mounted) because search there is a local
+// UI state, not a route. New-UI's /photos/search is a real route, so "back" has to mean
+// "navigate to the library" — /photos is the concrete destination every entry point into this
+// page conceptually returns to (Photos.vue's search box, PhotosSmartViewDetail's "Refine in
+// Search" button, a deep link). Not `router.back()`: a deep link or a fresh tab has no prior
+// history entry to go back to, and `/photos` is deterministic and testable.
+function onBack(): void {
+  void router.push('/photos')
 }
 
 // ── 数据源三处(结构规格 11)──────────────────────────────────────────────────
@@ -294,10 +353,12 @@ function applyUnderstood(): void {
 //    历史写入、chip 重置、understood 预填、saved 复位 ────────────────────────
 //
 // fix round 1 · I1(评审查实的真缺陷,Important):历史写入挪到这里(非空分支),不是
-// 三个入口(Photos.vue 顶部搜索框 / PhotosSearch.vue 自己的 PhotosSearchBar / T6 的
-// 「在搜索中细化」)各自调用一次。Vue2 之所以只有一处写历史(`PhotosTimeline.vue`
-// `onSearch()`),是因为 Vue2 只有一个 view、三种触发方式最终都调同一个方法;New-UI
-// 是真路由,这三处分散在三个文件里各自 `router.push`,若要求"提交时写"就必须让三处
+// the three entry points (Photos.vue's top-bar search box / this page's own top-bar search-submit,
+// since Plan F Task 1 replacing the now-retired PhotosSearchBar / T6's "refine within search")
+// each calling it once. Vue2 only has one place that writes history (`PhotosTimeline.vue`'s
+// `onSearch()`), because Vue2 has a single view where all three trigger paths end up calling the
+// same method; New-UI is genuinely routed, so these three are scattered across three files each
+// calling their own `router.push`, and requiring "write on submit" would mean keeping all three
 // 永远保持同步——**在到达路由后统一写(watcher)天然覆盖全部入口**,包括深链与刷新,
 // 比三处调用点手动保持同步更稳。
 //
@@ -551,6 +612,76 @@ function onOpen(photo: Photo): void {
   lb.openAt(photo, sortedResults.value.map((r) => r.p), 0, query.value)
 }
 
+// ── Plan F Task 5: PhotoLightbox event wiring for this page's own search-results context ──
+// (this page never mounted <PhotoLightbox> at all before -- lb.openAt above fired into a
+// dangling singleton with no visible overlay, the F8 bug class; see task-5-report.md).
+// @toggle-fav: no-op, same convention every host page in this codebase uses (Photos.vue,
+// PhotosAlbumDetail.vue, PhotosMomentDetail.vue, PhotosSmartViewDetail.vue, and even
+// PhotosFavorites.vue -- whose own list you would expect to react locally to an unfavorite, and
+// which still wires the same `() => {}` no-op) -- useLightbox itself optimistically flips favIds
+// and re-renders the star icon internally (PhotoLightbox.vue's own onToggleFav comment), and that
+// store-level fallback is what every page actually relies on, this one included. The emit exists
+// only as a hook for some future host page that needs a local reaction beyond the star icon; none
+// of today's pages, including list-backed ones like Favorites, currently need it.
+function onLightboxToggleFav(): void {}
+
+// @delete: Fix round 1 (review, 2026-08-15) -- Function parity with Vue2 requires a REAL delete
+// here, not a no-op: the delete button + confirm dialog render unconditionally inside
+// PhotoLightbox, so a no-op handler let the user complete the whole confirm flow (dialog closes,
+// lightbox closes, exactly as if the delete succeeded) while nothing actually happened -- a
+// false-success illusion, not a harmless gap. Vue2's own search-opened lightbox has a working
+// delete (single shared lightbox instance owned by PhotosTimeline.vue, wired the same as every
+// other entry point), so New-UI owes the same here.
+// Mirrors Photos.vue's `onLightboxDelete` (Photos.vue:221-236) byte-for-byte on the delete/toast
+// side: same `timeline.deleteAssets([id])` pathway (the real `service.photos.deleteAsset` call,
+// reused rather than reinvented), same Photos-private toast shape (trash icon, count 1, Undo
+// action) via the same `usePhotosToast()` composable.
+// Deviation (documented, controller-approved): `usePhotosSearch()`'s `results` is a plain,
+// unwrapped ref (not a store method) -- a targeted local filter removes the deleted id directly,
+// no new store mutation needed. This is preferred over re-running smartSearch because
+// `filteredResults`/`sortedResults`/`tiers`/`best`/`more` all derive from `search.results` via
+// `computed()`, so one filter cascades through the whole results pipeline for free, and it
+// preserves this page's own scroll/offset/exhausted pagination state (a fresh smartSearch would
+// reset `offset` to 0 the same way a real re-submit does).
+// Undo: Photos.vue's Undo relies on `trash.restore()`'s own `refreshTimelineAfterTrashChange()`
+// to refresh the SAME timeline store its list reads from -- that mechanism doesn't reach this
+// page's results (a search snapshot, not the timeline store), so restoring the asset
+// server-side wouldn't put it back in `search.results` on its own. Re-running the same query
+// after restore is the documented fallback for exactly this case: it brings the restored item
+// back (if it still matches), at the cost of resetting pagination -- the same cost every fresh
+// `submitQuery()` on this page already pays.
+async function onLightboxDelete(id: string | number): Promise<void> {
+  const snapshot = [String(id)]
+  await timeline.deleteAssets(snapshot)
+  search.results = search.results.filter((p) => String(p.id) !== String(id))
+  photosToast.show({
+    text: t('photosDeletedToast', { count: 1 }),
+    icon: 'trash',
+    action: {
+      label: t('photosTrashUndo'),
+      onClick: () => {
+        void (async () => {
+          await trash.restore(snapshot)
+          if (query.value) void search.smartSearch(query.value, search.filtersPayload)
+        })()
+      },
+    },
+  })
+}
+
+// @add-to-album IS meaningfully supportable without any of the above -- it only needs the asset
+// id and AlbumPickerDialog's own API call, no mutation of this page's search-results list at all
+// (the closest analog is PhotosMomentDetail.vue's own single-item `openAlbumPicker`/
+// `onAlbumPickerAdded` pair, not Photos.vue's batch-selection variant -- this page has no
+// selection state to clear afterward either).
+const albumPickerOpen = ref(false)
+const albumPickerIds = ref<Array<string | number>>([])
+function openAlbumPicker(ids: Array<string | number>): void {
+  albumPickerIds.value = ids
+  albumPickerOpen.value = true
+}
+function onAlbumPickerAdded(): void {}
+
 // onMounted 若 people/albums 未加载则各拉一次(照搬 Vue2 :817-818)。用 New-UI store
 // 自带的 loaded 门控标志,不是 Vue2 的 `!array.length`(避免"确实零条"与"还没拉过"
 // 混淆——store 已经为此专门做了区分,直接复用)。
@@ -561,19 +692,40 @@ onMounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosTitle')">
-    <div class="photos-layout">
-      <PhotosSidebar />
-      <main class="photos-main">
-        <PhotosSearchBar :value="query" autofocus @submit="submitQuery" />
-
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <!-- Fix-3 item 7: same narrow-mode coordination as Photos.vue/PhotosAlbums.vue — the
+           topbar's own collapse button already delegates to the sidebar drawer on narrow
+           viewports, so the sidebar's own floating trigger would be a redundant second
+           affordance here. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
+      <main class="main">
+        <!-- `back`: Vue2 searchMode's chevL button, replacing title/sub (PhotosTopbar.vue:6-12
+             region). Plan F Task 1: `showSearch` stays at its default (true) and `query` echoes
+             the route's `q` into the topbar's own `.search` box (owner's standing glass-fill
+             exception) — Vue2 has only ONE search box because its search "page" and library
+             page are the same component; this page now matches that 1:1 instead of rendering a
+             second, page-body-local input (the retired PhotosSearchBar.vue). -->
+        <PhotosTopbar
+          :collapsed="collapsed" back :query="query"
+          @toggle-collapse="onToggleCollapse" @back="onBack" @search-submit="submitQuery"
+        />
+      <div class="photos-main">
         <!-- 预搜索态(结构规格 15)-->
         <div v-if="!query" class="search-prestate" data-test="search-prestate">
           <div class="nimo-orb" />
           <h2>{{ t('photosSearchSearchLibrary') }}</h2>
           <p>{{ t('photosSearchDescribeReLookingPeople') }}</p>
           <div v-if="history.length" class="prestate-recent">
-            <span class="prestate-recent-label">{{ t('photosSearchRecentSearches') }}</span>
+            <div class="prestate-recent-head">
+              <span class="prestate-recent-label">{{ t('photosSearchRecentSearches') }}</span>
+              <!-- Fix-4 (owner-directed addition, 2026-08-17), no Vue2 source: see clearHistory()
+                   above for what clicking this does to both render spots. -->
+              <button
+                type="button" class="prestate-recent-clear" data-test="search-history-clear"
+                @click="clearHistory"
+              >{{ t('photosSearchClearHistory') }}</button>
+            </div>
             <div class="prestate-chips">
               <button
                 v-for="h in history.slice(0, 6)" :key="h" type="button" class="prestate-chip"
@@ -746,154 +898,132 @@ onMounted(() => {
             @load-more="search.loadMore()"
           />
         </template>
+      </div>
       </main>
     </div>
-  </AreaShell>
+
+    <!-- Plan F Task 5: PhotoLightbox mount added -- this page never had one before (see
+         onOpen's own comment above for the F8 bug class this closes: lb.openAt fired into a
+         dangling singleton with no overlay to render into). Nested inside `.photos-root` from
+         the start (no F8-r4-style un-nest/re-nest history here), matching every other page's
+         final position after this same task's sweep. -->
+    <PhotoLightbox
+      @delete="onLightboxDelete"
+      @toggle-fav="onLightboxToggleFav"
+      @add-to-album="(id) => openAlbumPicker([id])"
+    />
+    <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
+    <!-- Fix round 1 (review, 2026-08-15): required now that `onLightboxDelete` fires a real
+         `usePhotosToast()` Undo toast -- without a mount, the toast state flips but nothing on
+         this page's own tree renders it, the exact same "state changed, nothing visible" bug
+         class the delete no-op itself was flagged for. Teleports to <body> and re-applies
+         `photos-root` + `themeClass` on its own portal target (see that component's own header
+         comment), same mount Photos.vue/PhotosAlbumDetail.vue/PhotosSmartViewDetail.vue already
+         use for the identical Undo-toast pattern. -->
+    <PhotosToastHost />
+  </div>
 </template>
 
 <style scoped>
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): shell migration onto the
+   `.app` CSS Grid, matching the six pages already migrated (Photos.vue Task 3/4, PhotosAlbums.vue/
+   PhotosAlbumDetail.vue/PhotosSmartViews.vue/PhotosSmartViewDetail.vue/PhotosMomentDetail.vue's
+   Plan C Task 2). The transitional flex-row `.photos-layout` shell and its `.sidebar` width pin
+   are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns the sidebar's width
+   and the height cap (`height: 100vh; overflow: hidden`). `.photos-layout` no longer appears
+   anywhere in this file's source — photosLayoutHeightCap.test.ts's CAPPED list has been updated
+   to drop this page accordingly (its `allPhotosLayoutViews()` scan only collects pages that still
+   contain the `.photos-layout` rule). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* ── 自绘 nimo-orb(本仓没有,brief E 段裁定自绘,颜色全走 accent 家族 token)──
-   Vue2 是一张紫色系 logo 图(url(./nimo-logo.png)),本仓改成径向渐变 + 既有
-   --orb-glow token 的 drop-shadow(AiWidget.vue:37 的 .ai-orb 已是同一个 token 的
-   既定先例,不新增 token)。 */
-.nimo-orb {
-  display: inline-block;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 32%, var(--accent-soft-2), var(--accent) 72%);
-  /* fix round 1 · M12(评审并入,fix round 2 · Minor#3 校正行号):Vue2
-     photos.scss:875(不是第一版写的 876)的 `.nimo-orb` 有 `flex-shrink: 0`,第一版
-     漏了这条——`.understood` 是 `inline-flex` 容器,窄屏/长文案挤压时那颗 18px 的 orb
-     会被压扁变形。补回。 */
-  flex-shrink: 0;
-}
+/* 2026-08-13 rollback (owner acceptance, Fix-3 item 7 pull-forward — the same treatment
+   PhotosFilterChip.vue/PhotosFilterPopover.vue already went through on the same date): every
+   selector that shared a name with a bare rule in vue2-parity/photos.scss has been deleted from
+   here. The local scoped copies were reaching for New-UI's OWN global tokens (--fg/--fg-faint/
+   --fg-muted/--chip-bg/--chip-border/--chip-bg-hi/--accent-soft/--accent-soft-2/--accent-soft-bd/
+   --accent-text/--divider/--success), none of which `.photos-root` redefines locally — so they
+   fell through to New-UI's blue/glass theme.css values instead of the Vue2-native
+   --text-* / --surface-* / --line / --accent-hi / --accent-soft tokens `.photos-root` DOES define
+   locally (vue2-parity/photos.scss:14-64). Scoped `[data-v-xxx]` specificity always won over the correct
+   plain parity selector of the same name, so the wrong-token copy always rendered — this is the
+   exact "chaotic hybrid" the owner flagged on this page. Deleting them lets the already-present,
+   already-correct parity rules govern directly: `.search-prestate`(+children incl. `.nimo-orb`)/
+   `.search-hero`/`.search-query`(+`.kw`)/`.search-meta`/`.search-history`(+children)/
+   `.understood`(+`.nimo-orb`)/`.filterbar`/`.filterbar-spacer`/`.filterbar .clear`(+:hover)/
+   `.save-smart`/`.save-smart[data-saved="true"]`/`.results-bar`/`.sort`/`.sort button`/
+   `.sort button[data-active="true"]`/`.empty-search`(+children incl. `.conditions .fchip`)/
+   `.nimo-orb` all now come from vue2-parity/photos.scss:2603-2868 verbatim (transcribed from
+   Vue2 photos.scss:2560-2825 1:1). The `.filterbar` `background: var(--bg)` an earlier version
+   of this comment specifically avoided is safe now: this page no longer lives inside AreaShell's
+   translucent glass shell (the very problem that comment registered) — it lives in the SAME
+   opaque `.app` grid every other migrated page does, which already paints its own solid
+   `var(--bg)` (parity scss photos.scss:116-129), so the "black band on a translucent panel"
+   failure mode that comment described cannot recur here (see the corrected reverse gate,
+   __tests__/photosGlassSurfaces.test.ts). `.nimo-orb`'s own base rule is dropped too, not just
+   its size variants: vue2-parity/photos.scss already carries a `.photos-root .nimo-orb` rule
+   using the REAL Vue2 logo asset (`src/photos/assets/nimo-logo.png`, already shipped and already
+   consumed by `.nimo-fab`/`.nimo-pop-head` elsewhere in that same stylesheet) — this page's
+   self-drawn radial-gradient substitute predates that asset landing in this repo and is strictly
+   less accurate than the real image parity already uses, so it is dropped rather than kept as a
+   "close enough" stand-in. */
 
-/* ── 预搜索态(photos.scss:2779-2793)── */
-.search-prestate { text-align: center; padding: 96px 32px 40px; max-width: 560px; margin: 0 auto; }
-.search-prestate .nimo-orb { width: 68px; height: 68px; margin: 0 auto 16px; filter: drop-shadow(0 0 24px var(--orb-glow)); }
-.search-prestate h2 { font-family: var(--font-display, var(--font)); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--fg); }
-.search-prestate p { color: var(--fg-faint); font-size: 13.5px; line-height: 1.5; margin: 0 0 28px; }
-.search-prestate .prestate-recent { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.search-prestate .prestate-recent-label { font-size: 11px; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
-.search-prestate .prestate-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.search-prestate .prestate-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border-radius: 99px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted);
-  font-size: 12.5px; cursor: pointer; transition: all 0.12s;
-}
-.search-prestate .prestate-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
-.search-prestate .prestate-chip span { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ── hero(photos.scss:2577-2608)── */
-.search-hero { padding: 28px 32px 8px; border-bottom: 1px solid var(--divider); }
-.search-query-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.search-query { font-family: var(--font-display, var(--font)); font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: var(--fg); }
-.search-query .kw { color: var(--accent-text); }
-.search-meta { color: var(--fg-faint); font-size: 13px; font-variant-numeric: tabular-nums; }
-
-.search-history { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.search-history-label { font-size: 11px; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-right: 4px; }
-.search-history-item {
-  padding: 3px 10px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
-  color: var(--fg-muted); font-size: 11.5px; white-space: nowrap; max-width: 240px; overflow: hidden;
-  text-overflow: ellipsis; transition: all 0.12s; cursor: pointer;
-}
-.search-history-item:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
-
-.understood {
-  display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
-  padding: 4px 10px 4px 8px; border-radius: 999px;
-  background: var(--accent-soft); border: 1px solid var(--accent-soft-bd); color: var(--accent-text);
-  font-size: 11.5px; font-weight: 500;
-}
-.understood .nimo-orb { width: 18px; height: 18px; }
-.understood-k { color: var(--fg-faint); }
+/* `.understood-k`/`.understood-v`: New-UI-only, not covered by parity — Vue2 renders this pair via
+   inline `style=` on unclassed spans (PhotosSearchView.vue:43-44: `style="color:var(--text-3)"` /
+   `style="margin:0 4px"`), so parity's own extraction has no selector for either. Token corrected
+   to `--text-3` (parity-local, matches Vue2's own inline literal exactly) — the old `--fg-faint`
+   here was the same New-UI-global-token leak the rest of this rollback removes. */
+.understood-k { color: var(--text-3); }
 .understood-v { margin: 0 4px; }
 
-/* ── filterbar(photos.scss:2610-2657)── */
-/* 刻意**不画背景**(修复真机截图里那条横贯整宽的黑带)。
-   Vue2 `photos.scss:2616` 这里是 `background: var(--bg)`,在 Vue2 里成立 —— 它的相册区是
-   一整块**不透明深色页面**(自己的 `--bg` 定义在 `photos.scss:3`,是近黑实色),条底与页底
-   同色、看不出边界。New-UI 的相册区活在 AreaShell 的**玻璃壳**里(半透明,壁纸/渐变透上来),
-   而本仓同名 `--bg`(`theme.css:42`,深蓝灰实色)刷上去就是一块色板。
-   属"照抄 token 名、但两个 --bg 语境不同"的移植缺陷,
-   按「界面照 Vue2(视觉效果)/ 逻辑照正确」修:去掉底色,与上面的 .search-hero、下面的排序行
-   一致由玻璃壳透上来,分界交给 border-bottom。
-   本仓 `--bg` 的正当用法是"占满视口、自己就是页底"的壳(StorageShell / SettingsShell /
-   MediaViewer / SearchDialog)与 SmartViewCard 拼贴图的缝隙色,不该由区域壳内的行/条来刷。
-   **position/z-index 保留**:筛选弹层(.fpop)是本条的后代,靠这两条才画得到下方网格之上;
-   sticky 在本布局里其实是空操作(滚动容器在 PhotosSearchGrid 内部、是兄弟不是祖先),但它
-   同时承担"建立定位上下文"的作用,删掉会让弹层被瓦片压住 —— 与去底色无关,不动。
-   反向闸见 __tests__/photosGlassSurfaces.test.ts。 */
-.filterbar {
-  padding: 12px 32px; border-bottom: 1px solid var(--divider);
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  position: sticky; top: 0; z-index: 6;
+/* Fix-4 (owner-directed addition, 2026-08-17), no Vue2 source: neither selector has a parity
+   counterpart -- Vue2's recent-searches block never had a clear affordance to transcribe. Kept
+   subtle to match the label it sits next to: a plain text button, `--text-3` at rest (same token
+   `.prestate-recent-label` itself uses, so it reads as part of the same quiet header row rather
+   than a competing call-to-action) brightening to `--text-1` on hover -- both `.photos-root`-local,
+   is-light-aware tokens, legible in both themes by construction. */
+.prestate-recent-head { display: flex; align-items: center; gap: 10px; }
+.prestate-recent-clear {
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  font-size: 11px; color: var(--text-3);
 }
-.filterbar-spacer { flex: 1; }
-.clear { font-size: 12px; color: var(--fg-faint); padding: 6px 8px; background: none; border: 0; cursor: pointer; }
-.clear:hover { color: var(--accent-text); }
+.prestate-recent-clear:hover { color: var(--text-1); }
 
-/* save-smart:E9,accent 家族映射(渐变 0.20/0.08 两档均值≈--accent-soft 的 .14 挡)+
-   [data-saved] 态复用 T3 already 建立的 --success token(见 SmartViewCard.vue),不
-   照抄 Vue2 三个 !important——scoped SFC 内没有别的规则与之打特异性战,不需要。 */
-.save-smart {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 30px; padding: 0 12px; border-radius: 999px;
-  background: var(--accent-soft); border: 1px solid var(--accent-soft-bd);
-  color: var(--accent-text); font-size: 12px; font-weight: 500; cursor: pointer;
-}
-.save-smart:hover { background: var(--accent-soft-2); }
-.save-smart[data-saved='true'] {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
-  color: var(--success);
-  cursor: default;
-}
+/* `.sort button:hover` / `.sort button[data-active="true"]:hover`: Vue2's own `.sort button` has
+   NO hover feedback at all (photos.scss:2696-2698 has no `:hover` rule, and parity's transcription
+   of it, vue2-parity/photos.scss:2739-2740, faithfully carries that same absence) — this repo's
+   other clickable controls all give hover feedback, so this stays as a kept, registered additive
+   UX improvement (not a parity gap), just re-pointed at the correct parity token (`--text-1`, not
+   the New-UI-global `--fg`) and re-anchored against parity's actual `[data-active]` value
+   (`--surface-3`, not `--chip-bg-hi`) for the hover-lock variant, so hovering an already-active
+   sort button doesn't visually revert it to the inactive background. */
+.sort button:hover { color: var(--text-1); }
+.sort button[data-active='true']:hover { background: var(--surface-3); color: var(--text-1); }
+
+/* `.save-smart:hover` / `.save-smart[data-saved="true"]:hover`: same situation as `.sort button`
+   above — Vue2's `.save-smart` (photos.scss:2634-2646) has no hover state at all, on either the
+   base or the `[data-saved="true"]` variant. Kept as the same registered additive hover-feedback
+   convention; the saved-state hover-lock repeats the exact literal values Vue2 uses for that
+   state — not a new literal introduced by this rollback, see the theme-exception tag below. */
+.save-smart:hover { filter: brightness(1.1); }
+/* theme-exception: repeats Vue2's own literal success color for the saved state — the same
+   literal (plus !important) parity itself carries at vue2-parity/photos.scss:2683-2687. Each
+   property line below needs its own marker since the guard's exempt window only spans to the
+   next `;`. */
 .save-smart[data-saved='true']:hover {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
-  color: var(--success);
+  /* theme-exception: Vue2 literal */
+  background: rgba(52,199,89,0.14) !important;
+  /* theme-exception: Vue2 literal */
+  border-color: rgba(52,199,89,0.35) !important;
+  /* theme-exception: Vue2 literal */
+  color: #34C759 !important;
 }
 
-/* ── results-bar(photos.scss:2702-2708)。Vue2 的 .sort button 没有任何 :hover
-   反馈——本仓其余可点按钮一律有 hover,这里补上(加性 UX 改进,登记见报告),并让
-   [data-active] 变体自带 :hover 满足本仓"胜出规则须含 :hover"的硬约束。 */
-.results-bar { display: flex; align-items: center; gap: 12px; padding: 10px 32px; font-size: 12.5px; color: var(--fg-faint); }
-.sort { display: inline-flex; gap: 0; background: var(--chip-bg); padding: 2px; border-radius: 99px; }
-.sort button {
-  padding: 4px 10px; font-size: 11.5px; border-radius: 99px; color: var(--fg-faint); font-weight: 500;
-  background: transparent; border: 0; cursor: pointer; transition: background 0.15s, color 0.15s;
-}
-.sort button:hover { color: var(--fg); }
-.sort button[data-active='true'] { background: var(--chip-bg-hi); color: var(--fg); }
-.sort button[data-active='true']:hover { background: var(--chip-bg-hi); color: var(--fg); }
-
-/* ── 空态(photos.scss:2771-2776)── */
-.empty-search { text-align: center; padding: 80px 32px; max-width: 480px; margin: 0 auto; }
-.empty-search .nimo-orb { width: 68px; height: 68px; margin: 0 auto 16px; filter: drop-shadow(0 0 24px var(--orb-glow)); }
-.empty-search h2 { font-family: var(--font-display, var(--font)); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--fg); }
-.empty-search p { color: var(--fg-faint); font-size: 13.5px; line-height: 1.5; margin: 0 0 24px; }
-.empty-search .conditions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 24px; }
-/* E10(T12 交接):空态里 chip 的紧凑变体归本任务实现。这里没有共享的 .fchip 基类可继承
-   (PhotosFilterChip 的 .fchip 是它自己 scoped 样式,跨组件不可见),直接以"已选中"的
-   视觉(accent-soft 底 + accent-soft-bd 边)按 photos.scss:2776 的紧凑尺寸整条写出。
-   fix round 1 · M13(评审并入,fix round 2 · Minor#3 校正行号):`padding` 改回 Vue2
-   基类 `.fchip`(photos.scss:2622-2623,不是第一版写的 2617——那一行其实是
-   `.filterbar` 的 `z-index: 6`)的 `0 12px`——第一版写成 `0 10px` 是抄错,不是刻意
-   收紧,已按 Vue2 字面值改回。 */
-.empty-search .conditions .fchip {
-  display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 99px;
-  background: var(--accent-soft); border: 1px solid var(--accent-soft-bd); color: var(--fg); font-size: 11.5px;
-}
-
-/* ≤768px:侧栏已收抽屉,布局单列(本区既定形态)。 */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation as
+   Photos.vue's/PhotosAlbums.vue's own copy of this rule): once the sidebar switches into
+   is-drawer mode (position:fixed, taken out of grid flow) at ≤768px, collapse `.app`'s sidebar
+   column too, so `.main` doesn't leave a dead var(--sidebar-w) gutter where the now-floating
+   sidebar used to sit. */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
 }
 </style>

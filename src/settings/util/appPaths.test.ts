@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { buildAppPathRows, volumeForPath } from './appPaths'
 import type { StorageVolume } from '../../storage/util/storageMap'
 
-// 真机 fixture(2026-08-01 curl GET /v1/storage?system=show 后过 mapVolumes)
+// Real-device fixture (2026-08-01 curl GET /v1/storage?system=show, run through mapVolumes)
 const SYS_VOL: StorageVolume = {
   uuid: 'da0e4da3-4a51-4655-8d89-d0f761d08c0a',
   name: 'NimoOS-HD', isSystem: true, fsType: 'ext4',
@@ -20,7 +20,7 @@ const OLD_VOL: StorageVolume = {
   driveName: 'sdb1', path: '/dev/sdb1', mountPoint: '/media/BackupOld', disk: '/dev/sdb',
 }
 
-// 真机 fixture(2026-08-01 curl GET /v1/sys/paths 的 data,逐字)
+// Real-device fixture (2026-08-01 curl GET /v1/sys/paths data, verbatim)
 const PATHS = {
   app_data: { path: '/DATA/AppData', size: 6037987 },
   database: { path: '/DATA', size: 3554691143 },
@@ -29,20 +29,21 @@ const PATHS = {
 }
 
 describe('volumeForPath', () => {
-  it('取最长前缀匹配的分区,不是第一个命中的', () => {
+  it('matches the longest-prefix partition, not the first hit', () => {
     expect(volumeForPath('/media/Backup/AppData', [SYS_VOL, EXT_VOL])?.uuid).toBe('ext-1')
     expect(volumeForPath('/DATA/AppData', [SYS_VOL, EXT_VOL])?.uuid).toBe(SYS_VOL.uuid)
   })
-  it('挂载点是字符串前缀但不是祖先目录时不许命中(/media/BackupOld/x 不属于 /media/Backup)', () => {
-    // 关键:卷列表里只有根 / 和 /media/Backup(无 /media/BackupOld)。裸 startsWith 会让
-    // /media/BackupOld/x 命中 /media/Backup(13 字符,比 / 长),排序也救不回来 ——
-    // 边界判断(path === mount 或 path.startsWith('${mount}/'))才能让它落回根卷。
+  it('must not match when the mount point is a string prefix but not an ancestor dir (/media/BackupOld/x is not under /media/Backup)', () => {
+    // Key point: the volume list only has root / and /media/Backup (no /media/BackupOld).
+    // Bare startsWith would let /media/BackupOld/x hit /media/Backup (13 chars, longer
+    // than /), and sorting can't save it -- only the boundary check (path === mount or
+    // path.startsWith('${mount}/')) lets it fall back to the root volume.
     expect(volumeForPath('/media/BackupOld/x', [SYS_VOL, EXT_VOL])?.uuid).toBe(SYS_VOL.uuid)
   })
-  it('真正的子路径仍然命中最长的挂载点(/media/Backup/AppData → /media/Backup)', () => {
+  it('a genuine subpath still matches the longest mount point (/media/Backup/AppData → /media/Backup)', () => {
     expect(volumeForPath('/media/Backup/AppData', [SYS_VOL, EXT_VOL])?.uuid).toBe('ext-1')
   })
-  it('无分区可匹配时返回 null', () => {
+  it('returns null when no partition matches', () => {
     expect(volumeForPath('/DATA/AppData', [])).toBeNull()
   })
 })
@@ -52,24 +53,24 @@ describe('buildAppPathRows', () => {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
   })
-  it('size 与 path 逐字取后端值(images 的 path 是含 & 的展示串)', () => {
+  it('size and path are taken verbatim from the backend (images path is a display string containing &)', () => {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
     expect(rows[0]).toMatchObject({ path: '/DATA/AppData', size: 6037987 })
     expect(rows[1].path).toBe('/DATA/.system_data/.docker & .containerd')
     expect(rows[2]).toMatchObject({ path: '/DATA', size: 3554691143 })
   })
-  it('total 取所在分区容量', () => {
+  it('total takes the capacity of the containing partition', () => {
     expect(buildAppPathRows(PATHS, [SYS_VOL])[0].total).toBe(512110190592)
   })
-  it('匹配不到分区时回退系统卷容量(不照抄 Vue2 写死的 970GB)', () => {
-    // 系统卷只有 /media/System,查询 /nowhere/x 无法匹配任何分区 → 使用 fallbackTotal
+  it('falls back to the system volume capacity when no partition matches (not the 970GB hardcoded in Vue2)', () => {
+    // The system volume is only /media/System; querying /nowhere/x matches no partition -> use fallbackTotal
     const sysVolWithoutRoot: StorageVolume = {
       ...SYS_VOL, mountPoint: '/media/System', isSystem: true, size: 555555555555,
     }
     const rows = buildAppPathRows({ app_data: { path: '/nowhere/x', size: 1 } }, [sysVolWithoutRoot, EXT_VOL])
-    expect(rows[0].total).toBe(555555555555) // fallbackTotal = 系统卷容量
+    expect(rows[0].total).toBe(555555555555) // fallbackTotal = system volume capacity
   })
-  it('连系统卷都没有时 total 为 0', () => {
+  it('total is 0 when there is not even a system volume', () => {
     expect(buildAppPathRows(PATHS, [])[0].total).toBe(0)
   })
   it('gives four empty-path, zero-size rows (not a throw) when backend data is null / missing keys', () => {

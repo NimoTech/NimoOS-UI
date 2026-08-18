@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/stream/UserMessage.vue -->
+<!-- 1:1 port from Vue2 src/views/AI/Agent/stream/UserMessage.vue -->
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -24,10 +24,10 @@ function extOf(name?: string): string {
 
 const props = defineProps<{ msg: UserMsgLike }>()
 const { t } = useI18n()
-// Vue2 版本通过 `inject: { agentStore: { default: null } }` 拿会话 id;
-// Vue3 侧对应改用 useProvidedAgentStore()(SP8-P1b Task 11,债③已还)——
-// 有祖先 provideAgentStore(如 Photos 受限 profile 嵌入)时解析到那个实例,
-// 独立使用(当前 AgentPage 根)时回退到默认 'general' store,不再写死后者。
+// Vue2 version gets session id via `inject: { agentStore: { default: null } }`;
+// Vue3 equivalent changed to useProvidedAgentStore() (SP8-P1b Task 11, debt③ settled) —
+// when ancestor provideAgentStore exists (e.g. Photos restricted profile embed), resolves to that instance;
+// when used standalone (current AgentPage root), falls back to default 'general' store, no longer hardcoded.
 const store = useProvidedAgentStore()
 
 const sessionId = computed(() => store.activeSessionId)

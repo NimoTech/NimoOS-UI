@@ -11,7 +11,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
 
 import { useInstalledAppsStore, mapInstalled, PENDING_TIMEOUT_MS } from './installedApps'
 
-// 真机实证形态(curl GET /v2/app_management/compose)
+// Shape verified on a real device (curl GET /v2/app_management/compose)
 const RAW = {
   store_info: {
     title: { en_US: 'Actual Budget' }, icon: 'https://cdn/icon.svg',
@@ -21,7 +21,7 @@ const RAW = {
 }
 
 describe('mapInstalled', () => {
-  it('映射真机信封:title 容忍大写 en_US、webUrl 拼当前主机、旗标透传', () => {
+  it('map device envelope: title tolerates uppercase en_US, webUrl constructs from current host, flags pass through', () => {
     const a = mapInstalled('actualbudget', RAW as never, 'nas.local')
     expect(a).toEqual({
       id: 'actualbudget', title: 'Actual Budget', icon: 'https://cdn/icon.svg',
@@ -29,7 +29,7 @@ describe('mapInstalled', () => {
       webUrl: 'http://nas.local:15006/',
     })
   })
-  it('store_info 缺失(uncontrolled 残骸)不炸:title 退 id,webUrl null,status 退 unknown', () => {
+  it('store_info missing (uncontrolled remnant) does not crash: title falls back to id, webUrl null, status falls back to unknown', () => {
     const a = mapInstalled('ghost', { status: '' } as never, 'h')
     expect(a.title).toBe('ghost')
     expect(a.webUrl).toBeNull()
@@ -46,30 +46,30 @@ describe('installedApps store', () => {
   })
   afterEach(() => vi.useRealTimers())
 
-  it('refresh 拉列表并按 title 排序', async () => {
+  it('refresh pulls list and sorts by title', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
-    expect(s.apps.map((x) => x.id)).toEqual(['a', 'b']) // 同 title 时按 id 稳定
+    expect(s.apps.map((x) => x.id)).toEqual(['a', 'b']) // stable by id when titles are equal
     expect(s.loading).toBe(false)
   })
 
-  it('refresh 过滤系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)', async () => {
+  it('refresh filters system background containers (nimoos.system=true, e.g. AI agent / Photos ML)', async () => {
     svc.list.mockResolvedValue({
       jellyfin: { ...RAW },
       'nimoos-agent': { ...RAW, compose: { services: { main: { labels: { 'nimoos.system': 'true' } } } } },
     })
     const s = useInstalledAppsStore()
     await s.refresh()
-    expect(s.apps.map((x) => x.id)).toEqual(['jellyfin']) // 系统容器被藏
+    expect(s.apps.map((x) => x.id)).toEqual(['jellyfin']) // system containers are hidden
   })
 
-  it('setStatus:置 pending → 受理后仍 pending(后端 go func 异步),end 事件才收敛', async () => {
+  it('setStatus: set pending → still pending after acceptance (backend go func async), converges only on end event', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
     const p = s.setStatus('a', 'start')
     expect(s.pending['a']).toBe('start')
     await p
-    // POST 只是受理:不提前收敛,否则 end 事件丢失(buffer=1)时列表永久陈旧
+    // POST is acceptance only: do not converge early, or the list stays stale forever if the end event is lost (buffer=1)
     expect(s.pending['a']).toBe('start')
     expect(svc.setStatus).toHaveBeenCalledWith('a', 'start')
     expect(svc.list).toHaveBeenCalledTimes(1)
@@ -78,7 +78,7 @@ describe('installedApps store', () => {
     await vi.waitFor(() => expect(svc.list).toHaveBeenCalledTimes(2))
   })
 
-  it('setStatus 受理后事件丢失 → 30s 兜底重拉收敛', async () => {
+  it('setStatus after acceptance, event lost → 30s fallback refetch to converge', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
     await s.setStatus('a', 'stop')
@@ -88,7 +88,7 @@ describe('installedApps store', () => {
     expect(svc.list).toHaveBeenCalledTimes(2)
   })
 
-  it('setStatus POST 失败 → 清 pending 且抛错(不留假处理中)', async () => {
+  it('setStatus POST fails → clear pending and throw error (no false pending state left behind)', async () => {
     svc.setStatus.mockRejectedValueOnce(new Error('boom'))
     const s = useInstalledAppsStore()
     await s.refresh()
@@ -96,22 +96,22 @@ describe('installedApps store', () => {
     expect(s.pending['a']).toBeUndefined()
   })
 
-  it('uninstall 显式透传 deleteConfigFolder,受理后仍 pending;uninstall-end 立即 evict + 重拉', async () => {
+  it('uninstall explicitly passes deleteConfigFolder, still pending after acceptance; uninstall-end immediately evicts + refetches', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
     await s.uninstall('a', false)
     expect(svc.uninstall).toHaveBeenCalledWith('a', { deleteConfigFolder: false })
-    // 受理即返:卸载还在后台跑,「处理中」保持
+    // Returns on acceptance: uninstall still runs in the background, "processing" state kept
     expect(s.pending['a']).toBe('uninstall')
     expect(s.apps.find((x) => x.id === 'a')).toBeDefined()
     s.onAppEvent('app:uninstall-end', { 'app:name': 'a' })
-    // end 事件:图标立刻消失(evict),不等重拉往返
+    // end event: icon disappears immediately (evict), no waiting for the refetch round-trip
     expect(s.apps.find((x) => x.id === 'a')).toBeUndefined()
     expect(s.pending['a']).toBeUndefined()
     await vi.waitFor(() => expect(svc.list).toHaveBeenCalledTimes(2))
   })
 
-  it('onAppEvent:begin 置 pending,end 清 pending 并重拉', async () => {
+  it('onAppEvent: begin sets pending, end clears pending and refetches', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
     s.onAppEvent('app:update-begin', { 'app:name': 'b' })
@@ -121,14 +121,14 @@ describe('installedApps store', () => {
     await vi.waitFor(() => expect(svc.list).toHaveBeenCalledTimes(2))
   })
 
-  it('onAppEvent 容忍垃圾输入(非 app:* 事件名 / props 缺 app:name)', async () => {
+  it('onAppEvent tolerates garbage input (non-app:* event name / missing app:name in props)', async () => {
     const s = useInstalledAppsStore()
     s.onAppEvent('docker:image:pull-progress', {})
     s.onAppEvent('app:start-begin', null)
     expect(s.pending).toEqual({})
   })
 
-  it('pending 30s 无事件 → 兜底重拉并清 pending(MessageBus 丢消息不永久卡)', async () => {
+  it('pending 30s with no event → fallback refetch and clear pending (MessageBus message loss does not cause permanent hang)', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
     s.onAppEvent('app:start-begin', { 'app:name': 'a' })
@@ -138,7 +138,7 @@ describe('installedApps store', () => {
     expect(svc.list).toHaveBeenCalledTimes(2)
   })
 
-  it('evict 立即移除条目并清 pending(容器 destroy / 卸载完成)', async () => {
+  it('evict immediately removes entry and clears pending (container destroy / uninstall complete)', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
     s.onAppEvent('app:uninstall-begin', { 'app:name': 'a' })

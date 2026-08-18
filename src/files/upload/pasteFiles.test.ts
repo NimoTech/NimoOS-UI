@@ -1,24 +1,24 @@
 import { describe, it, expect } from 'vitest'
 import { extractClipboardFiles } from './pasteFiles'
 
-// 构造最小 DataTransfer 桩:只需 files 属性(paste 事件里截图/复制文件都出现在
-// clipboardData.files);items 兜底路径用另一个桩覆盖。
+// Build a minimal DataTransfer stub: only the files property is needed (screenshots/copied files in a
+// paste event both show up in clipboardData.files); the items fallback path is covered by a separate stub.
 function dtWithFiles(files: File[]): DataTransfer {
   return { files, items: [] } as unknown as DataTransfer
 }
 
-const NOW = new Date(2026, 6, 21, 15, 30, 0) // 2026-07-21 15:30:00(月份从 0 起)
+const NOW = new Date(2026, 6, 21, 15, 30, 0) // 2026-07-21 15:30:00 (months are 0-based)
 
 describe('extractClipboardFiles', () => {
-  it('null DataTransfer 返回空数组', () => {
+  it('null DataTransfer returns empty array', () => {
     expect(extractClipboardFiles(null, '粘贴图片', NOW)).toEqual([])
   })
 
-  it('纯文本剪贴板(无文件)返回空数组', () => {
+  it('plain text clipboard (no files) returns empty array', () => {
     expect(extractClipboardFiles(dtWithFiles([]), '粘贴图片', NOW)).toEqual([])
   })
 
-  it('无名截图按 baseName+时间戳命名,扩展名取自 MIME', () => {
+  it('unnamed screenshot is named by baseName+timestamp, extension from MIME', () => {
     const blob = new File([new Uint8Array([1])], '', { type: 'image/png' })
     const out = extractClipboardFiles(dtWithFiles([blob]), '粘贴图片', NOW)
     expect(out).toHaveLength(1)
@@ -27,19 +27,19 @@ describe('extractClipboardFiles', () => {
     expect(out[0].file.type).toBe('image/png')
   })
 
-  it('浏览器占位名 image.png 也视为无名并改名', () => {
+  it('browser placeholder name image.png is also treated as unnamed and renamed', () => {
     const blob = new File([new Uint8Array([1])], 'image.png', { type: 'image/png' })
     const out = extractClipboardFiles(dtWithFiles([blob]), '粘贴图片', NOW)
     expect(out[0].relativePath).toBe('粘贴图片 2026-07-21 15-30-00.png')
   })
 
-  it('jpeg MIME 得到 .jpg 扩展名', () => {
+  it('jpeg MIME gets .jpg extension', () => {
     const blob = new File([new Uint8Array([1])], '', { type: 'image/jpeg' })
     const out = extractClipboardFiles(dtWithFiles([blob]), '粘贴图片', NOW)
     expect(out[0].relativePath).toBe('粘贴图片 2026-07-21 15-30-00.jpg')
   })
 
-  it('同批次多张无名图片追加序号,互不重名', () => {
+  it('multiple unnamed images in same batch get sequence numbers, do not collide', () => {
     const a = new File([new Uint8Array([1])], '', { type: 'image/png' })
     const b = new File([new Uint8Array([2])], '', { type: 'image/png' })
     const out = extractClipboardFiles(dtWithFiles([a, b]), '粘贴图片', NOW)
@@ -47,14 +47,14 @@ describe('extractClipboardFiles', () => {
     expect(out[1].relativePath).toBe('粘贴图片 2026-07-21 15-30-00 (2).png')
   })
 
-  it('复制的真实文件保留原名', () => {
+  it('copied real files keep original name', () => {
     const f = new File([new Uint8Array([1])], '报告.pdf', { type: 'application/pdf' })
     const out = extractClipboardFiles(dtWithFiles([f]), '粘贴图片', NOW)
     expect(out[0].relativePath).toBe('报告.pdf')
-    expect(out[0].file).toBe(f) // 有名文件不重建 File 对象
+    expect(out[0].file).toBe(f) // named files don't get a rebuilt File object
   })
 
-  it('files 为空时兜底走 items(kind=file)', () => {
+  it('when files is empty, fallback to items(kind=file)', () => {
     const f = new File([new Uint8Array([1])], '', { type: 'image/png' })
     const dt = {
       files: [],

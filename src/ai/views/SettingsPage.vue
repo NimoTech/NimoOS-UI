@@ -1,42 +1,50 @@
 <!--
-  SP8-P2a Task 8 —— 1:1 移植自 Vue2 `src/views/AI/Settings/Settings.vue`(243 行)。
-  设置区页面壳:左 SettingsRail + 右状态灯顶栏 + 两种内容渲染模式(竖排/单换)+
-  scroll-spy + `?section=` 深链。
+  SP8-P2a Task 8 — 1:1 port from Vue2 `src/views/AI/Settings/Settings.vue` (243 lines).
+  Settings page shell: left SettingsRail + right status-light top bar +
+  two content rendering modes (stacked/single-swap) + scroll-spy + `?section=` deep link.
 
-  【根元素】同时带 `agent-app`(token 作用域,见 settings-styles.scss 头注释)
-  与 `set-app`(布局)两个 class —— 本仓 `tokens.scss` 只在 `.agent-app` 作用域
-  定义 token,`.set-app` 只管网格布局,少一个就没颜色或没布局。
+  【Root element】bears both `agent-app` (token scope, see settings-styles.scss header
+  comment) and `set-app` (layout) classes — this repo's `tokens.scss` defines tokens only
+  in the `.agent-app` scope, `.set-app` handles grid layout only; missing one means no
+  colors or no layout.
 
-  【与 Vue2 的差异,均按移植纪律申报】
+  【Differences from Vue2, all reported per porting discipline】
 
-  D1(架构差异,任务 4 已解决)—— 主题不再是本组件私有 state,委托给应用级
-  `useAiTheme()`(Agent 页与设置页共享同一份,同一个 localStorage key)。
+  D1 (architecture diff, Task 4 resolved) — theme is no longer private state of this
+  component; delegated to app-level `useAiTheme()` (Agent page and Settings page share
+  the same instance, same localStorage key).
 
-  D2(架构差异,任务 5 + 本任务)—— Vue2 `Settings.vue:100-111` 每次挂载
-  `createSettingsStore()` 新建 state,所以 activeSection 恒从 'models' 起、
-  表单恒收起、HF 搜索结果恒为空。Pinia 单例会把上次离开时的状态带回来,故
-  `onMounted` 必须**先调用 `store.resetTransientUi()`,再读 `?section=`**——
-  顺序颠倒会让深链被复位冲掉(brief 用例 13,Step 8 有专门的 RED 验证)。
+  D2 (architecture diff, Task 5 + this task) — Vue2 `Settings.vue:100-111` calls
+  `createSettingsStore()` on each mount, creating new state, so activeSection always
+  starts from 'models', forms always collapse, HF search results always empty. Pinia
+  singleton restores prior-exit state, so `onMounted` must **call `store.resetTransientUi()`
+  first, then read `?section=`** — reversing the order lets deep link get wiped by reset
+  (brief use case 13, Step 8 has dedicated RED validation).
 
-  D3(申报,见下方恢复循环上方的完整注释)—— Vue2 的下载恢复循环因为
-  `createSettingsStore()` 每次新建而从未真正执行过;Pinia 单例下第一次有了
-  意义。`&& !job._timer` 守卫逐字保留。
+  D3 (reported, see full comment above restore loop below) — Vue2's download restore
+  loop never truly executed because `createSettingsStore()` creates new state each time;
+  under Pinia singleton it has meaning for the first time. The `&& !job._timer` guard
+  is preserved verbatim.
 
-  【新增,非 Vue2 蓝本 —— 下面两条是历史记录 + 现状,不是并列现状】
-  - 【历史】顶栏「详情」蓝本原为 `<router-link to="/ai/knowledge">`(Settings.vue:22-24)。
-    SP8-P2a/P2b 当时该路由尚不存在,`router.push` 过去会落空白死页 —— 临时改成
-    `<button>` + info toast 占位,样式类名 `.set-detail-link` 保持不变(视觉
-    1:1),仅交互目标变了。
-  - 【现状,治理 §15.1 / P5c §8.5】`/ai/knowledge` 外壳早在 SP8-P5a 就建好了,
-    但 P5a/P5b/P5c 三期都漏了把上面那个占位入口还回去 —— 知识库整区因此全程
-    只能敲地址进,2026-08-04 用户验收时发现。**SP8-P5d Task 9 已反转回**蓝本
-    原样 `<router-link to="/ai/knowledge">`(反转不删:被替掉的 `<button>` +
-    `onDetailsClick` 原文见下方 `onDetailsClick` 出现处的注释)。
-  - `onSelect()` 里 `DEFERRED_SECTIONS.includes(id)` 时弹一条 info toast ——
-    Vue2 没有这个概念(它的 13 个分区本就全是真组件)。**修复轮 M2 更新**:
-    SP8-P4 起 `DEFERRED_SECTIONS` 已清空(13 个分区全部接入真组件),这条分支
-    现在**不会触发**,但机制本身保留(用户明示「反转不删」)供将来新增未完成
-    分区时复用——见下方 `SECTION_COMPONENTS` 注释与 `onSelect()` 处的说明。
+  【New, not from Vue2 blueprint — the next two are historical record + current state,
+  not parallel states】
+  - 【History】top bar "Details" blueprint was originally `<router-link to="/ai/knowledge">`
+    (Settings.vue:22-24). SP8-P2a/P2b: route did not exist at that time, `router.push`
+    would land on blank dead page — temporarily changed to `<button>` + info toast
+    placeholder; style class `.set-detail-link` stayed unchanged (visual 1:1), only
+    interaction target changed.
+  - 【Current state, governance §15.1 / P5c §8.5】`/ai/knowledge` shell was already
+    built by SP8-P5a, but P5a/P5b/P5c all missed restoring that placeholder entry —
+    knowledge section had to be accessed by typing address only throughout; discovered
+    during user acceptance on 2026-08-04. **SP8-P5d Task 9 reversed back** to blueprint
+    original `<router-link to="/ai/knowledge">` (reverse is not delete: replaced `<button>`
+    + `onDetailsClick` original text appears in comment at `onDetailsClick` location below).
+  - `onSelect()` at `DEFERRED_SECTIONS.includes(id)` pops an info toast — Vue2 has no such
+    concept (its 13 sections are all real components). **Update from fix round M2**:
+    starting SP8-P4 `DEFERRED_SECTIONS` is empty (all 13 sections wired to real components);
+    this branch **never triggers** now, but mechanism is preserved (user explicit "reverse
+    not delete") for future reuse when adding incomplete sections — see `SECTION_COMPONENTS`
+    comment below and explanation at `onSelect()`.
 -->
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -77,51 +85,55 @@ import '../styles/settings-styles.scss'
 import '../styles/skills-styles.scss'
 import '../styles/mcp-styles.scss'
 
-// SP8-P2a —— section id → 组件。必须与 sections.ts 的 id、以及 `?section=`
-// 深链契约三方同步(Vue2 Settings.vue:75-90 同款约定)。
+// SP8-P2a — section id → component. Must stay in sync with sections.ts id
+// and `?section=` deep link contract across all three (same convention as
+// Vue2 Settings.vue:75-90).
 //
-// SP8-P2b 收官接线后曾只剩 skills / mcp 两个仍渲染 SectionPlaceholder;
-// SP8-P3a 把 skills 接上真组件 SkillsSection 后只剩 mcp 一个;SP8-P4 Task 9
-// 把 mcp 也接上真组件 McpSection——13 个分区全部指向各自的真组件,
-// `SECTION_COMPONENTS` 里不再有任何一个映射到 `SectionPlaceholder`
-// (models/providers/privacy/thinking 为 P2a 已接;blacklist/execution/search/
-// memory/observability/mcptokens/channels 为 P2b 已接;skills 为 P3a 已接;
-// mcp 为本任务 P4 Task 9 已接)。`SectionPlaceholder` 组件本身与
-// `DEFERRED_SECTIONS` 机制原样保留(用户明示「反转不删」),将来新增未完成
-// 分区时把映射改回 `SectionPlaceholder`、把 id 加回 `DEFERRED_SECTIONS` 即可
-// 恢复占位行为。
+// SP8-P2b final wiring only had skills / mcp left rendering SectionPlaceholder;
+// SP8-P3a wired skills to real SkillsSection, leaving mcp alone; SP8-P4 Task 9
+// wired mcp to real McpSection — all 13 sections now point to their real components.
+// No mapping in `SECTION_COMPONENTS` points to `SectionPlaceholder` anymore
+// (models/providers/privacy/thinking wired P2a; blacklist/execution/search/
+// memory/observability/mcptokens/channels wired P2b; skills wired P3a;
+// mcp wired Task 9 this release). `SectionPlaceholder` component itself and
+// `DEFERRED_SECTIONS` mechanism preserved as-is (user explicit "reverse not delete");
+// when adding incomplete sections in future, change mapping back to `SectionPlaceholder`
+// and re-add id to `DEFERRED_SECTIONS` to restore placeholder behavior.
 //
-// SP8-P2b Task 14 修复轮 1 —— 不 export 这个常量:`<script setup>` 不允许 ES
-// module 具名导出(试过,编译直接报错),而协调者裁定"可测试性"不值得为此拆
-// 出额外的 `<script>` 块(公开面收窄)。收口守卫测试改成断言渲染结果(是否
-// 渗出占位文案),不再需要拿到这个常量本身。
+// SP8-P2b Task 14 fix round 1 — do not export this constant: `<script setup>`
+// forbids ES module named exports (tried it, compiler errors directly), and
+// coordinator ruled "testability" not worth splitting out extra `<script>` block
+// (narrowing public surface). Guard test changed to assert render output (whether
+// placeholder text leaks through), no longer needs the constant itself.
 const SECTION_COMPONENTS: Record<SectionId, Component> = {
-  models: ModelsSection, // Task 9 —— 已替换
-  providers: ProvidersSection, // Task 10 —— 已替换
-  privacy: PrivacySection, // Task 11 —— 已替换
-  thinking: ThinkingDefaultsSection, // Task 11 —— 已替换
-  blacklist: BlacklistSection, // SP8-P2b Task 4 —— 已实现,收官接线
-  execution: ExecutionSection, // SP8-P2b Task 5 —— 已实现,收官接线
-  search: SearchSection, // SP8-P2b Task 7 —— 已实现,收官接线
-  memory: MemorySection, // SP8-P2b Task 6 —— 已实现,收官接线
-  observability: ObservabilitySection, // SP8-P2b Task 8 —— 已实现,收官接线
-  skills: SkillsSection, // SP8-P3a Task 7 —— 已实现,收官接线
-  mcp: McpSection, // SP8-P4 Task 9 —— 已实现,收官接线(DEFERRED_SECTIONS 就此清空)
-  mcpapprovals: McpApprovalsSection, // Task 21 (mcp-progressive-disclosure) —— 已实现
-  mcptokens: McpTokensSection, // SP8-P2b Task 10 —— 已实现,收官接线
-  channels: ChannelsSection, // SP8-P2b Task 12 —— 已实现,收官接线
+  models: ModelsSection, // Task 9 — wired
+  providers: ProvidersSection, // Task 10 — wired
+  privacy: PrivacySection, // Task 11 — wired
+  thinking: ThinkingDefaultsSection, // Task 11 — wired
+  blacklist: BlacklistSection, // SP8-P2b Task 4 — implemented, final wiring
+  execution: ExecutionSection, // SP8-P2b Task 5 — implemented, final wiring
+  search: SearchSection, // SP8-P2b Task 7 — implemented, final wiring
+  memory: MemorySection, // SP8-P2b Task 6 — implemented, final wiring
+  observability: ObservabilitySection, // SP8-P2b Task 8 — implemented, final wiring
+  skills: SkillsSection, // SP8-P3a Task 7 — implemented, final wiring
+  mcp: McpSection, // SP8-P4 Task 9 — implemented, final wiring (DEFERRED_SECTIONS hereby empty)
+  mcpapprovals: McpApprovalsSection, // Task 21 (mcp-progressive-disclosure) — implemented
+  mcptokens: McpTokensSection, // SP8-P2b Task 10 — implemented, final wiring
+  channels: ChannelsSection, // SP8-P2b Task 12 — implemented, final wiring
 }
 
-// 非 Vue2 蓝本 —— SectionPlaceholder 需要 { titleKey, bodyKey } 两个 prop,而
-// Vue2 的 SECTION_COMPONENTS 只是纯 id→组件映射、渲染处不传任何 prop
-// (Settings.vue:40/45)。给非占位组件传这两个多余 prop 无害(13 个分区目前
-// 全部是真组件,这两个 prop 会变成未声明的 fallthrough attrs,不影响功能)。
-// 【修复轮 M2 更新】SP8-P4 起 `SECTION_COMPONENTS` 里不再有任何一个映射到
-// `SectionPlaceholder`,这条函数的有效返回分支(`titleKey`/`bodyKey` 非空)
-// 现在**不会触发**——机制原样保留(用户明示「反转不删」):将来某个 id 的
-// `SECTION_COMPONENTS` 映射改回 `SectionPlaceholder` 时,直接复用来源分区
-// 自己的导航文案(`sections.ts` 的 `labelKey`)作标题,统一的
-// `aiCfgPlaceholderBody` 作说明文字。
+// Not from Vue2 blueprint — SectionPlaceholder needs { titleKey, bodyKey } two props,
+// while Vue2's SECTION_COMPONENTS is pure id→component mapping, rendering passes
+// no props (Settings.vue:40/45). Passing these two extra props to non-placeholder
+// components is harmless (all 13 sections are currently real components; these props
+// become undeclared fallthrough attrs, no impact on function).
+// 【Fix round M2 update】Starting SP8-P4, no mapping in `SECTION_COMPONENTS` points
+// to `SectionPlaceholder` anymore; this function's valid return branch (`titleKey`/
+// `bodyKey` non-empty) **never triggers** now — mechanism preserved as-is (user
+// explicit "reverse not delete"): when some id's `SECTION_COMPONENTS` mapping changes
+// back to `SectionPlaceholder` in future, directly reuse the source section's own
+// navigation text (`labelKey` from `sections.ts`) as title, unified
+// `aiCfgPlaceholderBody` as explanation text.
 function placeholderProps(id: SectionId): Record<string, string> {
   if (SECTION_COMPONENTS[id] !== SectionPlaceholder) return {}
   const item = ALL_ITEMS.find((i) => i.id === id)
@@ -136,17 +148,18 @@ const { t } = useI18n()
 const toast = useToast()
 
 const bodyEl = ref<HTMLDivElement | null>(null)
-// v-for 的模板 ref 集合(Vue2 `:ref="'sec-' + item.id"` 的 Vue3 等价写法)。
-// 纯记账用,不需要响应式。
+// v-for template ref collection (Vue3 equivalent of Vue2 `:ref="'sec-' + item.id"`).
+// Bookkeeping only, no reactivity needed.
 const sectionEls: Record<string, HTMLElement | null> = {}
 function setSectionEl(id: string, el: Element | null) {
   sectionEls[id] = el as HTMLElement | null
 }
 
 const activeGroup = computed(() => groupOf(store.activeSection))
-// Vue2 `groupTitle()` 有一段 `this.activeGroup ? ... : 'AI Settings'` 的兜底 ——
-// `groupOf()`(sections.ts)在找不到时会 fallback 回 GROUPS[0],`activeGroup`
-// 永远不是假值,那条三元分支是死代码,这里不搬(纯化简死分支,不是行为改动)。
+// Vue2 `groupTitle()` has fallback `this.activeGroup ? ... : 'AI Settings'` —
+// `groupOf()` (sections.ts) falls back to GROUPS[0] when not found, `activeGroup`
+// is never falsy; that ternary branch is dead code, not ported here (pure simplification
+// of dead branch, not behavior change).
 const groupTitle = computed(() => t(activeGroup.value.labelKey))
 const isSplitSection = computed(
   () => !activeGroup.value.stack && SPLIT_SECTIONS.includes(store.activeSection),
@@ -182,30 +195,32 @@ function goBack() {
   router.push('/ai/agent')
 }
 
-// SP8-P5d Task 9(反转不是删除,治理 §15.1 第 3 条裁定 / P5c §8.5)—— 顶栏
-// 「详情」已改回 router-link(见上方模板 `.set-detail-link` 处),这个 handler
-// 零调用点,删掉;原文留成注释(与 `knowledgeRoutes.ts` 的「反转不删」先例同款):
+// SP8-P5d Task 9 (reverse not delete, governance §15.1 ruling 3 / P5c §8.5) — top bar
+// "Details" changed back to router-link (see template `.set-detail-link` above), this handler
+// has zero call sites, deleted; original text kept as comment (same precedent as
+// `knowledgeRoutes.ts` "reverse not delete"):
 //   function onDetailsClick() {
 //     toast.show(t('aiCfgKnowledgeSoon'))
 //   }
-// 该键已于 P5e 依治理 §0.2(裁定 D-9)从 zh_cn.ts / en_us.ts 删除(零生产消费点;
-// 决策历史留在本注释里,本注释不删)。
-// `DEFERRED_SECTIONS` 占位机制本身不受影响,不许碰 —— 它在 `onSelect()` 里的
-// 另一条分支(见下方)。
+// This key was deleted from zh_cn.ts / en_us.ts in P5e per governance §0.2 (ruling D-9)
+// (zero production consumption; decision history stays in comment, comment not deleted).
+// `DEFERRED_SECTIONS` placeholder mechanism itself unaffected, do not touch — it's in another
+// branch in `onSelect()` (see below).
 
 function onRefresh() {
   store.loadServicesStatus()
 }
 
-// 非 Vue2 蓝本 —— suppressSpy 是模拟点击滚动期间抑制 IntersectionObserver 高亮
-// 抖动用的纯内部旗标(Vue2 `this._suppressSpy`),不需要响应式,普通闭包变量足够。
+// Not from Vue2 blueprint — suppressSpy is pure-internal flag for suppressing
+// IntersectionObserver highlight jitter during click-scroll (Vue2 `this._suppressSpy`),
+// no reactivity needed, plain closure variable is enough.
 let suppressSpy = false
 let spyTimer: ReturnType<typeof setTimeout> | null = null
 let statusPollTimer: ReturnType<typeof setInterval> | null = null
 let io: IntersectionObserver | null = null
 let visible: Record<string, number | null> = {}
 
-/** Vue2 Settings.vue:199-208 —— 非 stack 组直接释放抑制;stack 组滚过去再释放。 */
+/** Vue2 Settings.vue:199-208 — non-stack group releases suppress immediately; stack group releases after scrolling. */
 function scrollToSection(id: SectionId) {
   const group = groupOf(id)
   if (!group.stack) {
@@ -219,7 +234,7 @@ function scrollToSection(id: SectionId) {
   releaseSpy()
 }
 
-/** Vue2 Settings.vue:209-213 —— 平滑滚动结束(约 650ms)后才解除抑制。 */
+/** Vue2 Settings.vue:209-213 — releases suppress only after smooth scroll ends (approx 650ms). */
 function releaseSpy() {
   if (spyTimer) clearTimeout(spyTimer)
   spyTimer = setTimeout(() => {
@@ -227,13 +242,13 @@ function releaseSpy() {
   }, 650)
 }
 
-/** Vue2 Settings.vue:214-240 —— IntersectionObserver scroll-spy。 */
+/** Vue2 Settings.vue:214-240 — IntersectionObserver scroll-spy. */
 function setupSpy() {
   if (io) {
     io.disconnect()
     io = null
   }
-  // jsdom 没有 IntersectionObserver;Vue2 同样守卫这一点,静默跳过(不报错)。
+  // jsdom lacks IntersectionObserver; Vue2 guards this too, silently skips (no error).
   if (typeof IntersectionObserver === 'undefined') return
   const root = bodyEl.value
   if (!root || !activeGroup.value.stack) return
@@ -246,7 +261,7 @@ function setupSpy() {
         if (!sid) continue
         visible[sid] = e.isIntersecting ? e.boundingClientRect.top : null
       }
-      // 高亮当前处于视口上方带的最靠上分区。
+      // Highlight the topmost section among those currently in viewport upper band.
       let best: string | null = null
       let bestTop = Infinity
       for (const sid in visible) {
@@ -257,7 +272,7 @@ function setupSpy() {
           best = sid
         }
       }
-      // 只改高亮,不动 URL(Vue2 Settings.vue:234 明确注释了这一点)。
+      // Update highlight only, do not touch URL (Vue2 Settings.vue:234 explicitly comments this).
       if (best && best !== store.activeSection) {
         store.setActiveSection(best as SectionId)
       }
@@ -268,11 +283,11 @@ function setupSpy() {
   nodes.forEach((n) => io!.observe(n))
 }
 
-/** Vue2 Settings.vue:189-198 —— 点导航:切分区 → 抑制 spy → 同步 URL → 滚过去。 */
+/** Vue2 Settings.vue:189-198 — click nav: switch section → suppress spy → sync URL → scroll. */
 function onSelect(id: SectionId) {
   store.setActiveSection(id)
-  // 非 Vue2 蓝本(见文件头说明)—— skills/mcp 本阶段是占位,弹一条提示告知
-  // 用户该分区尚未开放。
+  // Not from Vue2 blueprint (see file header) — skills/mcp at this phase are placeholders,
+  // pop a toast to tell user the section is not yet available.
   if (DEFERRED_SECTIONS.includes(id)) {
     toast.show(t('aiCfgSectionDeferred'), 3000)
   }
@@ -287,7 +302,7 @@ function isValidSection(v: unknown): v is SectionId {
   return typeof v === 'string' && (VALID_SECTIONS as string[]).includes(v)
 }
 
-// Vue2 Settings.vue:142-147 —— `?section=` 变化(如浏览器前进/后退)时采纳。
+// Vue2 Settings.vue:142-147 — adopt when `?section=` changes (e.g., browser forward/back).
 watch(
   () => route.query.section,
   (v) => {
@@ -298,7 +313,7 @@ watch(
   },
 )
 
-// Vue2 Settings.vue:148-152 —— 可见的大类变了(锚点集合变了),重新装 observer。
+// Vue2 Settings.vue:148-152 — visible group changed (anchor set changed), reinstall observer.
 watch(
   () => activeGroup.value.id,
   () => {
@@ -307,22 +322,25 @@ watch(
 )
 
 onMounted(async () => {
-  // SP8-P2b 验收第 3 轮(2026-07-30):登记「AI 区在前台」。应用级 `AppToast` 据此改用
-  // AI 的 toast 配色 —— 否则它用全局蓝黑主题的半透明白底 + 白字,画在本页浅色背景上
-  // 完全看不见(本页所有 toast 反馈都收不到)。根因见 stores/aiTheme.ts 的 aiSurfaces 注释。
+  // SP8-P2b acceptance round 3 (2026-07-30): register "AI section in foreground".
+  // App-level `AppToast` uses this to switch to AI's toast colors — otherwise it uses
+  // global blue-black theme's semi-transparent white background + white text, invisible on
+  // this page's light background (all toast feedback on this page unreachable). Root cause:
+  // see aiSurfaces comment in stores/aiTheme.ts.
   aiTheme.enterAiSurface()
-  // 非 brief 逐条步骤,自行补充(1:1 保真需要)—— Vue2 `Settings.vue:102-107`
-  // 在 data() 里每次都独立读一遍 localStorage/matchMedia 初始化主题,与
-  // Agent.vue 是否挂载过无关。本仓把主题状态搬到应用级单例 `useAiTheme`
-  // 后,若只有 AgentPage 的 `initTheme()`(实为 `aiTheme.hydrateTheme()`,见
-  // agentStore.ts:316-318)会读一次持久化偏好,直接从 `/ai/settings` 进站
-  // (未先访问过 `/ai/agent`)就会一直停在 store 默认值 'light',无视用户
-  // 已保存的偏好或系统深色模式——这是纯粹因为单例化而产生的 1:1 视觉回归,
-  // 不是 brief 遗漏的边界情况。`hydrateTheme()` 本身是幂等的(可重复调用,
-  // 见 aiTheme.ts 头注释),两个页面各自调用互不冲突。
+  // Not part of brief step-by-step, self-supplemented (1:1 fidelity needed) —
+  // Vue2 `Settings.vue:102-107` independently reads localStorage/matchMedia in data()
+  // to init theme, independent of whether Agent.vue is mounted. After moving theme
+  // state to app-level singleton `useAiTheme`, if only AgentPage's `initTheme()`
+  // (actually `aiTheme.hydrateTheme()`, see agentStore.ts:316-318) reads persisted
+  // preference once, entering directly from `/ai/settings` (without visiting `/ai/agent`
+  // first) stays stuck at store default 'light', ignoring user's saved preference or
+  // system dark mode — pure 1:1 visual regression from singleton, not brief edge case.
+  // `hydrateTheme()` itself is idempotent (can call repeatedly, see aiTheme.ts header
+  // comment), two pages calling it independently have no conflict.
   aiTheme.hydrateTheme()
 
-  // D2 —— 必须先复位瞬态 UI,再读 `?section=`,顺序不可颠倒(brief 用例 13)。
+  // D2 — must reset transient UI first, then read `?section=`, order cannot reverse (brief use case 13).
   store.resetTransientUi()
 
   const qSection = route.query.section
@@ -330,7 +348,7 @@ onMounted(async () => {
     store.setActiveSection(qSection)
   }
 
-  // Vue2 Settings.vue:154-158 —— 四次装载各自 try/catch 吞错,互不阻断。
+  // Vue2 Settings.vue:154-158 — four loads each try/catch swallow errors independently.
   try {
     await store.loadServicesStatus()
   } catch {
@@ -352,16 +370,17 @@ onMounted(async () => {
     /* ignore */
   }
 
-  // SP8-P2a D3 —— 逐字移植自 Vue2 `Settings.vue:159-163`,含 `!job._timer` 守卫。
+  // SP8-P2a D3 — verbatim port from Vue2 `Settings.vue:159-163`, includes `!job._timer` guard.
   //
-  // 【申报:同样的代码在本仓才第一次真正执行】Vue2 的 `createSettingsStore()`
-  // 每次挂载新建 state,`hfImportJobs` 恒为 {},所以这个循环在 Vue2 里从未跑过
-  // 一次 —— 实际效果是离开设置页进度条就没了,而后台 setInterval 仍持有已废弃
-  // 的 store 闭包(泄漏)。本仓 store 是 Pinia 单例,任务与定时器都还在,该循环
-  // 第一次有了意义:回到页面进度条继续显示。
+  // 【Report: same code executes for the first time in this repo】Vue2's
+  // `createSettingsStore()` creates new state on each mount, `hfImportJobs` always {},
+  // so this loop never runs once in Vue2 — effect: leaving settings page kills progress,
+  // background setInterval still holds discarded store closure (leak). This repo's store
+  // is Pinia singleton; jobs and timers stay; loop has meaning first time: returning to
+  // page shows progress continuing.
   //
-  // 这是「照搬后行为变好」,不是 bug 修复。`&& !job._timer` 那道守卫必须保留:
-  // 它正是防止对同一个文件重复起第二个定时器的闸。
+  // This is "better behavior after port", not a bug fix. `&& !job._timer` guard must
+  // stay: it prevents starting a second timer for the same file.
   for (const [filename, job] of Object.entries(store.hfImportJobs)) {
     if ((job.status === 'downloading' || job.status === 'creating model') && !job._timer) {
       store.startImportJob(job.repo, filename)
@@ -374,14 +393,15 @@ onMounted(async () => {
 
   nextTick(() => {
     setupSpy()
-    // 深链 `?section=` 挂载后滚过去一次(Vue2 Settings.vue:169-172)。
+    // Deep link `?section=` scroll after mount once (Vue2 Settings.vue:169-172).
     const s = store.activeSection
     if (activeGroup.value.stack) scrollToSection(s)
   })
 })
 
 onUnmounted(() => {
-  // SP8-P2b 验收第 3 轮:注销「AI 区在前台」,让应用级 toast 回到全局主题(桌面零影响)。
+  // SP8-P2b acceptance round 3: unregister "AI section in foreground", let app-level toast
+  // return to global theme (zero desktop impact).
   aiTheme.leaveAiSurface()
   if (statusPollTimer) clearInterval(statusPollTimer)
   if (io) {
@@ -425,12 +445,12 @@ onUnmounted(() => {
             <span v-if="store.parserStatus.paused" class="badge-pause">⏸</span>
           </span>
         </div>
-        <!-- SP8-P5d Task 9 反转(不是删除,治理 §15.1 / P5c §8.5):`/ai/knowledge`
-             外壳自 SP8-P5a 就已建好,P5a/P5b/P5c 三期漏了把这个入口还回去,本刀
-             改回蓝本原样 router-link——`.set-detail-link` 类名与视觉不变
-             (settings-styles.scss 已含 text-decoration: none)。改前是
-             `<button class="set-detail-link" @click="onDetailsClick">`,
-             `onDetailsClick` 原文见下方 script 区块同名注释处(反转不删)。 -->
+        <!-- SP8-P5d Task 9 reverse (not delete, governance §15.1 / P5c §8.5): `/ai/knowledge`
+             shell was already built by SP8-P5a, P5a/P5b/P5c all missed restoring this
+             entry; this commit reverts to blueprint original router-link — `.set-detail-link`
+             class name and visuals unchanged (settings-styles.scss already has
+             text-decoration: none). Before: `<button class="set-detail-link" @click="onDetailsClick">`,
+             `onDetailsClick` original text at script block same-name comment below (reverse not delete). -->
         <router-link class="set-detail-link" to="/ai/knowledge">
           {{ t('aiCfgDetails') }} <AgentIcon name="chev" :size="12" />
         </router-link>

@@ -6,7 +6,7 @@ import zhSp9 from '../../../i18n/zh_cn.sp9'
 import type { WifiScanResult, NetworkInterfaceUpdate } from '@nimotech/nimoos-service'
 import type { MergedIface } from '../../util/netMerge'
 
-// curl 实证 2026-07-31 的扫描结果(取两条)
+// Scan results verified via curl on 2026-07-31 (two entries)
 const NETS: WifiScanResult[] = [
   { ssid: 'NIMO_Network', bssid: '60:a3:e3:a9:db:05', signal: -45, channel: 11, secure: true, connected: false },
   { ssid: 'tongda-zy', bssid: 'cc:ba:6f:ad:e6:6c', signal: -39, channel: 2, secure: true, connected: false },
@@ -25,7 +25,7 @@ const net = {
   putCalls: [] as NetworkInterfaceUpdate[],
   scanResult: null as null | Promise<WifiScanResult[]>,
   putError: null as unknown,
-  /** 非 null 时 PUT 会挂在这个 promise 上,由测试手动 resolve —— 用来验「保存中禁用」 */
+  /** When non-null, PUT hangs on this promise, resolved manually by the test — used to verify "disabled while saving" */
   putGate: null as null | Promise<void>,
 }
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -39,7 +39,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
       },
     },
   },
-  // 与包内真实实现等价(network 域错误体是 {"error": …})
+  // Equivalent to the real implementation in the package (the network domain's error body is {"error": …})
   networkErrorText: (e: unknown) => {
     const d = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
     return typeof d === 'string' && d.trim() ? d.trim() : undefined
@@ -49,7 +49,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
 import NetworkIfaceConfigDialog from './NetworkIfaceConfigDialog.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
-// Dialog 经 reka DialogPortal teleport 到 body → attachTo + 查 document(DeviceInfoDialog.test.ts 先例)
+// The Dialog is teleported to body via reka's DialogPortal → attachTo + query document (same precedent as DeviceInfoDialog.test.ts)
 const body = () => new DOMWrapper(document.body)
 
 function iface(p: Partial<MergedIface> = {}): MergedIface {
@@ -76,20 +76,20 @@ beforeEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('标题按类型派生 —— 移植纪律 #5(Vue2 写死 "Wi-Fi - <name>")', () => {
-  it('以太网 → 「以太网 - enp2s0」', async () => {
+describe('title derived by type — porting discipline #5 (Vue2 hardcodes "Wi-Fi - <name>")', () => {
+  it('ethernet → "以太网 - enp2s0"', async () => {
     const w = mountDlg(); await flushPromises()
     expect(body().get('.ui-dialog-title').text()).toBe('以太网 - enp2s0')
     w.unmount()
   })
 
-  it('Wi-Fi 客户端 → 「Wi-Fi - wlp1s0」', async () => {
+  it('Wi-Fi client → "Wi-Fi - wlp1s0"', async () => {
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client' } }); await flushPromises()
     expect(body().get('.ui-dialog-title').text()).toBe('Wi-Fi - wlp1s0')
     w.unmount()
   })
 
-  it('热点 → 「热点 - wlp1s0」;混合 → 「Wi-Fi + 热点 - wlp1s0」', async () => {
+  it('hotspot → "热点 - wlp1s0"; concurrent → "Wi-Fi + 热点 - wlp1s0"', async () => {
     const ap = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'ap' } }); await flushPromises()
     expect(body().get('.ui-dialog-title').text()).toBe('热点 - wlp1s0')
     ap.unmount()
@@ -101,8 +101,8 @@ describe('标题按类型派生 —— 移植纪律 #5(Vue2 写死 "Wi-Fi - <nam
   })
 })
 
-describe('分支渲染', () => {
-  it('以太网:zone 三项 + IPv4 分配;选 static 出现四个字段', async () => {
+describe('branch rendering', () => {
+  it('ethernet: three zone options + IPv4 assignment; picking static reveals four fields', async () => {
     const w = mountDlg(); await flushPromises()
     const zone = body().get('.set-net-zone')
     expect(zone.findAll('option').map((o) => o.text())).toEqual(['无', 'LAN', 'WAN'])
@@ -113,7 +113,7 @@ describe('分支渲染', () => {
     w.unmount()
   })
 
-  it('Thunderbolt:有静态说明、四个字段,**没有** IPv4 分配下拉', async () => {
+  it('Thunderbolt: has the static-IP note, four fields, and **no** IPv4 assignment dropdown', async () => {
     const w = mountDlg({ name: 'tb0', type: 'thunderbolt', ipv4: null }); await flushPromises()
     expect(body().text()).toContain('Thunderbolt 静态 IP 配置')
     expect(body().find('.set-net-method').exists()).toBe(false)
@@ -121,21 +121,21 @@ describe('分支渲染', () => {
     w.unmount()
   })
 
-  it('Wi-Fi client:渲染 WifiForm 并**自动扫描一次**(Vue2 L289-292)', async () => {
+  it('Wi-Fi client: renders WifiForm and **auto-scans once** (Vue2 L289-292)', async () => {
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client' } }); await flushPromises()
     expect(net.scanCalls).toEqual(['wlp1s0'])
     expect(body().findAll('.set-wifi-row')).toHaveLength(2)
     w.unmount()
   })
 
-  it('Wi-Fi ap:渲染 HotspotForm,**不扫描**', async () => {
+  it('Wi-Fi ap: renders HotspotForm, **does not scan**', async () => {
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'ap' } }); await flushPromises()
     expect(net.scanCalls).toEqual([])
     expect(body().find('.set-net-apssid').exists()).toBe(true)
     w.unmount()
   })
 
-  it('concurrent:两个 tab,默认 Wi-Fi;点热点 tab 切到 HotspotForm', async () => {
+  it('concurrent: two tabs, defaults to Wi-Fi; clicking the hotspot tab switches to HotspotForm', async () => {
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'concurrent' } }); await flushPromises()
     const tabs = body().findAll('.set-net-tab')
     expect(tabs.map((tb) => tb.text())).toEqual(['Wi-Fi', '热点'])
@@ -145,7 +145,7 @@ describe('分支渲染', () => {
     w.unmount()
   })
 
-  it('未配置的 Wi-Fi:两个引导按钮;点「连接 WiFi」→ 切 client 并触发扫描', async () => {
+  it('unconfigured Wi-Fi: two onboarding buttons; clicking "connect WiFi" → switches to client and triggers a scan', async () => {
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: null, ipv4: null }); await flushPromises()
     expect(body().text()).toContain('此 Wi-Fi 接口尚未配置')
     const btns = body().findAll('.set-net-choose .set-btn')
@@ -156,7 +156,7 @@ describe('分支渲染', () => {
     w.unmount()
   })
 
-  it('未配置的 Wi-Fi:点「创建热点」→ 切 ap、预填默认 SSID、不扫描', async () => {
+  it('unconfigured Wi-Fi: clicking "create hotspot" → switches to ap, pre-fills the default SSID, no scan', async () => {
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: null, ipv4: null }); await flushPromises()
     await body().findAll('.set-net-choose .set-btn')[1].trigger('click'); await flushPromises()
     expect(net.scanCalls).toEqual([])
@@ -165,8 +165,8 @@ describe('分支渲染', () => {
   })
 })
 
-describe('保存', () => {
-  it('以太网 dhcp:PUT 的 payload 是 {name, zone, ipv4:{method:"dhcp"}},随后 emit saved 并关窗', async () => {
+describe('save', () => {
+  it('ethernet dhcp: the PUT payload is {name, zone, ipv4:{method:"dhcp"}}, then emits saved and closes the dialog', async () => {
     const w = mountDlg(); await flushPromises()
     await body().get('.set-net-save').trigger('click'); await flushPromises()
     expect(net.putCalls).toEqual([{ name: 'enp2s0', zone: '', ipv4: { method: 'dhcp' } }])
@@ -176,7 +176,7 @@ describe('保存', () => {
     w.unmount()
   })
 
-  it('失败:**弹窗内联** .set-danger 显示后端 error 文本,窗不关', async () => {
+  it('failure: **inline in the dialog** .set-danger shows the backend error text, dialog stays open', async () => {
     net.putError = { response: { data: { error: 'failed to apply gateway rules: nft not found' } } }
     const w = mountDlg(); await flushPromises()
     await body().get('.set-net-save').trigger('click'); await flushPromises()
@@ -186,7 +186,7 @@ describe('保存', () => {
     w.unmount()
   })
 
-  it('失败但后端没给 error 文本 → 回落本地文案', async () => {
+  it('failure but the backend gives no error text → falls back to the local copy', async () => {
     net.putError = new Error('network down')
     const w = mountDlg(); await flushPromises()
     await body().get('.set-net-save').trigger('click'); await flushPromises()
@@ -194,7 +194,7 @@ describe('保存', () => {
     w.unmount()
   })
 
-  it('wifi 未配置模式点保存 → 内联「没有可保存的配置」,**一个 PUT 都不发**', async () => {
+  it('clicking save in wifi unconfigured mode → inline "no config to save", **doesn\'t send a single PUT**', async () => {
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: null, ipv4: null }); await flushPromises()
     await body().get('.set-net-save').trigger('click'); await flushPromises()
     expect(net.putCalls).toEqual([])
@@ -202,7 +202,7 @@ describe('保存', () => {
     w.unmount()
   })
 
-  it('保存在途时两个按钮都禁用(防连点重复 PUT),落定后恢复', async () => {
+  it('both buttons are disabled while a save is in flight (guards against a repeat PUT from double-clicking), restored once it settles', async () => {
     const gate = deferred<void>()
     net.putGate = gate.promise
     const w = mountDlg(); await flushPromises()
@@ -211,7 +211,7 @@ describe('保存', () => {
     await body().get('.set-net-save').trigger('click'); await flushPromises()
     expect(body().get('.set-net-save').attributes('disabled')).toBeDefined()
     expect(body().get('.set-net-cancel').attributes('disabled')).toBeDefined()
-    // 在途期间再点也不会发第二个 PUT
+    // Clicking again while in flight doesn't send a second PUT
     await body().get('.set-net-save').trigger('click'); await flushPromises()
     expect(net.putCalls).toHaveLength(1)
 
@@ -221,8 +221,8 @@ describe('保存', () => {
   })
 })
 
-describe('扫描与断连', () => {
-  it('扫描失败:内联报错,scanning 复位(移植纪律 #4:Vue2 早退分支不复位)', async () => {
+describe('scan and disconnect', () => {
+  it('scan failure: inline error, scanning resets (porting discipline #4: Vue2\'s early-return branch does not reset)', async () => {
     net.scanResult = Promise.reject({ response: { data: { error: 'invalid interface name: "0bad"' } } })
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client' } }); await flushPromises()
     expect(body().get('.set-danger').text()).toBe('invalid interface name: "0bad"')
@@ -230,14 +230,14 @@ describe('扫描与断连', () => {
     w.unmount()
   })
 
-  it('扫描返回 null(后端 200+null 已由包退化成 [])→ 空态提示,不炸', async () => {
+  it('scan returns null (the package already degrades a backend 200+null to []) → empty-state hint, doesn\'t blow up', async () => {
     net.scanResult = Promise.resolve([])
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client' } }); await flushPromises()
     expect(body().text()).toContain('点击扫描查看可用网络')
     w.unmount()
   })
 
-  it('已保存的 SSID 没出现在扫描结果里 → 补一条置顶且标已连接(Vue2 L354-357)', async () => {
+  it('the saved SSID doesn\'t appear in the scan results → add one pinned at top marked as connected (Vue2 L354-357)', async () => {
     const w = mountDlg({
       name: 'wlp1s0', type: 'wifi',
       wireless: { mode: 'client', ssid: 'HiddenNet', password: 'p' },
@@ -250,17 +250,17 @@ describe('扫描与断连', () => {
     w.unmount()
   })
 
-  it('⚠️ 过期守卫:换网卡重开后,上一张网卡那次扫描的迟到结果不许覆盖新的(newui-async-stale-guard)', async () => {
-    // 注:扫描在途时扫描按钮是 disabled 的(VTU 也不会给 disabled 元素派发事件),
-    // 所以「同一张网卡连点两次扫描」不是真实路径。真实的竞态是**关掉弹窗换另一张网卡打开**
-    // (watch 里 scanGen++),此时前一次 2.3 秒的扫描仍在飞。
+  it('⚠️ staleness guard: after switching to another interface and reopening, a late result from the previous interface\'s scan must not overwrite the new one (newui-async-stale-guard)', async () => {
+    // Note: the scan button is disabled while a scan is in flight (VTU also won't dispatch events to a disabled element),
+    // so "clicking scan twice on the same interface" isn't a real path. The real race is **closing the dialog and reopening it on a different interface**
+    // (scanGen++ in the watch), while the previous 2.3-second scan is still in flight.
     const slow = deferred<WifiScanResult[]>()
     net.scanResult = slow.promise
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client' } })
-    await flushPromises() // wlp1s0 的扫描在飞,列表还空
+    await flushPromises() // wlp1s0's scan is in flight, the list is still empty
     expect(body().findAll('.set-wifi-row')).toHaveLength(0)
 
-    // 换到另一张 wifi 卡,这次扫描立刻返回一条
+    // Switch to another wifi card; this scan returns one entry immediately
     net.scanResult = Promise.resolve([NETS[1]])
     await w.setProps({ iface: iface({ name: 'wlp2s0', type: 'wifi', wireless: { mode: 'client' } }) })
     await flushPromises()
@@ -268,7 +268,7 @@ describe('扫描与断连', () => {
     expect(body().findAll('.set-wifi-row')).toHaveLength(1)
     expect(body().get('.set-wifi-ssid').text()).toBe('tongda-zy')
 
-    // wlp1s0 那次的结果现在才落定 —— 不许把 wlp2s0 的结果冲掉
+    // wlp1s0's result only settles now — it must not wipe out wlp2s0's result
     slow.resolve(NETS)
     await flushPromises()
     expect(body().findAll('.set-wifi-row')).toHaveLength(1)
@@ -276,7 +276,7 @@ describe('扫描与断连', () => {
     w.unmount()
   })
 
-  it('断连:PUT 出去的是 {mode:"client", ssid:"", password:""},并清空表单 SSID 后重扫', async () => {
+  it('disconnect: PUT sends out {mode:"client", ssid:"", password:""}, and clears the form SSID before rescanning', async () => {
     net.scanResult = Promise.resolve([{ ...NETS[0], connected: true }])
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client', ssid: 'NIMO_Network' } })
     await flushPromises()
@@ -287,7 +287,7 @@ describe('扫描与断连', () => {
     w.unmount()
   })
 
-  it('断连失败:内联报错', async () => {
+  it('disconnect failure: inline error', async () => {
     net.scanResult = Promise.resolve([{ ...NETS[0], connected: true }])
     const w = mountDlg({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'client', ssid: 'NIMO_Network' } })
     await flushPromises()
@@ -298,8 +298,8 @@ describe('扫描与断连', () => {
   })
 })
 
-describe('重新打开时重置', () => {
-  it('第二次为另一张网卡打开时,表单与错误都重置(不带上一次的脏值)', async () => {
+describe('reset on reopen', () => {
+  it('when opened a second time for a different interface, both the form and error are reset (no stale values carried over)', async () => {
     net.putError = { response: { data: { error: 'boom' } } }
     const w = mountDlg(); await flushPromises()
     await body().get('.set-net-save').trigger('click'); await flushPromises()

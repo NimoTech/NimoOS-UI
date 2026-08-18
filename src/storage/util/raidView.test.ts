@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   mapTask, resolveRaidState, raidSeverity, raidStateLabelKey,
-  countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList, replaceOutcome,
+  countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList, replaceOutcome, reclaimOutcome,
   slotMembers, memberDiskCount, mergeVacatedSlot,
   levelInfo, asRaidArray,
 } from './raidView'
@@ -11,7 +11,7 @@ const arr = (o: Partial<RaidArray> = {}): RaidArray =>
   ({ id: 1, name: 'md0', level: 1, state: 'active', ...o }) as RaidArray
 
 describe('resolveRaidState', () => {
-  it('healthy: active 无重建 → 全 false', () => {
+  it('healthy: active with no rebuild → all flags false', () => {
     const f = resolveRaidState(arr({ state: 'active' }), { state: 'active', live_state: 'active', rebuild_pct: 0 } as never)
     expect(f).toMatchObject({ isRebuilding: false, isDegraded: false, isFailed: false, isRetrying: false })
     expect(raidSeverity(f)).toBe('ok')
@@ -23,21 +23,21 @@ describe('resolveRaidState', () => {
     expect(raidSeverity(f)).toBe('info')
     expect(raidStateLabelKey(f)).toBe('raidStateRebuilding')
   })
-  it('live_state 含 resyncing 也算重建', () => {
+  it('live_state containing resyncing also counts as rebuilding', () => {
     const f = resolveRaidState(arr({ state: 'active' }), { live_state: 'resyncing', rebuild_pct: 0 } as never)
     expect(f.isRebuilding).toBe(true)
   })
-  it('rebuild_pct>0 也算重建', () => {
+  it('rebuild_pct>0 also counts as rebuilding', () => {
     const f = resolveRaidState(arr({ state: 'active' }), { live_state: 'active', rebuild_pct: 5 } as never)
     expect(f.isRebuilding).toBe(true)
   })
-  it('degraded 且非重建 → isDegraded, danger', () => {
+  it('degraded and not rebuilding → isDegraded, danger', () => {
     const f = resolveRaidState(arr({ state: 'degraded' }), { live_state: 'degraded', rebuild_pct: 0 } as never)
     expect(f.isDegraded).toBe(true)
     expect(raidSeverity(f)).toBe('danger')
     expect(raidStateLabelKey(f)).toBe('raidStateDegraded')
   })
-  it('degraded 且重建中 → isRebuilding 优先,isDegraded=false', () => {
+  it('degraded and rebuilding → isRebuilding takes priority, isDegraded=false', () => {
     const f = resolveRaidState(arr({ state: 'degraded' }), { live_state: 'recovering', rebuild_pct: 30 } as never)
     expect(f.isRebuilding).toBe(true)
     expect(f.isDegraded).toBe(false)
@@ -55,14 +55,14 @@ describe('resolveRaidState', () => {
     expect(raidSeverity(f)).toBe('warning')
     expect(raidStateLabelKey(f)).toBe('raidStateRetrying')
   })
-  it('status 缺失时回退 array.state', () => {
+  it('falls back to array.state when status is missing', () => {
     const f = resolveRaidState(arr({ state: 'degraded' }), undefined)
     expect(f.effectiveState).toBe('degraded')
   })
 })
 
 describe('countActiveDisks', () => {
-  it('前缀匹配 "active sync"(含 set-A/set-B)', () => {
+  it('prefix-matches "active sync" (including set-A/set-B)', () => {
     const members = [
       { path: '/dev/sda', state: 'active sync set-A', number: 0 },
       { path: '/dev/sdb', state: 'active sync set-B', number: 1 },
@@ -70,20 +70,20 @@ describe('countActiveDisks', () => {
     ]
     expect(countActiveDisks(members, 3)).toBe(2)
   })
-  it('members 为空时回退 fallback 计数', () => {
-    expect(countActiveDisks([], 4)).toBe(4) // 空数组 → 回退 total(member_disks 计数)
+  it('falls back to the fallback count when members is empty', () => {
+    expect(countActiveDisks([], 4)).toBe(4) // empty array → fall back to total (member_disks count)
   })
 })
 
 describe('asRaidArray', () => {
-  it('映射 id/name/level/state,level 转为 Number', () => {
+  it('maps id/name/level/state, level converted to Number', () => {
     const a = asRaidArray({ id: 3, name: 'md3', level: 5, state: 'active' })
     expect(a.id).toBe(3)
     expect(a.name).toBe('md3')
     expect(a.level).toBe(5)
     expect(a.state).toBe('active')
   })
-  it('缺字段给安全默认', () => {
+  it('gives safe defaults for missing fields', () => {
     const a = asRaidArray({})
     expect(a.name).toBe('')
     expect(a.level).toBe(0)
@@ -96,43 +96,43 @@ describe('memberSquare', () => {
   it('active sync* → ok', () => { expect(memberSquare('active sync set-A').kind).toBe('ok') })
   it('faulty → fail', () => { expect(memberSquare('faulty').kind).toBe('fail') })
   it('removed → fail', () => { expect(memberSquare('removed').kind).toBe('fail') })
-  it('含 rebuilding → rebuild', () => { expect(memberSquare('spare rebuilding').kind).toBe('rebuild') })
-  it('其它 → unknown', () => { expect(memberSquare('spare').kind).toBe('unknown') })
+  it('containing rebuilding → rebuild', () => { expect(memberSquare('spare rebuilding').kind).toBe('rebuild') })
+  it('anything else → unknown', () => { expect(memberSquare('spare').kind).toBe('unknown') })
 })
 
-// memberRow 与 memberSquare 的映射**有意不同**:卡片方块把 removed 归红色 fail
-// (Vue2 RaidCard L130),详情行只把 faulty 判红、removed 走灰色(Vue2
-// RaidDetailPanel memberColor L343-350 / memberStateLabel L351-357)。
+// The memberRow and memberSquare mappings are **deliberately different**: card squares put removed
+// into red fail (Vue2 RaidCard L130), while detail rows only mark faulty red and removed goes gray
+// (Vue2 RaidDetailPanel memberColor L343-350 / memberStateLabel L351-357).
 describe('memberRow', () => {
-  it('active sync* → 绿 + 活动', () => {
+  it('active sync* → green + active', () => {
     expect(memberRow('active sync set-A')).toEqual({ token: '--sem-fg', labelKey: 'raidMemberActive' })
   })
-  it('faulty → 红 + 故障', () => {
+  it('faulty → red + faulty', () => {
     expect(memberRow('faulty')).toEqual({ token: '--remove-fg', labelKey: 'raidMemberFaulty' })
   })
-  it('含 rebuilding → 蓝 + 重建中', () => {
+  it('containing rebuilding → blue + rebuilding', () => {
     expect(memberRow('spare rebuilding')).toEqual({ token: '--accent', labelKey: 'raidMemberRebuilding' })
   })
-  it('removed 不复用 faulty 文案/颜色(空槽位不是故障盘)', () => {
+  it('removed does not reuse the faulty copy/color (an empty slot is not a faulty disk)', () => {
     expect(memberRow('removed')).toEqual({ token: '--fg-muted', labelKey: 'raidMemberRemoved' })
     expect(memberRow('removed').labelKey).not.toBe(memberRow('faulty').labelKey)
     expect(memberRow('removed').token).not.toBe(memberRow('faulty').token)
   })
-  it('未知态 → 灰 + 空 labelKey(调用方回退原始串)', () => {
+  it('unknown state → gray + empty labelKey (caller falls back to the raw string)', () => {
     expect(memberRow('spare')).toEqual({ token: '--fg-muted', labelKey: '' })
     expect(memberRow('')).toEqual({ token: '--fg-muted', labelKey: '' })
   })
 })
 
 describe('raidUsagePercent', () => {
-  it('常规四舍五入', () => { expect(raidUsagePercent(50, 100)).toBe(50) })
+  it('regular rounding', () => { expect(raidUsagePercent(50, 100)).toBe(50) })
   it('total=0 → 0', () => { expect(raidUsagePercent(10, 0)).toBe(0) })
-  it('非零但 <1% → 夹为 1', () => { expect(raidUsagePercent(1, 100000)).toBe(1) })
+  it('nonzero but <1% → clamped to 1', () => { expect(raidUsagePercent(1, 100000)).toBe(1) })
   it('used=0 → 0', () => { expect(raidUsagePercent(0, 100)).toBe(0) })
 })
 
 describe('mapTask', () => {
-  it('把 snake_case API 字段映射为 camelCase', () => {
+  it('maps snake_case API fields to camelCase', () => {
     const t = mapTask({
       task_id: 'abc', name: 'md0', level: 5, filesystem: 'btrfs', disk_count: 4,
       step: 3, step_name: 'Create RAID Array', progress: 55, elapsed_seconds: 120,
@@ -144,16 +144,16 @@ describe('mapTask', () => {
       error: '', status: 'creating',
     })
   })
-  it('缺字段给安全默认', () => {
+  it('gives safe defaults for missing fields', () => {
     const t = mapTask({ task_id: 'x', status: 'creating' })
     expect(t.name).toBe(''); expect(t.progress).toBe(0); expect(t.diskCount).toBe(0)
   })
 })
 
-// 用例对齐 Vue2 tests/raidMirrorPairs.test.js(69ea4798):按槽位配对,不按 mdadm Number。
+// Test cases mirror Vue2 tests/raidMirrorPairs.test.js (69ea4798): pairs by slot, not by mdadm Number.
 describe('mirrorPairs (RAID10)', () => {
-  it('按 floor(slot/2) 分对,不按 mdadm 设备编号 number', () => {
-    // 换盘后新成员拿到 number=4 但占槽位 3:它与槽位 2 的盘互为镜像,不存在幽灵第三对。
+  it('pairs by floor(slot/2), not by the mdadm device number', () => {
+    // After a disk replacement, the new member gets number=4 but occupies slot 3: it mirrors the disk at slot 2, there is no phantom third pair.
     const members = [
       { path: '/dev/sdd', state: 'active sync set-A', number: 0, slot: 0 },
       { path: '/dev/sdc', state: 'active sync set-B', number: 1, slot: 1 },
@@ -165,7 +165,7 @@ describe('mirrorPairs (RAID10)', () => {
     expect(pairs[0].map((m) => m.path)).toEqual(['/dev/sdd', '/dev/sdc'])
     expect(pairs[1].map((m) => m.path)).toEqual(['/dev/sda', '/dev/sdb'])
   })
-  it('不占槽位的行(被弹出的故障盘/闲置热备/无 slot 行)不属于任何对', () => {
+  it('rows with no slot (ejected faulty disks / idle spares / rows without a slot) belong to no pair', () => {
     const members = [
       { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
@@ -176,19 +176,19 @@ describe('mirrorPairs (RAID10)', () => {
     expect(pairs.length).toBe(1)
     expect(pairs[0].length).toBe(2)
   })
-  it('降级的对保留成单成员对', () => {
+  it('a degraded pair is kept as a single-member pair', () => {
     const members = [
       { path: '/dev/sda', state: 'active sync', slot: 0 },
       { path: '/dev/sdb', state: 'active sync', slot: 1 },
       { path: '/dev/sdc', state: 'active sync', slot: 2 },
-      // 槽位 3 被拔:mdadm 的 removed 占位行没 path,这里省略
+      // slot 3 was pulled: mdadm's removed placeholder row has no path, omitted here
     ]
     const pairs = mirrorPairs(members)
     expect(pairs.length).toBe(2)
     expect(pairs[1].map((m) => m.path)).toEqual(['/dev/sdc'])
   })
-  it('mergeVacatedSlot 合并行按 vacatedSlot 归位,不从镜像对里消失', () => {
-    // 合并行自身 slot=-1(被弹出),但顶替了槽位 0 的空位 —— 应按 vacatedSlot=0 配对
+  it('mergeVacatedSlot merged row is placed by vacatedSlot, it does not vanish from the mirror pair', () => {
+    // The merged row's own slot=-1 (ejected), but it fills the vacancy at slot 0 — it should pair by vacatedSlot=0
     const members = [
       { path: '/dev/sda', state: 'faulty', slot: -1, vacatedSlot: 0 },
       { path: '/dev/sdb', state: 'active sync', slot: 1 },
@@ -199,34 +199,34 @@ describe('mirrorPairs (RAID10)', () => {
     expect(pairs.length).toBe(2)
     expect(pairs[0].map((m) => m.path)).toEqual(['/dev/sda', '/dev/sdb'])
   })
-  it('空输入 / 老后端全员无 slot → 无对(调用方退回平铺)', () => {
+  it('empty input / old backend with no slot on any member → no pairs (caller falls back to a flat list)', () => {
     expect(mirrorPairs([])).toEqual([])
     expect(mirrorPairs<{ path: string; slot?: number }>([{ path: '/dev/sda' }, { path: '/dev/sdb' }])).toEqual([])
   })
 })
 
 describe('isRebuildingList', () => {
-  it('任一阵列重建中 → true(驱动 5000ms 重拉)', () => {
+  it('any array rebuilding → true (drives the 5000ms refetch)', () => {
     const flags = [
       { isRebuilding: false } as never,
       { isRebuilding: true } as never,
     ]
     expect(isRebuildingList(flags)).toBe(true)
   })
-  it('全不重建 → false', () => {
+  it('none rebuilding → false', () => {
     expect(isRebuildingList([{ isRebuilding: false } as never])).toBe(false)
   })
 })
 
 describe('levelInfo', () => {
-  it('已知级别(0/1/5/6/10)返回非空', () => {
+  it('known levels (0/1/5/6/10) return non-null', () => {
     expect(levelInfo(0)).not.toBeNull()
     expect(levelInfo(1)).not.toBeNull()
     expect(levelInfo(5)).not.toBeNull()
     expect(levelInfo(6)).not.toBeNull()
     expect(levelInfo(10)).not.toBeNull()
   })
-  it('未知级别返回 null', () => {
+  it('unknown level returns null', () => {
     expect(levelInfo(99)).toBeNull()
   })
 })
@@ -234,48 +234,93 @@ describe('levelInfo', () => {
 describe('replaceOutcome', () => {
   const task = { arrayId: '1', arrayName: 'md0', oldPath: '/dev/sda', newPath: '/dev/sdd' }
 
-  it('阵列已不在列表 → gone(不报完成)', () => {
+  it('array no longer in the list → gone (does not report completion)', () => {
     expect(replaceOutcome(task, { members: [] }, false)).toBe('gone')
   })
-  it('status 拉不到 → pending', () => {
+  it('status unreachable → pending', () => {
     expect(replaceOutcome(task, null, true)).toBe('pending')
     expect(replaceOutcome(task, undefined, true)).toBe('pending')
   })
-  it('新盘还没出现在成员表 → pending(mdadm --add 后内核尚未登记)', () => {
+  it('new disk has not appeared in the member table yet → pending (kernel has not registered it after mdadm --add)', () => {
     expect(replaceOutcome(task, { members: [
       { path: '', state: 'removed', number: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1 },
     ] }, true)).toBe('pending')
   })
-  it('新盘 spare rebuilding → rebuilding', () => {
+  it('new disk spare rebuilding → rebuilding', () => {
     expect(replaceOutcome(task, { members: [
       { path: '/dev/sdd', state: 'spare rebuilding', number: 4 },
       { path: '/dev/sdb', state: 'active sync', number: 1 },
     ] }, true)).toBe('rebuilding')
   })
-  it('新盘 active sync → done', () => {
+  it('new disk active sync → done', () => {
     expect(replaceOutcome(task, { members: [
       { path: '/dev/sdd', state: 'active sync', number: 4 },
       { path: '/dev/sdb', state: 'active sync', number: 1 },
     ] }, true)).toBe('done')
   })
-  it('盯的是新盘自身状态,不是阵列健康度:另一块盘 faulty 也算 done', () => {
-    // 换的这块盘已经同步好了 —— 阵列仍 degraded 是另一块盘的故障,
-    // 不该让这次替换的看板永远转下去。
+  it('focuses on the state of the new disk itself, not overall array health: another disk being faulty still counts as done', () => {
+    // The replaced disk has finished syncing —— the array staying degraded is another disk's failure,
+    // which must not keep this replacement's dashboard spinning forever.
     expect(replaceOutcome(task, { members: [
       { path: '/dev/sdd', state: 'active sync', number: 4 },
       { path: '/dev/sdb', state: 'faulty', number: 1 },
     ] }, true)).toBe('done')
   })
-  it('新盘变 faulty(换上去又坏了)→ pending,不误报完成', () => {
+  it('new disk turns faulty (failed again after being swapped in) → pending, does not falsely report completion', () => {
     expect(replaceOutcome(task, { members: [
       { path: '/dev/sdd', state: 'faulty', number: 4 },
     ] }, true)).toBe('pending')
   })
 })
 
-// 降级 RAID5 的真实成员形状(2026-07-30 真机):4 行 —— 腾空的槽位 + 2 好盘 +
-// 被踢出槽位的故障盘(slot: -1)。
+describe('reclaimOutcome (reclaim member disks: replaceOutcome over several disks)', () => {
+  const task = { arrayId: '1', arrayName: 'md0', paths: ['/dev/sdc', '/dev/sdd'] }
+
+  it('array no longer in the list -> gone (does not report completion)', () => {
+    expect(reclaimOutcome(task, { members: [] }, false)).toBe('gone')
+  })
+  it('status unreachable -> pending', () => {
+    expect(reclaimOutcome(task, null, true)).toBe('pending')
+    expect(reclaimOutcome(task, undefined, true)).toBe('pending')
+  })
+  // The real shape in the first seconds after --re-add: the disk is registered but still a spare,
+  // with no rebuilding anywhere —— this is the transition window behind "polling must not hang off
+  // isRebuilding alone", and the task has to stay pending to hold it open.
+  it('reclaimed disk still a spare (kernel has not started recovery) -> pending', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'spare', number: 4 },
+      { path: '/dev/sdd', state: 'spare', number: 5 },
+    ] }, true)).toBe('pending')
+  })
+  it('a disk has not appeared in the member table yet -> pending', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'active sync', number: 4 },
+    ] }, true)).toBe('pending')
+  })
+  it('any reclaimed disk spare rebuilding -> rebuilding', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'spare rebuilding', number: 4 },
+      { path: '/dev/sdd', state: 'spare', number: 5 },
+    ] }, true)).toBe('rebuilding')
+  })
+  it('some active, some not in place yet -> not done', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'active sync', number: 4 },
+      { path: '/dev/sdd', state: 'spare rebuilding', number: 5 },
+    ] }, true)).toBe('rebuilding')
+  })
+  it('all active sync -> done; another disk being faulty does not matter (watches the reclaimed disks, not array health)', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'active sync', number: 4 },
+      { path: '/dev/sdd', state: 'active sync', number: 5 },
+      { path: '/dev/sdb', state: 'faulty', number: 1 },
+    ] }, true)).toBe('done')
+  })
+})
+
+// Real member shape of a degraded RAID5 (on-device 2026-07-30): 4 rows —— the vacated slot + 2 good
+// disks + the faulty disk kicked out of its slot (slot: -1).
 const degradedRows = [
   { path: '/dev/sdd', state: 'active sync', number: 4, slot: 0 },
   { path: '', state: 'removed', number: 1, slot: 1 },
@@ -284,21 +329,21 @@ const degradedRows = [
 ]
 
 describe('slotMembers', () => {
-  it('滤掉不占槽位的行(faulty 被踢出槽位),并按槽位排序', () => {
+  it('filters out rows with no slot (faulty disks kicked out of their slot), and sorts by slot', () => {
     const r = slotMembers(degradedRows)
     expect(r.map((m) => m.slot)).toEqual([0, 1, 2])
     expect(r.map((m) => m.path)).toEqual(['/dev/sdd', '', '/dev/sdc'])
-    // 3 盘阵列 → 3 个盘位,不是 4
+    // 3-disk array → 3 slots, not 4
     expect(r.length).toBe(3)
   })
-  it('闲置热备(slot -1)也不占盘位', () => {
+  it('an idle spare (slot -1) also does not occupy a disk slot', () => {
     const r = slotMembers([
       { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
       { path: '/dev/sdd', state: 'spare', number: 4, slot: -1 },
     ])
     expect(r.map((m) => m.path)).toEqual(['/dev/sda'])
   })
-  it('槽位乱序输入也按槽位升序输出', () => {
+  it('out-of-order slot input is still output sorted ascending by slot', () => {
     const r = slotMembers([
       { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
       { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
@@ -306,56 +351,56 @@ describe('slotMembers', () => {
     ])
     expect(r.map((m) => m.path)).toEqual(['/dev/sda', '/dev/sdb', '/dev/sdc'])
   })
-  it('老后端不带 slot → 退回全体成员(而不是 0 个)', () => {
+  it('old backend without slot → falls back to all members (not 0)', () => {
     const noSlot = [
       { path: '/dev/sda', state: 'active sync', number: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1 },
     ]
     expect(slotMembers(noSlot).length).toBe(2)
   })
-  it('空输入安全', () => {
+  it('safe on empty input', () => {
     expect(slotMembers([])).toEqual([])
     expect(slotMembers(undefined as never)).toEqual([])
   })
 })
 
 describe('memberDiskCount', () => {
-  it('只数有设备路径的行:空槽位占位行不是一块盘', () => {
+  it('counts only rows with a device path: an empty-slot placeholder row is not a disk', () => {
     expect(memberDiskCount(degradedRows)).toBe(3)
-    expect(degradedRows.length).toBe(4) // 总行数确实是 4,所以不能用它当盘数
+    expect(degradedRows.length).toBe(4) // total row count really is 4, so it cannot be used as the disk count
   })
-  it('健康阵列 = 成员数', () => {
+  it('a healthy array = member count', () => {
     expect(memberDiskCount([
       { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
     ])).toBe(2)
   })
-  it('物理拔盘(只有空槽位、无 faulty 行)→ 盘数少一个,如实反映', () => {
+  it('physically pulled disk (only an empty slot, no faulty row) → disk count is one less, reflected accurately', () => {
     expect(memberDiskCount([
       { path: '', state: 'removed', number: 0, slot: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
       { path: '/dev/sdc', state: 'active sync', number: 2, slot: 2 },
     ])).toBe(2)
   })
-  it('空输入安全', () => {
+  it('safe on empty input', () => {
     expect(memberDiskCount([])).toBe(0)
     expect(memberDiskCount(undefined as never)).toBe(0)
   })
 })
 
 describe('mergeVacatedSlot', () => {
-  it('唯一配对:空槽位 + 被弹出坏盘 合并成一行,放在空槽位原位置', () => {
+  it('the single pairing: an empty slot + the ejected bad disk merge into one row, placed at the original position of the empty slot', () => {
     const r = mergeVacatedSlot(degradedRows)
     expect(r.length).toBe(3)
     expect(r.map((m) => m.path)).toEqual(['/dev/sdd', '/dev/sdb', '/dev/sdc'])
     const merged = r[1]
     expect(merged.state).toBe('faulty')
-    expect(merged.vacatedSlot).toBe(1)      // 坏盘腾出的槽位
-    expect(merged.slot).toBe(-1)            // 它自己已不占槽位
+    expect(merged.vacatedSlot).toBe(1)      // the slot the bad disk vacated
+    expect(merged.slot).toBe(-1)            // it no longer occupies a slot itself
   })
 
-  it('合并行带的是**空槽位**的槽位号,不是坏盘的设备编号', () => {
-    // 实测形状:sdd 占 0 号槽位但设备编号是 4 —— 拿编号当槽位就会标错
+  it('the merged row carries the slot number of the **empty slot**, not the device number of the bad disk', () => {
+    // Measured shape: sdd occupies slot 0 but its device number is 4 —— using the number as the slot mislabels it
     const rows = [
       { path: '', state: 'removed', number: 0, slot: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
@@ -367,7 +412,7 @@ describe('mergeVacatedSlot', () => {
     expect(merged.number).toBe(4)
   })
 
-  it('两个空槽位 + 两块坏盘(RAID6 双故障)→ 不合并,宁可多几行也不编造配对', () => {
+  it('two empty slots + two bad disks (RAID6 double failure) → does not merge, prefers extra rows over fabricating a pairing', () => {
     const rows = [
       { path: '', state: 'removed', number: 0, slot: 0 },
       { path: '', state: 'removed', number: 1, slot: 1 },
@@ -380,7 +425,7 @@ describe('mergeVacatedSlot', () => {
     expect(r.some((m) => m.vacatedSlot != null)).toBe(false)
   })
 
-  it('只有空槽位、没有坏盘行(物理拔盘)→ 保持原样', () => {
+  it('only an empty slot, no bad disk row (physical disk pull) → stays unchanged', () => {
     const rows = [
       { path: '', state: 'removed', number: 0, slot: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
@@ -391,7 +436,7 @@ describe('mergeVacatedSlot', () => {
     expect(r.some((m) => m.vacatedSlot != null)).toBe(false)
   })
 
-  it('只有坏盘行、没有空槽位(重建已顶上)→ 保持原样', () => {
+  it('only a bad disk row, no empty slot (rebuild has already filled it) → stays unchanged', () => {
     const rows = [
       { path: '/dev/sdd', state: 'spare rebuilding', number: 4, slot: 0 },
       { path: '/dev/sdb', state: 'faulty', number: 1, slot: -1 },
@@ -399,7 +444,7 @@ describe('mergeVacatedSlot', () => {
     expect(mergeVacatedSlot(rows).length).toBe(2)
   })
 
-  it('健康阵列:原样返回', () => {
+  it('healthy array: returned unchanged', () => {
     const rows = [
       { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
@@ -407,7 +452,7 @@ describe('mergeVacatedSlot', () => {
     expect(mergeVacatedSlot(rows)).toEqual(rows)
   })
 
-  it('老后端不带 slot → 不合并(无法判定坏盘是否已离开槽位)', () => {
+  it('old backend without slot → does not merge (cannot determine whether the bad disk has left its slot)', () => {
     const rows = [
       { path: '', state: 'removed', number: 1 },
       { path: '/dev/sdb', state: 'faulty', number: 1 },
@@ -415,7 +460,7 @@ describe('mergeVacatedSlot', () => {
     expect(mergeVacatedSlot(rows).length).toBe(2)
   })
 
-  it('空输入安全', () => {
+  it('safe on empty input', () => {
     expect(mergeVacatedSlot([])).toEqual([])
     expect(mergeVacatedSlot(undefined as never)).toEqual([])
   })

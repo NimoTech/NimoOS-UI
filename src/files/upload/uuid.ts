@@ -2,7 +2,7 @@
 // NimoOS is a self-hosted NAS typically reached over plain HTTP at a LAN
 // address (e.g. http://192.168.x.x/app/) — a NON-secure context where
 // crypto.randomUUID is undefined and calling it throws. Vue2's clientId.js
-// guarded this ("非安全上下文降级"); the P3a port dropped the guard, which
+// guarded this ("non-secure context fallback"); the P3a port dropped the guard, which
 // made addFilesToQueue throw before enqueuing (no panel, no upload). This
 // restores the fallback for every upload-side id generator.
 export function safeRandomUUID(): string {

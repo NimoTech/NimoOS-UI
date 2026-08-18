@@ -11,6 +11,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
       purgePerson: vi.fn(() => Promise.resolve({})),
       mergePersons: vi.fn(() => Promise.resolve({})),
       rejectMergeSuggestion: vi.fn(() => Promise.resolve({})),
+      hidePerson: vi.fn(() => Promise.resolve({})),
+      listHiddenPersons: vi.fn(() => Promise.resolve([])),
+      restorePerson: vi.fn(() => Promise.resolve({})),
     },
   },
 }))
@@ -43,20 +46,23 @@ describe('photosPeople store', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
-  // 关键隔离:_purgeTimers 是模块作用域单例,不随 setActivePinia(createPinia()) 重置。
-  // 撤销/清除测试里凡是没有把窗口跑完(既没 advanceTimers 到触发、也没调 undo())的用例,
-  // 会在 _purgeTimers 里留一条悬挂 entry,污染下一个用例的 fetchPeople 过滤逻辑与
-  // purgePersonWithUndo 的"复用首次 idx"分支——本文件的测试夹具(id/name)在各用例间
-  // 恰好取值相同,污染当前不会翻出错误断言,但极脆弱、一旦改夹具就会「莫名其妙地红」
-  // (task brief 明文警告的场景)。用 afterEach 兜底清空,而不是 beforeEach——
-  // 本 store 的 filter 在 setup() 里读一次 localStorage,若在 beforeEach 里提前
-  // 实例化 store 会锁死那几条"预置 localStorage 再首次取 store"的初始化测试。
+  // Key isolation: _purgeTimers is a module-scope singleton, not reset by setActivePinia(createPinia()).
+  // Any test case in undo/delete flows that doesn't run the window to completion (neither
+  // advanceTimers to trigger nor calls undo()) will leave a dangling entry in _purgeTimers,
+  // polluting the next test's fetchPeople filter logic and purgePersonWithUndo's
+  // "reuse first idx" branch — the test fixtures (id/name) in this file happen to share
+  // the same values across tests, so current pollution won't trigger a failed assertion,
+  // but it's extremely fragile — changing any fixture will cause "mysteriously red" failures
+  // (the scenario the task brief warns about explicitly). We use afterEach to clean up
+  // rather than beforeEach — the store's filter reads localStorage once in setup(), and
+  // instantiating it early in beforeEach would break the initialization tests that
+  // "pre-set localStorage then first access the store".
   afterEach(() => {
     usePhotosPeople().__resetForTest()
   })
 
   describe('fetchPeople', () => {
-    it('解 {persons, facesIndexedUpTo} 包裹体;成功后 peopleLoaded===true', async () => {
+    it('unwraps {persons, facesIndexedUpTo}; peopleLoaded===true on success', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({
         persons: [rawPerson({ id: 1, name: 'Alice' })],
         facesIndexedUpTo: '2026-07-01',
@@ -68,36 +74,37 @@ describe('photosPeople store', () => {
       expect(s.facesIndexedUpTo).toBe('2026-07-01')
       expect(s.peopleLoaded).toBe(true)
     })
-    it('persons 为 null → 空数组不炸', async () => {
+    it('persons is null — empty array without error', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: null, facesIndexedUpTo: null })
       const s = usePhotosPeople()
       await s.fetchPeople()
       expect(s.people).toEqual([])
       expect(s.peopleLoaded).toBe(true)
     })
-    it('persons 字段缺失 → 空数组不炸', async () => {
+    it('persons field absent — empty array without error', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({})
       const s = usePhotosPeople()
       await s.fetchPeople()
       expect(s.people).toEqual([])
       expect(s.peopleLoaded).toBe(true)
     })
-    it('reject → peopleLoaded 仍为 false、既有 people 不被清空、console.error 被调用(偏离登记 2 的回归)', async () => {
+    it('reject — peopleLoaded stays false, existing people not cleared, console.error called (regression: deviation from #2)', async () => {
       const s = usePhotosPeople()
-      // 直接种入既有数据(不经 fetchPeople),peopleLoaded 保持初始 false —— 精确复现
-      // "首次尚未确认加载成功、但本地已有数据" 的状态,验证失败分支既不清空 people 也不动 peopleLoaded。
+      // Seed existing data directly (bypassing fetchPeople), keep peopleLoaded at initial false —
+      // precisely reproduces the "first load not yet confirmed successful, but local data exists" state,
+      // verifying that the failure branch neither clears people nor touches peopleLoaded.
       s.people.push(...[rawPerson({ id: 1 })].map((r) => ({ ...r } as any)))
       expect(s.peopleLoaded).toBe(false)
 
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.listPersons as any).mockRejectedValueOnce(new Error('net'))
       await s.fetchPeople()
-      expect(s.peopleLoaded).toBe(false) // 失败分支不置位
-      expect(s.people).toHaveLength(1) // 未被清空(偏离登记 2:不照 Vue2 清空成 [])
+      expect(s.peopleLoaded).toBe(false) // failure branch does not set the flag
+      expect(s.people).toHaveLength(1) // not cleared (deviation #2: does not follow Vue2's clearing to [])
       expect(errSpy).toHaveBeenCalled()
       errSpy.mockRestore()
     })
-    it('reject（已通过成功路径加载过一次)→ peopleLoaded 仍保持 true(不被失败分支复位)、既有 people 不清空', async () => {
+    it('reject (after loading once via success path) — peopleLoaded stays true (not reset by failure branch), existing people not cleared', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1 })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -111,35 +118,35 @@ describe('photosPeople store', () => {
       expect(errSpy).toHaveBeenCalled()
       errSpy.mockRestore()
     })
-    it('facesIndexedUpTo 字段缺席时不覆盖旧值', async () => {
+    it('facesIndexedUpTo field absent — do not overwrite old value', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [], facesIndexedUpTo: '2026-07-01' })
       const s = usePhotosPeople()
       await s.fetchPeople()
       expect(s.facesIndexedUpTo).toBe('2026-07-01')
 
-      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [] }) // 无 facesIndexedUpTo 键
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [] }) // no facesIndexedUpTo field
       await s.fetchPeople()
-      expect(s.facesIndexedUpTo).toBe('2026-07-01') // 未被覆盖
+      expect(s.facesIndexedUpTo).toBe('2026-07-01') // not overwritten
     })
   })
 
-  // 评审 Issue 6 顺带补的两条便宜覆盖之一:fetchMergeSuggestions 之前完全没有直接测试。
+  // Review Issue 6 added one of two cheap coverage shortcuts: fetchMergeSuggestions had no direct tests before.
   describe('fetchMergeSuggestions', () => {
-    it('成功 → mergeSuggestions 填充为返回的数组', async () => {
+    it('success — mergeSuggestions populated with returned array', async () => {
       ;(service.photos.mergeSuggestions as any).mockResolvedValueOnce([{ id: 's1', fromId: 1, intoId: 2 }])
       const s = usePhotosPeople()
       await s.fetchMergeSuggestions()
       expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }])
     })
-    it('返回非数组(如 null)→ 兜底为 []', async () => {
+    it('returns non-array (e.g. null) — fallback to []', async () => {
       ;(service.photos.mergeSuggestions as any).mockResolvedValueOnce(null)
       const s = usePhotosPeople()
       await s.fetchMergeSuggestions()
       expect(s.mergeSuggestions).toEqual([])
     })
-    // 偏离登记回归(同 fetchPeople):Vue2 :1095-1098 失败会把 mergeSuggestions 清空成 []；
-    // 这里保留旧数据。种入旧值(不经网络请求)是为了让这条断言真正有区分力。
-    it('reject → 保留旧数据 + console.error 被调(偏离登记回归)', async () => {
+    // Deviation regression (same as fetchPeople): Vue2 :1095-1098 clears mergeSuggestions to [] on failure;
+    // here we preserve old data. Seeding old values (bypassing network) makes this assertion truly discriminating.
+    it('reject — preserve old data + console.error called (deviation regression)', async () => {
       const s = usePhotosPeople()
       s.mergeSuggestions.push({ id: 's1', fromId: 1, intoId: 2 })
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -151,8 +158,8 @@ describe('photosPeople store', () => {
     })
   })
 
-  describe('computed: named/unnamed/visibleUnnamed/unnamedCount 随 filter 变化', () => {
-    it('随 filter 重算', async () => {
+  describe('computed: named/unnamed/visibleUnnamed/unnamedCount change with filter', () => {
+    it('recalculate with filter', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({
         persons: [
           rawPerson({ id: 1, name: 'Alice', confidence: 0.95, count: 5 }), // named
@@ -169,20 +176,21 @@ describe('photosPeople store', () => {
 
       s.setConfidence(50)
       s.setShowSingletons(true)
-      // 数字 id 用默认 .sort() 是字典序(风格清理:虽然 [2,3] 单位数巧合不出错,统一改数值比较避免误导)。
+      // numeric id with default .sort() is lexicographic (style cleanup: although [2,3] happens to work due to single digits,
+      // unified numeric comparison avoids confusion).
       expect(s.visibleUnnamed.map((p) => p.id).sort((a, b) => Number(a) - Number(b))).toEqual([2, 3])
       expect(s.unnamedCount).toBe(2)
     })
   })
 
-  describe('过滤条件持久化', () => {
-    it('setConfidence(90) 写 localStorage', () => {
+  describe('filter persistence', () => {
+    it('setConfidence(90) writes localStorage', () => {
       const s = usePhotosPeople()
       s.setConfidence(90)
       expect(localStorage.getItem(LS_CONFIDENCE)).toBe('90')
       expect(s.filter.confidence).toBe(90)
     })
-    it('setShowSingletons(true)/(false) 写 "1"/"0"', () => {
+    it('setShowSingletons(true)/(false) writes "1"/"0"', () => {
       const s = usePhotosPeople()
       s.setShowSingletons(true)
       expect(localStorage.getItem(LS_SHOW_SINGLETONS)).toBe('1')
@@ -191,28 +199,28 @@ describe('photosPeople store', () => {
     })
   })
 
-  describe('store 初始化读 localStorage', () => {
-    it("非法值 '77' → 回落默认 80", () => {
+  describe('store initialization reads localStorage', () => {
+    it("invalid value '77' — fallback to default 80", () => {
       localStorage.setItem(LS_CONFIDENCE, '77')
       const s = usePhotosPeople()
       expect(s.filter.confidence).toBe(80)
     })
-    it("非法值 'abc' → 回落默认 80", () => {
+    it("invalid value 'abc' — fallback to default 80", () => {
       localStorage.setItem(LS_CONFIDENCE, 'abc')
       const s = usePhotosPeople()
       expect(s.filter.confidence).toBe(80)
     })
-    it("合法值 '95' → 采用 95", () => {
+    it("valid value '95' — use 95", () => {
       localStorage.setItem(LS_CONFIDENCE, '95')
       const s = usePhotosPeople()
       expect(s.filter.confidence).toBe(95)
     })
-    it("showSingletons==='1' → true", () => {
+    it("showSingletons==='1' — true", () => {
       localStorage.setItem(LS_SHOW_SINGLETONS, '1')
       const s = usePhotosPeople()
       expect(s.filter.showSingletons).toBe(true)
     })
-    it("showSingletons==='true'（非严格 '1'）→ false", () => {
+    it("showSingletons==='true' (not strict '1') — false", () => {
       localStorage.setItem(LS_SHOW_SINGLETONS, 'true')
       const s = usePhotosPeople()
       expect(s.filter.showSingletons).toBe(false)
@@ -220,7 +228,7 @@ describe('photosPeople store', () => {
   })
 
   describe('renamePerson', () => {
-    it('乐观改名', async () => {
+    it('optimistic rename', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, name: 'Old' })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -233,7 +241,7 @@ describe('photosPeople store', () => {
       resolveFn!({})
       await p
     })
-    it('后端 reject → fetchPeople 被调 + 抛出', async () => {
+    it('backend reject — fetchPeople called + throws', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, name: 'Old' })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -247,7 +255,7 @@ describe('photosPeople store', () => {
   })
 
   describe('setPersonRelation', () => {
-    it('失败 → relation 回滚到原值 + 抛出', async () => {
+    it('failure — relation rolls back + throws', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, relation: 'friend' })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -257,7 +265,7 @@ describe('photosPeople store', () => {
       expect(s.personById(1)?.relation).toBe('friend')
       errSpy.mockRestore()
     })
-    it('成功 → relation 落地为新值', async () => {
+    it('success — relation lands as new value', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, relation: 'friend' })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -267,12 +275,12 @@ describe('photosPeople store', () => {
   })
 
   describe('setPersonFavorite', () => {
-    it('本地列表为空(深链场景)时仍调 updatePerson', async () => {
+    it('empty local list (deeplink scenario) — still call updatePerson', async () => {
       const s = usePhotosPeople()
       await s.setPersonFavorite(1, true)
       expect(service.photos.updatePerson).toHaveBeenCalledWith(1, { favorite: true })
     })
-    it('失败 → 本地回滚 + 抛出', async () => {
+    it('failure — local rollback + throws', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, favorite: false })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -282,7 +290,7 @@ describe('photosPeople store', () => {
       expect(s.personById(1)?.favorite).toBe(false)
       errSpy.mockRestore()
     })
-    it('成功且命中本地 → favorite 落地为新值', async () => {
+    it('success and hit local — favorite lands as new value', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, favorite: false })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -292,7 +300,7 @@ describe('photosPeople store', () => {
   })
 
   describe('setPersonCover', () => {
-    it('后端带 coverFaceId → 返回并 patch 本地', async () => {
+    it('backend has coverFaceId — return and patch local', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, coverFaceId: null })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -301,7 +309,7 @@ describe('photosPeople store', () => {
       expect(result).toBe('f9')
       expect(s.personById(1)?.coverFaceId).toBe('f9')
     })
-    it('后端不带该字段 → 不 patch', async () => {
+    it('backend missing field — do not patch', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, coverFaceId: 'orig' })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -309,26 +317,27 @@ describe('photosPeople store', () => {
       await s.setPersonCover(1, 'asset9')
       expect(s.personById(1)?.coverFaceId).toBe('orig')
     })
-    // T14 评审必修 1:「字段缺席」必须以 undefined 出栈,不能被 `?? null` 压成 null ——
-    // 否则调用方分不清「后端说要清空封面」(显式 null,见下一条测试)与「后端根本没提封面」,
-    // 无条件 patch 会在后端返回 `200 {}` 时把本地封面抹掉、详情页 hero 退化成渐变兜底。
-    it('后端不带该字段 → 返回 undefined(与"显式 null"必须可区分)', async () => {
+    // T14 review requirement 1: "field absent" must return as undefined, not be compressed to null by `?? null` —
+    // otherwise callers cannot distinguish "backend says clear the cover" (explicit null, see next test) from
+    // "backend didn't mention cover at all"; unconditional patch would erase local cover on `200 {}` response,
+    // degrading the detail page hero to a gradient fallback.
+    it('backend missing field — return undefined (must distinguish from explicit null)', async () => {
       ;(service.photos.setPersonCover as any).mockResolvedValueOnce({})
       const s = usePhotosPeople()
       expect(await s.setPersonCover(1, 'asset9')).toBeUndefined()
     })
-    it('reject → 抛出', async () => {
+    it('reject — throws', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.setPersonCover as any).mockRejectedValueOnce(new Error('x'))
       const s = usePhotosPeople()
       await expect(s.setPersonCover(1, 'a9')).rejects.toThrow('x')
       errSpy.mockRestore()
     })
-    // Vue2 保真回归(逐行核对 :1123-1125 发现出入):Vue2 用 `!== undefined` 判定是否写入——
-    // 哪怕后端显式返回 coverFaceId: null 也会 patch 成 null(清空本地封面)。若这里误用
-    // `res?.coverFaceId ?? null` 把"显式 null"和"字段缺席"归一成同一个值,本测试会挂红
-    // (期望 null,误实现会保留 'orig' 不写)。
-    it('Vue2 保真:后端显式返回 coverFaceId: null 时仍写入(清空本地封面)', async () => {
+    // Vue2 fidelity regression (line-by-line check against :1123-1125 found discrepancy): Vue2 uses `!== undefined` to decide
+    // whether to write — even if backend explicitly returns coverFaceId: null, it patches to null (clearing local cover).
+    // If we incorrectly use `res?.coverFaceId ?? null` conflating "explicit null" and "field absent" into one value,
+    // this test fails (expects null, wrong implementation keeps 'orig' without write).
+    it('Vue2 fidelity: backend explicitly returns coverFaceId: null — still write (clear local cover)', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, coverFaceId: 'orig' })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -340,19 +349,19 @@ describe('photosPeople store', () => {
   })
 
   describe('setPersonHero', () => {
-    it('assetId=null → updatePerson(id, { heroAssetId: "" })', async () => {
+    it('assetId=null — updatePerson(id, { heroAssetId: "" })', async () => {
       const s = usePhotosPeople()
       await s.setPersonHero(1, null)
       expect(service.photos.updatePerson).toHaveBeenCalledWith(1, { heroAssetId: '' })
     })
-    it('成功 → 本地 heroAssetId 落地', async () => {
+    it('success — local heroAssetId lands', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1, heroAssetId: null })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
       await s.setPersonHero(1, 'a5')
       expect(s.personById(1)?.heroAssetId).toBe('a5')
     })
-    it('reject → 抛出', async () => {
+    it('reject — throws', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.updatePerson as any).mockRejectedValueOnce(new Error('x'))
       const s = usePhotosPeople()
@@ -362,14 +371,14 @@ describe('photosPeople store', () => {
   })
 
   describe('mergePersonInto', () => {
-    it('成功 → listPersons 与 mergeSuggestions 都被重拉', async () => {
+    it('success — listPersons and mergeSuggestions both refreshed', async () => {
       const s = usePhotosPeople()
       await s.mergePersonInto(1, 2)
       expect(service.photos.mergePersons).toHaveBeenCalledWith(1, 2)
       expect(service.photos.listPersons).toHaveBeenCalledTimes(1)
       expect(service.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
     })
-    it('失败 → 仍重拉两份数据 + 抛出', async () => {
+    it('failure — still refresh both datasets + throws', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.mergePersons as any).mockRejectedValueOnce(new Error('x'))
       const s = usePhotosPeople()
@@ -380,7 +389,7 @@ describe('photosPeople store', () => {
     })
   })
 
-  describe('purgePersonWithUndo：5 秒可撤销的彻底清除', () => {
+  describe('purgePersonWithUndo: undo-able permanent delete within 5 seconds', () => {
     beforeEach(() => { vi.useFakeTimers() })
     afterEach(() => { vi.useRealTimers() })
 
@@ -393,14 +402,14 @@ describe('photosPeople store', () => {
       return s
     }
 
-    it('①调用后立即从 people 消失;purgePerson 未被调用', async () => {
+    it('① immediately disappears from people after call; purgePerson not called', async () => {
       const s = await seeded3()
       s.purgePersonWithUndo(2)
       expect(s.people.map((p) => p.id)).toEqual([1, 3])
       expect(service.photos.purgePerson).not.toHaveBeenCalled()
     })
 
-    it('②5 秒后 purgePerson 被调用一次', async () => {
+    it('② after 5 seconds, purgePerson called once', async () => {
       const s = await seeded3()
       s.purgePersonWithUndo(2)
       await vi.advanceTimersByTimeAsync(5000)
@@ -408,40 +417,40 @@ describe('photosPeople store', () => {
       expect(service.photos.purgePerson).toHaveBeenCalledWith(2)
     })
 
-    it('③5 秒内 undo() → 按原索引插回(中间位置),purgePerson 永不调用', async () => {
+    it('③ undo() within 5 seconds — reinserted at original index (middle position), purgePerson never called', async () => {
       const s = await seeded3()
       const undo = s.purgePersonWithUndo(2)
       await vi.advanceTimersByTimeAsync(2000)
       undo()
-      expect(s.people.map((p) => p.id)).toEqual([1, 2, 3]) // 原索引 1(中间)
+      expect(s.people.map((p) => p.id)).toEqual([1, 2, 3]) // original index 1 (middle)
       await vi.advanceTimersByTimeAsync(5000)
       expect(service.photos.purgePerson).not.toHaveBeenCalled()
     })
 
-    it('④计时器已触发后再 undo() → no-op(不重复插回)', async () => {
+    it('④ undo() after timer fires — no-op (no re-insertion)', async () => {
       const s = await seeded3()
       const undo = s.purgePersonWithUndo(2)
       await vi.advanceTimersByTimeAsync(5000)
       expect(service.photos.purgePerson).toHaveBeenCalledTimes(1)
       undo()
-      expect(s.people.map((p) => p.id)).toEqual([1, 3]) // 未被插回
+      expect(s.people.map((p) => p.id)).toEqual([1, 3]) // not re-inserted
     })
 
-    // 评审必修 1:上面④只验证了"finally 已经跑完之后"的 no-op,没有覆盖"committed 已置位、
-    // 但 purgePerson 请求还没 settle"这段窗口——之前 advanceTimersByTimeAsync(5000) 会连着
-    // 把微任务队列一起冲掉,mock 的 purgePerson 在同一个 await 里就 resolve 了,所以旧版的
-    // ④根本没踩到这段窗口,删掉"修正 1"(committed 标志 + .finally 延迟删除)也全绿。这里
-    // 用手动可控的 pending Promise 卡住 purgePerson,专门卡在"计时器已同步触发、committed
-    // 已置位、但请求尚未 settle"这一刻做断言,才是唯一能证明"修正 1"确实生效的测试。
-    it('committed 但 purgePerson 仍在途:窗口过滤在请求 settle 前不能失效(回归修正 1)', async () => {
+    // Review requirement 1: test ④ above only validates "no-op after finally completes", not the window where
+    // "committed is set but purgePerson request hasn't settled yet" — advanceTimersByTimeAsync(5000) flushes
+    // the microtask queue, so the mocked purgePerson resolves in the same await, meaning old ④ never hit that
+    // window, and removing "fix 1" (committed flag + delayed .finally delete) still passes all tests. Here we
+    // use a manually controlled pending Promise to block purgePerson, halting precisely at "timer fired, committed
+    // set, request pending", the only way to prove "fix 1" actually works.
+    it('committed but purgePerson in flight: filter window must not expire before request settles (regression: fix 1)', async () => {
       const s = await seeded3()
       let resolvePurge: (v: unknown) => void = () => {}
       ;(service.photos.purgePerson as any).mockImplementationOnce(
         () => new Promise((resolve) => { resolvePurge = resolve }),
       )
       s.purgePersonWithUndo(2)
-      // 同步推进(非 …Async):只让 setTimeout 回调本身跑完,不等待/冲掉它内部触发的
-      // purgePerson() 返回的 Promise——这样才能停在"committed=true 但请求未 settle"这一刻。
+      // Advance synchronously (not …Async): let the setTimeout callback itself complete, but don't wait/flush
+      // the Promise returned by purgePerson() inside it — this stops us at "committed=true but request unsettled".
       vi.advanceTimersByTime(5000)
       expect(service.photos.purgePerson).toHaveBeenCalledTimes(1)
 
@@ -449,13 +458,13 @@ describe('photosPeople store', () => {
         persons: [rawPerson({ id: 1, name: 'A' }), rawPerson({ id: 2, name: 'B' }), rawPerson({ id: 3, name: 'C' })],
       })
       await s.fetchPeople()
-      expect(s.people.map((p) => p.id)).toEqual([1, 3]) // 仍必须被过滤掉,不能诈尸
+      expect(s.people.map((p) => p.id)).toEqual([1, 3]) // still must be filtered, cannot resurrect
 
-      resolvePurge({}) // 收尾:让 .finally 跑完,避免把 pending entry 悬挂给下一个用例
+      resolvePurge({}) // wrap-up: let .finally complete, avoid hanging pending entry to next test
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    it('committed 但 purgePerson 仍在途:undo() 是 no-op,不能把服务端正在删的人插回来(回归修正 1)', async () => {
+    it('committed but purgePerson in flight: undo() is no-op, cannot reinsert server-being-deleted person (regression: fix 1)', async () => {
       const s = await seeded3()
       let resolvePurge: (v: unknown) => void = () => {}
       ;(service.photos.purgePerson as any).mockImplementationOnce(
@@ -466,13 +475,13 @@ describe('photosPeople store', () => {
       expect(service.photos.purgePerson).toHaveBeenCalledTimes(1)
 
       undo()
-      expect(s.people.map((p) => p.id)).toEqual([1, 3]) // 未被插回
+      expect(s.people.map((p) => p.id)).toEqual([1, 3]) // not re-inserted
 
       resolvePurge({})
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    it('窗口期过滤:挂起期间 fetchPeople 仍含该人物 → people 里不出现', async () => {
+    it('filter window: fetchPeople during suspension still has person — not appear in people', async () => {
       const s = await seeded3()
       s.purgePersonWithUndo(2)
       ;(service.photos.listPersons as any).mockResolvedValueOnce({
@@ -482,7 +491,7 @@ describe('photosPeople store', () => {
       expect(s.people.map((p) => p.id)).toEqual([1, 3])
     })
 
-    it('窗口期过滤:undo() 之后再 fetchPeople → 该人物正常出现', async () => {
+    it('filter window: fetchPeople after undo() — person appears normally', async () => {
       const s = await seeded3()
       const undo = s.purgePersonWithUndo(2)
       undo()
@@ -493,39 +502,39 @@ describe('photosPeople store', () => {
       expect(s.people.map((p) => p.id).sort((a, b) => Number(a) - Number(b))).toEqual([1, 2, 3])
     })
 
-    it('重复触发复用首次 idx:删中间位置的人 → 未撤销再次触发 → undo() 后仍插回原始索引', async () => {
+    it('repeat trigger reuses first idx: delete middle person — trigger again without undo — undo() still reinserts at original index', async () => {
       const s = await seeded3()
-      s.purgePersonWithUndo(2) // 第一次触发,idx=1 记入 map
-      const undo2 = s.purgePersonWithUndo(2) // 同一 id 再次触发(此刻 people 里已经没有 id=2 了)
+      s.purgePersonWithUndo(2) // first trigger, idx=1 recorded in map
+      const undo2 = s.purgePersonWithUndo(2) // same id triggered again (id=2 no longer in people now)
       undo2()
-      expect(s.people.map((p) => p.id)).toEqual([1, 2, 3]) // 仍是原始索引 1,不是末尾追加
+      expect(s.people.map((p) => p.id)).toEqual([1, 2, 3]) // still original index 1, not appended to end
       await vi.advanceTimersByTimeAsync(5000)
       expect(service.photos.purgePerson).not.toHaveBeenCalled()
     })
 
-    it('数字/字符串 id 交叉:后端数字 id,用字符串 id 调 purgePersonWithUndo 命中并可 undo', async () => {
+    it('numeric/string id cross-type: backend numeric id, call purgePersonWithUndo with string id hit and can undo', async () => {
       const s = await seeded3()
-      const undo = s.purgePersonWithUndo('2') // 字符串 id,后端存的是数字 2
+      const undo = s.purgePersonWithUndo('2') // string id, backend stores numeric 2
       expect(s.people.map((p) => p.id)).toEqual([1, 3])
       undo()
       expect(s.people.map((p) => p.id)).toEqual([1, 2, 3])
     })
 
-    it('purgePerson 失败 → 插回原位,不 fetchPeople', async () => {
+    it('purgePerson fails — reinsert at original position, do not fetchPeople', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const s = await seeded3()
       ;(service.photos.purgePerson as any).mockRejectedValueOnce(new Error('x'))
       s.purgePersonWithUndo(2)
       const callsBefore = (service.photos.listPersons as any).mock.calls.length
       await vi.advanceTimersByTimeAsync(5000)
-      expect(s.people.map((p) => p.id)).toEqual([1, 2, 3]) // 插回原位
-      expect((service.photos.listPersons as any).mock.calls.length).toBe(callsBefore) // 未 fetchPeople
+      expect(s.people.map((p) => p.id)).toEqual([1, 2, 3]) // re-inserted at original position
+      expect((service.photos.listPersons as any).mock.calls.length).toBe(callsBefore) // did not fetchPeople
       errSpy.mockRestore()
     })
   })
 
-  describe('数字 id / 字符串 id 交叉(铁律回归,非 purge 路径)', () => {
-    it('personById / patchPerson 全部按 String 归一命中', async () => {
+  describe('numeric id / string id cross-type (iron law regression, non-purge path)', () => {
+    it('personById / patchPerson all hit normalized by String', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 42, name: 'Num' })] })
       const s = usePhotosPeople()
       await s.fetchPeople()
@@ -533,24 +542,24 @@ describe('photosPeople store', () => {
       s.patchPerson('42', { name: 'Renamed' })
       expect(s.personById(42)?.name).toBe('Renamed')
     })
-    // 评审 Issue 6 顺带补的两条便宜覆盖之二:personById 未命中的返回值之前没有断言过。
-    it('personById 未命中 → 返回 null', () => {
+    // Review Issue 6 added the second of two cheap coverage shortcuts: personById miss return value had no prior assertion.
+    it('personById miss — return null', () => {
       const s = usePhotosPeople()
       expect(s.personById('does-not-exist')).toBeNull()
     })
   })
 
-  describe('合并建议', () => {
-    it('acceptMergeSuggestion:乐观移除建议 + 调 mergePersons(fromId,intoId) + finally 重拉人物', async () => {
+  describe('merge suggestions', () => {
+    it('acceptMergeSuggestion: optimistic remove suggestion + call mergePersons(fromId,intoId) + finally refresh people', async () => {
       const s = usePhotosPeople()
       s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
       const p = s.acceptMergeSuggestion('s1')
-      expect(s.mergeSuggestions).toEqual([]) // 乐观立即移除
+      expect(s.mergeSuggestions).toEqual([]) // optimistic immediate removal
       await p
       expect(service.photos.mergePersons).toHaveBeenCalledWith(1, 2)
       expect(service.photos.listPersons).toHaveBeenCalledTimes(1)
     })
-    it('acceptMergeSuggestion 失败 → 重拉建议 + 抛出', async () => {
+    it('acceptMergeSuggestion fails — refresh suggestions + throws', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const s = usePhotosPeople()
       s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
@@ -559,25 +568,25 @@ describe('photosPeople store', () => {
       expect(service.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
       errSpy.mockRestore()
     })
-    // 回归(评审必修 3):suggestionId 在本地找不到时,acceptMergeSuggestion 不应打任何后端
-    // 请求——brief 快照的 finally 在 if(s) 外面会在这里多打一次 listPersons;Vue2 :1227-1234
-    // 整段 try/finally 都在 if(s) 里,找不到就什么都不做。
-    it('acceptMergeSuggestion:suggestionId 本地找不到 → 不调 mergePersons、不调 listPersons', async () => {
+    // Regression (review requirement 3): when suggestionId not found locally, acceptMergeSuggestion must not make
+    // any backend request — the brief snapshot has finally outside if(s) causing an extra listPersons here; Vue2 :1227-1234
+    // has the entire try/finally inside if(s), doing nothing if not found.
+    it('acceptMergeSuggestion: suggestionId not found locally — do not call mergePersons, do not call listPersons', async () => {
       const s = usePhotosPeople()
       s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
       await s.acceptMergeSuggestion('does-not-exist')
-      expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }]) // filter 对没有的 id 是 no-op
+      expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }]) // filter on absent id is no-op
       expect(service.photos.mergePersons).not.toHaveBeenCalled()
       expect(service.photos.listPersons).not.toHaveBeenCalled()
     })
-    it('rejectMergeSuggestion:不重拉人物列表', async () => {
+    it('rejectMergeSuggestion: do not refresh people list', async () => {
       const s = usePhotosPeople()
       s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
       await s.rejectMergeSuggestion('s1')
       expect(service.photos.rejectMergeSuggestion).toHaveBeenCalledWith(1, 2)
       expect(service.photos.listPersons).not.toHaveBeenCalled()
     })
-    it('dismissAllMerges:纯本地清空,不发请求', () => {
+    it('dismissAllMerges: pure local clear, no requests', () => {
       const s = usePhotosPeople()
       s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
       s.dismissAllMerges()
@@ -587,13 +596,114 @@ describe('photosPeople store', () => {
     })
   })
 
+  // Task 7 (Plan D, SP7-P5 People): the Hidden people section + hide/unhide actions, mirroring
+  // Vue2 hidePersonAction/fetchHiddenPeople/unhidePerson (photos.js:1585-1633).
+  describe('hiddenPeople / hidePerson / unhidePerson', () => {
+    it('fetchHiddenPeople success → hiddenPeople is filled with Person[], and hiddenPeopleLoaded/hiddenPeopleSupported are both true', async () => {
+      ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1', name: 'Zed' })])
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeople).toHaveLength(1)
+      expect(s.hiddenPeople[0]).toMatchObject({ id: 'h1', name: 'Zed' })
+      expect(s.hiddenPeopleLoaded).toBe(true)
+      expect(s.hiddenPeopleSupported).toBe(true)
+    })
+
+    it('hiddenPeopleSupported defaults to true (assume supported until a real 404 disproves it)', () => {
+      const s = usePhotosPeople()
+      expect(s.hiddenPeopleSupported).toBe(true)
+    })
+
+    it('fetchHiddenPeople 404 → hiddenPeopleSupported flips to false (feature detection, not an error, no console.error)', async () => {
+      const err = Object.assign(new Error('not found'), { response: { status: 404 } })
+      ;(service.photos.listHiddenPersons as any).mockRejectedValueOnce(err)
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeopleSupported).toBe(false)
+      expect(consoleSpy).not.toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('fetchHiddenPeople failing with a non-404 → hiddenPeopleSupported is unchanged and console.error is called', async () => {
+      ;(service.photos.listHiddenPersons as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeopleSupported).toBe(true)
+      expect(consoleSpy).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('hidePerson success → calls service.photos.hidePerson(id), optimistically removes it from people, and returns true', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      const ok = await s.hidePerson('p1')
+      expect(ok).toBe(true)
+      expect(s.people).toHaveLength(0)
+      expect(service.photos.hidePerson).toHaveBeenCalledWith('p1')
+    })
+
+    it('hidePerson failure → the snapshot is rolled back into its original position and it returns false', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({
+        persons: [rawPerson({ id: 'p0' }), rawPerson({ id: 'p1', name: 'Ann' }), rawPerson({ id: 'p2' })],
+        facesIndexedUpTo: null,
+      })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      ;(service.photos.hidePerson as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const ok = await s.hidePerson('p1')
+      expect(ok).toBe(false)
+      expect(s.people).toHaveLength(3)
+      expect(s.people[1]).toMatchObject({ id: 'p1', name: 'Ann' }) // reinserted at its original index
+      consoleSpy.mockRestore()
+    })
+
+    it('while hidePerson is in flight: a racing fetchPeople must not pull the just-removed person back in', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      let resolveHide: (() => void) | undefined
+      ;(service.photos.hidePerson as any).mockImplementation(() => new Promise((resolve) => { resolveHide = () => resolve({}) }))
+      const hidePromise = s.hidePerson('p1')
+      // While the hide request is still in flight, a racing fetchPeople hits the same backend
+      // data (which doesn't reflect the hide result yet).
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      await s.fetchPeople()
+      expect(s.people).toHaveLength(0) // blocked by _pendingHides, doesn't come back from the dead
+      resolveHide?.()
+      await hidePromise
+    })
+
+    it('unhidePerson success → calls restorePerson(id) and re-fetches both people and hiddenPeople in finally', async () => {
+      const s = usePhotosPeople()
+      await s.unhidePerson('h1')
+      expect(service.photos.restorePerson).toHaveBeenCalledWith('h1')
+      expect(service.photos.listPersons).toHaveBeenCalled()
+      expect(service.photos.listHiddenPersons).toHaveBeenCalled()
+    })
+
+    it('unhidePerson failure → still re-fetches both lists (per Vue2 unconditional finally) and console.error is called', async () => {
+      ;(service.photos.restorePerson as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.unhidePerson('h1')
+      expect(consoleSpy).toHaveBeenCalled()
+      expect(service.photos.listPersons).toHaveBeenCalled()
+      expect(service.photos.listHiddenPersons).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+  })
+
   describe('__resetForTest', () => {
-    // 风格清理:用 describe 级 beforeEach/afterEach 切换 fake timers,而不是在 it() 内联
-    // vi.useFakeTimers()/vi.useRealTimers()——跟文件里其余用到 fake timers 的 describe 一致。
+    // Style cleanup: use describe-level beforeEach/afterEach to toggle fake timers, not inline in it() —
+    // vi.useFakeTimers()/vi.useRealTimers() — consistent with other fake-timer describe blocks in this file.
     beforeEach(() => { vi.useFakeTimers() })
     afterEach(() => { vi.useRealTimers() })
 
-    it('清空定时器与状态,不跨用例泄漏', async () => {
+    it('clear timers and state, no leakage across tests', async () => {
       const s = usePhotosPeople()
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 1 })] })
       await s.fetchPeople()
@@ -604,7 +714,22 @@ describe('photosPeople store', () => {
       expect(s.facesIndexedUpTo).toBeNull()
       expect(s.mergeSuggestions).toEqual([])
       await vi.advanceTimersByTimeAsync(5000)
-      expect(service.photos.purgePerson).not.toHaveBeenCalled() // 定时器已被清
+      expect(service.photos.purgePerson).not.toHaveBeenCalled() // timer was cleared
+    })
+
+    // Task 7 (Plan D): __resetForTest must also clear the Hidden-people-related state and
+    // _pendingHides, otherwise when the same id gets hidePerson'd in the next test case,
+    // fetchPeople's filtering logic would be polluted by a dangling entry left over from the
+    // previous case (the same precedent as _purgeTimers in the previous test case's comment).
+    it('clears the Hidden people state', async () => {
+      const s = usePhotosPeople()
+      ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1' })])
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeople).toHaveLength(1)
+      s.__resetForTest()
+      expect(s.hiddenPeople).toEqual([])
+      expect(s.hiddenPeopleLoaded).toBe(false)
+      expect(s.hiddenPeopleSupported).toBe(true)
     })
   })
 })

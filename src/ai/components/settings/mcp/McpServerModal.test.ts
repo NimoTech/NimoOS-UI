@@ -6,13 +6,13 @@ import zh from '../../../../i18n/zh_cn'
 import McpServerModal from './McpServerModal.vue'
 import type { McpServer } from '../../../types/mcpServer'
 
-// SP8-P4 Task 8 —— 对齐 Vue2 src/views/AI/MCP/McpServerModal.vue(216 行)。
-// 挂载手法与 ../skills/AddSkillModal.test.ts 一致(同款 SkModal 外壳):
-// SkModal 的 DialogPortal 默认 portal 到 '.set-app',目标元素必须在组件挂载前
-// 就存在于 DOM;打开态聚焦用 setTimeout(fn, 0)(宏任务),纯微任务级 flush()
-// 追不上,需要 macroFlush() 真的跑完一个宏任务。
+// SP8-P4 Task 8 —— Align with Vue2 src/views/AI/MCP/McpServerModal.vue (216 lines).
+// Mount technique consistent with ../skills/AddSkillModal.test.ts (same SkModal shell):
+// SkModal's DialogPortal defaults to portal to '.set-app', target element must exist in DOM
+// before component mount; open state focus uses setTimeout(fn, 0) (macrotask), pure microtask-level flush()
+// cannot catch up, need macroFlush() to actually run a complete macrotask.
 
-// vi.hoisted 避免 ESM 提升的 TDZ(公共约束 §9 先例 agentStore.test.ts:4-19)。
+// vi.hoisted avoids ESM hoisting's TDZ (shared constraint §9 precedent agentStore.test.ts:4-19).
 const h = vi.hoisted(() => ({ parseMCPCommand: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: h } }))
 
@@ -51,9 +51,9 @@ function mountModal(
 }
 
 const flush = async () => { await nextTick(); await nextTick(); await nextTick() }
-// 组件的打开态聚焦用 setTimeout(fn, 0)(宏任务)覆盖 reka 的默认 mount-auto-focus
-// (先例 AddSkillModal.vue 头注释「reka 初始焦点实测结论」),纯微任务级 flush()
-// 追不上,需要真的让一个宏任务跑完。
+// Component's open state focus uses setTimeout(fn, 0) (macrotask) to override reka's default mount-auto-focus
+// (precedent: AddSkillModal.vue header comment "reka initial focus empirical conclusion"), pure microtask-level flush()
+// cannot catch up, need to actually run a complete macrotask.
 const macroFlush = async () => { await flush(); await new Promise((r) => setTimeout(r, 0)); await flush() }
 
 function modalTitleEl() { return document.querySelector('.sk-modal .sk-modal-title') as HTMLElement }
@@ -75,34 +75,34 @@ beforeEach(() => { withHost(); h.parseMCPCommand.mockReset() })
 afterEach(() => { document.body.innerHTML = '' })
 
 describe('McpServerModal', () => {
-  // ===== 覆盖点 1:标题两态对照 =====
-  it('1a. 新增态(server=null)标题为 aiMcpSrvAdd', async () => {
+  // ===== Coverage point 1: Title two-state comparison =====
+  it('1a. Create mode (server=null) title is aiMcpSrvAdd', async () => {
     mountModal({ server: null })
     await macroFlush()
     expect(modalTitleEl().textContent).toBe(zh.aiMcpSrvAdd)
   })
 
-  it('1b. 编辑态(server 非空)标题为 aiMcpSrvEditTitle', async () => {
+  it('1b. Edit mode (server non-empty) title is aiMcpSrvEditTitle', async () => {
     mountModal({ server: makeServer() })
     await macroFlush()
     expect(modalTitleEl().textContent).toBe(zh.aiMcpSrvEditTitle)
   })
 
-  // ===== 覆盖点 2:快速添加区只在新增态渲染 =====
-  it('2a. 新增态渲染 .mcp-quickadd-row', async () => {
+  // ===== Coverage point 2: Quick-add section renders only in create mode =====
+  it('2a. Create mode renders .mcp-quickadd-row', async () => {
     mountModal({ server: null })
     await macroFlush()
     expect(document.querySelector('.sk-modal .mcp-quickadd-row')).not.toBeNull()
   })
 
-  it('2b. 编辑态不渲染 .mcp-quickadd-row(Vue2 :9 的 v-if="!isEdit")', async () => {
+  it('2b. Edit mode does not render .mcp-quickadd-row (Vue2 :9 v-if="!isEdit")', async () => {
     mountModal({ server: makeServer() })
     await macroFlush()
     expect(document.querySelector('.sk-modal .mcp-quickadd-row')).toBeNull()
   })
 
-  // ===== 覆盖点 3:传输三选一 =====
-  it('3. 三个 .sk-trig-option 文案正确;点 STDIO 后 data-active 移到它身上', async () => {
+  // ===== Coverage point 3: Three transport options =====
+  it('3. Three .sk-trig-option labels correct; after clicking STDIO, data-active moves to it', async () => {
     mountModal({ server: null })
     await macroFlush()
     const opts = trigOptions()
@@ -110,7 +110,7 @@ describe('McpServerModal', () => {
     expect(opts[0].textContent).toContain(zh.aiMcpSrvTransportHttp)
     expect(opts[1].textContent).toContain(zh.aiMcpSrvTransportSse)
     expect(opts[2].textContent).toContain(zh.aiMcpSrvTransportStdio)
-    expect(opts[0].dataset.active).toBe('true') // 默认 transport: 'http'
+    expect(opts[0].dataset.active).toBe('true') // default transport: 'http'
 
     opts[2].click()
     await nextTick()
@@ -119,8 +119,8 @@ describe('McpServerModal', () => {
     expect(opts[1].dataset.active).toBe('false')
   })
 
-  // ===== 覆盖点 4:字段按 transport 切换,两次对照 =====
-  it('4a. stdio 态:有 command/args/env-kv,无 url/headers-kv', async () => {
+  // ===== Coverage point 4: Fields switch by transport, two-case comparison =====
+  it('4a. Stdio mode: has command/args/env-kv, no url/headers-kv', async () => {
     mountModal({ server: makeServer({ transport: 'stdio', command: 'npx' }) })
     await macroFlush()
     expect(document.querySelector('.sk-modal [data-f="command"]')).not.toBeNull()
@@ -130,7 +130,7 @@ describe('McpServerModal', () => {
     expect(document.querySelector('.sk-modal [data-kv="headers"]')).toBeNull()
   })
 
-  it('4b. http 态:有 url/headers-kv,无 command/args/env-kv', async () => {
+  it('4b. HTTP mode: has url/headers-kv, no command/args/env-kv', async () => {
     mountModal({ server: makeServer({ transport: 'http' }) })
     await macroFlush()
     expect(document.querySelector('.sk-modal [data-f="url"]')).not.toBeNull()
@@ -140,14 +140,14 @@ describe('McpServerModal', () => {
     expect(document.querySelector('.sk-modal [data-kv="env"]')).toBeNull()
   })
 
-  // ===== 覆盖点 5:valid 四条独立断言 =====
-  it('5a. 名称空 → 提交按钮 disabled', async () => {
+  // ===== Coverage point 5: valid four independent assertions =====
+  it('5a. Name empty → submit button disabled', async () => {
     mountModal({ server: null })
     await macroFlush()
     expect(submitBtn().disabled).toBe(true)
   })
 
-  it('5b. 名称有值但(http)URL 空 → disabled', async () => {
+  it('5b. Name filled but (http) URL empty → disabled', async () => {
     mountModal({ server: null })
     await macroFlush()
     setValue(nameInput(), 'my-server')
@@ -155,7 +155,7 @@ describe('McpServerModal', () => {
     expect(submitBtn().disabled).toBe(true)
   })
 
-  it('5c. 名称、URL 都有值(http)→ enabled', async () => {
+  it('5c. Name and URL both filled (http) → enabled', async () => {
     mountModal({ server: null })
     await macroFlush()
     setValue(nameInput(), 'my-server')
@@ -164,10 +164,10 @@ describe('McpServerModal', () => {
     expect(submitBtn().disabled).toBe(false)
   })
 
-  it('5d. stdio 下 URL 空但 command 有值 → enabled', async () => {
+  it('5d. Stdio mode: URL empty but command filled → enabled', async () => {
     mountModal({ server: null })
     await macroFlush()
-    trigOptions()[2].click() // 切到 STDIO
+    trigOptions()[2].click() // switch to STDIO
     await nextTick()
     setValue(nameInput(), 'my-server')
     setValue(commandInput(), 'npx')
@@ -175,8 +175,8 @@ describe('McpServerModal', () => {
     expect(submitBtn().disabled).toBe(false)
   })
 
-  // ===== 覆盖点 6:KV 编辑器 =====
-  it('6a. 点「添加请求头」加一行;填 key/value;点删除移除该行', async () => {
+  // ===== Coverage point 6: KV editor =====
+  it('6a. Clicking "add header" adds row; fill key/value; click delete removes row', async () => {
     mountModal({ server: null })
     await macroFlush()
     const addBtn = document.querySelector('.sk-modal [data-add="headers"]') as HTMLButtonElement
@@ -199,7 +199,7 @@ describe('McpServerModal', () => {
     expect(rows).toHaveLength(0)
   })
 
-  it('6b. 空 key 的行在提交时被 collect() 丢弃', async () => {
+  it('6b. Rows with empty key are discarded by collect() on submit', async () => {
     const w = mountModal({ server: null })
     await macroFlush()
     setValue(nameInput(), 'svc')
@@ -209,7 +209,7 @@ describe('McpServerModal', () => {
     await nextTick()
     const rows = document.querySelectorAll('.sk-modal [data-kv="headers"] .mcp-kv-row')
     expect(rows).toHaveLength(2)
-    // 第一行 key/value 都填,第二行 key 留空只填 value
+    // First row: both key/value filled; second row: key empty, only value filled
     setValue(rows[0].querySelector('[data-kvk]') as HTMLInputElement, 'Authorization')
     setValue(rows[0].querySelector('[data-kvv]') as HTMLInputElement, 'Bearer xyz')
     setValue(rows[1].querySelector('[data-kvv]') as HTMLInputElement, 'orphan-value')
@@ -221,8 +221,8 @@ describe('McpServerModal', () => {
     expect(payload.headers).toEqual({ Authorization: 'Bearer xyz' })
   })
 
-  // ===== 覆盖点 7:提交 payload 形状 =====
-  it('7a. stdio 提交 payload 形状:args 按行 split+trim+去空行', async () => {
+  // ===== Coverage point 7: Submit payload shape =====
+  it('7a. Stdio submit payload shape: args split by line + trim + remove empty lines', async () => {
     const w = mountModal({ server: null })
     await macroFlush()
     trigOptions()[2].click()
@@ -245,7 +245,7 @@ describe('McpServerModal', () => {
     })
   })
 
-  it('7b. http 提交 payload 形状:{name, transport:"http", enabled, url, headers:{…}}', async () => {
+  it('7b. HTTP submit payload shape: {name, transport:"http", enabled, url, headers:{…}}', async () => {
     const w = mountModal({ server: null })
     await macroFlush()
     setValue(nameInput(), 'my-http')
@@ -269,8 +269,8 @@ describe('McpServerModal', () => {
     })
   })
 
-  // ===== 覆盖点 8:编辑态且无 KV 行时不带该字段,两条对照 =====
-  it('8a. 新增态即使 KV 空也带 env:{}(stdio)', async () => {
+  // ===== Coverage point 8: Edit mode without KV rows omits field, two cases =====
+  it('8a. Create mode includes env:{} even if KV empty (stdio)', async () => {
     const w = mountModal({ server: null })
     await macroFlush()
     trigOptions()[2].click()
@@ -285,19 +285,19 @@ describe('McpServerModal', () => {
     expect(payload.env).toEqual({})
   })
 
-  it('8b. 编辑态且 env 空则不带 env 键(Vue2 :206 的条件)', async () => {
+  it('8b. Edit mode with empty env omits env key (Vue2 :206 condition)', async () => {
     const server = makeServer({ id: 3, transport: 'stdio', command: 'npx', args: [], has_env: false })
     const w = mountModal({ server })
     await macroFlush()
-    // 名称/命令已由 server 回填,直接提交
+    // Name/command already filled from server, submit directly
     submitBtn().click()
     await flush()
     const payload = w.emitted('save')![0][0] as Record<string, unknown>
     expect(payload).not.toHaveProperty('env')
   })
 
-  // ===== 覆盖点 9:编辑态且 has_headers 为真 → 显示 .mcp-kv-hint =====
-  it('9a. 编辑态 + has_headers=true → 显示 .mcp-kv-hint', async () => {
+  // ===== Coverage point 9: Edit mode with has_headers=true → shows .mcp-kv-hint =====
+  it('9a. Edit mode + has_headers=true → shows .mcp-kv-hint', async () => {
     mountModal({ server: makeServer({ transport: 'http', has_headers: true }) })
     await macroFlush()
     const hint = document.querySelector('.sk-modal .mcp-kv-hint')
@@ -305,14 +305,14 @@ describe('McpServerModal', () => {
     expect(hint!.textContent).toBe(zh.aiMcpSrvKvHint)
   })
 
-  it('9b. 新增态不显示 .mcp-kv-hint(即使 http)', async () => {
+  it('9b. Create mode does not show .mcp-kv-hint (even with http)', async () => {
     mountModal({ server: null })
     await macroFlush()
     expect(document.querySelector('.sk-modal .mcp-kv-hint')).toBeNull()
   })
 
-  // ===== 覆盖点 10:快速粘贴单层取数钉子 =====
-  it('10. 快速粘贴(单层取数):裸 Parsed 返回,填充后传输切 stdio、command/args/env/名称都填上', async () => {
+  // ===== Coverage point 10: Quick-paste single-layer response nail =====
+  it('10. Quick-paste (single-layer response): bare Parsed return, after fill transport switches to stdio, command/args/env/name all filled', async () => {
     h.parseMCPCommand.mockResolvedValue({
       transport: 'stdio', command: 'npx', args: ['-y', '@upstash/context7-mcp'], env: { FOO: 'bar' },
       url: '', suggested_name: 'context7',
@@ -326,7 +326,7 @@ describe('McpServerModal', () => {
     await flush()
 
     expect(h.parseMCPCommand).toHaveBeenCalledWith('npx -y @upstash/context7-mcp')
-    expect(trigOptions()[2].dataset.active).toBe('true') // stdio 选中
+    expect(trigOptions()[2].dataset.active).toBe('true') // stdio selected
     expect(commandInput().value).toBe('npx')
     const argsTextarea = document.querySelector('.sk-modal [data-f="args"]') as HTMLTextAreaElement
     expect(argsTextarea.value).toBe('-y\n@upstash/context7-mcp')
@@ -337,14 +337,14 @@ describe('McpServerModal', () => {
     void w
   })
 
-  // ===== 覆盖点 11:快速粘贴解析成 http =====
-  it('11. 快速粘贴解析成 http:url 填上,command/args/env 清空', async () => {
+  // ===== Coverage point 11: Quick-paste parsed as http =====
+  it('11. Quick-paste parsed as http: url filled, command/args/env cleared', async () => {
     h.parseMCPCommand.mockResolvedValue({
       transport: 'http', command: '', args: [], env: {}, url: 'https://mcp.example.com', suggested_name: '',
     })
     mountModal({ server: null })
     await macroFlush()
-    // 先切到 stdio 并填一些字段,验证粘贴解析成 http 后被清空
+    // Switch to stdio first and fill some fields, verify they clear after paste parsed as http
     trigOptions()[2].click()
     await nextTick()
     setValue(commandInput(), 'old-command')
@@ -356,15 +356,15 @@ describe('McpServerModal', () => {
     await flush()
     await flush()
 
-    expect(trigOptions()[0].dataset.active).toBe('true') // http 选中
+    expect(trigOptions()[0].dataset.active).toBe('true') // http selected
     expect(urlInput().value).toBe('https://mcp.example.com')
-    // command/args 字段已随 transport 切回 http 而不再渲染;env 应为空
+    // command/args fields no longer render as transport switched back to http; env should be empty
     expect(document.querySelector('.sk-modal [data-f="command"]')).toBeNull()
     expect(document.querySelector('.sk-modal [data-kv="env"]')).toBeNull()
   })
 
-  // ===== 覆盖点 12:suggested_name 只在名称为空时填入 =====
-  it('12a. 名称为空时,快速粘贴的 suggested_name 会填入', async () => {
+  // ===== Coverage point 12: suggested_name only fills when name is empty =====
+  it('12a. When name is empty, quick-paste suggested_name fills in', async () => {
     h.parseMCPCommand.mockResolvedValue({
       transport: 'stdio', command: 'npx', args: [], env: {}, url: '', suggested_name: 'context7',
     })
@@ -378,7 +378,7 @@ describe('McpServerModal', () => {
     expect(nameInput().value).toBe('context7')
   })
 
-  it('12b. 名称已填时,suggested_name 不覆盖', async () => {
+  it('12b. When name already filled, suggested_name does not override', async () => {
     h.parseMCPCommand.mockResolvedValue({
       transport: 'stdio', command: 'npx', args: [], env: {}, url: '', suggested_name: 'context7',
     })
@@ -393,8 +393,8 @@ describe('McpServerModal', () => {
     expect(nameInput().value).toBe('my-own-name')
   })
 
-  // ===== 覆盖点 13:解析失败 → 本地化文案,不含后端英文串 =====
-  it('13. 解析失败 → .mcp-quickadd-err 显示本地化文案,不含后端英文串', async () => {
+  // ===== Coverage point 13: Parse failure → localized text, no backend English strings =====
+  it('13. Parse failure → .mcp-quickadd-err shows localized text, no backend English strings', async () => {
     h.parseMCPCommand.mockRejectedValue(
       Object.assign(new Error('x'), { response: { data: { message: 'empty command' } } }),
     )
@@ -411,8 +411,8 @@ describe('McpServerModal', () => {
     expect(document.querySelector('.sk-modal')!.textContent).not.toContain('empty command')
   })
 
-  // ===== 覆盖点 14:解析中态 + pasteCmd 空态 =====
-  it('14a. 解析中:按钮文案 aiMcpSrvParsing 且 disabled', async () => {
+  // ===== Coverage point 14: Parsing state + empty pasteCmd =====
+  it('14a. Parsing: button text aiMcpSrvParsing and disabled', async () => {
     let resolve!: (v: unknown) => void
     h.parseMCPCommand.mockReturnValue(new Promise((r) => { resolve = r }))
     mountModal({ server: null })
@@ -427,15 +427,15 @@ describe('McpServerModal', () => {
     await flush()
   })
 
-  it('14b. pasteCmd 为空时按钮 disabled', async () => {
+  it('14b. When pasteCmd empty, button disabled', async () => {
     mountModal({ server: null })
     await macroFlush()
     expect(pasteInput().value).toBe('')
     expect(fillBtn().disabled).toBe(true)
   })
 
-  // ===== 覆盖点 15:serverError 行内报错 =====
-  it('15. serverError 非空 → 渲染 .sk-field-err 行内错误(先例 AddSkillModal)', async () => {
+  // ===== Coverage point 15: serverError inline error =====
+  it('15. serverError non-empty → renders .sk-field-err inline error (precedent: AddSkillModal)', async () => {
     mountModal({ server: null, serverError: zh.aiMcpSrvErrUrlRequired })
     await macroFlush()
     const err = document.querySelector('.sk-modal .sk-field-err') as HTMLElement
@@ -444,8 +444,8 @@ describe('McpServerModal', () => {
     expect(err.textContent).toBe(zh.aiMcpSrvErrUrlRequired)
   })
 
-  // ===== 覆盖点 16:open 真→假→真,表单复位 =====
-  it('16. open 由真变假再变真 → 表单复位(组件常驻,不像 Vue2 每次都是新实例)', async () => {
+  // ===== Coverage point 16: open true→false→true, form resets =====
+  it('16. open changes true→false→true → form resets (component resident, unlike Vue2 new instance each time)', async () => {
     const w = mountModal({ server: null })
     await macroFlush()
     setValue(nameInput(), 'typed-name')
@@ -462,9 +462,9 @@ describe('McpServerModal', () => {
     expect(urlInput().value).toBe('')
   })
 
-  // 附加:取消按钮 emit update:open(false),不 emit save —— 与 15 条覆盖点互补,
-  // 验证「照 AddSkillModal 先例」的常驻外壳行为完整。
-  it('附加:取消按钮 emit update:open(false),不 emit save', async () => {
+  // Additional: Cancel button emits update:open(false), not save —— complements 15 coverage points,
+  // verifies complete resident shell behavior per "AddSkillModal precedent".
+  it('Additional: Cancel button emits update:open(false), not save', async () => {
     const w = mountModal({ server: null })
     await macroFlush()
     cancelBtn().click()
@@ -473,8 +473,8 @@ describe('McpServerModal', () => {
     expect(w.emitted('save')).toBeUndefined()
   })
 
-  // 附加:saving=true 时按钮文案变化且禁用(与 5c 的「enabled」态对照,确认 saving 优先)。
-  it('附加:saving=true 时提交按钮文案变 aiCfgSaving 且禁用', async () => {
+  // Additional: when saving=true, button text changes and disables (compare with 5c "enabled" state, confirm saving takes priority).
+  it('Additional: when saving=true, submit button text changes to aiCfgSaving and disabled', async () => {
     mountModal({ server: null, saving: true })
     await macroFlush()
     setValue(nameInput(), 'foo')

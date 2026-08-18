@@ -1,9 +1,9 @@
-// 雷达圆环几何:逐字移植 Vue2 DropItem.positionStyle 与 DropPage.resize 数学。
+// Radar circle geometry: character-by-character port of Vue2 DropItem.positionStyle and DropPage.resize math.
 const RATIO = 1.86
 const GAP = 120
 const BOTTOM_GAP = 144
 
-export const DISPLAY_ORDER = [8, 6, 2, 3, 1, 7, 4, 0, 9, 5] // Vue2 桌面 initIndexArray
+export const DISPLAY_ORDER = [8, 6, 2, 3, 1, 7, 4, 0, 9, 5] // Vue2 desktop initIndexArray
 
 export function positionFor(index: number, radius: number, center: { x: number; y: number }): { left: string; top: string } {
   const angle = index < 5 ? 30 * (index + 1) : 45 * (index % 5)

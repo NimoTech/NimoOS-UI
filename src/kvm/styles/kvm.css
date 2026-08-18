@@ -1,41 +1,62 @@
 /*
- * KVM 区(路由 /kvm)样式。视觉 1:1 照抄 Vue2 源(KVMFullPage 组件)
- * 的 style(lang=scss scoped)段(布局:1658-1973 行;main-empty:1975-2015 行;
- * 窄屏响应式:2740-2759 行,行号按 2026-08-02 核对)。
+ * Styles for the KVM area (route /kvm). Visuals copied 1:1 from the Vue2
+ * source (KVMFullPage component), its style (lang=scss scoped) block
+ * (layout: lines 1658-1973; main-empty: lines 1975-2015; narrow-screen
+ * responsive: lines 2740-2759; line numbers verified 2026-08-02).
  *
- * 颜色一律 var(--kvm-*)(CLAUDE 硬约束 + 本期硬约束#1),token 定义在
- * 主题 sp9 分片(theme 目录下)—— KVM 区固定深色,两套主题 token 同值(见该文件注释)。
+ * All colors go through var(--kvm-*) (CLAUDE hard constraint + this sprint's
+ * hard constraint #1); tokens are defined in the theme sp9 shard (under the
+ * theme directory) — the KVM area is fixed dark, both theme blocks hold the
+ * same values (see that file's comments).
  *
- * P5 全期(Task 2 起搭地基,Task 5-8 陆续补齐)覆盖的段落:
- * kvm-page/kvm-content/kvm-sidebar(含折叠)/kvm-sidebar-toggle/kvm-header 系列/
- * vm-list/empty-state/add-vm-btn/kvm-main/main-empty 系列 + console- 系列/
- * sendkey- 系列/spice- 系列/installation-banner/kvm-progress- 系列(465-1153 行)。
- * 全部段落到 Task 8 收尾时均已实现,不再有"留给后续任务、只占位类名"的部分
- * (清理项6,全分支终审订正:此前这里的注释是 Task 2 刚搭地基时写的旧状态,过期未更新)。
+ * Sections covered across P5 (foundation from Task 2, filled in through
+ * Tasks 5-8):
+ * kvm-page / kvm-content / kvm-sidebar (incl. collapse) / kvm-sidebar-toggle /
+ * the kvm-header family / vm-list / empty-state / add-vm-btn / kvm-main /
+ * the main-empty family + the console- family / the sendkey- family /
+ * the spice- family / installation-banner / the kvm-progress- family
+ * (lines 465-1153). All sections were fully implemented by the end of
+ * Task 8; nothing remains that is "reserved for later tasks, class name only"
+ * (cleanup item 6, corrected in the full-branch final review: the previous
+ * comment here described the stale state from when Task 2 first laid the
+ * foundation and was never updated).
  *
- * 类名对应关系:Vue2 根类名是 kvm-full-page,配 scoped 嵌套选择器;New-UI 没有 scoped,
- * 改成全局唯一类名 kvm-page(根)+ 摊平的顶层选择器(嵌套 & 展开为普通后代选择器),
- * 视觉数值逐字保留。
+ * Class-name mapping: the Vue2 root class is kvm-full-page with scoped nested
+ * selectors; New-UI has no scoped styles, so it uses a globally unique root
+ * class kvm-page plus flattened top-level selectors (nested & expanded into
+ * plain descendant selectors), with visual values preserved verbatim.
  *
- * ── P6(创建弹窗 / ISO 选择器 / 快照 / VM 设置 / 全局设置)──
- * Task 0 只搭地基,不写本段任何样式规则 —— 下面这些类名先在同目录的 kvmStyles 测试文件
- * 的 ALLOWED 白名单里登记好,后续任务(Task 1 起)再逐个把规则填进本文件:
- * kvm-dialog-overlay/kvm-dialog-content(弹窗共用壳)、create-vm-* 与 cv-*(创建弹窗)、
- * settings-tabs/settings-tab(VM 设置分页)、snapshots-body 与 cv-snapshot-*(快照面板)、
- * os-selector-body 与 os-* / category-* / custom-*(OSSelector)。颜色同样一律 var(--kvm-*),
- * 用到的 23 个 token 已在 theme sp9 分片里定义(--kvm-modal-* / --kvm-field-* /
- * --kvm-accent-hover-alt / --kvm-snapshot-* / --kvm-restore-* / --kvm-delete-bg-hover 等)。
- * (Task 11 收尾又新增第 24 个 --kvm-snapshot-name-fg,历史计数不改,见该 token 定义处
- * 与消费处注释。)
+ * ── P6 (create dialog / ISO selector / snapshots / VM settings / global settings) ──
+ * Task 0 only lays the foundation and writes no style rules for this part —
+ * the class names below are first registered in the ALLOWED whitelist of the
+ * kvmStyles test file in this directory; later tasks (Task 1 onward) fill the
+ * rules into this file one by one:
+ * kvm-dialog-overlay / kvm-dialog-content (shared dialog shell), create-vm-*
+ * and cv-* (create dialog), settings-tabs / settings-tab (VM settings tabs),
+ * snapshots-body and cv-snapshot-* (snapshot panel), os-selector-body and
+ * os-* / category-* / custom-* (OSSelector). Colors likewise all go through
+ * var(--kvm-*); the 23 tokens used are already defined in the theme sp9 shard
+ * (--kvm-modal-* / --kvm-field-* / --kvm-accent-hover-alt / --kvm-snapshot-* /
+ * --kvm-restore-* / --kvm-delete-bg-hover, etc.).
+ * (Task 11 wrap-up added a 24th, --kvm-snapshot-name-fg; the historical count
+ * is left unchanged — see the comments at that token's definition and
+ * consumption sites.)
  *
- * ⚠️⚠️ 上面那几行里枚举类名/token 用的斜杠**必须两侧留空格**。星号紧贴斜杠会构成块注释的
- * 结束记号,把这个注释**提前关掉**。之后的说明文字被当 CSS 解析,而 CSS 的错误恢复会一路吃到
- * 下一个 `{…}` 块结束 ⇒ 紧随其后的 `.kvm-page` 整条规则被丢掉,KVM 页就只占视口上半部分、
- * 背景光斑透上来。2026-08-05 P8 验收时机主一眼看见,本文件里当时**有两处**这样的注释,
- * 另一处吞掉了 cv-empty-state(快照面板空态)。已加守卫:见 styles 目录下 color-guard 那份
- * 测试的「CSS 注释完整性」一节,全仓样式表通用。
- * 同理:本文件任何注释里都不要出现 `*` 紧跟 `/` 的写法。
- * (注释里也别写形如「点 + 小写单词」的文件后缀,类名白名单测试会把它当成类名。)
+ * ⚠️⚠️ The slashes used to enumerate class names/tokens in the lines above
+ * MUST have spaces on both sides. An asterisk immediately followed by a slash
+ * forms the block-comment terminator and closes this comment EARLY. The
+ * remaining prose then gets parsed as CSS, and CSS error recovery eats
+ * everything up to the end of the next `{…}` block ⇒ the entire `.kvm-page`
+ * rule right below gets dropped, and the KVM page only fills the top half of
+ * the viewport with the background glow bleeding through. The owner spotted
+ * this at a glance during the 2026-08-05 P8 acceptance; at the time this file
+ * had TWO such comments — the other one swallowed cv-empty-state (the
+ * snapshot panel empty state). A guard now exists: see the "CSS comment
+ * integrity" section of the color-guard test in the styles directory,
+ * applied to every stylesheet in the repo.
+ * Likewise: no comment in this file may ever contain `*` directly followed by `/`.
+ * (Also never write a "dot + lowercase word" file suffix in comments here —
+ * the class-name whitelist test would treat it as a class name.)
  */
 
 /* The global toast sits 118px up to clear the desktop dock. KVM is a full-screen
@@ -59,14 +80,19 @@
   display: flex;
   height: 100vh;
   background: var(--kvm-bg);
-  /* New-UI 专属:全局主题样式给页面装了 body::before/::after 的柔光玻璃背景层
-   * (position:fixed + z-index:0,"让通透面板浮起来"的整体氛围),这两层不是
-   * .kvm-page 的祖先/后代而是 body 的另外两个已定位子节点 —— 按 CSS 层叠规则,
-   * 静态定位的 .kvm-page 天然排在它们下面,不管 DOM 顺序,不建立层叠上下文就会被
-   * 那层柔光/暗角盖住(实测:不加下面两行,右侧空态区能看见彩色光斑透过来)。
-   * KVM 是 Vue2 就写死的**纯实心**深色控制台,不是玻璃面板,必须完全不透那层氛围光,
-   * 所以显式建一个层叠上下文压过去。Vue2 没有这层背景,这是 New-UI 特有的必要修复,
-   * 不是照抄 Vue2 也不是照抄不到的逻辑 bug。 */
+  /* New-UI specific: the global theme styles attach soft-glow glass background
+   * layers to body::before/::after (position:fixed + z-index:0, the overall
+   * "make translucent panels float" ambience). Those two layers are not
+   * ancestors/descendants of .kvm-page but two other positioned children of
+   * body — per CSS stacking rules a statically positioned .kvm-page naturally
+   * sits below them regardless of DOM order, so without establishing a
+   * stacking context it gets covered by that glow/vignette (verified: without
+   * the two lines below, colored light spots bleed through in the right-hand
+   * empty area). KVM is the SOLID dark console hardcoded since Vue2, not a
+   * glass panel — none of that ambient light may show through, so we
+   * explicitly create a stacking context to sit on top. Vue2 has no such
+   * background layer; this is a necessary New-UI-only fix, neither a Vue2
+   * copy nor a logic bug carried over from it. */
   position: relative;
   z-index: 1;
 }
@@ -78,7 +104,7 @@
   position: relative;
 }
 
-/* ── 折叠切换按钮(Vue2 :1671-1709) ── */
+/* ── Collapse toggle button (Vue2 :1671-1709) ── */
 .kvm-sidebar-toggle {
   position: absolute;
   left: 22rem;
@@ -100,9 +126,11 @@
 }
 
 .kvm-sidebar-toggle .toggle-icon {
-  /* 未申报偏离登记:Vue2 这里是 b-icon(bulma 组件,自带 inline-block 一类的 display),
-     这里换成裸 <span> 占位符,inline 元素默认不吃 transform,必须显式 inline-block
-     才能让下面 .collapsed 状态的 rotate(180deg) 生效。 */
+  /* Registered previously-undeclared deviation: Vue2 uses b-icon here (a bulma
+     component that ships an inline-block-like display); this is replaced with a
+     bare <span> placeholder. Inline elements ignore transform by default, so
+     inline-block must be set explicitly for the rotate(180deg) of the
+     .collapsed state below to take effect. */
   display: inline-block;
   transition: transform 0.2s;
 }
@@ -123,7 +151,7 @@
   transform: rotate(180deg);
 }
 
-/* ── 侧栏(Vue2 :1711-1973) ── */
+/* ── Sidebar (Vue2 :1711-1973) ── */
 .kvm-sidebar {
   width: 22rem;
   background: var(--kvm-panel);
@@ -134,7 +162,8 @@
   transition: width 0.25s ease;
 }
 
-/* 折叠仅在桌宽生效(Vue2 同款媒体查询)—— 窄屏走下面独立的抽屉式响应块。 */
+/* Collapse only applies at desktop width (same media query as Vue2) — narrow
+ * screens use the separate drawer-style responsive block below. */
 @media screen and (min-width: 769px) {
   .kvm-sidebar.collapsed {
     width: 0;
@@ -214,13 +243,17 @@
   color: var(--kvm-accent);
 }
 
-/* 评审 Minor 修复:Vue2 没有 disabled 态(它压根没有"渲染但暂不可用"这种占位按钮),
- * 所以这条规则是 New-UI 新增、不是照抄 Vue2 ——齿轮/添加按钮在 P6 前先 disabled
- * 占位立形状(2026-08-02 拍板),但不补 disabled 视觉的话鼠标移上去还是变紫底紫字、
- * 光标还是小手,看起来像能点,这是可见的体验缺陷。写法抄了 settings 区按钮既有的
- * "hover 加 not-disabled 守卫 + disabled 单独降透明度/换光标"惯例(class 名不在
- * 这里字面写出,避免撞上本文件类名白名单扫描器),写成可复用的形式——Task 5 的
- * ConsoleHeader 会有同款 disabled 按钮,照这个模式抄即可。 */
+/* Review Minor fix: Vue2 has no disabled state (it never has "rendered but
+ * temporarily unusable" placeholder buttons), so this rule is a New-UI
+ * addition, not a Vue2 copy. The gear/add buttons sit disabled as shape
+ * placeholders until P6 (decided 2026-08-02), but without disabled visuals
+ * hovering still turns them purple-on-purple with a pointer cursor — they
+ * look clickable, a visible UX defect. The pattern copies the existing
+ * settings-area button convention ("hover guarded with not-disabled +
+ * disabled separately lowers opacity / swaps cursor"; the class name is not
+ * written out literally here to avoid tripping this file's class-name
+ * whitelist scanner), written in a reusable form — Task 5's ConsoleHeader
+ * will have the same kind of disabled button; just copy this pattern. */
 .kvm-settings-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -234,12 +267,16 @@
   color: var(--kvm-fg-dim);
 }
 
-/* Task 8 token 清点:这三处 status-dot 的默认("idle"/停机)底色本来引用 --kvm-idle,
- * 与 --kvm-fg-faint 取的是同一个字面量——不是巧合,Vue2 源文件本来就在两种场景复用
- * 同一个颜色值(既当"停机点"的底色,也当 console-hint 一类弱化文字的颜色,KVM 主组件
- * 源文件里 :1809/:1924/:2066 与 :2254/:2456/:2487 等处逐一核对过,两处色值字面量相同)。
- * 两个 token 名字不同但语义就是同一种"最弱化的灰",清点时合并成一个,--kvm-idle 已从
- * theme sp9 分片两个主题块里删掉,这三处及下面 .console-hint 统一改用 --kvm-fg-faint。 */
+/* Task 8 token inventory: the default ("idle"/powered-off) fill of these three
+ * status-dot spots originally referenced --kvm-idle, which held the same
+ * literal as --kvm-fg-faint — no coincidence: the Vue2 source reuses the same
+ * color value in both scenarios (as the "stopped dot" fill and as the muted
+ * text color of console-hint-style elements; verified one by one at
+ * :1809/:1924/:2066 vs :2254/:2456/:2487 of the main KVM component source —
+ * identical literals). Two token names, one meaning: the same "most muted
+ * gray". Merged into one during the inventory; --kvm-idle has been removed
+ * from both theme blocks of the theme sp9 shard, and these three spots plus
+ * .console-hint below now uniformly use --kvm-fg-faint. */
 .kvm-status .status-dot {
   width: 0.4rem;
   height: 0.4rem;
@@ -298,13 +335,13 @@
   color: var(--kvm-accent);
 }
 
-/* 同上 .kvm-settings-btn:disabled 的申报理由,同一份可复用惯例。 */
+/* Same declared rationale as .kvm-settings-btn:disabled above; same reusable convention. */
 .add-vm-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* ── VM 列表项(Vue2 :1843-1950) ── */
+/* ── VM list item (Vue2 :1843-1950) ── */
 .vm-list-item {
   display: flex;
   align-items: center;
@@ -414,7 +451,8 @@
   margin-left: 0.375rem;
 }
 
-/* 三个呼吸关键帧(Vue2 :2762-2793)——running/paused/suspended/error 状态点用。 */
+/* Three breathing keyframes (Vue2 :2762-2793) — used by the running / paused /
+ * suspended / error status dots. */
 @keyframes breathe-green {
   0%, 100% {
     box-shadow: 0 0 4px var(--kvm-ok-glow-weak);
@@ -448,7 +486,7 @@
   }
 }
 
-/* ── 右侧主区(Vue2 :1975-2015) ── */
+/* ── Right-hand main area (Vue2 :1975-2015) ── */
 .kvm-main {
   flex: 1;
   display: flex;
@@ -491,7 +529,7 @@
   font-size: 0.875rem;
 }
 
-/* ── 控制台头(Vue2 :2017-2135) ── */
+/* ── Console header (Vue2 :2017-2135) ── */
 .vm-console-container {
   flex: 1;
   display: flex;
@@ -602,12 +640,15 @@
   color: var(--kvm-accent);
 }
 
-/* Vue2 (:2124-2131) disabled 态本身就是 opacity:.35(与 New-UI 自造的 kvm-settings-btn/
- * add-vm-btn 那套 .5 不是一回事——这里 action-btn 的 disabled 是 Vue2 真实存在的状态,
- * 只是 P5 触发它的场景变了:Vue2 是 canEditSettings 为假时禁用,P5 是 Settings 按钮
- * 恒禁用(P6 前占位),但视觉数值原样照抄)。Vue2 还嵌套了一层 disabled:hover 的显式
- * 兜底(把 hover 态的颜色改回非 hover 默认值),这里同样保留,不用 T4 那套
- * :hover:not(:disabled) 的写法——因为这是真实的 Vue2 视觉,要 1:1,不是 New-UI 新造状态。 */
+/* Vue2 (:2124-2131) already styles the disabled state at opacity 0.35 (not the
+ * same thing as the 0.5 New-UI invented for kvm-settings-btn / add-vm-btn —
+ * the action-btn disabled state genuinely exists in Vue2; only the trigger
+ * changed in P5: Vue2 disables when canEditSettings is false, P5 keeps the
+ * Settings button permanently disabled as a pre-P6 placeholder, but the visual
+ * values are copied verbatim). Vue2 also nests an explicit disabled:hover
+ * fallback (resetting hover colors back to the non-hover defaults); kept here
+ * as well, instead of T4's :hover:not(:disabled) style — because this is real
+ * Vue2 visual behavior to copy 1:1, not a New-UI invented state. */
 .console-actions .action-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -618,11 +659,14 @@
   color: var(--kvm-fg-dim);
 }
 
-/* ── 控制台占位区(Vue2 :2202-2260 的子集)──
- * Task 5 只需要"动作失败时在控制台区域内联显示错误"这一小块(硬约束 9:不用 toast)。
- * VNC 画布 / 开机按钮(start-vm-btn/power-icon/power-svg)是控制台主体,归后续任务
- * (需要 VNC 连接状态机),这里不实现、也不在模板里引用这几个 class —— 它们已经在
- * T2 阶段预先登记进类名白名单,本任务不需要额外改动那份名单。 */
+/* ── Console placeholder area (subset of Vue2 :2202-2260) ──
+ * Task 5 only needs the small "show errors inline in the console area when an
+ * action fails" piece (hard constraint 9: no toast). The VNC canvas / power
+ * button (start-vm-btn / power-icon / power-svg) are the console body and
+ * belong to later tasks (they need the VNC connection state machine); not
+ * implemented here, and these classes are not referenced in the template —
+ * they were pre-registered in the class-name whitelist during T2, so this
+ * task needs no extra changes to that list. */
 .console-display {
   flex: 1;
   background: var(--kvm-bg);
@@ -636,28 +680,40 @@
   min-height: 300px;
 }
 
-/* T6 补的两段(Vue2 :2210-2212 / :2218-2226,评审在 T5 就登记过的欠账):
- * 全屏态圆角归零;noVNC 挂进来的 canvas 绝对定位铺满,z-index 压在占位层之上——
- * 一旦 useVncConsole 建好连接、canvas 出现在 .console-display 里,它要盖住下面的
- * 占位层(而不是被占位层挡住),即便 v-if="!connected" 那一刻占位层还没来得及移除。 */
+/* Two blocks added in T6 (Vue2 :2210-2212 / :2218-2226, debt the review had
+ * already logged back in T5): fullscreen state zeroes the border radius; the
+ * canvas noVNC mounts is absolutely positioned to fill, with z-index above the
+ * placeholder layer — once useVncConsole establishes the connection and the
+ * canvas appears inside .console-display, it must cover the placeholder below
+ * (rather than be hidden by it), even if the v-if="!connected" placeholder has
+ * not yet been removed at that instant. */
 .console-display:fullscreen {
   border-radius: 0;
 }
 
-/* 申报偏离(用户 2026-08-03 真机验收后拍板,与 useVncConsole 里开 scaleViewport 是同一处
- * 修复的两半):Vue2 这条规则(:2218-2226)用 `width/height: 100% !important` +
- * object-fit: contain 把画布尺寸从 noVNC 手里抢过来。在 Vue2 那边这么写是"没办法"——它传给
- * 构造函数的 scaleViewport 被静默忽略、noVNC 根本不缩放,只能靠 CSS 硬拉。
- * 现在 scaleViewport 真的生效了,再抢尺寸就会让 noVNC 的鼠标坐标换算失准:它按自己算出的
- * 缩放比(display 的 absX/absY = 坐标 ÷ scale)把点击位置折算回客户机,而 !important 让
- * 画布元素占满整个容器、真实画面被 object-fit 居中留黑边,两者不重合。
- * 探针实测(容器 900×600、客户机 1280×800):
- *   抢尺寸  → 元素框 900×600,点右下角折算成客户机 (1280, 853) —— 纵向超出 800,画面上
- *             每一点的纵坐标都偏约 26 像素;
- *   交还    → 元素框 900×563(正是画面本身),点右下角折算成 (1280, 800) —— 精确。
- * 两种写法下**画面矩形完全相同**(都是 900×563 垂直居中),所以这是零视觉变化的逻辑修正。
- * 容器尺寸变化(收侧栏/改窗口/进全屏)由 noVNC 自己的 ResizeObserver 重算(core/rfb 的
- * :284 与 :581,observe 的就是我们传进去的宿主元素),不需要 CSS 兜底。 */
+/* Declared deviation (decided by the user after the 2026-08-03 on-device
+ * acceptance; the other half of the same fix as enabling scaleViewport in
+ * useVncConsole): the Vue2 rule (:2218-2226) uses `width/height: 100%
+ * !important` + object-fit: contain to wrestle the canvas size away from
+ * noVNC. On the Vue2 side that was a workaround — the scaleViewport it passed
+ * to the constructor was silently ignored, noVNC never scaled, and only CSS
+ * could stretch the canvas. Now that scaleViewport actually works, grabbing
+ * the size again breaks noVNC's mouse coordinate mapping: it converts click
+ * positions back to guest coordinates using its own computed scale (the
+ * display's absX/absY = coordinate ÷ scale), while !important makes the
+ * canvas element fill the whole container with the real picture centered by
+ * object-fit with black bars — the two no longer coincide.
+ * Probe measurements (container 900×600, guest 1280×800):
+ *   size grabbed   → element box 900×600, clicking the bottom-right corner
+ *                    maps to guest (1280, 853) — 53 beyond 800 vertically;
+ *                    every point's y coordinate is off by about 26 pixels;
+ *   size returned  → element box 900×563 (exactly the picture itself),
+ *                    bottom-right maps to (1280, 800) — precise.
+ * The picture rectangle is IDENTICAL under both (900×563, vertically
+ * centered), so this is a zero-visual-change logic correction. Container size
+ * changes (collapsing the sidebar / resizing the window / entering
+ * fullscreen) are recomputed by noVNC's own ResizeObserver (:284 and :581 of
+ * core/rfb; it observes the host element we pass in) — no CSS fallback needed. */
 .console-display canvas {
   position: absolute;
   inset: 0;
@@ -673,9 +729,11 @@
   width: 100%;
   height: 100%;
   color: var(--kvm-fg-dim);
-  /* T6 补(Vue2 :2236-2239,T5 就登记过的欠账):占位层要绝对定位铺满,压在 canvas 之下
-   * (z-index:1 < 上面 canvas 的 z-index:2)——不然占位层会占着文档流把 .console-display
-   * 撑开,且 canvas 出现后占位层不会自动"垫底"。 */
+  /* Added in T6 (Vue2 :2236-2239, debt logged back in T5): the placeholder
+   * layer must be absolutely positioned to fill, below the canvas (z-index:1 <
+   * the canvas's z-index:2 above) — otherwise it stays in the document flow,
+   * stretches .console-display, and would not automatically drop underneath
+   * once the canvas appears. */
   position: absolute;
   top: 0;
   left: 0;
@@ -688,12 +746,15 @@
   color: var(--kvm-fg);
 }
 
-/* 评审 Minor 修复:必须带 .console-placeholder 父选择器(对位 Vue2 :2252 的
- * `.console-placeholder .console-hint`,特异性 (0,2,0))。之前扁平成顶层 `.console-hint`
- * (0,1,0)压不过上面的 `.console-placeholder p`(0,1,1)——只是现在唯一在用的
- * `.console-hint.is-error`(0,2,0)同样赢得过 `.console-placeholder p`,所以侥幸没
- * 出错;下一个任务(T6 noVNC)一旦加不带 .is-error 的普通 .console-hint,颜色就会
- * 被 p 的 var(--kvm-fg) 压过去,取色取错。补父选择器,彻底对齐 Vue2 的级联关系。 */
+/* Review Minor fix: the .console-placeholder parent selector is required
+ * (matching Vue2 :2252's `.console-placeholder .console-hint`, specificity
+ * (0,2,0)). Previously flattened to a top-level `.console-hint` (0,1,0), which
+ * loses to `.console-placeholder p` (0,1,1) above — it only got lucky because
+ * the sole consumer so far, `.console-hint.is-error` (0,2,0), also beats
+ * `.console-placeholder p`. The moment the next task (T6 noVNC) adds a plain
+ * .console-hint without .is-error, its color would be overridden by the p
+ * rule's var(--kvm-fg) — wrong color. Restore the parent selector to fully
+ * match Vue2's cascade. */
 .console-placeholder .console-hint {
   font-size: 0.75rem;
   color: var(--kvm-fg-faint);
@@ -703,7 +764,7 @@
   color: var(--kvm-danger);
 }
 
-/* ── 开机/恢复大按钮(Vue2 :2261-2294) ── */
+/* ── Large power-on/resume button (Vue2 :2261-2294) ── */
 .start-vm-btn {
   display: flex;
   align-items: center;
@@ -734,23 +795,28 @@
   background: transparent;
 }
 
-/* Vue2 disabled 态就是 opacity:.5(硬约束 6:按 1:1 取值,不是 New-UI 自造的 .5 惯例
- * 撞巧一致——这里是真的照抄 Vue2 数值)。 */
+/* Vue2's disabled state is opacity 0.5 (hard constraint 6: taken 1:1 — not a
+ * coincidental match with New-UI's own 0.5 convention; this genuinely copies
+ * the Vue2 value). */
 .start-vm-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* ── SendKey 悬浮工具条(Vue2 :2348-2438,2026-08-02 核对)──
- * 本组件作为 slot 内容渲染进 ConsoleStage 组件的 `.console-display`(T7 评审订正的
- * 措辞:最初版本想用 `<Teleport :to="hostEl">`,评审指出 ConsoleStage 直接加一个
- * `<slot />` 更简单、风险面更小,已改掉——见 ConsoleStage 组件顶部注释与 KvmPage 视图
- * 文件里 `<ConsoleStage>` 用法处的说明)——这样 `.sendkey-toolbar` 的 `position:absolute`
- * 才能相对 `.console-display`(它自己 position:relative)定位,与 Vue2 的 DOM 层级
- * (工具条是 `.console-display` 的直接子节点)保持一致,不会因为套一层 New-UI 自己的
- * 包装 div 而导致垂直居中的基准区域多算进 console-header 的高度(视觉差异)。
- * SpiceInfoBar(Task 8)同理也是作为这个 slot 的内容渲染进来,原因见该组件与本文件里
- * `.spice-info-bar` 段的注释。 */
+/* ── SendKey floating toolbar (Vue2 :2348-2438, verified 2026-08-02) ──
+ * This component renders as slot content into the ConsoleStage component's
+ * `.console-display` (wording corrected in the T7 review: the first version
+ * wanted `<Teleport :to="hostEl">`; the review pointed out that a plain
+ * `<slot />` on ConsoleStage is simpler with a smaller risk surface, so it
+ * was changed — see the comment at the top of the ConsoleStage component and
+ * the note at the `<ConsoleStage>` usage in the KvmPage view). Only this way
+ * can `.sendkey-toolbar`'s `position:absolute` be positioned relative to
+ * `.console-display` (itself position:relative), matching Vue2's DOM
+ * hierarchy (the toolbar is a direct child of `.console-display`), so the
+ * vertical-centering reference area does not additionally include the
+ * console-header height because of an extra New-UI wrapper div (a visual
+ * difference). SpiceInfoBar (Task 8) likewise renders as content of this same
+ * slot — see that component and the `.spice-info-bar` section in this file. */
 .sendkey-toolbar {
   position: absolute;
   right: 0;
@@ -846,7 +912,7 @@
   opacity: 0;
 }
 
-/* ── 溢出菜单(Vue2 :2137-2200) ── */
+/* ── Overflow menu (Vue2 :2137-2200) ── */
 .dropdown-wrapper {
   position: relative;
 }
@@ -885,12 +951,16 @@
   background: var(--kvm-elev);
 }
 
-/* Task 8 补:Vue2 每个 dropdown-item 前面都有一个 b-icon(:103-133),之前(T5)只搬了
- * 文字,漏了图标一半的"图标+文字"版式(评审已指出,登记在 task-8 的顺带清理清单)。
- * New-UI 没有 casa 图标字体,按本区既有惯例(⚙/⋮/‹ 等)换成单色文字符号占位——不是新
- * 视觉语言,是同一套占位手法用到菜单项上。固定宽度让不同宽窄的符号(▶/⊘/↻/‖/×)左对齐,
- * Vue2 的 b-icon size="is-small" 同样是固定框大小,这里数值不必逐字(占位符号本身就不是
- * 1:1 图形),但"预留固定宽度对齐"这个版式意图是 1:1 的。 */
+/* Added in Task 8: every Vue2 dropdown-item is preceded by a b-icon
+ * (:103-133); T5 only migrated the text and dropped the icon half of the
+ * "icon + text" layout (flagged by review, logged on task-8's incidental
+ * cleanup list). New-UI has no casa icon font, so per this area's existing
+ * convention (⚙ / ⋮ / ‹ etc.) monochrome text glyphs stand in — not a new
+ * visual language, the same placeholder technique applied to menu items. The
+ * fixed width left-aligns glyphs of varying width (▶ / ⊘ / ↻ / ‖ / ×); Vue2's
+ * b-icon size="is-small" is likewise a fixed box, so the value here need not
+ * be verbatim (the placeholder glyphs are not 1:1 graphics anyway), but the
+ * "reserve a fixed width for alignment" layout intent is 1:1. */
 .dropdown-icon {
   display: inline-flex;
   align-items: center;
@@ -930,10 +1000,13 @@
   margin: 0.25rem 0;
 }
 
-/* ── 进度遮罩(New-UI 自绘,对位 Vue2 :495-514 的 b-modal + b-message)──
- * 组件本身 Teleport 到 body,见 ProgressOverlay 组件里的判断注释。z-index 取 1000,
- * 与 ui 组件库里 Dialog 一类弹窗同一量级(不需要盖过它们,但也不该被它们盖住——
- * 停/重启/删除进行中不应该被别的弹窗挡住看不见)。 */
+/* ── Progress overlay (drawn by New-UI, matching Vue2 :495-514's b-modal +
+ * b-message) ──
+ * The component itself Teleports to body — see the decision comment inside the
+ * ProgressOverlay component. z-index is 1000, the same magnitude as Dialog-type
+ * modals in the ui component library (it need not cover them, but must not be
+ * covered either — an in-progress stop/restart/delete should never be hidden
+ * behind another dialog). */
 .kvm-progress-overlay {
   position: fixed;
   inset: 0;
@@ -986,17 +1059,22 @@
   }
 }
 
-/* ── 窄屏(Vue2 :2740-2759) ──
- * Vue2 原文用 &open(与 open 组合的选择器)切控制侧栏抽屉展开态,但模板里从没出现过
- * open 这个类(toggleSidebar 只改 sidebarCollapsed,没有任何地方 add/remove open)——是
- * 死代码,窄屏抽屉在 Vue2 的**实际**行为是永久隐藏、没有任何办法能再打开(这是 Vue2
- * 移动端的真实 bug,不是"故意不做的功能")。
+/* ── Narrow screens (Vue2 :2740-2759) ──
+ * The Vue2 original uses &open (a selector combined with the open class) to
+ * toggle the sidebar drawer's expanded state, but the class open never appears
+ * in the template (toggleSidebar only changes sidebarCollapsed; nothing ever
+ * adds/removes open) — dead code. The ACTUAL Vue2 behavior on narrow screens
+ * is a permanently hidden drawer with no way to reopen it (a real Vue2 mobile
+ * bug, not a "deliberately unbuilt feature").
  *
- * ⚠️ 与 Vue2 的偏离(Task 8 收尾,改正确逻辑不照抄 bug,已申报):数值(位置/宽度/
- * transform/transition 曲线)逐字照抄,但 `.active` 触发条件在这里补上——复用桌宽已有
- * 的折叠状态(`collapsed`),窄屏下 `active = !collapsed`。默认 `collapsed` 是 false,
- * 所以窄屏首次进入就能看到侧栏(抽屉默认展开),点同一个折叠按钮收起/展开,不需要
- * 额外引入第二套状态。见 VmSidebar 组件里 `:class="{ collapsed, active: !collapsed }"`。 */
+ * ⚠️ Deviation from Vue2 (Task 8 wrap-up; fix the logic, don't copy the bug;
+ * declared): the values (position / width / transform / transition curve) are
+ * copied verbatim, but the `.active` trigger condition is added here — reusing
+ * the existing desktop collapse state (`collapsed`); on narrow screens
+ * `active = !collapsed`. `collapsed` defaults to false, so the sidebar is
+ * visible on first entry at narrow width (drawer open by default) and the same
+ * collapse button toggles it — no second set of state needed. See
+ * `:class="{ collapsed, active: !collapsed }"` in the VmSidebar component. */
 @media screen and (max-width: 768px) {
   .kvm-sidebar {
     width: 100%;
@@ -1018,14 +1096,18 @@
   }
 }
 
-/* ── SPICE 连接提示条(Vue2 :156-165 模板 + :2795-2865 样式,后者在**第一个、scoped**
- * 的 style 块里)──
- * 渲染进 ConsoleStage 组件的 slot(与上面 sendkey-toolbar 同一个 slot,原因见那段注释)。
- * 每个色值都能在既有 --kvm-* token 里找到:底色是 --kvm-overlay(与 SendKey 工具条/
- * 进度遮罩同一个半透明深色),边框色 --kvm-warn-border、字色 --kvm-warn(黄色系,呼应
- * "还没切到硬盘引导"这个提醒性质的信息),关闭按钮沿用 --kvm-fg-dim/--kvm-fg 这对
- * 既有的"次要图标按钮"配色——T2 定义这批 token 时就是照 Vue2 这里的字面量选的值,
- * 逐一核对过完全对得上,不需要新增 token。 */
+/* ── SPICE connection info bar (Vue2 template :156-165 + styles :2795-2865,
+ * the latter in the FIRST, scoped style block) ──
+ * Renders into the ConsoleStage component's slot (the same slot as
+ * sendkey-toolbar above; see that comment for why). Every color value maps to
+ * an existing --kvm-* token: background is --kvm-overlay (the same
+ * semi-transparent dark as the SendKey toolbar / progress overlay), border is
+ * --kvm-warn-border, text is --kvm-warn (yellow family, matching the advisory
+ * "not yet switched to disk boot" nature of the message), and the close button
+ * reuses the existing --kvm-fg-dim / --kvm-fg "secondary icon button" pair —
+ * when T2 defined this token batch it picked the values from the Vue2
+ * literals right here; verified one by one, a full match, no new tokens
+ * needed. */
 .spice-info-bar {
   position: absolute;
   top: 1rem;
@@ -1089,9 +1171,10 @@
   color: var(--kvm-fg);
 }
 
-/* 硬约束 5:Vue3 过渡类名是 `-enter-from`/`-leave-to`,Vue2 那边写的是 `-enter`——
- * 白名单登记的已经是 Vue3 命名,这里同样只用 Vue3 命名,不留 Vue2 那个在 Vue3 里
- * 根本不生效的类。 */
+/* Hard constraint 5: Vue3 transition class names are `-enter-from` /
+ * `-leave-to`; the Vue2 side wrote `-enter`. The whitelist registers the Vue3
+ * names, and only Vue3 names are used here — the Vue2 class that simply never
+ * fires under Vue3 is not kept. */
 .spice-toast-enter-active {
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
@@ -1110,13 +1193,15 @@
   transform: translateX(-50%) translateY(-0.5rem);
 }
 
-/* ── 安装横幅(Vue2 模板 :142-149 + 样式 :3096-3147)──
- * ⚠️ 这段样式在 Vue2 源文件**第二个、非 scoped** 的 style 块里(文件末尾,:2875 起),
- * 不在上面 SPICE 提示条所在的第一个 scoped 块——这是全页唯一的浅色块,--kvm-banner-*
- * 系列 token 是浅蓝底(T2 阶段就定义好,本任务第一次消费)。按钮文字色与 loading 转圈的
- * 边框色 Vue2 写的都是字面量 white,这里复用既有的 --kvm-on-accent(值同样是纯白、
- * 语义是"强调色底上的文字",SendKey 工具条的 active 态已经在用同一个 token)——不是
- * 新造 token,也不是照 Vue2 那样写死字面量。 */
+/* ── Installation banner (Vue2 template :142-149 + styles :3096-3147) ──
+ * ⚠️ This stylesheet section is in Vue2's **second, non-scoped** style block (end of file,
+ * starting at :2875), not in the first scoped block where the SPICE info bar sits above.
+ * This is the only light-colored section on the whole page; the --kvm-banner-* token family
+ * applies a light blue background (defined back in T2, first consumed here). Button text
+ * color and loading spinner border color are both written as white literals in Vue2; we
+ * reuse the existing --kvm-on-accent token (also pure white, semantically "text on accent
+ * color", already in use by the SendKey toolbar's active state)—not a new token, not a
+ * hardcoded literal like Vue2. */
 .installation-banner {
   display: flex;
   flex-wrap: wrap;
@@ -1135,16 +1220,20 @@
   gap: 8px;
 }
 
-/* Task 8 评审修复补的新元素(Vue2 没有对应物,详见 InstallBanner 组件顶部注释):
- * eject 失败时的内联错误文案。flex-basis:100% 借 flex-wrap:wrap 让它独占一行——
- * 没有错误时这个元素根本不渲染(v-if),原本的单行布局不受影响。
+/* Task 8 review fix—added new element (no Vue2 counterpart; see InstallBanner component
+ * header comment): inline error text when eject fails. flex-basis:100% with flex-wrap:wrap
+ * makes it occupy its own row. When there's no error, this element never renders (v-if),
+ * so the original single-line layout is unaffected.
  *
- * ⚠️ 复审二轮修复:颜色**不用** --kvm-danger——那个红是为深底控制台设计的
- * (dropdown-item.is-danger / confirm-text-danger 等消费处都在深色下拉菜单背景上),
- * 直接套到这个安装横幅的浅蓝底(--kvm-banner-bg,全页唯一浅色块)对比度只有约
- * 2.94:1,远低于 WCAG AA 正文 4.5:1 的门槛(复审实测 + 脚本复核:2.935:1)。改用
- * 专为浅底设计的 --kvm-banner-error-fg,对浅蓝底的对比度 = 5.723:1,取值与算法的
- * 完整注释在 theme sp9 分片(定义 --kvm-banner-* 那批 token 的文件)里。 */
+ * ⚠️ Second review round fix: do NOT use --kvm-danger for this color. That red is
+ * designed for dark console backgrounds (dropdown-item.is-danger / confirm-text-danger
+ * etc. all sit on dark dropdown backgrounds). Applying it directly to this installation
+ * banner's light blue background (--kvm-banner-bg, the only light section on the page)
+ * yields contrast of only ~2.94:1, far below WCAG AA's 4.5:1 threshold for body text
+ * (verified by review testing + contrast checker: 2.935:1). Use instead
+ * --kvm-banner-error-fg, which is designed for light backgrounds and produces 5.723:1
+ * contrast against light blue. Full value and algorithm notes are in the theme sp9 shard
+ * (the file defining the --kvm-banner-* token family). */
 .banner-error {
   flex-basis: 100%;
   margin: 4px 0 0 0;
@@ -1188,10 +1277,12 @@
   animation: kvm-banner-spin 0.5s infinite linear;
 }
 
-/* Vue2 这里就叫裸名字 `spin`(在它自己的 style 块里,天然不会跟别处撞名)。本文件是
- * 平铺引入的全局样式表,不享受单文件组件 scoped 块的关键帧自动改名,裸名字 `spin` 有
- * 撞上应用别处同名全局关键帧的风险,所以加前缀——数值(时长/速率/角度)逐字照抄,
- * 只有名字加了前缀,不算视觉偏离。 */
+/* Vue2 names this bare `spin` (in its own style block, naturally isolated from
+ * collisions elsewhere). This file is a flattened global stylesheet—it doesn't get the
+ * automatic keyframe name-mangling of single-file component scoped blocks—so a bare `spin`
+ * risks colliding with same-name global keyframes elsewhere in the app. Therefore we add
+ * a prefix. Values (duration/rate/angles) are copied verbatim; only the name got a prefix,
+ * which is not a visual deviation. */
 @keyframes kvm-banner-spin {
   from {
     transform: rotate(0deg);
@@ -1202,10 +1293,11 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * Task 1:KvmDialog 弹窗外壳。视觉 1:1 对 Vue2 KVMFullPage 组件的
- * .create-vm-modal 一族:头部 :2311-2343、主体 :2344-2346、脚部 :2702-2722。
- * 色值逐个换成 --kvm-* token,容器从 buefy b-modal 换成 reka-ui
- * DialogRoot/DialogContent(已申报的结构偏离,见 KvmDialog 组件头部注释)。
+ * Task 1: KvmDialog modal shell. Visual 1:1 match to Vue2 KVMFullPage component's
+ * .create-vm-modal family: header :2311-2343, body :2344-2346, footer :2702-2722.
+ * Color values swapped one-by-one to --kvm-* tokens. Container changed from
+ * buefy b-modal to reka-ui DialogRoot/DialogContent (declared structural deviation;
+ * see KvmDialog component header comment).
  * ════════════════════════════════════════════════════════════════════ */
 
 .kvm-dialog-overlay {
@@ -1237,10 +1329,11 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.25rem 1.5rem 0.75rem;
-  /* New-UI 专属:KvmDialog 的 head/body/foot 现在是同一个 flex 列容器(class
-   * kvm-dialog-content + create-vm-modal 合在同一元素上)的直接子节点,不设
-   * flex-shrink:0 的话内容超高时头/脚会被一起压缩,Vue2 没有这问题(buefy
-   * modal-card 头/脚天生不参与内部滚动计算)。 */
+  /* New-UI specific: KvmDialog's head/body/foot are now direct children of a single
+   * flex column container (class kvm-dialog-content + create-vm-modal on the same
+   * element). Without flex-shrink:0, when content overflows vertically the header/footer
+   * get compressed along with the body. Vue2 doesn't have this problem (buefy's
+   * modal-card header/footer are never part of the internal scroll layout). */
   flex-shrink: 0;
 }
 
@@ -1276,11 +1369,13 @@
 
 .create-vm-body {
   padding: 1.5rem 1.5rem 0 1.5rem;
-  /* 有意偏离(已申报,brief Step 4):Vue2 靠 buefy 的 modal-card-body 提供滚动,
-   * New-UI 的外壳得自己给。光加 overflow-y:auto 不够——.create-vm-body 是
-   * flex 列容器(.kvm-dialog-content)里的一个子项,不设 flex:1 + min-height:0
-   * 的话它会按内容自然高度撑开,永远不会真正触发滚动条,是让"外壳自己给滚动"这个
-   * 决策实际生效的必要配套,不是新增语义。 */
+  /* Intentional deviation (declared, brief Step 4): Vue2 gets scrolling from buefy's
+   * modal-card-body. New-UI's shell must provide it itself. Just adding overflow-y:auto
+   * is not enough—.create-vm-body is a child item in a flex column container
+   * (.kvm-dialog-content). Without flex:1 + min-height:0 it expands to natural content
+   * height and never actually triggers scrollbars. These two properties are the necessary
+   * companion to make the "shell provides scrolling" decision actually work; not a new
+   * semantic, just infrastructure. */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -1293,9 +1388,10 @@
   flex-shrink: 0;
 }
 
-/* ── 表单字段(cv-* 系列,创建/设置弹窗共用)。照 Vue2 :2440-2524,
- * 原文件靠 buefy 的 ::v-deep 穿透组件内部 <input>,New-UI 没有 buefy,
- * cv-input 直接是 <input> 本身的类名,选择器摊平。 */
+/* ── Form fields (cv-* family, shared by create and settings dialogs). Following
+ * Vue2 :2440-2524. Original file uses buefy's ::v-deep to pierce into component-internal
+ * <input>. New-UI has no buefy, so cv-input is the class directly on the <input> itself,
+ * and selectors are flattened. */
 
 .cv-field {
   position: relative;
@@ -1376,19 +1472,24 @@
   -moz-appearance: textfield;
 }
 
-/* 新类(有意偏离,已申报):Vue2 用 buefy `b-button type="is-primary" rounded`
- * (创建/快照/VM 设置/全局设置四处脚部按钮共用同一形态,行 342/388/489/551),
- * New-UI 没有 buefy,自己写一个等价类。
+/* New class (intentional deviation, declared): Vue2 uses buefy `b-button
+ * type="is-primary" rounded` (footer buttons at create/snapshots/VM settings/global
+ * settings all share one visual form, lines 342/388/489/551). New-UI has no buefy,
+ * so we write an equivalent class.
  *
- * ⚠️ 圆角是 0.5rem,不是胶囊(评审订正,记账在此免得 Task 10 抄错):`rounded`
- * prop 加的是 buefy 内置的、只挂两个类选择器的规则(button 类 + is-rounded 类);
- * 而页面自己在 scoped 样式块(:1657-2874 范围内)又写了一条更具体的规则
- * `create-vm-foot 类 → button 类且 is-primary 类 { border-radius: 0.5rem; … }`
- * (:2707-2720)。Vue2 scoped 编译后这条页面规则的最后一个复合选择器上还会带一个
- * data-v 属性选择器,等效再加一级选择器权重,总共比 buefy 那条多一级,页面自己
- * 这条赢,把 `rounded` 加的圆角(以及它带的左右内边距)整个压掉了 —— `rounded`
- * prop 在这个页面上是哑设置,真机渲染出来的是 0.5rem 圆角,不是胶囊。这里照渲染
- * 结果搬,不照 prop 名字猜。 */
+ * ⚠️ Border radius is 0.5rem, not pill/capsule (review correction; documented here
+ * to prevent Task 10 from copying it wrong). The `rounded` prop adds a buefy built-in
+ * rule that only touches two class selectors (button + is-rounded). But the page itself
+ * also writes a more specific rule in its scoped style block (:1657-2874 range):
+ * `create-vm-foot class → button element carrying the is-primary class
+ * { border-radius: 0.5rem; … }` (:2707-2720). Class names are deliberately not written
+ * as dot-prefixed selectors here — see the note at the snapshots-tab comment below.
+ * After Vue2's scoped compilation, this page rule gets an extra data-v attribute
+ * selector appended to its last compound selector—one more specificity level than
+ * buefy's rule. The page's rule wins, completely overriding the border-radius (and
+ * left/right padding) that `rounded` added. On this page `rounded` prop is a no-op;
+ * the rendered result is 0.5rem radius, not pill-shaped. Here we copy what renders,
+ * not what the prop name suggests. */
 .cv-primary-btn {
   background: var(--kvm-accent);
   color: var(--kvm-on-accent);
@@ -1411,8 +1512,8 @@
   cursor: not-allowed;
 }
 
-/* is-loading 转圈手法复用 P5 .banner-btn.is-loading 的既有写法(同一个
- * @keyframes kvm-banner-spin,不重复定义)。 */
+/* is-loading spinner technique reuses the existing pattern from P5's
+ * .banner-btn.is-loading (same @keyframes kvm-banner-spin, no duplication). */
 .cv-primary-btn.is-loading {
   color: transparent;
   pointer-events: none;
@@ -1433,8 +1534,9 @@
   animation: kvm-banner-spin 0.5s infinite linear;
 }
 
-/* 新类(有意偏离,已申报):Vue2 用 toast 报告表单校验/提交错误,本项目 KVM 区
- * 约定不用 toast(硬约束7),弹窗内联报错位是新增展示元素。 */
+/* New class (intentional deviation, declared): Vue2 reports form validation/submission
+ * errors with toast notifications. This project's KVM area is committed to not using
+ * toast (hard constraint 7), so inline error display within the dialog is a new UI element. */
 .cv-error {
   color: var(--kvm-danger);
   font-size: 0.8rem;
@@ -1442,12 +1544,14 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * Task 2:全局设置弹窗的开关(cv-switch)。容器偏离(已申报,KvmGlobalSettingsDialog 组件
- * 顶部注释):Vue2 用 buefy `b-switch`,New-UI 没有 buefy → 自绘一个视觉照抄 buefy
- * 胶囊形开关的原生 checkbox。原生 <input type="checkbox"> 视觉隐藏(标准的
- * clip-rect 隐藏手法,不用 display:none——那样会丢掉 Tab 键盘可达性与原生 checked
- * 语义),真正可见的形状是 .cv-switch-track/.cv-switch-knob,用 :checked 相邻兄弟
- * 选择器驱动开/关两态样式切换,不需要任何 JS 计算 class。
+ * Task 2: Global settings dialog toggle switch (cv-switch). Container deviation
+ * (declared; KvmGlobalSettingsDialog component header comment): Vue2 uses
+ * buefy `b-switch`. New-UI has no buefy, so we draw a native checkbox styled to look
+ * like buefy's pill-shaped toggle. The native <input type="checkbox"> is visually
+ * hidden using standard clip-rect technique (not display:none—that would lose Tab
+ * keyboard accessibility and native checked semantics). The actual visible shapes are
+ * .cv-switch-track and .cv-switch-knob, driven by the :checked adjacent sibling
+ * selector to toggle between on/off styles—no JS class computation needed.
  * ════════════════════════════════════════════════════════════════════ */
 .cv-switch {
   display: inline-flex;
@@ -1500,21 +1604,26 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * Task 5:OsSelector 官方模板半(分类过滤 + 卡片网格 + 下载三态)。
- * 视觉 1:1 对 Vue2 components/KVM/OSSelector 组件样式 :426-562 + 768px 媒体查询
- * :697-701。**不搬** os-progress-wrap 那段(:513-527,模板里零命中,死 CSS)。
- * 容器偏离(已申报):Vue2 分类用 buefy b-button(type is-primary/is-light),
- * New-UI 没有 buefy → .category-btn 是自绘按钮,配色照 buefy is-primary/is-light
- * 在深色面板上的视觉效果反推(实底强调色 vs 面板灰底),不是照抄某段具体 Vue2 规则。
+ * Task 5: OsSelector official template portion (category filter + card grid +
+ * three download states). Visual 1:1 match to Vue2 components/KVM/OSSelector
+ * component styles :426-562 + 768px media query :697-701. **Do NOT carry over**
+ * os-progress-wrap section (:513-527, zero matches in template, dead CSS).
+ * Container deviation (declared): Vue2 categories use buefy b-button
+ * (type is-primary/is-light). New-UI has no buefy, so .category-btn is hand-drawn,
+ * colors inferred from how buefy is-primary/is-light looks visually on dark panels
+ * (solid accent vs. panel gray background)—not a direct copy of any specific Vue2 rule.
  * ════════════════════════════════════════════════════════════════════ */
 
 .os-selector-body {
-  /* 有意偏离(结构,非视觉):KvmDialog 的 .create-vm-body 已经提供 flex:1 +
-   * overflow-y:auto + 左右/顶部 1.5rem 内边距(本任务不重复那三条,重复了会在
-   * .create-vm-body 内部再叠一层滚动容器)。Vue2 的 .os-selector-body 是它自己
-   * 独立弹窗壳的滚动体,四边都是 1.5rem;New-UI 复用同一个弹窗壳后,只缺 create-vm-body
-   * 特意留空的底部内边距(它把 bottom 设成 0 是为了给脚部按钮让位——本弹窗没有脚部,
-   * 补回来维持 Vue2 视觉上"四边留白对称"的效果。 */
+  /* Intentional deviation (structure, not visuals): KvmDialog's .create-vm-body
+   * already provides flex:1 + overflow-y:auto + 1.5rem padding left/right/top
+   * (this task doesn't repeat those three; repeating would stack a second scroll
+   * container inside .create-vm-body). Vue2's .os-selector-body is its own
+   * independent dialog shell's scroll body with 1.5rem on all four sides.
+   * New-UI reuses the same dialog shell. The only missing piece is the bottom padding
+   * that .create-vm-body deliberately leaves empty (it sets bottom to 0 to make room
+   * for footer buttons). This dialog has no footer, so we restore that padding to
+   * maintain Vue2's visual symmetry of "equal whitespace on all four sides". */
   padding-bottom: 1.5rem;
 }
 
@@ -1536,9 +1645,11 @@
   transition: background-color 0.2s, color 0.2s, border-color 0.2s;
 }
 
-/* :not(.active) 而非硬约束7的 :not(:disabled)——这个按钮没有 disabled 态,
- * 是"当前选中/未选中"两态,理由相同:避免已经是强调色实底的激活态又被 hover
- * 规则改色,造成"选中了却看着像还能再点一次变别的颜色"的误导。 */
+/* Use :not(.active) rather than hard constraint 7's :not(:disabled)—this button has
+ * no disabled state, only "currently selected" vs. "not selected" two states. Same reason:
+ * avoid the already-activated state (solid accent background) getting recolored by a hover
+ * rule, which would mislead the user into thinking "I selected it but maybe I can click it
+ * again and change it to another color". */
 .category-btn:hover:not(.active) {
   color: var(--kvm-fg);
   border-color: var(--kvm-fg-dim);
@@ -1631,18 +1742,20 @@
   transition: all 0.2s;
 }
 
-/* 硬约束7 高危点:基类不设 :hover(压过变体的坑,见文件头注释),每个变体自带
- * &:hover 背景,照 Vue2 SCSS 嵌套编译结果(.os-action-btn.is-download:hover 等,
- * 特异度 (0,3,0)),三个变体互不干扰。 */
+/* Hard constraint 7 high-risk point: base class has no :hover (avoids the override
+ * trap; see file header comment). Each variant carries its own &:hover background,
+ * matching Vue2's SCSS nesting compilation result (.os-action-btn.is-download:hover
+ * etc., specificity (0,3,0))—three variants don't interfere with each other. */
 .os-action-btn.is-download {
   background: var(--kvm-accent);
   color: var(--kvm-on-accent);
 }
 
 .os-action-btn.is-download:hover {
-  /* 注意:这是 --kvm-accent-hover-alt,不是主按钮 hover 用的 --kvm-accent-hover——
-   * 两个 token 值不同,Vue2 自身这两处颜色本来就不一致,1:1 各留一个,不擅自统一
-   * (取值对照见 P6 token 分片里这两个 token 定义处的注释)。 */
+  /* Note: this is --kvm-accent-hover-alt, not the primary button's --kvm-accent-hover.
+   * The two token values differ; Vue2 itself has different colors in these two places,
+   * so we keep both 1:1 rather than unify them ourselves (value comparison in the P6
+   * token shard's comments where these tokens are defined). */
   background: var(--kvm-accent-hover-alt);
 }
 
@@ -1662,18 +1775,20 @@
 }
 
 @media screen and (max-width: 768px) {
-  /* 独立媒体查询块,不并进上面窄屏侧栏那一块:Vue2 里这条规则来自 OSSelector 组件
-   * 自己的 <style scoped> 块(:697-701),与 KVMFullPage 组件的窄屏侧栏规则
-   * (:2740-2759)是两个不同组件、两段不相关的样式,只是断点数值凑巧都是 768px。 */
+  /* Separate media query block, not merged with the narrow-screen sidebar block
+   * above. In Vue2 this rule comes from OSSelector's own <style scoped> block (:697-701),
+   * while the narrow-screen sidebar rules come from KVMFullPage (:2740-2759)—two
+   * different components, two unrelated style blocks. They just happen to use the same
+   * 768px breakpoint. */
   .os-grid {
     grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
   }
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * Task 6:IsoBrowser 自定义区(本地 ISO 文件浏览)。视觉 1:1 对 Vue2
- * components/KVM/OSSelector 组件样式 :564-695。全部复用 P5/T2 既有 token,
- * 没有新增(色值→token 对照表见本任务报告文件)。
+ * Task 6: IsoBrowser custom section (browse local ISO files). Visual 1:1 match to
+ * Vue2 components/KVM/OSSelector component styles :564-695. All tokens reused from
+ * P5/T2, no new tokens added (color-to-token mapping table in this task's report file).
  * ════════════════════════════════════════════════════════════════════ */
 
 .custom-section {
@@ -1728,8 +1843,9 @@
   transition: all 0.2s;
 }
 
-/* 硬约束7:hover 必须带 :not(:disabled),disabled 显式 cursor:not-allowed
- * (根目录时上一级按钮 disabled,不能看起来还能点)。 */
+/* Hard constraint 7: hover must include :not(:disabled), and disabled must
+ * explicitly set cursor:not-allowed (when at root directory, up-button is disabled
+ * and must not look clickable). */
 .custom-back-btn:hover:not(:disabled) {
   color: var(--kvm-fg);
   border-color: var(--kvm-fg);
@@ -1753,10 +1869,13 @@
   overflow-y: auto;
 }
 
-/* 有意偏离(容器,已申报):Vue2 用 buefy `b-loading`(自带绝对定位铺满 + 内部动画),
- * New-UI 没有 buefy → 复用既有的 `.kvm-spinner`(P6 进度遮罩已在用同一个转圈动画),
- * 这里补 flex 居中让它在这块留白区域内居中显示——Vue2 的 b-loading 天生铺满容器
- * 自带居中,这里换了实现手法后需要显式补上,不是新增视觉语义。 */
+/* Intentional deviation (container, declared): Vue2 uses buefy `b-loading`
+ * (built-in absolute positioning fills container + internal animation). New-UI has
+ * no buefy, so we reuse the existing `.kvm-spinner` (P6's progress overlay already
+ * uses the same spinner animation). Here we add flex centering to display it centered
+ * in this whitespace area. Vue2's b-loading naturally fills its container and comes
+ * with built-in centering; after switching implementation, we must explicitly add it
+ * back—not a new visual semantic, just infrastructure. */
 .custom-loading {
   padding: 2rem;
   position: relative;
@@ -1819,26 +1938,31 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * Task 7:CreateVmDialog 创建表单(8 字段 + 七条校验 + osTemplate 联动)。
- * 视觉 1:1 对 Vue2 KVMFullPage 组件样式 .cv-iso-btn(:2544-2567)/
- * .cv-cpu-group·.cv-cpu-btn(:2609-2637)/.cv-select 系(:2638-2669)/
- * .cv-firmware-group·.cv-firmware-btn(:2670-2701)。
+ * Task 7: CreateVmDialog creation form (8 fields + seven validators +
+ * osTemplate dependencies). Visual 1:1 match to Vue2 KVMFullPage component styles:
+ * .cv-iso-btn (:2544-2567) / .cv-cpu-group & .cv-cpu-btn (:2609-2637) /
+ * .cv-select family (:2638-2669) / .cv-firmware-group & .cv-firmware-btn (:2670-2701).
  *
- * ⚠️ 范围说明(与 brief 详细步骤的字面清单有一处不一致,已核实并按此收窄):brief 顶部
- * 「Files」一节只列四段(cv-iso-btn/cv-cpu-group/cv-select/cv-firmware-group),Step 3
- * 里的详细指令又多列了一段 cv-iso-eject(:2573-2592)。核对 Vue2 create-vm-modal 模板
- * (:396-494)后确认:创建弹窗从来没有「弹出/更换 ISO」按钮,cv-iso-eject 连同配套的
- * cv-ejected-text 文字色是 VM 已经建好之后、VM 设置弹窗里换盘/弹出用的——本组件不渲染
- * 这两个 class,现在把样式规则搬进来会是没有消费者的死规则。cv-iso-eject 已经在白名单里
- * 登记好(Task 0 预留位),留给真正渲染它的任务(VM 设置弹窗)去补样式,不在本任务提前占坑。
+ * ⚠️ Scope note (one discrepancy between brief's detail steps and the literal list—
+ * verified and narrowed accordingly): Brief's top "Files" section lists four blocks
+ * (cv-iso-btn/cv-cpu-group/cv-select/cv-firmware-group). Step 3's detailed instructions
+ * add another: cv-iso-eject (:2573-2592). Checking Vue2's create-vm-modal template
+ * (:396-494) confirms: the create dialog never has an "eject/change ISO" button.
+ * cv-iso-eject and its companion cv-ejected-text color are for *after* the VM is
+ * created, used in the VM settings dialog for disk swap/eject. This component doesn't
+ * render these two classes; bringing the style rules here would be dead CSS with no
+ * consumer. cv-iso-eject is already registered in the whitelist (Task 0 reserved slot);
+ * leave it for the task that actually renders it (VM settings dialog) to style; don't
+ * pre-occupy it here.
  *
- * 色值逐个核对过 Vue2 字面量再换成对应 token(--kvm-field-bg/--kvm-field-border/
- * --kvm-field-elev/--kvm-modal-fg/--kvm-fg-faint/--kvm-fg-dim/--kvm-accent/
- * --kvm-accent-light/--kvm-accent-ring/--kvm-accent-soft),逐条映射表见本任务报告
- * 文件——**这里不铺开写十六进制/rgba 字面量**:本文件的裸颜色字面量守卫不剥注释,
- * 写在这里会被判成裸颜色字面量误伤(实测踩过)。--kvm-accent-soft 是本文件早前
- * .vm-list-item.active 等处已经在用的既有 token,两个 active 态复用它不是新增,
- * 也不是巧合撞值。
+ * Color values verified one-by-one against Vue2 literals and swapped for tokens
+ * (--kvm-field-bg/--kvm-field-border/--kvm-field-elev/--kvm-modal-fg/--kvm-fg-faint/
+ * --kvm-fg-dim/--kvm-accent/--kvm-accent-light/--kvm-accent-ring/--kvm-accent-soft).
+ * Mapping table in this task's report file. **No hex/rgba literals here**: this file's
+ * bare color literal guard doesn't strip comments, so writing them here triggers false
+ * positives (real bug we hit). --kvm-accent-soft is an existing token already in use
+ * earlier in this file (for example vm-list-item.active); two active states reusing it is
+ * no new token, not a color collision—the values match.
  * ════════════════════════════════════════════════════════════════════ */
 
 .cv-iso-btn {
@@ -1894,9 +2018,11 @@
   color: var(--kvm-accent-light);
 }
 
-/* 硬约束 7 高危点:基类 `.cv-cpu-btn:hover`(0,2,0)与 `.cv-cpu-btn.active`(0,2,0)
- * 特异度相同,按源码顺序判——不显式给 active 态补一条 :hover,鼠标移到已选中的格子上
- * 会被上面那条基类 hover 规则压成「未选中」的灰底,看着像选中态丢失了。 */
+/* Hard constraint 7 high-risk point: Base class `.cv-cpu-btn:hover` (0,2,0) and
+ * `.cv-cpu-btn.active` (0,2,0) have equal specificity, so source order decides.
+ * Without explicitly giving active state its own :hover rule, mousing over an already-
+ * selected cell gets overridden by the base hover rule, showing the "unselected" gray
+ * background—looks like the active state disappeared. */
 .cv-cpu-btn.active:hover {
   background: var(--kvm-accent-soft);
   border-color: var(--kvm-accent);
@@ -1963,8 +2089,9 @@
   color: var(--kvm-accent-light);
 }
 
-/* 同上 .cv-cpu-btn.active:hover 的理由(硬约束 7 高危点),这里是第二处基类 hover
- * 会压过 .active 的地方——同样补一条 .active:hover 自带背景。 */
+/* Same reasoning as .cv-cpu-btn.active:hover above (hard constraint 7 high-risk
+ * point)—this is the second place base hover would override .active. Add an explicit
+ * .active:hover rule here too, carrying its own background. */
 .cv-firmware-btn.active:hover {
   background: var(--kvm-accent-soft);
   color: var(--kvm-accent-light);
@@ -1974,26 +2101,31 @@
   border-right: 1px solid var(--kvm-field-border);
 }
 
-/* Task 9 补(硬约束 11):VM 设置弹窗里这两个按钮永远 disabled(照 Vue2 :321-322,
- * 创建弹窗那份是可点的、不需要这条规则)。Vue2 源文件对 disabled 态没有专门写 CSS——
- * 按钮不可点但视觉没有任何变化,这是 Vue2 的欠账(用户分不清"按下没反应"和"这个
- * 本来就点不了"),硬约束 11 要求 disabled 显式给 cursor: not-allowed,这里补上,
- * 不改变其它任何视觉(不降透明度——固件按钮的 active/非 active 底色差异本身已经足够
- * 传达"这是当前值,不是可操作项"这层含义,加透明度反而会让已选中的那个变得不显眼)。 */
+/* Task 9 addition (hard constraint 11): In the VM settings dialog these two buttons
+ * are always disabled (following Vue2 :321-322; the create dialog's are clickable and
+ * don't need this rule). Vue2 source has no explicit CSS for disabled state—the button
+ * is unclickable but looks identical, which is a Vue2 gap (users can't distinguish
+ * "clicked but nothing happened" from "this was never clickable"). Hard constraint 11
+ * requires disabled to explicitly set cursor:not-allowed. We add it here without
+ * changing any other visuals (no opacity reduction—the firmware button's active/inactive
+ * background difference alone is enough to communicate "this is the current value, not
+ * an item I can operate", and adding opacity would make the selected option less salient). */
 .cv-firmware-btn:disabled {
   cursor: not-allowed;
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * Task 9 补(评审 Important:brief Step 2 点名要搬的这段之前漏了,详见任务报告
- * 「偏离登记」追加条目):VM 设置弹窗顶部的 tab 导航。视觉 1:1 对 Vue2
- * KVMFullPage 组件样式 .settings-tabs/.settings-tab(:2877-2900)。
+ * Task 9 addition (review Important: brief Step 2 required this section but it was
+ * missed; see task report "deviation registry" addendum): VM settings dialog's tab
+ * navigation at the top. Visual 1:1 match to Vue2 KVMFullPage component styles
+ * .settings-tabs / .settings-tab (:2877-2900).
  *
- * 色值核对(不铺开写十六进制字面量——本文件裸颜色字面量守卫不剥注释):下边框与
- * .cv-iso-btn/.cv-firmware-group 等处已经在用的 --kvm-field-border 同一个 token;
- * 默认字色取 --kvm-fg-dim;hover 字色取 --kvm-fg(本文件早前 .sendkey-btn 等处
- * 已经在用的既有 token);active 态的字色与下边框色都取 --kvm-accent——四个 token
- * 的字面量逐一核对过与 Vue2 源文件这段规则的四个颜色值完全一致,不是新增 token。
+ * Color verification (no hex literals here—this file's bare color guard doesn't
+ * strip comments): bottom border reuses the same token as .cv-iso-btn /
+ * .cv-firmware-group etc., --kvm-field-border. Default text color uses --kvm-fg-dim. Hover text
+ * uses --kvm-fg (existing token already in use at .sendkey-btn etc. earlier in file).
+ * Active state's text and bottom border both use --kvm-accent. All four token values
+ * verified against the four color literals in Vue2's source rule—no new tokens.
  * ════════════════════════════════════════════════════════════════════ */
 .settings-tabs {
   display: flex;
@@ -2021,28 +2153,33 @@
   border-color: var(--kvm-accent);
 }
 
-/* 硬约束 11/#14 高危点(同 .cv-cpu-btn.active:hover / .cv-firmware-btn.active:hover
- * 那两处已经在这个文件里用过的模式):基类 `.settings-tab:hover`(0,2,0)与
- * `.settings-tab.active`(0,1,0)特异度不同,基类会压过 active 态——不补这一条,
- * 鼠标移到当前选中的 tab 上会被 hover 规则的字色压成"未选中"的灰,看着像选中态
- * 丢了。这里显式给 active 态补一条自带的 :hover,颜色与非 hover 时的 active 态相同。 */
+/* Hard constraint 11/#14 high-risk point (same pattern already used twice in this
+ * file at .cv-cpu-btn.active:hover / .cv-firmware-btn.active:hover): base class
+ * `.settings-tab:hover` (0,2,0) and `.settings-tab.active` (0,1,0) have different
+ * specificity, so base wins. Without this rule, mousing over the currently selected
+ * tab gets its text color overridden by the hover rule's color to "unselected" gray—
+ * looks like the active state vanished. Explicitly add a :hover for active state here,
+ * with the same color as non-hover active. */
 .settings-tab.active:hover {
   color: var(--kvm-accent);
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * Task 9:VM 设置弹窗的 ISO 弹出/挂载双态按钮。视觉 1:1 对 Vue2 KVMFullPage 组件
- * 样式里的弹出按钮那段规则(:2573-2592)。**不搬**紧挨着它上面那条纯文字色规则
- * (:2568-2571,类名字面为 cv- 前缀 + ejected-text 后缀,本文件类名白名单扫描器
- * 会把写在注释里的裸类名也当成"出现过的类名"扫描,这里刻意不连写出完整类名)——
- * Vue2 模板里从没用过这个类(grep 全文件只有样式定义这一处出现),是死 CSS,
- * 本组件也不渲染它。
+ * Task 9: VM settings dialog ISO eject/mount dual-state button. Visual 1:1 match to
+ * Vue2 KVMFullPage component's eject button rule (:2573-2592). **Do NOT carry over**
+ * the pure text-color rule immediately above it (:2568-2571; the class is literally
+ * cv- prefix + ejected-text suffix; this file's class-name whitelist scanner treats
+ * bare class names even in comments as "appeared", so we intentionally don't write
+ * the full class name here)—Vue2 template never uses this class (grep of the whole
+ * file shows only this style definition), it's dead CSS, and this component doesn't
+ * render it.
  *
- * 色值核对(不在这里铺开写十六进制字面量——本文件裸颜色字面量守卫不剥注释,见文件
- * 头部说明):背景与描边分别取本文件早前 .cv-iso-btn/.cv-cpu-btn 等处已经在用的
- * --kvm-field-bg / --kvm-field-border 两个既有 token,字色取 --kvm-fg-dim,
- * hover 态的红色取 --kvm-danger——四个 token 的字面量逐一核对过与 Vue2 源文件这段
- * 规则的四个颜色值完全一致,不是新增 token 也不是巧合撞色。
+ * Color verification (no hex literals here—see file header notes about this file's
+ * bare color guard not stripping comments): background and border reuse two existing
+ * tokens from earlier in this file (.cv-iso-btn / .cv-cpu-btn etc.):
+ * --kvm-field-bg / --kvm-field-border. Text color uses --kvm-fg-dim. Hover state's
+ * red uses --kvm-danger. All four token values verified against the four color
+ * literals in Vue2's rule—no new tokens, not a color collision.
  * ════════════════════════════════════════════════════════════════════ */
 .cv-iso-eject {
   width: 2.5rem;
@@ -2065,52 +2202,63 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════
- * Task 10:快照 tab。视觉 1:1 对 Vue2 KVMFullPage 组件样式 .cv-empty-state
- * (:2940-2959)+ `.snapshots-body` 内嵌的 .cv-snapshot-item/.cv-btn 规则
- * (:2969-3090)。「创建快照」主按钮复用本文件早前已有的 .cv-primary-btn(Task 1
- * 已搬过,与 Vue2 `snapshots-body` 里那条「button 类且 is-primary 类」规则
- * (:2724-2737)逐字同款,这里不重复定义。注:本段刻意不把类名连写成点前缀选择器——
- * 本文件类名白名单扫描器会把写在注释里的裸类名也当成"出现过的类名"扫描,同上面
- * `.cv-primary-btn` 那条注释、以及 Task 9 已有的先例(ejected-text 那条注释)一样的
- * 写法。
+ * Task 10: Snapshots tab. Visual 1:1 match to Vue2 KVMFullPage component styles:
+ * .cv-empty-state (:2940-2959) + .cv-snapshot-item / .cv-btn rules nested inside
+ * `.snapshots-body` (:2969-3090). The "Create Snapshot" primary button reuses the
+ * existing .cv-primary-btn from earlier in this file (carried in Task 1, identical
+ * to Vue2's snapshots-body "button element carrying the is-primary class" rule
+ * (:2724-2737); no duplication here.
+ * Note: class names intentionally not written as dot-prefixed selectors here—this
+ * file's class-name whitelist scanner treats bare class names even in comments as
+ * "appeared". Same technique as the `.cv-primary-btn` comment above and the prior
+ * ejected-text example in Task 9.
  *
- * **不搬**两块死 CSS(2026-08-03 grep 确认模板零命中,类名同样不连写点前缀选择器):
- * - `cv-btn-create`(Vue2 :3049-3058)——「创建快照」按钮是 `b-button
- *   type="is-primary" rounded`,从未用过这个类。
- * - `cv-snapshot-list`(Vue2 :2962-2966)——模板里没有任何元素带这个类。
- * 也**不搬** `cv-snapshot-info` 内层嵌套的那条 `cv-field { margin-bottom... }`
- * 规则(Vue2 :2991-2996)——那条选择器要求 `cv-snapshot-info` 内部还有一层
- * `cv-field` 元素,但模板里 `cv-snapshot-info` 直接装三个 span,没有嵌套 `cv-field`,
- * 同样是死 CSS。
+ * **Do NOT carry over** two dead CSS blocks (grep confirmed zero template matches
+ * 2026-08-03; class names also not written dot-prefixed):
+ * - `cv-btn-create` (:3049-3058)—the "Create Snapshot" button is `b-button
+ *   type="is-primary" rounded`; this class is never used.
+ * - `cv-snapshot-list` (:2962-2966)—no template elements have this class.
+ * Also do NOT carry the nested `cv-field { margin-bottom... }` rule inside
+ * `cv-snapshot-info` (:2991-2996)—that selector requires a `cv-field` element
+ * nested inside `cv-snapshot-info`. In the template `cv-snapshot-info` directly
+ * holds three <span> elements, no nested `cv-field`. Also dead CSS.
  *
- * 色值核对(**不铺开写十六进制字面量**——本文件裸颜色字面量守卫是逐行扫描、不剥注释,
- * 写进注释一样会被判违规,任务报告里有逐条字面量核对表):`.cv-empty-state` 背景/边框/
- * 字色分别取本文件早前已在用的既有 token --kvm-field-bg / --kvm-field-border /
- * --kvm-fg-faint,与 Vue2 这条规则的三个颜色值逐一核对一致;`.cv-snapshot-item` 背景取
- * 新 token --kvm-snapshot-bg、边框复用既有 --kvm-field-border(Vue2 这条规则用的深灰
- * 字面量与 --kvm-field-elev 同值,但 --kvm-field-border 在视觉上已经是本文件到处在用的
- * "卡片描边"语义,两个深灰字面量在这个深色底上几乎无法辨识差异,复用既有 token 不新增
- * 一个几乎重复的深灰 token)、hover 边框取既有 --kvm-accent、hover 背景取新 token
- * --kvm-snapshot-hover;名称字色取既有 --kvm-modal-fg(Vue2 写纯白,深色卡片上与
- * --kvm-modal-fg 的浅灰视觉无差,复用既有"卡片内主文字"语义 token 不新增)、描述字色
- * 取新 token --kvm-snapshot-desc-fg、日期字色取新 token --kvm-snapshot-date-fg。
- * ⚠️ Task 11 收尾订正:上一句"边框复用既有 --kvm-field-border"/"名称字色取既有
- * --kvm-modal-fg" 两处评审判为 Minor 偏离(字面量不是 1:1),已改成 --kvm-field-elev /
- * 新 token --kvm-snapshot-name-fg,理由见 .cv-snapshot-item / .cv-snapshot-name 规则
- * 自身紧邻的注释,这里的历史记录保留不删,免得抹掉评审轨迹。
- * `.cv-btn-restore` 底/hover 底/disabled 底分别取新 token --kvm-restore-bg /
- * --kvm-restore-bg-hover / --kvm-restore-disabled-bg;字色复用既有 --kvm-on-accent。
- * `.cv-btn-delete` 底复用既有 --kvm-danger(与 Vue2 这条规则的字面量恰好相同,不是
- * 巧合——本文件早前给控制台状态点/横幅错误色定义这个 token 时就是照抄同一个 Vue2 全局
- * 红),hover 底取新 token --kvm-delete-bg-hover。以上 --kvm-snapshot-* /
- * --kvm-restore-* / --kvm-delete-bg-hover 六个 token 均已在 theme sp9 分片里预先定义好
- * (Task 1 起的历史遗留,该分片注释里写明"后续任务再消费"),这里是第一次被实际消费,
- * 不是新增 token。
+ * Color verification (**no hex literals here**—this file's bare color guard scans
+ * line-by-line without stripping comments, so they trigger false positives; task
+ * report has a full color-by-color verification table). `.cv-empty-state` background/
+ * border/text use existing tokens --kvm-field-bg / --kvm-field-border / --kvm-fg-faint,
+ * verified against Vue2's three colors. `.cv-snapshot-item` background uses new token
+ * --kvm-snapshot-bg; border reuses existing --kvm-field-border (Vue2's rule uses a
+ * dark gray literal that matches --kvm-field-elev numerically, but --kvm-field-border
+ * is already the "card border" semantic used throughout this file; the two dark grays
+ * are nearly indistinguishable on this dark background, so we reuse the token rather
+ * than add a near-duplicate gray). Hover border uses --kvm-accent; hover background
+ * uses new token --kvm-snapshot-hover. Snapshot name text uses existing
+ * --kvm-modal-fg (Vue2 writes pure white; on a dark card --kvm-modal-fg's light gray
+ * looks identical; we reuse the existing "main text in card" semantic token rather
+ * than add a new one). Description text uses new token --kvm-snapshot-desc-fg. Date
+ * text uses new token --kvm-snapshot-date-fg.
+ * ⚠️ Task 11 wrap-up correction: The prior sentences "border reuses
+ * --kvm-field-border" and "name text uses --kvm-modal-fg" were review-flagged as
+ * Minor deviations (color literals not 1:1); corrected to --kvm-field-elev and new
+ * token --kvm-snapshot-name-fg. Rationale in the comment directly next to
+ * .cv-snapshot-item / .cv-snapshot-name rules. History preserved here to keep
+ * review trail intact.
+ * `.cv-btn-restore` background/hover background/disabled background use new tokens
+ * --kvm-restore-bg / --kvm-restore-bg-hover / --kvm-restore-disabled-bg respectively;
+ * text reuses existing --kvm-on-accent. `.cv-btn-delete` background reuses existing
+ * --kvm-danger (matches Vue2's literal exactly, not coincidence—we defined this token
+ * earlier for console status dots and banner error color by copying that same Vue2
+ * global red); hover background uses new token --kvm-delete-bg-hover. All six tokens
+ * (--kvm-snapshot-* / --kvm-restore-* / --kvm-delete-bg-hover) were pre-defined in
+ * the theme sp9 shard (historical carryover from Task 1, noted in that shard's comments
+ * as "consumed by later tasks"). This is their first actual consumption, not new tokens.
  *
- * ⚠️ 硬约束 4 高危点:`.cv-btn` 基类本身**没有**定义 `:hover` 规则(与 Vue2 源文件一致,
- * 只有两个变体 `.cv-btn-restore`/`.cv-btn-delete` 各自带 hover)——因此不存在
- * "基类 hover 特异度压过变体 hover" 的那类坑(newui-css-hover-specificity-trap 记忆
- * 描述的场景要求基类本身有 `:hover`,这里刻意不写,规避得干干净净)。
+ * ⚠️ Hard constraint 4 high-risk point: Base class `.cv-btn` itself **has no** :hover
+ * rule (consistent with Vue2 source; only the two variants `.cv-btn-restore` and
+ * `.cv-btn-delete` each have their own hover)—so there's no "base hover overriding
+ * variant hover" risk here (the newui-css-hover-specificity-trap scenario requires
+ * the base to have :hover; we deliberately don't, so this hazard is cleanly avoided).
  * ════════════════════════════════════════════════════════════════════ */
 .cv-empty-state {
   display: flex;
@@ -2128,16 +2276,21 @@
   font-size: 0.8rem;
 }
 
-/* Task 11 收尾修复(评审 Minor a,不铺开写十六进制字面量——本文件裸颜色字面量守卫逐行
- * 扫描、不剥注释):Vue2 这条规则(:2976)的边框深灰字面量,`--kvm-field-elev` 恰好就是
- * 这个字面量(theme sp9 分片,本文件早前 .cv-cpu-btn 等处已经在用同一个 token),之前
- * 误用了 --kvm-field-border(另一个视觉上几乎无法区分但字面量不是 1:1 的深灰),换成
- * 精确对应的既有 token,零新增成本。 */
-/* 全分支评审补申报(C1):Vue2 这条规则(:2977)的 transition 是 `all 0.2s`,这里窄化成
- * 只列 border-color/background-color 两条——本次评审核实过这条选择器 hover 只改这两个
- * 属性(见 :2121 的 hover 规则),不像 `.cv-btn` 那条(Minor c,已在上面 :2175-2181 的
- * 注释里修过)会漏掉 opacity 之类的其它过渡属性,所以**行为保持不动**,这里只是把
- * "窄化"这件事本身补一句申报,免得下次复核时误判成又一处未申报的偏离。 */
+/* Task 11 wrap-up fix (review Minor a; no hex literals here—this file's bare color
+ * guard scans line-by-line without stripping comments): Vue2's rule (:2976) uses a
+ * dark gray border literal. `--kvm-field-elev` is exactly that literal (theme sp9
+ * shard; already in use earlier at .cv-cpu-btn etc.), but it was previously
+ * mistakenly swapped for --kvm-field-border (another dark gray, visually almost
+ * indistinguishable but not 1:1 literal). Now corrected to the precisely matching
+ * existing token—zero new cost.
+ */
+/* Full-branch review addendum declaration (C1): Vue2's rule (:2977) has
+ * transition: `all 0.2s`. Here narrowed to just `border-color/background-color`.
+ * Review verified this selector's hover only changes those two properties (see :2121's
+ * hover rule), unlike `.cv-btn` (Minor c, already fixed in the comment above at
+ * :2175-2181) which would miss opacity and other transition properties. So **behavior
+ * is unchanged**. This is just an after-the-fact declaration that the narrowing
+ * happened, to avoid future review mistaking it for an undeclared deviation. */
 .snapshots-body .cv-snapshot-item {
   display: flex;
   justify-content: space-between;
@@ -2161,15 +2314,17 @@
   flex-direction: column;
 }
 
-/* Task 11 收尾修复(评审 Minor b,不铺开写十六进制字面量——同上一条理由):Vue2 这条
- * 规则(:3003)的字色是纯白字面量——之前误用了 --kvm-modal-fg(浅灰,不是纯白)。
- * --kvm-on-accent 的值恰好也是纯白,但它的语义是「强调色实底上的前景色」(消费处如
- * .cv-btn-restore/.cv-btn-delete 都是纯色按钮上的文字),拿来给 --kvm-snapshot-bg
- * (深灰卡片底,不是强调色)上的普通文字复用,语义不贴合——判断:新增一个语义正确的
- * token,而不是借用 on-accent。命名跟随本文件已有的 --kvm-snapshot-desc-fg/
- * --kvm-snapshot-date-fg 同一族(均是"快照卡片内某行文字的颜色"),两个主题块同值
- * (KVM 区固定深色,见文件头与 theme sp9 分片注释),已同步进 theme sp9 分片测试文件的
- * 24 个 token 清单。 */
+/* Task 11 wrap-up fix (review Minor b; no hex literals—same reason as above):
+ * Vue2's rule (:3003) uses a pure white text literal. Previously mistakenly swapped
+ * for --kvm-modal-fg (light gray, not pure white). --kvm-on-accent's value is also
+ * pure white, but its semantic is "foreground on solid accent background" (used at
+ * places like .cv-btn-restore / .cv-btn-delete, text on solid color buttons). Reusing
+ * it for regular text on --kvm-snapshot-bg (dark gray card, not accent-colored)
+ * doesn't fit the semantic. Decision: add a new token with correct semantics, not
+ * reuse on-accent. Naming follows the existing --kvm-snapshot-desc-fg /
+ * --kvm-snapshot-date-fg family (all "some line of text in a snapshot card"), same
+ * values in both theme blocks (KVM area is fixed dark; see file header and theme sp9
+ * shard comments). Synced into the theme sp9 shard's test file's 24-token inventory. */
 .snapshots-body .cv-snapshot-name {
   display: block;
   font-size: 0.95rem;
@@ -2187,10 +2342,12 @@
   white-space: normal;
 }
 
-/* 全分支评审修复(C2):Vue2 这条规则(:3021-3022)还有 `text-decoration: none` 与
- * `cursor: default` 两条声明,之前漏搬——`cursor` 是可观察的差异,鼠标移到「创建于: …」
- * 这行文字上,漏了这条规则会显示浏览器默认的 I 形文本光标(看起来像可选中/可编辑的
- * 文本框),Vue2 显示的是普通箭头指针。补上,不是新增视觉,是补齐原本就该有的两条。 */
+/* Full-branch review fix (C2): Vue2's rule (:3021-3022) has two more declarations:
+ * `text-decoration: none` and `cursor: default`. Both were previously omitted—
+ * `cursor` is an observable difference. Mousing over the "Created: …" line without
+ * this rule shows the browser's default I-beam text cursor (looks selectable/editable),
+ * while Vue2 shows a regular arrow pointer. Add both; not new visuals, just completing
+ * what should have been there all along. */
 .snapshots-body .cv-snapshot-date {
   display: block;
   font-size: 0.725rem;
@@ -2209,13 +2366,14 @@
   justify-content: center;
 }
 
-/* Task 11 收尾修复(评审 Minor c):Vue2 这条规则(:3046)是 `transition: all 0.2s`,
- * 之前窄化成 `background-color 0.2s, border-color 0.2s` 且首轮未申报——实际影响:
- * `.cv-btn-restore:disabled` 的 `opacity: 0.4` 在 Vue2 下随 all 一起渐变,窄化后会瞬间
- * 跳变(VM 状态切换导致按钮启用/禁用时肉眼可见)。按硬约束"未申报的偏离即缺陷"收掉,
- * 选择改回 `all 0.2s` 与 Vue2 完全一致——没有已知理由需要窄化 transition 范围(不像
- * 其它 all→拆分的地方那样是为了避开某个不该过渡的属性),照抄最简单也最不会有下一次
- * 遗漏。 */
+/* Task 11 wrap-up fix (review Minor c): Vue2's rule (:3046) is `transition: all 0.2s`.
+ * Previously narrowed to `background-color 0.2s, border-color 0.2s` with no declaration—
+ * real impact: `.cv-btn-restore:disabled`'s `opacity: 0.4` animates together with `all`
+ * in Vue2, but snaps instantly after narrowing (visible jump when button toggles
+ * enabled/disabled on VM state change). Per hard constraint "undeclared deviation is a
+ * bug", fixed by reverting to `all 0.2s` to exactly match Vue2. No known reason to narrow
+ * transition scope here (unlike other all→split cases where we skip an unwanted property).
+ * Copying verbatim is simpler and less likely to miss something next time. */
 .cv-btn {
   display: flex;
   align-items: center;

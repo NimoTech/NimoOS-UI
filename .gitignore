@@ -1,28 +1,29 @@
 node_modules
 dist
 
-# Claude Code 本地状态(隔离 worktree、会话配置),不入库
+# Claude Code local state (isolated worktrees, session config) — not committed
 .claude/
-# .superpowers/ **入库** —— 台账是各期唯一的决策记录。SP7 曾把整个目录弄丢且 git 救不回,
-# SP9-P7 又发现 P5/P6 的台账只活在 gitignore 里。规则见 .superpowers/.gitignore:
-# 台账(.md)与自查截图(.png)进库,评审 diff / 备份 / 快照环境这类机器产物不进。
+# .superpowers/ IS committed — the ledgers are the only decision record per sprint. SP7 once
+# lost the whole directory with no git recovery, and SP9-P7 found the P5/P6 ledgers only
+# existed in gitignore. Rules live in .superpowers/.gitignore:
+# ledgers (.md) and self-check screenshots (.png) go in; review diffs / backups / snapshot-env machine artifacts stay out.
 
-# 环境变量/本地配置(可能含密钥,永不入库)
+# Env vars / local config (may contain secrets, never committed)
 .env
 .env.*
 *.local
 
-# 测试覆盖率、类型检查增量缓存、日志
+# Test coverage, incremental type-check cache, logs
 coverage/
 *.tsbuildinfo
 pnpm-debug.log*
 npm-debug.log*
 
-# 系统/编辑器杂物
+# System / editor junk
 .DS_Store
 .idea/
 
-# 时间机器验收测试台(T12):假后端 + 专用 vite 配置,只在本机验收用,不进版本库
+# Time-machine acceptance test bench (T12): fake backend + dedicated vite config, local acceptance only, not versioned
 scripts/tmlab/
 vite.config.tmlab.ts
 

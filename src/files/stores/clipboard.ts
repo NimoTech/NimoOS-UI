@@ -21,7 +21,7 @@ export const useClipboardStore = defineStore('files-clipboard', () => {
     operateObject.value = { type, item: entries.map((e) => ({ from: e.path, is_dir: !!e.is_dir })) }
   }
 
-  // 仅剪切(move)且命中才灰显;复制不灰显(移植 Vue2 getCardState)
+  // Only dim (gray out) when cut (move) and matched; do not dim for copy (ported from Vue2 getCardState)
   function isCut(realPath: string): boolean {
     const o = operateObject.value
     return !!o && o.type === 'move' && o.item.some((i) => i.from === realPath)

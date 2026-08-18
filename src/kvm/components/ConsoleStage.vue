@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// 控制台画布宿主(VNC 画布挂载点)+ 占位层(错误提示 / 开机·恢复大按钮)。
-// 视觉 1:1 对 Vue2 components/KVM/KVMFullPage.vue `.console-display`/`.console-placeholder`
-// 那段模板(:154-192,2026-08-02 核对)。真正的 RFB 生命周期归 useVncConsole.ts,本组件
-// 只负责给它一个稳定的挂载点(hostEl)+ 渲染"没连上时该显示什么"。
+// Console canvas host (VNC canvas mount point) + placeholder layer (error message / power on/resume large buttons).
+// Visual 1:1 correspondence with Vue2 components/KVM/KVMFullPage.vue `.console-display`/`.console-placeholder`
+// that template section (:154-192, verified 2026-08-02). The actual RFB lifecycle belongs to useVncConsole.ts, this component
+// is only responsible for providing it a stable mount point (hostEl) + rendering "what should be shown when not connected".
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { KvmVM } from '@nimotech/nimoos-service'
@@ -12,21 +12,22 @@ import playIcon from '../assets/play.svg'
 const props = defineProps<{
   vm: KvmVM
   connected: boolean
-  /** 可能是 i18n key(如 'kvmVncFetchFailed'),也可能是已经解析好的原文——
-   * 两种情况都交给下面的 errorText 用 te()/t() 统一判定,同 KvmPage 里 lastErrorText
-   * 的既有写法(P5 evaluation 已定的约定)。 */
+  /** Can be either an i18n key (e.g. 'kvmVncFetchFailed') or already-parsed raw text —
+   * both cases are passed to errorText below to be uniformly determined via te()/t(), same as
+   * the existing pattern of lastErrorText in KvmPage (P5 evaluation established convention). */
   errorKey: string
   processing: boolean
 }>()
 
-// consoleEnter/consoleLeave/consoleMove(Task 7,评审修复):把 `.console-display` 上的
-// 鼠标事件转发给父组件(KvmPage),父组件驱动 SendKey 悬浮工具条的显隐状态机。
-// ⚠️ 架构订正(评审 Important #1):Task 7 最初版本用 `<Teleport :to="hostEl">` +
-// 父组件里手写 `addEventListener` 把工具条"塞"进这个节点,理由是 brief 的 Files 清单
-// 没列 ConsoleStage.vue。评审指出这是过度谨慎——brief 清单是"预计会改哪些"而不是禁止
-// 改动的边界,而"加一个 slot + 转发三个鼠标事件"比 Teleport + 手写生命周期管理更简单、
-// 风险面更小(不需要再自己维护"节点变化时摘/挂监听"这一整套,框架的插槽/事件系统本身
-// 就保证了这一点)。改这里而不是父组件手写监听,是回到了最直接的方案。
+// consoleEnter/consoleLeave/consoleMove (Task 7, review fix): forward mouse events on `.console-display`
+// to the parent component (KvmPage), which drives the show/hide state machine of the SendKey floating toolbar.
+// ⚠️ Architecture correction (review Important #1): initial version of Task 7 used `<Teleport :to="hostEl">` +
+// manually written `addEventListener` in parent to "stuff" the toolbar into this node, the reason was that brief's Files list
+// did not include ConsoleStage.vue. Review pointed out this was overly cautious — brief's list is "anticipated changes"
+// not a boundary prohibiting modifications, and "add a slot + forward three mouse events" is simpler than Teleport +
+// manually written lifecycle management, with smaller risk surface (no need to manually maintain "remove/attach listener when node changes"
+// this whole set, the framework's slot/event system itself guarantees it). Changing here rather than parent's manual listening
+// is returning to the most direct approach.
 const emit = defineEmits<{
   start: []
   resume: []
@@ -39,15 +40,15 @@ const { t, te } = useI18n()
 
 const errorText = computed(() => (props.errorKey && te(props.errorKey)) ? t(props.errorKey) : props.errorKey)
 
-// 评审 Minor 登记(未申报偏离,补注册):Vue2 这两个 <img alt> 是字面英文
-// "Power"/"Play"(KVMFullPage.vue:178/188),这里换成了 t('kvmPowerOn')/t('kvmResume')
-// (随语言切换、且与按钮自己的 aria-label 保持一致,不会出现"屏幕阅读器读中文、alt 读
-// 英文"的割裂)。两个按钮的 `type="button"` 也是新增——Vue2 那两个 <button> 没有显式
-// type,本仓库其它按钮(ConsoleHeader/OverflowMenu)都写了 type="button" 防止意外提交
-// 表单,这里补齐同款惯例。均为无害改进,不回退。
+// Review Minor registration (unreported deviation, supplementary registration): Vue2's two <img alt>
+// are literal English "Power"/"Play" (KVMFullPage.vue:178/188), here changed to t('kvmPowerOn')/t('kvmResume')
+// (switches with language and keeps consistent with the button's own aria-label, avoiding "screen reader reads Chinese
+// alt reads English" mismatch). The `type="button"` on both buttons is also new — Vue2's two <button> have no explicit
+// type, other buttons in this repository (ConsoleHeader/OverflowMenu) all write type="button" to prevent accidental form submission,
+// here we complete the same convention. All harmless improvements, not reverted.
 
-// 这个 div 就是 Vue2 `ref="consoleDisplay"` 那个节点——noVNC 把 canvas 挂进这里,
-// useVncConsole 也从这里清残留 canvas。expose 给父组件(KvmPage)转交给 useVncConsole。
+// This div is the Vue2 `ref="consoleDisplay"` node — noVNC mounts the canvas here,
+// useVncConsole also clears residual canvas from here. Exposed to parent component (KvmPage) which passes it to useVncConsole.
 const hostEl = ref<HTMLElement | null>(null)
 defineExpose({ hostEl })
 </script>
@@ -89,8 +90,8 @@ defineExpose({ hostEl })
         </button>
       </template>
     </div>
-    <!-- SendKey 悬浮工具条(Task 7)从这里作为 slot 内容传入,DOM 层级与 Vue2 完全一致
-         (工具条是 `.console-display` 的直接子节点),定位基准仍是本组件的 hostEl。 -->
+    <!-- SendKey floating toolbar (Task 7) is passed in from here as slot content, DOM hierarchy is identical
+         to Vue2 (toolbar is direct child of `.console-display`), positioning reference is still this component's hostEl. -->
     <slot />
   </div>
 </template>

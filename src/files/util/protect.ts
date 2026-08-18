@@ -1,7 +1,6 @@
 import type { FileEntry } from '../stores/files'
-import { isAlreadyShared } from './shareGate'
 
-// Vue2 把这份列表抄在 mixin/ContextMenu/FilePanel 共 5 处;New-UI 收拢一处。
+// Vue2 copied this list to 5 places: mixin/ContextMenu/FilePanel; New-UI consolidates into one place.
 export const PROTECTED = ['AppData', 'Documents', 'Downloads', 'Gallery', 'Media']
 
 // Splits an upload batch into the entries the queue will actually accept and
@@ -38,10 +37,12 @@ export function operableEntries(entries: FileEntry[]): { targets: FileEntry[]; s
   return { targets, skipped: entries.length - targets.length }
 }
 
-// 可否对该项做重命名/删除/剪切等破坏性操作。复制/下载/收藏不走这里。
+// Whether the item can be renamed/deleted/cut and other destructive operations. Copy/download/favorite don't go through here.
 export function canOperate(entry: FileEntry): boolean {
-  if (entry.is_dir && PROTECTED.includes(entry.name)) return false // 系统默认文件夹
-  if (isAlreadyShared(entry)) return false // 已分享
-  if ((entry.extensions as { mounted?: boolean } | null | undefined)?.mounted) return false // 挂载点
+  if (entry.is_dir && PROTECTED.includes(entry.name)) return false // system default folder
+  // Shared ≠ protected (bug.txt #7): backend cleans up shares during deletion (DeleteShareByPath),
+  // rename has RewriteSharePathPrefix; Vue2 only hides the entry in the right-click menu, never blocks the operation.
+  // Used to include it in this gate, which caused shared folders on RAID to be mysteriously unable to be deleted.
+  if ((entry.extensions as { mounted?: boolean } | null | undefined)?.mounted) return false // mount point
   return true
 }

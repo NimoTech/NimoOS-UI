@@ -1,7 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 
-// 模块级单例:全应用一份;localStorage 'arch' 与 Vue2 同 key(同源共享缓存,AppPanel.vue:378 同款)
+// Module-level singleton: one per app; localStorage 'arch' uses the same key as Vue2 (shared cache across origins, same as AppPanel.vue:378)
 const arch = ref('')
 let started = false
 
@@ -28,13 +28,13 @@ export function useDeviceArch(): {
     }
   }
 
-  /** Vue2 unuseable 同语义:应用未声明架构 or 本机 arch 未知 → 不禁用(宽容) */
+  /** Same semantics as Vue2 isCompatible: if the app declares no architectures or device arch is unknown → allow it (lenient). */
   function isCompatible(architectures?: string[]): boolean {
     if (!arch.value || !Array.isArray(architectures) || !architectures.length) return true
     return architectures.includes(arch.value)
   }
 
-  // Vue2 archTitle 对齐:arm 的用户可见名是 armv7
+  // Aligned with Vue2 archTitle: arm's user-visible name is armv7
   const archLabel = computed(() => (arch.value === 'arm' ? 'armv7' : arch.value))
 
   return { arch, archLabel, isCompatible }

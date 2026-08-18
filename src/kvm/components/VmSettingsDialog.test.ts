@@ -6,7 +6,7 @@ import { i18n } from '../../i18n'
 import type { SelectedOs } from './OsSelector.vue'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
-// 真机 2026-08-03 curl 数据(brief 指定,fixture 不手编)。
+// Real device 2026-08-03 curl data (brief-specified, not hand-coded).
 const HOST = { cpuCores: 6, availableMemoryMB: 9234, availableDiskGB: 263, networkInterfaces: ['enp2s0', 'enp4s0', 'wlp1s0'], defaultDiskSize: 20 }
 const VM = (over: Partial<KvmVM> = {}): KvmVM => ({
   id: 'e939191c-2bd2-4f14-88c9-0bf05d3b4d40', name: 'sp9-alpine-test', uuid: 'u',
@@ -21,14 +21,14 @@ const OS = (over: Partial<SelectedOs> = {}): SelectedOs => ({
 })
 
 let w: VueWrapper | null = null
-// 同 CreateVmDialog.test.ts / KvmGlobalSettingsDialog.test.ts 的既有写法:reka-ui 2.10
-// 的 DialogPortal/DialogContent 首次挂载要等下一个 microtask(nextTick)才把内容真正
-// 落地到 document.body。
+// Same pattern as CreateVmDialog.test.ts / KvmGlobalSettingsDialog.test.ts: in reka-ui 2.10,
+// DialogPortal/DialogContent on first mount requires waiting for the next microtask (nextTick)
+// before the content is actually rendered into document.body.
 const mk = async (props: Record<string, unknown> = {}) => {
   w = mount(VmSettingsDialog, {
     props: {
       open: true, vm: VM(), host: HOST, selectedOs: null, saving: false, submitError: '',
-      // P6 Task 10:快照 tab 的默认插槽内容(真实 SnapshotsTab)需要的三样。
+      // P6 Task 10: Three props required by the default slot content of snapshots tab (real SnapshotsTab).
       snapshots: [], snapshotsBusy: false, snapshotSubmitError: '',
       ...props,
     },
@@ -46,14 +46,14 @@ const setVal = async (wr: VueWrapper, sel: string, v: string) => {
 }
 
 describe('VmSettingsDialog', () => {
-  // 覆盖点 1:标题
-  it('标题是「虚拟机设置 - <vm.name>」', async () => {
+  // Coverage point 1: title
+  it('Title is "VM Settings - <vm.name>"', async () => {
     await mk({ vm: VM({ name: 'sp9-alpine-test' }) })
     expect(q('.create-vm-title').textContent).toContain('虚拟机设置 - sp9-alpine-test')
   })
 
-  // 覆盖点 2:两个 tab,默认 general 高亮;点快照 emit tab-change 并渲染 snapshots 插槽
-  it('两个 tab 按钮,默认 general 高亮;点快照 emit tab-change 并渲染 snapshots 插槽内容', async () => {
+  // Coverage point 2: two tabs, general highlighted by default; clicking snapshots emits tab-change and renders snapshots slot
+  it('Two tab buttons, general highlighted by default; clicking snapshots emits tab-change and renders snapshots slot content', async () => {
     const wr = mount(VmSettingsDialog, {
       props: {
         open: true, vm: VM(), host: HOST, selectedOs: null, saving: false, submitError: '',
@@ -69,8 +69,8 @@ describe('VmSettingsDialog', () => {
     expect(tabs[1].textContent).toContain('快照')
     expect(tabs[0].classList.contains('active')).toBe(true)
     expect(tabs[1].classList.contains('active')).toBe(false)
-    // v-show 不会把元素从 DOM 里摘掉,只切 display——用 style.display 断言可见性,
-    // 不能用"查得到/查不到"(querySelector 对 display:none 元素照样查得到)。
+    // v-show does not remove the element from DOM, only toggles display — use style.display to assert visibility,
+    // cannot use querySelector presence check (querySelector finds elements with display:none too).
     expect((q('.snapshots-body') as HTMLElement).style.display).toBe('none')
 
     tabs[1].click()
@@ -84,24 +84,25 @@ describe('VmSettingsDialog', () => {
     wr.unmount()
   })
 
-  // 覆盖点 3:General 回填(name/disk/memory/vcpu/networkMode/firmware),networkMode 映射
-  it('General 回填:name/disk/memory/vcpu 格子/firmware 来自 props.vm', async () => {
+  // Coverage point 3: General refill (name/disk/memory/vcpu/networkMode/firmware), networkMode mapping
+  it('General refill: name/disk/memory/vcpu grid/firmware from props.vm', async () => {
     await mk({ vm: VM({ name: 'my-vm', disk: 16, memory: 2048, vcpu: 3, firmware: 'uefi' }) })
     expect((q('input[name="name"]') as HTMLInputElement).value).toBe('my-vm')
     expect((q('input[name="disk"]') as HTMLInputElement).value).toBe('16')
     expect((q('input[name="memory"]') as HTMLInputElement).value).toBe('2048')
-    // 断言总格子数(=host.cpuCores=6)而不仅是 active 数——与下面「cpuCores=0 时不渲染
-    // 格子」那条搭配起来,才能真正区分"正确按 host.cpuCores 渲染"与"格子数量写死"两种
-    // 实现(否则那条 cpuCores=0 用例在任何一个恒渲染 0 个格子的坏实现下都会假阳性通过)。
+    // Assert total grid count (=host.cpuCores=6) rather than just active count — combined with the
+    // "no grids rendered when cpuCores=0" test below, this truly distinguishes between "correctly
+    // render by host.cpuCores" and "hardcoded grid count" implementations (otherwise the cpuCores=0
+    // test would falsely pass on any broken implementation that always renders 0 grids).
     expect(qa('.cv-cpu-btn')).toHaveLength(6)
     expect(qa('.cv-cpu-btn').filter((c) => c.classList.contains('active')).length).toBe(3)
-    // 固件断言取 uefi(非默认值 bios)——避免"默认就是 bios"的永真断言(硬约束 15)。
+    // Firmware assertion uses uefi (non-default value bios) — avoid tautology assertion "default is bios" (hard constraint 15).
     const [uefiBtn, biosBtn] = qa('.cv-firmware-btn')
     expect(uefiBtn.classList.contains('active')).toBe(true)
     expect(biosBtn.classList.contains('active')).toBe(false)
   })
 
-  it('networkMode 映射:bridge+networkInterface → 回填网卡名;bridge+空 networkInterface → 回填 nat;nat → 回填 nat(照 Vue2 :1215)', async () => {
+  it('networkMode mapping: bridge+networkInterface → refill NIC name; bridge+empty networkInterface → refill nat; nat → refill nat (per Vue2 :1215)', async () => {
     const bridged = await mk({ vm: VM({ networkMode: 'bridge', networkInterface: 'enp2s0' }) })
     expect((q('.cv-select-native') as HTMLSelectElement).value).toBe('enp2s0')
     bridged.unmount()
@@ -114,8 +115,8 @@ describe('VmSettingsDialog', () => {
     expect((q('.cv-select-native') as HTMLSelectElement).value).toBe('nat')
   })
 
-  // 覆盖点 4:磁盘输入框 disabled,label 旁显示已使用百分比;0 与非 0 两种取值
-  it('磁盘输入框 disabled,旁边显示 Math.round(diskUsedPercent)% 已使用', async () => {
+  // Coverage point 4: disk input disabled, label shows used percentage; both 0 and non-0 values
+  it('Disk input disabled, shows Math.round(diskUsedPercent)% used next to it', async () => {
     const wr = await mk({ vm: VM({ diskUsedPercent: 0 }) })
     expect((q('input[name="disk"]') as HTMLInputElement).disabled).toBe(true)
     expect(q('.cv-hint').textContent).toContain('0% 已使用')
@@ -125,8 +126,8 @@ describe('VmSettingsDialog', () => {
     expect(q('.cv-hint').textContent).toContain('43% 已使用')
   })
 
-  // 覆盖点 5:ISO 行显示路径/占位文案,点击 emit open-os-selector
-  it('ISO 行:有值显示路径,空显示占位文案;点击 emit open-os-selector', async () => {
+  // Coverage point 5: ISO row shows path/placeholder, clicking emits open-os-selector
+  it('ISO row: shows path when set, shows placeholder when empty; clicking emits open-os-selector', async () => {
     const withIso = await mk({ vm: VM({ iso: '/DATA/KVM/isos/alpine-319.iso' }) })
     expect(q('.cv-iso-btn').textContent).toContain('/DATA/KVM/isos/alpine-319.iso')
     withIso.unmount()
@@ -138,20 +139,20 @@ describe('VmSettingsDialog', () => {
     expect(noIso.emitted('open-os-selector')).toHaveLength(1)
   })
 
-  // 覆盖点 6:弹出/挂载双态按钮
-  it('bootFromDisk=false 显示"弹出"按钮,点击后切到硬盘引导并清空 iso', async () => {
+  // Coverage point 6: eject/mount dual-state button
+  it('bootFromDisk=false shows "Eject" button, clicking toggles to disk boot and clears iso', async () => {
     const wr = await mk({ vm: VM({ bootFromDisk: false, iso: '/DATA/KVM/isos/alpine-319.iso' }) })
     const eject = q('.cv-iso-eject')
     expect(eject.getAttribute('aria-label')).toBe('弹出 ISO')
     eject.click()
     await wr.vm.$nextTick()
-    // bootFromDisk 翻转后按钮应变成"挂载"态,且 ISO 行显示回占位文案(iso 已清空)——
-    // 这两个可观察效果合起来才能证明 `bootFromDisk=true; iso=''` 真的都执行了。
+    // After bootFromDisk flips, button should change to "Mount" state and ISO row shows placeholder (iso cleared) —
+    // these two observable effects together prove that both `bootFromDisk=true; iso=''` were executed.
     expect(q('.cv-iso-eject').getAttribute('aria-label')).toBe('挂载 ISO')
     expect(q('.cv-iso-btn').textContent).toContain('未挂载 ISO')
   })
 
-  it('bootFromDisk=true 显示"挂载"按钮,点击 emit open-os-selector', async () => {
+  it('bootFromDisk=true shows "Mount" button, clicking emits open-os-selector', async () => {
     const wr = await mk({ vm: VM({ bootFromDisk: true, iso: '' }) })
     const mountBtn = q('.cv-iso-eject')
     expect(mountBtn.getAttribute('aria-label')).toBe('挂载 ISO')
@@ -160,17 +161,17 @@ describe('VmSettingsDialog', () => {
     expect(wr.emitted('open-os-selector')).toHaveLength(1)
   })
 
-  // 覆盖点 7:选中 OS 后 iso 变新 path、bootFromDisk 变 false
-  it('选中 OS 后 iso 变成新 path,bootFromDisk 变 false(照 Vue2 :1380-1381)', async () => {
+  // Coverage point 7: after selecting OS, iso becomes new path, bootFromDisk becomes false
+  it('After selecting OS, iso becomes new path, bootFromDisk becomes false (per Vue2 :1380-1381)', async () => {
     const wr = await mk({ vm: VM({ bootFromDisk: true, iso: '' }) })
-    expect(q('.cv-iso-eject').getAttribute('aria-label')).toBe('挂载 ISO') // 起点:硬盘引导态
+    expect(q('.cv-iso-eject').getAttribute('aria-label')).toBe('挂载 ISO') // Starting point: disk boot state
     await wr.setProps({ selectedOs: OS({ path: '/DATA/KVM/isos/debian-13.iso' }) })
     expect(q('.cv-iso-btn').textContent).toContain('/DATA/KVM/isos/debian-13.iso')
-    expect(q('.cv-iso-eject').getAttribute('aria-label')).toBe('弹出 ISO') // bootFromDisk 变回 false
+    expect(q('.cv-iso-eject').getAttribute('aria-label')).toBe('弹出 ISO') // bootFromDisk changed back to false
   })
 
-  // 覆盖点 8:固件两按钮都 disabled,active 类正确反映 vm.firmware
-  it('固件两按钮都 disabled,active 正确反映 vm.firmware(取非默认值 uefi,避免永真断言)', async () => {
+  // Coverage point 8: both firmware buttons disabled, active class correctly reflects vm.firmware
+  it('Both firmware buttons disabled, active correctly reflects vm.firmware (using non-default value uefi, avoid tautology)', async () => {
     await mk({ vm: VM({ firmware: 'uefi' }) })
     const [uefiBtn, biosBtn] = qa('.cv-firmware-btn')
     expect(uefiBtn.hasAttribute('disabled')).toBe(true)
@@ -179,8 +180,8 @@ describe('VmSettingsDialog', () => {
     expect(biosBtn.classList.contains('active')).toBe(false)
   })
 
-  // 覆盖点 9:提交 payload
-  it('提交 emit submit,payload 含 8 个可写字段,networkMode 折算照 Vue2 :1499-1500', async () => {
+  // Coverage point 9: submit payload
+  it('Submit emits submit, payload contains 8 writable fields, networkMode calculation per Vue2 :1499-1500', async () => {
     const wr = await mk({ vm: VM({
       name: 'sp9-alpine-test', vcpu: 2, memory: 1024, disk: 8,
       iso: '/DATA/KVM/isos/alpine-319.iso', bootFromDisk: false, firmware: 'bios',
@@ -189,10 +190,10 @@ describe('VmSettingsDialog', () => {
     await setVal(wr, 'input[name="name"]', 'renamed-vm')
     const sel = q('.cv-select-native') as HTMLSelectElement
     sel.value = 'enp4s0'; sel.dispatchEvent(new Event('change')); await wr.vm.$nextTick()
-    // P6 Task 10 起:`.cv-primary-btn` 不再唯一——snapshots-body 默认插槽内容(真实
-    // SnapshotsTab)里"创建"按钮也是这个类,且 v-show 不移出 DOM,裸 `.cv-primary-btn`
-    // 会先命中它(DOM 顺序在 footer 之前)。必须限定在 `.create-vm-foot` 容器内才是
-    // General tab 的"保存"按钮。
+    // P6 Task 10 onwards: `.cv-primary-btn` is no longer unique — the "Create" button in the snapshots-body default slot
+    // (real SnapshotsTab) also has this class, and v-show doesn't remove from DOM, so bare `.cv-primary-btn`
+    // hits it first (DOM order before footer). Must qualify within `.create-vm-foot` container to target
+    // the General tab "Save" button.
     q('.create-vm-foot .cv-primary-btn').click()
     await wr.vm.$nextTick()
     const payload = wr.emitted('submit')![0][0] as Record<string, unknown>
@@ -206,13 +207,13 @@ describe('VmSettingsDialog', () => {
     expect(payload).not.toHaveProperty('diskUsedPercent')
   })
 
-  // 覆盖点 10:saving=true 时保存按钮 is-loading 且点不动(用合法表单排除校验失败的混淆——
-  // 本组件没有校验失败分支,但同样先证明 saving=false 时确实能提交,排除"表单本身有问题"
-  // 这个混淆因素,再证明 saving=true 时同一份表单不提交,唯一归因于这个守卫本身)。
-  it('saving=true 时主按钮 is-loading 且点不动(防重复提交)', async () => {
+  // Coverage point 10: when saving=true, save button is is-loading and unclickable (use valid form to exclude validation failure confusion —
+  // component has no validation failure branch, but first prove saving=false can submit, excluding "form itself broken"
+  // confusion, then prove saving=true on same form doesn't submit, solely attributing to this guard).
+  it('When saving=true, main button is is-loading and unclickable (prevent double submit)', async () => {
     const ok = await mk({ saving: false })
-    // 同覆盖点 9 的注释:限定在 footer 容器内,避免误点 snapshots-body 默认插槽里
-    // SnapshotsTab 的"创建"按钮(同样是 .cv-primary-btn)。
+    // Same as coverage point 9 note: qualify within footer container, avoid accidentally clicking
+    // SnapshotsTab "Create" button in snapshots-body default slot (also .cv-primary-btn).
     q('.create-vm-foot .cv-primary-btn').click()
     await ok.vm.$nextTick()
     expect(ok.emitted('submit')).toHaveLength(1)
@@ -221,22 +222,22 @@ describe('VmSettingsDialog', () => {
     const busy = await mk({ saving: true })
     const btn = q('.create-vm-foot .cv-primary-btn') as HTMLButtonElement
     expect(btn.classList.contains('is-loading')).toBe(true)
-    // 原生 disabled 本身就会挡掉 `.click()`——用 dispatchEvent 绕开原生拦截,
-    // 才能测到 onSubmit() 内部 `if (props.saving) return` 这道 JS 层守卫本身。
+    // Native disabled already blocks `.click()` — use dispatchEvent to bypass native interception,
+    // to test the JS-level guard `if (props.saving) return` inside onSubmit().
     btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await busy.vm.$nextTick()
     expect(busy.emitted('submit')).toBeUndefined()
   })
 
-  // 覆盖点 11:submitError 内联显示,弹窗不关
-  it('submitError 显示在 .cv-error,弹窗不关(硬约束 7)', async () => {
+  // Coverage point 11: submitError shown inline, dialog doesn't close
+  it('submitError shown in .cv-error, dialog stays open (hard constraint 7)', async () => {
     const wr = await mk({ submitError: 'domain name already exists' })
     expect(q('.cv-error').textContent).toContain('domain name already exists')
     expect(wr.emitted('update:open')).toBeUndefined()
   })
 
-  // 覆盖点 12:重新打开时表单从 props.vm 重新回填,不保留脏值
-  it('重新打开时表单从 props.vm 重新回填(不保留上次的脏值)', async () => {
+  // Coverage point 12: when reopening, form refills from props.vm, no stale values retained
+  it('When reopening, form refills from props.vm (no stale values from previous session)', async () => {
     const wr = await mk({ vm: VM({ name: 'original-name' }) })
     await setVal(wr, 'input[name="name"]', 'dirty-value')
     await wr.setProps({ open: false })
@@ -244,31 +245,31 @@ describe('VmSettingsDialog', () => {
     expect((q('input[name="name"]') as HTMLInputElement).value).toBe('original-name')
   })
 
-  // 覆盖点 13:host.cpuCores=0 时不渲染 CPU 格子
-  it('host.cpuCores=0 时不渲染 CPU 格子', async () => {
+  // Coverage point 13: no CPU grids rendered when host.cpuCores=0
+  it('No CPU grids rendered when host.cpuCores=0', async () => {
     await mk({ host: { ...HOST, cpuCores: 0 } })
     expect(qa('.cv-cpu-btn')).toHaveLength(0)
   })
 
-  // Global Constraint #16:本组件持有本地编辑副本(form),而 useVmList.update 成功后会
-  // 写回选中的 VM 对象——所以"改值→取消(不提交)"绝不能污染 props.vm。
-  it('Global Constraint #16:改了值但点 ✕ 取消,不污染 props.vm', async () => {
+  // Global Constraint #16: component holds local edit copy (form), and useVmList.update after success writes
+  // back to selected VM object — so "edit → cancel (no submit)" must never pollute props.vm.
+  it('Global Constraint #16: after edit but clicking ✕ cancel, props.vm is not polluted', async () => {
     const vm = VM({ name: 'untouched-name', memory: 1024 })
     const wr = await mk({ vm })
     await setVal(wr, 'input[name="name"]', 'edited-but-cancelled')
-    expect((q('input[name="name"]') as HTMLInputElement).value).toBe('edited-but-cancelled') // 确认编辑确实生效
-    q('.create-vm-close').click() // 触发 ✕ 关闭,不经过保存
+    expect((q('input[name="name"]') as HTMLInputElement).value).toBe('edited-but-cancelled') // Verify edit took effect
+    q('.create-vm-close').click() // Trigger ✕ close, not through save
     await wr.vm.$nextTick()
-    expect(vm.name).toBe('untouched-name') // 共享对象未被污染
+    expect(vm.name).toBe('untouched-name') // Shared object not polluted
     expect(vm.memory).toBe(1024)
   })
 
-  // 评审 Important 惯例(本仓库既有约定):foot 只在 general tab 显示(照 Vue2 :387)。
-  // P6 Task 10 起:限定在 `.create-vm-foot` 容器内断言——裸 `.cv-primary-btn` 现在还会
-  // 命中 snapshots-body 里 SnapshotsTab 的"创建"按钮(v-show 不移出 DOM,切到快照 tab
-  // 后那个按钮仍然存在),只有 footer 容器本身才会因为 `v-if="activeTab==='general'"`
-  // 整体消失。
-  it('切到快照 tab 时脚部按钮消失', async () => {
+  // Review Important convention (repo convention): footer shown only in general tab (per Vue2 :387).
+  // From P6 Task 10 onwards: assertions qualified within `.create-vm-foot` container — bare `.cv-primary-btn`
+  // would hit the "Create" button of SnapshotsTab in snapshots-body (v-show does not remove from DOM, so
+  // after switching to snapshots tab that button still exists); only the footer container itself
+  // disappears entirely via `v-if="activeTab==='general'"`.
+  it('Footer buttons disappear when switching to snapshots tab', async () => {
     const wr = await mk()
     expect(q('.create-vm-foot .cv-primary-btn')).not.toBeNull()
     qa('.settings-tab')[1].click()
@@ -276,11 +277,11 @@ describe('VmSettingsDialog', () => {
     expect(q('.create-vm-foot .cv-primary-btn')).toBeNull()
   })
 
-  // P6 Task 10:snapshots-body 的默认插槽内容是真正的 SnapshotsTab,五个 props/emit
-  // 原样转发穿透。这里只验证"穿透接线对不对"(props 落到位、emit 转发对),SnapshotsTab
-  // 自己的行为覆盖在 SnapshotsTab.test.ts,不重复。
-  describe('P6 Task 10:snapshots 插槽默认内容 = 真实 SnapshotsTab,props/emit 原样转发', () => {
-    it('snapshots/snapshotsBusy/snapshotSubmitError 落到 SnapshotsTab 对应 props', async () => {
+  // P6 Task 10: snapshots-body default slot content is the real SnapshotsTab, five props/emit
+  // pass through as-is. This only verifies "pass-through wiring is correct" (props reach target, emit forwards
+  // correctly); SnapshotsTab's own behavior is covered in SnapshotsTab.test.ts, not repeated here.
+  describe('P6 Task 10: snapshots slot default content = real SnapshotsTab, props/emit pass through as-is', () => {
+    it('snapshots/snapshotsBusy/snapshotSubmitError reach SnapshotsTab corresponding props', async () => {
       const wr = await mk({
         vm: VM({ state: 'stopped' }),
         snapshots: [{ id: 's1', vmId: 'e939191c-2bd2-4f14-88c9-0bf05d3b4d40', name: 'snap-a', description: '', state: 'complete', createdAt: '2026-08-03T10:00:00Z' }],
@@ -289,18 +290,18 @@ describe('VmSettingsDialog', () => {
       })
       qa('.settings-tab')[1].click()
       await wr.vm.$nextTick()
-      // vmState='stopped' 落到 SnapshotsTab → 恢复按钮可点(未 disabled)。
+      // vmState='stopped' reaches SnapshotsTab → restore button clickable (not disabled).
       expect((q('.cv-btn-restore') as HTMLButtonElement).disabled).toBe(false)
-      // snapshots 落到位 → 渲染出一条,而不是空态。
+      // snapshots reaches target → renders one item, not empty state.
       expect(q('.cv-empty-state')).toBeNull()
       expect(q('.cv-snapshot-name')!.textContent).toContain('snap-a')
-      // snapshotsBusy 落到 SnapshotsTab 的 busy prop → 创建按钮 is-loading。
+      // snapshotsBusy reaches SnapshotsTab's busy prop → create button is-loading.
       expect(q('.snapshots-body .cv-primary-btn')!.classList.contains('is-loading')).toBe(true)
-      // snapshotSubmitError 落到 submitError prop → 内联显示。
+      // snapshotSubmitError reaches submitError prop → shown inline.
       expect(q('.snapshots-body .cv-error')!.textContent).toBe('boom')
     })
 
-    it('SnapshotsTab 的 create/confirm-delete/confirm-restore 原样转发成 create-snapshot/confirm-delete-snapshot/confirm-restore-snapshot', async () => {
+    it('SnapshotsTab emit create/confirm-delete/confirm-restore pass through as-is to create-snapshot/confirm-delete-snapshot/confirm-restore-snapshot', async () => {
       const snap = { id: 's1', vmId: 'e939191c-2bd2-4f14-88c9-0bf05d3b4d40', name: 'snap-a', description: '', state: 'complete', createdAt: '' }
       const wr = await mk({ vm: VM({ state: 'stopped' }), snapshots: [snap] })
       qa('.settings-tab')[1].click()
@@ -311,9 +312,9 @@ describe('VmSettingsDialog', () => {
       await wr.vm.$nextTick()
       expect(wr.emitted('create-snapshot')![0]).toEqual([{ name: 'new-snap', description: '' }])
 
-      q('.cv-btn-delete').click() // 第一次:进入待确认
+      q('.cv-btn-delete').click() // First click: enter pending-confirm state
       await wr.vm.$nextTick()
-      q('.cv-btn-delete').click() // 第二次:真正触发
+      q('.cv-btn-delete').click() // Second click: actually trigger
       await wr.vm.$nextTick()
       expect(wr.emitted('confirm-delete-snapshot')![0]).toEqual([snap])
 

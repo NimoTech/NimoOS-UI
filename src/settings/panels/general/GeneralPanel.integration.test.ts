@@ -42,25 +42,25 @@ beforeEach(() => {
   for (const k of Object.keys(blob)) delete blob[k]
 })
 
-describe('GeneralPanel 装配', () => {
-  it('标题是「通用」', async () => {
+describe('GeneralPanel assembly', () => {
+  it('title is "通用"', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.find('.set-section-title').text()).toBe('通用')
   })
 
-  it('P0 的空态占位已经拆掉', async () => {
+  it('the P0 empty-state placeholder has been removed', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.find('.set-skeleton').exists()).toBe(false)
   })
 
-  it('设备信息卡在列表之前', async () => {
+  it('the device info card comes before the list', async () => {
     const w = mountIt(); await flushPromises()
     const html = w.html()
     expect(html.indexOf('set-card')).toBeGreaterThan(-1)
     expect(html.indexOf('set-card')).toBeLessThan(html.indexOf('set-list'))
   })
 
-  it('10 行 + 开发者入口,顺序逐条对位 Vue2', async () => {
+  it('10 rows + the developer entry, in the same order as Vue2', async () => {
     const w = mountIt(); await flushPromises()
     const labels = w.findAll('.set-list .set-row-label').map((e) => e.text())
     expect(labels).toEqual([
@@ -70,7 +70,7 @@ describe('GeneralPanel 装配', () => {
     ])
   })
 
-  it('开发者入口行仍在最后并能 emit open-tab', async () => {
+  it('the developer entry row is still last and can emit open-tab', async () => {
     const w = mountIt(); await flushPromises()
     const row = w.find('.set-dev-entry')
     expect(row.exists()).toBe(true)
@@ -78,29 +78,29 @@ describe('GeneralPanel 装配', () => {
     expect(w.emitted('open-tab')).toEqual([['developer']])
   })
 
-  it('「显示其他 Docker 容器应用」行不存在(债务 D15)', async () => {
+  it('the "show other Docker container apps" row does not exist (debt D15)', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.text()).not.toContain('Docker')
   })
 
-  it('Premium 推广条不存在(授权偏离 #6)', async () => {
+  it('the Premium promo bar does not exist (authorized deviation #6)', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.text()).not.toMatch(/Premium|Upgrade Now/)
   })
 
-  it('固件更新行的副标题用 hardware.version(不是 os_version 的 current_version)', async () => {
+  it('the firmware update row subtitle uses hardware.version (not the current_version from os_version)', async () => {
     const w = mountIt(); await flushPromises()
     const subs = w.findAll('.set-list .set-row-sub').map((e) => e.text())
-    // 固件行副标题 = hardware.version;系统行副标题 = /sys/version 的 current_version
+    // firmware row subtitle = hardware.version; system row subtitle = current_version from /sys/version
     expect(subs[0]).toBe('v1.9.3-alpha1+25.gc8d7d14-dirty')
   })
 
-  it('整页渲染不产出裸 i18n key', async () => {
+  it('renders the whole page without leaking a bare i18n key', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.text()).not.toMatch(/settings[A-Z]\w+/)
   })
 
-  it('所有行的接口都失败时页面仍完整渲染(不白屏)', async () => {
+  it('the page still renders fully when every row API fails (no blank screen)', async () => {
     const svc = await import('@nimotech/nimoos-service')
     for (const m of ['hardwareInfo', 'getBaseInfo', 'getServerPort', 'getUsbStatus', 'getOsVersion', 'getAppVersion'] as const) {
       vi.spyOn(svc.service.sys, m).mockRejectedValue(new Error('boom'))

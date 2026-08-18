@@ -1,8 +1,11 @@
-// Task 7 (SP7-P4 相册): PhotosAlbums.vue —— 相册列表视图(卡片网格 + 排序 + 新建三种填充
-// 方式 + 空态)。挂 Pinia + i18n + 真实 router(spy push,不 mock 整个 vue-router 模块——
-// AreaShell/PhotosSidebar 都用 useRouter(),照 PhotosFavorites.test.ts/PhotosTrash.test.ts
-// 的既有挂载套路),mock 共享包 albums/timeline 方法。覆盖 brief Step 1 的 8 条行为清单
-// + 一条 Esc 关模态(硬约束:document 级监听,不是模板 @keydown.esc,值得单独断言真实生效)。
+// Task 7 (SP7-P4 albums): PhotosAlbums.vue — the album list view (card grid + sort + three
+// fill modes for creating an album + empty state). Mounts Pinia + i18n + a real router (spying
+// on push rather than mocking the whole vue-router module — AreaShell/PhotosSidebar both call
+// useRouter(), following the existing mounting pattern from PhotosFavorites.test.ts /
+// PhotosTrash.test.ts), mocks the shared package's albums/timeline methods. Covers all 8 behavior
+// items from the brief's Step 1, plus one for Esc closing the modal (a hard requirement: it's a
+// document-level listener, not a template @keydown.esc, so it's worth asserting it actually
+// works).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -46,8 +49,28 @@ import PhotosAlbums from '../PhotosAlbums.vue'
 // source text (jsdom does not cascade or paint). `?raw` on a .vue file is the established way
 // here -- see the same import in the SmartViewCard test this task replaced.
 import photosAlbumsRaw from '../PhotosAlbums.vue?raw'
+// T3 (re-skin shadow cleanup): `.al-smart-badge`/`.al-live-dot .live-dot` used to be shadowed
+// locally in this component's own <style scoped> (that's what the two tests below originally
+// read); T3 deleted both local copies outright -- they were name-identical duplicates of the
+// already-imported parity rules, and the only real difference was a bug (`--blur`/`--on-accent`
+// reaching for the wrong tokens). The rules now live solely in the shared parity stylesheet, so
+// the regression guards below read that file instead of this component's own raw source.
+// Plain `fs.readFileSync` rather than a Vite `?raw` import: Vite's CSS/SCSS handling intercepts
+// `.scss` specifiers ahead of the raw-import plugin and yields an empty string (verified: `.vue?raw`
+// works, `.scss?raw` does not) -- the same `fs`-based technique keyframes-guard.test.ts already
+// uses to read this exact file.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const photosParityRaw = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../../photos/components/SmartViewCreateDialog.vue'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore, __resetBucketProbeForTest } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
@@ -164,7 +187,7 @@ describe('PhotosAlbums.vue', () => {
   // fix round 1 (Important 3): the standalone [data-test="albums-empty"] panel this test used
   // to assert on is gone -- the section subtitle carries the empty state now (see
   // PhotosAlbums.vue's comment above the subtitle span). Assert on that instead.
-  it('albumsLoaded 且列表空 → 分区副标题显示空态文案,「新建」占位卡仍在', async () => {
+  it('albumsLoaded and the list is empty -> the section subtitle shows the empty-state copy, the "New" placeholder tile is still there', async () => {
     const { w } = await mountView()
     const albums = usePhotosAlbums()
     expect(albums.albumsLoaded).toBe(true)
@@ -172,7 +195,7 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="album-create-tile"]').exists()).toBe(true)
   })
 
-  it('有相册 → 渲染卡片:标题/计数/封面 img src=thumbnailUrl(cover,"large");无封面项渲染 fallback 而非 <img>', async () => {
+  it('has albums -> renders cards: title/count/cover img src=thumbnailUrl(cover,"large"); a coverless item renders the fallback instead of <img>', async () => {
     svc.photos.listAlbums.mockResolvedValue([
       rawAlbum(1, { name: 'Tokyo', coverAssetId: 'cover-1', assetCount: 5 }),
       rawAlbum(2, { name: 'No Cover', coverAssetId: null, assetCount: 0 }),
@@ -194,7 +217,7 @@ describe('PhotosAlbums.vue', () => {
     expect(noCover.find('[data-test="album-cover-fallback"]').exists()).toBe(true)
   })
 
-  it('点卡片 → router.push 收到 /photos/albums/<id>(数字 id 验证 URL 拼接正确)', async () => {
+  it('clicking a card -> router.push receives /photos/albums/<id> (a numeric id verifies the URL is built correctly)', async () => {
     svc.photos.listAlbums.mockResolvedValue([rawAlbum(42, { name: 'NumericId' })])
     const { w, router } = await mountView()
     const pushSpy = vi.spyOn(router, 'push')
@@ -245,7 +268,7 @@ describe('PhotosAlbums.vue', () => {
     expect(titles).toEqual(['No Date', 'Has Date'])
   })
 
-  it('点「新建」→ 模态出现;名称空时主按钮 disabled;填名+empty 提交 → createAlbum 被调 + 成功 toast + 模态关闭', async () => {
+  it('clicking "New" -> the modal appears; the primary button is disabled while the name is empty; filling in a name + submitting with the empty source -> createAlbum is called + a success toast + the modal closes', async () => {
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Trip' })
     const { w } = await mountView()
     const albums = usePhotosAlbums()
@@ -273,7 +296,7 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
   })
 
-  it("source==='recent' → createAlbum 后 addAssetsToAlbum 被调,传入 id 集只含近 30 天照片(fake timers 固定 now)", async () => {
+  it("source==='recent' -> after createAlbum, addAssetsToAlbum is called with an id set containing only photos from the last 30 days (fake timers pin now)", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-27T00:00:00Z'))
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Recent' })
@@ -305,9 +328,10 @@ describe('PhotosAlbums.vue', () => {
     expect(addSpy).toHaveBeenCalledWith('new1', ['recent1'])
   })
 
-  // 评审 Important:恰好 30 天前的边界项——Vue2 :321 的逐字语义是 `t >= cutoff`(闭区间,
-  // 含边界),这里单独断言,不要在实现里改成 `>`。
-  it("source==='recent' 边界:恰好 30 天前(cutoff 本身)按 >= 语义被包含", async () => {
+  // Review Important: a boundary item at exactly 30 days ago — Vue2 :321's literal semantics are
+  // `t >= cutoff` (a closed interval, boundary included); asserted separately here, don't change
+  // it to `>` in the implementation.
+  it("source==='recent' boundary: an item at exactly 30 days ago (the cutoff itself) is included under >= semantics", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-27T00:00:00Z'))
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Boundary' })
@@ -315,7 +339,7 @@ describe('PhotosAlbums.vue', () => {
       {
         year: 2026,
         month: 6,
-        // now - 30*86400000 == 2026-06-27T00:00:00Z 的时间戳,与 cutoff 完全相等。
+        // now - 30*86400000 == the timestamp for 2026-06-27T00:00:00Z, exactly equal to cutoff.
         assets: [{ id: 'boundary1', takenAt: '2026-06-27T00:00:00Z', mimeType: 'image/jpeg' }],
       },
     ])
@@ -337,14 +361,18 @@ describe('PhotosAlbums.vue', () => {
     expect(addSpy).toHaveBeenCalledWith('new1', ['boundary1'])
   })
 
-  // 评审 Important(裁定为新缺陷,非照抄 Vue2):Vue2 的相册列表从来不是独立路由——它是
-  // PhotosTimeline.vue 内部按 activeNav 切换的子块,时间线数据由父组件 PhotosTimeline.mounted()
-  // 无条件预热。New-UI 把相册做成了独立真路由 /photos/albums,用户可能直链/刷新进来、
-  // 从未访问过 /photos,此时 timeline store 是全新的(allPhotos===[])。修复前:'recent' 分支
-  // 会静默算出空 id 集,addAssetsToAlbum 被跳过,但仍然弹"已创建"成功 toast——用户拿到一个
-  // 空相册和一条假成功提示,零错误信号。断言:timeline 全新时,选 recent 提交 → 组件自己补一次
-  // fetchTimeline,addAssetsToAlbum 最终收到非空 id 集(而不是被静默跳过)。
-  it("source==='recent' 且 timeline store 全新(未预热)→ 组件自己补 fetchTimeline,addAssetsToAlbum 收到非空 id 集", async () => {
+  // Review Important (ruled a new defect, not a copy of Vue2): Vue2's album list was never an
+  // independent route — it's a sub-block inside PhotosTimeline.vue switched by activeNav, and
+  // the timeline data is unconditionally pre-warmed by the parent component's
+  // PhotosTimeline.mounted(). New-UI made albums an independent real route /photos/albums, so
+  // a user may land here via a direct link/refresh having never visited /photos, in which case
+  // the timeline store is brand new (allPhotos===[]). Before the fix: the 'recent' branch would
+  // silently compute an empty id set, addAssetsToAlbum would be skipped, but the "created"
+  // success toast would still pop — the user ends up with an empty album and a fake success
+  // message, zero error signal. Assertion: when the timeline is brand new, submitting with
+  // recent selected -> the component backfills a fetchTimeline itself, and addAssetsToAlbum
+  // ultimately receives a non-empty id set (rather than being silently skipped).
+  it("source==='recent' and the timeline store is brand new (not pre-warmed) -> the component backfills fetchTimeline itself, addAssetsToAlbum receives a non-empty id set", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-27T00:00:00Z'))
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'ColdStart' })
@@ -355,11 +383,12 @@ describe('PhotosAlbums.vue', () => {
         assets: [{ id: 'warm1', takenAt: '2026-07-20T00:00:00Z', mimeType: 'image/jpeg' }],
       },
     ])
-    // 关键:与其它 'recent' 用例不同,这里刻意不预先调用 timeline.fetchTimeline() ——
-    // 模拟用户从未访问过 /photos、timeline store 仍是初始空状态。
+    // Key point: unlike the other 'recent' test cases, this one deliberately does not call
+    // timeline.fetchTimeline() beforehand — simulating a user who has never visited /photos, so
+    // the timeline store is still in its initial empty state.
     const { w } = await mountView()
     const timeline = useTimelineStore()
-    expect(timeline.allPhotos).toHaveLength(0) // 前置条件:确实是冷启动
+    expect(timeline.allPhotos).toHaveLength(0) // precondition: this really is a cold start
     const fetchSpy = vi.spyOn(timeline, 'fetchTimeline')
     const albums = usePhotosAlbums()
     const addSpy = vi.spyOn(albums, 'addAssetsToAlbum')
@@ -374,7 +403,7 @@ describe('PhotosAlbums.vue', () => {
     await w.vm.$nextTick()
 
     expect(fetchSpy).toHaveBeenCalledTimes(1)
-    expect(addSpy).toHaveBeenCalledWith('new1', ['warm1']) // 非空 id 集,不是被静默跳过
+    expect(addSpy).toHaveBeenCalledWith('new1', ['warm1']) // a non-empty id set, not silently skipped
   })
 
   // Task 8b: in bucket mode, `months` arrives (the directory) with no photos in hand yet --
@@ -452,7 +481,7 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
   })
 
-  it("source==='select' → 提交后 PhotosLibraryPicker 渲染(open===true)", async () => {
+  it("source==='select' -> after submitting, PhotosLibraryPicker renders (open===true)", async () => {
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
     const { w } = await mountView()
 
@@ -561,7 +590,7 @@ describe('PhotosAlbums.vue', () => {
     expect(ids.has('5')).toBe(true)
   })
 
-  it('createAlbum 抛 409 → 渲染重名 toast,模态关闭(照 Vue2 finally 语义)', async () => {
+  it('createAlbum throws 409 -> renders the duplicate-name toast, the modal closes (following Vue2\'s finally semantics)', async () => {
     const err = Object.assign(new Error('conflict'), { response: { status: 409 } })
     svc.photos.createAlbum.mockRejectedValue(err)
     const { w } = await mountView()
@@ -579,23 +608,28 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
   })
 
-  // 终审必修 3:Vue2 PhotosAlbumsView.vue:52-58 在网格之上无条件渲染「我的相册 / 你创建的
-  // 相册」分区头,New-UI 从 banner 直接落到 .album-grid,整段分区头丢失——两个专为它准备的
-  // i18n 键(photosAlbumsMine/photosAlbumsMineHint)因此成了死码。界面严格 1:1 照 Vue2,这是
-  // 纯视觉删减,必须补。
-  it('必修3回归:网格之上渲染「我的相册 / 你创建的相册」分区标题(Vue2 :52-58 对应,New-UI 曾漏渲染)', async () => {
+  // Final-review must-fix 3: Vue2 PhotosAlbumsView.vue:52-58 unconditionally renders a "My Albums
+  // / Albums you created" section header above the grid; New-UI dropped straight from the
+  // banner to .album-grid, losing that whole section header — the two i18n keys built
+  // specifically for it (photosAlbumsMine/photosAlbumsMineHint) had therefore become dead code.
+  // The UI must be a strict 1:1 match to Vue2, and this is a pure visual omission that must be
+  // filled in.
+  it('must-fix-3 regression: renders the "My Albums / Albums you created" section title above the grid (corresponds to Vue2 :52-58, New-UI once missed rendering it)', async () => {
     svc.photos.listAlbums.mockResolvedValue([rawAlbum(1, { name: 'Tokyo' })])
     const { w } = await mountView()
     expect(w.text()).toContain(zh.photosAlbumsMine)
     expect(w.text()).toContain(zh.photosAlbumsMineHint)
   })
 
-  // 终审 Important 1(全支收尾):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts
-  // 注释),旧实现下 isEmpty 因此恒假 → 落进网格分支渲染"我的相册"分区头 + 光秃秃的新建卡片,
-  // 没有任何失败提示。新增 loadError 分支必须拦在最前面——同 PhotosFavorites.test.ts 的三条
-  // 挡门用例(失败态渲染 / 重试成功 / 重试仍失败的 in-flight 与结束后都持续可见)+ 两条
-  // "仍能区分"的挡门用例(确认空 vs 还在加载中)。
-  it('加载失败时渲染失败态而非空网格(P4 遗留同款缺陷)', async () => {
+  // Final-review Important 1 (wrapping up across the whole branch): albumsLoaded stays false
+  // when fetchAlbums fails (see the albums.ts comment), so under the old implementation isEmpty
+  // was therefore always false -> it would fall into the grid branch, rendering the "My Albums"
+  // section header plus a bare create tile, with no failure indication at all. The new loadError
+  // branch must be checked first — same three gating test cases as PhotosFavorites.test.ts
+  // (failure state renders / retry succeeds / retry still fails, staying visible both in-flight
+  // and after settling) plus two "still distinguishable" gating test cases (confirming empty vs.
+  // still loading).
+  it('renders the failure state instead of an empty grid when loading fails (same defect carried over from P4)', async () => {
     svc.photos.listAlbums.mockRejectedValueOnce(new Error('network'))
     const { w } = await mountView()
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
@@ -607,7 +641,7 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="album-card"]').exists()).toBe(false)
   })
 
-  it('失败态的重试按钮重新调 fetchAlbums,成功后失败态消失', async () => {
+  it('the failure state\'s retry button calls fetchAlbums again, and the failure state goes away on success', async () => {
     svc.photos.listAlbums.mockRejectedValueOnce(new Error('network'))
     const { w } = await mountView()
     const albums = usePhotosAlbums()
@@ -625,7 +659,7 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="album-card"]').exists()).toBe(true)
   })
 
-  it('失败态重试仍失败(reject→retry→reject)→ in-flight 期间与结束后失败态都持续可见,不出现网格分区头', async () => {
+  it('failure state, retry still fails (reject -> retry -> reject) -> the failure state stays visible both in-flight and after settling, no grid section header appears', async () => {
     svc.photos.listAlbums.mockRejectedValueOnce(new Error('e1'))
     const { w } = await mountView()
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
@@ -637,9 +671,11 @@ describe('PhotosAlbums.vue', () => {
     await w.find('[data-test="albums-retry"]').trigger('click')
     await w.vm.$nextTick()
 
-    // in-flight:重试还没落定,失败态必须继续可见,不能落到空态分支。
+    // in-flight: the retry hasn't settled yet, the failure state must stay visible, it must not
+    // fall into the empty-state branch.
     // fix round 1 (Important 3): asserted on the subtitle now, not a standalone panel --
-    // see the same rationale in the "加载失败时渲染失败态而非空网格" test above.
+    // see the same rationale in the "renders the failure state instead of an empty grid when
+    // loading fails" test above.
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
     expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
 
@@ -647,14 +683,15 @@ describe('PhotosAlbums.vue', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    // 落定后(仍失败):失败态持续可见。
+    // After settling (still failed): the failure state remains visible.
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
     expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
   })
 
-  // 关键区分(挡门用例 1):成功但列表为空 —— 必须仍走空态,不能被 loadError 分支误吞。
+  // Key distinction (gating test case 1): success but the list is empty — must still go through
+  // the empty state, must not be swallowed by the loadError branch.
   // fix round 1 (Important 3): asserted on the subtitle now, not a standalone panel.
-  it('确认为零相册(成功但列表空)仍走空态,不走失败态', async () => {
+  it('confirms zero albums (success but the list is empty) still goes through the empty state, not the failure state', async () => {
     const { w } = await mountView()
     const albums = usePhotosAlbums()
     expect(albums.loadError).toBe(false)
@@ -663,8 +700,9 @@ describe('PhotosAlbums.vue', () => {
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(false)
   })
 
-  // 关键区分(挡门用例 2):首次加载飞行中(既未失败也未加载完成)—— 不该出现失败态。
-  it('首次加载飞行中(未落定)→ 不出现失败态', async () => {
+  // Key distinction (gating test case 2): the first load is in flight (neither failed nor
+  // finished loading) — the failure state should not appear.
+  it('first load in flight (not yet settled) -> no failure state appears', async () => {
     let resolveList: ((v: unknown[]) => void) | undefined
     svc.photos.listAlbums.mockImplementationOnce(
       () => new Promise((resolve) => { resolveList = resolve }),
@@ -682,7 +720,7 @@ describe('PhotosAlbums.vue', () => {
     await w.vm.$nextTick()
   })
 
-  it('Esc(document 级)关闭新建模态', async () => {
+  it('Esc (document-level) closes the create modal', async () => {
     const { w } = await mountView()
 
     await w.find('[data-test="albums-new-btn"]').trigger('click')
@@ -974,15 +1012,20 @@ describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
   // this is asserted on the style block's source text -- the same technique color-guard.test.ts
   // and photosGlassSurfaces.test.ts use for CSS that no unit test can observe.
   it('styles the breathing dot explicitly inside .al-live-dot (the #116 follow-up fix)', () => {
-    const style = styleBlock()
-    const rule = /\.al-live-dot\s+\.live-dot\s*\{([^}]*)\}/.exec(style)
-    expect(rule, 'no explicit .al-live-dot .live-dot rule -- the dot renders as a hollow ring').not.toBeNull()
+    // T3: the local shadow copy of this rule is gone (it duplicated parity under the same
+    // selector, with a `--blur`/plain-`pulse` bug parity doesn't have) -- assert two things
+    // instead: parity itself still carries the real fix, and this component doesn't reintroduce
+    // a local override that could shadow it again.
+    expect(styleBlock()).not.toMatch(/\.al-live-dot\s+\.live-dot\s*\{/)
+    const parity = photosParityRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+    const rule = /\.al-live-dot\s+\.live-dot\s*\{([^}]*)\}/.exec(parity)
+    expect(rule, 'no explicit .al-live-dot .live-dot rule in parity -- the dot renders as a hollow ring').not.toBeNull()
     expect(rule![1]).toMatch(/width\s*:/)
     expect(rule![1]).toMatch(/height\s*:/)
     expect(rule![1]).toMatch(/background\s*:/)
     expect(rule![1]).toMatch(/animation\s*:/)
     // The paused variant has to turn the animation off, or a paused view keeps breathing.
-    const paused = /\.al-live-dot\[data-paused="true"\]\s+\.live-dot\s*\{([^}]*)\}/.exec(style)
+    const paused = /\.al-live-dot\[data-paused="true"\]\s+\.live-dot\s*\{([^}]*)\}/.exec(parity)
     expect(paused, 'no paused variant for the dot').not.toBeNull()
     expect(paused![1]).toMatch(/animation\s*:\s*none/)
   })
@@ -991,9 +1034,13 @@ describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
   // readable foreground *on an accent fill*, which in the dark theme is a deep navy -- wrong
   // for a badge that sits on top of a photograph.
   it('does not use --on-accent for the badge sitting on the cover photo', () => {
-    const style = styleBlock()
-    const badge = /\.al-smart-badge\s*\{([^}]*)\}/.exec(style)
-    expect(badge, 'no .al-smart-badge rule').not.toBeNull()
+    // T3: same move as the dot test above -- .al-smart-badge is no longer locally shadowed,
+    // so assert parity's own rule (the one now actually in effect) avoids --on-accent, and
+    // that this component doesn't carry a local copy that could reintroduce the bug.
+    expect(styleBlock()).not.toMatch(/\.al-smart-badge\s*\{/)
+    const parity = photosParityRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+    const badge = /\.al-smart-badge\s*\{([^}]*)\}/.exec(parity)
+    expect(badge, 'no .al-smart-badge rule in parity').not.toBeNull()
     expect(badge![1]).not.toMatch(/--on-accent/)
   })
 })
@@ -1069,5 +1116,169 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
     await w.find('[data-test="albums-name-input"]').setValue('Tokyo Trip')
     await w.find('[data-test="source-nimo"]').trigger('click')
     expect(w.findComponent(SmartViewCreateDialog).props('initialName')).toBe('Tokyo Trip')
+  })
+})
+
+// Fix-1 (owner acceptance, 2026-08-13) item 1: Plan C wrongly assumed Vue2's five re-shelled
+// pages had no topbar. Truth: Vue2 is a single-page shell — PhotosTimeline.vue mounts the same
+// <PhotosTopbar> above every nav (PhotosTimeline.vue:957-971), including 'albums'
+// (topbarTitle's 'albums' branch = 'Albums', PhotosTimeline.vue:187; topbarSubContext's
+// 'albums' branch = album-aggregate '{photos} photos · {videos} videos',
+// PhotosTimeline.vue:226-232). show-search is `isLibraryView || searchActive`
+// (PhotosTimeline.vue:961) -- always false on this page since activeNav is never 'library'
+// here and this page has no in-place search-overlay state.
+describe('Fix-1 item 1: PhotosTopbar restored', () => {
+  it('renders the topbar with title=Albums and sub=album-aggregate counts, no search box', async () => {
+    const w = await mountAlbums({
+      albums: [
+        rawAlbum(1, { photoCount: 100, videoCount: 4 }),
+        rawAlbum(2, { photoCount: 20, videoCount: 0 }),
+      ],
+    })
+    const topbar = w.findComponent(PhotosTopbar)
+    expect(topbar.exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+    expect(w.get('.topbar-sub').text()).toBe(
+      zh.photosCountSummary.replace('{photos}', '120').replace('{videos}', '4'),
+    )
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar (topbar button now owns narrow-mode toggle)', async () => {
+    const w = await mountAlbums({})
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
+  })
+
+  it('toggle-collapse from the topbar flips the shared collapsed state (same as Photos.vue)', async () => {
+    const w = await mountAlbums({})
+    const before = w.get('.app').attributes('data-collapsed')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(w.get('.app').attributes('data-collapsed')).not.toBe(before)
+  })
+})
+
+// Fix-1 item 2: owner screenshot shows "My Albums" + grid flush against the left edge. Vue2's
+// `.albums-body` (photos.scss:3206-3211, padding: 18px 24px 80px) is the scroll container that
+// carries the horizontal inset; T3's cleanup renamed this page's scroll container to
+// `.albums-scroll` (a name parity's stylesheet does not style), so parity's real padding rule
+// never matched and only a much smaller local `4px 4px 20px` scoped rule applied instead.
+describe('Fix-1 item 2: albums scroll container padding restored', () => {
+  it('the scroll container carries the parity class name .albums-body (not just .albums-scroll)', async () => {
+    const w = await mountAlbums({})
+    expect(w.find('.albums-body').exists()).toBe(true)
+  })
+})
+
+// Fix-7 (owner acceptance, 2026-08-14): owner screenshot shows the "Sort: Recently added ⌄"
+// pill rendering as bare text in photos light mode -- no border, no background (the "New
+// album" button next to it, and the same Sort pill on the album-detail/SV-detail pages, are
+// unaffected). Root cause: this button used `class="bar-btn"`, a *global* New-UI button class
+// (theme.css) whose chrome tokens (--chip-bg/--chip-border/--fg) are not shadowed on
+// `.photos-root`, so they don't follow the private photos-is-light toggle -- in photos light
+// mode `--chip-bg`'s dark-theme value (a translucent white glass gradient) sits on the parity
+// light page's own near-white background and disappears. Vue2's real class here
+// (NimoOS-UI PhotosAlbumsView.vue:60) is `.btn`, parity's own `.photos-root .btn`
+// (photos.scss:290-298, --surface-2/--line/--text-1, all correctly shadowed under
+// `.photos-root.is-light`) -- renamed to match.
+describe('Fix-7: albums-page Sort pill uses the parity .btn class, not the global .bar-btn', () => {
+  it('the Sort trigger button carries class="btn" (not "bar-btn")', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-sort-btn"]')
+    expect(btn.classes()).toContain('btn')
+    expect(btn.classes()).not.toContain('bar-btn')
+  })
+
+  it("parity's own .btn rule (not a local override) supplies the pill's border/background/text tokens", () => {
+    const m = /<style[^>]*>([\s\S]*)<\/style>/.exec(photosAlbumsRaw)
+    const style = m ? m[1] : ''
+    // This file must not restate `.btn`'s chrome locally -- if it did, the local copy would
+    // need its own is-light audit too, and parity's own (already-audited) rule should just
+    // govern directly, same doctrine as every other "let parity win" cleanup in this codebase.
+    expect(style).not.toMatch(/(^|[^-\w])\.btn\s*{/)
+  })
+})
+
+// Fix-11 (owner acceptance, 2026-08-14): three leading icons the owner reported missing.
+// Root cause per element:
+//  1) Sort pill: the button had no leading icon element at all (Vue2 PhotosAlbumsView.vue:60-61
+//     leads it with `<photos-icon name="filter" :size="13"/>`) -- 'filter' didn't exist in this
+//     repo's PhotosIcon.vue at all, so there was nothing to render even if a caller had asked
+//     for it; the trailing chevron-down SVG (unaffected, always present) is what the owner's
+//     screenshot described as "a degenerate hollow triangle" with nothing in front of it.
+//  2) New album button: also had no leading icon (Vue2 :83-84 uses
+//     `<photos-icon name="album" :size="13"/>`) -- 'album' already existed in PhotosIcon.vue
+//     (used by the sidebar's own Albums nav item), just never wired into this button.
+//  3) Create tile's "plus" circle: rendered a literal "+" text character, a substitute an
+//     earlier cleanup (T3) explicitly registered pending a real icon (Vue2 :118-120 renders
+//     the same 'album' glyph as the New album button, just at :size="20" inside the circle).
+describe('Fix-11: albums-page leading icons restored (Vue2 truth)', () => {
+  it('the Sort pill leads with the filter icon (not just the trailing chevron)', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-sort-btn"]')
+    const icon = btn.find('[data-test="albums-sort-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+  })
+
+  it('the New album button leads with the album icon', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-new-btn"]')
+    const icon = btn.find('[data-test="albums-new-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+  })
+
+  it('the create tile\'s "plus" circle renders the album icon, not a literal "+" character', async () => {
+    const w = await mountAlbums({})
+    const tile = w.get('[data-test="album-create-tile"]')
+    const icon = tile.find('[data-test="album-create-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+    expect(tile.find('.plus').text()).not.toContain('+')
+  })
+
+  it("PhotosIcon.vue's 'filter' branch matches Vue2's own path data byte-for-byte", () => {
+    const raw = fs.readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/components/PhotosIcon.vue'),
+      'utf8',
+    )
+    const m = /name === 'filter'"[\s\S]*?<path d="([^"]+)"/.exec(raw)
+    expect(m?.[1]).toBe('M3 5h18l-7 9v6l-4-2v-4z')
+  })
+})
+
+// Fix-1 item 3: owner reports "New album" does nothing. Root cause: the create-modal markup
+// (`.albums-modal-scrim`/`.albums-modal`) sits as a template-root SIBLING of `.photos-root`
+// (outside its DOM subtree), but every one of its layout rules is written
+// `.photos-root .albums-modal-scrim { position: fixed; inset: 0; ... }` (photos.scss:3844) --
+// a descendant selector that only matches when the scrim is nested INSIDE an element carrying
+// class `photos-root`. Outside it, the click handler still fires and `createOpen` still flips
+// true (which is why the existing DOM-existence tests above never caught this — jsdom asserts
+// existence, not applied layout), but the modal renders with no position/background/z-index at
+// all: an owner clicking the button sees nothing happen. This file's header comment documents
+// the repo's own established fix for exactly this shape (portaled elements must re-carry
+// `photos-root`, see photos.scss:1-13 and PhotosToastHost.vue's Teleport target) -- the target
+// pattern used here is simpler: nest the modal back inside `.photos-root` instead of portaling.
+describe('Fix-1 item 3: New album modal is a real descendant of .photos-root', () => {
+  it('the create modal renders inside .photos-root once open (so photos-root .albums-modal-scrim can match)', async () => {
+    const w = await mountAlbums({})
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    const scrim = w.get('[data-test="albums-create-modal"]').element
+    expect(scrim.closest('.photos-root')).not.toBeNull()
+  })
+
+  it('the library picker (PhotosLibraryPicker) also renders inside .photos-root', async () => {
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
+    const { w } = await mountView()
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('Picked')
+    await w.find('[data-test="source-select"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    const overlay = w.get('[data-test="lib-picker-overlay"]').element
+    expect(overlay.closest('.photos-root')).not.toBeNull()
   })
 })

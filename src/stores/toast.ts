@@ -18,11 +18,12 @@ import { ref, computed } from 'vue'
 // (files/apps/home areas) keeps working unchanged, same appearance
 // (the 'info' tier renders identically to the pre-tier pill).
 //
-// 【SP8-P6-T3 合流】sp7 与 sp8 各自把**第三个位置参数**占用了:master 侧是 `action`
-// 对象,sp8 侧是 `tier` 字符串。两边都已有实际调用点(tier ~48 处、action 4 处),
-// 谁改签名都要动几十个调用点,所以这里把第三参做成**判别联合**:
-//   typeof === 'string' → 当 tier;否则当 action 对象。
-// 两侧全部既有调用点因此一行都不用改,类型上也仍然精确。
+// [SP8-P6-T3 merge] sp7 and sp8 each claimed the **third positional argument** for their own
+// purpose: master's side used it as an `action` object, sp8's side used it as a `tier` string.
+// Both already have real call sites (tier ~48, action 4), and changing either signature would
+// touch dozens of call sites, so this makes the third param a **discriminated union** instead:
+//   typeof === 'string' -> treated as tier; otherwise treated as an action object.
+// Every existing call site on both sides therefore needs zero changes, while the types stay precise.
 export type ToastTier = 'info' | 'warning' | 'danger'
 export interface ToastAction { label: string; onClick: () => void }
 export interface ToastItem { id: number; text: string; tier: ToastTier; action?: ToastAction }

@@ -5,11 +5,11 @@ describe('containerEventBridge', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
-  it('事件名与后端契约一致', () => {
+  it('event name matches backend contract', () => {
     expect(CONTAINER_EVENT).toBe('docker:container:state-changed')
   })
 
-  it('destroy 立即 evict,其余动作不 evict', () => {
+  it('destroy immediately evicts, other actions do not evict', () => {
     const evict = vi.fn(); const refresh = vi.fn()
     const { handle } = createContainerEventHandler({ evict, refresh })
     handle({ 'docker:container:action': 'destroy', 'docker:container:name': 'tasklist' })
@@ -19,7 +19,7 @@ describe('containerEventBridge', () => {
     expect(evict).toHaveBeenCalledTimes(1)
   })
 
-  it('连发事件去抖成一次 refresh', () => {
+  it('consecutive events deduplicate to a single refresh', () => {
     const evict = vi.fn(); const refresh = vi.fn()
     const { handle } = createContainerEventHandler({ evict, refresh })
     handle({ 'docker:container:action': 'die', 'docker:container:name': 'a' })
@@ -29,31 +29,31 @@ describe('containerEventBridge', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
-  it('畸形消息(缺属性/非对象)不抛错不触发 evict', () => {
+  it('malformed messages (missing properties / non-objects) do not throw or trigger evict', () => {
     const evict = vi.fn(); const refresh = vi.fn()
     const { handle } = createContainerEventHandler({ evict, refresh })
     expect(() => { handle(null); handle('x'); handle({}) }).not.toThrow()
     expect(evict).not.toHaveBeenCalled()
   })
 
-  it('dispose 取消待触发的去抖定时器,卸载后不再 refresh', () => {
+  it('dispose cancels pending debounce timers; after unload, refresh is no longer called', () => {
     const evict = vi.fn(); const refresh = vi.fn()
     const { handle, dispose } = createContainerEventHandler({ evict, refresh })
     handle({ 'docker:container:action': 'die', 'docker:container:name': 'a' })
     dispose()
     vi.advanceTimersByTime(500)
     expect(refresh).not.toHaveBeenCalled()
-    // 幂等:重复调用无害
+    // idempotent: repeated calls are harmless
     expect(() => dispose()).not.toThrow()
   })
 })
 
 describe('createUninstallEndHandler', () => {
-  it('事件名与后端契约一致', () => {
+  it('event name matches backend contract', () => {
     expect(APP_UNINSTALL_END).toBe('app:uninstall-end')
   })
 
-  it('解析 app:name 强制清位并刷新;缺 name 只刷新', () => {
+  it('parse app:name to force evict and refresh; missing name only refreshes', () => {
     const evictForce = vi.fn(); const refresh = vi.fn()
     const handle = createUninstallEndHandler({ evictForce, refresh })
     handle({ 'app:name': 'test-nginx' })

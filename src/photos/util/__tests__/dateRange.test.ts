@@ -12,38 +12,39 @@ import {
 } from '../dateRange'
 
 describe('isoDate', () => {
-  it('零填充月和日两处', () => {
+  it('zero-pads both month and day', () => {
     expect(isoDate(new Date(2026, 0, 5))).toBe('2026-01-05')
   })
 })
 
 describe('dateInRange', () => {
-  it('range 为 null → true(不过滤)', () => {
+  it('range is null → true (no filtering)', () => {
     expect(dateInRange('2026-01-01', null)).toBe(true)
   })
 
-  it('range 无 start → true', () => {
+  it('range has no start → true', () => {
     expect(dateInRange('2026-01-01', { label: '', start: '', end: null })).toBe(true)
   })
 
-  it('takenAt 为 null → false(有过滤时无拍摄时间的资产被排除)', () => {
+  it('takenAt is null → false (assets with no capture time are excluded once a filter is active)', () => {
     expect(dateInRange(null, { label: '', start: '2026-01-01', end: '2026-01-31' })).toBe(false)
   })
 
-  it('takenAt 是坏串 → false', () => {
+  it('takenAt is a malformed string → false', () => {
     expect(dateInRange('not-a-date', { label: '', start: '2026-01-01', end: '2026-01-31' })).toBe(false)
   })
 
-  it('单日区间(end: null):命中当天,不命中前后一天', () => {
+  it('single-day range (end: null): matches that day, does not match the day before/after', () => {
     const range = { label: '', start: '2026-03-14', end: null }
     expect(dateInRange('2026-03-14T10:00:00Z', range)).toBe(true)
     expect(dateInRange('2026-03-13T10:00:00Z', range)).toBe(false)
     expect(dateInRange('2026-03-15T10:00:00Z', range)).toBe(false)
   })
 
-  it('跨日区间:两个端点都算命中(闭区间)', () => {
-    // 用本地 Date 构造(而非 UTC ISO 字符串)传入,避开跑测机器时区把 UTC 边界时刻
-    // 卷到相邻日期的问题——isoDate/dateInRange 本身就是按本地时区解读 Date 的。
+  it('multi-day range: both endpoints count as a match (closed interval)', () => {
+    // Constructed from a local Date (rather than a UTC ISO string) to avoid the test
+    // machine's timezone rolling a UTC boundary instant over into an adjacent date —
+    // isoDate/dateInRange themselves interpret Date in local time.
     const range = { label: '', start: '2026-03-10', end: '2026-03-12' }
     expect(dateInRange(new Date(2026, 2, 10, 0, 0).toISOString(), range)).toBe(true)
     expect(dateInRange(new Date(2026, 2, 12, 23, 0).toISOString(), range)).toBe(true)
@@ -53,76 +54,78 @@ describe('dateInRange', () => {
 })
 
 describe('quickRange', () => {
-  it("today:时分秒被抹掉", () => {
+  it('today: hours/minutes/seconds are stripped', () => {
     const r = quickRange('today', new Date(2026, 6, 31, 15, 30), 'X')
     expect(r).toEqual({ label: 'X', start: '2026-07-31', end: '2026-07-31', key: 'today' })
   })
 
-  it('last7: start = today - 6 天(不是 7)', () => {
+  it('last7: start = today - 6 days (not 7)', () => {
     const r = quickRange('last7', new Date(2026, 6, 31), 'X')
     expect(r.start).toBe('2026-07-25')
     expect(r.end).toBe('2026-07-31')
   })
 
-  it('last30: start = today - 29 天', () => {
+  it('last30: start = today - 29 days', () => {
     const r = quickRange('last30', new Date(2026, 6, 31), 'X')
     expect(r.start).toBe('2026-07-02')
     expect(r.end).toBe('2026-07-31')
   })
 
-  it('thisYear: end 是今天,不是 12/31', () => {
+  it('thisYear: end is today, not 12/31', () => {
     const r = quickRange('thisYear', new Date(2026, 6, 31), 'X')
     expect(r).toEqual({ label: 'X', start: '2026-01-01', end: '2026-07-31', key: 'thisYear' })
   })
 
-  it('lastYear: 去年整年', () => {
+  it('lastYear: the whole of last year', () => {
     const r = quickRange('lastYear', new Date(2026, 6, 31), 'X')
     expect(r).toEqual({ label: 'X', start: '2025-01-01', end: '2025-12-31', key: 'lastYear' })
   })
 
-  it('跨年边界: last7 在 1 月 3 日 → start 落到去年 12 月 28 日', () => {
+  it('year boundary: last7 on Jan 3 → start lands on Dec 28 of last year', () => {
     const r = quickRange('last7', new Date(2026, 0, 3), 'X')
     expect(r.start).toBe('2025-12-28')
   })
 
-  // 回改覆盖(SP7-P7a-T13 A3):5 个 key 分支各自把入参 key 原样填回 DateRange.key——
-  // 逐个枚举值跑一遍,而不是只跑已覆盖过的 today/thisYear/lastYear 三个,避免 last7/
-  // last30 两个分支的 key 透传是抄错的(比如手滑写成字面量 'today')却没有测试覆盖到。
-  it.each(QUICK_KEYS)('key 字段原样透传入参 key:%s', (k) => {
+  // Coverage added back (SP7-P7a-T13 A3): each of the 5 key branches must pass the input
+  // key straight through into DateRange.key — run through every enumerated value instead
+  // of only the three already covered (today/thisYear/lastYear), to catch cases where the
+  // last7/last30 branches' key passthrough was copied wrong (e.g. a slip that hardcodes
+  // the literal 'today') without any test catching it.
+  it.each(QUICK_KEYS)('key field passes the input key straight through: %s', (k) => {
     expect(quickRange(k, new Date(2026, 6, 31), 'X').key).toBe(k)
   })
 })
 
 describe('yearRange', () => {
-  it('整年区间', () => {
+  it('a whole-year range', () => {
     expect(yearRange(2025, 'X')).toEqual({ label: 'X', start: '2025-01-01', end: '2025-12-31', key: 2025 })
   })
 
-  it('key 字段是年份数字本身(SP7-P7a-T13 A3 回改覆盖)', () => {
+  it('key field is the year number itself (SP7-P7a-T13 A3 coverage added back)', () => {
     expect(yearRange(1999, 'X').key).toBe(1999)
   })
 })
 
 describe('rangeLabel', () => {
-  it('单日:含年份,不含 en dash', () => {
+  it('single day: includes the year, no en dash', () => {
     const out = rangeLabel('2026-03-14', '2026-03-14', 'en_us')
     expect(out).toContain('2026')
     expect(out).not.toContain('–')
   })
 
-  it('同年区间:含 en dash 和年份', () => {
+  it('same-year range: includes en dash and year', () => {
     const out = rangeLabel('2026-03-14', '2026-03-22', 'en_us')
     expect(out).toContain('–')
     expect(out).toContain('2026')
   })
 
-  it('跨年区间:含 en dash,不含年份(照搬 Vue2 的瑕疵)', () => {
+  it('cross-year range: includes en dash, no year (matches Vue2\'s quirk)', () => {
     const out = rangeLabel('2025-12-30', '2026-01-02', 'en_us')
     expect(out).toContain('–')
     expect(out).not.toContain('2026')
   })
 
-  it('locale 生效:zh_cn 与 en_us 结果不同', () => {
+  it('locale takes effect: zh_cn and en_us produce different results', () => {
     const zhOut = rangeLabel('2026-03-14', '2026-03-22', 'zh_cn')
     const enOut = rangeLabel('2026-03-14', '2026-03-22', 'en_us')
     expect(zhOut).not.toBe(enOut)
@@ -130,7 +133,7 @@ describe('rangeLabel', () => {
 })
 
 describe('calCells', () => {
-  it('2026 年 7 月(1 日周三):前 3 个 blank,之后 31 个非 blank,总 34;in/start/end 全 falsy', () => {
+  it('July 2026 (the 1st is a Wednesday): 3 leading blanks, then 31 non-blank, 34 total; in/start/end all falsy', () => {
     const cells = calCells(2026, 6, null)
     expect(cells.length).toBe(34)
     expect(cells.slice(0, 3).every((c) => c.blank)).toBe(true)
@@ -142,7 +145,7 @@ describe('calCells', () => {
     }
   })
 
-  it('带 range:起止两端标记正确,区间内每天 in 为真,区间外为假', () => {
+  it('with a range: both endpoints are flagged correctly, in is true for every day inside the range and false outside it', () => {
     const range = { label: '', start: '2026-07-10', end: '2026-07-12' }
     const cells = calCells(2026, 6, range)
     const byDate = (day: string) => cells.find((c) => c.date === day)!
@@ -159,7 +162,7 @@ describe('calCells', () => {
     expect(d09.in).toBe(false)
   })
 
-  it('单日区间(end: null):该天 start 与 end 都真(hi = end || start 的结果)', () => {
+  it('single-day range (end: null): that day has both start and end true (the result of hi = end || start)', () => {
     const range = { label: '', start: '2026-07-10', end: null }
     const cells = calCells(2026, 6, range)
     const cell = cells.find((c) => c.date === '2026-07-10')!
@@ -167,41 +170,45 @@ describe('calCells', () => {
     expect(cell.end).toBe(true)
   })
 
-  it('闰年二月 29 天,平年二月 28 天', () => {
+  it('leap-year February has 29 days, common-year February has 28', () => {
     expect(calCells(2024, 1, null).filter((c) => !c.blank).length).toBe(29)
     expect(calCells(2026, 1, null).filter((c) => !c.blank).length).toBe(28)
   })
 })
 
 describe('calDowLabels', () => {
-  it('长度 7,首项是周日的窄标签', () => {
+  it('length 7, first item is the narrow label for Sunday', () => {
     const labels = calDowLabels('en_us')
     expect(labels.length).toBe(7)
     expect(labels[0]).toBe('S')
   })
 
-  it('zh_cn 与 en_us 结果不同', () => {
+  it('zh_cn and en_us produce different results', () => {
     expect(calDowLabels('zh_cn')).not.toEqual(calDowLabels('en_us'))
   })
 
-  // fix 波 F5(终审必修项,变异实证):上面 en_us 的 `labels[0] === 'S'` 这条断言没有
-  // 区分力——英文窄标签周六(Saturday)的窄形式也是 'S',如果实现把锚点从
-  // `new Date(1970, 0, 4 + i)`(1970-01-04 是周日)悄悄改成 `3 + i`(整排右移一天,
-  // 变成周六起始),`labels[0]` 依然是 'S',这条断言照样绿——而 calCells() 用
-  // `getDay()` 算前导空格是按"周日起始"的既有约定,一旦两者不一致,日历里每个日期
-  // 都会排在错误的星期列下(真机会看见整个月的日期集体左移/右移一格)。中文窄标签
-  // 不歧义:周日是'日'、周六是'六',用它钉住"首项确实是周日,不是周六"这条不变量。
-  it('zh_cn 首项是"日"(周日),不是"六"(周六)——钉住周日起始不变量(fix 波 F5)', () => {
+  // fix wave F5 (final-review required fix, mutation-tested): the `labels[0] === 'S'`
+  // assertion for en_us above has no discriminating power — the narrow English label for
+  // Saturday is also 'S', so if the implementation quietly changed its anchor from
+  // `new Date(1970, 0, 4 + i)` (1970-01-04 is a Sunday) to `3 + i` (shifting the whole row
+  // one day to the right, making it Saturday-first), `labels[0]` would still be 'S' and this
+  // assertion would stay green — while calCells() uses `getDay()` to compute leading blanks
+  // under the existing "Sunday-first" convention, so any mismatch between the two would put
+  // every date in the calendar under the wrong day-of-week column (on a real device you'd
+  // see every date in the month shifted left/right by one column). The Chinese narrow labels
+  // are unambiguous: Sunday is '日', Saturday is '六' — use them to pin down the invariant
+  // that the first item really is Sunday, not Saturday.
+  it('zh_cn\'s first item is "日" (Sunday), not "六" (Saturday) — pins down the Sunday-first invariant (fix wave F5)', () => {
     expect(calDowLabels('zh_cn')[0]).toBe('日')
   })
 })
 
 describe('calMonthLabel', () => {
-  it('含年份', () => {
+  it('includes the year', () => {
     expect(calMonthLabel(2026, 6, 'en_us')).toContain('2026')
   })
 
-  it('zh_cn 与 en_us 结果不同', () => {
+  it('zh_cn and en_us produce different results', () => {
     expect(calMonthLabel(2026, 6, 'zh_cn')).not.toBe(calMonthLabel(2026, 6, 'en_us'))
   })
 })

@@ -7,19 +7,21 @@ import zh from '../../../../i18n/zh_cn'
 import McpServerDetail from './McpServerDetail.vue'
 import type { McpServer } from '../../../types/mcpServer'
 
-// SP8-P4 Task 6 —— 对齐 Vue2 src/views/AI/MCP/McpServerDetail.vue(174 行)的
-// :1-157。
-// SP8-P4 Task 7 —— 补上「测试连接」整段:按钮 :50-53、结果面板 :87-100、
-// runTest :158-171,含 D8(本地化错误 + 折叠技术详情)与 D11(在途请求竞态守卫)。
-// 公共约束 §9:reka Teleport 组件挂载后先 await nextTick() 再查 document;
-// 异步断言用 flushPromises() 不用单个 await nextTick()。
+// SP8-P4 Task 6 —— Align with Vue2 src/views/AI/MCP/McpServerDetail.vue (174 lines)
+// lines 1-157.
+// SP8-P4 Task 7 —— Add the entire "Test Connection" section: button :50-53, result panel :87-100,
+// runTest :158-171, including D8 (localized errors + collapsible technical details) and D11 (in-flight request race guard).
+// Shared constraint §9: After reka Teleport component mounts, await nextTick() before querying document;
+// for async assertions use flushPromises() instead of single await nextTick().
 
-// vi.hoisted 避免 ESM 提升的 TDZ(公共约束 §9 先例 agentStore.test.ts:4-19)。
+// vi.hoisted avoids ESM hoisting's TDZ (shared constraint §9 precedent agentStore.test.ts:4-19).
 // Task 20 (mcp-progressive-disclosure plan) added `listMCPTools` alongside
 // `testMCPServer` -- McpServerDetail.vue now loads the persisted tool list
 // via `service.ai.listMCPTools` on mount / whenever `server.id` changes (see
 // that file's `loadTools`/`toolsSeq` watch), so it must be mocked here too or
-// every test in this file would hit an unmocked call.
+// every test in this file would hit an unmocked call. Nothing else is mocked --
+// the remaining cases touch no network, so the whole `service.ai` namespace
+// neither needs to be nor should be stubbed.
 const h = vi.hoisted(() => ({ testMCPServer: vi.fn(), listMCPTools: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: h } }))
 
@@ -55,12 +57,12 @@ function makeServer(overrides: Partial<McpServer> = {}): McpServer {
   }
 }
 
-// T7 用例沿用 brief 里的 `srv(...)` 命名,等价于既有的 `makeServer`——避免两份
-// 重复的 fixture 构造逻辑。
+// T7 test cases use the `srv(...)` naming from the brief, equivalent to the existing `makeServer`—
+// avoids duplicate fixture construction logic.
 const srv = makeServer
 
-// 删除确认弹窗 portal 到 `.set-app`(D6),测试须先在 body 里放同名宿主,
-// 先例 SkillDetail.test.ts::withHost()。
+// Delete confirmation dialog portals to `.set-app` (D6), test must first place a host with the same name in body,
+// precedent: SkillDetail.test.ts::withHost().
 function withHost(): HTMLElement {
   const host = document.createElement('div')
   host.className = 'set-app'
@@ -88,8 +90,8 @@ describe('McpServerDetail', () => {
     document.body.innerHTML = ''
   })
 
-  // ===== 覆盖点 1:server === null =====
-  it('1. server=null 时渲染 .sk-detail-empty,含 orb/empty-title/empty-sub', () => {
+  // ===== Coverage point 1: server === null =====
+  it('1. When server=null, renders .sk-detail-empty with orb/empty-title/empty-sub', () => {
     const w = mountDetail(null)
     expect(w.find('.sk-detail-empty').exists()).toBe(true)
     expect(w.find('.orb').exists()).toBe(true)
@@ -98,8 +100,8 @@ describe('McpServerDetail', () => {
     expect(w.find('.sk-detail-bar').exists()).toBe(false)
   })
 
-  // ===== 覆盖点 2:顶栏 =====
-  it('2. 有 server 时顶栏含 SkillTile、名称与 <code> 里的传输方式大写', () => {
+  // ===== Coverage point 2: Header bar =====
+  it('2. When server exists, header bar contains SkillTile, name, and transport method in uppercase within <code>', () => {
     const w = mountDetail(makeServer({ name: 'brave-search', transport: 'http' }))
     expect(w.find('.sk-detail-bar').exists()).toBe(true)
     expect(w.findComponent({ name: 'SkillTile' }).exists()).toBe(true)
@@ -107,8 +109,8 @@ describe('McpServerDetail', () => {
     expect(w.find('.sk-name code').text()).toBe('HTTP')
   })
 
-  // ===== 覆盖点 3:开关两项对照 =====
-  it('3a. enabled=true 时 .sw[data-on=true],点击 emit toggle(id,false)', async () => {
+  // ===== Coverage point 3: Toggle switch comparison =====
+  it('3a. When enabled=true, .sw[data-on=true], clicking emits toggle(id,false)', async () => {
     const w = mountDetail(makeServer({ id: 7, enabled: true }))
     const sw = w.find('.sw')
     expect(sw.attributes('data-on')).toBe('true')
@@ -116,7 +118,7 @@ describe('McpServerDetail', () => {
     expect(w.emitted('toggle')).toEqual([[7, false]])
   })
 
-  it('3b. enabled=false 时 .sw[data-on=false],点击 emit toggle(id,true)', async () => {
+  it('3b. When enabled=false, .sw[data-on=false], clicking emits toggle(id,true)', async () => {
     const w = mountDetail(makeServer({ id: 7, enabled: false }))
     const sw = w.find('.sw')
     expect(sw.attributes('data-on')).toBe('false')
@@ -124,8 +126,8 @@ describe('McpServerDetail', () => {
     expect(w.emitted('toggle')).toEqual([[7, true]])
   })
 
-  // ===== 覆盖点 4:元信息 4 格,请求头格仅 non-stdio 渲染 =====
-  it('4a. transport=stdio 时元信息只有 3 格,不含请求头格', () => {
+  // ===== Coverage point 4: Metadata 4 cells, headers cell only renders for non-stdio =====
+  it('4a. When transport=stdio, metadata has only 3 cells, no headers cell', () => {
     const w = mountDetail(makeServer({ transport: 'stdio' }))
     const cells = w.findAll('.sk-meta-cell')
     expect(cells).toHaveLength(3)
@@ -133,7 +135,7 @@ describe('McpServerDetail', () => {
     expect(labels).toEqual(['状态', '传输', '环境变量'])
   })
 
-  it('4b. transport!==stdio 时元信息 4 格,含请求头格', () => {
+  it('4b. When transport!==stdio, metadata has 4 cells, including headers cell', () => {
     const w = mountDetail(makeServer({ transport: 'http' }))
     const cells = w.findAll('.sk-meta-cell')
     expect(cells).toHaveLength(4)
@@ -141,8 +143,8 @@ describe('McpServerDetail', () => {
     expect(labels).toEqual(['状态', '传输', '请求头', '环境变量'])
   })
 
-  // ===== 覆盖点 5:状态格两态 + dot 无 style =====
-  it('5a. enabled=true:.val 无 data-disabled=true,文案「启用」,dot 无 style 属性', () => {
+  // ===== Coverage point 5: Status cell two states + dot has no style =====
+  it('5a. When enabled=true: .val has no data-disabled=true, correct text content, dot has no style attribute', () => {
     const w = mountDetail(makeServer({ enabled: true }))
     const statusVal = w.findAll('.sk-meta-cell')[0].find('.val')
     expect(statusVal.attributes('data-disabled')).toBe('false')
@@ -150,7 +152,7 @@ describe('McpServerDetail', () => {
     expect(statusVal.find('.dot').attributes('style')).toBeUndefined()
   })
 
-  it('5b. enabled=false:.val[data-disabled=true],文案「未启用」,dot 无 style 属性', () => {
+  it('5b. When enabled=false: .val[data-disabled=true], correct text content, dot has no style attribute', () => {
     const w = mountDetail(makeServer({ enabled: false }))
     const statusVal = w.findAll('.sk-meta-cell')[0].find('.val')
     expect(statusVal.attributes('data-disabled')).toBe('true')
@@ -158,8 +160,8 @@ describe('McpServerDetail', () => {
     expect(statusVal.find('.dot').attributes('style')).toBeUndefined()
   })
 
-  // ===== 覆盖点 6:stdio 配置区 =====
-  it('6a. stdio 配置区:命令/参数(空格 join)/环境变量三行', () => {
+  // ===== Coverage point 6: Stdio config section =====
+  it('6a. Stdio config section: command/args (space-joined)/environment variables in three rows', () => {
     const w = mountDetail(makeServer({
       transport: 'stdio', command: 'npx', args: ['-y', '@upstash/context7-mcp'], has_env: true,
     }))
@@ -173,14 +175,14 @@ describe('McpServerDetail', () => {
     expect(rows[2].find('.val').text()).toBe('已配置(已隐藏)')
   })
 
-  it('6b. stdio 配置区:args 为空数组时参数格显示「无」', () => {
+  it('6b. Stdio config section: when args is empty array, args cell displays empty status', () => {
     const w = mountDetail(makeServer({ transport: 'stdio', command: 'npx', args: [] }))
     const rows = w.findAll('.mcp-config-row')
     expect(rows[1].find('.mcp-code').text()).toBe('无')
   })
 
-  // ===== 覆盖点 7:非 stdio 配置区 =====
-  it('7a. 非 stdio 配置区:端点 URL/请求头/环境变量三行,has_headers=true 显示「已配置(已隐藏)」', () => {
+  // ===== Coverage point 7: Non-stdio config section =====
+  it('7a. Non-stdio config section: endpoint URL/headers/environment variables in three rows, has_headers=true shows configured status', () => {
     const w = mountDetail(makeServer({
       transport: 'http', url: 'https://x.example.com', has_headers: true, has_env: false,
     }))
@@ -193,21 +195,21 @@ describe('McpServerDetail', () => {
     expect(rows[2].find('.val').text()).toBe('无')
   })
 
-  it('7b. 非 stdio 配置区:has_headers=false 时请求头格显示「无」', () => {
+  it('7b. Non-stdio config section: when has_headers=false, headers cell displays empty status', () => {
     const w = mountDetail(makeServer({ transport: 'http', has_headers: false }))
     const rows = w.findAll('.mcp-config-row')
     expect(rows[1].find('.val').text()).toBe('无')
   })
 
-  // ===== 覆盖点 8:更多菜单 =====
-  it('8a. 更多菜单:初始不渲染 .sk-menu,点击 .sk-pill-more 后渲染', async () => {
+  // ===== Coverage point 8: More menu =====
+  it('8a. More menu: initially .sk-menu not rendered, renders after clicking .sk-pill-more', async () => {
     const w = mountDetail(makeServer())
     expect(w.find('.sk-menu').exists()).toBe(false)
     await w.find('.sk-pill-more').trigger('click')
     expect(w.find('.sk-menu').exists()).toBe(true)
   })
 
-  it('8b. 点「编辑配置」emit edit(server) 且菜单关闭', async () => {
+  it('8b. Clicking "edit config" emits edit(server) and menu closes', async () => {
     const server = makeServer({ id: 3, name: 'foo' })
     const w = mountDetail(server)
     await w.find('.sk-pill-more').trigger('click')
@@ -216,7 +218,7 @@ describe('McpServerDetail', () => {
     expect(w.find('.sk-menu').exists()).toBe(false)
   })
 
-  it('8c. 文档 mousedown 在菜单外关闭菜单', async () => {
+  it('8c. Document mousedown outside menu closes menu', async () => {
     const w = mountDetail(makeServer())
     await w.find('.sk-pill-more').trigger('click')
     expect(w.find('.sk-menu').exists()).toBe(true)
@@ -225,7 +227,7 @@ describe('McpServerDetail', () => {
     expect(w.find('.sk-menu').exists()).toBe(false)
   })
 
-  it('8d. 对照:菜单内 mousedown 不关闭菜单', async () => {
+  it('8d. Comparison: mousedown inside menu does not close menu', async () => {
     const w = mountDetail(makeServer())
     await w.find('.sk-pill-more').trigger('click')
     expect(w.find('.sk-menu').exists()).toBe(true)
@@ -234,8 +236,8 @@ describe('McpServerDetail', () => {
     expect(w.find('.sk-menu').exists()).toBe(true)
   })
 
-  // ===== 覆盖点 9:删除确认 =====
-  it('9a. 点「移除服务」:菜单关闭,确认弹窗打开(portal 进 .set-app)', async () => {
+  // ===== Coverage point 9: Delete confirmation =====
+  it('9a. Clicking "remove service": menu closes, confirmation dialog opens (portals to .set-app)', async () => {
     const w = mountDetail(makeServer())
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[1].trigger('click')
@@ -245,7 +247,7 @@ describe('McpServerDetail', () => {
     expect(host.querySelector('.sk-confirm')!.closest('.set-app')).toBe(host)
   })
 
-  it('9b. 点「移除」emit delete(id) 且弹窗关闭', async () => {
+  it('9b. Clicking "remove" emits delete(id) and dialog closes', async () => {
     const w = mountDetail(makeServer({ id: 9 }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[1].trigger('click')
@@ -257,7 +259,7 @@ describe('McpServerDetail', () => {
     expect(host.querySelector('.sk-confirm')).toBeNull()
   })
 
-  it('9c. 点「取消」不 emit delete,弹窗关闭', async () => {
+  it('9c. Clicking "cancel" does not emit delete, dialog closes', async () => {
     const w = mountDetail(makeServer())
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[1].trigger('click')
@@ -269,8 +271,8 @@ describe('McpServerDetail', () => {
     expect(host.querySelector('.sk-confirm')).toBeNull()
   })
 
-  // ===== 覆盖点 10:切换 server.id =====
-  it('10a. 菜单打开时切换 server.id,菜单自动关闭', async () => {
+  // ===== Coverage point 10: Switch server.id =====
+  it('10a. When menu is open and server.id switches, menu auto-closes', async () => {
     const w = mountDetail(makeServer({ id: 1 }))
     await w.find('.sk-pill-more').trigger('click')
     expect(w.find('.sk-menu').exists()).toBe(true)
@@ -279,7 +281,7 @@ describe('McpServerDetail', () => {
     expect(w.find('.sk-menu').exists()).toBe(false)
   })
 
-  it('10b. 确认弹窗打开时切换 server.id,弹窗自动关闭', async () => {
+  it('10b. When confirmation dialog is open and server.id switches, dialog auto-closes', async () => {
     const w = mountDetail(makeServer({ id: 1 }))
     await w.find('.sk-pill-more').trigger('click')
     await w.findAll('.sk-menu button')[1].trigger('click')
@@ -291,12 +293,12 @@ describe('McpServerDetail', () => {
   })
 })
 
-// SP8-P4 Task 7 —— 测试连接:三态(idle/testing/result)、D8(本地化错误 + 折叠
-// 技术详情)、D11(在途请求竞态守卫)。任务书 Step 1 给的完整用例,逐字照抄。
-describe('测试连接', () => {
+// SP8-P4 Task 7 —— Test Connection: three states (idle/testing/result), D8 (localized errors + collapsible
+// technical details), D11 (in-flight request race guard). Complete test cases from task spec Step 1, transcribed as-is.
+describe('Test Connection', () => {
   beforeEach(() => { h.testMCPServer.mockReset() })
 
-  it('点按钮进入 testing 态:按钮禁用、文案变「测试中…」、出现 spinner', async () => {
+  it('Clicking button enters testing state: button disabled, text changes to testing status, spinner appears', async () => {
     let resolve!: (v: unknown) => void
     h.testMCPServer.mockReturnValue(new Promise((r) => { resolve = r }))
     const w = mountDetail(srv({ id: 5 }))
@@ -309,7 +311,7 @@ describe('测试连接', () => {
     await flushPromises()
   })
 
-  it('stdio 才显示 90 秒提示,http 不显示(两次挂载对照)', async () => {
+  it('90-second hint shows for stdio only, not for http (two-mount comparison)', async () => {
     h.testMCPServer.mockReturnValue(new Promise(() => {}))
     const a = mountDetail(srv({ transport: 'stdio', command: 'npx' }))
     await a.find('.mcp-test-btn').trigger('click'); await nextTick()
@@ -319,8 +321,8 @@ describe('测试连接', () => {
     expect(b.find('.mcp-test-hint').exists()).toBe(false)
   })
 
-  // 单层取数的钉子:mock 是**裸对象**。若实现多剥一层 .data,这条会红。
-  it('成功:单层取数,显示已连接 · N 个工具 + 工具 chip', async () => {
+  // Single-layer response nail: mock is **bare object**. If implementation adds extra .data layer, this fails.
+  it('Success: single-layer response, displays connected · N tools + tool chips', async () => {
     h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 2, tools: ['search', 'fetch'] })
     const w = mountDetail(srv({ id: 5 }))
     await w.find('.mcp-test-btn').trigger('click')
@@ -332,7 +334,7 @@ describe('测试连接', () => {
     expect(w.find('.mcp-test-detail').exists()).toBe(false)
   })
 
-  it('失败:显示本地化文案,后端 error 英文串不出现在界面上', async () => {
+  it('Failure: displays localized text, backend error strings do not appear on page', async () => {
     h.testMCPServer.mockResolvedValue({
       ok: false, error_key: 'connect_failed',
       error: 'Connection failed: All connection attempts failed',
@@ -346,7 +348,7 @@ describe('测试连接', () => {
     expect(w.text()).not.toContain('Connection failed: All connection attempts failed')
   })
 
-  it('detail 非空才渲染折叠区,且默认折叠(无 open 属性)', async () => {
+  it('Detail section renders only if non-empty, and defaults to collapsed (no open attribute)', async () => {
     h.testMCPServer.mockResolvedValue({ ok: false, error_key: 'connect_failed', detail: 'ENOENT npx' })
     const w = mountDetail(srv())
     await w.find('.mcp-test-btn').trigger('click')
@@ -358,7 +360,7 @@ describe('测试连接', () => {
     expect(d.find('pre').text()).toBe('ENOENT npx')
   })
 
-  it('detail 为空时不渲染折叠区(对照)', async () => {
+  it('Detail section does not render when empty (comparison case)', async () => {
     h.testMCPServer.mockResolvedValue({ ok: false, error_key: 'probe_timeout' })
     const w = mountDetail(srv())
     await w.find('.mcp-test-btn').trigger('click')
@@ -367,7 +369,7 @@ describe('测试连接', () => {
     expect(w.find('.mcp-test-detail').exists()).toBe(false)
   })
 
-  it('502 agent unreachable(抛错路径)→ 专用文案,不显示后端 body', async () => {
+  it('502 agent unreachable (error path) → specialized text, backend body not shown', async () => {
     h.testMCPServer.mockRejectedValue(
       Object.assign(new Error('x'), { response: { status: 502, data: { ok: false, error: 'agent unreachable' } } }),
     )
@@ -378,7 +380,7 @@ describe('测试连接', () => {
     expect(w.text()).not.toContain('agent unreachable')
   })
 
-  it('testing 期间重复点击不重复发请求(Vue2 :159 的 if (!this.server || this.testing) return)', async () => {
+  it('Repeated clicks during testing do not send multiple requests (Vue2 :159 guard if (!this.server || this.testing) return)', async () => {
     h.testMCPServer.mockReturnValue(new Promise(() => {}))
     const w = mountDetail(srv())
     await w.find('.mcp-test-btn').trigger('click')
@@ -387,7 +389,7 @@ describe('测试连接', () => {
     expect(h.testMCPServer).toHaveBeenCalledTimes(1)
   })
 
-  it('切换服务器时清空 testing 与结果', async () => {
+  it('When switching servers, clear testing state and results', async () => {
     h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 1, tools: ['a'] })
     const w = mountDetail(srv({ id: 1 }))
     await w.find('.mcp-test-btn').trigger('click')
@@ -398,27 +400,27 @@ describe('测试连接', () => {
     expect(w.find('.mcp-test-result').exists()).toBe(false)
   })
 
-  // ★ D11 竞态守卫 —— 本任务的核心钉子。
-  // 弱断言(只查「结果面板不存在」)在切换后本来就成立,抓不出竞态;必须让
-  // 旧请求在切换**之后**才落地,再断言面板仍为空。
-  it('D11:在途请求落地时若已切到别的服务器,结果被丢弃(不串台)', async () => {
+  // ★ D11 race condition guard —— core nail of this task.
+  // Weak assertion (only checking "result panel absent") naturally holds after switch, cannot catch race;
+  // must allow old request to land **after** switch, then assert panel is still empty.
+  it('D11: In-flight request landing after switching to another server discards result (no crosstalk)', async () => {
     let resolveOld!: (v: unknown) => void
     h.testMCPServer.mockReturnValueOnce(new Promise((r) => { resolveOld = r }))
     const w = mountDetail(srv({ id: 1, name: 'old' }))
     await w.find('.mcp-test-btn').trigger('click')
     await nextTick()
-    // 切到另一台服务器
+    // Switch to another server
     await w.setProps({ server: srv({ id: 2, name: 'new' }) })
     await nextTick()
-    // 旧请求现在才落地,且是「成功」——若无守卫,会在新服务器面板上显示成功
+    // Old request now lands, and is "success"—without guard, would display success on new server panel
     resolveOld({ ok: true, tool_count: 9, tools: ['leaked'] })
     await flushPromises()
     expect(w.find('.mcp-test-result').exists()).toBe(false)
     expect(w.text()).not.toContain('leaked')
-    expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTest) // 不卡在「测试中…」
+    expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTest) // button text reset, not stuck in testing state
   })
 
-  it('D11 对照:未切换时结果正常落地(守卫不能把正常路径也挡掉)', async () => {
+  it('D11 comparison: results land normally without switch (guard does not block normal path)', async () => {
     let resolveIt!: (v: unknown) => void
     h.testMCPServer.mockReturnValueOnce(new Promise((r) => { resolveIt = r }))
     const w = mountDetail(srv({ id: 1 }))
@@ -430,14 +432,14 @@ describe('测试连接', () => {
     expect(w.text()).toContain('kept')
   })
 
-  // ★ finally 守卫的判别性用例(评审 Important 补丁)。
-  // 只有「旧请求落地时,新一轮测试正在进行中」这个场景才能区分「有 seq 守卫」与
-  // 「无 seq 守卫」——因为只有这时 testing 的值才会被旧请求错误地打回 false。
-  // 时序:server1 点测试(悬挂)→ 切到 server2 → server2 点测试(悬挂,testing=true)
-  // → 此时才让 server1 的旧请求落地 → 断言界面仍是「测试中…」、按钮仍 disabled、
-  // 结果面板仍不存在。若 finally 分支是无条件 `testing.value = false`(去掉
-  // seq 比对),旧请求落地会把 testing 打回 false,这条会红。
-  it('finally 守卫:旧请求成功落地时若新一轮测试进行中,不会把 testing 打回 false', async () => {
+  // ★ finally guard discriminant case (important review patch).
+  // Only the scenario "old request lands while new test round in progress" can distinguish "seq guard present" vs
+  // "seq guard absent"—because only then would testing be wrongly reset to false by old request.
+  // Timeline: server1 click test (pending) → switch to server2 → server2 click test (pending, testing=true)
+  // → then old request from server1 lands → assert UI still in testing state, button still disabled,
+  // result panel still absent. If finally branch unconditionally `testing.value = false` (without
+  // seq check), old request landing would reset testing to false, this would fail.
+  it('finally guard: old request successful landing while new test round in progress does not reset testing to false', async () => {
     let resolveOld!: (v: unknown) => void
     h.testMCPServer.mockReturnValueOnce(new Promise((r) => { resolveOld = r }))
     const w = mountDetail(srv({ id: 1, name: 'old' }))
@@ -445,11 +447,11 @@ describe('测试连接', () => {
     await nextTick()
     await w.setProps({ server: srv({ id: 2, name: 'new' }) })
     await nextTick()
-    h.testMCPServer.mockReturnValueOnce(new Promise(() => {})) // 新一轮悬挂,不落地
+    h.testMCPServer.mockReturnValueOnce(new Promise(() => {})) // new round pending, doesn't land
     await w.find('.mcp-test-btn').trigger('click')
     await nextTick()
     expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTesting)
-    // 旧请求(server1)现在才成功落地
+    // Old request (server1) now successfully lands
     resolveOld({ ok: true, tool_count: 3, tools: ['leaked-ok'] })
     await flushPromises()
     expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTesting)
@@ -469,7 +471,7 @@ describe('测试连接', () => {
     await flushPromises()
     const proto = w.find('.mcp-test-proto')
     expect(proto.exists()).toBe(true)
-    expect(proto.text()).toBe('协议 2025-06-18 · 另支持 2024-11-05')
+    expect(proto.text()).toBe('协议 2025-06-18 · 另支持 2024-11-05') // keep Chinese UI text
     expect(proto.classes()).not.toContain('is-legacy')
   })
 
@@ -514,7 +516,7 @@ describe('测试连接', () => {
     expect(w.text()).not.toContain('undefined')
   })
 
-  it('finally 守卫:旧请求抛错落地时若新一轮测试进行中,不会把 testing 打回 false', async () => {
+  it('finally guard: old request error landing while new test round in progress does not reset testing to false', async () => {
     let rejectOld!: (e: unknown) => void
     h.testMCPServer.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectOld = reject }))
     const w = mountDetail(srv({ id: 1, name: 'old' }))
@@ -522,11 +524,11 @@ describe('测试连接', () => {
     await nextTick()
     await w.setProps({ server: srv({ id: 2, name: 'new' }) })
     await nextTick()
-    h.testMCPServer.mockReturnValueOnce(new Promise(() => {})) // 新一轮悬挂,不落地
+    h.testMCPServer.mockReturnValueOnce(new Promise(() => {})) // new round pending, doesn't land
     await w.find('.mcp-test-btn').trigger('click')
     await nextTick()
     expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTesting)
-    // 旧请求(server1)现在才抛错落地
+    // Old request (server1) now throws error and lands
     rejectOld(Object.assign(new Error('boom'), { response: { status: 500, data: {} } }))
     await flushPromises()
     expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTesting)

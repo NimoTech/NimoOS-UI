@@ -1,14 +1,17 @@
-/* folder-permissions 的纯聚合引擎。1:1 移植 Vue2
- * NimoOS-UI/src/components/settings/folderPermissions.js(157 行,零 I/O)。
+/* Pure aggregation engine for folder-permissions. 1:1 port of Vue2
+ * NimoOS-UI/src/components/settings/folderPermissions.js (157 lines, zero I/O).
  *
- * 这里没有任何 I/O:快照由 folderPermissionsSnapshot.ts 组装,写计划只是普通的
- * action 描述对象,由那边的 execute() 去执行。
+ * There is no I/O here: the snapshot is assembled by folderPermissionsSnapshot.ts,
+ * and write plans are just plain action-descriptor objects, executed by that side's
+ * execute().
  *
- * ⚠️ 本期(SP9-P4)按 spec §3.1 政策三只做界面骨架 —— 快照是空实现、写操作禁用。
- * 但**这个文件是纯函数,照测不误**(政策二的边界)。合并 sp7/sp8 后本文件零改动。
+ * ⚠️ This phase (SP9-P4) only builds the UI skeleton per spec §3.1 policy three — the
+ * snapshot is a stub and writes are disabled.
+ * But **this file is pure functions, so it tests fine as-is** (the boundary of policy
+ * two). Zero changes to this file since merging sp7/sp8.
  *
- * 规范形态(矩阵只管这两种,更花的 glob 不在范围内):
- *   knowledge deny glob : `<abs_path>/*`   (Parser fnmatch,`*` 会跨 `/`)
+ * Canonical shapes (the matrix only covers these two; fancier globs are out of scope):
+ *   knowledge deny glob : `<abs_path>/*`   (Parser fnmatch, `*` crosses `/`)
  *   ai blacklist pattern: `<abs_path>/**`  (agent gitignore/PathSpec)
  */
 
@@ -29,7 +32,7 @@ export interface FolderPermSnapshot {
   offline: { search: boolean; knowledge: boolean; ai: boolean; photos: boolean }
 }
 
-/* Action 描述子(对位 Vue2 :114-120 的注释):
+/* Action descriptors (corresponds to Vue2 :114-120 comment):
  *   {svc:'search',  op:'putRoots',     roots:string[]}
  *   {svc:'wiki',    op:'createRoot',   path} | {op:'enableRoot'|'disableRoot', id}
  *   {svc:'parser',  op:'addDeny',      rootId, glob} | {op:'removeDeny', id}
@@ -66,12 +69,12 @@ export function pathFromDenyGlob(glob: unknown): string | null {
   return p && !p.includes('*') ? p : null
 }
 
-/** 按**分段**判祖先关系 —— 裸 startsWith 会把 /DATA/DocsOld 判成 /DATA/Docs 的子孙。 */
+/** Judge the ancestor relationship **by path segment** — a bare startsWith would treat /DATA/DocsOld as a descendant of /DATA/Docs. */
 export function isUnder(path: string, ancestor: string): boolean {
   return path !== ancestor && path.startsWith(`${ancestor}/`)
 }
 
-/** 覆盖该路径的、**已启用**的最长根。 */
+/** The longest **enabled** root that covers this path. */
 export function coveringEnabledRoot(path: string, wikiRoots: WikiRoot[]): WikiRoot | null {
   let best: WikiRoot | null = null
   for (const r of wikiRoots) {

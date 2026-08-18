@@ -3,7 +3,7 @@ import { computeCell } from './measure'
 
 describe('computeCell', () => {
   it('takes the min of width- and height-constrained cell size, floored', () => {
-    // availW 限制:(1480-11*16)/12 = 108.66 → 108;availH 限制更小则取它
+    // availW constraint: (1480-11*16)/12 = 108.66 → 108; availH constraint is smaller so takes that
     const byW = computeCell(1480, 10000, 12, 8, 16)
     expect(byW).toBe(Math.floor((1480 - 11 * 16) / 12))
   })

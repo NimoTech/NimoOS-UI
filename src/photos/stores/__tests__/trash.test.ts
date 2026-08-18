@@ -33,7 +33,7 @@ describe('photosTrash store', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
-  it('fetchTrash 映射 trashAssetToPhoto,容忍 null', async () => {
+  it('fetchTrash maps via trashAssetToPhoto, tolerates null', async () => {
     const s = usePhotosTrash()
     await s.fetchTrash()
     expect(s.items.length).toBe(1)
@@ -43,7 +43,7 @@ describe('photosTrash store', () => {
     expect(s.items.length).toBe(0)
   })
 
-  it('fetchTrash 失败时 items 清空但 loaded 保持 false(可重试)', async () => {
+  it('fetchTrash failure clears items but leaves loaded false (retryable)', async () => {
     const s = usePhotosTrash()
     ;(service.photos.listTrash as any).mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -54,7 +54,7 @@ describe('photosTrash store', () => {
     spy.mockRestore()
   })
 
-  it('fetchTrash 成功后置 loaded=true', async () => {
+  it('fetchTrash success sets loaded=true', async () => {
     const s = usePhotosTrash()
     expect(s.loaded).toBe(false)
     await s.fetchTrash()
@@ -79,19 +79,19 @@ describe('photosTrash store', () => {
     expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
   })
 
-  it('empty 调 emptyTrash 后重拉', async () => {
+  it('empty calls emptyTrash then re-fetches', async () => {
     const s = usePhotosTrash()
     await s.empty()
     expect(service.photos.emptyTrash).toHaveBeenCalled()
   })
 
-  it('purge 逐个删后重拉', async () => {
+  it('purge deletes one by one then re-fetches', async () => {
     const s = usePhotosTrash()
     await s.purge(['t1', 't2'])
     expect(service.photos.purgeTrash).toHaveBeenCalledTimes(2)
   })
 
-  it('purge 单项失败时吞错并记日志,不影响其余项与后续重拉', async () => {
+  it('purge swallows and logs a single item failure without affecting the rest or the follow-up re-fetch', async () => {
     const s = usePhotosTrash()
     ;(service.photos.purgeTrash as any)
       .mockImplementationOnce(() => Promise.reject(new Error('boom')))
@@ -111,7 +111,7 @@ describe('photosTrash store', () => {
     expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
   })
 
-  it('undoRestore 单项失败时吞错并记日志', async () => {
+  it('undoRestore swallows and logs a single item failure', async () => {
     const s = usePhotosTrash()
     ;(service.photos.deleteAsset as any).mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -120,13 +120,13 @@ describe('photosTrash store', () => {
     spy.mockRestore()
   })
 
-  it('fetchRetention 读 config', async () => {
+  it('fetchRetention reads config', async () => {
     const s = usePhotosTrash()
     await s.fetchRetention()
     expect(s.retentionDays).toBe(15)
   })
 
-  it('fetchRetention 失败时记日志且保留默认值', async () => {
+  it('fetchRetention logs on failure and keeps the default value', async () => {
     const s = usePhotosTrash()
     ;(service.photos.getConfig as any).mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -136,7 +136,7 @@ describe('photosTrash store', () => {
     spy.mockRestore()
   })
 
-  it('setRetention 先 GET watchDirs 再 PUT', async () => {
+  it('setRetention GETs watchDirs first, then PUTs', async () => {
     const s = usePhotosTrash()
     await s.setRetention(60)
     expect(service.photos.updateConfig).toHaveBeenCalledWith(['/DATA/Gallery'], 60)

@@ -16,11 +16,27 @@
 // (P5-T10 bug 形态:两个弹层共享一个判定函数、漏检第二个分支导致同开时 Esc 只关一个;
 // 本组件不共享判定函数,不会重现,但仍照铁律钉死写法)。
 //
-// z-index 与本仓已有弹层先例 PhotosPersonDetail.vue:1092 的 `.pd-scrim` 同档 220,
-// 不用 Vue2 places-cover-portal 的 1200(那是 Vue2 自己的层级体系,与本仓无关)。
+// Task 2 (Plan E, 2026-08-15): outer wrapper moved off the New-UI-only in-place
+// `.cp-scrim` invention onto Vue2's own body-portal semantics (PhotosPlacesView.vue
+// mounted()/beforeDestroy() appendChild/removeChild, :1338 class binding). `<Teleport
+// to="body">` replaces the manual appendChild/removeChild — behavior-equivalent
+// implementation detail, zero Vue2 code — and the teleported root now carries exactly
+// Vue2's own class combo `places-cover-portal photos-root ${themeClass} ${open ?
+// 'is-open' : ''}` (usePhotosTheme's themeClass; same PhotosToastHost.vue precedent for
+// re-applying `photos-root` to a portal host living outside the normal `.photos-root`
+// DOM ancestry). The z-index/backdrop/token choices this component's own `<style
+// scoped>` used to hand-roll (including the z-index-220 deviation this paragraph used to
+// document) are gone along with that whole style block — parity `photos-places.scss`'s
+// own `.places-cover-portal` family (z-index 1200, Vue2's own value) now governs 100% of
+// this component's visuals; the handful of true New-UI-only survivor rules (hover
+// feedback, busy-disabled states, two inline-Vue2-style-to-CSS-class conversions) were
+// folded into that same file's own "New-UI additions (Task 2 ...)" section.
+// `data-test="cp-scrim"` is kept as a bare test anchor even though the CSS class backing
+// it is now `places-cover-portal`, not the old New-UI-only `cp-scrim` name.
 import { onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
+import { usePhotosTheme } from '../composables/usePhotosTheme'
 import type { CoverCandidates } from '../stores/places'
 
 const props = defineProps<{
@@ -45,6 +61,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { themeClass } = usePhotosTheme()
 
 // 标签文案回落链(照搬 Vue2 :374-377):先查 photosPlacesCoverTab{Recent|Top|Fav|All}
 // (按 t.id 映射),没有则回落 t.label,再没有回落 t.id。只此一处消费,不进 util。
@@ -109,7 +126,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="open" class="cp-scrim" data-test="cp-scrim" @click.self="emit('close')">
+  <Teleport to="body">
+    <div
+      v-if="open" class="places-cover-portal photos-root is-open" :class="themeClass"
+      data-test="cp-scrim" @click.self="emit('close')"
+    >
     <div class="cp-shell" data-test="cp-shell">
       <div class="cp-head">
         <div class="cp-head-thumb">
@@ -215,238 +236,6 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
-
-<style scoped>
-/* token 映射(同 T3/T6 既定表):--surface-1 → --popup-bg;--line → --card-border;
-   --text-1/2/3 → --fg/--fg-muted/--fg-subtle;Vue2 原三档透明黑蒙层(浅/中/深三级
-   不透明度)→ --chip-bg(常态软底,浅一档)、--chip-bg-hi(hover / .is-active,中与深
-   两档合并成同一档——本仓只有两档 chip token,不新增第三档)。 */
-.cp-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 220;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-}
-/* P2 血泪:面板底色须用 --popup-bg,不用 --card-bg(深色主题下近透明会看穿)。 */
-.cp-shell {
-  width: 900px;
-  max-width: 95vw;
-  height: 80vh;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: var(--card-shadow-hi);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  color: var(--fg);
-}
-.cp-head {
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--card-border);
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-.cp-head-thumb {
-  width: 56px;
-  height: 42px;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid var(--accent);
-  background: var(--chip-bg);
-}
-.cp-head-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.cp-head-info { flex: 1; min-width: 0; }
-.cp-head-title { font-size: 14.5px; font-weight: 600; color: var(--fg); line-height: 1.3; }
-.cp-head-sub { font-size: 11.5px; color: var(--fg-subtle); margin-top: 3px; }
-.cp-close-btn {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-.cp-close-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.cp-tabs {
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid var(--card-border);
-}
-.cp-tabs-group {
-  display: flex;
-  background: var(--chip-bg);
-  border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
-}
-.cp-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 6px;
-  background: transparent;
-  border: 0;
-  color: var(--fg-subtle);
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-/* New-UI 侧新增(Vue2 无对应):.cp-tab 基类补一条 hover 反馈,与 .is-active 组成
-   本仓已确立的"基类/变体"对——下面这条铁律注释同 PlacesRail.vue :299-308。 */
-.cp-tab:hover { background: var(--chip-bg-hi); }
-.cp-tab.is-active {
-  background: var(--chip-bg-hi);
-  color: var(--fg);
-}
-/* 基类 hover 铁律(同 PlacesRail.vue :299-308):.cp-tab:hover 与 .cp-tab.is-active
-   优先级相同((0,2,0) vs (0,2,0)),不补这条专属 hover 规则的话,书写顺序一旦颠倒
-   就会被基类 hover 背景整块夺走。这条选择器优先级 (0,3,0),严格高于基类 hover,
-   不依赖书写顺序永远赢。删码验证钉住这点(cssCascade.hoverBackgroundRules)。 */
-.cp-tab.is-active:hover { background: var(--chip-bg-hi); }
-.cp-tab .cp-tab-count { font-size: 10px; opacity: 0.55; font-variant-numeric: tabular-nums; }
-.cp-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 99px;
-  width: 220px;
-  margin-left: auto;
-}
-.cp-search-ic { color: var(--fg-subtle); flex-shrink: 0; }
-.cp-search input {
-  flex: 1;
-  background: transparent;
-  border: 0;
-  color: var(--fg);
-  font: inherit;
-  font-size: 11.5px;
-  outline: none;
-  min-width: 0;
-}
-.cp-search input::placeholder { color: var(--fg-subtle); }
-.cp-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 14px 20px;
-}
-.cp-empty {
-  padding: 60px 0;
-  text-align: center;
-  color: var(--fg-subtle);
-  font-size: 12.5px;
-}
-.cp-empty-text { margin-top: 12px; }
-.cp-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 8px;
-}
-/* 评审同款(PlacesRail.vue D3 裁定):图片未加载完成前的占位底改用 --chip-bg
-   (随主题走),不是精确复刻 Vue2 那处 transparent——surface treatment 归 New-UI
-   重塑,与 .rail-place .thumb 已登记的手法一致。这一档同时给 .cp-cell 补上
-   hover/is-active 背景,满足下面的 hover 级联铁律。 */
-.cp-cell {
-  aspect-ratio: 1;
-  padding: 0;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  overflow: hidden;
-  background: var(--chip-bg);
-  position: relative;
-  transition: transform .15s;
-}
-.cp-cell:hover { background: var(--chip-bg-hi); }
-.cp-cell.is-active { border-color: var(--accent); background: var(--chip-bg-hi); }
-/* 基类 hover 铁律(同上 .cp-tab.is-active:hover 与 PlacesRail.vue :299-308):
-   .cp-cell:hover 与 .cp-cell.is-active 优先级相同,这条专属 :hover 规则的优先级
-   严格更高,不依赖书写顺序。删码验证钉住这点。 */
-.cp-cell.is-active:hover { background: var(--chip-bg-hi); }
-.cp-cell:disabled { opacity: 0.5; cursor: not-allowed; }
-.cp-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.cp-cell-check {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 18px;
-  height: 18px;
-  border-radius: 99px;
-  background: var(--accent);
-  color: var(--on-accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cp-foot {
-  padding: 12px 20px;
-  border-top: 1px solid var(--card-border);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.cp-reset-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 7px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--fg-muted);
-  font: inherit;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.cp-reset-btn:hover:not(:disabled) { background: var(--chip-bg-hi); color: var(--fg); }
-.cp-reset-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.cp-foot-info {
-  flex: 1;
-  text-align: center;
-  font-size: 11.5px;
-  color: var(--fg-subtle);
-}
-.cp-pagers { display: inline-flex; gap: 4px; }
-.cp-pagers button {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  color: var(--fg);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.cp-pagers button:hover:not(:disabled) { background: var(--chip-bg-hi); }
-.cp-pagers button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  color: var(--fg-subtle);
-}
-</style>

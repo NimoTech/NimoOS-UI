@@ -27,7 +27,7 @@ const progress = useInstallProgressStore()
 function onInstall(a: StoreApp) {
   requestInstall({ id: a.id, title: a.title, icon: a.icon, tips: a.tips })
 }
-/** Featured 卡只带 id:原始数据在 store.featured/list 里查 */
+/** Featured cards only carry an id: look up the raw data in store.featured/list */
 function onInstallById(id: string) {
   const raw = store.featured[id] ?? store.list[id]
   if (!raw) return
@@ -43,12 +43,12 @@ const compatibleOf = (id: string) => {
   return isCompatible(Array.isArray(raw?.architectures) ? (raw!.architectures as string[]) : undefined)
 }
 
-// 深链三参(spec §3.1):?category= / ?author= / ?search=,单一事实源=路由 query
+// Three deep-link params (spec §3.1): ?category= / ?author= / ?search=; single source of truth = route query
 const category = computed(() => (typeof route.query.category === 'string' && route.query.category) || ALL)
 const author = computed(() => (typeof route.query.author === 'string' && route.query.author) || ALL)
 const search = computed(() => (typeof route.query.search === 'string' && route.query.search) || '')
 
-// 作者过滤:Vue2 静态菜单(All/official/by_nimoos/community → author_type 参数)
+// Author filter: static menu as in Vue2 (All/official/by_nimoos/community → author_type parameter)
 const AUTHORS = [
   { value: ALL, labelKey: 'appsStoreAll' },
   { value: 'official', labelKey: 'appsStoreAuthorOfficial' },
@@ -56,7 +56,7 @@ const AUTHORS = [
   { value: 'community', labelKey: 'appsStoreAuthorCommunity' },
 ]
 
-// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框
+// Search input: write query after 250ms debounce (same as Vue2); external query changes (back navigation) flow back into the input
 const searchInput = ref(search.value)
 let timer: ReturnType<typeof setTimeout> | undefined
 watch(searchInput, (v) => {
@@ -67,11 +67,12 @@ watch(searchInput, (v) => {
   }, 250)
 })
 watch(search, (v) => { if (v !== searchInput.value) searchInput.value = v })
-// 卸载(如点卡片跳转详情页)时清理未触发的防抖定时器——否则 250ms 窗口内残留的
-// setTimeout 会在离开本页后仍对已销毁组件捕获的 router 触发一次多余的 replace。
+// On unmount (e.g. clicking a card to navigate to the detail page) clear any pending debounce timer --
+// otherwise a setTimeout left in the 250ms window would fire an extra replace on the router
+// captured by the destroyed component after leaving this page.
 onUnmounted(() => clearTimeout(timer))
 
-// 分类/作者是后端参数:query 变化即重拉;搜索纯前端不重拉
+// Category/author are backend parameters: refetch on query change; search is frontend-only, no refetch
 watch([category, author], () => { store.loadCatalog(category.value, author.value) })
 onMounted(() => {
   store.loadCatalog(category.value, author.value)
@@ -83,7 +84,7 @@ const shown = computed(() => filterStoreApps(items.value, search.value))
 const featuredItems = computed(() =>
   Object.entries(store.featured).map(([id, raw]) => mapStoreApp(id, raw, locale.value)),
 )
-// 推荐带只在「未过滤未搜索」的首屏语境显示——过滤/搜索时列表就是用户要的答案,带子是噪音
+// The featured strip only shows in the unfiltered, unsearched first-screen context -- when filtering/searching, the list is the answer the user wants and the strip is noise
 const showFeatured = computed(() => category.value === ALL && author.value === ALL && !search.value)
 
 function setCategory(name: string) {
@@ -158,10 +159,11 @@ function openDetail(id: string) {
   font-size: 13px; padding: 6px 10px; color: var(--fg);
   background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 10px;
 }
-/* `.store-author` 是个 <select>,而上面把 background 设成了 var(--chip-bg) —— 深色主题下它是
- * **半透明白的渐变**。作者一旦给 <select> 指定背景,Chrome 就把它带到弹出列表上,而原生 option
- * **不渲染 gradient**(退回浏览器默认白底),配上近白的 --fg 就是白底白字。根节点的
- * color-scheme: dark 救不了(作者背景优先)。守卫:styles/selectPopup.test.ts。 */
+/* `.store-author` is a <select>, and above we set background to var(--chip-bg) -- in the dark theme
+ * that is a **semi-transparent white gradient**. Once the author sets a background on a <select>,
+ * Chrome carries it onto the popup list, but native options **do not render gradients** (falling back
+ * to the browser default white background), which combined with a near-white --fg gives white-on-white text.
+ * color-scheme: dark on the root cannot save it (author background wins). Guard: styles/selectPopup.test.ts. */
 .store-author option,
 .store-author optgroup {
   background-color: var(--set-option-bg);

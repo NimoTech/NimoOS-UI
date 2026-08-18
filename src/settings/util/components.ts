@@ -1,6 +1,7 @@
-// 设置 · 系统状态 —— GET /v1/gateway/components 的分组派生。
-// Vue2 对位:components/settings/SystemStatus.vue 的 grouped(:46)与 statusHint(:69)。
-// ⚠️ 该端点是**裸 JSON 无信封**(P1 实测校正①),共享包 sys.getGatewayComponents 已剥 .components。
+// Settings / System status -- grouping derivation for GET /v1/gateway/components.
+// Vue2 counterpart: grouped (:46) and statusHint (:69) in components/settings/SystemStatus.vue.
+// ⚠️ This endpoint returns **bare JSON with no envelope** (P1 field-verified correction 1);
+// the shared package's sys.getGatewayComponents already strips .components.
 import type { GatewayComponent } from '@nimotech/nimoos-service'
 
 const GROUPS = [
@@ -20,7 +21,7 @@ export function groupComponents(
   })).filter((g) => g.items.length > 0)
 }
 
-/** 离线项的悬浮说明:后端错误原文 + 探测时刻。 */
+/** Hover hint for offline items: raw backend error text + probe timestamp. */
 export function statusHint(c: GatewayComponent): string {
   const at = c.probed_at ? `(${c.probed_at})` : ''
   return [c.error, at].filter(Boolean).join(' ')

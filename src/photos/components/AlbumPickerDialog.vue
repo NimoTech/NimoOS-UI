@@ -151,18 +151,18 @@ async function submitCreate(): Promise<void> {
 <template>
   <div
     v-if="open"
-    class="alb-picker-overlay"
+    class="album-picker-overlay"
     data-test="album-picker-overlay"
     @click.self="close"
   >
-    <div class="alb-picker-panel">
-      <div class="alb-picker-head">
-        <span class="alb-picker-title-text">{{ t('photosAddToAlbumTitle') }}</span>
-        <button type="button" class="alb-picker-close" :aria-label="t('photosClose')" @click="close">×</button>
+    <div class="album-picker-panel">
+      <div class="album-picker-head">
+        <span class="album-picker-title-text">{{ t('photosAddToAlbumTitle') }}</span>
+        <button type="button" class="album-picker-close" :aria-label="t('photosClose')" @click="close">×</button>
       </div>
 
-      <div class="alb-picker-body">
-        <div v-if="views.length === 0" class="alb-picker-empty" data-test="album-picker-empty">
+      <div class="album-picker-body">
+        <div v-if="views.length === 0" class="album-picker-empty" data-test="album-picker-empty">
           {{ t('photosAddToAlbumEmpty') }}
         </div>
 
@@ -170,37 +170,37 @@ async function submitCreate(): Promise<void> {
           v-for="v in views"
           :key="v.id"
           type="button"
-          class="alb-picker-item"
+          class="album-picker-item"
           data-test="album-picker-item"
           :disabled="!canSubmit"
           @click="pick(v.id)"
         >
-          <span v-if="v.cover" class="alb-picker-cover">
+          <span v-if="v.cover" class="album-picker-cover">
             <img :src="thumb(v.cover)" alt="">
           </span>
-          <span v-else class="alb-picker-cover alb-picker-cover-empty" data-test="album-picker-cover-empty"></span>
-          <span class="alb-picker-info">
-            <span class="alb-picker-item-title">{{ v.title }}</span>
-            <span class="alb-picker-item-count">{{ t('photosItemsCount', { count: v.count }) }}</span>
+          <span v-else class="album-picker-cover album-picker-cover-empty" data-test="album-picker-cover-empty"></span>
+          <span class="album-picker-info">
+            <span class="album-picker-item-title">{{ v.title }}</span>
+            <span class="album-picker-item-count">{{ t('photosItemsCount', { count: v.count }) }}</span>
           </span>
         </button>
 
         <button
           v-if="!creating"
           type="button"
-          class="alb-picker-item alb-picker-new"
+          class="album-picker-item album-picker-new"
           data-test="album-picker-new"
           :disabled="!canSubmit"
           @click="startCreate"
         >
           {{ t('photosAddToAlbumNew') }}
         </button>
-        <div v-else class="alb-picker-new-row">
+        <div v-else class="album-picker-new-row">
           <input
             ref="newInputRef"
             v-model="newName"
             type="text"
-            class="alb-picker-new-input"
+            class="album-picker-new-input"
             data-test="album-picker-new-input"
             @keydown.enter="submitCreate"
           >
@@ -211,80 +211,115 @@ async function submitCreate(): Promise<void> {
 </template>
 
 <style scoped>
-.alb-picker-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 230;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 24px;
+/* Task 7(两 picker 类名工程): overlay/panel/head/body/item(+:hover)/new/empty 与已导入的
+   全局 parity 样式表(src/photos/styles/vue2-parity/photos.scss:1043-1074
+   `.photos-root .album-picker-*`)逐字同名——这些规则被整体删除,直接让 parity 接管,不在本地
+   重复声明(否则两处对同一属性的取值在 scoped 特异性打平后要靠加载顺序分胜负,构成隐性像素
+   漂移,即 T3 albums 弹层清理时踩过的坑)。下面只保留 parity 完全没有覆盖的选择器,逐条注释
+   保留理由。 */
+
+/* Fix-2 item 3 (owner acceptance, 2026-08-16): parity's own `.photos-root .album-picker-panel`
+   (vue2-parity/photos.scss:1160-1161, `width: 280px; max-height: 360px;`) is byte-transcribed
+   from Vue2's real dialog -- a plain `window.prompt`-era text list, no cover thumbnails. The
+   owner's acceptance screenshot flagged this box as too small now that this component renders
+   real 40px cover thumbnails + a title/count two-line layout (this component's own, documented
+   structural addition over Vue2, see the next comment below). This is a deliberate, owner-
+   directed DEVIATION from parity's pixel value here -- not a transcription bug -- enlarging the
+   panel and making it viewport-responsive.
+
+   Sizing formula: `width: min(520px, 90vw)` reads comfortably on a wide monitor (capped at 520px
+   so the album list doesn't stretch into an awkwardly wide single column) while still fitting a
+   narrow window with a 5vw margin on each side; `max-height: min(640px, 80vh)` leaves headroom
+   above/below the dialog on both a tall desktop viewport and a short one -- `.album-picker-body`'s
+   existing `overflow-y: auto; flex: 1` (parity, untouched below) keeps a long album list
+   scrolling internally rather than growing the dialog past this cap.
+
+   Specificity note: this selector is a plain, single-class `.album-picker-panel`, which under
+   `<style scoped>` compiles to `.album-picker-panel[data-v-xxxx]` -- 0-2-0, the SAME specificity
+   as parity's two-class `.photos-root .album-picker-panel`. Per this whole file's own established
+   convention (this component's scoped `<style>` registers AFTER the parity stylesheet in every
+   host page's import order, see this file's other retirement comments), a genuine specificity tie
+   is won by whichever rule loads later -- so this local override reliably wins over parity's
+   small value instead of losing to it. */
+.album-picker-panel {
+  width: min(520px, 90vw);
+  max-height: min(640px, 80vh);
 }
 
-/* P2 血泪:面板底色须用 --popup-bg,不用 --card-bg(深色主题下 --card-bg 近透明,叠在暗底
-   上会看穿)。 */
-.alb-picker-panel {
-  width: 340px;
-  max-width: 100%;
-  max-height: 70vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: var(--card-shadow-hi);
-  overflow: hidden;
-}
-
-.alb-picker-head {
+/* 结构补充(parity 未覆盖):本组件相册项承载封面缩略图 + 标题/计数两列布局,并用原生
+   <button> 承载可点击语义(Vue2 版是纯文本 <div>,靠 window.prompt 建相册,没有封面/计数
+   这层子结构)——这里只保留 flex 布局与 button 外观重置这两类 parity 完全不涉及的属性;
+   padding/font-size/color/cursor/transition 仍由 parity 的 .album-picker-item 提供,不重复
+   声明。 */
+.album-picker-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--divider);
-  flex: 0 0 auto;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
 }
-.alb-picker-title-text { font-size: 14.5px; font-weight: 600; color: var(--fg); }
-.alb-picker-close {
+/* disabled 态 parity 无对应规则(Vue2 没有这个态)—— New-UI 新增的 assetIds 为空态防呆。 */
+.album-picker-item:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+
+/* 头部关闭按钮:Vue2 用的是全站通用 .icon-btn(photos.scss:229-237,32px 圆形 + photos-icon
+   组件),本仓这批弹层(MergeReviewDialog.vue `.mrd-close`、ClusterActionDialog.vue
+   `.cad-close`、PhotosAlbums.vue New Album 弹层 `.albums-modal-close`)一贯改用更小的 24px
+   专属关闭按钮类而不复用 .icon-btn——这是既有本地范式的延续,parity 无对应选择器可比对。 */
+.album-picker-close {
   width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
+  color: var(--text-2); font-size: 15px; line-height: 1; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.alb-picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.album-picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
-.alb-picker-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px; }
+/* 标题文字(模板处 `.album-picker-title-text` span,Task 8 静态自查记录 + Fix-3 订正):
+   font-size/font-weight 仍不声明局部规则——parity 的 .album-picker-head 本身已是
+   font-size:13px;font-weight:600 的 flex 容器(space-between 天然把标题和关闭按钮分置
+   两端),留出这层局部覆盖只会把 13px 悄悄改成 14.5px,构成像素漂移。
 
-.alb-picker-empty { padding: 20px 8px; color: var(--fg-muted); font-size: 12.5px; text-align: center; }
+   Fix-3(owner acceptance, 2026-08-17,screenshot image copy 77.png)订正 Task 8 当年的
+   color 判断——**"删除后交给继承环境色,与 Vue2 行为一致"这条推论是错的**:本组件
+   挂载在 `.app` 的**同级**(`.photos-root > .app` 与 `.photos-root > AlbumPickerDialog`
+   是兄弟,见 PhotosSearch.vue 等宿主页模板),不在 `.app` 子树内——而 `.photos-root .app`
+   才是本仓唯一显式设 `color: var(--text-1)`(Photos 私有、随 is-light 翻转)的祖先层级
+   (photos.scss:104-116)。挂在 `.app` 外的这个弹层,继承链会一路跳过它,落到
+   src/styles/theme.css 全局 `body { color: var(--fg) }`——那是**全局**、只跟随全站
+   `[data-theme]` 的 token,不跟随 Photos 私有的 `.photos-root.is-light` 切换。常见的
+   "Photos 私有浅色 + 全站深色"组合下,`--fg` 停在深色默认的纯白值上,标题就成了浅色
+   面板上的白字——即 owner 验收截图报的"标题看不见"。同 Fix-2 item 4 一路病根(Places/
+   灯箱两处均已修过),这里是同一缺陷类在相册弹层的第三处现身。补一条局部 `color`,钉在
+   Photos 私有的 `--text-1`(与 parity 的 .album-picker-item 标题同色,视觉上与列表行标题
+   一致),不再依赖继承。类名仍保留作结构标记。 */
+.album-picker-title-text { color: var(--text-1); }
 
-.alb-picker-item {
-  width: 100%;
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px; border: 0; border-radius: 10px; background: transparent;
-  color: var(--fg); font: inherit; text-align: left; cursor: pointer;
-}
-.alb-picker-item:hover { background: var(--chip-bg-hi); }
-.alb-picker-item:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
-
-.alb-picker-cover {
+/* 封面缩略图/空占位——Vue2 的 window.prompt 流程完全没有封面展示,这是本组件独有的功能
+   增补(brief 明确登记的形态偏离),parity 无对应选择器。 */
+.album-picker-cover {
   flex: 0 0 auto; width: 40px; height: 40px; border-radius: 8px; overflow: hidden;
-  border: 1px solid var(--card-border); background: var(--chip-bg);
+  border: 1px solid var(--line); background: var(--surface-2);
 }
-.alb-picker-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.alb-picker-cover-empty { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
+.album-picker-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.album-picker-cover-empty { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
 
-.alb-picker-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.alb-picker-item-title { font-size: 13px; font-weight: 500; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.alb-picker-item-count { font-size: 11px; color: var(--fg-muted); }
+/* 标题+计数两列信息区——同上,parity 的纯文本项没有这层子结构。 */
+.album-picker-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.album-picker-item-title { font-size: 13px; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.album-picker-item-count { font-size: 11px; color: var(--text-2); }
 
-.alb-picker-new { color: var(--accent-text); font-size: 13px; font-weight: 500; }
+/* .album-picker-new 的 color 已被 parity(`color: var(--accent-hi)`)接管,原有的
+   font-size/font-weight 覆盖一并删除——Vue2 的「+ New Album」行本就和普通相册项同一字重,
+   不是加粗强调,删除后与 Vue2 一致。 */
 
-.alb-picker-new-row { padding: 8px; }
-.alb-picker-new-input {
+/* 内联新建输入行——brief 登记的形态偏离(Vue2 用 window.prompt,本仓改为面板内联输入行),
+   parity 自然没有对应选择器。 */
+.album-picker-new-row { padding: 8px; }
+.album-picker-new-input {
   width: 100%; height: 34px; padding: 0 10px; border-radius: 8px;
-  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text-1);
   font: inherit; font-size: 13px;
 }
-.alb-picker-new-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.album-picker-new-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 </style>

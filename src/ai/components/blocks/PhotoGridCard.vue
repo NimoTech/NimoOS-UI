@@ -1,4 +1,4 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/PhotoGridCard.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/PhotoGridCard.vue -->
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

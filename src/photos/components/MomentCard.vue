@@ -19,10 +19,18 @@
 //  3) The asset count's thousands separator follows the i18n locale (`toLocaleString(localeTag)`),
 //     not Vue2's bare `toLocaleString()` (which follows the browser's locale, unpredictable).
 //  4) Amber badge: Vue2 used a literal `linear-gradient(135deg,#FF9F0A,#FF6B5C)` and
-//     `rgba(255,159,10,0.15)/#FF9F0A`. This repo forbids bare color literals, so it reuses the
-//     existing --warn-fg / --warn-bg tokens (theme.css:155-157 and :511-513, both themes have
-//     values, no new token added). The gradient collapses to a flat --warn-fg — there is no
-//     second amber token to build a gradient from, logged as a cosmetic-only deviation.
+//     `rgba(255,159,10,0.15)/#FF9F0A`. This repo forbids bare color literals. `.mo-badge`
+//     reuses --warn-fg (theme.css:155/:510) for its flat fill -- kept as-is, cosmetic-only
+//     gradient-to-flat deviation, unaffected by the item-6 fix below since its text is a
+//     literal white on a solid fill, always legible regardless of theme. `.mo-span-mini`
+//     (below, near .sv-stats) originally reused the --warn-bg/--warn-fg *pair* the same way,
+//     but that one is a translucent tint sitting directly on the page background, not a solid
+//     fill -- Fix-2 item 6 (owner acceptance, 2026-08-13) found neither token is shadowed on
+//     `.photos-root`, so under photos light mode (data-theme still dark) it kept the dark
+//     pairing: a faint wash under bright orange text on the parity light surface, low-contrast.
+//     Switched to `--warning` (declared directly on `.photos-root`, deliberately invariant by
+//     spec) + `color-mix` reproducing Vue2's own 0.15 alpha exactly -- see that rule's own
+//     comment for the full trace.
 //  5) .mo-card .sv-name's two-line clamp is copied as-is (scss:254-259).
 //  6) [registered by the SP15-P1 final review, deliberately not acted on] The badge star is
 //     fill-only. Vue 2 renders it through <photos-icon name="star">, which both fills *and*
@@ -127,8 +135,8 @@ function thumbUrl(id: string): string {
   flex-direction: column;
   border-radius: var(--radius-sm);
   overflow: hidden;
-  border: 1px solid var(--card-border);
-  background: var(--card-bg);
+  border: 1px solid var(--line);
+  background: var(--surface-1);
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
 }
@@ -210,14 +218,34 @@ function thumbUrl(id: string): string {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .sv-conds { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
-.sv-cond { padding: 2px 8px; border-radius: var(--chip-radius, 999px); background: var(--chip-bg); color: var(--fg-muted); font-size: 11px; }
-.sv-stats { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
-.sv-stats b { color: var(--fg); font-weight: 600; }
+/* Fix-2 item 4/6 (owner acceptance, 2026-08-13): background corrected from `--chip-bg`
+   (global, non-`.photos-root`-shadowed, glass-gradient in dark mode) to parity's own
+   `--surface-3` -- Vue2's real base `.sv-cond` background (photos-smartview.scss:91-97), one
+   rung lighter than what was here before (`--chip-bg`/--surface-2, not `--chip-bg-hi`/
+   --surface-3) -- a plain value drift, not just a theming one. Same fix applied to
+   PhotosAlbumDetail.vue's and AlbumConvertToSmartDialog.vue's own copies of this chip. */
+.sv-cond { padding: 2px 8px; border-radius: var(--chip-radius, 999px); background: var(--surface-3); color: var(--text-2); font-size: 11px; }
+.sv-stats { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-4); font-variant-numeric: tabular-nums; }
+.sv-stats b { color: var(--text-1); font-weight: 600; }
 .mo-week-badge { color: var(--success); }
+/* Fix-2 item 6 (owner acceptance, 2026-08-13): was `background: var(--warn-bg); color:
+   var(--warn-fg)` -- both *global*, non-`.photos-root`-shadowed tokens, so in photos light
+   mode (data-theme still dark) this stayed the dark pairing: a very faint 8%-alpha orange wash
+   sitting directly on the parity light surface underneath, with the same bright orange text on
+   top as always -- low-contrast orange-on-near-white, the same root cause class as the rest of
+   this sweep. `--warning` is different: it is declared directly on `.photos-root` itself
+   (vue2-parity/photos.scss's token block) at the exact same orange Vue2 itself uses literally,
+   and is deliberately left un-overridden by `.photos-root.is-light` (functional colors are
+   invariant by spec) -- i.e. it is *already* the correct, parity-scoped, theme-invariant token
+   this pill wants, not a leftover. Vue2's own literal fill is a 15%-alpha version of that same
+   orange (photos-smartview.scss:250-258's `.mo-span-mini` / :264-268's `.mo-type-pill`, both the
+   exact source this pill ports) -- `color-mix` reproduces that alpha ratio precisely (a real
+   value fix too: `--warn-bg`'s own 8% was already a drift from Vue2's 15%, not just a theming
+   one). */
 .mo-span-mini {
   display: inline-flex; align-items: center;
   padding: 2px 7px; border-radius: var(--chip-radius, 999px);
-  background: var(--warn-bg); color: var(--warn-fg);
+  background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning);
   font-weight: 600; white-space: nowrap;
 }
 </style>

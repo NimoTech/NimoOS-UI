@@ -25,7 +25,7 @@ describe('McpElicitUrlCard', () => {
     vi.stubGlobal('open', open)
   })
 
-  it('点「打开并授权」:带 noopener,noreferrer 开新标签页并立刻 accept', async () => {
+  it('clicking "open and authorize": open new tab with noopener,noreferrer and accept immediately', async () => {
     const w = mountCard()
     await w.find('button.mcc-btn.primary').trigger('click')
     await flushPromises()
@@ -39,7 +39,7 @@ describe('McpElicitUrlCard', () => {
     ['data:text/html,<h1>hi'],
     ['blob:https://evil.example/x'],
     ['myapp://launch'],
-  ])('scheme 白名单拦下 %s:不打开、不发请求', async (url) => {
+  ])('scheme whitelist blocks %s: does not open or send request', async (url) => {
     const w = mountCard({ url })
     await w.find('button.mcc-btn.primary').trigger('click')
     await flushPromises()
@@ -48,7 +48,7 @@ describe('McpElicitUrlCard', () => {
     expect(w.find('.mcc-err').text()).toContain('只允许 http 与 https')
   })
 
-  it('http(非 https)允许打开,但 insecure 警告要在', async () => {
+  it('http(not https) is allowed to open, but insecure warning must be present', async () => {
     const w = mountCard({ url: 'http://plain.example.com/x', host: 'plain.example.com', insecure: true })
     expect(w.text()).toContain('不是 HTTPS')
     await w.find('button.mcc-btn.primary').trigger('click')
@@ -56,32 +56,32 @@ describe('McpElicitUrlCard', () => {
     expect(open).toHaveBeenCalled()
   })
 
-  it('host 高亮:整条 URL 都在,host 单独成一段', () => {
+  it('host highlight: entire URL is present, host is separate segment', () => {
     const w = mountCard()
     expect(w.find('.mcc-url .host').text()).toBe('auth.example.com')
     expect(w.find('.mcc-url').text()).toContain('https://')
     expect(w.find('.mcc-url').text()).toContain('/oauth?x=1')
   })
 
-  it('host 在 URL 里找不到时整条落到 after,不崩', () => {
+  it('when host is not found in URL, entire string goes to after, does not crash', () => {
     const w = mountCard({ host: 'nowhere.example' })
     expect(w.find('.mcc-url .host').text()).toBe('')
     expect(w.find('.mcc-url').text()).toContain('https://auth.example.com/oauth?x=1')
   })
 
-  it('punycode 警告;有 hostAscii 时并排显示 punycode 拼法', () => {
+  it('punycode warning; when hostAscii present, display punycode spelling side-by-side', () => {
     const w = mountCard({ punycode: true, hostAscii: 'xn--80ak6aa92e.com' })
     expect(w.find('.mcc-alarm').text()).toContain('国际化域名')
     expect(w.find('.mcc-alarm .ascii').text()).toContain('xn--80ak6aa92e.com')
   })
 
-  it('punycode 为真但 hostAscii 为空时不渲染并排行', () => {
+  it('when punycode is true but hostAscii is empty, does not render side-by-side row', () => {
     const w = mountCard({ punycode: true, hostAscii: '' })
     expect(w.find('.mcc-alarm').exists()).toBe(true)
     expect(w.find('.mcc-alarm .ascii').exists()).toBe(false)
   })
 
-  it('409 之后整卡折叠,不留按钮', async () => {
+  it('after 409, entire card collapses, no buttons left', async () => {
     resolveElicitation.mockRejectedValueOnce(Object.assign(new Error('x'), { response: { status: 409 } }))
     const w = mountCard()
     await w.find('button.mcc-btn.primary').trigger('click')
@@ -90,7 +90,7 @@ describe('McpElicitUrlCard', () => {
     expect(w.findAll('button')).toHaveLength(0)
   })
 
-  it('「取消」发 cancel', async () => {
+  it('clicking "cancel" sends cancel', async () => {
     const w = mountCard()
     await w.findAll('button.mcc-btn')[1].trigger('click')
     await flushPromises()

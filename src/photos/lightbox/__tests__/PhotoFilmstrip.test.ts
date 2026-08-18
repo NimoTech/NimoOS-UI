@@ -2,6 +2,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import PhotoFilmstrip from '../PhotoFilmstrip.vue'
+// Plan F Task 5: `.lb-strip`'s `grid-area` no longer has a local copy (retired -- byte-duplicate
+// of parity's own `.photos-root .lb-strip`, see PhotoFilmstrip.vue's scoped-style retirement
+// note). Read parity's source instead now that it's what actually governs.
+// Read via node:fs rather than a Vite `?raw` import -- Vite's CSS/SCSS handling intercepts
+// `.scss?raw` before the raw-loader can return it (empirically empty in this project's vitest
+// setup); every other guard test reading vue2-parity/*.scss uses fs for the same reason.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const PARITY_SRC = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 import type { Photo } from '../../util/assetToPhoto'
 
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -56,12 +69,22 @@ function fireWheel(strip: HTMLElement, deltaY: number, deltaX = 0): WheelEvent {
   return e
 }
 
+// Plan F Task 3: root is now a direct grid child of PhotoLightbox's `.lightbox` grid
+// (grid-area: strip) rather than a nested flex-row child of the removed `.lb-body` wrapper.
+describe('PhotoFilmstrip 结构:grid-area 契约(Plan F Task 3, retargeted to parity in Task 5)', () => {
+  it('.lb-strip 规则里带 grid-area: strip', () => {
+    const m = /\.photos-root \.lb-strip\s*\{([^}]*)\}/.exec(PARITY_SRC)
+    expect(m).not.toBeNull()
+    expect(m![1]).toMatch(/grid-area:\s*strip/)
+  })
+})
+
 describe('PhotoFilmstrip 渲染', () => {
-  it('渲染 N 个缩略图,当前 index 项有 active class', () => {
+  it('渲染 N 个缩略图,当前 index 项有 data-active 属性(Plan F Task 3:原 .active 布尔类改为 [data-active])', () => {
     const w = mountFilmstrip(makeList(5), 2)
     const thumbs = w.findAll('.lb-thumb')
     expect(thumbs.length).toBe(5)
-    thumbs.forEach((t, i) => { expect(t.classes('active')).toBe(i === 2) })
+    thumbs.forEach((t, i) => { expect(t.attributes('data-active')).toBe(i === 2 ? 'true' : 'false') })
   })
 
   it('缩略图 src 来自 service.photos.thumbnailUrl(id, "small"), loading=lazy', () => {
@@ -151,6 +174,33 @@ describe('PhotoFilmstrip 滚轮 → 横向滚动 + 停手 140ms 后居中项 emi
     expect(w.emitted('select')).toBeUndefined() // 第一次计时器已被打断,尚未到 140ms
     vi.advanceTimersByTime(40)
     expect(w.emitted('select')).toEqual([[4]])
+  })
+})
+
+// Plan F Task 4 (Vue2 param alignment): Vue2 mounted() calls `centerActiveThumb()` with no
+// argument -- the default `smooth = true` -- so every lightbox open smooth-scrolls the strip to
+// the active thumbnail. This component previously passed `false` (instant) on mount with no
+// documented reason; corrected to match. `HTMLElement.prototype.scrollTo` is stubbed globally
+// (not per-element via stubGeometry) so the call made during onMounted -- before the test can
+// reach into the mounted wrapper to stub the specific strip element -- is captured too.
+describe('PhotoFilmstrip 挂载时居中(Vue2 mounted() 参数对齐,Plan F Task 4)', () => {
+  let scrollToSpy: ReturnType<typeof vi.fn<(...a: unknown[]) => void>>
+  let restore: () => void
+
+  beforeEach(() => {
+    scrollToSpy = vi.fn<(...a: unknown[]) => void>()
+    const proto = HTMLElement.prototype as unknown as { scrollTo: (...a: unknown[]) => void }
+    const original = proto.scrollTo
+    proto.scrollTo = ((...a: unknown[]) => scrollToSpy(...a)) as typeof proto.scrollTo
+    restore = () => { proto.scrollTo = original }
+  })
+  afterEach(() => restore())
+
+  it('挂载即调用 scrollTo 居中当前项,behavior 为 smooth(非此前的 instant)', () => {
+    mountFilmstrip(makeList(5), 2)
+    expect(scrollToSpy).toHaveBeenCalledTimes(1)
+    const arg = scrollToSpy.mock.calls[0]![0] as { behavior: string }
+    expect(arg.behavior).toBe('smooth')
   })
 })
 

@@ -17,6 +17,7 @@ import SearchSaveSmartView from '../SearchSaveSmartView.vue'
 import searchSaveSmartViewRaw from '../SearchSaveSmartView.vue?raw'
 import { usePhotosSmartViews, type SmartView } from '../../stores/smartViews'
 import { useToast } from '../../../stores/toast'
+import { readFileSync } from 'node:fs'
 import { extractStyleBlock, parseCssRules, winningHoverBackground } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
@@ -355,17 +356,70 @@ describe('前景色合规:.save-pop-icon 是 accent 实底 + --on-accent', () =>
   })
 })
 
-// fix round 1 · I2(评审查实的第二处零断言):.save-pop 的定位/层级/尺寸契约此前没有任何
-// 程序化断言(plan 明文要求非颜色视觉属性要补断言)。
-describe('.save-pop 定位契约', () => {
-  it('width: 360px / z-index: 50 / top: calc(100% + 8px) / right: 0', () => {
+// Plan F Task 2 (2026-08-15): this used to parse the CONDITION off the component's own scoped
+// `.save-pop` rule, but that rule is deleted now (see the <style> block's own header comment) —
+// it was a byte-for-byte duplicate of vue2-parity/photos.scss's own `.save-pop` (:2892-2896)
+// once the wrong generic glass token names were swapped for the local ones parity actually
+// uses. The positioning/z-index/size contract itself hasn't changed (Vue2's own values, still
+// true), so the assertion moves to reading parity directly instead of asserting the component
+// no longer has an opinion on it.
+describe('.save-pop 定位契约(现由 parity 承担,本组件不再自带这条规则)', () => {
+  it('本组件 scoped style 不再含 .save-pop 规则(已整体移交 parity)', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
-    const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop')
+    expect(rules.some((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop')).toBe(false)
+  })
+
+  it('parity scss:.save-pop 规则含 width: 360px / z-index: 50 / top: calc(100% + 8px) / right: 0', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('width: 360px')
     expect(rule?.body).toContain('z-index: 50')
     expect(rule?.body).toContain('top: calc(100% + 8px)')
     expect(rule?.body).toContain('right: 0')
+  })
+
+  // The one real bug this cleanup fixed: `.save-pop-cond`'s border used to reference
+  // `var(--accent-soft-bd)`, a GLOBAL theme.css token (blue family) never locally redefined by
+  // `.photos-root` — parity's own value is the Photos-local purple literal below.
+  it('parity scss:.save-pop-cond 边框是本地紫色字面量(不是全局 --accent-soft-bd 蓝色 token)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.save-pop-cond')
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('border: 1px solid rgba(110,91,255,0.3)')
+    // 只查样式块(不查整份原文):脚本区/样式区的说明性注释仍可能提到这个 token 名字
+    // 作历史交代,只有样式块里真的出现声明才是问题。
+    expect(extractStyleBlock(searchSaveSmartViewRaw)).not.toContain('--accent-soft-bd')
+  })
+
+  // Sweep: every scoped rule this cleanup deleted (all byte-identical duplicates of parity's
+  // own bare selectors) should be gone from the component's style block, not just absent from
+  // the parsed selector list (guards against a stray leftover rule under a slightly different
+  // selector spelling that parseCssRules might not catch). Checked against the COMMENT-STRIPPED
+  // style block, not the raw file — this file's own header comment legitimately names several
+  // of these selectors in prose to explain what was removed and why; only a live declaration
+  // (survives comment-stripping) counts as a regression.
+  it('本组件样式块不再含 .save-pop-body/.save-pop-field/.save-pop-label/.save-pop-input/.save-pop-conds{/.save-pop-toggle{/.save-pop-foot/.save-pop-enter-active 这些已移交 parity 的选择器', () => {
+    const style = extractStyleBlock(searchSaveSmartViewRaw)
+    const deleted = [
+      /\n\.save-pop-body\s*\{/,
+      /\n\.save-pop-field\s*\{/,
+      /\n\.save-pop-label\s*\{/,
+      /\n\.save-pop-input\s*\{/,
+      /\n\.save-pop-conds\s*\{/, // 不匹配 .save-pop-conds-empty(有连字符延续,不会命中 `\{`)
+      /\n\.save-pop-cond\s*\{/, // 同上,不匹配 .save-pop-conds-empty
+      /\n\.save-pop-toggle\s*\{/, // 不匹配 .save-pop-toggle-text/-label/-desc
+      /\n\.save-pop-foot\s*\{/,
+      /\.save-pop-enter-active/,
+      /\.save-pop-leave-active/,
+    ]
+    for (const re of deleted) {
+      expect(style, `样式块不应再匹配 ${re}`).not.toMatch(re)
+    }
+    // Survivors are still there.
+    expect(style).toMatch(/\n\.save-pop-conds-empty\s*\{/)
+    expect(style).toMatch(/\n\.save-pop-toggle-text\s*\{/)
+    expect(style).toMatch(/\n\.save-pop-enter-from,/)
   })
 })
 
@@ -403,13 +457,16 @@ describe('hover 级联(cssCascade)', () => {
 })
 
 describe('C7:save-pop 过渡动画(Vue3 类名 -enter-from,不是 Vue2 的 -enter)', () => {
-  it('样式块含 -enter-from/-leave-active 规则,且不含 Vue2 的裸 -enter 类', () => {
+  // Plan F Task 2 (2026-08-15): `-enter-active`/`-leave-active` is no longer asserted against
+  // the component's OWN style block — that rule was a byte-identical duplicate of parity's own
+  // `.save-pop-enter-active, .save-pop-leave-active` (same selector name in both Vue2 and Vue3,
+  // only the non-`-active` half was renamed), so it was handed over to parity. Only
+  // `-enter-from`/`-leave-to` survives locally, since parity's own rule for that half uses
+  // Vue2's dead `.save-pop-enter` name and can never match a real Vue3 transition class.
+  it('本组件 style 只剩 -enter-from/-leave-to(-enter-active/-leave-active 已移交 parity)', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
-    const active = rules.find((r) => r.selectors.includes('.save-pop-enter-active') && r.selectors.includes('.save-pop-leave-active'))
-    expect(active).toBeDefined()
-    expect(active?.body).toContain('opacity 0.16s ease')
-    expect(active?.body).toContain('transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)')
-    expect(active?.body).toContain('transform-origin: top right')
+    const active = rules.find((r) => r.selectors.includes('.save-pop-enter-active') || r.selectors.includes('.save-pop-leave-active'))
+    expect(active, '.save-pop-enter-active/-leave-active 应已移交 parity,不应再是本组件自己的规则').toBeUndefined()
 
     const enterFrom = rules.find((r) => r.selectors.includes('.save-pop-enter-from') && r.selectors.includes('.save-pop-leave-to'))
     expect(enterFrom).toBeDefined()
@@ -419,6 +476,17 @@ describe('C7:save-pop 过渡动画(Vue3 类名 -enter-from,不是 Vue2 的 -ente
     // 反向断言:不应出现 Vue2 的裸 `.save-pop-enter {`(没有 -from 后缀)——这是 T6 fix
     // round 教训过的静默失效坑。
     expect(searchSaveSmartViewRaw).not.toMatch(/\.save-pop-enter\s*[,{]/)
+  })
+
+  it('parity scss:.save-pop-enter-active,.save-pop-leave-active 与本组件此前的值逐字一致', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
+      (r) => r.selectors.includes('.save-pop-enter-active') && r.selectors.includes('.save-pop-leave-active'),
+    )
+    expect(rule).toBeDefined()
+    expect(rule?.body).toContain('opacity 0.16s ease')
+    expect(rule?.body).toContain('transform-origin: top right')
+    expect(rule?.body).toMatch(/transform 0\.2s cubic-bezier\(0\.2,\s*0\.8,\s*0\.2,\s*1\)/)
   })
 
   it('Transition 组件的 name 是 "save-pop"', () => {
@@ -451,5 +519,41 @@ describe('.sv-switch 轨道过渡 + 拇指投影(C5 的 T8 M1 修复,别再丢�
     expect(thumb?.body).toContain('height: 14px')
     const onThumb = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
     expect(onThumb?.body).toContain('left: 16px')
+  })
+
+  // Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+  // own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+  // moves the knob; it never overrides `background`, so Vue2's knob is the same colour in both
+  // states. This file's own copy used to add `background: var(--on-accent)` here (the C5 ruling
+  // pinned it to SmartViewCreateDialog.vue's then-buggy value), making the knob track state
+  // instead of staying constant.
+  it('.sv-switch[data-on="true"]::after 不覆盖 background(knob 两态同色,不随 data-on 变色)', () => {
+    const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob?.body).not.toMatch(/background\s*:/)
+  })
+
+  // Fix-6 (owner decision, 2026-08-14): knob is invariant white across EVERY theme, not just
+  // both on/off states -- Fix-5's `var(--text-1)` correctly stayed constant across on/off but is
+  // itself a theme-flipping token (dark under `.photos-root.is-light`), so the owner's actual
+  // requirement ("white in both themes and both states") was still unmet. `--text-1` is no
+  // longer used for the knob at all; light mode gets a paired border+shadow rule to keep a flat
+  // white knob visible against its own near-white off-track.
+  it('.sv-switch::after 的 knob 背景是字面白,不是 var(--text-1)', () => {
+    const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
+    const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
+    expect(baseKnob).toBeDefined()
+    expect(baseKnob?.body).toMatch(/background\s*:\s*#fff\b/)
+    expect(baseKnob?.body).not.toContain('var(--text-1)')
+  })
+
+  it('.photos-root.is-light .sv-switch::after 给白色 knob 配浅色主题的描边 + 投影,两态通用', () => {
+    const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))
+    const lightKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.photos-root.is-light .sv-switch::after')
+    expect(lightKnob, '浅色主题下 knob 专属的描边/投影覆盖规则不存在').toBeDefined()
+    expect(lightKnob?.body).toMatch(/border\s*:\s*1px solid var\(--line-strong\)/)
+    expect(lightKnob?.body).toMatch(/box-shadow\s*:/)
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob?.body).not.toMatch(/border\s*:|box-shadow\s*:/)
   })
 })

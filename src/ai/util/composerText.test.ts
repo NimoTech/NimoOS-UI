@@ -1,65 +1,65 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:180-196 / 300-335 / 355-428
+// 1:1 ported from Vue2 src/views/AI/Agent/shell/AgentComposer.vue:180-196 / 300-335 / 355-428
 import { describe, it, expect } from 'vitest'
 import {
   getExt, basename, dirname, scanMention, buildDrillText, buildPopText, stripMentionToken,
   mentionPrefix, parseActiveMention,
 } from './composerText'
 
-describe('composerText 路径小工具(AgentComposer.vue:180-196)', () => {
-  it('getExt:无点或首字符为点时返回空串', () => {
+describe('composerText path utilities (AgentComposer.vue:180-196)', () => {
+  it('getExt: no dot or starts with dot → returns empty string', () => {
     expect(getExt('a.TXT')).toBe('txt')
     expect(getExt('noext')).toBe('')
     expect(getExt('.bashrc')).toBe('')
   })
-  it('basename:先剥尾部斜杠', () => {
+  it('basename: strip trailing slash first', () => {
     expect(basename('/DATA/docs/')).toBe('docs')
     expect(basename('/DATA/a.txt')).toBe('a.txt')
   })
-  it('dirname:根一级返回 /', () => {
+  it('dirname: root level returns /', () => {
     expect(dirname('/DATA/docs/a.txt')).toBe('/DATA/docs')
     expect(dirname('/a')).toBe('/')
   })
 })
 
-describe('scanMention 触发判定(AgentComposer.vue:300-335)', () => {
-  it('@ 在开头即触发,segments 取除末段外全部', () => {
+describe('scanMention trigger check (AgentComposer.vue:300-335)', () => {
+  it('@ at start triggers, segments takes all except last', () => {
     const t = '@Drive1/docs/re'
     expect(scanMention(t, t.length)).toEqual({ open: true, start: 0, segments: ['Drive1', 'docs'], query: 're' })
   })
-  it('@ 前是空白也触发', () => {
+  it('@ preceded by whitespace also triggers', () => {
     const t = 'look @doc'
     expect(scanMention(t, t.length)).toMatchObject({ open: true, start: 5, query: 'doc' })
   })
-  it('@ 前是单词字符(邮箱)不触发', () => {
+  it('@ preceded by word character (email) does not trigger', () => {
     const t = 'me@host'
     expect(scanMention(t, t.length).open).toBe(false)
   })
-  it('遇到空白先于 @ 则不触发(mention 路径不含空格)', () => {
+  it('whitespace before @ → no trigger (mention paths have no spaces)', () => {
     const t = '@Drive1 docs'
     expect(scanMention(t, t.length).open).toBe(false)
   })
-  it('无 @ 时不触发', () => {
+  it('no @ → no trigger', () => {
     expect(scanMention('hello', 5).open).toBe(false)
   })
-  it('caret 在字符串中间:只应扫描到 caret 为止,忽略其后的文本', () => {
+  it('caret in middle of string: only scan up to caret, ignore text after', () => {
     const t = '@Drive1/do tail'
-    const caret = t.indexOf('do') + 'do'.length // 紧跟在 "do" 之后,tail 部分不应被看到
+    const caret = t.indexOf('do') + 'do'.length // right after "do", tail part should not be seen
     expect(scanMention(t, caret)).toEqual({ open: true, start: 0, segments: ['Drive1'], query: 'do' })
   })
 })
 
-describe('mention 文本改写与光标(AgentComposer.vue:355-428)', () => {
-  it('buildDrillText:追加 "<name>/" 并把光标落在其后', () => {
+describe('mention text rewrite and caret (AgentComposer.vue:355-428)', () => {
+  it('buildDrillText: append "<name>/" and place caret after', () => {
     const r = buildDrillText('@Dr', 0, 3, [], 'Drive1')
     expect(r.text).toBe('@Drive1/')
     expect(r.segments).toEqual(['Drive1'])
     expect(r.caretPos).toBe(8)
   })
-  it('buildDrillText:保留光标之后的原文', () => {
+  it('buildDrillText: preserve original text after caret', () => {
     const r = buildDrillText('@Dr tail', 0, 3, [], 'Drive1')
     expect(r.text).toBe('@Drive1/ tail')
   })
-  it('buildPopText:弹掉最后一段;段全空时只留 @', () => {
+  it('buildPopText: pop last segment; when empty keep only @', () => {
     const r1 = buildPopText('@Drive1/docs/', 0, 13, ['Drive1', 'docs'])
     expect(r1.text).toBe('@Drive1/')
     expect(r1.segments).toEqual(['Drive1'])
@@ -67,69 +67,71 @@ describe('mention 文本改写与光标(AgentComposer.vue:355-428)', () => {
     expect(r2.text).toBe('@')
     expect(r2.segments).toEqual([])
   })
-  it('buildPopText:保留光标之后的原文(caret 在字符串中间)', () => {
+  it('buildPopText: preserve original text after caret (caret in string middle)', () => {
     const r = buildPopText('@Drive1/docs/ tail', 0, 13, ['Drive1', 'docs'])
     expect(r.text).toBe('@Drive1/ tail')
     expect(r.segments).toEqual(['Drive1'])
   })
-  it('stripMentionToken:整段 @token 删掉、不插入任何文本', () => {
+  it('stripMentionToken: remove entire @token, insert no text', () => {
     const r = stripMentionToken('see @Drive1/a.txt now', 4, 17)
     expect(r.text).toBe('see  now')
     expect(r.caretPos).toBe(4)
   })
 })
 
-// P1c1 验收补丁 task 4 —— @ 提及词改为「状态跟踪」而非从文字反推,修掉挂载点
-// 显示名(如 `System (/DATA)`)既含空格又含斜杠时面板丢失的缺陷。见
-// .superpowers/sdd/p1c1-patch-task-4-brief.md「根因」「纯函数」两节。
-describe('mentionPrefix(AgentComposer.vue drillIn/popSegment 前缀拼接,去重后的唯一来源)', () => {
-  it('无段落时只是裸 "@"', () => {
+// P1c1 acceptance patch task 4 — @ mention changed to "state tracking" instead of
+// reverse-engineering from text, fixing the bug where the panel disappears when mount
+// point display name (like `System (/DATA)`) contains both space and slash. See
+// .superpowers/sdd/p1c1-patch-task-4-brief.md "root cause" and "pure function" sections.
+describe('mentionPrefix (AgentComposer.vue drillIn/popSegment prefix concatenation, unique source after dedup)', () => {
+  it('no segments → just bare "@"', () => {
     expect(mentionPrefix([])).toBe('@')
   })
-  it('段落里含空格与斜杠也原样拼接,不做任何转义/分词', () => {
+  it('segments with space and slash → concatenate as-is, no escaping/tokenization', () => {
     expect(mentionPrefix(['System (/DATA)', '.system_data'])).toBe('@System (/DATA)/.system_data/')
   })
 })
 
-describe('parseActiveMention(状态优先判定,不再靠 scanMention 从文字反推 segments)', () => {
+describe('parseActiveMention (state-first check, no longer reverse-engineers segments from text via scanMention)', () => {
   const segs = ['System (/DATA)', '.system_data']
   const prefixed = '@System (/DATA)/.system_data/' // = mentionPrefix(segs)
 
-  it('caret 恰好落在前缀末尾:命中,query 为空', () => {
+  it('caret exactly at prefix end: hit, query empty', () => {
     expect(parseActiveMention(prefixed, 0, segs, prefixed.length)).toEqual({ active: true, query: '' })
   })
 
-  it('前缀之后又敲了筛选词:query 取前缀之后到 caret 的一段', () => {
+  it('typed filter word after prefix: query is segment from prefix end to caret', () => {
     const t = prefixed + 're'
     expect(parseActiveMention(t, 0, segs, t.length)).toEqual({ active: true, query: 're' })
   })
 
-  it('前缀被改动(例如 "@" 被删掉)则判定不成立', () => {
-    const t = 'System (/DATA)/.system_data/re' // 少了开头的 '@'
+  it('prefix modified (e.g., "@" deleted) → check fails', () => {
+    const t = 'System (/DATA)/.system_data/re' // missing leading '@'
     expect(parseActiveMention(t, 0, segs, t.length)).toEqual({ active: false, query: '' })
   })
 
-  it('前缀中间字符被改动也判定不成立', () => {
-    const t = '@System (/DATB)/.system_data/re' // (/DATA) 被改成了 (/DATB)
+  it('prefix middle char modified → check fails', () => {
+    const t = '@System (/DATB)/.system_data/re' // (/DATA) changed to (/DATB)
     expect(parseActiveMention(t, 0, segs, t.length)).toEqual({ active: false, query: '' })
   })
 
-  it('caret 落在前缀内部(尚未敲完前缀)则判定不成立', () => {
-    // caret 停在 "System (" 中间,还没到 "/.system_data/" 那一段
+  it('caret inside prefix (not finished typing) → check fails', () => {
+    // caret stops in "System (" middle, hasn't reached "/.system_data/" part yet
     const caret = '@System ('.length
     expect(parseActiveMention(prefixed, 0, segs, caret)).toEqual({ active: false, query: '' })
   })
 
-  it('start < 0(从未记录过提及词)直接判定不成立', () => {
+  it('start < 0 (never recorded mention) → check fails', () => {
     expect(parseActiveMention(prefixed, -1, segs, prefixed.length)).toEqual({ active: false, query: '' })
   })
 
-  it('对照组:名字既含空格又含斜杠时,scanMention 做不到但 parseActiveMention 能——' +
-     '这正是本补丁要修的缺陷(brief「根因」1、2 两点)', () => {
-    // scanMention 从 caret 往前扫,一遇到 "System (/DATA)" 里的空格就会 break,
-    // 判定 open:false —— 面板因此丢失(用户复现的原始 bug)。
+  it('control group: when name has both space and slash, scanMention cannot but ' +
+     'parseActiveMention can — this is the bug this patch fixes (brief "root cause" points 1,2)', () => {
+    // scanMention scans backward from caret, breaks when hitting space in "System (/DATA)",
+    // returns open:false — panel disappears (original user-reported bug).
     expect(scanMention(prefixed, prefixed.length).open).toBe(false)
-    // parseActiveMention 不做逐字符反推,只做前缀切片比较,天然不受空格/斜杠影响。
+    // parseActiveMention does not reverse-engineer char-by-char, only compares prefix slices,
+    // naturally unaffected by space/slash.
     expect(parseActiveMention(prefixed, 0, segs, prefixed.length)).toEqual({ active: true, query: '' })
   })
 })

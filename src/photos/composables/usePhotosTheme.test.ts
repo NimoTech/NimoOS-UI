@@ -39,4 +39,12 @@ describe('usePhotosTheme', () => {
     const { theme } = usePhotosTheme()
     expect(theme.value).toBe('dark')
   })
+
+  it('two consumers share one themeClass instance and see each other\'s set()', () => {
+    const a = usePhotosTheme()
+    const b = usePhotosTheme()
+    expect(a.themeClass).toBe(b.themeClass)
+    a.set('light')
+    expect(b.themeClass.value).toBe('is-light')
+  })
 })

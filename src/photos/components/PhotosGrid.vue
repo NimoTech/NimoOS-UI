@@ -18,8 +18,22 @@
 //     No FilterBar, no upload empty-state button, no search-mode empty state
 //     (Vuex `isSearchMode` dependency dropped).
 //  4. i18n: `$t('English source')` -> `t('photosXxx')` (Task 4 key table).
-//  5. Styling rebuilt on New-UI tokens; fixed video-chrome colors (badge bg/fg)
-//     carry `theme-exception` comments, same precedent as MediaViewer/ViewerShell.
+//  5. (superseded by #6 below) Styling was originally rebuilt on New-UI's own tokens,
+//     with the per-tile checkbox restyled as a native `.tile-check`/`.tile-check-box`
+//     <input> (Files-region pattern) and the favorite star as a single always-shown
+//     top-right toggle button.
+//  6. Task 6 (grid rewrite): re-skinned wholesale to Vue2 pixel/DOM parity, superseding #5 —
+//     column/tile/scrubber/month-head CSS now comes ONLY from
+//     src/photos/styles/vue2-parity/photos.scss (ported verbatim from NimoOS-UI's
+//     photos.scss; this component's own style block shrinks to the handful of rules
+//     that stylesheet cannot cover — see that style block's own header comment). The
+//     checkbox is back to Vue2's `.tile-checkbox` div (click-to-toggle, no native
+//     <input>), and the favorite star splits into Vue2's two elements: a decorative
+//     bottom-left `.tile-fav` (shown only when favorited AND not selecting, no click
+//     handler) and an always-present, hover-only top-right `.tile-act` inside
+//     `.tile-actions` (the actual click target). `columnsFor`/`estimateSectionBodyHeight`
+//     (src/photos/util/gridMetrics.ts) were rewritten to match: density is now a fixed
+//     column-count lookup (10/7/4), not a container-width-derived auto-fill/minmax count.
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -31,11 +45,13 @@ import {
 } from '../util/gridMetrics'
 import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
+import PhotosIcon from './PhotosIcon.vue'
 
-// P6b-T9(偏离登记 14):地点照片页(D10 跳库最小面,只浏览不接多选/批操作)是第 3 个
-// 消费方,但它不需要复选框——之前两个消费方(Photos.vue/PhotosFavorites.vue)都要选择态,
-// 硬编码渲染 `.tile-check` 从未有过"不要它"的场景。加 `selectable`(默认 true)门控,
-// 默认值保证既有两个消费方零行为变化,不必逐一改它们的调用点。
+// P6b-T9 (deviation log 14): the Places photo view (D10 minimal cross-store surface, browse-only,
+// no multi-select/batch ops) is the 3rd consumer, but it doesn't need the checkbox — the previous two
+// consumers (Photos.vue/PhotosFavorites.vue) both need selection state, so the hardcoded `.tile-checkbox`
+// render never had a "don't want it" case before. Add a `selectable` (default true) gate; the default
+// guarantees zero behavior change for the existing two consumers, so their call sites don't need updating one by one.
 const props = withDefaults(defineProps<{
   months: Month[]
   tab?: string
@@ -60,9 +76,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 收藏是全局横切态(与 open/toggle-select 的视图级 emit 分工不同)——grid 直接消费
-// store,不新增 emit。星标显隐/is-fav 判定一律走 fav.isFav(id) 值比较,不用对象引用
-// (P1 铁律:时间线静默刷新在同一 keyed 节点上重建 Photo 对象,引用比较会误判)。
+// Favorites is global cross-cutting state (unlike the view-level emit split for open/toggle-select) —
+// the grid consumes the store directly, no new emit. Star visibility/is-fav checks always go through
+// fav.isFav(id) value comparison, never object identity (P1 iron rule: the timeline's silent refresh
+// rebuilds the Photo object on the same keyed node, so identity comparison would misfire).
 const fav = usePhotosFavorites()
 
 // ─── DOM refs ────────────────────────────────────────────────────────────
@@ -87,10 +104,13 @@ const filteredMonths = computed(() => (props.months || []).map(m => ({
   filtered: m.photos.filter(p => matchesTab(p, props.tab)),
 })))
 
-// Container width drives the column count (auto-fill/minmax), so it is read from
-// the scroll wrap. Measured at mount, and re-measured whenever the month set
-// changes (see the windowing watch below) — there is no resize listener, so a
-// bare window resize with the same set of months does not re-measure.
+// Task 6: the column COUNT is now a fixed lookup per density (gridMetrics.ts's
+// columnsFor) — container width no longer decides how many columns there are. It
+// still decides how WIDE each of those fixed columns is (tileEdge), which is what
+// an unloaded month's estimated row height is built from, so this measurement
+// stays. Read from the scroll wrap; measured at mount, and re-measured whenever
+// the month set changes (see the windowing watch below) — there is no resize
+// listener, so a bare window resize with the same set of months does not re-measure.
 const wrapWidth = ref(0)
 function measureWrap() { wrapWidth.value = wrapRef.value?.clientWidth ?? 0 }
 
@@ -126,11 +146,7 @@ const anyContent = computed(() => filteredMonths.value.some(hasContent))
 function sectionBodyHeight(m: Month & { filtered: Photo[] }): number {
   const itemCount = skeletonCountOf(m)
   if (itemCount > 0) {
-    return estimateSectionBodyHeight({
-      containerWidth: wrapWidth.value,
-      density: props.density,
-      itemCount,
-    })
+    return estimateSectionBodyHeight(itemCount, wrapWidth.value, props.density)
   }
   // Unloaded, on a tab with no directory dimension (Important 6). One row of
   // tiles is a deliberate stand-in, not an estimate of anything: it gives the
@@ -138,11 +154,7 @@ function sectionBodyHeight(m: Month & { filtered: Photo[] }): number {
   // observer's window at a time, so this tab pages in progressively like every
   // other tab instead of firing a request for the whole directory at once.
   if (m.loaded === false && !tabHasDirectoryEstimate(props.tab)) {
-    return estimateSectionBodyHeight({
-      containerWidth: wrapWidth.value,
-      density: props.density,
-      itemCount: columnsFor(wrapWidth.value, props.density),
-    })
+    return estimateSectionBodyHeight(columnsFor(props.density), wrapWidth.value, props.density)
   }
   return 0
 }
@@ -335,9 +347,10 @@ function toggleSelect(id: string | number) { emit('toggle-select', id) }
 function onTileClick(p: Photo) {
   if (selecting.value) { toggleSelect(p.id); return }
   let startMs = 0
-  // 按稳定 id 比较,不用对象引用(P1 铁律):时间线 5s 静默刷新会在同一 keyed 节点上
-  // 重建 Photo 对象(不触发 mouseleave),hoveredVideo 仍指向旧对象而 p 已是新对象,
-  // `=== p` 会误判为未悬停 → startMs 归 0 → 灯箱视频从头播(而非悬停位续播)。
+  // Compare by stable id, not object identity (P1 iron rule): the timeline's 5s silent refresh
+  // rebuilds the Photo object on the same keyed node (without triggering mouseleave), so hoveredVideo
+  // still points at the old object while p is already the new one — `=== p` would misfire as
+  // "not hovered" → startMs resets to 0 → the lightbox video restarts from the beginning instead of resuming from the hover position.
   if (p.isVideo && hoveredVideo.value?.id === p.id && previewVisible.value) {
     // ref_for -> array at runtime; normalize like Vue2's
     // `[].concat(this.$refs.hoverPreview || [])[0]`.
@@ -371,6 +384,17 @@ let moveRaf = 0
 let pendingX = 0
 
 const hoverVideoSrc = computed(() => hoveredVideo.value ? service.photos.previewUrl(hoveredVideo.value.id) : '')
+
+// Vue2 `:data-previewing="hoveredVideo === p && previewVisible ? 'true' : null"`
+// (photos.scss:387-388's `.tile[data-previewing="true"]` hides the bottom gradient
+// + duration badge while the hover-scrub preview is showing them instead, same
+// as YouTube). Matched by id, not object reference — same P1 rule as every other
+// hoveredVideo comparison in this file (see onTileClick's comment): the timeline's
+// quiet refresh rebuilds each Photo as a new object with the same id on the same
+// keyed node, without firing mouseleave.
+function isPreviewing(p: Photo): boolean {
+  return p.isVideo === true && hoveredVideo.value != null && hoveredVideo.value.id === p.id && previewVisible.value
+}
 
 function startAutoAdvance() {
   stopAutoAdvance()
@@ -477,7 +501,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="photos-grid-root">
+  <!-- Task 6 (grid rewrite): root is now `.content` — Vue2 PhotosGrid.vue's own root
+       element (photos.scss:307's two-column grid `1fr 66px`), not a New-UI-only
+       wrapper. `.photos-wrap` and `.scrubber` are its two grid-column children,
+       siblings, not the old flex-column + absolutely-positioned overlay. -->
+  <div class="content">
     <div ref="wrapRef" class="photos-wrap scroll" @scroll="onScroll">
       <div v-if="!anyContent" class="empty-state" data-test="empty-state">
         <div class="empty-state-title">{{ t('photosNoPhotos') }}</div>
@@ -492,6 +520,9 @@ onBeforeUnmount(() => {
           <div v-if="hasContent(m)" :id="'m-' + m.key" class="month-group">
             <div class="month-head">
               <div class="month-title">{{ m.key === 'unknown' ? t('photosUnknownDate') : m.title }}</div>
+              <!-- Vue2 PhotosGrid.vue:34 `· {{ m.loc }}` — always-empty placeholder in this
+                   port (Month.loc is never populated by any producer here; see task-6-brief.md). -->
+              <div class="month-loc">· {{ m.loc }}</div>
               <div v-if="showCount(m)" class="month-count">
                 {{ t('photosItemsCount', { count: isLoaded(m) ? m.filtered.length : skeletonCountOf(m) }) }}
               </div>
@@ -501,6 +532,7 @@ onBeforeUnmount(() => {
                 v-for="p in m.filtered" :key="p.id"
                 class="tile"
                 :data-selected="isSelected(p.id)"
+                :data-previewing="isPreviewing(p) ? 'true' : null"
                 @click="onTileClick(p)"
                 @mouseenter="p.isVideo && onVideoEnter(p, $event)"
                 @mousemove="p.isVideo && onVideoMove($event)"
@@ -520,26 +552,33 @@ onBeforeUnmount(() => {
                   :video-src="hoverVideoSrc"
                   :scrub-ratio="scrubRatio"
                 />
-                <span v-if="selectable" class="tile-check">
-                  <input
-                    type="checkbox"
-                    class="tile-check-box"
-                    :checked="isSelected(p.id)"
-                    @click.stop
-                    @change="toggleSelect(p.id)"
-                  />
-                </span>
-                <button
-                  type="button"
-                  class="tile-fav"
-                  :class="{ 'is-fav': fav.isFav(p.id) }"
-                  :aria-label="fav.isFav(p.id) ? t('photosUnfavorite') : t('photosFavorite')"
-                  @click.stop="fav.toggle(p.id)"
-                >
-                  <svg viewBox="0 0 24 24" width="14" height="14" :fill="fav.isFav(p.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
-                </button>
+                <div class="tile-overlay"></div>
+                <div v-if="selectable" class="tile-checkbox" @click.stop="toggleSelect(p.id)">
+                  <PhotosIcon name="check" :size="12" :stroke-width="2.4" />
+                </div>
+                <!-- Decorative only (no click handler) — Vue2 PhotosGrid.vue:65-67 hides this
+                     while selecting, in favor of the checkbox occupying the same corner-ish
+                     real estate. The interactive toggle lives in `.tile-actions` below. -->
+                <div v-if="fav.isFav(p.id) && !selecting" class="tile-fav">
+                  <PhotosIcon name="star" :size="13" color="var(--star-fg, #ffd60a)" />
+                </div>
                 <div v-if="p.isVideo" class="tile-vid">
-                  <span class="vid-play">▶</span> {{ p.duration }}
+                  <PhotosIcon name="play" :size="10" />
+                  {{ p.duration }}
+                </div>
+                <div class="tile-actions">
+                  <button
+                    type="button"
+                    class="tile-act"
+                    :data-on="fav.isFav(p.id)"
+                    :aria-label="fav.isFav(p.id) ? t('photosUnfavorite') : t('photosFavorite')"
+                    @click.stop="fav.toggle(p.id)"
+                  >
+                    <PhotosIcon
+                      :name="fav.isFav(p.id) ? 'star' : 'starOutline'" :size="11"
+                      :color="fav.isFav(p.id) ? 'var(--star-fg, #ffd60a)' : undefined"
+                    />
+                  </button>
                 </div>
               </div>
             </div>
@@ -582,119 +621,41 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.photos-grid-root { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; }
-/* scrollbar-width:none —— 补 Vue2 契约:photos.scss:103 `.photos-root, .photos-root *
-   { scrollbar-width: none; -ms-overflow-style: none; }` + :301 `.photos-wrap::-webkit-scrollbar
-   { width: 0 }`,Vue2 里照片区滚动条一律不可见,滚动的操作感由右侧月份刻度尺承担。
-   本仓 theme.css:4-16 有全局 10px 半透明滚动条,而 `.scrubber` 是 right:0 的 56px 浮层、
-   刻度文字贴在 right:6px —— 不隐藏就会让滚动条正好压在刻度文字上。
-   (PhotosSearchGrid.vue:126-127 的 `.photos-wrap` 早已这么写,两个网格组件从此一致。) */
-.photos-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 68px; scrollbar-width: none; }
+/* Task 6 (grid rewrite): the column/tile/scrubber/month-head visual contract that
+   used to live in this file now comes from ONE source of truth —
+   src/photos/styles/vue2-parity/photos.scss (ported verbatim from NimoOS-UI's
+   photos.scss, imported globally by every view that mounts this component
+   under `.photos-root` — see gridMetricsCssParity.test.ts, which scans THAT
+   file, not this one). What's left below is only what that stylesheet does
+   not (and should not) cover.
+
+   `.month-skeleton`/`.month-placeholder` carry NO rule here at all, on
+   purpose: Vue2 has zero CSS for either (photos.scss has no `.month-skeleton`/
+   `.month-placeholder` selector — grep confirms it), so a purely transparent,
+   height-only div is the correct parity, not an oversight to fill in. Both are
+   New-UI-only windowing artifacts anyway (Vue2 collapses head+body into a
+   single skeleton div per section; this component keeps a finer-grained
+   placeholder-vs-skeleton split — see the windowing block in the script above).
+   Inventing a shimmer here would be exactly the decoration the brief calls
+   out not to add. */
+
+/* Vue2's `.content` is a flex-item of `.main` (display:flex, photos.scss:203),
+   which alone gives it a real computed height to size against. New-UI's view
+   layer (Photos.vue / PhotosFavorites.vue / PhotosPlaceAssets.vue) wraps this
+   component in one extra, non-flex/grid `position:relative` div between
+   `.main` and here (`.photos-grid-slot` / `.place-grid-slot`), so `.content`'s
+   own `flex:1` (parity scss) has nothing to flex against there. Pin the height
+   explicitly instead so the two-column grid actually fills that slot — the
+   slot itself is still a flex-item with a real used height, so `height:100%`
+   resolves against it correctly. */
+.content { height: 100%; }
+
+/* The Vue2 contract (photos.scss:103 `.photos-root, .photos-root * { scrollbar-width:
+   none; ... }` + :314 `.photos-wrap::-webkit-scrollbar { width: 0 }`) is already
+   globally covered onto `.photos-wrap` in the parity scss (`.photos-root *` covers any descendant).
+   These two lines are a literal duplicate only because photosLayoutHeightCap.test.ts independently
+   locks in the pre-existing contract that "this file's source must contain them" (an unrelated
+   gate to this task) — keep them, don't delete; pure harmless redundancy. */
+.photos-wrap { scrollbar-width: none; }
 .photos-wrap::-webkit-scrollbar { display: none; }
-
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
-.empty-state-desc { font-size: 13px; }
-
-.month-group { margin-bottom: 22px; }
-.month-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 2px 10px; }
-.month-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.month-count { margin-left: auto; font-size: 12px; color: var(--fg-muted); }
-
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; }
-.grid[data-density="compact"] { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 2px; }
-.grid[data-density="loose"] { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-
-/* Unloaded month placeholder. In :root, --chip-bg is a gradient (no solid
-   background-color component) — putting the sweep's `background-image` on the
-   same rule as `background: var(--chip-bg)` would overwrite that gradient
-   outright, leaving nothing but the sweep in the dark theme. Layering the
-   sweep on ::after instead keeps both: the surface tint on the element itself,
-   the moving highlight on a separate paint layer on top of it. */
-.month-skeleton {
-  position: relative;
-  overflow: hidden;
-  border-radius: 8px;
-  background: var(--chip-bg);
-}
-.month-skeleton::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(90deg, transparent 0%, var(--hover) 50%, transparent 100%);
-  background-size: 40% 100%;
-  background-repeat: no-repeat;
-  animation: month-skeleton-sweep 1.4s ease-in-out infinite;
-}
-@keyframes month-skeleton-sweep {
-  0% { background-position: -40% 0; }
-  100% { background-position: 140% 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .month-skeleton::after { animation: none; }
-}
-
-/* A section that has been rendered once and scrolled away: same height, no
-   content, no shimmer — nothing is pending here. */
-.month-placeholder { border-radius: 8px; }
-
-.tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
-.tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
-
-.tile-check { position: absolute; top: 6px; left: 6px; z-index: 2; }
-.tile-check-box { opacity: 0; cursor: pointer; }
-.tile:hover .tile-check-box, .tile[data-selected="true"] .tile-check-box { opacity: 1; }
-
-.tile-fav {
-  position: absolute; top: 6px; right: 6px; z-index: 2;
-  display: flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%;
-  background: var(--overlay-bg); color: var(--fg);
-  cursor: pointer; opacity: 0; transition: opacity 0.15s ease;
-}
-.tile:hover .tile-fav, .tile-fav.is-fav { opacity: 1; }
-/* --star-fg has no per-theme definition (both themes keep the same gold star,
-   same precedent as PhotoLightbox.vue's .lb-fav.is-fav) — the var() fallback
-   always applies, so this stays token-driven per color-guard §0. */
-.tile-fav.is-fav { color: var(--star-fg, #ffd60a); }
-/* 浅色主题真机反馈:收藏态改为"金色实心底 + 白色挖空星"(金底上反差更清晰)。
-   深色主题维持现状不变,故用 :global() 只覆盖 light 皮肤。白色复用本文件已用过
-   的 var(--on-accent)("饱和填充色之上的可读前景色"语义 token,见下方 .density
-   按钮用法),不新增 token 也不写裸色字面量。 */
-:global(:root[data-theme="light"]) .tile-fav.is-fav {
-  background: var(--star-fg, #ffd60a);
-  color: var(--on-accent, #fff);
-}
-
-.tile-vid {
-  position: absolute; right: 6px; bottom: 6px; z-index: 2;
-  display: flex; align-items: center; gap: 3px;
-  padding: 1px 6px; border-radius: 999px; font-size: 10px;
-  /* theme-exception: chrome badge fixed on top of the video thumbnail, needs
-     constant contrast regardless of skin (same precedent as MediaViewer.vue /
-     VideoHoverPreview.vue's .time/.bar chrome). */
-  background: rgba(0, 0, 0, 0.55); color: #fff;
-}
-.vid-play { font-size: 8px; }
-
-.scrubber {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 56px;
-  overflow-y: auto; scrollbar-width: none;
-}
-.scrubber::-webkit-scrollbar { display: none; }
-.scrubber-inner { position: relative; }
-.scrubber-tick {
-  position: absolute; right: 6px; transform: translateY(-50%);
-  font-size: 10px; color: var(--fg-muted); white-space: nowrap;
-}
-.scrubber-tick[data-major="true"] { font-weight: 700; color: var(--fg); font-size: 11px; }
-.scrubber-tick[data-active="true"] { color: var(--accent); }
-/* A month hidden by the current tab or filter has no anchor to jump to. */
-.scrubber-tick[data-disabled="true"] { opacity: 0.35; }
-.scrubber-thumb {
-  position: absolute; right: 6px; transform: translateY(-50%);
-  padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600;
-  background: var(--accent); color: var(--on-accent);
-}
 </style>

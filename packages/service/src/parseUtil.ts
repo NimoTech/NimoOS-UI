@@ -1,6 +1,6 @@
 import type { Utilization, UtilSection } from './types.js'
 
-// socket 传 JSON 字符串;HTTP 已是对象。统一解析为对象或 null。
+// Socket delivers JSON strings; HTTP already gives objects. Normalize to an object or null.
 function jget(v: unknown): UtilSection {
   if (v == null) return null
   if (typeof v === 'string') {
@@ -10,7 +10,7 @@ function jget(v: unknown): UtilSection {
   return null
 }
 
-// socket 用 sys_*;HTTP 用裸键。sys_* 优先。
+// Socket uses sys_* keys; HTTP uses bare keys. sys_* takes precedence.
 function pick(src: Record<string, unknown>, a: string, b: string): unknown {
   return src[a] != null ? src[a] : src[b]
 }

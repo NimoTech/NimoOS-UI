@@ -1,17 +1,18 @@
 <script setup lang="ts">
-// 设置 · 账户。1:1 对位 Vue2 NimoOS-UI/src/components/account/AccountPanel.vue(1276 行),
-// 设置区用的是 `<AccountPanel :isInline="true"/>`(SettingsPanel.vue:59-61)。
+// Settings · Account. 1:1 mapped to Vue2 NimoOS-UI/src/components/account/AccountPanel.vue (1276 lines),
+// the settings area uses `<AccountPanel :isInline="true"/>` (SettingsPanel.vue:59-61).
 //
-// 形态说明:Vue2 在 isInline 下**隐藏头部标题、保留底部页脚**
-// (`<header v-if="!isInline">` / `<footer v-if="state !== 1">`),正文区随 state 换。
-// New-UI 这里因此保持**面板内状态机 + 底部 Back/Submit** 的形态,不改成一堆弹窗 ——
-// SettingsSection 的正文区正好对位模态正文区。
+// Shape notes: under isInline, Vue2 **hides the header title, keeps the bottom footer**
+// (`<header v-if="!isInline">` / `<footer v-if="state !== 1">`), and the body swaps with state.
+// New-UI therefore keeps the **in-panel state machine + bottom Back/Submit** shape instead of
+// turning it into a pile of dialogs — SettingsSection's body area maps neatly onto the modal body area.
 //
-// state 取值与 Vue2 一致,但**没有 2**:
-//   1 = 账号 / 3 = 改密 / 4 = 裁剪头像 / 5 = 成员文件夹授权 / 6 = 从 NAS 选图
-// 🔧 plan C10:state 2「更改用户名」全仓 `goto(2)`/`state = 2` 零命中(本组件自身与
-// TopBar.vue:526、SettingsPanel.vue:61 两个宿主都没有入口)= 死代码,不移植;
-// 连带 saveUser()/users.setUserInfo 在界面上没有落点(域仍按 spec §5.7 补全了)。
+// state values match Vue2, but **there is no 2**:
+//   1 = account / 3 = change password / 4 = crop avatar / 5 = member folder permissions / 6 = pick image from NAS
+// 🔧 plan C10: state 2 "change username" has zero hits for `goto(2)`/`state = 2` across the whole repo
+// (neither this component itself nor the two hosts, TopBar.vue:526 and SettingsPanel.vue:61, have an
+// entry point) = dead code, not ported; likewise saveUser()/users.setUserInfo has no landing spot in the
+// UI (the field is still filled in per spec §5.7).
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -38,18 +39,20 @@ const state = ref<AccountState>(1)
 const user = ref<UserInfo | null>(null)
 const isAdmin = computed(() => user.value?.role === 'admin')
 
-// 头像 URL:版本号自增用于换头像后击穿 <img> 缓存(Vue2 avatarVersion,:140)。
+// Avatar URL: version number auto-increments to bust the <img> cache after changing the avatar (Vue2 avatarVersion, :140).
 const avatarVersion = ref(1)
 const avatarSrc = computed(() => service.users.avatarPath(avatarVersion.value, readAccessToken()))
 
-// 待裁剪图片。两种来源:本地文件(objectURL,需要 revoke)与 NAS 选图(/v1/image URL,不需要)。
+// Image pending crop. Two sources: a local file (objectURL, needs revoking) and a NAS pick (/v1/image URL, no revoke needed).
 const pickedImageSrc = ref('')
 let pickedIsObjectUrl = false
 
-// 就地过期守卫(不抽公共 helper,plan C8)。本面板**只在挂载时取一次数、没有第二个触发点**,
-// 所以这个守卫防的是「取数在途时用户切走 tab」——卸载后不该再动 ref。
-// ⚠️ 它在 jsdom 下**无法被断言区分**(删掉两处 `if (!alive) return` 测试结果完全不变,
-// 已做变异验证)→ 按 P3 StoragePanel 的先例:守卫保留,**测试里不留空转用例**。
+// Inline staleness guard (not extracted into a shared helper, plan C8). This panel **only fetches data
+// once at mount, with no second trigger point**, so this guard protects against "the user switches tabs
+// while the fetch is in flight" — the ref should not be touched after unmount.
+// ⚠️ It **cannot be distinguished by any assertion** under jsdom (deleting both `if (!alive) return`
+// checks leaves the test results completely unchanged — mutation testing confirmed this) → following the
+// P3 StoragePanel precedent: keep the guard, **don't add a no-op test case just to have one**.
 let alive = true
 
 function releasePicked() {
@@ -58,8 +61,9 @@ function releasePicked() {
   pickedImageSrc.value = ''
 }
 
-// 🔧 plan C12:Vue2 换图时 revoke 的是**上一张**、失败时不 revoke、destroyed 只 revoke 一次
-// → objectURL 泄漏。这里统一成「赋新值前先释放旧值 + 卸载时释放」。
+// 🔧 plan C12: when Vue2 switches images it revokes **the previous one**, doesn't revoke on failure, and
+// destroyed only revokes once → objectURL leaks. Here it's unified to "release the old value before
+// assigning a new one + release on unmount".
 function setPickedImage(src: string, isObjectUrl: boolean) {
   releasePicked()
   pickedImageSrc.value = src
@@ -71,14 +75,14 @@ onUnmounted(() => {
   releasePicked()
 })
 
-/** 对位 Vue2 goto()(:192-214) 的状态切换 + 清理。 */
+/** Maps to Vue2's goto() (:192-214) state transition + cleanup. */
 function goto(next: AccountState) {
   if (next === 1) releasePicked()
   state.value = next
 }
 
-/** 页脚「返回」。分支逐字对位 Vue2 :909:
- *  state 5 → 回 1 且清 activeMember;state 6 且在浏览视图 → 只回存储卡网格;否则 goto(1)。 */
+/** Footer "Back". Branches map 1:1 to Vue2 :909:
+ *  state 5 → back to 1 and clears activeMember; state 6 while in browse view → only back to the storage card grid; otherwise goto(1). */
 function onBack() {
   if (state.value === 5) {
     activeMember.value = null
@@ -104,21 +108,22 @@ function onNasPick(picked: { path: string; src: string }) {
 }
 
 onMounted(async () => {
-  // Vue2 mounted 是 `if (this.$store.state.user.id === 0) updateUserInfo()` —— 依赖 Vuex 里
-  // 已有的用户对象。New-UI 没有全局 user store(session.setUser 只写 localStorage 字符串),
-  // 所以**无条件取一次**。这是形态差异导致的必要偏离,不是行为改动。
+  // Vue2's mounted is `if (this.$store.state.user.id === 0) updateUserInfo()` — it relies on the user
+  // object already present in Vuex. New-UI has no global user store (session.setUser only writes a
+  // localStorage string), so it **unconditionally fetches once**. This is a necessary deviation caused
+  // by the shape difference, not a behavior change.
   try {
     const info = await service.users.getUserInfo()
     if (!alive) return
     user.value = info
   } catch {
-    // 取不到就当没有用户信息:用户名空、成员区不渲染。这一屏没有别的降级手段。
+    // If the fetch fails, treat it as no user info: username is empty, members section doesn't render. There's no other fallback for this screen.
     if (!alive) return
     user.value = null
   }
 })
 
-// 页脚 Submit 的落点。Vue2 :911-912 只在 state 3 / 4 有 Submit(state 2 那个是死代码,C10)。
+// Landing spot for the footer Submit. Vue2 :911-912 only has Submit in state 3 / 4 (state 2's is dead code, C10).
 const pwdForm = ref<{ submit(): Promise<boolean> } | null>(null)
 const cropper = ref<{ submit(): Promise<boolean> } | null>(null)
 const nasPicker = ref<{ backToStorages(): void; view: 'storages' | 'browse' } | null>(null)
@@ -130,23 +135,24 @@ async function onSubmit() {
   submitting.value = true
   try {
     if (state.value === 3) {
-      // ⛔ 这一步会真改机主的登录凭据(见 ChangePasswordForm.vue 的文件头)。
+      // ⛔ This step really changes the device owner's login credentials (see the file header of ChangePasswordForm.vue).
       const ok = await pwdForm.value?.submit()
-      if (!ok) return // 失败由表单内联显示(C6),留在 state 3
-      // 🔧 Vue2 改密成功后什么都不提示(:433 只 goto(1))→ 补一个面板级 toast,
-      // 与「更改头像」成功的提示保持一致(plan C1 的「改正确」)。
+      if (!ok) return // failure is shown inline by the form (C6); stay on state 3
+      // 🔧 Vue2 shows nothing after a successful password change (:433 only calls goto(1)) → add a
+      // panel-level toast to match the success prompt for "change avatar" (plan C1's "fix").
       toast.show(t('settingsAccUpdateOk'))
       goto(1)
     } else if (state.value === 4) {
-      // ⛔ 会往磁盘写头像文件;后端对解不开的图片用 log.Fatal(见 AvatarCropper.vue 文件头)。
+      // ⛔ Writes the avatar file to disk; the backend uses log.Fatal for images it can't decode (see the file header of AvatarCropper.vue).
       const ok = await cropper.value?.submit()
       if (!ok) {
-        // 🔧 Vue2 失败时弹 toast「更新失败」(:456-459)。这里错误已由裁剪器内联显示
-        // (C6:比 toast 更可见),不再叠一个 toast;留在 state 4 让用户重试。
+        // 🔧 Vue2 shows a toast "update failed" on failure (:456-459). Here the error is already shown
+        // inline by the cropper (C6: more visible than a toast), so no extra toast is stacked on top;
+        // stay on state 4 so the user can retry.
         return
       }
       toast.show(t('settingsAccUpdateOk'))
-      avatarVersion.value++ // 击穿 <img> 缓存,新头像立刻可见
+      avatarVersion.value++ // busts the <img> cache so the new avatar is visible immediately
       goto(1)
     }
   } finally {
@@ -160,13 +166,14 @@ function onPickLocalFile(src: string) {
 }
 
 function onInvalidFile() {
-  // 面板级提示用 toast 是对的(C6 说的是**弹窗内**不要用 toast)。
+  // A panel-level toast is correct here (C6 is about not using a toast **inside a dialog**).
   toast.show(t('settingsAccPickImageOnly'))
 }
 
 function logout() {
-  // Vue2 还发了 $messageBus('account_setting_logout')(纯埋点,New-UI 无 publish 通道、
-  // 用户不可见)与 SET_DEFAULT_WALLPAPER(New-UI 无壁纸系统 = 既有债务 D5)→ 两者都不移植。
+  // Vue2 also fires $messageBus('account_setting_logout') (pure telemetry, New-UI has no publish
+  // channel and it's invisible to the user) and SET_DEFAULT_WALLPAPER (New-UI has no wallpaper system
+  // = existing debt D5) → neither is ported.
   useAuth().logout()
   router.push('/login')
 }
@@ -174,7 +181,7 @@ function logout() {
 
 <template>
   <SettingsSection :title="t('settingsTabAccount')">
-    <!-- state 1:账号卡 + 成员区(成员区在 Task 10 接) -->
+    <!-- state 1: account card + members section (members section wired up in Task 10) -->
     <template v-if="state === 1">
       <OwnerCard
         :username="typeof user?.username === 'string' ? user.username : ''"
@@ -202,7 +209,7 @@ function logout() {
       data-test="acc-nas-picker" @pick="onNasPick"
     />
 
-    <!-- 页脚:对位 Vue2 :908-913(isInline 下也保留,只在 state 1 隐藏) -->
+    <!-- Footer: maps to Vue2 :908-913 (kept even under isInline, only hidden in state 1) -->
     <div v-if="state !== 1" class="set-acc-foot" data-test="acc-footer">
       <button class="set-btn" type="button" data-test="acc-back" @click="onBack">
         {{ t('settingsAccBack') }}

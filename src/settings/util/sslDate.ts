@@ -1,10 +1,12 @@
 /**
- * 对位 Vue2 WebUIHTTPSModal.vue 的 formatDate + formattedEffectiveTime/formattedExpirationTime。
- * 实测本机两个时间都是 Go 的零值 '0001-01-01T00:00:00Z'(未签发证书),必须显示 '---'。
+ * Maps to Vue2 WebUIHTTPSModal.vue's formatDate + formattedEffectiveTime/formattedExpirationTime.
+ * Verified on this machine: both times are Go's zero value '0001-01-01T00:00:00Z'
+ * (no certificate issued) and must display '---'.
  *
- * 移植纪律:Vue2 的 formatDate 用 try/catch 兜底,但 `new Date('乱码')` **不抛异常** ——
- * 它返回 Invalid Date,于是 getDate() 全是 NaN,界面会显示 "NaN/NaN/NaN"。
- * 这里显式判 Number.isNaN。
+ * Porting discipline: Vue2's formatDate relies on try/catch as a safety net, but
+ * `new Date('garbage')` does **not** throw -- it returns Invalid Date, so getDate()
+ * yields NaN everywhere and the UI shows "NaN/NaN/NaN".
+ * Here we explicitly check Number.isNaN.
  */
 export function formatSslDate(iso: string | undefined): string {
   if (!iso || iso.startsWith('0001')) return '---'

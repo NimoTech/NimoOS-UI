@@ -14,7 +14,7 @@ function makeConfig(over: Partial<ServiceConfig> = {}): ServiceConfig {
   }
 }
 
-// 一个可编程的 axios adapter:按 url 返回预设响应
+// A programmable axios adapter: returns preset responses keyed by url
 function makeAdapter(handler: (cfg: AxiosRequestConfig) => { status: number; data: unknown }): AxiosAdapter {
   return async (cfg) => {
     const { status, data } = handler(cfg)

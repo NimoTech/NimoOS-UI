@@ -3,18 +3,22 @@ import type { KvmVM } from '@nimotech/nimoos-service'
 type SpicePorts = Pick<KvmVM, 'spicePort' | 'spiceTlsPort'>
 
 /**
- * spicePort 保活合并。
+ * SPICE port keep-alive merging.
  *
- * 为什么需要它:`GET /v1/kvm/vms` 列表接口**确实会返回** spicePort/spiceTlsPort,
- * 但那个值来自后端内存快照——`ListVMs` 直接吐快照,只有 `GetVMVNCInfo`(单台 VM 的
- * `/vnc` 接口)被调用时才会把真实端口回写进这份快照。所以列表刷新拿到的 spicePort
- * **可能陈旧、也可能是 0**(KVM 服务重启后、或从未打开过控制台时),并非稳定可信
- * 的数据源;唯一权威来源是 `GET /v1/kvm/vms/:id/vnc`。若不做兜底,定时刷新列表时
- * 会把之前从 /vnc 拿到的真实端口冲成 0,SPICE 提示条闪一下就消失。
+ * Why it is needed: `GET /v1/kvm/vms` list API **does return** spicePort/spiceTlsPort,
+ * but that value comes from a backend memory snapshot — `ListVMs` returns the snapshot
+ * directly, and only when `GetVMVNCInfo` (the `/vnc` endpoint for a single VM) is called
+ * will the real port be written back into this snapshot. So spicePort from list refresh
+ * **may be stale or even 0** (after KVM service restart, or when the console has never
+ * been opened), and is not a reliable data source; the only authoritative source is
+ * `GET /v1/kvm/vms/:id/vnc`. Without this workaround, periodic list refresh would
+ * overwrite the real port obtained from /vnc with 0, causing the SPICE indicator to
+ * flash briefly and then disappear.
  *
- * Vue2 用「新值 <= 0 且旧值 > 0 就沿用旧值」兜底(KVMFullPage.vue:890-892 / :916-919 /
- * :928-931,同一段逻辑抄了三遍)。**这是后端字段可能陈旧的兜底,不是 bug**,照抄;
- * 这里抽成一个纯函数,三处调用点共用。
+ * Vue2 uses a workaround of "if new value <= 0 and old value > 0, keep using old value"
+ * (KVMFullPage.vue:890-892 / :916-919 / :928-931, same logic copied three times).
+ * **This is a workaround for backend field staleness, not a bug**, so we replicate it;
+ * here it is extracted into a pure function for reuse across three call sites.
  */
 export function preserveSpice(fresh: KvmVM, old: SpicePorts | null | undefined): KvmVM {
   if (!old) return fresh

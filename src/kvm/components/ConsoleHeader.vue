@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// 控制台头(VM 名/OS 图标/状态点 + 设置/更多两个动作按钮)。
-// 视觉 1:1 对 Vue2 components/KVM/KVMFullPage.vue :79-140(console-header 整块)。
+// Console header (VM name/OS icon/status dot + settings/more action buttons).
+// Visual 1:1 match with Vue2 components/KVM/KVMFullPage.vue :79-140 (entire console-header block).
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { KvmVM } from '@nimotech/nimoos-service'
@@ -13,30 +13,32 @@ const emit = defineEmits<{ action: [name: string] }>()
 
 const { t, te } = useI18n()
 
-// 状态文字:同 VmListItem 的写法(T4 已用过),未注册的 key(crashed/missing)原样显示。
+// State text: same pattern as VmListItem (used in T4); unregistered keys (crashed/missing) display as-is.
 const stateKey = computed(() => stateLabelKey(props.vm.state))
 const stateText = computed(() => (te(stateKey.value) ? t(stateKey.value) : stateKey.value))
 
-// P6 Task 9:齿轮解禁——照 Vue2 canEditSettings(:674-676)。Vue2 那份是 `this.selectedVM &&
-// (...)`,这里不需要那层判空:ConsoleHeader 只在 `s.selectedVM.value` truthy 时才被
-// KvmPage 挂载渲染(v-else 分支),`vm` prop 本身永远是一个真实的 VM 对象。
+// P6 Task 9: Settings button enabled — follows Vue2 canEditSettings (:674-676). Vue2's is
+// `this.selectedVM && (...)`, no null-check needed here: ConsoleHeader is only mounted/rendered by
+// KvmPage when `s.selectedVM.value` is truthy (v-else branch), so the `vm` prop is always a real VM object.
 const canEditSettings = computed(() => props.vm.state === 'stopped' || props.vm.state === 'crashed')
 
-// 溢出菜单开关。用 v-if(不是 v-show)挂载/卸载 OverflowMenu —— 每次重新打开都是全新实例,
-// 内部的 pendingAction/pendingId 自然是空的。
+// Overflow menu toggle. Uses v-if (not v-show) to mount/unmount OverflowMenu — each time it opens
+// is a fresh instance, with internal pendingAction/pendingId naturally empty.
 //
-// 评审 Minor 修复(选 (b)):之前 toggleMenu/handleOutsideClick/watch 三处都额外调用了
-// `overflowRef.value?.reset()`,变异验证证明这是死代码——菜单关闭统一走 `menuOpen.value
-// = false`,而 OverflowMenu 挂在 `v-if="menuOpen"` 下,一旦 menuOpen 变 false 整个组件
-// 实例连同它内部的 pendingAction/pendingId 一起被销毁,根本不存在"关闭动画期间用户还能
-// 瞥见一帧确认文字"这种窗口(v-if 不是 v-show,没有过渡动画,销毁是同步的下一次 patch)。
-// 上一版注释里"照 Vue2 toggleOverflowMenu 需要显式 resetPendingConfirm"这句站不住:
-// Vue2 的菜单是**常驻 DOM**、用 `v-if="showOverflowMenu"` 控制显隐但 pendingConfirmAction
-// 是父组件(KVMFullPage)自己的 data,不随子节点销毁而清空,所以 Vue2 必须显式清;这里
-// 确认态是 OverflowMenu 自己的内部状态,天然随组件销毁而清空,不需要再叫一次。已删掉
-// 三处死调用,`overflowRef` 的调用方也一并去掉。清理项8(全分支终审)后续追加:
-// OverflowMenu 自己的 `defineExpose({ reset })` 因此彻底没了外部消费方,已从那个组件
-// 里删掉(reset() 本身仍是它的内部函数,只是不再对外暴露)。
+// Review minor fix (option b): previously toggleMenu/handleOutsideClick/watch had three places
+// calling `overflowRef.value?.reset()`, mutation testing showed this was dead code — menu close
+// always goes through `menuOpen.value = false`, and OverflowMenu is mounted under `v-if="menuOpen"`;
+// once menuOpen becomes false the entire component instance and its internal pendingAction/pendingId
+// are destroyed, there's no window where "users glimpse one frame of confirmation text during
+// close animation" (v-if not v-show, no transition animation, destruction is synchronous on next patch).
+// The previous comment's "per Vue2 toggleOverflowMenu needs explicit resetPendingConfirm" doesn't hold:
+// Vue2's menu **stays in DOM**, uses `v-if="showOverflowMenu"` to control visibility but pendingConfirmAction
+// is the parent (KVMFullPage) component's own data, not cleared when child nodes are destroyed, so Vue2
+// must explicitly clear; here confirmation state is OverflowMenu's own internal state, naturally cleared
+// when the component is destroyed, no need to call again. Deleted the three dead calls, and removed
+// `overflowRef` call sites too. Cleanup item 8 (end of all-branch review) follow-up: OverflowMenu's own
+// `defineExpose({ reset })` thus has no external consumers, already removed from that component (reset()
+// itself remains its internal function, just no longer exposed externally).
 const menuOpen = ref(false)
 const wrapperEl = ref<HTMLElement | null>(null)
 
@@ -44,7 +46,7 @@ function toggleMenu() {
   menuOpen.value = !menuOpen.value
 }
 
-// 照 Vue2 handleOutsideClick(:1108-1111):点 dropdown-wrapper 外部时关闭菜单。
+// Per Vue2 handleOutsideClick (:1108-1111): close menu when clicking outside dropdown-wrapper.
 function handleOutsideClick(e: MouseEvent) {
   if (menuOpen.value && wrapperEl.value && !wrapperEl.value.contains(e.target as Node)) {
     menuOpen.value = false
@@ -54,14 +56,14 @@ function handleOutsideClick(e: MouseEvent) {
 onMounted(() => document.addEventListener('click', handleOutsideClick))
 onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
-// 切换 VM 时菜单一起清空(Task 5 brief 就地二次确认契约的第 4 条:"确认态"本身随
-// OverflowMenu 卸载自动清空,这里只需要把菜单关掉)。
+// When switching VMs, close the menu together (Task 5 brief in-place double-confirmation contract
+// item 4: "confirmation state" is naturally cleared when OverflowMenu unmounts, just need to close the menu here).
 watch(() => props.vm.id, () => {
   menuOpen.value = false
 })
 
-// 菜单里点了某一项:透传给父组件,并关菜单(照 Vue2 每个 dropdown-item 点击表达式里
-// 末尾都带的 `showOverflowMenu=false`)。
+// When menu item is clicked: pass through to parent component and close menu (per Vue2 where
+// each dropdown-item click expression ends with `showOverflowMenu=false`).
 function onMenuAction(name: string) {
   emit('action', name)
   menuOpen.value = false
@@ -81,9 +83,9 @@ function onMenuAction(name: string) {
       </div>
     </div>
     <div class="console-actions">
-      <!-- P6 Task 9 解禁:照 Vue2 :91-95(b-tooltip + canEditSettings 切 tooltip 文案)。
-           ⚙ 仍是单色文字符号(禁 emoji),与 VmSidebar 的齿轮同款占位手法,P5 遗留的
-           "恒 disabled + kvmComingSoon"占位状态到此结束。 -->
+      <!-- P6 Task 9 unlocked: per Vue2 :91-95 (b-tooltip + canEditSettings to toggle tooltip text).
+           ⚙ remains a monochrome text symbol (no emoji), same placeholder approach as VmSidebar's gear,
+           ending the P5-legacy "always disabled + kvmComingSoon" placeholder state. -->
       <button
         class="action-btn"
         type="button"

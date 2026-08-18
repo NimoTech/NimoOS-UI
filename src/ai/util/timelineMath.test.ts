@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/stream/timelineMath.spec.js
+// Directly ported from Vue2 src/views/AI/Agent/stream/timelineMath.spec.js
 import { describe, it, expect } from 'vitest'
 import { tickWidth, clip, ticksFromMessages } from './timelineMath'
 

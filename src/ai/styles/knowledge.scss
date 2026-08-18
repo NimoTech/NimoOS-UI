@@ -1,185 +1,221 @@
-/* 1:1 移植自 Vue2 src/views/AI/Knowledge/styles/knowledge.scss(蓝本共 2561 行）。
- * 本档是 SP8-P5a 的**第一批**落地:token 声明层 + .knowledge-app 壳段(rail/main/
- * topbar/banner/mobile-tabs/badge/btn/scroll/skel/empty)+ 全局 keyframes。
- * T10(KnowledgeLayout.vue)· T11(仪表盘样式)· T12(DashboardView.vue)都建在本档之上,
- * 会在文件末尾续写各自批次的段落 —— 见文件最后一行占位注释。
+/* 1:1 ported from Vue2 src/views/AI/Knowledge/styles/knowledge.scss(base has 2561 lines total).
+ * This file is SP8-P5a's **first batch** deployment: token declaration layer + .knowledge-app
+ * shell sections (rail/main/topbar/banner/mobile-tabs/badge/btn/scroll/skel/empty)
+ * + global keyframes.
+ * T10 (KnowledgeLayout.vue) · T11 (dashboard styles) · T12 (DashboardView.vue) are built
+ * on top of this file and will continue writing their respective sections at the end of
+ * the file — see the last line placeholder comment.
  *
- * 切档判据:only 附录 D 白名单(D.1 的 32 个 + 协调者 R1 追加的 6 个 k-empty*,
- * 共 38 个)。蓝本 `.knowledge-app { … }` 那一大段(:59-1509)里混着 P5b-P5f 才用到
- * 的类(表格/抽屉/笔记/Wiki/仪表盘…),白名单以外一律不搬。
+ * Cutoff criterion: only allowlist from Appendix D (D.1's 32 items + 6 additional k-empty*
+ * items R1 appended, total 38 items). The large section of `.knowledge-app { … }` in the
+ * base (:59-1509) mixed with classes used only by P5b-P5f (tables/drawers/notes/Wiki/
+ * dashboards…) — anything outside the allowlist is not ported.
  *
- * 【SP8-P5b Task 2 续写】本档第二次扩容:搬入"索引运维"两页(已收录文件 / 任务队列)
- * 共用的底座段共 7 小段 —— 蓝本 :241-252(S1)· :253-257(S2)· :735-968(S3)·
- * :1296-1316 + :1335-1341(S4)· :1398-1428(S5)· :1484-1499(S6)· :2031-2039(S7)。
- * 全部按 K9 嵌进下方那个既有的 `.knowledge-app { … }` 基础块,段序照蓝本原序;S6 按
- * 附录 D.6 并入既有的 `@media (max-width: 860px)`,S7 按 K9 从顶层裸选择器重新嵌套。
- * 白名单 102 → 134(附录 D.1 的 32 个)。新声明 3 个 token(见下方两个声明块的
- * "R2(P5b-T2 追加)"分组),归属依治理文件 §6.2 的 token 归属表。
- * 显式不搬:K17 的 .k-modal-head/-title/-x/-body(留 P5c —— 已由下面的 P5c-T2a 段兑现)·
- * K10 的顶层重复 confirm 段
- * (蓝本 :1676-1702,级联上永不生效)· 附录 D.5 的 .k-frow 死规则。
+ * 【SP8-P5b Task 2 continuation】Second expansion of this file: port "index maintenance"
+ * two pages (collected files / task queue) shared base sections, total 7 sub-sections —
+ * base :241-252(S1)· :253-257(S2)· :735-968(S3)· :1296-1316 + :1335-1341(S4)·
+ * :1398-1428(S5)· :1484-1499(S6)· :2031-2039(S7). All nested into the existing
+ * `.knowledge-app { … }` base block via K9, with section order matching base's original;
+ * S6 merged into existing `@media (max-width: 860px)` per Appendix D.6, S7 re-nested
+ * from top-level bare selectors via K9.
+ * Allowlist 102 → 134 (Appendix D.1's 32 items). Three new tokens declared (see
+ * "R2(P5b-T2 additions)" group in the two token blocks below), ownership per governance
+ * file §6.2 token ownership table.
+ * Explicit non-ports: K17's .k-modal-head/-title/-x/-body (reserved for P5c — already
+ * fulfilled by P5c-T2a segment below) · K10's top-level duplicate confirm section
+ * (base :1676-1702, never effective in cascade) · Appendix D.5's .k-frow dead rule.
  *
- * 【SP8-P5b Task 6 续写】本档第三次扩容:搬入"已收录文件"页专属段(S8)——
- * 蓝本 :1705-2022(318 行:筛选栏 / 文件表格 / 状态徽标 / 类型标签 / 展开详情 /
- * 分页 / 底部动作条)。整段按 K9 从顶层裸选择器重新嵌套进下方那个既有的
- * `.knowledge-app { … }` 基础块,段位按蓝本原序落在 S6(上方 @media)与 S7
- * (.kn-badge)之间。白名单 134 → 187(附录 D.2 的 53 个)。
- * 新声明 1 个 token:--purple-soft(见下方两个声明块的"R2(P5b-T6 追加)"分组)。
- * 蓝本 :1844-1847 的 @keyframes row-done 挪到顶层全局 keyframes 区。
- * 两处 `[data-theme="dark"]` 选择器(蓝本 :1862 / :1895)按 K2 并进两档、整条删除
- * (附录 B §B.4),逐处见规则内注释。
- * 显式照抄不改:N11 —— .k-file-detail 的 `animation: fade-in`(蓝本 :1941)是悬空
- * 引用(蓝本只有 k-fade-in),Vue2 里这条淡入从未播过,照抄;keyframes 存在性守卫
- * 为这一个名字登记显式例外。
+ * 【SP8-P5b Task 6 continuation】Third expansion of this file: port "collected files"
+ * page exclusive sections (S8) — base :1705-2022 (318 lines: filter bar / file table /
+ * status badge / type tag / expand details / pagination / bottom action bar). Entire
+ * section re-nested from top-level bare selectors via K9 into the existing `.knowledge-app
+ * { … }` base block, positioned in original base order between S6 (upper @media) and S7
+ * (.kn-badge). Allowlist 134 → 187 (Appendix D.2's 53 items).
+ * One new token declared: --purple-soft (see "R2(P5b-T6 additions)" group in the two
+ * token blocks below).
+ * Base :1844-1847 @keyframes row-done moved to top-level global keyframes section.
+ * Two `[data-theme="dark"]` selectors (base :1862 / :1895) merged into two themes and
+ * entire line deleted per K2 (Appendix B §B.4) — see rule-level comments for each.
+ * Explicit copy-as-is without changes: N11 — .k-file-detail's `animation: fade-in`
+ * (base :1941) is a dangling reference (base has only k-fade-in), never played in Vue2,
+ * copied anyway; keyframes existence guard registers explicit exception for this name.
  *
- * 【SP8-P5c Task 2a 续写】本档第四次扩容:搬入"知识库配置页(SettingsView)+ 目录
- * 选择器(FolderBrowser)"用到的段 —— 蓝本 :969-984(A,.k-section 四类)·
- * :1141-1149(B)· :1159-1179(C)· :1181-1201(D)· :1203-1225(E)· :1227-1247(F)·
- * :1249-1265(G)· :1267-1293(H)· :1317-1334(I,K17 兑现)· :2250-2263(J),
- * 加上蓝本 src/components/common/FolderBrowser.vue:82-143 的 <style scoped> 全段
- * (.fb 系列 8 个类)。段序照蓝本原序;J 段与 .fb-* 段是顶层裸选择器(后者靠 Vue2 的
- * scoped 隔离),按 K9 重新嵌进下方那个既有的 `.knowledge-app { … }` 基础块 ——
- * 否则 ① 会泄漏到全站 ② 拿不到本作用域声明的 token。
- * 白名单 187 → 226(附录 D.1 的 39 个);非 k* 辅助类登记表 9 → 10(新增 warn,
- * 蓝本 :1174 是 .k-set-row-desc 内的嵌套警示行)。
- * 新声明 4 个 token(见下方两个声明块的"R2(P5c-T2a 追加)"分组):--switch-thumb /
- * --switch-thumb-shadow / --gloss-inset-dot / --grad-sandbox。四个都是两档同值
- * (theme-invariant,与既有 --purple/--pink/--teal/--modal-scrim 同族),取值逐字抄自
- * AI tokens.scss(出处见声明行尾注释),浅色块仍按头注释的论证显式各写一份。
- * --grad-sandbox 是 tokens.scss:236 的 --grad-sk-blue **改名不改值**:-sk- 是技能区
- * 专用命名,知识库区借它的名字会误导。
- * 【偏离 K21】本档两个 token 声明块的选择器各扩一项 `.parser-app` —— P5c 的 Parser
- * 两页(ParserStatus / ParserTest)要消费本档这套 token,但下方 :290 那个
- * `.knowledge-app { … }` 块正是满屏两列外壳(grid / 100vh / 100vw / overflow:hidden),
- * 与 token 声明块**共用同一个选择器**,页面根挂 .knowledge-app 会连外壳一起拿到。
- * 先例:AI tokens.scss:31-32 的 `.agent-app, .ai-toast-scope { … }` —— 一份 token
- * 声明供两个作用域,后者同样是不带外壳的纯 token 消费方。零复制 = 零漂移,
- * 两档 color-scheme 也一并免费到手(.parser-app 不许再自己声明一次)。
- * 🔴 只改这两行选择器,两个块的内容一个字节都不动;且选择器**必须写在一行** ——
- * knowledgeStyles.test.ts 的 declBlockRange 用 `^选择器$` 行首行尾锚定定位声明块,
- * 换行会让整条断言直接失效。
- * 【N15 显式不搬】蓝本 :1151-1157 的 .k-progress-card / -row / -label / -nums / -bar /
- * -fill 六个类夹在 B 段与 C 段正中间,本期两页都不用、本仓也没有 → 不搬;
- * "没有搬多"那条断言(正则本期已扩到覆盖 fb 前缀)负责守住它们不出现。
- * 【显式不搬】蓝本 :985-991 的 .k-section-body 是 Allowlist 页专用(A 段的边界因此是
- * :969-984,不是 :969-988 —— 按 :988 切会把它截成半条规则,sass 直接编译报错)。
+ * 【SP8-P5c Task 2a continuation】Fourth expansion of this file: port "knowledge base
+ * configuration page (SettingsView) + folder browser (FolderBrowser)" sections used —
+ * base :969-984 (A, .k-section four types) · :1141-1149 (B) · :1159-1179 (C) ·
+ * :1181-1201 (D) · :1203-1225 (E) · :1227-1247 (F) · :1249-1265 (G) · :1267-1293 (H) ·
+ * :1317-1334 (I, K17 fulfilled) · :2250-2263 (J), plus entire base
+ * src/components/common/FolderBrowser.vue:82-143 <style scoped> section (fb series 8 classes).
+ * Section order matches base's original; J segment and .fb-* segment are top-level bare
+ * selectors (latter relies on Vue2's scoped isolation), re-nested into existing `.knowledge-app
+ * { … }` base block via K9 — otherwise ① leaks to site-wide ② loses tokens declared in this
+ * scope.
+ * Allowlist 187 → 226 (Appendix D.1's 39 items); non-k* helper classes registry 9 → 10
+ * (new: warn, base :1174 is nested warning row inside .k-set-row-desc).
+ * Four new tokens declared (see "R2(P5c-T2a additions)" group in the two token blocks below):
+ * --switch-thumb / --switch-thumb-shadow / --gloss-inset-dot / --grad-sandbox. All four are
+ * theme-invariant (same value in both themes, same family as existing --purple/--pink/--teal/
+ * --modal-scrim), values copied verbatim from AI tokens.scss (source noted at declaration
+ * line end), light block still explicitly writes a copy per header comment's rationale.
+ * --grad-sandbox is tokens.scss:236's --grad-sk-blue **renamed without value change** — -sk-
+ * is skills-area-specific naming, borrowing it for knowledge base would mislead.
+ * 【Deviation from K21】Selectors of this file's two token declaration blocks each expanded
+ * by one item `.parser-app` — P5c's Parser two pages (ParserStatus / ParserTest) need to
+ * consume this file's token set, but the `.knowledge-app { … }` block below at :290 is a
+ * full-screen two-column shell (grid / 100vh / 100vw / overflow:hidden), **sharing the same
+ * selector with the token declaration block** — hanging .knowledge-app on page root pulls in
+ * the shell too. Precedent: AI tokens.scss:31-32 `.agent-app, .ai-toast-scope { … }` — one
+ * token declaration serves two scopes, the latter is also pure token consumer without shell.
+ * Zero duplication = zero drift, both themes' color-scheme also get free ride (.parser-app
+ * not allowed to declare again).
+ * 🔴 Only change these two selector lines, zero bytes change in the two blocks' content;
+ * and selectors **must be on one line** — knowledgeStyles.test.ts's declBlockRange uses
+ * `^selector$` line anchors to locate declaration blocks, line breaks break the assertion.
+ * 【N15 explicit non-port】Six classes from base :1151-1157 (.k-progress-card / -row / -label
+ * / -nums / -bar / -fill) sandwiched in middle of B and C segments, neither page this period
+ * uses them, repo also lacks them → don't port; the "no over-porting" assertion (regex this
+ * period expanded to cover fb prefix) ensures they don't appear.
+ * 【Explicit non-port】Base :985-991's .k-section-body is AllowlistView-specific (A segment
+ * boundary is thus :969-984, not :969-988 — cutting at :988 would split it into half a rule,
+ * sass compilation error).
  *
- * 【SP8-P5d Task 2 续写】本档第五次扩容:搬入"笔记区"(NotesView / NoteEditPane /
- * NotesMarkdownEditor)专属段 —— 蓝本 :2029(A,.k-badge[data-tone="warn"] 残余,
- * .kn-badge 五条 P5b-T2 已搬不重复)+ :2040-2045(A,.kn-type-ic/.kn-src/.kn-tag)·
- * :2047-2056(B,path strip)· :2057-2085(C,draft inbox)· :2086-2121(D,notes list)·
- * :2122-2194(E,edit pane,含 :2171-2182 的 .kn-editor-body-wrap .nme-content
- * .ProseMirror)· :2195-2241(F,edit aside)· :2242-2249(G,conflict modal)·
- * :2265-2281(H,responsive)· :551-571(K43,.k-seg,21 行,与 P5e 的 SearchView 共用,
- * P5e 不许重复搬)。全部按 K9 从顶层裸选择器重新嵌进下方 :345 起的 `.knowledge-app { … }`
- * 基础块,段序照蓝本原序。白名单 226 → 293(附录 D §D.1 的 65 个 k 前缀新类 + R9 追加
- * 的 nme-content/ProseMirror 2 个非 k* 类)。
- * 🔴 K44(治理 §6.2 唯一顶层例外,裁定 R4):蓝本 NotesMarkdownEditor.vue:41-46 的
- * `<style lang="scss">` 全段是非 scoped 的全局规则,对**任何** .nme-content 生效,
- * 嵌进 .knowledge-app 会缩小作用域 = 改行为 —— 保持顶层裸选择器,紧邻本档
- * `.knowledge-app { … }` 基础块闭合处落笔(见该处注释)。它与上面 E 段的
- * .kn-editor-body-wrap .nme-content .ProseMirror 是两条不同选择器、互补生效
- * (前者管行内代码/代码块/引用,后者管标题/列表/表格),两份都要搬、不许合并
- * (合并会把特异性从 (0,2,0) 变 (0,3,0))。
- * K45(裁定 R1,本期新增授权):蓝本 :1569-1570 的 .k-btn.text(+:hover)两行搬入本档
- * 既有 `.k-btn { … }` 块内(见该处注释),插在 &.danger 之后、&:disabled 之前;
- * `text` 进 NON_K_HELPER_CLASSES(R8:10→16),不进白名单(R9 的正则扫不到复合类
- * `.k-btn.text` 里的 `text`)。P5e 不许重复搬(与 K43 同款交接纪律)。
- * K39 新增 9 个 token(--grad-note-note/-summary/-insight/-digest、--grad-inbox-wash、
- * --grad-draftbar-wash、--shadow-warning-glow、--code-block-bg、--code-block-fg),
- * 声明处见下方两个 token 块本批新增分组,取值/出处见附录 B §B.1(诚实登记:4 个笔记
- * 渐变里只有 --grad-note-note 与既有 --grad-sandbox 逐字同值,另 3 个全仓零同值先例,
- * 蓝本是值的唯一权威源,不许照抄 P5c 那句"4/4 都有出处")。
- * 守卫改动(治理 §9.6,knowledgeStyles.test.ts):「没有搬多」正则扩到也扫
- * `nme(?:-…)?`/`ProseMirror` 且字符集加 A-Z(兑现 P5c §6.4.2 债票,A-11);
- * `nonKClassNames` 排除条件加 `nme-content`/`ProseMirror`;`NON_K_HELPER_CLASSES`
- * 10→16(治理 A-10 写"保持 10 项"是错的,裁定 R8 已订正,以实测为准,详见测试文件
- * 头部注释);K44 顶层例外补一条**新建**的集合相等断言(裁定 R4)。
+ * 【SP8-P5d Task 2 continuation】Fifth expansion of this file: port "notes area" (NotesView
+ * / NoteEditPane / NotesMarkdownEditor) exclusive sections — base :2029 (A, .k-badge
+ * [data-tone="warn"] residue, .kn-badge five items from P5b-T2 already ported, not duplicated)
+ * + :2040-2045 (A, .kn-type-ic/.kn-src/.kn-tag) · :2047-2056 (B, path strip) ·
+ * :2057-2085 (C, draft inbox) · :2086-2121 (D, notes list) · :2122-2194 (E, edit pane,
+ * includes :2171-2182's .kn-editor-body-wrap .nme-content .ProseMirror) · :2195-2241 (F,
+ * edit aside) · :2242-2249 (G, conflict modal) · :2265-2281 (H, responsive) ·
+ * :551-571 (K43, .k-seg, 21 lines, shared with P5e's SearchView, P5e not allowed to
+ * re-port). All nested from top-level bare selectors via K9 into `.knowledge-app { … }` base
+ * block starting at :345, section order matching base's original. Allowlist 226 → 293
+ * (Appendix D §D.1's 65 new k-prefix classes + R9 added nme-content/ProseMirror 2 non-k*
+ * classes).
+ * 🔴 K44 (governance §6.2 sole top-level exception, ruling R4): base NotesMarkdownEditor.vue
+ * :41-46's entire `<style lang="scss">` is non-scoped global rules effective on **any**
+ * .nme-content, nesting inside .knowledge-app shrinks scope = changes behavior — keep
+ * top-level bare selector, placed at this file's `.knowledge-app { … }` base block closure
+ * (see comment there). It and above E segment's .kn-editor-body-wrap .nme-content .ProseMirror
+ * are **two different selectors, complementary effects** (former manages inline code/code
+ * blocks/quotes, latter manages headings/lists/tables), both must be ported, not merged
+ * (merge changes specificity from (0,2,0) to (0,3,0)).
+ * K45 (ruling R1, new authorization this period): base :1569-1570's .k-btn.text (+:hover)
+ * two lines ported into this file's existing `.k-btn { … }` block (see comment there),
+ * inserted after &.danger and before &:disabled; `text` goes into NON_K_HELPER_CLASSES
+ * (R8: 10→16), not into allowlist (R9's regex doesn't scan compound class `.k-btn.text`'s
+ * `text`). P5e not allowed to re-port (same handoff discipline as K43/K45).
+ * K39 adds 9 new tokens (--grad-note-note/-summary/-insight/-digest, --grad-inbox-wash,
+ * --grad-draftbar-wash, --shadow-warning-glow, --code-block-bg, --code-block-fg),
+ * see declarations in the two token blocks below for this batch's new group, values/sources
+ * in Appendix B §B.1 (honest logging: of 4 note gradients, only --grad-note-note and
+ * existing --grad-sandbox match verbatim, another 3 have zero same-value precedent repo-wide,
+ * base design package is sole authority on values, don't copy P5c's "all 4/4 have sources").
+ * Guard changes (governance §9.6, knowledgeStyles.test.ts): "no over-porting" regex expanded
+ * to also scan `nme(?:-…)?`/`ProseMirror` and character set add A-Z (fulfill P5c §6.4.2
+ * debt, A-11); `nonKClassNames` exclusion adds `nme-content`/`ProseMirror`; `NON_K_HELPER_CLASSES`
+ * 10→16 (governance A-10 wrote "keep 10 items" wrong, ruling R8 corrected, measure by actual,
+ * see test file header); K44 top-level exception add one **new** set-equality assertion
+ * (ruling R4).
  *
- * 【SP8-P5f Task 2 续写】本档第七次扩容(P5e-T2 是第六次,它没在本头注释登记):
- * 搬入知识库**最后三页**用到的样式 —— 蓝本 `:985-1141`(A,Allowlist 主体)·
- * `:1342-1396`(B,Allowlist 新增规则弹窗)· `:2453-2561`(C,Wiki 导航页)·
- * `:1500-1503`(K60,.k-frow 窄屏列宽,并进既有 @media)· 外加
- * `RootsView.vue:223-289` 的 `<style lang="scss" scoped>` 全段(K53,9 个 `kr-*`)。
- * 白名单 348 → **425**(27 个 k-* + 41 个 kw-* + 9 个 kr-*);非 k* 登记表 19 → **20**
- * (新增 `cur`,蓝本 :2475 面包屑当前项)。新声明 3 个 token(K55:--grad-ext-docs/
- * -text/-code,两档同值,声明处见下方两个 token 块本批分组)。
- * 守卫改动(裁定 **R1**,方案 B,与 P5c-T2a 处理 `fb-*` 逐字同款的三件套):
- * 「没有搬多」正则的 `k(?:2|n)?-` 扩成 `k(?:2|n|r|w)?-`,`kr-*`/`kw-*` 进白名单,
- * `nonKClassNames` 的排除条件同步扩 —— **扩范围 = 加固**,配严格超集自证(old ⊆ new)。
+ * 【SP8-P5f Task 2 continuation】Seventh expansion (P5e-T2 was sixth, not logged here):
+ * port knowledge base **last three pages** styles — base `:985-1141` (A, Allowlist main) ·
+ * `:1342-1396` (B, Allowlist new rule modal) · `:2453-2561` (C, Wiki nav page) ·
+ * `:1500-1503` (K60, .k-frow narrow-screen column width, merged into existing @media) + plus
+ * entire `RootsView.vue:223-289` `<style lang="scss" scoped>` (K53, 9 `kr-*` classes).
+ * Allowlist 348 → **425** (27 k-* + 41 kw-* + 9 kr-*); non-k* registry 19 → **20**
+ * (new: `cur`, base :2475 breadcrumb current item). Three new tokens declared (K55:
+ * --grad-ext-docs/-text/-code, same in both themes, see declaration in two token blocks'
+ * this batch group).
+ * Guard changes (ruling **R1**, plan B, identical three-part pattern as P5c-T2a handling
+ * `fb-*`): "no over-porting" regex's `k(?:2|n)?-` expanded to `k(?:2|n|r|w)?-`, `kr-*`/`kw-*`
+ * enter allowlist, `nonKClassNames` exclusion conditions synced — **expand range = harden**,
+ * paired strict superset proof (old ⊆ new).
  *
- * 🔴 **P5f-T2 订正块(守「反转不删」,上文原文一律保留;引条目编号,不引 file:line)**:
- *   ① 上面 P5b-T2 段末尾那句「显式不搬 …… 附录 D.5 的 .k-frow 死规则」**已过期** ——
- *      判据是**条件式**的(「两个模板里没有任何元素用 class="k-frow"」),
- *      `AllowlistView`(P5f)已使用该类 ⇒ 前提到期,依裁定 **R2** / 偏差 **K60** 本刀搬入。
- *   ② 上面 P5c-T2a 段的「【显式不搬】…… .k-section-body 是 Allowlist 页专用」**已过期** ——
- *      同样是条件式判据,本期正是 Allowlist 页 ⇒ 本刀搬入(勘误 **E-67** 记的 67→69
- *      差 2,差的正是 `.k-section-body` 与 `.k-frow`)。
- *   ③ 上面 P5c-T2a 段的「【N15 显式不搬】.k-progress-*」**继续成立** —— 那 6 个是
- *      24 个蓝本死类的最后 6 个,**本期一个都不许搬**(附录 D §D.4 / 治理 §6.2)。
+ * 🔴 **P5f-T2 correction block (honor "reverse, don't delete", original text above preserved;
+ * cite item number, not file:line)**:
+ *   ① Above P5b-T2 segment ending sentence "explicit non-port …… Appendix D.5's .k-frow dead
+ *      rule" **now expired** — criterion is **conditional** ("no element in two templates uses
+ *      class='k-frow'"), `AllowlistView` (P5f) now uses this class ⇒ premise expired, per
+ *      ruling **R2** / deviation **K60** port this time.
+ *   ② Above P5c-T2a segment's "【Explicit non-port】…… .k-section-body is AllowlistView-specific"
+ *      **now expired** — same conditional criterion, this period is precisely AllowlistView page
+ *      ⇒ port this time (errata **E-67** recorded 67→69 difference 2, difference is precisely
+ *      `.k-section-body` and `.k-frow`).
+ *   ③ Above P5c-T2a segment's "【N15 explicit non-port】.k-progress-*" **remains valid** — those
+ *      6 are last 6 of 24 base dead classes, **this period zero allowed to port** (Appendix D
+ *      §D.4 / governance §6.2).
  *
- * 【偏离 K2 —— 主题】蓝本在 .knowledge-app 里自带一整套冷蓝/oklch token(--accent
- * 等原生冷蓝色值),且暗色微调写作 `[data-theme="dark"] .knowledge-app`(在 Vue2 与
- * New-UI 都永不命中,蓝本实际只有一套颜色在生效)。用户 2026-07-31 拍板:浅色档取
- * 全局主页 theme.css 那套、暗色档取 AI 区 tokens.scss 暗色块那套,跟随 <html> 的
- * data-theme 切换。因此下面两个声明块的 token 取值全部重写,来源逐条见行尾注释。
+ * 【Deviation from K2 — theme】Base carries a full cold-blue/oklch token set in .knowledge-app
+ * (--accent etc. native cold-blue values), with dark adjustment written as
+ * `[data-theme="dark"] .knowledge-app` (never matches in Vue2 nor New-UI, base actually only
+ * one color set in effect). User 2026-07-31 approved: light swatch takes global home page's
+ * theme.css set, dark swatch takes AI area's tokens.scss dark block set, following <html>'s
+ * data-theme toggle. Thus below two declaration blocks' token values all rewritten, sources
+ * noted line-end per line.
  *
- * 【R2(协调者拍板)—— *-soft 家族 token 必须在本作用域自行声明】附录 B 原文
- * "New-UI 已有的直接用 var(--success-soft)" 对 .knowledge-app 是错的:那批 token
- * 只在 tokens.scss 的 `.agent-app, .ai-toast-scope`(:32)与其暗色块(:250)两个
- * 选择器上声明,.knowledge-app 两边都不是,解析不到会渲染成透明。本批壳段实际用到
- * 的只有 4 个(--warning-soft/--warning-soft-border/--success-soft/--danger-soft,
- * 见下方声明块),已在两档各自补齐,取值抄自 tokens.scss 对应主题块。
- * 例外:--accent-soft-2 不在此列 —— 它在**全局** src/styles/theme.css 的 :root
- * (:60)与 :root[data-theme="light"](:275)都有定义,.knowledge-app 跟随全局主题
- * 天然能解析到,直接 var(--accent-soft-2) 即可,不重复声明(也不要退回
- * --accent-soft,透明度差一倍)。
+ * 【R2 (coordinator approved) — *-soft family tokens must be self-declared in this scope】
+ * Appendix B original text "New-UI just uses var(--success-soft)" wrong for .knowledge-app:
+ * those tokens declared only on tokens.scss's `.agent-app, .ai-toast-scope`(:32) and its dark
+ * block(:250) two selectors, .knowledge-app neither side, won't parse, renders transparent.
+ * This batch's shell segment actually uses only 4 (--warning-soft/--warning-soft-border/
+ * --success-soft/--danger-soft, see declaration block below), already patched in both themes,
+ * values copied from tokens.scss corresponding theme block.
+ * Exception: --accent-soft-2 not in this list — it **globally** defined in
+ * src/styles/theme.css's :root(:60) and :root[data-theme="light"](:275), .knowledge-app
+ * naturally parses following global theme, just `var(--accent-soft-2)`, don't re-declare
+ * (also don't revert to --accent-soft, opacity differs by half).
  *
- * 【R3(协调者拍板)—— color-scheme 必须两档都显式声明】.knowledge-app 是本仓第 4 个
- * 嵌套主题作用域(data-theme 贴在容器上,不动 <html>)。若不声明,会继承
- * src/styles/theme.css 在 :root 的 `color-scheme: dark`,导致浅色 AI 页里原生控件
- * (input[type=number] 上下箭头底板、原生 checkbox 等)被浏览器按暗色 UA 调色板画,
- * 这正是 P2b 踩过的同一个坑(tokens.scss:33-38 的同类注释)。
+ * 【R3 (coordinator approved) — color-scheme must be explicitly declared in both themes】
+ * .knowledge-app is repo's 4th nested theme scope (data-theme on container, <html> stays).
+ * If not declared, inherits src/styles/theme.css's `color-scheme: dark` at :root, makes
+ * light AI pages' native controls (input[type=number] up-down arrow backdrop, native checkbox
+ * etc.) painted by browser's dark UA palette, exact same pit P2b hit (tokens.scss:33-38
+ * same-pattern comment).
  *
- * 【R4(评审 2026-07-31 裁定,覆盖附录 B 原表)—— --shadow-* 不是无色结构量,两档
- * 各给一份】附录 B 把 --shadow-xs/sm/md/lg 归进"结构量,两档共享,只写基础块"这一类,
- * 取的是 AI tokens.scss:107-110 那套浅色暖调半透明投影。但阴影本身带颜色,不是
- * --r-* 与 --font-* 那种真正无色度量的结构量 —— 默认暗色主题(New-UI
- * 无 data-theme 时)沿用浅色暖投影会让 .k-rail-item[data-active] 与 .k-rail-svc 的
- * 投影在暗色底上几乎看不见。裁定:按治理文件 §6"每个颜色 token 两档都要有值"处理,
- * 基础块改取 AI tokens.scss:360-363 的暗色调半透明投影,浅色块另外声明一份
- * 取 :107-110(与裁定前的旧值相同)。
+ * 【R4 (review 2026-07-31 ruling, overrides Appendix B original table) — --shadow-* not
+ * colorless structural quantity, give each theme a set】Appendix B grouped --shadow-xs/sm/md/lg
+ * into "structural quantity, both themes shared, only base block", taking the light warm-tone
+ * translucent shadows from AI tokens.scss:107-110. But shadows themselves carry color, not
+ * --r-* and --font-* style truly colorless structural quantities — default dark theme (New-UI
+ * no data-theme) reusing light warm shadows makes .k-rail-item[data-active] and .k-rail-svc
+ * shadows nearly invisible on dark background. Ruling: handle per governance file §6 "every
+ * color token needs values in both themes", base block changes to take dark-tone translucent
+ * shadows from AI tokens.scss:360-363, light block separately declares taking :107-110
+ * (same as pre-ruling value).
  *
- * 【自查发现的隐藏坑 —— 3 个同名 token,评审 2026-07-31 订正】附录 B 浅色档表把
- * --accent / --accent-soft / --success 的取值写成 "var(--全局同名 token)"。但全局
- * theme.css 里那三个 token 的名字**恰好与本作用域要声明的 token 同名**。若照字面写
- * `.knowledge-app { --accent: var(--accent); }`,CSS 自定义属性没有"引用外层同名
- * 值"的语义 —— 这是一次自引用循环,规范规定循环引用的自定义属性计算为
- * "guaranteed-invalid value",会让 .knowledge-app 内所有用到 var(--accent) 的元素
- * 在浅色主题下失效/透明。
- * 【初版的错误修法,已订正】本档第一版曾选择"干脆不在浅色块重新声明这三个 token,
- * 靠 CSS 继承落到外层浅色值"——这个推理**不成立**:上面的暗色块 `.knowledge-app { … }`
- * 选择器是无条件的(没有任何 data-theme 限定),在浅色主题下同样命中这个元素本身;
- * custom property 的继承规则是"元素自身有声明时,自身声明胜出,根本走不到继承",
- * 所以留空不会继承到浅色值,而是被暗色块的字面值直接命中 —— 浅色主题下知识库区
- * 的强调色按钮/链接与成功态圆点反而会用暗色调色板,是一个真实回归(评审 RED 探针
- * 已验证)。
- * 【正确写法】在浅色声明块里**显式声明字面值**(不写 var()):三项分别取自
- * theme.css:183(强调色)/ theme.css:274(强调色半透明变体)/ theme.css:281(成功色)
- * (具体取值见下方浅色声明块本身 —— 那里属于 §6 豁免的 token 声明层,允许出现字面量)。
- * 这与附录 B 表里"全局无
- * 同语义 token 时退字面值"是同一处理方式(--accent-softer / --text-quaternary /
- * --line-strong / --line-faint / --purple/--pink/--teal 全是这个模式),不是新例外。
- * 代价:这三项以后不会跟随全局主题自动改色;若未来要恢复自动跟随,需要给知识库档
- * 的 token 改名(如 --k-accent)以消除同名冲突,属独立一期的事。
- * color-guard 与本档的自建单测都测不到"值对不对"这层(它们只查"有没有裸色字面量/
- * token 有没有声明"),knowledgeStyles.test.ts 已补一条用例钉住这三项必须在浅色块
- * 声明(见文件底部对应 describe 块),并已用 RED 探针验证(删一个 → 精确报红)。
+ * 【Self-check found hidden pit — 3 same-name tokens, review 2026-07-31 corrected】Appendix B
+ * light-theme table wrote --accent / --accent-soft / --success values as "var(--same-name
+ * global token)". But global theme.css **these three token names exactly match tokens this
+ * scope needs to declare**. Writing literally `.knowledge-app { --accent: var(--accent); }`,
+ * CSS custom properties lack "reference outer same-name value" semantics — this is a self-reference
+ * loop, spec defines loop-referenced custom properties compute as "guaranteed-invalid value",
+ * making all `var(--accent)` uses in .knowledge-app fail/transparent on light theme.
+ * 【Original incorrect fix, now corrected】First version chose "just don't re-declare these
+ * three tokens in light block, rely CSS inheritance to fall to outer light values"——this
+ * reasoning **doesn't hold**: dark block above `.knowledge-app { … }` selector is unconditional
+ * (no data-theme limit), still matches element itself on light theme; custom property inheritance
+ * rule is "element self-declared wins, inheritance never reached", so leaving empty won't inherit
+ * to light value, instead directly hit dark block's literal value — light theme knowledge-area
+ * emphasis/success status instead uses dark palette, actual regression (review RED probe
+ * verified).
+ * 【Correct way】Light declaration block **explicitly declares literal values** (don't write var()):
+ * three items from theme.css:183 (emphasis) / theme.css:274 (emphasis translucent variant) /
+ * theme.css:281 (success) (specific values see light block itself below — there exempt per §6
+ * token declaration layer, literals allowed). Same as Appendix B table's "global no same-semantic
+ * token, fall back to literal" pattern (--accent-softer / --text-quaternary / --line-strong /
+ * --line-faint / --purple/--pink/--teal all this mode), not new exception.
+ * Cost: these three won't auto-recolor with global theme later; to restore auto-follow future
+ * need rename knowledge file's tokens (like --k-accent) to remove same-name conflict, separate
+ * period's work.
+ * color-guard and this file's own unit tests can't reach "values correct" layer (only check
+ * "bare color literals / tokens declared"), knowledgeStyles.test.ts added case pinning these
+ * three must be in light block (see file bottom describe block), already RED-probe verified
+ * (delete one → exact danger tone).
  */
 
-/* ===== Design tokens — dark(New-UI 默认 <html> 无 data-theme)=====
- * 蓝本 knowledge.scss:6-58 的等价物,数值按【偏离 K2】改用 AI tokens.scss 暗色块
- * (:249-365)与蓝本 :2444-2447 的 --ly-* 暗色微调。
+/* ===== Design tokens — dark (New-UI default <html> has no data-theme) =====
+ * Equivalent to base knowledge.scss:6-58, values per 【deviation K2】 rewritten using AI
+ * tokens.scss dark block (:249-365) and base :2444-2447's --ly-* dark adjustment.
  */
 .knowledge-app, .parser-app {
   --bg-app: #1C1C1E; /* AI tokens.scss:255 */
@@ -206,30 +242,30 @@
   --success: #4FB870; /* AI tokens.scss:282 */
   --warning: #E0A53B; /* AI tokens.scss:283 */
   --danger: #F0776B; /* AI tokens.scss:284 */
-  --purple: #AF52DE; /* 两档同值,AI tokens.scss:71(暗色块未重定义,沿用浅色块的值) */
-  --pink: #FF2D55; /* 同上,AI tokens.scss:72 */
-  --teal: #30B0C7; /* 同上,AI tokens.scss:73 */
+  --purple: #AF52DE; /* same in both themes, AI tokens.scss:71 (dark block not redefined, inherits light block value) */
+  --pink: #FF2D55; /* same as above, AI tokens.scss:72 */
+  --teal: #30B0C7; /* same as above, AI tokens.scss:73 */
 
   --line: #2E2E31; /* AI tokens.scss:293 */
   --line-strong: #3A3A3D; /* AI tokens.scss:294 */
   --line-faint: #262628; /* AI tokens.scss:295 */
 
-  /* 三层身份色(Wiki·向量·笔记)—— 蓝本 knowledge.scss:2444-2447 暗色档原值。
-     本批(T4 壳段)不直接使用,D.2 的 k2-layer/kw-node 系列(T11 及后续批次)才用,
-     按附录 B 要求在 token 层一次性声明齐,供后续批次直接消费。 */
+  /* Three-layer identity colors (Wiki·vector·notes) — base knowledge.scss:2444-2447 dark-theme values.
+     Not directly used in this batch (T4 shell section), D.2's k2-layer/kw-node series (T11 and later batches) uses them,
+     declared once at token layer per Appendix B requirements, available for later batches' direct consumption. */
   --ly-wiki: oklch(0.78 0.11 80); --ly-wiki-soft: oklch(0.78 0.11 80 / 0.15); --ly-wiki-line: oklch(0.78 0.11 80 / 0.35);
   --ly-vec: oklch(0.76 0.10 210); --ly-vec-soft: oklch(0.76 0.10 210 / 0.15); --ly-vec-line: oklch(0.76 0.10 210 / 0.35);
   --ly-note: oklch(0.76 0.12 300); --ly-note-soft: oklch(0.76 0.12 300 / 0.15); --ly-note-line: oklch(0.76 0.12 300 / 0.35);
 
-  /* 结构量(--r-系列与 --font-系列)—— 附录 B:两档共享,只在本(基础)块声明,浅色块
-     不重复。【评审 2026-07-31 Important 裁定 R4,覆盖附录 B 原表】附录 B 把 --shadow-*
-     也归进这一类"结构量",只写基础块、且取值抄的是 tokens.scss:107-110 那套浅色暖投影
-     (rgba(40,35,25,…))。但阴影的 rgba 本身带颜色,不是这里 r/font 那种无色度量的
-     结构量 —— 默认暗色主题下沿用这套浅色暖投影,会让 .k-rail-item[data-active] 与
-     .k-rail-svc 的投影在深色底上几乎看不见(暗底 + 暖灰阴影,对比度不足)。裁定:
-     阴影按治理文件 §6"每个颜色 token 两档都要有值"办,基础块改取 tokens.scss:360-363
-     的暗色投影(rgba(0,0,0,…)),浅色块另外声明一份取 tokens.scss:107-110(与本裁定
-     前的旧值相同,只是从"共享"改成"浅色块独立声明")。 */
+  /* Structural quantities (--r-* and --font-* series) — Appendix B: both themes share, only declare in this (base) block,
+     light block don't repeat. 【Review 2026-07-31 Important ruling R4, overrides Appendix B original table】Appendix B also grouped
+     --shadow-* into this "structural quantity" class, only base block, values copied from tokens.scss:107-110's light warm-tone
+     translucent shadows (rgba(40,35,25,…)). But shadows themselves carry color, not colorless r/font style structural quantities
+     — default dark theme reusing this light warm-tone set makes .k-rail-item[data-active] and .k-rail-svc shadows nearly invisible
+     on dark background (dark base + warm-gray shadow, insufficient contrast). Ruling: handle per governance file §6 "every color
+     token needs values in both themes", base block changes to take dark-tone shadows from tokens.scss:360-363 (rgba(0,0,0,…)),
+     light block separately declares taking tokens.scss:107-110 (same as pre-ruling value, just changed from "shared" to "light
+     block independently declared"). */
   --r-xs: 6px;
   --r-sm: 10px;
   --r-md: 14px;
@@ -238,7 +274,7 @@
   --r-2xl: 32px;
   --r-pill: 999px;
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4); /* R4 裁定,AI tokens.scss:360 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4); /* R4 ruling, AI tokens.scss:360 */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4); /* AI tokens.scss:361 */
   --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3); /* AI tokens.scss:362 */
   --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.55), 0 8px 16px rgba(0, 0, 0, 0.3); /* AI tokens.scss:363 */
@@ -249,270 +285,281 @@
   --grad-iri: linear-gradient(120deg, #5AC8FA 0%, #3B6FD4 30%, #6E5BFF 70%, #AF52DE 100%); /* AI tokens.scss:119 */
   --grad-iri-soft: linear-gradient(120deg, rgba(90, 200, 250, 0.16), rgba(59, 111, 212, 0.16) 40%, rgba(110, 91, 255, 0.16) 80%); /* AI tokens.scss:120 */
 
-  /* R2 —— 本批壳段实际用到的 *-soft 家族(见 .k-rail-svc-dot / .k-banner / .k-banner-icon),
-     取值抄自 AI tokens.scss 暗色块(:249-365)。 */
+  /* R2 — *-soft family tokens actually used in this batch's shell section (see .k-rail-svc-dot / .k-banner / .k-banner-icon),
+     values copied from AI tokens.scss dark block (:249-365). */
   --warning-soft: rgba(224, 165, 59, 0.18); /* AI tokens.scss:303 */
   --warning-soft-border: rgba(224, 165, 59, 0.3); /* AI tokens.scss:304 */
   --success-soft: rgba(79, 184, 112, 0.18); /* AI tokens.scss:306 */
   --danger-soft: rgba(240, 119, 107, 0.16); /* AI tokens.scss:308 */
 
-  /* R2(T11 追加)—— 仪表盘 k2-* 段另用到 2 个 *-soft 家族 token(k2-qchip[data-tone=danger]
-     的 hover 强化态、k2-ob-layer .k2-tag 的暗色蒙版派生源),取值抄自 AI tokens.scss
-     暗色块。--modal-scrim 两档同值(遮罩类 token 的既定惯例,见 tokens.scss:338 行尾同款
-     注释),不是"暗色专属"的语义。 */
+  /* R2(T11 additions) — dashboard k2-* section additionally uses 2 *-soft family tokens (k2-qchip[data-tone=danger]'s hover
+     strengthened state, k2-ob-layer .k2-tag's dark overlay source), values copied from AI tokens.scss dark block.
+     --modal-scrim same in both themes (established convention for overlay-class tokens, see tokens.scss:338 line-end same comment),
+     not "dark-only" semantic. */
   --danger-soft-border: rgba(240, 119, 107, 0.24); /* AI tokens.scss:309 */
   --modal-scrim: rgba(0, 0, 0, 0.5); /* AI tokens.scss:338 */
 
-  /* R2(P5b-T2 追加)—— 共享底座段(队列/表格/弹窗/确认框/kn-badge)另用到 3 个 token,
-     归属见 P5b 治理文件 §6.2 的 token 归属表(附录 B §B.1 同表,权威):
-       --success-soft-border(蓝本 :2038 的 .kn-badge[data-s="curated"] 边框)
-       --danger-soft-faint  (蓝本 :1417 的 .k-confirm-summary 底色;T6 段 :1972 会再用一次)
-       --danger-hover       (蓝本 :846 的 .k-btn.danger hover 底色)
-     前两个取值抄自 AI tokens.scss 对应主题块;--danger-hover 全仓无同语义 token,
-     两档取值由设计 §6.2 直接给定(该节的"亮度 −9%"只是说明性文字,复算不出这两个值,
-     以给定值为准,禁止下游重算)。 */
+  /* R2(P5b-T2 additions) — shared base segment (queue/table/modal/confirm-box/kn-badge) additionally uses 3 tokens,
+     ownership see P5b governance file §6.2 token ownership table (Appendix B §B.1 same table, authoritative):
+       --success-soft-border (base :2038 .kn-badge[data-s="curated"] border)
+       --danger-soft-faint   (base :1417 .k-confirm-summary background; T6 segment :1972 uses again)
+       --danger-hover        (base :846 .k-btn.danger hover background)
+     First two values copied from AI tokens.scss corresponding theme block; --danger-hover has zero same-semantic token repo-wide,
+     both themes' values directly given by design §6.2 (that section's "brightness −9%" just explanatory text, can't recalculate
+     these two values, follow given values, prohibit downstream recalculation). */
   --success-soft-border: rgba(79, 184, 112, 0.28); /* AI tokens.scss:307 */
   --danger-soft-faint: rgba(240, 119, 107, 0.1); /* AI tokens.scss:314 */
-  --danger-hover: #E35F52; /* 全仓无源,设计 §6.2 给定的暗档值 */
+  --danger-hover: #E35F52; /* no source repo-wide, design §6.2 given dark-theme value */
 
-  /* R2(P5b-T6 追加)—— "已收录文件"段(S8)只新用到 1 个 token:
-       --purple-soft(蓝本 :1894 的 .k-type-tag[data-kind="code"] 底色)
-     归属见 P5b 治理文件 §6.2 / 附录 B §B.1 的 token 归属表(F2 勘误已裁定:
-     --purple-soft 归 T6、--danger-soft-faint 归 T2)。取值抄自 AI tokens.scss
-     对应主题块。本段用到的 --danger-soft-faint 由 T2 声明,此处不重复。 */
+  /* R2(P5b-T6 additions) — "collected files" segment (S8) newly uses only 1 token:
+       --purple-soft (base :1894 .k-type-tag[data-kind="code"] background)
+     Ownership see P5b governance file §6.2 / Appendix B §B.1 token ownership table (F2 errata ruled:
+     --purple-soft belongs to T6, --danger-soft-faint belongs to T2). Values copied from AI tokens.scss
+     corresponding theme block. This segment's --danger-soft-faint declared by T2, not repeated here. */
   --purple-soft: rgba(175, 82, 222, 0.18); /* AI tokens.scss:310 */
 
-  /* R2(P5c-T2a 追加)—— 配置页段新用到 4 个 token,四个都是 theme-invariant(两档同值,
-     与上面的 --purple/--pink/--teal 及 --modal-scrim 同族),取值逐字抄自 AI tokens.scss:
-       --switch-thumb / --switch-thumb-shadow(蓝本 :1217/:1218 的 .k-sw::after 拨钮前景与
-         投影裸值;tokens.scss:201-202 / :345-346 的注释原文说的就是同一个 iOS 开关拨钮)
-       --gloss-inset-dot   (蓝本 :1292 的 .k-sandbox-icon inset 高光裸值)
-       --grad-sandbox      (蓝本 :1287 的 .k-sandbox-icon 底色渐变裸值)
-     🔴 --grad-sandbox 是 tokens.scss:236 的 --grad-sk-blue **改名不改值** —— -sk- 是技能区
-     专用命名,知识库区借名会误导;值有仓内逐字同值出处,不是新造,禁下游重算。 */
+  /* R2(P5c-T2a additions) — config page segment newly uses 4 tokens, all theme-invariant (same in both themes,
+     same family as above --purple/--pink/--teal and --modal-scrim), values copied verbatim from AI tokens.scss:
+       --switch-thumb / --switch-thumb-shadow (base :1217/:1218 .k-sw::after button foreground and
+         shadow bare values; tokens.scss:201-202 / :345-346 comments say same iOS toggle button)
+       --gloss-inset-dot    (base :1292 .k-sandbox-icon inset highlight bare value)
+       --grad-sandbox       (base :1287 .k-sandbox-icon background gradient bare value)
+     🔴 --grad-sandbox is tokens.scss:236's --grad-sk-blue **renamed without value change** — -sk- is skills-area-specific naming,
+     borrowing for knowledge-area would mislead; value has repo-wide verbatim-match source, not newly created, prohibit downstream
+     recalculation. */
   --switch-thumb: #ffffff; /* AI tokens.scss:345 */
   --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); /* AI tokens.scss:346 */
   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:321 */
-  --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236 的 --grad-sk-blue,改名不改值 */
+  --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236's --grad-sk-blue, renamed without value change */
 
-  /* K39(P5d-T2 新增,裁定书 R11 已批准渐变保留蓝本色相;附录 B §B.1 是权威)——
-     9 个新 token,两档都显式写值,声明处逐行标蓝本 file:line:
-       --grad-note-*(notesViewHelpers.js:6-9,4 个笔记类型渐变,theme-invariant;
-         --grad-note-insight 与下面 .kn-inbox-icon 共用同一份,不许声明两份 —— K39 明令)
-       --grad-inbox-wash / --grad-draftbar-wash(knowledge.scss:2060/:2132 的 wash 底色
-         渐变,theme-invariant,保留蓝本色相、不开小灶算 alpha —— 裁定 R11)
-       --shadow-warning-glow(knowledge.scss:2067 的 .kn-inbox-icon 外发光,**两档不同值**:
-         RGB 三元组取 --warning-soft-border 两档已有值,alpha 沿用蓝本 0.3/0.24,A-9/A11 同族)
-       --code-block-bg / --code-block-fg(NotesMarkdownEditor.vue:44 的 pre 底色/前景,
-         theme-invariant,两档同 #0d0d0d/#ffffff,与 --switch-thumb 两档同值同族先例)
-     🔴 诚实登记(K39 明令,不许照抄 P5c "4/4 都有出处"那句):4 个笔记渐变里只有
-     --grad-note-note 与既有 --grad-sandbox 逐字同值(仍另建新名,理由同 --grad-sandbox
-     借 --grad-sk-blue 名字会误导的先例:sandbox 是测试沙盒语义,借给笔记类型同样会
-     误导);另外 3 个(--grad-note-summary/-insight/-digest)全仓零同值先例,蓝本设计包
-     是值的唯一权威源。 */
-  --grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF); /* notesViewHelpers.js:6,与既有 --grad-sandbox 逐字同值(仍另建新名,理由见上) */
-  --grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759); /* notesViewHelpers.js:7,全仓零同值先例 */
-  --grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00); /* notesViewHelpers.js:8,与 knowledge.scss:2066(.kn-inbox-icon)共用同一份,全仓零同值先例 */
-  --grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55); /* notesViewHelpers.js:9,全仓零同值先例 */
-  --grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent); /* knowledge.scss:2060,保留蓝本色相(裁定 R11) */
-  --grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04)); /* knowledge.scss:2132,保留蓝本色相(裁定 R11) */
-  --shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3); /* knowledge.scss:2067,RGB 取 --warning-soft-border 暗档三元组 + 蓝本 alpha 0.3 */
-  --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44,theme-invariant */
-  --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44,theme-invariant,与 --text-on-accent 逐字同值但语义不同(近黑代码块上的字,非强调实底上的字) */
+  /* K39 (P5d-T2 additions, ruling R11 approved gradient preserves base hue; Appendix B §B.1 is authoritative) —
+     9 new tokens, explicit values in both themes, declaration marked line-by-line with base file:line:
+       --grad-note-* (notesViewHelpers.js:6-9, 4 note-type gradients, theme-invariant;
+         --grad-note-insight shared with .kn-inbox-icon below, don't declare twice — K39 mandates)
+       --grad-inbox-wash / --grad-draftbar-wash (knowledge.scss:2060/:2132 wash background
+         gradients, theme-invariant, preserve base hue, don't custom-calculate alpha — ruling R11)
+       --shadow-warning-glow (knowledge.scss:2067 .kn-inbox-icon outer glow, **different values per theme**:
+         RGB tuple takes existing --warning-soft-border per-theme values, alpha uses base 0.3/0.24, A-9/A11 family)
+       --code-block-bg / --code-block-fg (NotesMarkdownEditor.vue:44 pre background/foreground,
+         theme-invariant, both #0d0d0d/#ffffff, precedent same-value-both-themes family like --switch-thumb)
+     🔴 Honest logging (K39 mandates, don't copy P5c "all 4/4 have sources" clause): of 4 note gradients,
+     only --grad-note-note and existing --grad-sandbox match verbatim (still separate names, reason same as
+     --grad-sandbox borrowing --grad-sk-blue name misleads: sandbox is test-sandbox semantic, lends same
+     misleading to note types); another 3 (--grad-note-summary/-insight/-digest) zero same-value precedent
+     repo-wide, base design package sole authority on values. */
+  --grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF); /* notesViewHelpers.js:6, verbatim match existing --grad-sandbox (still separate name, reason above) */
+  --grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759); /* notesViewHelpers.js:7, zero same-value precedent repo-wide */
+  --grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00); /* notesViewHelpers.js:8, shared with knowledge.scss:2066 (.kn-inbox-icon), zero same-value precedent repo-wide */
+  --grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55); /* notesViewHelpers.js:9, zero same-value precedent repo-wide */
+  --grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent); /* knowledge.scss:2060, preserve base hue (ruling R11) */
+  --grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04)); /* knowledge.scss:2132, preserve base hue (ruling R11) */
+  --shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3); /* knowledge.scss:2067, RGB tuple take --warning-soft-border dark-theme triple + base alpha 0.3 */
+  --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44, theme-invariant */
+  --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44, theme-invariant, verbatim match --text-on-accent but different semantic (near-black on code block, not on accent solid) */
 
-  /* P5e-T2 新增 —— 「文件聚合搜索」两屏(结果卡 / 详情抽屉 / in-app 预览)用到的 8 个
-     token,附录 B §B.0 的 17 处色字面量逐处映射后剩下的新声明部分。两档都显式写值,
-     声明处逐行标蓝本 file:line + 附录 B 小节号:
+  /* P5e-T2 additions — "file aggregate search" two screens (result card / detail drawer / in-app preview) uses 8
+     tokens, remaining new declarations from mapping 17 color literals per-location in Appendix B §B.0.
+     Explicit values in both themes, declaration marked line-by-line with base file:line + Appendix B section:
 
-       --paper-surface(蓝本 knowledge.scss:599 的 .k-rcard-icon「白纸片」底色具名裸值)
-         🔴 **不是新建** —— 它是本档尚未声明的**既有例外 token**:AI tokens.scss:193(浅)/
-         :342(暗)两档同值,那里的注释原文把它与 --kind-* / --scrim-dark 列为同族
-         「skin-agnostic」例外;skills-styles.scss:402-404 的注释原文也写「专为这类
-         『白纸片』文件图标登记的例外 token」。.k-rcard-icon 正是同一个东西(一张纸片 +
-         右上折角 + 底部类型标签)。附录 B §B.1 第 1 行
+       --paper-surface (base knowledge.scss:599 .k-rcard-icon "paper-sheet" background named bare value)
+         🔴 **not newly created** — it's an **existing exception token** yet to be declared here:
+         AI tokens.scss:193(light) / :342(dark) same in both themes, original comment there lists it with
+         --kind-* / --scrim-dark as same-family "skin-agnostic" exception; skills-styles.scss:402-404
+         original comment also says "exception token registered specifically for this 'paper-sheet' file icon".
+         .k-rcard-icon is exactly that (one sheet + top-right fold + bottom type tag). Appendix B §B.1 row 1
 
-       --rtag-pdf / -md / -doc / -txt / -code(蓝本 :618-622 的 .k-rcard-tag[data-kind]
-         五个不透明实底)—— theme-invariant,与 tokens.scss 的 --kind-* 家族同款两档同值。
-         附录 B §B.2.1
-         🔴 为什么另起 --rtag-* 前缀、不借 --kind-* / --purple 的名字(承 --grad-sk-blue
-         → --grad-sandbox 的改名先例):① tokens.scss:210/:351 的 --kind-txt 与本处 TXT
-         **不同值**(那个是中性灰、也是未知类型的兜底),在 .knowledge-app 里重声明
-         --kind-txt 会造成全仓同名两值 = 评审地雷;② 既然 txt 那一员必须换名,五个就得
-         同一个家族前缀,不许 4 个借名 + 1 个新名;③ --purple 是**纯色相名**、不是文件
-         类型语义,借给 code 标签与 -sk- 借名同类问题。--rtag- = result-card tag
+       --rtag-pdf / -md / -doc / -txt / -code (base :618-622 .k-rcard-tag[data-kind]
+         five opaque solid backgrounds) — theme-invariant, same family as tokens.scss's --kind-* both-theme
+         same values. Appendix B §B.2.1
+         🔴 Why separate --rtag-* prefix, not borrow --kind-* / --purple names (following --grad-sk-blue
+         → --grad-sandbox rename precedent): ① tokens.scss:210/:351's --kind-txt vs. this TXT
+         **different values** (that one neutral muted, also fallback for unknown type), re-declaring
+         --kind-txt in .knowledge-app creates same-name two values repo-wide = review landmine;
+         ② since txt member must rename, all five need same family prefix, can't 4 borrow + 1 new;
+         ③ --purple is **pure hue name**, not file-type semantic, lending to code tag same -sk- borrowing
+         problem. --rtag- = result-card tag
 
-       --shadow-drawer(蓝本 :1582 的 .k-drawer 方向性投影,**整条 box-shadow 值 token**,
-         形态照 K39 的 --shadow-warning-glow 先例;**两档不同值**)。附录 B §B.2.2
-         几何部分 `-20px 0 60px` 逐字照蓝本(方向性投影是 1:1 视觉的一部分);颜色部分
-         照裁定 R4 的既定规则 —— 暗档取本档纯色投影、浅档取本档暖调投影,alpha 沿用同档
-         --shadow-lg 第一段的 alpha。🔴 蓝本原值是冷调,与本档 R4 已统一的两套阴影不同源,
-         **不照抄** —— R4 当时正是为了「暗底上暖灰阴影看不见」才立的规则,这是 K2 主题
-         映射层的既有口径,不是新偏离。
+       --shadow-drawer (base :1582 .k-drawer directional shadow, **whole box-shadow value token**,
+         form follows K39's --shadow-warning-glow precedent; **different values per theme**). Appendix B §B.2.2
+         Geometry `-20px 0 60px` copies base verbatim (directional shadow is 1:1 visual component);
+         color part follows ruling R4's established rule — dark theme takes this file's pure-color shadow,
+         light theme takes this file's warm-tone shadow, alpha uses same-theme --shadow-lg first segment's
+         alpha. 🔴 Base original value is cool-tone, different source from this file's R4-unified two shadow
+         sets, **don't copy** — R4 was established precisely because "dark-base warm-gray shadow invisible",
+         this is K2 theme-mapping layer's existing standard, not new deviation.
 
-       --mark-hl-bg(蓝本 :1660 的 .k-chunk-content mark 正文高亮底色,**两档不同值**)。
-         附录 B §B.2.3。全仓零同值、零近义 token(theme.css:67/:282 的 --hl-star 是金棕色
-         星标,不同语义)→ 必须新建。浅档逐字照蓝本;🔴 暗档必须降 alpha ——
-         .k-chunk-content 的 color 是 inherit ⇒ 实际取 --text-primary(暗档是浅灰白),
-         照抄浅档 alpha 会把底推到中间调,浅色字压在中间调上对比度最差。这是 K39 第 ③ 条
-         「两档都显式写值」的必然结果,不是自选。
-         ⚠️ **只映射 :1660 这一处**;另两条 mark 规则(:653 .k-rcard-snippet mark /
-         :1645 .k-chunk-item-preview mark)蓝本用的就是 token,原样照抄、不许一起改。
+       --mark-hl-bg (base :1660 .k-chunk-content mark body highlight background, **different values per theme**).
+         Appendix B §B.2.3. Zero same-value / zero near-value token repo-wide (theme.css:67/:282's --hl-star
+         is brown-gold star-icon, different semantic) → must newly create. Light-theme copies base verbatim;
+         🔴 dark-theme must lower alpha — .k-chunk-content's color is inherit ⇒ actually takes --text-primary
+         (dark-theme is light gray-white), copying light-theme alpha pushes background to mid-tone, light-text
+         on mid-tone has worst contrast. This is K39's third paragraph "explicit values both themes" natural
+         result, not choice.
+         ⚠️ **only map :1660 location**; another two mark rules (:653 .k-rcard-snippet mark /
+         :1645 .k-chunk-item-preview mark) base already uses tokens, copy as-is, don't change together.
 
-     🔴 --rtag-md 与 --mark-hl-bg 是本期两个「请机主看实物拍板」的配色项(附录 B
-     §B.2.1 末 / §B.2.3 末);机主若要改,改的是 token 值,不动任何选择器。 */
-  --paper-surface: #ffffff; /* AI tokens.scss:342(暗档);knowledge.scss:599 */
-  --rtag-pdf: #FF3B30; /* knowledge.scss:618;与 AI tokens.scss:347 的 --kind-pdf 逐字同值 */
-  --rtag-md: #1a1a1a; /* knowledge.scss:619;与 AI tokens.scss:350 的 --kind-md 逐字同值 */
-  --rtag-doc: #007AFF; /* knowledge.scss:620;与 AI tokens.scss:348 的 --kind-doc 逐字同值 */
-  --rtag-txt: #34C759; /* knowledge.scss:621;与 AI tokens.scss:349 的 --kind-xls 逐字同值(⚠️ 不是 --kind-txt) */
-  --rtag-code: #AF52DE; /* knowledge.scss:622;与本档上方 --purple 逐字同值 */
-  --shadow-drawer: -20px 0 60px rgba(0, 0, 0, 0.55); /* knowledge.scss:1582 几何 + 暗档投影色(alpha 取同档 --shadow-lg 首段),裁定 R4 */
-  --mark-hl-bg: rgba(255, 235, 0, 0.22); /* knowledge.scss:1660,暗档降 alpha,理由见上方注释 */
+     🔴 --rtag-md and --mark-hl-bg are this period's two "please see physical object" color items
+     (Appendix B §B.2.1 end / §B.2.3 end); to change owner-sees physical, change is token value,
+     don't change any selector. */
+  --paper-surface: #ffffff; /* AI tokens.scss:342 (dark-theme); knowledge.scss:599 */
+  --rtag-pdf: #FF3B30; /* knowledge.scss:618; verbatim match AI tokens.scss:347's --kind-pdf */
+  --rtag-md: #1a1a1a; /* knowledge.scss:619; verbatim match AI tokens.scss:350's --kind-md */
+  --rtag-doc: #007AFF; /* knowledge.scss:620; verbatim match AI tokens.scss:348's --kind-doc */
+  --rtag-txt: #34C759; /* knowledge.scss:621; verbatim match AI tokens.scss:349's --kind-xls (⚠️ not --kind-txt) */
+  --rtag-code: #AF52DE; /* knowledge.scss:622; verbatim match this file's --purple above */
+  --shadow-drawer: -20px 0 60px rgba(0, 0, 0, 0.55); /* knowledge.scss:1582 geometry + dark-theme shadow color (alpha from same-theme --shadow-lg first segment), ruling R4 */
+  --mark-hl-bg: rgba(255, 235, 0, 0.22); /* knowledge.scss:1660, dark-theme lowered alpha, reason see comment above */
 
-  /* P5f-T2 新增 —— 白名单页「扩展名分组」图标的三个品牌渐变(偏差 K55,附录 B §B.1/§B.6)。
-     蓝本把它们写死在 AllowlistView.vue 的 GROUPS_TEMPLATE 常量里、经 `:style` 渲染;
-     color-guard 压根不扫 `.ts` 常量 ⇒ 不 token 化就是裸奔(票 B 位置④)。
-     🔴 两档同值(品牌识别渐变,与既有 --grad-note-* / --grad-sandbox 同族),但两档仍各
-     显式写一份 —— 头注释「隐藏坑」段已论证过为什么不许「同值就省一档」。
-     🔴 为什么另建新名而不复用 --grad-note-note / --grad-sandbox:第一个的值与它们逐字
-     同值,但 K39/K40 立的规矩就是「同值也另建新名」—— 语义属主不同,将来笔记区改色
-     不该连带改掉白名单页。常量侧只留 var(--…) 引用(T4 落地)。 */
-  --grad-ext-docs: linear-gradient(135deg, #5AC8FA, #007AFF); /* AllowlistView.vue:160 · 附录 B §B.1-① */
-  --grad-ext-text: linear-gradient(135deg, #5DD68A, #2EB05B); /* AllowlistView.vue:162 · 附录 B §B.1-② */
-  --grad-ext-code: linear-gradient(135deg, #C18CFF, #AF52DE); /* AllowlistView.vue:164 · 附录 B §B.1-③ */
+  /* P5f-T2 additions — allowlist page "file-extension group" icons' three brand gradients (deviation K55,
+     Appendix B §B.1/§B.6). Base hard-coded in AllowlistView.vue's GROUPS_TEMPLATE const, rendered via `:style`;
+     color-guard doesn't scan `.ts` const at all ⇒ not tokenizing is bare exposure (ticket B position ④).
+     🔴 Same value in both themes (brand-id gradient, same family as existing --grad-note-* / --grad-sandbox),
+     but still write explicit in both — header comment's "hidden pit" section already proved why can't
+     "save one theme if same value".
+     🔴 Why separate new name instead of reusing --grad-note-note / --grad-sandbox: first one's value
+     verbatim matches, but K39/K40 rule is "even same value make separate name" — different semantic owner,
+     future notes-area recolor shouldn't drag allowlist-page along. Const-side keep only var(--…) reference
+     (T4 landed). */
+  --grad-ext-docs: linear-gradient(135deg, #5AC8FA, #007AFF); /* AllowlistView.vue:160 · Appendix B §B.1-① */
+  --grad-ext-text: linear-gradient(135deg, #5DD68A, #2EB05B); /* AllowlistView.vue:162 · Appendix B §B.1-② */
+  --grad-ext-code: linear-gradient(135deg, #C18CFF, #AF52DE); /* AllowlistView.vue:164 · Appendix B §B.1-③ */
 
-  /* R3 —— 见头注释,嵌套主题作用域必须自带 color-scheme */
+  /* R3 — see header comment, nested theme scope must carry color-scheme */
   color-scheme: dark;
 }
 
 /* ===== Design tokens — light ===== */
 :root[data-theme="light"] .knowledge-app, :root[data-theme="light"] .parser-app {
-  --bg-app: var(--bg); /* 全局 theme.css :root[data-theme="light"] 纸感底色 #f7f5ef */
+  --bg-app: var(--bg); /* global theme.css :root[data-theme="light"] paper-feel background #f7f5ef */
   --bg-canvas: var(--bg);
   --bg-elevated: var(--card-bg); /* #ffffff */
   --bg-sunken: var(--tool-bg); /* #f0eee8 */
   --bg-chip: var(--tool-bg-hi); /* #e7e3d9 */
 
-  --glass-strong: rgba(247, 245, 239, 0.82); /* --bg 的 RGB 加透明,全局无 glass 语义 token */
+  --glass-strong: rgba(247, 245, 239, 0.82); /* --bg's RGB plus transparency, global has no glass semantic token */
   --glass-medium: rgba(247, 245, 239, 0.6);
   --glass-weak: rgba(247, 245, 239, 0.45);
 
   --text-primary: var(--fg);
   --text-secondary: var(--fg-muted);
   --text-tertiary: var(--fg-faint);
-  --text-quaternary: #BCB8AD; /* 全局只有三档文字;取 AI tokens.scss 浅色第四档 :58(同族暖中性) */
+  --text-quaternary: #BCB8AD; /* global has only three text grades; take AI tokens.scss light's fourth grade :58 (same warm-neutral family) */
   --text-on-accent: var(--on-accent);
 
-  /* 【评审 2026-07-31 订正】--accent / --accent-soft / --success 必须在本块显式
-     声明字面值,不能"留空靠继承"—— 上面的暗色块 `.knowledge-app { … }` 选择器是
-     **无条件**的(没有任何 data-theme 限定),在浅色主题下同样命中这个元素本身;
-     CSS 自定义属性的继承规则是"元素自身有声明时,自身声明胜出,根本走不到继承",
-     所以留空并不会继承到 :root[data-theme="light"] 的浅色值,而是会被暗色块的
-     `--accent:#5E97F2`/`--accent-soft:rgba(94,151,242,.14)`/`--success:#4FB870`
-     直接命中,浅色主题下的知识库区强调色/成功态反而会用暗色调色板 —— 是本任务
-     实测发现的一个真实回归,已用 RED 探针验证(见 knowledgeStyles.test.ts)。
-     正确写法是**落字面值**,不写 var():因为这三个 token 与全局 theme.css 同名,
-     同名在同一元素上没有"引用外层值"的语义(`var(--accent)` 会是自引用循环,见
-     头注释),这与附录 B 表里"全局无同语义 token 时退字面值"是同一处理方式
-     (--accent-softer / --text-quaternary / --line-strong / --line-faint /
-     --purple/--pink/--teal 全是这个模式),不是新开的例外。
-     代价:这三项以后不会跟随全局主题自动改色(其余走 var() 的 token 会);若未来
-     要恢复自动跟随,需要给知识库档的 token 改名(如 --k-accent)以消除同名冲突,
-     那是独立一期的事,不在本任务范围内。 */
+  /* 【Review 2026-07-31 correction】--accent / --accent-soft / --success must explicitly
+     declare literal values here, can't "leave blank counting on inheritance" — above dark-block's
+     `.knowledge-app { … }` selector is **unconditional** (no data-theme limit), still matches this
+     element itself on light theme; CSS custom property inheritance rule is "element self-declared
+     wins, inheritance never reached", so leaving blank doesn't inherit to :root[data-theme="light"]'s
+     light value, instead direct hit from dark block's `--accent:#5E97F2`/`--accent-soft:rgba(94,151,
+     242,.14)`/`--success:#4FB870`, light-theme knowledge-area emphasis/success instead uses dark
+     palette — actual regression found testing this task, verified by RED probe (see
+     knowledgeStyles.test.ts).
+     Correct way is **drop literal value**, don't write var(): because these three tokens same-name
+     as global theme.css, same-name on same element lacks "reference outer value" semantic
+     (`var(--accent)` is self-reference loop, see header comment), same as Appendix B table's
+     "global no same-semantic token, fall to literal" pattern (--accent-softer / --text-quaternary /
+     --line-strong / --line-faint / --purple/--pink/--teal all this mode), not new exception.
+     Cost: these three won't auto-recolor with global theme later (other var() tokens will);
+     to restore auto-follow future need rename knowledge file's tokens (like --k-accent) to remove
+     same-name conflict, separate period's work, not this task scope. */
   --accent: #3b5bdb; /* theme.css:183 */
   --accent-soft: rgba(59, 91, 219, 0.11); /* theme.css:274 */
   --success: #15754c; /* theme.css:281 */
 
-  --accent-hover: var(--accent-text); /* #3550c4,全局"更深强调"档,theme.css:271 */
-  --accent-softer: rgba(59, 91, 219, 0.06); /* 全局最淡档 --accent-soft 是 0.11,蓝本要 0.06,无对应 token */
+  --accent-hover: var(--accent-text); /* #3550c4, global "deeper emphasis" tier, theme.css:271 */
+  --accent-softer: rgba(59, 91, 219, 0.06); /* global lightest tier --accent-soft is 0.11, base needs 0.06, no corresponding token */
 
-  --warning: var(--toast-warn-fg); /* #92600c,全局无 --warning,借它的警告前景色,theme.css:217 */
-  --danger: var(--toast-danger-fg); /* #c0392b,同上,theme.css:219 */
-  --purple: #AF52DE; /* 全局无;AI tokens.scss:71 浅色值 */
+  --warning: var(--toast-warn-fg); /* #92600c, global lacks --warning, borrow its warning foreground, theme.css:217 */
+  --danger: var(--toast-danger-fg); /* #c0392b, same as above, theme.css:219 */
+  --purple: #AF52DE; /* global lacks; AI tokens.scss:71 light-theme value */
   --pink: #FF2D55; /* AI tokens.scss:72 */
   --teal: #30B0C7; /* AI tokens.scss:73 */
 
-  --line: var(--card-border); /* #e7e3d9,theme.css:204 */
-  --line-strong: #D8D3C7; /* 全局无 strong 档;AI tokens.scss:86 浅色值 */
+  --line: var(--card-border); /* #e7e3d9, theme.css:204 */
+  --line-strong: #D8D3C7; /* global lacks strong tier; AI tokens.scss:86 light-theme value */
   --line-faint: #EEEBE3; /* AI tokens.scss:87 */
 
-  --ly-wiki: oklch(0.60 0.12 75); --ly-wiki-soft: oklch(0.60 0.12 75 / 0.11); --ly-wiki-line: oklch(0.60 0.12 75 / 0.32); /* 蓝本 knowledge.scss:2287 */
-  --ly-vec: oklch(0.56 0.11 210); --ly-vec-soft: oklch(0.56 0.11 210 / 0.11); --ly-vec-line: oklch(0.56 0.11 210 / 0.32); /* 蓝本 :2288 */
-  --ly-note: oklch(0.55 0.13 300); --ly-note-soft: oklch(0.55 0.13 300 / 0.11); --ly-note-line: oklch(0.55 0.13 300 / 0.32); /* 蓝本 :2289 */
+  --ly-wiki: oklch(0.60 0.12 75); --ly-wiki-soft: oklch(0.60 0.12 75 / 0.11); --ly-wiki-line: oklch(0.60 0.12 75 / 0.32); /* base knowledge.scss:2287 */
+  --ly-vec: oklch(0.56 0.11 210); --ly-vec-soft: oklch(0.56 0.11 210 / 0.11); --ly-vec-line: oklch(0.56 0.11 210 / 0.32); /* base :2288 */
+  --ly-note: oklch(0.55 0.13 300); --ly-note-soft: oklch(0.55 0.13 300 / 0.11); --ly-note-line: oklch(0.55 0.13 300 / 0.32); /* base :2289 */
 
-  /* R4 裁定(评审 2026-07-31)—— --shadow-* 不是无色结构量,两档各给一份;这里是浅色档,
-     取值与本裁定之前的旧值相同(tokens.scss:107-110 那套暖投影),只是从"基础块共享"
-     改成"浅色块显式声明",详细理由见基础块同名注释。 */
+  /* R4 ruling (review 2026-07-31) — --shadow-* not colorless structural quantity, each theme gets a set;
+     here is light-theme, values same as pre-ruling old values (tokens.scss:107-110's warm shadows), just
+     changed from "base-block shared" to "light-block explicit declaration", detailed reason see base-block's
+     same-name comment. */
   --shadow-xs: 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:107 */
   --shadow-sm: 0 1px 2px rgba(40, 35, 25, 0.05); /* AI tokens.scss:108 */
   --shadow-md: 0 6px 22px rgba(40, 35, 25, 0.08), 0 1px 2px rgba(40, 35, 25, 0.04); /* AI tokens.scss:109 */
   --shadow-lg: 0 24px 48px rgba(40, 35, 25, 0.10), 0 8px 16px rgba(40, 35, 25, 0.06); /* AI tokens.scss:110 */
 
-  /* R2 —— 同上,取值抄自 AI tokens.scss 浅色块(:1-247) */
+  /* R2 — same as above, values copied from AI tokens.scss light block (:1-247) */
   --warning-soft: rgba(200, 134, 10, 0.12); /* AI tokens.scss:126 */
   --warning-soft-border: rgba(200, 134, 10, 0.24); /* AI tokens.scss:127 */
   --success-soft: rgba(46, 158, 84, 0.12); /* AI tokens.scss:129 */
   --danger-soft: rgba(215, 73, 59, 0.1); /* AI tokens.scss:131 */
 
-  /* R2(T11 追加)—— 见暗色块同名注释,浅色档取值。 */
+  /* R2(T11 additions) — see dark-block's same-name comment, light-theme values. */
   --danger-soft-border: rgba(215, 73, 59, 0.16); /* AI tokens.scss:132 */
   --modal-scrim: rgba(0, 0, 0, 0.5); /* AI tokens.scss:182 */
 
-  /* R2(P5b-T2 追加)—— 见暗色块同名注释,浅色档取值。 */
+  /* R2(P5b-T2 additions) — see dark-block's same-name comment, light-theme values. */
   --success-soft-border: rgba(46, 158, 84, 0.2); /* AI tokens.scss:130 */
   --danger-soft-faint: rgba(215, 73, 59, 0.06); /* AI tokens.scss:145 */
-  --danger-hover: #A83226; /* 全仓无源,设计 §6.2 给定的浅档值 */
+  --danger-hover: #A83226; /* no source repo-wide, design §6.2 given light-theme value */
 
-  /* R2(P5b-T6 追加)—— 见暗色块同名注释,浅色档取值。 */
+  /* R2(P5b-T6 additions) — see dark-block's same-name comment, light-theme values. */
   --purple-soft: rgba(175, 82, 222, 0.1); /* AI tokens.scss:133 */
 
-  /* R2(P5c-T2a 追加)—— 见暗色块同名注释。这 4 个是 theme-invariant(两档同值),但按
-     头注释「隐藏坑」段的论证**浅色块必须显式各写一份**:上面那个基础块的选择器无条件
-     命中,留空不会继承、只会被基础块的值直接命中(所以"两档同值"要写两遍,不是可以省)。
-     取值同暗色块,出处取 AI tokens.scss 浅色块的对应行。 */
+  /* R2(P5c-T2a additions) — see dark-block's same-name comment. These 4 are theme-invariant (same both themes),
+     but per header comment's "hidden pit" section proof **light block must explicit write each**:
+     above base-block's selector unconditional hit, leaving blank doesn't inherit, only direct hit by
+     base-block's value (so "same both themes" must write twice, can't save one).
+     Values same as dark block, source take AI tokens.scss light block's corresponding line. */
   --switch-thumb: #ffffff; /* AI tokens.scss:201 */
   --switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18); /* AI tokens.scss:202 */
   --gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); /* AI tokens.scss:162 */
-  --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236 的 --grad-sk-blue,改名不改值 */
+  --grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF); /* AI tokens.scss:236's --grad-sk-blue, renamed without value change */
 
-  /* K39(见暗色块同名注释)—— 浅色档取值。4 个笔记渐变 + 2 个 wash 渐变 + --code-block-*
-     是 theme-invariant(两档同值);只有 --shadow-warning-glow 两档不同(RGB 三元组换成
-     --warning-soft-border 浅档值,alpha 沿用蓝本 0.24)。 */
+  /* K39 (see dark-block's same-name comment) — light-theme values. 4 note gradients + 2 wash gradients
+     + --code-block-* are theme-invariant (same both themes); only --shadow-warning-glow differs
+     (RGB tuple becomes --warning-soft-border light-theme value, alpha uses base 0.24). */
   --grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF); /* notesViewHelpers.js:6 */
   --grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759); /* notesViewHelpers.js:7 */
-  --grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00); /* notesViewHelpers.js:8,与 knowledge.scss:2066 共用同一份 */
+  --grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00); /* notesViewHelpers.js:8, shared with knowledge.scss:2066 */
   --grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55); /* notesViewHelpers.js:9 */
-  --grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent); /* knowledge.scss:2060,保留蓝本色相(裁定 R11) */
-  --grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04)); /* knowledge.scss:2132,保留蓝本色相(裁定 R11) */
-  --shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24); /* knowledge.scss:2067,RGB 取 --warning-soft-border 浅档三元组 + 蓝本 alpha 0.24 */
-  --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44,theme-invariant */
-  --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44,theme-invariant */
+  --grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent); /* knowledge.scss:2060, preserve base hue (ruling R11) */
+  --grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04)); /* knowledge.scss:2132, preserve base hue (ruling R11) */
+  --shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24); /* knowledge.scss:2067, RGB tuple --warning-soft-border light-theme triple + base alpha 0.24 */
+  --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44, theme-invariant */
+  --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44, theme-invariant */
 
-  /* P5e-T2 新增(见暗色块同名注释)—— 浅色档取值。--paper-surface 与 5 个 --rtag-* 是
-     theme-invariant(两档同值,按头注释「隐藏坑」段的论证仍必须显式各写一份);
-     --shadow-drawer 与 --mark-hl-bg 两档不同值。 */
-  --paper-surface: #ffffff; /* AI tokens.scss:193(浅档);knowledge.scss:599 */
-  --rtag-pdf: #FF3B30; /* knowledge.scss:618;AI tokens.scss:206 的 --kind-pdf */
-  --rtag-md: #1a1a1a; /* knowledge.scss:619;AI tokens.scss:209 的 --kind-md */
-  --rtag-doc: #007AFF; /* knowledge.scss:620;AI tokens.scss:207 的 --kind-doc */
-  --rtag-txt: #34C759; /* knowledge.scss:621;AI tokens.scss:208 的 --kind-xls(⚠️ 不是 --kind-txt) */
-  --rtag-code: #AF52DE; /* knowledge.scss:622;本档 --purple 浅档值 */
-  --shadow-drawer: -20px 0 60px rgba(40, 35, 25, 0.10); /* knowledge.scss:1582 几何 + 浅档暖调投影色(alpha 取同档 --shadow-lg 首段),裁定 R4 */
-  --mark-hl-bg: rgba(255, 235, 0, 0.40); /* knowledge.scss:1660,浅档逐字照蓝本 alpha,附录 B §B.2.3 */
+  /* P5e-T2 additions (see dark-block's same-name comment) — light-theme values. --paper-surface and 5 --rtag-* are
+     theme-invariant (same both themes, per header comment's "hidden pit" section proof still must explicit write each);
+     --shadow-drawer and --mark-hl-bg different values per theme. */
+  --paper-surface: #ffffff; /* AI tokens.scss:193 (light-theme); knowledge.scss:599 */
+  --rtag-pdf: #FF3B30; /* knowledge.scss:618; AI tokens.scss:206's --kind-pdf */
+  --rtag-md: #1a1a1a; /* knowledge.scss:619; AI tokens.scss:209's --kind-md */
+  --rtag-doc: #007AFF; /* knowledge.scss:620; AI tokens.scss:207's --kind-doc */
+  --rtag-txt: #34C759; /* knowledge.scss:621; AI tokens.scss:208's --kind-xls (⚠️ not --kind-txt) */
+  --rtag-code: #AF52DE; /* knowledge.scss:622; this file's light-theme --purple value */
+  --shadow-drawer: -20px 0 60px rgba(40, 35, 25, 0.10); /* knowledge.scss:1582 geometry + light-theme warm-tone shadow color (alpha from same-theme --shadow-lg first segment), ruling R4 */
+  --mark-hl-bg: rgba(255, 235, 0, 0.40); /* knowledge.scss:1660, light-theme copies base verbatim alpha, Appendix B §B.2.3 */
 
-  /* P5f-T2 新增(见暗色块同名注释)—— 三个品牌渐变 theme-invariant,两档同值,
-     仍按头注释「隐藏坑」段的论证显式各写一份。 */
-  --grad-ext-docs: linear-gradient(135deg, #5AC8FA, #007AFF); /* AllowlistView.vue:160 · 附录 B §B.1-① */
-  --grad-ext-text: linear-gradient(135deg, #5DD68A, #2EB05B); /* AllowlistView.vue:162 · 附录 B §B.1-② */
-  --grad-ext-code: linear-gradient(135deg, #C18CFF, #AF52DE); /* AllowlistView.vue:164 · 附录 B §B.1-③ */
+  /* P5f-T2 additions (see dark-block's same-name comment) — three brand gradients theme-invariant, same both themes,
+     still per header comment's "hidden pit" section proof explicit write each. */
+  --grad-ext-docs: linear-gradient(135deg, #5AC8FA, #007AFF); /* AllowlistView.vue:160 · Appendix B §B.1-① */
+  --grad-ext-text: linear-gradient(135deg, #5DD68A, #2EB05B); /* AllowlistView.vue:162 · Appendix B §B.1-② */
+  --grad-ext-code: linear-gradient(135deg, #C18CFF, #AF52DE); /* AllowlistView.vue:164 · Appendix B §B.1-③ */
 
-  /* R3 —— 见头注释 */
+  /* R3 — see header comment */
   color-scheme: light;
 }
 
-/* ===== Shell —— 1:1 移植自蓝本 knowledge.scss:59-217(rail/main/topbar 结构量逐字照抄,
- * 颜色改走上面声明的 token)。白名单以外的类(k-hero 系列、k-quick-grid、k-status-strip、
- * k-row、k-table 等 D.2/后续批次专用)不在此列,按切档判据不搬。 */
+/* ===== Shell — 1:1 ported from base knowledge.scss:59-217 (rail/main/topbar structural quantities copies
+ * verbatim, colors changed to use tokens declared above). Classes outside allowlist (k-hero series,
+ * k-quick-grid, k-status-strip, k-row, k-table etc. D.2/later batches-only) not included here,
+ * don't port per cutoff criterion. */
 .knowledge-app {
   display: grid;
   grid-template-columns: 232px 1fr;
@@ -603,7 +650,7 @@
     padding: 1px 6px;
     border-radius: 999px;
     background: var(--danger);
-    color: var(--text-on-accent); /* 蓝本 knowledge.scss:145 前景裸色 → token,见附录 B */
+    color: var(--text-on-accent); /* base knowledge.scss:145 named foreground literal → token, see Appendix B */
     min-width: 18px; height: 16px;
     display: inline-grid; place-items: center;
     line-height: 1;
@@ -629,17 +676,17 @@
   .k-rail-svc-dot {
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--success);
-    /* 蓝本 knowledge.scss:172 绿色半透明光环裸值 → 附录 B「0.1x → success-soft」桶 */
+    /* base knowledge.scss:172 success-toned semi-transparent halo literal → Appendix B's "0.1x → success-soft" bucket */
     box-shadow: 0 0 0 3px var(--success-soft);
     flex-shrink: 0;
     &[data-state="paused"] {
       background: var(--warning);
-      /* 蓝本 :176 橙色半透明光环裸值 → 「0.1x → warning-soft」桶 */
+      /* base :176 amber-toned semi-transparent halo literal → the "0.1x → warning-soft" bucket */
       box-shadow: 0 0 0 3px var(--warning-soft);
     }
     &[data-state="error"] {
       background: var(--danger);
-      /* 蓝本 :180 红色半透明光环裸值 → 「0.1x → danger-soft」桶 */
+      /* base :180 danger-toned semi-transparent halo literal → the "0.1x → danger-soft" bucket */
       box-shadow: 0 0 0 3px var(--danger-soft);
     }
   }
@@ -680,44 +727,44 @@
     margin: 14px 22px 0;
     padding: 10px 14px;
     border-radius: var(--r-md);
-    /* 蓝本 :223 橙色半透明底色裸值 → 「0.1x → warning-soft」桶 */
+    /* base :223 amber-toned semi-transparent background literal → the "0.1x → warning-soft" bucket */
     background: var(--warning-soft);
-    /* 蓝本 :224 橙色半透明边框裸值 → 「0.2x~0.3x → warning-soft-border」桶 */
+    /* base :224 amber-toned semi-transparent border literal → the "0.2x~0.3x → warning-soft-border" bucket */
     border: 1px solid var(--warning-soft-border);
     color: var(--text-primary);
     font-size: 13px;
     display: flex; align-items: center; gap: 10px;
     &[data-tone="info"] {
       background: var(--accent-softer);
-      /* 蓝本 :230 蓝色半透明边框裸值 → 附录 B「0.2x → --accent-soft-2(全局 theme.css token)」 */
+      /* base :230 accent-toned semi-transparent border literal → Appendix B's "0.2x → --accent-soft-2 (global theme.css token)" */
       border-color: var(--accent-soft-2);
       .k-banner-icon { background: var(--accent-soft); color: var(--accent); }
     }
   }
   .k-banner-icon {
     width: 22px; height: 22px; border-radius: 7px;
-    /* 蓝本 :236 橙色半透明底色裸值 → 「0.2x → warning-soft-border」桶 */
+    /* base :236 amber-toned semi-transparent background literal → the "0.2x → warning-soft-border" bucket */
     background: var(--warning-soft-border);
     color: var(--warning);
     display: grid; place-items: center;
     flex-shrink: 0;
   }
-  /* ---------- P5b-T2 · S1(蓝本 :241-252)---------- */
+  /* ---------- P5b-T2 · S1 (base :241-252) ---------- */
   .k-banner-close {
     margin-left: auto;
     padding: 2px 6px;
     border-radius: var(--r-sm);
     color: var(--text-tertiary);
     font-size: 12px;
-    /* 蓝本 :247 中性加深的半透明黑裸值 → --line(与蓝本 .k-filt-clear:hover(:1759)
-       同款中性加深,两档都已有这个 token) */
+    /* base :247 neutral-darkened semi-transparent dark literal → --line (same neutral-darken
+       as base's .k-filt-clear:hover (:1759); both theme tiers already have this token) */
     &:hover { background: var(--line); color: var(--text-primary); }
   }
 
   /* Views whose root wraps .k-scroll plus siblings (modals, action bars) —
    * without this the anonymous wrapper is floored at content height and the
    * inner .k-scroll never gets a constrained height to overflow. */
-  /* ---------- P5b-T2 · S2(蓝本 :253-257)---------- */
+  /* ---------- P5b-T2 · S2 (base :253-257) ---------- */
   .k-view {
     display: flex; flex-direction: column;
     flex: 1;
@@ -736,27 +783,36 @@
     gap: 22px;
   }
 
-  /* ---------- P5e-T2 · S1(蓝本 :351-367)—— .k-hero-suggest + .k-suggest-chip 基类 ----------
-     🔴 **只搬这 17 行**。蓝本 :272-349 是 7 个「死代码」类(k-hero 系:orb/title/sub/
-     search/search-go/search-kbd),:369-411 起是 k-status-strip 与另 5 个死类(k-stat 系),
-     :413-455 又是 6 个(k-quick 系)—— 附录 D §D.3 的 24 个死类清单里 18 个就紧夹在
-     本段两侧,「整段搬 :272-455」会一次带进 18 个。P5a 正确地没搬,本刀也不搬。
-     ⚠️ 本注释刻意**不写带前导点的类名**:附录 D §D.3 的复现命令是对**原始文本**裸 grep,
-     写成带点形式会被它当成真泄漏(该命令在 T2 之前的基线上就已有 2 处同类假阳性,
-     来自本档 :61 / :1318 / :1605 三条既有注释 —— 见 T2 报告的勘误一节)。
-     knowledgeStyles.test.ts 有一条「24 个死类零出现」的常驻断言,它跑在**剥注释后**的
-     文本上,是这件事的权威判据。
+  /* ---------- P5e-T2 · S1 (base :351-367) — .k-hero-suggest + .k-suggest-chip base classes ----------
+     🔴 **Only these 17 lines are ported.** base :272-349 are 7 "dead code" classes (the k-hero
+     family: orb/title/sub/search/search-go/search-kbd); :369-411 onward is k-status-strip plus
+     another 5 dead classes (the k-stat family); :413-455 is another 6 (the k-quick family) —
+     18 of Appendix D §D.3's 24 dead-class list sit sandwiched right around this section, so
+     "porting the whole :272-455 span" would drag in 18 of them at once. P5a correctly didn't
+     port them, and this cut doesn't either.
+     ⚠️ This comment deliberately **does not write the class names with a leading dot**:
+     Appendix D §D.3's reproduction command greps the **raw text** bare, and writing them
+     dotted would make it flag a false leak (this command already had 2 same-kind false
+     positives on the baseline before T2, coming from this file's three existing comments at
+     :61 / :1318 / :1605 — see the errata section of the T2 report).
+     knowledgeStyles.test.ts has a standing assertion that "the 24 dead classes appear zero
+     times", which runs on the **comment-stripped** text and is the authoritative check for this.
 
-     🔴 E-52 —— .k-suggest-chip 是 **P5a 的跨期漏搬**:P5a 搬了蓝本 :2291 的后代覆盖
-     (本档下方 Dashboard v2 段的 `.k2-suggest .k-suggest-chip { white-space: nowrap }`)
-     却**没搬基类**,而蓝本 DashboardView.vue:292 与 SearchView 都在用它 ⇒ P5a 已验收的
-     仪表盘建议 chip 目前跑在「只有一条 white-space、零基类样式」上(圆角/内距/边框/
-     底色/hover 全缺)= **已交付产出里的真实视觉缺陷**,本刀补。
-     基类插在那条覆盖**之前**(蓝本源序),配一条相对顺序断言。
-     🔴 断言的价值是「钉蓝本源序的移植忠实性」,**不是**「防级联反掉」——
-     基类 (0,2,0) vs 覆盖 (0,3,0)、且覆盖只声明 white-space ⇒ **两者属性集不相交、
-     顺序不影响任何渲染**(勘误 E-56 / 裁定 R7:协调者原先那句「顺序反了会级联反掉」
-     是写错的,已对外更正)。本段零色字面量,全是既有 token。 */
+     🔴 E-52 — .k-suggest-chip is a **cross-period miss from P5a**: P5a ported base :2291's
+     descendant override (this file's Dashboard v2 section below,
+     `.k2-suggest .k-suggest-chip { white-space: nowrap }`) but **didn't port the base class**,
+     and both base DashboardView.vue:292 and SearchView use it ⇒ P5a's already-accepted
+     dashboard suggestion chip has been running with "only a single white-space rule and zero
+     base-class styling" (missing radius/padding/border/background/hover entirely) — a **real
+     visual defect in an already-delivered deliverable**, fixed by this cut.
+     The base class is inserted **before** that override (matching the base's source order),
+     with an accompanying relative-order assertion.
+     🔴 The value of the assertion is "pinning fidelity to the base's source order", **not**
+     "guarding against cascade reversal" — the base class (0,2,0) vs the override (0,3,0), and
+     the override only declares white-space ⇒ **the two rules' property sets don't intersect,
+     so order doesn't affect rendering at all** (errata E-56 / ruling R7: the coordinator's
+     earlier statement that "reversing the order would flip the cascade" was wrong and has been
+     corrected publicly). Zero color literals in this section — all existing tokens. */
   .k-hero-suggest {
     margin-top: 14px;
     display: flex; gap: 6px; flex-wrap: wrap;
@@ -775,13 +831,17 @@
     &:hover { border-color: var(--accent); color: var(--accent); }
   }
 
-  /* ---------- P5e-T2 · S2(蓝本 :457-549,"Search page")----------
-     🔴 到 :549 为止 —— 蓝本 :551-571 是 .k-seg(K43,P5d-T2 已搬到本档下方),不许重复搬。
-     .k-adv-toggle 里嵌的 `.chev` 与下方 S5 的 `.k-more-hint .chev` 是**两条不同的后代
-     规则**,都要搬;`chev` 归 NON_K_HELPER_CLASSES 登记表(不是 k* 前缀)。
-     🔴 「先搬者得」交接项(附录 D §D.5):.k-adv-toggle + 嵌套 .chev 蓝本被 SearchView
-     与 P5f 的 AllowlistView / RootsView 三家用 → **P5f 不许重复搬**(同 K43/K45 模具)。
-     本段零色字面量,全是既有 token;`transparent` 是 CSS 关键字不算配色(附录 B §B.3 口径)。 */
+  /* ---------- P5e-T2 · S2 (base :457-549, "Search page") ----------
+     🔴 Stops at :549 — base :551-571 is .k-seg (K43, already ported to below in this file by
+     P5d-T2), must not be re-ported.
+     The `.chev` nested inside .k-adv-toggle and the `.k-more-hint .chev` in S5 below are
+     **two different descendant rules**, both must be ported; `chev` goes into the
+     NON_K_HELPER_CLASSES registry (not a k*-prefixed class).
+     🔴 "First to port it wins" handoff item (Appendix D §D.5): base .k-adv-toggle + nested
+     .chev is used by three consumers — SearchView, and P5f's AllowlistView / RootsView —
+     so **P5f must not re-port it** (same mold as K43/K45).
+     Zero color literals in this section, all existing tokens; `transparent` is a CSS keyword
+     and doesn't count as color (Appendix B §B.3's convention). */
   .k-search-sticky {
     position: sticky; top: 0;
     background: var(--bg-canvas);
@@ -875,30 +935,40 @@
     }
   }
 
-  /* ---------- P5e-T2 · S3(蓝本 :573-681,"Result card")----------
-     🔴 到 :681 为止 —— 蓝本 :683-717 是 .k-empty*(P5a 已搬,就在下面),不许重复搬。
-     三个「嵌套零引用/元素选择器」规则**随父块整体搬、不单独摘除**(附录 D §D.6,同 P5d
-     「statusBadge 零消费者也照抄导出」的 K7 模具):
-       · `.k-rcard-snippet mark`(:653)—— 由 v-html 的 highlight() 动态注入(K49),
-         蓝本用的就是 token,原样照抄
-       · `.k-rcard-snippet .h-md`(:660)—— 🔴 蓝本 13 个 .vue 里**零 class 引用**,
-         但它嵌在 .k-rcard-snippet 内,随父块搬;`h-md` 归 NON_K_HELPER_CLASSES
-       · `.k-rcard-meta-item .path`(:670)—— `path` 归 NON_K_HELPER_CLASSES
-         (⚠️ p5-master-plan.md §2.4 的类清单漏列了它,勘误 E-55)
+  /* ---------- P5e-T2 · S3 (base :573-681, "Result card") ----------
+     🔴 Stops at :681 — base :683-717 is .k-empty* (already ported by P5a, right below),
+     must not be re-ported.
+     Three "nested zero-reference / element-selector" rules are **ported as part of their
+     parent block, not cherry-picked out separately** (Appendix D §D.6, same mold as P5d's
+     K7 for "statusBadge has zero consumers but is still ported verbatim"):
+       · `.k-rcard-snippet mark` (:653) — injected dynamically by v-html's highlight() (K49);
+         the base already uses a token here, copied as-is
+       · `.k-rcard-snippet .h-md` (:660) — 🔴 has **zero class references** across the base's
+         13 .vue files, but it's nested inside .k-rcard-snippet, so it's ported along with the
+         parent block; `h-md` goes into NON_K_HELPER_CLASSES
+       · `.k-rcard-meta-item .path` (:670) — `path` goes into NON_K_HELPER_CLASSES
+         (⚠️ the class list in p5-master-plan.md §2.4 missed it, errata E-55)
 
-     配色(附录 B §B.0 逐处映射,实现者不许自选):
-       · :599 .k-rcard-icon 底色具名裸值 → --paper-surface(白纸片例外 token,见声明处注释)
-       · :616 .k-rcard-tag 前景具名裸值 → --text-on-accent(实底胶囊上的字;先例逐字同款 =
-         本档 .k-type-legacy 的注释「实底警告色胶囊上的纯白字 → --text-on-accent」;
-         记忆「--on-accent 只在 accent 实底上可用」—— 这里 5 个 [data-kind] 底**都是
-         不透明实底**,成立)
-       · :618-622 五个 [data-kind] 实底 → --rtag-*(本刀新建,见声明处注释)
-       · :639-641 .k-rel[data-level] 三组半透明底 + 三个实字色 → --success-soft/--success /
-         --warning-soft/--warning / --danger-soft/--danger(两档已有)。先例逐字同款:
-         本档 .k-type-tag[data-kind="txt"] 的注释「蓝本 :1893 成功色半透明底 + 深绿前景
-         两处裸值 → token」,而蓝本 :1893 与本处 :639 是**同一对值**(alpha 差 0.02)——
-         A-9 明令「不为透明度差几个点开小灶」。low 档蓝本是偏橙的红,仍归 danger 家族:
-         它是「相关度低」的告警语义,--danger 是本档唯一的红/橙红语义 token。 */
+     Color (mapped item-by-item per Appendix B §B.0; implementers must not choose their own):
+       · :599 .k-rcard-icon's named background literal → --paper-surface (the existing
+         white-paper-swatch exception token, see the comment at its declaration)
+       · :616 .k-rcard-tag's named foreground literal → --text-on-accent (text on a solid
+         chip; exact-match precedent = this file's .k-type-legacy comment, "pure light text
+         on a solid warning-color chip → --text-on-accent"; the rule of thumb "--on-accent is
+         only usable on a solid accent background" holds here — all 5 [data-kind] backgrounds
+         below **are opaque solids**)
+       · :618-622 five [data-kind] solid backgrounds → --rtag-* (newly created by this cut,
+         see the comment at their declaration)
+       · :639-641 .k-rel[data-level]'s three semi-transparent background + three solid text
+         color pairs → --success-soft/--success / --warning-soft/--warning /
+         --danger-soft/--danger (already present in both theme tiers). Exact-match precedent:
+         this file's .k-type-tag[data-kind="txt"] comment, "base :1893's success-color
+         semi-transparent background + dark-green foreground literal pair → token", and base
+         :1893 and this spot's :639 are **the exact same value pair** (alpha differs by 0.02) —
+         A-9 explicitly rules "don't special-case a few points of alpha difference". The base's
+         "low" tier is an amber-leaning danger tone, still classified under the danger family: it's the
+         "low relevance" warning semantic, and --danger is this file's only danger/amber-danger
+         semantic token. */
   .k-results { display: flex; flex-direction: column; gap: 8px; }
   .k-result-count {
     font-size: 12px; color: var(--text-tertiary);
@@ -924,7 +994,7 @@
   .k-rcard-icon {
     width: 30px; height: 36px;
     border-radius: 4px;
-    background: var(--paper-surface); /* 蓝本 :599 白纸片底色具名裸值 → 既有例外 token,见声明处 */
+    background: var(--paper-surface); /* base :599 white-paper-swatch named background literal → existing exception token, see its declaration */
     border: 1px solid var(--line);
     box-shadow: var(--shadow-xs);
     flex-shrink: 0;
@@ -941,13 +1011,13 @@
     transform: translateX(-50%);
     font-size: 8px; font-weight: 700;
     padding: 1px 4px; border-radius: 2px;
-    color: var(--text-on-accent); /* 蓝本 :616 实底胶囊上的前景具名裸值 → token,见段首注释 */
+    color: var(--text-on-accent); /* base :616 named foreground literal on a solid chip → token, see the section-header comment */
     letter-spacing: 0.02em;
-    &[data-kind="pdf"] { background: var(--rtag-pdf); } /* 蓝本 :618 */
-    &[data-kind="md"] { background: var(--rtag-md); } /* 蓝本 :619 */
-    &[data-kind="doc"] { background: var(--rtag-doc); } /* 蓝本 :620 */
-    &[data-kind="txt"] { background: var(--rtag-txt); } /* 蓝本 :621 */
-    &[data-kind="code"] { background: var(--rtag-code); } /* 蓝本 :622 */
+    &[data-kind="pdf"] { background: var(--rtag-pdf); } /* base :618 */
+    &[data-kind="md"] { background: var(--rtag-md); } /* base :619 */
+    &[data-kind="doc"] { background: var(--rtag-doc); } /* base :620 */
+    &[data-kind="txt"] { background: var(--rtag-txt); } /* base :621 */
+    &[data-kind="code"] { background: var(--rtag-code); } /* base :622 */
   }
 
   .k-rcard-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -964,7 +1034,7 @@
     padding: 2px 7px 2px 5px;
     border-radius: var(--r-pill);
     flex-shrink: 0;
-    /* 蓝本 :639-641 三档各两处裸值(半透明底 + 实前景)→ token,见段首注释 */
+    /* base :639-641's three tiers, two literals each (semi-transparent background + solid foreground) → token, see the section-header comment */
     &[data-level="high"] { background: var(--success-soft); color: var(--success); }
     &[data-level="mid"]  { background: var(--warning-soft); color: var(--warning); }
     &[data-level="low"]  { background: var(--danger-soft); color: var(--danger); }
@@ -1009,7 +1079,7 @@
     animation: k-fade-in 200ms ease;
   }
 
-  /* ---------- Empty / loading(蓝本 :683-715,R1 追加的 6 个类)---------- */
+  /* ---------- Empty / loading (base :683-715, R1 added 6 classes) ---------- */
   .k-empty {
     padding: 60px 20px 40px;
     display: flex; flex-direction: column;
@@ -1020,11 +1090,13 @@
     width: 96px; height: 96px;
     border-radius: 50%;
     background:
-      /* 蓝本 :693 是一处白色半透明高光裸值 —— 附录 B 的映射表没有覆盖"渐变
-         高光图层"这个用法(表里的前景裸色桶只讲"前景色→ --text-on-accent"),但
-         --text-on-accent 在两档都是不透明的纯白色,与蓝本这处装饰性高光同源
-         (都是"纯白,半透明叠加"),用 color-mix 在既有 token 上派生出等价的透明度,
-         不新增自定义属性、不写死颜色字面量。 */
+      /* base :693 is a light semi-transparent highlight literal — Appendix B's mapping table
+         doesn't cover the "gradient highlight layer" usage (its foreground-literal bucket only
+         talks about "foreground color → --text-on-accent"), but --text-on-accent is opaque
+         pure light in both theme tiers, sharing the same origin as this decorative highlight
+         in the base (both are "pure light, semi-transparent overlay"); color-mix derives an
+         equivalent opacity from the existing token, adding no custom property and hardcoding
+         no color literal. */
       radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--text-on-accent) 60%, transparent), transparent 60%),
       var(--grad-iri-soft);
     position: relative;
@@ -1050,18 +1122,19 @@
     border-radius: var(--r-pill);
   }
 
-  /* ---------- Skeleton(只搬基类 .k-skel,k-skel-rcard 不在白名单)---------- */
-  /* 【P5e-T2 订正(反转不删:上一行原文保留)】上面那句「k-skel-rcard 不在白名单」记的是
-     P5a 当期的状态。.k-skel-rcard(蓝本 :726-732)是搜索页 loading 骨架的容器,归 P5e ——
-     本刀已搬入(见紧接下方),并已进 WHITELIST_348。 */
+  /* ---------- Skeleton (only port base class .k-skel, k-skel-rcard not in allowlist) ---------- */
+  /* 【P5e-T2 correction (honor "reverse don't delete": above line's original text preserved)】
+     Above "k-skel-rcard not in allowlist" records P5a's period status. .k-skel-rcard (base :726-732)
+     is search page loading skeleton container, belongs to P5e — already ported here (see right below),
+     and entered WHITELIST_348. */
   .k-skel {
     background: linear-gradient(90deg, var(--bg-chip) 25%, var(--bg-canvas) 50%, var(--bg-chip) 75%);
     background-size: 200% 100%;
     animation: k-shimmer 1.6s linear infinite;
     border-radius: 6px;
   }
-  /* ---------- P5e-T2 · S4(蓝本 :726-732)---------- 🔴 **不含 :720-725 的 .k-skel 基类**
-     (P5a 已搬,就在上面)。本段零色字面量。 */
+  /* ---------- P5e-T2 · S4 (base :726-732) ---------- 🔴 **doesn't include :720-725's .k-skel base class**
+     (P5a already ported, right above). This segment has zero color literals. */
   .k-skel-rcard {
     padding: 14px 16px;
     background: var(--bg-elevated);
@@ -1070,9 +1143,9 @@
     display: flex; gap: 12px;
   }
 
-  /* ---------- P5b-T2 · S3 前半(蓝本 :735-817,Queue page)----------
-     蓝本 :818-852 的 .k-btn 夹在本段中间,P5a 已经搬过(见下方既有块),这里不重复;
-     .k-btn 之后的 :854-967 接在那个块的后面,以保持蓝本原序。 */
+  /* ---------- P5b-T2 · S3 first half (base :735-817, Queue page) ----------
+     Base :818-852's .k-btn sandwiched in this segment, P5a already ported (see existing block below),
+     don't repeat here; after .k-btn :854-967 attaches after that block to preserve base order. */
   .k-queue-head {
     display: flex; align-items: center; gap: 10px;
     flex-wrap: wrap;
@@ -1108,20 +1181,22 @@
     color: var(--text-secondary);
   }
   .k-filter-pill[data-on="true"] .k-filter-pill-count {
-    /* 蓝本 :770 是实底强调色胶囊上的白色半透明蒙版裸值 —— --text-on-accent 两档都是
-       不透明纯白,用 color-mix 在既有 token 上派生出等价透明度(手法与本档
-       .k-empty-illust 高光、.k2-ob-layer .k2-tag 蒙版同款,承 P5a T11 先例)。 */
+    /* base :770 is a light semi-transparent overlay literal on a solid accent-color chip —
+       --text-on-accent is opaque pure light in both theme tiers, so color-mix derives an
+       equivalent opacity from the existing token (same technique as this file's
+       .k-empty-illust highlight and .k2-ob-layer .k2-tag overlay, following the precedent set
+       by P5a T11). */
     background: color-mix(in srgb, var(--text-on-accent) 18%, transparent);
-    color: var(--text-on-accent); /* 蓝本 :771 前景裸色 → token */
+    color: var(--text-on-accent); /* base :771 foreground literal color → token */
   }
   .k-filter-pill[data-tone="danger"] .k-filter-pill-count {
-    background: var(--danger-soft); /* 蓝本 :774 红色半透明底色裸值 → token */
+    background: var(--danger-soft); /* base :774 danger-toned semi-transparent background literal → token */
     color: var(--danger);
   }
   .k-filter-pill[data-tone="danger"][data-on="true"] .k-filter-pill-count {
-    /* 蓝本 :778 同上,只是蒙版浓一档 */
+    /* base :778 same as above, just a heavier tier of overlay */
     background: color-mix(in srgb, var(--text-on-accent) 22%, transparent);
-    color: var(--text-on-accent); /* 蓝本 :779 前景裸色 → token */
+    color: var(--text-on-accent); /* base :779 foreground literal color → token */
   }
 
   .k-done-stat {
@@ -1160,8 +1235,9 @@
     b { color: var(--text-primary); font-weight: 600; }
   }
 
-  /* ---------- Buttons(蓝本 :818-852)——基类与 .ghost/.outline/.primary/:disabled
-     由 P5a 搬入;P5b-T2 只在块内补一个 &.danger(蓝本 :843-847),不重写整块。---------- */
+  /* ---------- Buttons (base :818-852) — the base class plus .ghost/.outline/.primary/:disabled
+     were ported by P5a; P5b-T2 only adds an &.danger inside the block (base :843-847), it doesn't
+     rewrite the whole block. ---------- */
   .k-btn {
     padding: 7px 13px;
     border-radius: var(--r-sm);
@@ -1183,25 +1259,30 @@
     }
     &.primary {
       background: var(--accent);
-      color: var(--text-on-accent); /* 蓝本 :839 前景裸色 → token */
-      /* 蓝本 :840 蓝色半透明阴影裸值 → 「0.2x → --accent-soft-2」 */
+      color: var(--text-on-accent); /* base :839 foreground literal color → token */
+      /* base :840 accent-toned semi-transparent shadow literal → "0.2x → --accent-soft-2" */
       box-shadow: 0 2px 6px var(--accent-soft-2);
       &:hover:not(:disabled) { background: var(--accent-hover); }
     }
     &.danger {
-      /* P5b-T2 新增(蓝本 :843-847)—— P5a 当时判定本类不在白名单故未搬。 */
+      /* Added by P5b-T2 (base :843-847) — P5a judged this class wasn't in the allowlist at the time, so didn't port it. */
       background: var(--danger);
-      color: var(--text-on-accent); /* 蓝本 :845 前景裸色 → token */
-      /* 蓝本 :846 是一个加深一档的危险色 hover 底色裸值,全仓无同语义 token →
-         按治理文件 §6.2 归属表新造 --danger-hover,两档取值见上方两个声明块。 */
+      color: var(--text-on-accent); /* base :845 foreground literal color → token */
+      /* base :846 is a one-tier-darker danger-color hover background literal; no matching
+         semantic token exists anywhere in the repo → created --danger-hover per the
+         governance file §6.2 ownership table, see the two declaration blocks above for both
+         tiers' values. */
       &:hover:not(:disabled) { background: var(--danger-hover); }
     }
     &.text {
-      /* K45(裁定 R1)—— 蓝本 knowledge.scss:1569-1570,搬自 P5e"文件聚合搜索"抽屉段的
-         按钮变体(依据 K43 逐字同构先例:同为 .knowledge-app 层级共享原语,P5e 不许
-         重复搬)。零色字面量:transparent 是关键字,--accent/--accent-soft 两档已声明。
-         🔴 "&.text" 在 .k-btn 块内必须恰好出现 2 次(本行 + 下面 hover 行)——
-         knowledgeStyles.test.ts 的 K45 计数断言锚定在本块内,重复搬会精确报红。 */
+      /* K45 (ruling R1) — base knowledge.scss:1569-1570, ported from P5e's "file aggregation
+         search" drawer section's button variant (per K43's exact-structure precedent: both are
+         shared primitives at the .knowledge-app level, P5e must not re-port). Zero color
+         literals: transparent is a keyword, --accent/--accent-soft are already declared in
+         both tiers.
+         🔴 "&.text" must appear exactly 2 times inside the .k-btn block (this line + the hover
+         line below) — knowledgeStyles.test.ts's K45 count assertion is anchored to this block;
+         re-porting it will fail precisely. */
       background: transparent;
       color: var(--accent);
     }
@@ -1212,7 +1293,7 @@
     }
   }
 
-  /* ---------- P5b-T2 · S3 后半(蓝本 :854-967,Queue page 表格)---------- */
+  /* ---------- P5b-T2 · S3 second half (base :854-967, Queue page table) ---------- */
   .k-table {
     background: var(--bg-elevated);
     border: 1px solid var(--line-faint);
@@ -1258,7 +1339,7 @@
       background: var(--accent-soft); color: var(--accent);
       animation: k-pulse 1.4s ease-in-out infinite;
     }
-    &[data-state="failed"]  { /* 蓝本 :899 红色半透明底色裸值 → token */ background: var(--danger-soft); color: var(--danger); }
+    &[data-state="failed"]  { /* base :899 danger-toned semi-transparent background literal → token */ background: var(--danger-soft); color: var(--danger); }
   }
   .k-row-name {
     font-weight: 500;
@@ -1317,7 +1398,7 @@
     color: var(--text-tertiary);
     transition: all 100ms ease;
     &:hover { background: var(--bg-chip); color: var(--text-primary); }
-    &[data-tone="danger"]:hover { /* 蓝本 :958 红色半透明底色裸值 → token */ background: var(--danger-soft); color: var(--danger); }
+    &[data-tone="danger"]:hover { /* base :958 danger-toned semi-transparent background literal → token */ background: var(--danger-soft); color: var(--danger); }
   }
   .k-table-foot {
     padding: 10px 14px;
@@ -1328,12 +1409,12 @@
     display: flex; align-items: center; gap: 6px;
   }
 
-  /* ---------- P5c-T2a · A(蓝本 :969-984)----------
-     蓝本这一节的头注释写的是 "Allowlist page",但节标题四件套
-     (.k-section / -head / -title / -hint)被 SettingsView 复用,故本期搬入。
-     🔴 蓝本 :985-991 的 .k-section-body 是 Allowlist 页专用,本期不搬 —— A 段的边界
-     因此是 :984 而不是 :988(按 :988 切会把 .k-section-body 截成半条规则,sass 报错)。
-     本段零色字面量,颜色全部已经是本档 token。 */
+  /* ---------- P5c-T2a · A (base :969-984) ----------
+     Base section's header comment says "Allowlist page", but section-title four-piece
+     (.k-section / -head / -title / -hint) reused by SettingsView, so ported this period.
+     🔴 Base :985-991's .k-section-body AllowlistView-only, don't port this period — A segment boundary
+     thus :984 not :988 (cutting at :988 splits .k-section-body into half a rule, sass errors).
+     This segment zero color literals, all colors already are this file's tokens. */
   .k-section { display: flex; flex-direction: column; gap: 10px; }
   .k-section-head {
     display: flex; align-items: baseline; gap: 8px;
@@ -1350,30 +1431,32 @@
     color: var(--text-quaternary);
   }
 
-  /* ---------- P5f-T2 · A(蓝本 :985-1141,"Allowlist page" 主体)----------
-     🔴 **段边界只有一个数字:`:985-1141`**(裁定 R4 / 勘误 E-69)。实际落进本档的最后
-     一行内容是蓝本 `:1139` 的 `}`(`.k-priority-hint` 闭合);`:1140` 是空行,
-     `:1141` 是 `/* ---------- Settings page ---------- *\/` 的节标题注释 —— **那行注释不搬**
-     (搬进来会在本档指向一个不存在的 Settings 段,是误导)。
+  /* ---------- P5f-T2 · A (base :985-1141, "Allowlist page" main body) ----------
+     🔴 **segment boundary only one number: `:985-1141`** (ruling R4 / errata E-69). Actual final
+     content landing in this file is base `:1139`'s `}` (.k-priority-hint closure); `:1140` is blank,
+     `:1141` is `/* ---------- Settings page ---------- *\/` section header comment — **that line don't port**
+     (porting would point here to non-existent Settings segment, misleading).
 
-     🔴 **为什么不许「整段搬 :985-1160 再删死类」**(附录 D §D.3.1):`:1142` 的 .k-set-card
-     与 `:1159` 的 .k-set-row **P5c-T2a 已搬**(见下方 B-H 段),`:1152-1157` 的 6 个
-     .k-progress-* 是 24 个蓝本死类里的最后 6 个,三者**互相交错**。整段搬会同时带进
-     **重复定义**(白名单断言查不出重复定义,只有区间锚定的计数断言会响)与死类。
-     ⇒ 本段严格从 `:985` 到 `:1139`,`:1141` 之后一个字符都不取。
+     🔴 **Why can't "port whole segment :985-1160 then delete dead classes"** (Appendix D §D.3.1):
+     `:1142`'s .k-set-card and `:1159`'s .k-set-row **P5c-T2a already ported** (see B-H segments below),
+     `:1152-1157`'s 6 .k-progress-* are last 6 of 24 base dead classes, three **interleave**. Porting whole
+     would introduce **duplicate definitions** (allowlist assertion can't catch duplicates, only range-anchored
+     counting assertion responds) and dead classes. ⇒ this segment strictly `:985` to `:1139`, not one char after `:1141`.
 
-     🔴 **本段与前几期「故意没搬」的两处正面反转**(守「反转不删」,原注释一律保留):
-       · `.k-section-body`(蓝本 :985-991)—— 前几期的注释说它是 Allowlist 页专用、
-         「本期不搬」。那是**条件式判据**,条件在 P5f 到期(本期正是 Allowlist 页)⇒ 搬。
-         勘误 **E-67** 记的 67→69 差 2,差的正是它与 `.k-frow`。
-       · `.k-frow`(蓝本 :1077)—— 见下方 @media 块内的 **K60 / 裁定 R2** 订正块。
+     🔴 **this segment and earlier periods' "deliberately not ported" two reversals** (honor "reverse don't delete",
+     original comments preserved):
+       · `.k-section-body` (base :985-991) — earlier periods' comment said it's Allowlist-only,
+         "don't port this". That's **conditional criterion**, condition expires P5f (this period is Allowlist page)
+         ⇒ port. Errata **E-67** records 67→69 difference 2, difference is precisely it and `.k-frow`.
+       · `.k-frow` (base :1077) — see **K60 / ruling R2** correction block inside @media below.
 
-     配色(附录 B 定死,实现者零裁量,逐处见行内注释):本段实扫 **5 处**色字面量 ——
-     `:1003` / `:1045` 两处具名色前景(→ --text-on-accent,**不是** --on-accent,
-     后者暗档是深蓝黑,压在实底上会变成「深色图标压深底」)· `:1120` 两处 · `:1121` 一处。
-     ⚠️ `:1035` 的 `transparent` 是 CSS 关键字,不算色字面量(本档既定口径);
-     `:1112` 的 `white-space` 是**属性名**,不是具名色 —— 裁定 R11 因此明令具名色扫描
-     禁用裸词边界写法,一律钉在「属性值位置」。 */
+     Colors (Appendix B fixed, implementor zero discretion, per-location see inline comments):
+     this segment scans **5 places** color literals — `:1003` / `:1045` two named-color foregrounds
+     (→ --text-on-accent, **not** --on-accent, latter dark is deep blue-black, on solid becomes
+     "dark icon on dark bottom") · `:1120` two places · `:1121` one place.
+     ⚠️ `:1035`'s `transparent` is CSS keyword, not color literal (this file's established standard);
+     `:1112`'s `white-space` is **property name**, not named-color — ruling R11 thus mandates
+     named-color scanning disable bare-word-boundary syntax, always anchor at "property-value position". */
   .k-section-body {
     background: var(--bg-elevated);
     border: 1px solid var(--line-faint);
@@ -1392,8 +1475,9 @@
     width: 28px; height: 28px;
     border-radius: 8px;
     display: grid; place-items: center;
-    /* 蓝本 :1003 具名色前景 → --text-on-accent(附录 B §B.3-②)。压在 g.bg 的品牌
-       渐变实底上,语义是「实底上的纯白前景」,与 .kn-inbox-icon 的既定先例同一份。 */
+    /* base :1003 named-color foreground → --text-on-accent (Appendix B §B.3-②). Sits on top
+       of g.bg's brand-gradient solid background; the semantic is "pure light foreground on a
+       solid background", the same precedent already established for .kn-inbox-icon. */
     color: var(--text-on-accent); flex-shrink: 0;
   }
   .k-extgroup-title {
@@ -1436,7 +1520,7 @@
       .k-ext-chip-mark {
         background: var(--accent);
         border-color: var(--accent);
-        /* 蓝本 :1045 具名色前景 → --text-on-accent(附录 B §B.3-③),压在 --accent 实底上 */
+        /* base :1045 named-color foreground → --text-on-accent (Appendix B §B.3-③), sits on top of the --accent solid background */
         color: var(--text-on-accent);
       }
     }
@@ -1512,11 +1596,12 @@
     border-radius: var(--r-pill);
     font-size: 11.5px; font-weight: 600;
     width: fit-content;
-    /* 蓝本 :1120 半透明绿底 + 深绿前景两处裸值 → --success-soft / --success
-       (附录 B §B.4 第 1、2 行,命中 P5a §B.2 就立好的既定桶,零新建 token) */
+    /* base :1120 semi-transparent success-toned background + dark-green foreground literal pair →
+       --success-soft / --success (Appendix B §B.4 rows 1 and 2, landing in the bucket P5a §B.2
+       already established, zero new tokens created) */
     &[data-act="allow"] { background: var(--success-soft); color: var(--success); }
-    /* 蓝本 :1121 半透明红底裸值 → --danger-soft(附录 B §B.4 第 3 行);
-       同行的 color 蓝本本来就是 token,照抄不改 */
+    /* base :1121 semi-transparent danger-toned background literal → --danger-soft (Appendix B §B.4 row 3);
+       the color on the same line was already a token in the base, copied as-is */
     &[data-act="deny"]  { background: var(--danger-soft); color: var(--danger); }
   }
   .k-priority-hint {
@@ -1537,18 +1622,22 @@
     }
   }
 
-  /* ---------- P5c-T2a · B-H(蓝本 :1141-1293,"Settings page" 一整节)----------
-     蓝本这一节本来就在 .knowledge-app 内部,原样落位、段序照蓝本原序。七小段:
+  /* ---------- P5c-T2a · B-H (base :1141-1293, the whole "Settings page" section) ----------
+     This section was already inside .knowledge-app in the base, dropped in as-is with section
+     order matching the base's original. Seven sub-sections:
        B :1141-1149  .k-set-card
-       C :1159-1179  .k-set-row / -info / -title / -cn / -desc(内含嵌套的 .warn)
-       D :1181-1201  .k-radio-group(内含 button 与 &[data-on="true"])
-       E :1203-1225  .k-sw(内含 &::after 与 &[data-on="true"])
+       C :1159-1179  .k-set-row / -info / -title / -cn / -desc (includes the nested .warn)
+       D :1181-1201  .k-radio-group (includes button and &[data-on="true"])
+       E :1203-1225  .k-sw (includes &::after and &[data-on="true"])
        F :1227-1247  .k-set-svc / .k-svc-state / .k-svc-light / .k-svc-name / .k-svc-cn
-       G :1249-1265  .k-set-danger(内含让危险区标题变红的 .k-set-row-title)/ .k-set-soon
-       H :1267-1293  .k-sandbox-link(含 &:hover)/ .k-sandbox-icon
-     🔴 N15:蓝本 :1151-1157 的 .k-progress-card / -row / -label / -nums / -bar / -fill
-     六个类夹在 B 段与 C 段正中间,本期两页都不用、本仓也没有 → **不搬**(见头注释)。
-     .k-set-row-title 在蓝本 :1167 与 :1252 有两处规则,两处都搬(后者在 G 段内)。 */
+       G :1249-1265  .k-set-danger (includes .k-set-row-title, which turns the danger-zone
+                     title danger-toned) / .k-set-soon
+       H :1267-1293  .k-sandbox-link (with &:hover) / .k-sandbox-icon
+     🔴 N15: base :1151-1157's six classes .k-progress-card / -row / -label / -nums / -bar /
+     -fill are sandwiched right between segments B and C, neither of this period's two pages
+     uses them, and the repo doesn't have them either → **not ported** (see the header comment).
+     .k-set-row-title has two rules in the base, at :1167 and :1252; both are ported (the
+     latter is inside segment G). */
   .k-set-card {
     padding: 16px 18px;
     background: var(--bg-elevated);
@@ -1616,8 +1705,9 @@
       top: 2px; left: 2px;
       width: 21px; height: 21px;
       border-radius: 50%;
-      /* 蓝本 :1217 拨钮的具名前景色 + :1218 拨钮投影裸值 → 本任务新声明的两个 token
-         (两档同值;tokens.scss:201-202 / :345-346 的注释原文说的就是同一个 iOS 拨钮) */
+      /* base :1217 the thumb's named foreground color + :1218 the thumb's shadow literal →
+         two new tokens declared for this task (same value in both theme tiers; the comments at
+         tokens.scss:201-202 / :345-346 refer to the exact same iOS-style toggle thumb) */
       background: var(--switch-thumb);
       box-shadow: var(--switch-thumb-shadow);
       transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -1640,12 +1730,12 @@
     width: 10px; height: 10px;
     border-radius: 50%;
     background: var(--success);
-    /* 蓝本 :1239 绿色半透明光晕裸值 → --success-soft(两档已有) */
+    /* base :1239 success-toned semi-transparent glow literal → --success-soft (already present in both tiers) */
     box-shadow: 0 0 0 4px var(--success-soft);
     flex-shrink: 0;
     &[data-state="paused"] {
       background: var(--warning);
-      /* 蓝本 :1243 橙色半透明光晕裸值 → --warning-soft(两档已有) */
+      /* base :1243 amber-toned semi-transparent glow literal → --warning-soft (already present in both tiers) */
       box-shadow: 0 0 0 4px var(--warning-soft);
     }
   }
@@ -1653,10 +1743,11 @@
   .k-svc-cn { font-size: 11px; color: var(--text-tertiary); }
 
   .k-set-danger {
-    /* 蓝本 :1250 红色半透明边框裸值 → --danger-soft-border(两档已有) */
+    /* base :1250 danger-toned semi-transparent border literal → --danger-soft-border (already present in both tiers) */
     border-color: var(--danger-soft-border);
-    /* 蓝本 :1251 比 danger-soft 更淡一档的红色半透明底色裸值 → --danger-soft-faint
-       (两档已有,P5b-T2 声明);渐变角度与第二色标的 transparent 逐字照抄 */
+    /* base :1251 a lighter-tier danger-toned semi-transparent background literal than danger-soft →
+       --danger-soft-faint (already present in both tiers, declared by P5b-T2); the gradient
+       angle and the second color stop's transparent are copied verbatim */
     background: linear-gradient(135deg, var(--danger-soft-faint), transparent);
     .k-set-row-title { color: var(--danger); }
   }
@@ -1693,10 +1784,12 @@
   .k-sandbox-icon {
     width: 40px; height: 40px;
     border-radius: var(--r-md);
-    /* 蓝本 :1287 蓝调渐变底(两处裸色标)→ --grad-sandbox(本任务新声明,是
-       tokens.scss:236 的 --grad-sk-blue 改名不改值);:1288 实底彩色瓷砖上的具名前景色
-       → --text-on-accent(两档已有);:1292 半透明 inset 高光裸值 → --gloss-inset-dot
-       (本任务新声明,整条 box-shadow 都在 token 里) */
+    /* base :1287's blue-toned gradient background (two color stop literals) → --grad-sandbox
+       (newly declared for this task; it's tokens.scss:236's --grad-sk-blue renamed without
+       changing the value); :1288's named foreground color on a solid color tile →
+       --text-on-accent (already present in both tiers); :1292's semi-transparent inset
+       highlight literal → --gloss-inset-dot (newly declared for this task, the whole
+       box-shadow is inside the token) */
     background: var(--grad-sandbox);
     color: var(--text-on-accent);
     display: grid; place-items: center;
@@ -1705,13 +1798,15 @@
     box-shadow: var(--gloss-inset-dot);
   }
 
-  /* ---------- P5b-T2 · S4(蓝本 :1296-1316 + :1335-1341,Modals)----------
-     【P5c-T2a 订正】K17 的 .k-modal-head / .k-modal-title / .k-modal-x / .k-modal-body
-     (蓝本 :1317-1334)P5b 当时两个视图都不用,留给了 P5c;**本期已搬**,就落在下面
-     .k-modal 与 .k-modal-foot 之间(蓝本原位),故本节现在是蓝本 :1296-1341 连续一整段。 */
+  /* ---------- P5b-T2 · S4 (base :1296-1316 + :1335-1341, Modals) ----------
+     【P5c-T2a correction】K17's .k-modal-head / .k-modal-title / .k-modal-x / .k-modal-body
+     (base :1317-1334) — neither of P5b's two views used these at the time, so they were left
+     for P5c; **now ported this period**, landing below between .k-modal and .k-modal-foot
+     (the base's original position), so this section is now one continuous span of base
+     :1296-1341. */
   .k-modal-bg {
     position: fixed; inset: 0;
-    /* 蓝本 :1298 冷调半透明遮罩裸值 → --modal-scrim(P5a 已在两档声明) */
+    /* base :1298 cool-toned semi-transparent overlay literal → --modal-scrim (already declared in both tiers by P5a) */
     background: var(--modal-scrim);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -1731,7 +1826,7 @@
     overflow: hidden;
     animation: k-modal-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  /* ---- P5c-T2a · I(蓝本 :1317-1334)—— K17 兑现,P5b 交接项 #1。本段零色字面量。 ---- */
+  /* ---- P5c-T2a · I (base :1317-1334) — fulfills K17, P5b handoff item #1. Zero color literals in this section. ---- */
   .k-modal-head {
     padding: 16px 20px 8px;
     display: flex; align-items: center; gap: 10px;
@@ -1758,19 +1853,23 @@
     .right { margin-left: auto; display: flex; gap: 8px; }
   }
 
-  /* ---------- P5f-T2 · B(蓝本 :1342-1396,"Allowlist 新增文件夹规则"弹窗表单)----------
-     🔴 **段尾边界是 `:1396`,不是 `:1400`**(裁定 R4 / 勘误 E-69):`:1398` 起是
-     `.k-confirm-body`,**P5b-T2 已搬**(就在下面那一段)。按 `:1400` 整段搬会造成
-     **重复定义** —— 而重复定义**不会**被白名单/死类断言捕获,只有区间锚定的计数断言
-     会响(本档 K10 那条守 .k-confirm-* 恰好 1 次的断言就是干这个的)。
-     段位落在 P5c-T2a·I(蓝本 :1317-1334)之后、P5b-T2·S5(蓝本 :1398-1428)之前,
-     与蓝本源码顺序一致。
-     配色:本段实扫 **3 处**色字面量,全在 `:1392` / `:1393` 两行,全部命中 P5a §B.2
-     的既定桶(附录 B §B.4 第 4-6 行),零新建 token。
-     ⚠️ **M-6 显式申报**:`.k-field-mono input`(`:1365`)与 `.k-field-hint code`(`:1367`)
-     照抄的是 `var(--font-mono)`;而下方 K53 段的 `.kr-path` / `.kr-input` 照抄的是蓝本
-     **硬编码的字体栈** —— 两种写法**都是逐字照抄,差异来自蓝本自身不一致**,不是本刀的
-     取舍(字体栈非颜色 token 约束范围,裁定 §三 M-6)。 */
+  /* ---------- P5f-T2 · B (base :1342-1396, the "Allowlist add-folder-rule" modal form) ----------
+     🔴 **The segment's end boundary is `:1396`, not `:1400`** (ruling R4 / errata E-69):
+     `:1398` onward is `.k-confirm-body`, **already ported by P5b-T2** (right below, in that
+     section). Porting the whole segment up to `:1400` would create **duplicate definitions**
+     — and duplicate definitions are **not** caught by the allowlist/dead-class assertions,
+     only by the range-anchored count assertion (this file's K10 assertion guarding
+     .k-confirm-* to exactly 1 occurrence exists precisely for this).
+     The segment lands after P5c-T2a·I (base :1317-1334) and before P5b-T2·S5 (base
+     :1398-1428), matching the base's source order.
+     Color: this section's actual scan found **3** color literals, all on lines `:1392` /
+     `:1393`, all landing in the buckets P5a §B.2 already established (Appendix B §B.4 rows
+     4-6), zero new tokens created.
+     ⚠️ **M-6 explicit disclosure**: `.k-field-mono input` (`:1365`) and `.k-field-hint code`
+     (`:1367`) copy `var(--font-mono)` verbatim; while the `.kr-path` / `.kr-input` in the K53
+     section below copy the base's **hardcoded font stack** — both are **verbatim copies, the
+     difference comes from the base's own inconsistency**, not a choice made by this cut (font
+     stacks aren't in scope for the color-token constraint, ruling §III M-6). */
   .k-field { display: flex; flex-direction: column; gap: 6px; }
   .k-field-label {
     font-size: 12px; font-weight: 600;
@@ -1821,23 +1920,26 @@
     border-radius: 7px;
     display: grid; place-items: center;
     flex-shrink: 0;
-    /* 蓝本 :1392 半透明绿底 + 深绿前景两处裸值 → --success-soft / --success
-       (附录 B §B.4 第 4、5 行;alpha 0.14 落 0.1x 桶,与 :1120 同一组 token) */
+    /* base :1392 semi-transparent success-toned background + dark-green foreground literal pair →
+       --success-soft / --success (Appendix B §B.4 rows 4 and 5; alpha 0.14 lands in the 0.1x
+       bucket, same token group as :1120) */
     &[data-tone="allow"] { background: var(--success-soft); color: var(--success); }
-    /* 蓝本 :1393 半透明红底裸值 → --danger-soft(附录 B §B.4 第 6 行);
-       同行 color 蓝本本来就是 token,照抄不改 */
+    /* base :1393 semi-transparent danger-toned background literal → --danger-soft (Appendix B §B.4
+       row 6); the color on the same line was already a token in the base, copied as-is */
     &[data-tone="deny"]  { background: var(--danger-soft); color: var(--danger); }
   }
   .k-radio-card-text { font-size: 13px; font-weight: 600; }
   .k-radio-card-desc { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
 
-  /* ---------- P5b-T2 · S5(蓝本 :1398-1428,确认弹窗)----------
-     K10:蓝本 :1676-1702 还有一份**顶层**的 .k-confirm-icon/.k-confirm-title/
-     .k-confirm-summary,声明与这里的嵌套版逐字等价。级联上嵌套版是
-     `.knowledge-app .k-confirm-*`(0,2,0)、顶层版是 `.k-confirm-*`(0,1,0),
-     嵌套版完胜 → 那一份在 Vue2 里就从未生效过,整段丢弃,不搬。
-     (段范围 :1398-1430 的末两行是一个空行 + 下一节 Toast 的节标题注释;.k-toast
-     按 K3 不搬,那条节标题跟着它走,故实际搬到 :1428 为止。) */
+  /* ---------- P5b-T2 · S5 (base :1398-1428, confirm modal) ----------
+     K10: base :1676-1702 also has a **top-level** copy of .k-confirm-icon/.k-confirm-title/
+     .k-confirm-summary, whose declarations are byte-for-byte equivalent to the nested version
+     here. In the cascade, the nested version is `.knowledge-app .k-confirm-*` (0,2,0) while
+     the top-level version is `.k-confirm-*` (0,1,0); the nested version wins outright ⇒ that
+     copy never took effect in Vue2 at all, so the whole segment is dropped, not ported.
+     (The segment range :1398-1430's last two lines are a blank line plus the next section's
+     Toast section-header comment; .k-toast is not ported per K3, and that section header
+     goes along with it, so the actual port stops at :1428.) */
   .k-confirm-body {
     padding: 20px 22px 12px;
     display: flex; flex-direction: column; gap: 14px;
@@ -1845,7 +1947,7 @@
   .k-confirm-icon {
     width: 56px; height: 56px;
     border-radius: 16px;
-    background: var(--danger-soft); /* 蓝本 :1405 红色半透明底色裸值 → token */
+    background: var(--danger-soft); /* base :1405 danger-toned semi-transparent background literal → token */
     color: var(--danger);
     display: grid; place-items: center;
     margin: 0 auto;
@@ -1857,10 +1959,11 @@
   }
   .k-confirm-summary {
     padding: 12px;
-    /* 蓝本 :1417 比 danger-soft 更淡一档的红色半透明底色裸值 → 新 token
-       --danger-soft-faint(治理文件 §6.2 归属表判给 T2 声明,T6 段 :1972 复用) */
+    /* base :1417 a lighter-tier danger-toned semi-transparent background literal than danger-soft →
+       new token --danger-soft-faint (governance file §6.2 ownership table assigns it to T2's
+       declaration, reused by the T6 section at :1972) */
     background: var(--danger-soft-faint);
-    /* 蓝本 :1418 红色半透明边框裸值 → --danger-soft-border(两档已有) */
+    /* base :1418 danger-toned semi-transparent border literal → --danger-soft-border (already present in both tiers) */
     border: 1px solid var(--danger-soft-border);
     border-radius: var(--r-md);
     font-size: 13px;
@@ -1873,16 +1976,19 @@
     }
   }
 
-  /* ---------- Responsive(蓝本 :1453-1507)—— P5a 搬了 .k-rail/.k-mobile-tabs/
-     .k-mobile-tab;P5b-T2 按附录 D.6 往同一个 @media 里补 S6 的两条 .k-row 规则(见块内)。
-     k-quick-grid、k-status-strip 仍不在白名单,.k-frow 是死规则(附录 D.5),都不搬。 ---------- */
-  /* 🔴 **P5f-T2 订正块(守「反转不删」,上面那段原文一律保留)** ——
-     上一行「.k-frow 是死规则,不搬」这句**已经过期**。P5b 当初的判据是**条件式**的
-     (原文:「两个模板里没有任何元素用 class="k-frow"」),它在 P5b 当时成立;
-     而 **AllowlistView(P5f)用的正是这个类** ⇒ 前提到期。
-     依裁定 **R2** / 偏差 **K60**,蓝本 `:1500-1503` 的那一条窄屏列宽覆盖**本刀搬入**
-     (见下方 @media 块内)。⚠️ 同段的 .k-quick-grid / .k-status-strip **仍然不搬**,
-     这两半不要一起理解。 */
+  /* ---------- Responsive (base :1453-1507) — P5a ported .k-rail/.k-mobile-tabs/
+     .k-mobile-tab; P5b-T2 adds S6's two .k-row rules into the same @media per Appendix D.6
+     (see inside the block). k-quick-grid and k-status-strip are still not in the allowlist,
+     .k-frow is a dead rule (Appendix D.5), none of these are ported. ---------- */
+  /* 🔴 **P5f-T2 correction block (honor "reverse, don't delete"; the original text above is
+     preserved as-is)** — the line above, "`.k-frow` is a dead rule, not ported", **has now
+     expired**. P5b's original criterion was **conditional** (verbatim: "no element in either
+     template uses class='k-frow'"), which held true at the time of P5b; but
+     **`AllowlistView` (P5f) now uses exactly this class** ⇒ the premise has expired.
+     Per ruling **R2** / deviation **K60**, base `:1500-1503`'s narrow-screen column-width
+     override **is ported by this cut** (see inside the @media block below). ⚠️ The other half
+     of that statement (.k-quick-grid / .k-status-strip are not ported) **still holds** — don't
+     conflate the two halves. */
   @media (max-width: 860px) {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) 60px; /* same min-content floor issue as the desktop row */
@@ -1911,17 +2017,22 @@
         top: 4px; right: calc(50% - 18px);
       }
     }
-    /* ---------- P5b-T2 · S6(蓝本 :1484-1499)----------
-       附录 D.6:这两条在蓝本里就写在这个 `@media (max-width: 860px)` 内部,
-       加进本仓这个既有 @media 块,不另起一个。蓝本 :1482-1483 的 .k-quick-grid /
-       .k-status-strip 与 :1500-1503 的 .k-frow 仍不搬(后者见附录 D.5:两个模板
-       里没有任何元素用 class="k-frow",文件表格行用的是 .k-frow-f,是死规则)。 */
-    /* 🔴 **P5f-T2 订正块(守「反转不删」,上面那段原文一律保留)** ——
-       上面那句「:1500-1503 的 .k-frow 仍不搬 …… 是死规则」**已经过期**:它的判据是
-       **条件式**的(「两个模板里没有任何元素用 class="k-frow"」),P5b 当时成立;
-       **AllowlistView(P5f)已经使用该类** ⇒ 前提到期。依裁定 **R2** / 偏差 **K60**,
-       本刀把那一条搬进本块末尾(见下方 K60 小节)。
-       ⚠️ 这句话里的另一半(.k-quick-grid / .k-status-strip 不搬)**继续成立**。 */
+    /* ---------- P5b-T2 · S6 (base :1484-1499) ----------
+       Appendix D.6: in the base, these two rules were already written inside this
+       `@media (max-width: 860px)`, so they're added into this repo's existing @media block
+       rather than starting a new one. base :1482-1483's .k-quick-grid / .k-status-strip and
+       :1500-1503's .k-frow are still not ported (for the latter see Appendix D.5: no element
+       in either template uses class="k-frow" — the file table row uses .k-frow-f — so it's a
+       dead rule). */
+    /* 🔴 **P5f-T2 correction block (honor "reverse, don't delete"; the original text above is
+       preserved as-is)** — the statement above, "`:1500-1503`'s .k-frow is still not
+       ported … it's a dead rule" **has now expired**: its criterion was **conditional**
+       ("no element in either template uses class='k-frow'"), which held true at the time of
+       P5b; **`AllowlistView` (P5f) now uses this class** ⇒ the premise has expired. Per
+       ruling **R2** / deviation **K60**, this cut ports that rule into the end of this block
+       (see the K60 subsection below).
+       ⚠️ The other half of that statement (.k-quick-grid / .k-status-strip are not ported)
+       **still holds**. */
     .k-row {
       grid-template-columns: 24px 24px 1fr 70px 32px;
       > *:nth-child(4), > *:nth-child(6) { display: none; }
@@ -1938,14 +2049,20 @@
       > *:nth-child(3), > *:nth-child(4), > *:nth-child(5) { display: none; }
       > *:nth-child(6) { display: revert; }
     }
-    /* ---------- P5f-T2 · K60(裁定 R2)—— 蓝本 :1500-1503 的 .k-frow 窄屏列宽覆盖 ----------
-       🔴 授权来源:偏差 **K60**(超出治理原本授权的三个段的第四处),裁定 **R2** 批准。
-       🔴 只搬蓝本 `:1500-1503` 这一条,**不许顺带搬它周围任何东西** —— 逐行读过那四行,
-       内部只含 `.k-frow` 的 grid-template-columns 与 font-size 两条声明,零其它类。
-       落位与 P5b-T2 处理 .k-row 同款:并进本仓这个**既有**的 `@media (max-width: 860px)`,
-       不另起一个(蓝本本来就写在同一个 @media 内部)。
-       不搬的后果:窄屏下白名单页的文件夹规则表格列宽与 Vue2 不一致 = 「界面严格 1:1」
-       在窄屏这一档不成立。本段零色字面量。 */
+    /* ---------- P5f-T2 · K60 (ruling R2) — base :1500-1503's .k-frow narrow-screen
+       column-width override ----------
+       🔴 Authorization source: deviation **K60** (the fourth item beyond the three segments
+       governance originally authorized), approved by ruling **R2**.
+       🔴 Only this one rule from base `:1500-1503` is ported, **nothing around it may be
+       ported along with it** — every one of those four lines was read line by line; it
+       contains only `.k-frow`'s grid-template-columns and font-size declarations, zero other
+       classes.
+       Landing spot matches how P5b-T2 handled .k-row: merged into this repo's **existing**
+       `@media (max-width: 860px)` rather than starting a new one (the base already wrote it
+       inside the same @media).
+       Consequence of not porting it: on narrow screens, the Allowlist page's folder-rule
+       table's column widths would diverge from Vue2 = "strict 1:1 UI fidelity" would not hold
+       at the narrow-screen tier. Zero color literals in this section. */
     .k-frow {
       grid-template-columns: 80px 1fr 70px 28px;
       font-size: 12px;
@@ -1955,23 +2072,31 @@
     .k-mobile-tabs { display: none; }
   }
 
-  /* ---------- P5b-T6 · S8(蓝本 :1705-2022,"已收录文件"页专属段)----------
-     K9:蓝本这一整段是**顶层裸选择器**(不在 .knowledge-app 里),整段重新嵌套进
-     .knowledge-app —— 否则 ① 会泄漏到全站 ② 拿不到本作用域声明的 token。嵌套后段内
-     各条的**相对**优先级不变(每条各 +1 个类选择器)。
-     段位按蓝本原序落在 S6(:1484-1499,上方那个 @media)与 S7(:2031-2039,下方
-     .kn-badge)之间,与蓝本的源码顺序一致。
-     K10 已由 T2 处理:蓝本 :1675-1703 那个顶层重复 confirm 段整段丢弃,本段**从 :1705
-     起**,不含它。附录 D.5 的另一条死规则(:1500-1503 的 .k-frow)在 S6 范围内,T2 已
-     说明不搬。
-     🔴 **P5f-T2 订正块(守「反转不删」,上面那句原文保留)**:「:1500-1503 的 .k-frow 是
-     死规则」这个判据是**条件式**的,`AllowlistView`(P5f)已使用该类 ⇒ 前提到期;
-     依裁定 **R2** / 偏差 **K60**,那一条已由本刀搬入上方那个 @media 块。
-     蓝本 :1844-1847 的 `@keyframes row-done` 原本夹在本段中间,按本档既定惯例挪到下方
-     的顶层全局 keyframes 区(scss 里嵌进选择器的 @keyframes 会跟着作用域走,而模板里的
-     `animation: row-done …` 引用不带作用域前缀 —— 同上方 T4/T11 keyframes 的理由)。
-     色字面量按附录 B §B.3 逐行映射(13 行 17 处),两处 `[data-theme="dark"]` 选择器按
-     K2 并进两档、整条删除(附录 B §B.4),逐处见行内注释。 ---------- */
+  /* ---------- P5b-T6 · S8 (base :1705-2022, the "Collected files" page's exclusive section) ----------
+     K9: this whole segment is a **top-level bare selector** in the base (not inside
+     .knowledge-app), so the entire segment is re-nested into .knowledge-app — otherwise
+     ① it would leak site-wide ② it couldn't reach tokens declared in this scope. After
+     nesting, the **relative** priority between the segment's rules is unchanged (each gains
+     +1 class selector).
+     The segment lands between S6 (:1484-1499, the @media above) and S7 (:2031-2039,
+     .kn-badge below), matching the base's source order.
+     K10 has already been handled by T2: the top-level duplicate confirm segment at base
+     :1675-1703 is dropped entirely, and this segment **starts from :1705**, excluding it.
+     Appendix D.5's other dead rule (:1500-1503's .k-frow) falls within S6's range; T2 already
+     noted it's not ported.
+     🔴 **P5f-T2 correction block (honor "reverse, don't delete"; the sentence above is
+     preserved as-is)**: the criterion for "`:1500-1503`'s .k-frow is a dead rule" is
+     **conditional**, and `AllowlistView` (P5f) now uses this class ⇒ the premise has expired;
+     per ruling **R2** / deviation **K60**, that rule has already been ported into the @media
+     block above by this cut.
+     base :1844-1847's `@keyframes row-done` was originally sandwiched in the middle of this
+     segment; per this file's established convention it's moved down to the top-level global
+     keyframes section below (in scss, an @keyframes nested inside a selector inherits that
+     scope, while the template's `animation: row-done …` reference carries no scope prefix —
+     same rationale as the T4/T11 keyframes above).
+     Color literals are mapped line-by-line per Appendix B §B.3 (13 lines, 17 spots); the two
+     `[data-theme="dark"]` selectors are merged into the two theme tiers and the whole rule
+     deleted per K2 (Appendix B §B.4) — see the inline comment at each spot. ---------- */
   .k-filter-bar {
     display: flex; align-items: flex-end; gap: 10px;
     flex-wrap: wrap;
@@ -2015,8 +2140,9 @@
   }
   .k-filt-input input {
     flex: 1; min-width: 0;
-    /* 蓝本 :1748 的 `background: transparent` —— transparent 是 CSS 关键字不是配色,
-       照抄(同附录 B §B.2/§B.3 的既定口径,不计入色值映射) */
+    /* base :1748's `background: transparent` — transparent is a CSS keyword, not a color,
+       copied as-is (same established convention as Appendix B §B.2/§B.3, not counted in the
+       color-value mapping) */
     border: 0; outline: none; background: transparent;
     font-size: 13px;
     font-family: var(--font-mono);
@@ -2054,7 +2180,7 @@
   }
   .k-filter-bar .k-btn { height: 34px; }
 
-  /* meta strip above table(蓝本 :1785 原注释) */
+  /* meta strip above table (base :1785's original comment) */
   .k-files-meta {
     display: flex; align-items: center; gap: 12px;
     flex-wrap: wrap;
@@ -2069,7 +2195,7 @@
     display: inline-flex; align-items: center; gap: 5px;
     font-size: 11.5px; color: var(--accent);
     font-weight: 500;
-    /* k-pulse 已由 P5a 在下方全局 keyframes 区声明,不重复定义(附录 D.2 明示) */
+    /* k-pulse is already declared by P5a in the global keyframes section below, not redefined here (explicitly per Appendix D.2) */
     svg { animation: k-pulse 1.4s ease-in-out infinite; }
   }
   .k-sort {
@@ -2085,7 +2211,7 @@
     &:hover { background: var(--bg-chip); color: var(--text-primary); }
   }
 
-  /* table(蓝本 :1811 原注释) */
+  /* table (base :1811's original comment) */
   .k-ftable {
     background: var(--bg-elevated);
     border: 1px solid var(--line-faint);
@@ -2112,16 +2238,18 @@
     text-transform: uppercase; letter-spacing: 0.04em;
     min-height: 36px;
   }
-  /* 蓝本 :1838-1843 四条 .k-frow-f 变体保持**扁平且原序** —— 它们在蓝本里被
-     .k-frow-fhead 隔在中间,合并进上面那个 & 块会改变源码顺序。 */
+  /* base :1838-1843's four .k-frow-f variants are kept **flat, in their original order** —
+     in the base they're sandwiched by .k-frow-fhead, and merging them into the & block above
+     would change the source order. */
   .k-frow-f:not(.k-frow-fhead):not(.k-frow-skel):hover { background: var(--bg-canvas); }
   .k-frow-f[data-selected="true"] { background: var(--accent-softer); }
   .k-frow-f[data-status="tombstoned"] { opacity: 0.62; }
   .k-frow-f[data-done="true"] {
     animation: row-done 2.2s ease;
   }
-  /* 蓝本 :1844-1847 的 @keyframes row-done 在原文就写在这个位置,本档挪到下方全局
-     keyframes 区(理由见本段段头注释)。 */
+  /* base :1844-1847's @keyframes row-done was written at this exact spot in the original;
+     this file moves it down to the global keyframes section below (see the reasoning in this
+     section's header comment). */
 
   .k-frow-status { min-width: 0; }
   .k-status-badge {
@@ -2130,20 +2258,25 @@
     border-radius: var(--r-pill);
     font-size: 11px; font-weight: 600;
     white-space: nowrap;
-    /* 【K2 并档,附录 B §B.4 ①】蓝本 :1857 的底色与前景是两处裸值(浅色档的成功态
-       绿系半透明底 + 深绿前景),另有 :1862 一条 `[data-theme="dark"] .k-status-badge
-       [data-s="ok"]` 单独给暗档一个更亮的成功绿前景。那条选择器在 **Vue2 与 New-UI
-       两边都不命中**(Vue2 只有 .agent-app 带 data-theme;New-UI 的 <html> 只可能无属性
-       或 data-theme="light",从不置 "dark"),故**整条删除**,前景直接写 var(--success)
-       —— 它本来就是两档各一份(暗档偏亮 / 浅档偏深),天然分档,语义与蓝本两个值一致。 */
+    /* 【K2 merge, Appendix B §B.4 ①】base :1857's background and foreground are two literals
+       (the success state's light-tier green-family semi-transparent background + dark-green
+       foreground); there's also :1862's `[data-theme="dark"] .k-status-badge[data-s="ok"]`,
+       which separately gives the dark tier a brighter success-green foreground. That selector
+       **never matches on either Vue2 or New-UI** (Vue2 only puts data-theme on .agent-app;
+       New-UI's <html> can only have no attribute or data-theme="light", never "dark"), so
+       **it's deleted entirely**, and the foreground is written directly as var(--success) —
+       which already has one value per tier (brighter in the dark tier / darker in the light
+       tier), naturally split by tier, matching the semantics of the base's two values. */
     &[data-s="ok"] { background: var(--success-soft); color: var(--success); }
     &[data-s="indexing"] { background: var(--accent-soft); color: var(--accent); }
     &[data-s="indexing"] svg { animation: k-pulse 1.4s ease-in-out infinite; }
     &[data-s="error"] {
-      /* 蓝本 :1860 错误态的红色半透明底色裸值 → token(前景本来就是 token)。
-         注:夹在两条嵌套子规则之间的注释一律写进**子规则内部** —— 写在父规则那一层时,
-         sass 会为它单独吐一条只含注释的空规则(`.knowledge-app .k-status-badge {}`)。
-         同 T2 在 .k-row-status[data-state="failed"] 上的写法。 */
+      /* base :1860's error-state danger-toned semi-transparent background literal → token (the
+         foreground was already a token in the base).
+         Note: a comment sandwiched between two nested child rules must always be written
+         **inside the child rule** — writing it at the parent-rule level would make sass emit a
+         separate, comment-only empty rule (`.knowledge-app .k-status-badge {}`). Same approach
+         T2 used on .k-row-status[data-state="failed"]. */
       background: var(--danger-soft); color: var(--danger);
     }
     &[data-s="tombstoned"] { background: var(--bg-chip); color: var(--text-tertiary); }
@@ -2174,31 +2307,39 @@
     letter-spacing: 0.02em;
     background: var(--bg-chip);
     color: var(--text-secondary);
-    /* 下面五条的注释一律写在子规则**内部** —— 理由同 .k-status-badge 里那条说明
-       (写在父规则里会被 sass 吐成只含注释的空规则)。 */
-    &[data-kind="pdf"] { /* 蓝本 :1890 危险色半透明底 + 深红前景两处裸值 → token */ background: var(--danger-soft); color: var(--danger); }
-    &[data-kind="doc"] { /* 蓝本 :1891 强调色半透明底裸值 → token(前景本来就是 token) */ background: var(--accent-soft); color: var(--accent); }
+    /* the comments for the five rules below are always written **inside the child rule** —
+       same reasoning as the note in .k-status-badge (writing them at the parent-rule level
+       would make sass emit a comment-only empty rule). */
+    &[data-kind="pdf"] { /* base :1890 danger-color semi-transparent background + dark-red foreground literal pair → token */ background: var(--danger-soft); color: var(--danger); }
+    &[data-kind="doc"] { /* base :1891 accent-color semi-transparent background literal → token (the foreground was already a token) */ background: var(--accent-soft); color: var(--accent); }
     &[data-kind="md"]  {
-      /* 【K2 并档,附录 B §B.4 ②】蓝本 :1892 给的是浅色档的中性 chip 底(深色半透明),
-         :1895 另有一条 `[data-theme="dark"] .k-type-tag[data-kind="md"]` 给暗档一个反向
-         的浅色半透明底。那条选择器在 Vue2 与 New-UI 两边都不命中(理由同上方
-         .k-status-badge 的并档注释),**整条删除**,底色直接写 var(--bg-chip) ——
-         它就是本档"中性 chip 底"的语义 token,两档各一份,天然分档。 */
+      /* 【K2 merge, Appendix B §B.4 ②】base :1892 gives the light tier's neutral chip
+         background (dark semi-transparent); :1895 also has a
+         `[data-theme="dark"] .k-type-tag[data-kind="md"]` giving the dark tier an inverted
+         light semi-transparent background. That selector never matches on either Vue2 or
+         New-UI (same reasoning as the .k-status-badge merge comment above), so **it's deleted
+         entirely** and the background is written directly as var(--bg-chip) — which is
+         exactly this file's "neutral chip background" semantic token, one value per tier,
+         naturally split by tier. */
       background: var(--bg-chip); color: var(--text-primary);
     }
-    &[data-kind="txt"] { /* 蓝本 :1893 成功色半透明底 + 深绿前景两处裸值 → token */ background: var(--success-soft); color: var(--success); }
+    &[data-kind="txt"] { /* base :1893 success-color semi-transparent background + dark-green foreground literal pair → token */ background: var(--success-soft); color: var(--success); }
     &[data-kind="code"]{
-      /* 蓝本 :1894 紫色半透明底 + 深紫前景两处裸值 → token;底色对应的
-         --purple-soft 全档尚无声明,按治理文件 §6.2 归属表由本任务(T6)在两个声明块
-         里各补一份,取值抄自 AI tokens.scss 对应主题块。前景 --purple 两档已有。 */
+      /* base :1894 purple semi-transparent background + dark-purple foreground literal pair
+         → token; the corresponding background token --purple-soft had no declaration in
+         either tier yet, so per the governance file §6.2 ownership table this task (T6) adds
+         one to each of the two declaration blocks, with values copied from AI tokens.scss's
+         corresponding theme block. The foreground token --purple is already present in both
+         tiers. */
       background: var(--purple-soft); color: var(--purple);
     }
   }
   .k-type-legacy {
     font-size: 8.5px; font-weight: 700;
     padding: 0 3px; border-radius: 3px;
-    /* 蓝本 :1899 前景是一处具名色裸值(实底警告色胶囊上的纯白字)→ --text-on-accent
-       (两档都是不透明纯白,与蓝本这处语义同源) */
+    /* base :1899 foreground is a named-color literal (pure-light text on a solid warning-toned
+       chip) → --text-on-accent (opaque pure light in both theme tiers, same semantic origin
+       as this spot in the base) */
     background: var(--warning); color: var(--text-on-accent);
     font-family: var(--font-sans);
   }
@@ -2220,7 +2361,7 @@
     white-space: nowrap;
     &[disabled] {
       background: var(--bg-chip); color: var(--text-quaternary);
-      /* 蓝本 :1921 的 `border-color: transparent` —— 关键字不是配色,照抄 */
+      /* base :1921's `border-color: transparent` — CSS keyword, not a color, copied as-is */
       border-color: transparent; cursor: not-allowed;
     }
   }
@@ -2236,18 +2377,21 @@
   }
   .k-frow-skel { pointer-events: none; }
 
-  /* row detail(蓝本 :1935 原注释) */
+  /* row detail (base :1935 original comment) */
   .k-file-detail {
     padding: 12px 16px 14px 56px;
     background: var(--bg-sunken);
     border-top: 1px solid var(--line-faint);
     display: flex; flex-direction: column; gap: 10px;
-    /* 🔴【N11 —— 照抄,不许"顺手改对"】蓝本 :1941 引用的 animation-name 是 `fade-in`,
-       而蓝本全档的 @keyframes 只有 `k-fade-in`,**没有裸的 `fade-in`** —— 这是一个
-       悬空引用,Vue2 里这条淡入**从来没播过**。改成 k-fade-in 会凭空多出一个 Vue2
-       没有的淡入动画 = 界面不 1:1,属治理文件 §3.5 的"照抄条"。
-       knowledgeStyles.test.ts 的 keyframes 存在性守卫已为这一个名字登记显式例外
-       (只豁免 `fade-in` 这一个名字,不放宽整条守卫;见那边的 DANGLING_ANIMATION_EXCEPTIONS)。 */
+    /* 🔴 [N11 — copy as-is, no "fixing it while we're at it"] base :1941 references an
+       animation-name of `fade-in`, but the base's entire file only has `k-fade-in` in its
+       @keyframes — **there is no bare `fade-in`**. This is a dangling reference, and this
+       fade-in **never actually played** in Vue2. Changing it to k-fade-in would introduce a
+       fade-in animation Vue2 never had = the UI would no longer be 1:1, which is exactly what
+       the governance doc's §3.5 "copy-as-is clause" forbids.
+       knowledgeStyles.test.ts's keyframes-existence guard has an explicit exception registered
+       for this one name (it exempts only the name `fade-in`, not the whole guard — see
+       DANGLING_ANIMATION_EXCEPTIONS there). */
     animation: fade-in 160ms ease;
   }
   .k-fd-grid {
@@ -2281,17 +2425,18 @@
   .k-fd-error {
     display: flex; align-items: center; gap: 7px;
     padding: 8px 12px;
-    /* 蓝本 :1972 比 danger-soft 更淡一档的危险色半透明底裸值 → --danger-soft-faint
-       (治理文件 §6.2 归属表判给 T2 声明,本段是它的第二个使用点,不重复声明) */
+    /* base :1972 danger-toned semi-transparent background literal, one shade lighter than
+       danger-soft → --danger-soft-faint (the governance doc's §6.2 ownership table assigns
+       the declaration to T2; this section is its second use site, not redeclared) */
     background: var(--danger-soft-faint);
-    /* 蓝本 :1973 危险色半透明边框裸值 → --danger-soft-border(两档已有) */
+    /* base :1973 danger-toned semi-transparent border literal → --danger-soft-border (already present in both theme tiers) */
     border: 1px solid var(--danger-soft-border);
     border-radius: var(--r-sm);
     font-size: 12.5px; color: var(--text-secondary);
     b { color: var(--danger); }
   }
 
-  /* pagination(蓝本 :1979 原注释) */
+  /* pagination (base :1979 original comment) */
   .k-pager {
     display: flex; align-items: center; justify-content: space-between;
     gap: 14px; flex-wrap: wrap;
@@ -2313,7 +2458,7 @@
     min-width: 54px; text-align: center;
   }
 
-  /* sticky bottom action bar(蓝本 :1997 原注释) */
+  /* sticky bottom action bar (base :1997 original comment) */
   .k-files-actionbar {
     flex-shrink: 0;
     border-top: 1px solid var(--line);
@@ -2341,33 +2486,37 @@
   }
   .k-ab-actions { margin-left: auto; display: flex; gap: 10px; }
 
-  /* ---------- P5b-T2 · S7(蓝本 :2031-2039,Knowledge Notes 的状态徽标)----------
-     K9:蓝本这一段是**顶层裸选择器**(不在 .knowledge-app 里),整段重新嵌套进
-     .knowledge-app —— 否则 ① 会泄漏到全站 ② 拿不到本作用域声明的 token(蓝本那段
-     的头注释自己也写着 "uses the same CSS variables defined on .knowledge-app")。
-     嵌套后四条属性态与基类的相对优先级不变(各自 +1 个类选择器)。
-     蓝本 :2040 起的 .kn-type-ic / .kn-src / .kn-tag / .kn-pathstrip … 是 P5d 的,不搬。 */
+  /* ---------- P5b-T2 · S7 (base :2031-2039, Knowledge Notes' status badges) ----------
+     K9: this section is a **top-level bare selector** in the base (not inside
+     .knowledge-app) — the whole section is re-nested inside .knowledge-app, otherwise
+     ① it would leak site-wide and ② it couldn't reach the tokens declared in this scope
+     (the base section's own header comment even says "uses the same CSS variables defined
+     on .knowledge-app"). After nesting, the four attribute-state rules keep the same
+     relative specificity as the base class (each gains +1 class selector).
+     base :2040 onward's .kn-type-ic / .kn-src / .kn-tag / .kn-pathstrip … belong to P5d, not ported here. */
   .kn-badge {
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
     padding: 2px 7px; border-radius: 999px; flex-shrink: 0; line-height: 1.3;
   }
-  /* 蓝本 :2036 橙色半透明底色 + 边框两处裸值 → warning-soft / warning-soft-border(两档已有) */
+  /* base :2036 amber-toned semi-transparent background + border literals (two spots) → warning-soft / warning-soft-border (already present in both theme tiers) */
   .kn-badge[data-s="draft"] { background: var(--warning-soft); color: var(--warning); border: 1px solid var(--warning-soft-border); }
   .kn-badge[data-s="archived"] { background: var(--bg-chip); color: var(--text-tertiary); border: 1px solid var(--line-faint); }
-  /* 蓝本 :2038 绿色半透明底色 + 边框两处裸值 → success-soft(已有)/ success-soft-border(本任务新声明) */
+  /* base :2038 success-toned semi-transparent background + border literals (two spots) → success-soft (already present) / success-soft-border (newly declared for this task) */
   .kn-badge[data-s="curated"] { background: var(--success-soft); color: var(--success); border: 1px solid var(--success-soft-border); }
-  /* 蓝本 :2039 红色半透明底色 + 边框两处裸值 → danger-soft / danger-soft-border(两档已有) */
+  /* base :2039 danger-toned semi-transparent background + border literals (two spots) → danger-soft / danger-soft-border (already present in both theme tiers) */
   .kn-badge[data-s="failed"] { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-soft-border); }
 
-  /* ---------- P5c-T2a · J(蓝本 :2250-2263,头注释原文 "settings: picker actions +
-     migrate modal")----------
-     K9:蓝本这一段是**顶层裸选择器**(不在 .knowledge-app 里),整段重新嵌套进
-     .knowledge-app —— 否则 ① 会泄漏到全站 ② 拿不到本作用域声明的 token。嵌套后段内
-     各条的相对优先级不变(每条各 +1 个类选择器)。
-     .kn-picked 在蓝本 :2251 与 :2252 两处规则(后者是 .kn-picked code),两处都搬。
-     ⚠️ .kn-badge(蓝本 :2031-2039)P5b-T2 已搬,就在上面,不重复定义。
-     蓝本 :2040-2249 与 :2264 起的其余 .kn-* 是 P5d 的,不搬。本段零色字面量。 */
+  /* ---------- P5c-T2a · J (base :2250-2263, header comment reads verbatim "settings: picker
+     actions + migrate modal") ----------
+     K9: this section is a **top-level bare selector** in the base (not inside
+     .knowledge-app) — the whole section is re-nested inside .knowledge-app, otherwise
+     ① it would leak site-wide and ② it couldn't reach the tokens declared in this scope.
+     After nesting, every rule inside keeps the same relative specificity (each gains +1
+     class selector).
+     .kn-picked has two rules in the base, :2251 and :2252 (the latter is .kn-picked code) — both are ported.
+     ⚠️ .kn-badge (base :2031-2039) was already ported by P5b-T2, right above; not redefined here.
+     base :2040-2249 and the remaining .kn-* from :2264 onward belong to P5d, not ported. Zero color literals in this section. */
   .kn-picked { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
   .kn-picked code { font-family: var(--font-mono); font-size: 11.5px; background: var(--bg-chip); padding: 2px 8px; border-radius: 6px; color: var(--text-primary); }
   .kn-pick-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -2382,25 +2531,30 @@
   .kn-checkline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-primary); cursor: pointer; user-select: none; }
   .kn-checkline input { width: 15px; height: 15px; accent-color: var(--danger); cursor: pointer; }
 
-  /* ---------- P5c-T2a · FolderBrowser(蓝本 src/components/common/FolderBrowser.vue:82-143
-     的 <style lang="scss" scoped> 全段)----------
-     🔴 这一段在蓝本里**不在 knowledge.scss 里**,而是组件自己的 scoped 样式块。本仓组件
-     零 <style> 块(承 P5a §5 / P5b §5),整段落进本档;蓝本靠 Vue2 scoped 隔离,搬进
-     全局 scss 后必须按 K9 自己收口 → 嵌进 .knowledge-app。依据:FolderBrowser 只在
-     .knowledge-app 下被用到(SettingsView.vue:80,以及 P5d 的 RootsView)。
-     🔴 蓝本这段的 var() 分两类,处置不同(治理 §12.1 已实测):
-       ① `var(--border, 回退值)` / `var(--bg-tertiary, 回退值)`(蓝本 :85 / :95 / :96)——
-          这两个 token 在 Vue2 的 src/ 下**零声明**,真实渲染的就是回退值 → 不保留这层壳,
-          按回退值的语义直接映射到本档 token(附录 B §B.5)。
-       ② 不带回退的 var(--text-primary) / -secondary / -tertiary / var(--danger)
-          (蓝本 :104 / :107 / :108 / :126 / :139 / :142)—— 在 Vue2 的 .knowledge-app 块里
-          有声明,真的解析成 knowledge 的值 → **同名 token 直接沿用,一个字都不改**。
-     另:蓝本 :100 / :121 两处 `background: transparent` 是 CSS 关键字不是配色,照抄。
-     取舍③(附录 B §B.7):蓝本 :106 与 :128 两处中性 hover 的 alpha 差 0.02,全仓没有
-     "两级中性 hover" token,同映 --line 是有意的。 */
+  /* ---------- P5c-T2a · FolderBrowser (base src/components/common/FolderBrowser.vue:82-143's
+     entire <style lang="scss" scoped> block) ----------
+     🔴 In the base, this section is **not in knowledge.scss** — it's the component's own
+     scoped style block. This repo's component has zero <style> blocks (carrying forward P5a
+     §5 / P5b §5), so the whole section lands in this file; the base relied on Vue2 scoped
+     isolation, and once moved into global scss it must be self-contained per K9 → nested
+     inside .knowledge-app. Rationale: FolderBrowser is only ever used under .knowledge-app
+     (SettingsView.vue:80, plus P5d's RootsView).
+     🔴 This section's var() calls in the base fall into two categories, handled differently
+     (governance §12.1 has verified this):
+       ① `var(--border, fallback)` / `var(--bg-tertiary, fallback)` (base :85 / :95 / :96) —
+          these two tokens have **zero declarations** anywhere under Vue2's src/, so what
+          actually renders is the fallback value → don't keep this wrapper layer, map the
+          fallback's semantic meaning directly onto this file's tokens (Appendix B §B.5).
+       ② var(--text-primary) / -secondary / -tertiary / var(--danger) without a fallback
+          (base :104 / :107 / :108 / :126 / :139 / :142) — these ARE declared inside Vue2's
+          .knowledge-app block, so they genuinely resolve to knowledge's values →
+          **carry the same-named token over unchanged, not a single character altered**.
+     Also: base :100 / :121's two `background: transparent` are CSS keywords, not colors, copied as-is.
+     Trade-off ③ (Appendix B §B.7): base :106 and :128's two neutral-hover alpha values differ
+     by 0.02; the repo has no "two-tier neutral hover" token, so mapping both to --line is intentional. */
   .fb {
     margin-top: 8px;
-    /* 蓝本 :85 是个无声明的 --border + 中性半透明回退值 → 盒子外描边,标准描边档 */
+    /* base :85 is an undeclared --border + a neutral semi-transparent fallback value → box outline, standard outline tier */
     border: 1px solid var(--line);
     border-radius: 8px;
     overflow: hidden;
@@ -2411,9 +2565,9 @@
     flex-wrap: wrap;
     gap: 2px;
     padding: 6px 8px;
-    /* 蓝本 :95 同上,回退值比 :85 的外描边更淡(0.18 < 0.25)→ 淡描边档,保持大小关系 */
+    /* base :95, same as above, but the fallback is lighter than :85's outline (0.18 < 0.25) → faint-outline tier, preserving the magnitude relationship */
     border-bottom: 1px solid var(--line-faint);
-    /* 蓝本 :96 是个无声明的 --bg-tertiary + 中性半透明回退值 → 下沉的工具条底 */
+    /* base :96 is an undeclared --bg-tertiary + a neutral semi-transparent fallback value → sunken toolbar background */
     background: var(--bg-sunken);
   }
   .fb-crumb {
@@ -2424,7 +2578,7 @@
     font-size: 12px;
     color: var(--text-secondary);
     cursor: pointer;
-    /* 蓝本 :106 中性加深 hover 裸值 → --line(取舍③) */
+    /* base :106 neutral-darkened hover literal → --line (trade-off ③) */
     &:hover { background: var(--line); }
     &[data-last="true"] { color: var(--text-primary); font-weight: 600; }
     & + &::before { content: '›'; margin-right: 6px; color: var(--text-tertiary); }
@@ -2447,7 +2601,7 @@
     font-size: 13px;
     color: var(--text-primary);
     cursor: pointer;
-    /* 蓝本 :128 中性加深 hover 裸值 → --line(取舍③,与 :106 同映一个 token) */
+    /* base :128 neutral-darkened hover literal → --line (trade-off ③, mapped to the same token as :106) */
     &:hover { background: var(--line); }
   }
   .fb-name {
@@ -2464,12 +2618,13 @@
   }
   .fb-err { color: var(--danger); font-style: normal; }
 
-  /* ---------- P5d-T2 · A(蓝本 :2029 / :2040-2045,"Knowledge Notes" 共享底座残余)----------
-     .kn-badge 五条(蓝本 :2031-2039)P5b-T2 已搬(现状 :1596-1607 起),不重复定义;本段只
-     补 :2029 的 .k-badge[data-tone="warn"] 与 :2040-2045 的 .kn-type-ic/.kn-src/.kn-tag
-     三个类。K9:蓝本原文是顶层裸选择器,重新嵌进 .knowledge-app。
-     色字面量:.kn-type-ic 前景纯白裸色 → var(--text-on-accent)(附录 B §B.1.2 定死 —— 与
-     下面 .kn-inbox-icon 同款:压在渐变实底上的纯白字)。 */
+  /* ---------- P5d-T2 · A (base :2029 / :2040-2045, remnants of "Knowledge Notes"' shared base) ----------
+     .kn-badge's five rules (base :2031-2039) were already ported by P5b-T2 (currently at
+     :1596-1607 onward), not redefined here; this section only fills in :2029's
+     .k-badge[data-tone="warn"] and :2040-2045's .kn-type-ic/.kn-src/.kn-tag three classes.
+     K9: the base has these as top-level bare selectors, re-nested inside .knowledge-app.
+     Color literal: .kn-type-ic's pure-light foreground literal → var(--text-on-accent)
+     (Appendix B §B.1.2 fixed this — same as .kn-inbox-icon below: pure-light text on a solid gradient background). */
   .k-badge[data-tone="warn"] { background: var(--warning); }
   .kn-type-ic {
     border-radius: 9px; display: grid; place-items: center;
@@ -2478,7 +2633,7 @@
   .kn-src { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-tertiary); }
   .kn-tag { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary); background: var(--bg-chip); border-radius: 999px; padding: 1px 8px; }
 
-  /* ---------- P5d-T2 · B(蓝本 :2047-2056,path strip —— 笔记即磁盘文件)---------- 零色字面量。 */
+  /* ---------- P5d-T2 · B (base :2047-2056, path strip — the note is really a disk file) ---------- Zero color literals in this section. */
   .kn-pathstrip {
     display: flex; align-items: center; gap: 8px; padding: 9px 14px;
     border-radius: var(--r-sm); background: var(--bg-sunken);
@@ -2488,18 +2643,18 @@
   .kn-pathstrip a { color: var(--accent); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 3px; margin-left: auto; white-space: nowrap; cursor: pointer; }
   .kn-pathstrip a:hover { text-decoration: underline; }
 
-  /* ---------- P5d-T2 · C(蓝本 :2057-2085,draft inbox)----------
-     色字面量(附录 B §B.2 逐处映射):
-       .kn-inbox 边框橙色半透明裸值 → --warning-soft-border(A-9);
-       .kn-inbox 底色渐变(两停点)→ --grad-inbox-wash(K39 新建,保留蓝本色相,裁定 R11);
-       .kn-inbox-icon 渐变(橙→黄两停点裸色)→ --grad-note-insight(K39 新建,与
-         notesViewHelpers.ts 的 NOTE_TYPES.insight 共用同一份,不许声明两份);
-       .kn-inbox-icon 前景纯白裸色 → --text-on-accent(§B.1.2);
-       .kn-inbox-icon 投影(橙色半透明裸值,box-shadow 里)→ --shadow-warning-glow
-         (K39 新建,整条 shadow 进 token,两档不同值);
-       .kn-inbox-rows / .kn-inbox-foot 的 border-top 橙色半透明裸值 → --warning-soft-border;
-       .kn-inbox-foot 底色橙色半透明裸值 → --warning-soft。
-     `dot` 等非 k* 辅助类见 NON_K_HELPER_CLASSES(下方 E 段)。 */
+  /* ---------- P5d-T2 · C (base :2057-2085, draft inbox) ----------
+     Color literals (Appendix B §B.2 item-by-item mapping):
+       .kn-inbox's border amber-toned semi-transparent literal → --warning-soft-border (A-9);
+       .kn-inbox's background gradient (two stops) → --grad-inbox-wash (newly created by K39, preserving the base's hue, ruling R11);
+       .kn-inbox-icon's gradient (amber→yellow, two color stops) → --grad-note-insight (newly
+         created by K39, shared with notesViewHelpers.ts's NOTE_TYPES.insight — must not be declared twice);
+       .kn-inbox-icon's pure-light foreground literal → --text-on-accent (§B.1.2);
+       .kn-inbox-icon's shadow (amber-toned semi-transparent literal, inside box-shadow) → --shadow-warning-glow
+         (newly created by K39, the whole shadow value becomes a token, different value per theme tier);
+       .kn-inbox-rows / .kn-inbox-foot's border-top amber-toned semi-transparent literal → --warning-soft-border;
+       .kn-inbox-foot's background amber-toned semi-transparent literal → --warning-soft.
+     `dot` and other non-k* helper classes are logged in NON_K_HELPER_CLASSES (section E below). */
   .kn-inbox {
     border-radius: var(--r-lg); border: 1px solid var(--warning-soft-border);
     background: var(--grad-inbox-wash), var(--bg-elevated);
@@ -2528,11 +2683,13 @@
   .kn-inbox-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--warning-soft-border); background: var(--warning-soft); }
   .kn-inbox-foot-hint { font-size: 11.5px; color: var(--text-tertiary); flex: 1; }
 
-  /* ---------- P5d-T2 · D(蓝本 :2086-2121,notes list)----------
-     色字面量:.kn-act[data-tone="confirm"] 底色绿色半透明裸值 → --success-soft;
-     :hover 底色 var(--success) 不变,前景纯白裸色 → --text-on-accent(压在 --success 实底上,
-     §B.1.2 三处之一);.kn-act[data-tone="danger"]:hover 底色红色半透明裸值
-     → --danger-soft。`sep` 等非 k* 辅助类见下方 NON_K_HELPER_CLASSES 说明。 */
+  /* ---------- P5d-T2 · D (base :2086-2121, notes list) ----------
+     Color literals: .kn-act[data-tone="confirm"]'s background success-toned semi-transparent
+     literal → --success-soft; the :hover background stays var(--success), and its pure-light
+     foreground literal → --text-on-accent (on top of --success's solid background, one of
+     three spots per §B.1.2); .kn-act[data-tone="danger"]:hover's background danger-toned
+     semi-transparent literal → --danger-soft. `sep` and other non-k* helper classes are
+     documented in NON_K_HELPER_CLASSES below. */
   .kn-notes-col { display: flex; flex-direction: column; gap: 14px; }
   .kn-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .kn-list { background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-xs); }
@@ -2568,15 +2725,18 @@
   .kn-list-foot { padding: 9px 16px; font-size: 11.5px; color: var(--text-tertiary); border-top: 1px solid var(--line-faint); background: var(--bg-sunken); display: flex; gap: 6px; align-items: center; }
   .kn-empty-filtered { padding: 44px 20px; text-align: center; color: var(--text-tertiary); font-size: 13px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
 
-  /* ---------- P5d-T2 · E(蓝本 :2122-2194,edit pane)----------
-     色字面量(附录 B):.kn-draftbar 边框橙色半透明裸值 → --warning-soft-border;
-     底色渐变(两停点)→ --grad-draftbar-wash(K39 新建,保留蓝本色相,裁定 R11)。
-     🔴 .kn-editor-body-wrap .nme-content .ProseMirror(蓝本 :2171-2182)与 K44 的顶层
-     .nme-content .ProseMirror(见本档 .knowledge-app 闭合处紧邻的那一段)是两条不同
-     选择器、互补生效(这条管标题/列表/表格,K44 那条管行内代码/代码块/引用)——
-     两份都要搬,不许合并(合并会把特异性从 (0,2,0) 变 (0,3,0),治理 §6.2 / K44)。
-     `dot`/`spacer`/`wide` 等非 k* 辅助类登记见 knowledgeStyles.test.ts 的
-     NON_K_HELPER_CLASSES(裁定 R8:10 → 16)。 */
+  /* ---------- P5d-T2 · E (base :2122-2194, edit pane) ----------
+     Color literals (Appendix B): .kn-draftbar's border amber-toned semi-transparent literal
+     → --warning-soft-border; its background gradient (two stops) → --grad-draftbar-wash
+     (newly created by K39, preserving the base's hue, ruling R11).
+     🔴 .kn-editor-body-wrap .nme-content .ProseMirror (base :2171-2182) and K44's top-level
+     .nme-content .ProseMirror (see the section right next to this file's .knowledge-app
+     closing brace) are two different selectors that work in tandem (this one governs
+     headings/lists/tables, K44's one governs inline code/code blocks/blockquotes) — both must
+     be ported, do not merge them (merging would change specificity from (0,2,0) to (0,3,0),
+     governance §6.2 / K44).
+     `dot`/`spacer`/`wide` and other non-k* helper classes are registered in
+     knowledgeStyles.test.ts's NON_K_HELPER_CLASSES (ruling R8: 10 → 16). */
   .kn-edit { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
   .kn-edit-top { display: flex; align-items: center; gap: 10px; grid-column: 1 / -1; flex-wrap: wrap; }
   .kn-edit-top .spacer { flex: 1; }
@@ -2649,8 +2809,8 @@
   }
   .kn-editor-status .spacer { flex: 1; }
 
-  /* ---------- P5d-T2 · F(蓝本 :2195-2241,edit aside)---------- 零色字面量。
-     `spacer`/`mono`/`lbl` 见 NON_K_HELPER_CLASSES。 */
+  /* ---------- P5d-T2 · F (base :2195-2241, edit aside) ---------- Zero color literals in this section.
+     `spacer`/`mono`/`lbl` are logged in NON_K_HELPER_CLASSES. */
   .kn-edit-aside { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   .kn-aside-card {
     background: var(--bg-elevated); border: 1px solid var(--line-faint);
@@ -2697,9 +2857,10 @@
     font-size: 12.5px; font-family: inherit; padding: 7px 9px;
   }
 
-  /* ---------- P5d-T2 · G(蓝本 :2242-2249,conflict modal,409)----------
-     色字面量:.kn-diff-pane[data-side="theirs"] 头底色蓝色半透明裸值 → --accent-soft;
-     .kn-diff-pane[data-side="mine"] 头底色橙色半透明裸值 → --warning-soft。 */
+  /* ---------- P5d-T2 · G (base :2242-2249, conflict modal, 409) ----------
+     Color literals: .kn-diff-pane[data-side="theirs"]'s header background accent-toned
+     semi-transparent literal → --accent-soft; .kn-diff-pane[data-side="mine"]'s header
+     background amber-toned semi-transparent literal → --warning-soft. */
   .kn-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .kn-diff-pane { border: 1px solid var(--line-faint); border-radius: var(--r-sm); overflow: hidden; min-width: 0; }
   .kn-diff-pane-head { font-size: 11px; font-weight: 600; padding: 6px 10px; display: flex; align-items: center; gap: 6px; }
@@ -2707,7 +2868,7 @@
   .kn-diff-pane[data-side="mine"] .kn-diff-pane-head { background: var(--warning-soft); color: var(--warning); }
   .kn-diff-body { font-family: var(--font-mono); font-size: 11px; line-height: 1.7; padding: 8px 10px; color: var(--text-secondary); max-height: 180px; overflow-y: auto; white-space: pre-wrap; }
 
-  /* ---------- P5d-T2 · H(蓝本 :2265-2281,responsive)---------- 零色字面量。 */
+  /* ---------- P5d-T2 · H (base :2265-2281, responsive) ---------- Zero color literals in this section. */
   @media (max-width: 980px) {
     .kn-edit { grid-template-columns: 1fr; }
     .kn-edit-aside { order: 2; }
@@ -2724,10 +2885,12 @@
     .kn-editor-toolbar { overflow-x: auto; flex-wrap: nowrap; }
   }
 
-  /* ---------- P5d-T2 · K43(蓝本 :551-571,.k-seg,21 行,零色字面量)----------
-     嵌在蓝本 Search page 段(:457-733)里,但不是搜索专用 —— 是 .knowledge-app 层级的
-     共享分段控件原语,NoteEditPane.vue 的"富文本/Markdown"双模式切换用它(裁定书 R1 依据)。
-     🔴 P5e 的 SearchView 也要用,本期搬完 P5e 不许重复搬(与 K45 同款交接纪律)。 */
+  /* ---------- P5d-T2 · K43 (base :551-571, .k-seg, 21 lines, zero color literals) ----------
+     Nested inside the base's Search page section (:457-733), but not search-exclusive — it's
+     a shared segmented-control primitive at the .knowledge-app level; NoteEditPane.vue's
+     "rich text / Markdown" mode toggle uses it (ruling R1's rationale).
+     🔴 P5e's SearchView will also need it — once P5e ports it, do not port it again (same
+     handoff discipline as K45). */
   .k-seg {
     display: inline-flex;
     background: var(--bg-chip);
@@ -2751,22 +2914,29 @@
   }
 }
 
-/* ---------- P5d-T2 · K44(治理 §6.2 的唯一顶层例外,裁定 R4)----------
-   蓝本 NotesMarkdownEditor.vue:41-46(<style lang="scss"> 全段)—— 非 scoped 的全局规则,
-   对**任何** .nme-content 生效;若嵌进 .knowledge-app 会缩小作用域 = 改变行为,故保持
-   顶层裸选择器,不按 K9 处理。与上面 .kn-editor-body-wrap .nme-content .ProseMirror
-   (蓝本 :2171-2182,E 段)是两条不同选择器、互补生效(那条管标题/列表/表格,这条管
-   行内代码/代码块/引用)—— 两份都要搬,不许合并(合并会把特异性从 (0,2,0) 变 (0,3,0))。
-   色字面量:code 底色中性灰半透明裸值 → --bg-chip(强先例:.kn-pathstrip code /
-   .kn-tag 已用同一映射);pre 底色近黑裸色 → --code-block-bg(K39 新建,两档同值);
-   pre 前景纯白裸色 → --code-block-fg(K39 新建,两档同值);blockquote 左边框
-   近黑半透明裸值 → --line-strong(A11 同族,引用条要可见,--line 太淡)。
-   `nme-content`/`ProseMirror` 是本档仅有的非 k 前缀、非 fb 前缀正经类(第三方
-   ProseMirror 生成 + 蓝本内部 wrapper),走 knowledgeStyles.test.ts 的 nonKClassNames
-   排除条件,不进 NON_K_HELPER_CLASSES 登记表、但进 WHITELIST_293(R9,治理 §9.6)。
-   🔴 断言口径(裁定 R4,附录 D §D.2.2):knowledgeStyles.test.ts 要求「顶层裸选择器
-   (排除 .knowledge-app 系与 :root 系与 @ 开头的)恰好只有 .nme-content .ProseMirror
-   这一条」—— 本条是新建断言,现状文件里压根没有,不是修改既有断言。 */
+/* ---------- P5d-T2 · K44 (governance §6.2's only top-level exception, ruling R4) ----------
+   base NotesMarkdownEditor.vue:41-46 (the whole <style lang="scss"> block) — non-scoped global
+   rules that apply to **any** .nme-content; nesting it inside .knowledge-app would narrow the
+   scope = change the behavior, so it stays a top-level bare selector, not handled per K9. It's
+   a different selector from .kn-editor-body-wrap .nme-content .ProseMirror above (base
+   :2171-2182, section E) that works in tandem with it (that one governs headings/lists/tables,
+   this one governs inline code/code blocks/blockquotes) — both must be ported, do not merge
+   them (merging would change specificity from (0,2,0) to (0,3,0)).
+   Color literals: code's background neutral-toned semi-transparent literal → --bg-chip (strong
+   precedent: .kn-pathstrip code / .kn-tag already use the same mapping); pre's near-dark
+   background literal → --code-block-bg (newly created by K39, same value in both theme tiers);
+   pre's pure-light foreground literal → --code-block-fg (newly created by K39, same value in
+   both theme tiers); blockquote's left border near-dark semi-transparent literal →
+   --line-strong (same family as A11 — the quote bar needs to be visible, --line is too faint).
+   `nme-content`/`ProseMirror` are the only non-k-prefixed, non-fb-prefixed legitimate classes
+   in this file (third-party ProseMirror output + the base's internal wrapper), covered by
+   knowledgeStyles.test.ts's nonKClassNames exclusion condition — not logged in the
+   NON_K_HELPER_CLASSES table, but included in WHITELIST_293 (R9, governance §9.6).
+   🔴 Assertion scope (ruling R4, Appendix D §D.2.2): knowledgeStyles.test.ts requires that
+   "top-level bare selectors (excluding the .knowledge-app family, the :root family, and
+   anything starting with @) be exactly .nme-content .ProseMirror and nothing else" — this is a
+   newly created assertion; the file as it stood had none at all, so this is not a modification
+   of an existing assertion. */
 .nme-content .ProseMirror {
   min-height: 260px; outline: none; line-height: 1.6;
   code { background: var(--bg-chip); border-radius: 3px; padding: 1px 4px; }
@@ -2774,10 +2944,11 @@
   blockquote { border-left: 2px solid var(--line-strong); padding-left: 12px; }
 }
 
-/* ===== Keyframes(蓝本 knowledge.scss:1510-1539,必须是顶层全局,不能嵌进
- * .knowledge-app —— 蓝本模板里 `animation: k-pulse …` 这类引用不会带作用域前缀）=====
- * k2pulse/k2spin(蓝本 :2440-2441)只被 D.2 的 k2-chip/k2-live-ico(T11 仪表盘批次)
- * 引用,本批不用,留给 T11 落地时一并补上。 */
+/* ===== Keyframes (base knowledge.scss:1510-1539, must stay top-level global, cannot be nested
+ * inside .knowledge-app — references like `animation: k-pulse …` in the base's template don't
+ * carry a scope prefix) =====
+ * k2pulse/k2spin (base :2440-2441) are only referenced by D.2's k2-chip/k2-live-ico (T11's
+ * dashboard batch); not used by this batch, left for T11 to add when it lands. */
 @keyframes k-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
@@ -2807,62 +2978,74 @@
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* 【P5b-T6】蓝本 knowledge.scss:1844-1847 —— 只被 S8 段的 .k-frow-f[data-done="true"]
- * 引用("这一行刚重建完"的一次性高亮回落)。蓝本里它夹在 :1841-1849 中间,本档按与
- * 上方 T4 keyframes、下方 T11 的 k2pulse/k2spin 完全相同的既定惯例挪到顶层全局
- * keyframes 区:scss 里嵌进选择器的 @keyframes 会跟着作用域走,而模板里的
- * `animation: row-done …` 引用不带任何作用域前缀。
- * 蓝本 :1845 的起始底色是一处成功色半透明裸值 → var(--success-soft)(两档已有);
- * :1846 的 `transparent` 是 CSS 关键字不是配色,照抄(附录 B §B.3 既定口径)。 */
+/* [P5b-T6] base knowledge.scss:1844-1847 — only referenced by the S8 section's
+ * .k-frow-f[data-done="true"] (a one-shot highlight-fade for "this row just finished rebuilding").
+ * In the base it sits sandwiched inside :1841-1849; this file moves it to the top-level global
+ * keyframes area, per the exact same established convention as the T4 keyframes above and
+ * T11's k2pulse/k2spin below: an @keyframes nested inside a selector in scss would follow that
+ * scope, while the template's `animation: row-done …` reference carries no scope prefix at all.
+ * base :1845's starting background is a success-toned semi-transparent literal →
+ * var(--success-soft) (already present in both theme tiers); :1846's `transparent` is a CSS
+ * keyword, not a color, copied as-is (Appendix B §B.3's established convention). */
 @keyframes row-done {
   0% { background: var(--success-soft); }
   100% { background: transparent; }
 }
 
-/* 【P5e-T2】蓝本 knowledge.scss:1541-1545 的两个 @keyframes —— 蓝本自己就写在顶层
- * (在 `.knowledge-app { … }` 那个 :1547-1673 块**之前**),本档按与上面 T4/T11/T6 三批
- * 完全相同的既定惯例放进这个顶层全局 keyframes 区:scss 里嵌进选择器的 @keyframes 会
- * 跟着作用域走,而规则里的 `animation: k-drawer-fade …` / `k-drawer-in …` 引用不带任何
- * 作用域前缀。不搬则 animation-name 悬空 = 抽屉静默无入场动画(而「animation 引用与
- * @keyframes 声明一一对应」那条断言会精确报红)。两段零色字面量。 */
+/* [P5e-T2] base knowledge.scss:1541-1545's two @keyframes — the base itself writes them at the
+ * top level (**before** the `.knowledge-app { … }` block at :1547-1673); this file places them
+ * in this top-level global keyframes area, per the exact same established convention as the
+ * T4/T11/T6 batches above: an @keyframes nested inside a selector in scss would follow that
+ * scope, while the rule's `animation: k-drawer-fade …` / `k-drawer-in …` references carry no
+ * scope prefix at all. Skipping the port would leave the animation-name dangling = the drawer
+ * would silently have no entrance animation (and the "animation references and @keyframes
+ * declarations correspond one-to-one" assertion would fail precisely on this). Both blocks have
+ * zero color literals. */
 @keyframes k-drawer-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes k-drawer-in {
   from { transform: translateX(40px); opacity: 0.6; }
   to   { transform: translateX(0); opacity: 1; }
 }
 
-/* ===== P5e-T2 · S5 + S6 —— 1:1 移植自蓝本 knowledge.scss:1547-1673 那个**顶层
- * `.knowledge-app { … }` 块**(「文件聚合搜索:match pill + detail drawer」)=====
- * 🔴 原样保留蓝本那一层 `.knowledge-app` 包裹(K9 / K44:不新增任何顶层裸选择器 ——
- * `bareTopLevelSelectors()` 那条集合相等断言仍是 ['.nme-content .ProseMirror'] 一条,
- * 一字未改)。位置照蓝本相对序:在顶层 keyframes 区之后、Dashboard v2 段(蓝本
- * :2282-2452)之前。
+/* ===== P5e-T2 · S5 + S6 — ported 1:1 from the base knowledge.scss:1547-1673's **top-level
+ * `.knowledge-app { … }` block** ("file aggregate search: match pill + detail drawer") =====
+ * 🔴 The base's `.knowledge-app` wrapping is kept as-is (K9 / K44: no new top-level bare
+ * selector is introduced — `bareTopLevelSelectors()`'s set-equality assertion still reads
+ * exactly ['.nme-content .ProseMirror'], unchanged). Placed following the base's relative
+ * ordering: after the top-level keyframes area, before the Dashboard v2 section (base
+ * :2282-2452).
  *
- * 🔴 **跳过蓝本 :1564-1570 那 7 行**(附录 D §D.2 末尾):
- *   · :1564-1568 的 `.k-btn.outline` + hover 是蓝本自己的**重复段**(它在 :831 也有一份),
- *     本档 .k-btn 块内的 `&.outline` 已由 P5a 搬入且与之逐字等价 → 重复搬会污染 .k-btn 块;
- *   · :1569-1570 的 `.k-btn.text` + hover 是 **K45(P5d-T2 已搬)**,重复搬会让
- *     「.k-btn 块内 &.text 恰好 2 次」那条计数断言报红 —— **那是有意的**。
+ * 🔴 **Skip the base's :1564-1570, 7 lines** (end of Appendix D §D.2):
+ *   · :1564-1568's `.k-btn.outline` + hover is the base's own **duplicate section** (it also
+ *     has a copy at :831); this file's .k-btn block's `&.outline` was already ported by P5a and
+ *     is verbatim-equivalent → porting it again would pollute the .k-btn block;
+ *   · :1569-1570's `.k-btn.text` + hover is **K45 (already ported by P5d-T2)**; porting it
+ *     again would fail the "&.text appears exactly 2 times inside the .k-btn block" count
+ *     assertion — **that's intentional**.
  *
- * 配色(附录 B §B.0 逐处映射):
- *   · :1574 .k-drawer-bg 冷调半透明遮罩裸值 → --modal-scrim。先例逐字同款 = 本档
- *     .k-modal-bg 处的注释「蓝本 :1298 冷调半透明遮罩裸值 → --modal-scrim(P5a 已在两档
- *     声明)」,同一个决定、已过评审。
- *   · :1582 .k-drawer 方向性投影 → --shadow-drawer(本刀新建整值 token,见声明处注释)
- *   · :1660 .k-chunk-content mark 正文高亮底色 → --mark-hl-bg(本刀新建,见声明处注释)
- *   · ⚠️ :1645 `.k-chunk-item-preview mark` 蓝本用的就是 token,**原样照抄、不许一起改**
- *     (附录 D §D.6 明令,与 :653 那条同理)
+ * Colors (Appendix B §B.0 item-by-item mapping):
+ *   · :1574 .k-drawer-bg's cool-toned semi-transparent overlay literal → --modal-scrim. Exact
+ *     same precedent as this file's .k-modal-bg comment, "base :1298 cool-toned semi-transparent
+ *     overlay literal → --modal-scrim (already declared in both theme tiers by P5a)" — same decision, already reviewed.
+ *   · :1582 .k-drawer's directional shadow → --shadow-drawer (a whole-value token newly created
+ *     for this cut, see the comment at its declaration)
+ *   · :1660 .k-chunk-content mark's body highlight background → --mark-hl-bg (newly created for
+ *     this cut, see the comment at its declaration)
+ *   · ⚠️ :1645 `.k-chunk-item-preview mark` already uses a token in the base — **copied as-is, must not be changed alongside the rest**
+ *     (mandated by Appendix D §D.6, same reasoning as the :653 spot)
  *
- * z-index 相对关系(K46 要求登记,附录 B §B.4.1):`.k-drawer-bg` = 1050 <
- * `.k-fileviewer-host` = 1100(蓝本 KFileViewer.vue:74 的行尾注释原文就指名 1050),
- * 两个数字原样搬。`.k-modal-bg` 也是 1100 —— 🔴 蓝本(:1302)与本档(既有)都是 1100,
- * **与 host 并列是蓝本原生行为、不是本期引入**(裁定 R3.1-M3:K46 无需任何决定,照搬即可)。
+ * z-index relative ordering (K46 requires this be logged, Appendix B §B.4.1): `.k-drawer-bg` =
+ * 1050 < `.k-fileviewer-host` = 1100 (the base's KFileViewer.vue:74 trailing comment names 1050
+ * verbatim), both numbers ported as-is. `.k-modal-bg` is also 1100 — 🔴 both the base (:1302)
+ * and this file (existing) are 1100; **being tied with host is the base's native behavior, not
+ * something introduced this period** (ruling R3.1-M3: K46 requires no decision here, just port it as-is).
  *
- * @media (max-width: 720px)(蓝本 :1666-1672)嵌在本块内,照蓝本原位保留 —— 它是本块
- * 自己的 5 条移动端覆盖,不并进上方 T4/T6 那个既有 @media 块(那个块在文件另一处、
- * 属另一批次,合并会打乱两批的可追溯性)。 */
+ * The `@media (max-width: 720px)` (base :1666-1672) is nested inside this block, kept at its
+ * original position per the base — it's this block's own 5 mobile overrides, not merged into
+ * the existing `@media` block from T4/T6 above (that block lives elsewhere in the file and
+ * belongs to a different batch; merging would scramble both batches' traceability). */
 .knowledge-app {
-  /* ---------- S5(蓝本 :1548-1562)---------- */
+  /* ---------- S5 (base :1548-1562) ---------- */
   .k-match-pill {
     display: inline-flex; align-items: center; gap: 4px;
     padding: 2px 8px;
@@ -2879,10 +3062,10 @@
   .k-more-hint .chev { transform: rotate(-90deg); }
   .k-rcard:hover .k-more-hint { text-decoration: underline; }
 
-  /* ---------- S6(蓝本 :1572-1672)---------- */
+  /* ---------- S6 (base :1572-1672) ---------- */
   .k-drawer-bg {
     position: fixed; inset: 0;
-    background: var(--modal-scrim); /* 蓝本 :1574 冷调半透明遮罩裸值 → token,见段首注释 */
+    background: var(--modal-scrim); /* base :1574 cool-toned semi-transparent overlay literal → token, see the section-header comment */
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     display: flex; justify-content: flex-end;
     z-index: 1050; animation: k-drawer-fade 180ms ease;
@@ -2890,7 +3073,7 @@
   .k-drawer {
     width: min(860px, 90vw); height: 100%;
     background: var(--bg-canvas); border-left: 1px solid var(--line);
-    box-shadow: var(--shadow-drawer); /* 蓝本 :1582 方向性投影 → 本刀新建整值 token */
+    box-shadow: var(--shadow-drawer); /* base :1582 directional shadow → whole-value token newly created for this cut */
     display: flex; flex-direction: column;
     animation: k-drawer-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
     overflow: hidden;
@@ -2968,7 +3151,7 @@
     flex: 1; overflow-y: auto; padding: 24px 28px; font-size: 15px; line-height: 1.7;
     color: var(--text-primary); background: var(--bg-canvas); white-space: pre-wrap;
   }
-  /* 蓝本 :1660 正文高亮底色裸值 → 本刀新建 token(见声明处注释);`color: inherit` 照抄 */
+  /* base :1660 body highlight background literal → token newly created for this cut (see the declaration comment); `color: inherit` copied as-is */
   .k-chunk-content mark { background: var(--mark-hl-bg); color: inherit; padding: 1px 2px; border-radius: 3px; font-weight: 600; }
   .k-chunk-viewer-foot {
     padding: 10px 20px; border-top: 1px solid var(--line-faint);
@@ -2983,41 +3166,48 @@
     .k-drawer-actions { width: 100%; }
   }
 
-  /* ---------- P5e-T2 · KF —— 蓝本 KFileViewer.vue 的 `<style lang="scss" scoped>` ----------
-     搬运范围 = **`:71-76` + `:102-119`**(裁定 R3.1 / M-1 订正:附录 B §B.4 / D §D.2 正文
-     原写的 `:103-119` 会丢掉 `:102` 那个 `}`,`.k-fileviewer-host` 不闭合)。
-     🔴 **K44**:落进 knowledge.scss 的 `.knowledge-app` 块内,`.vue` 侧零 `<style>` 块
-     (T4 建 KFileViewer.vue 时不写 style)。scoped → 全局作用域的降级由 `.knowledge-app`
-     祖先兜住(host 只在知识库搜索区渲染)。
+  /* ---------- P5e-T2 · KF — the base KFileViewer.vue's `<style lang="scss" scoped>` ----------
+     Port range = **`:71-76` + `:102-119`** (ruling R3.1 / correction M-1: Appendix B §B.4 /
+     D §D.2's body originally said `:103-119`, which would drop `:102`'s closing `}` and leave
+     `.k-fileviewer-host` unclosed).
+     🔴 **K44**: lands inside knowledge.scss's `.knowledge-app` block; the `.vue` side has zero
+     `<style>` blocks (T4 didn't write a style block when it created KFileViewer.vue). The
+     downgrade from scoped to global scope is contained by the `.knowledge-app` ancestor (the
+     host only ever renders in the knowledge-search area).
 
-     🔴 **K46 —— 蓝本 `:77-101` 的三条 `::v-deep`(`.overlay` / `.v-container` /
-     `.doc-container`)整段不搬**,含 `:84` 的一处色字面量。理由(治理 §2 第 2 条):
-     那三条是补 **Vue2** viewer 依赖 `.file-panel .modal-card .overlay` 祖先链的补丁,
-     而本仓 `DocViewer.vue` / `ExcelViewer.vue` **自身模板零那三个类**、各自内含
-     `ViewerShell`,`.overlay` 已由 `ViewerShell.vue:23-29` 的 scoped 规则自带
-     (`position: absolute; inset: 0; z-index: 200; overflow: hidden; display: flex;
-     flex-direction: column` —— 正是那条 `::v-deep .overlay` 想补的东西)⇒ 照搬 =
-     **复制一个本仓不存在的问题的补丁**。配了一条「这三个类名在本档零出现」的断言。
-     ⚠️ 诚实登记:`.overlay` **不是全仓零命中**(`ViewerShell.vue:9` 会吐 `<div
-     class="overlay">`)—— 但这不削弱 K46,反而加强它:补丁纯属重复。
+     🔴 **K46 — the base's `:77-101`, three `::v-deep` rules (`.overlay` / `.v-container` /
+     `.doc-container`), the whole block is not ported**, including one color literal at `:84`.
+     Rationale (governance §2, item 2): those three rules are a patch for the **Vue2** viewer's
+     dependency on the `.file-panel .modal-card .overlay` ancestor chain, whereas this repo's
+     `DocViewer.vue` / `ExcelViewer.vue` **have zero occurrences of those three classes in their
+     own templates** — each wraps a `ViewerShell`, and `.overlay` already comes bundled with
+     `ViewerShell.vue:23-29`'s scoped rule (`position: absolute; inset: 0; z-index: 200;
+     overflow: hidden; display: flex; flex-direction: column` — exactly what that
+     `::v-deep .overlay` was trying to patch in) ⇒ porting it would be **copying a patch for a
+     problem this repo doesn't have**. An assertion is set up requiring "these three class names
+     have zero occurrences in this file."
+     ⚠️ Honest disclosure: `.overlay` is **not zero-hit repo-wide** (`ViewerShell.vue:9` does
+     emit a `<div class="overlay">`) — but this doesn't weaken K46, it reinforces it: the patch is pure duplication.
 
-     🔴 **反过来**:`position: fixed` + `inset: 0` + `z-index: 1100` 三个属性**必须原样
-     保留**,三条独立断言各钉一个(拿掉任一 → 报红)。依据 `ViewerShell.vue:24` 是
-     `position: absolute; inset: 0; z-index: 200` ⇒ 它**需要一个铺满视口的定位祖先**;
-     拿掉 host 的 `fixed` 会让预览器**塌进文档流**。这是本期最容易「顺手清理」出真 bug
-     的一处(治理 §2 第 2 条原文)。
-     ⚠️ `fixed` 相对视口定位、与祖先无关,除非祖先链上有 transform/filter/will-change
-     造成 containing block —— 附录 D §D.8 把这项实测派给 T4。
+     🔴 **Conversely**: `position: fixed` + `inset: 0` + `z-index: 1100`, all three properties
+     **must be kept exactly as-is**, each pinned by its own independent assertion (removing any
+     one → fails). Rationale: `ViewerShell.vue:24` is `position: absolute; inset: 0; z-index:
+     200` ⇒ it **needs a positioned ancestor that fills the viewport**; removing the host's
+     `fixed` would let the viewer **collapse into the document flow**. This is the spot in this
+     period most likely to have a real bug introduced by "opportunistic cleanup" (governance §2 item 2, verbatim).
+     ⚠️ `fixed` positions relative to the viewport regardless of ancestors, unless something in
+     the ancestor chain (transform/filter/will-change) creates a containing block — Appendix D
+     §D.8 assigns this verification item to T4.
 
-     配色:`:75` 的一处底色裸值 → `var(--bg-canvas)`(**K47**)。依据:蓝本自己的兄弟
-     规则 `:106` `.k-fileviewer-fallback` 用的就是 `var(--bg-canvas)`,host 与 fallback 是
-     同一个全屏面的两层;蓝本给 host 写死那个值只是浅色单档假设。`:104-118` 两条本来就
-     全是 token,零字面量。 */
+     Color: `:75`'s background literal → `var(--bg-canvas)` (**K47**). Rationale: the base's own
+     sibling rule `:106` `.k-fileviewer-fallback` uses `var(--bg-canvas)`; host and fallback are
+     two layers of the same full-screen surface. The base hard-coding that value for host was
+     just a light-theme-only assumption. `:104-118`'s two rules were already all tokens, zero literals. */
   .k-fileviewer-host {
     position: fixed;
     inset: 0;
-    z-index: 1100; /* 蓝本 KFileViewer.vue:74 —— 压在详情抽屉(.k-drawer-bg 的 1050)之上 */
-    background: var(--bg-canvas); /* 蓝本 :75 底色裸值 → token(K47),见段首注释 */
+    z-index: 1100; /* base KFileViewer.vue:74 — sits above the detail drawer (.k-drawer-bg's 1050) */
+    background: var(--bg-canvas); /* base :75 background literal → token (K47), see the section-header comment */
   }
   .k-fileviewer-fallback {
     position: absolute;
@@ -3038,54 +3228,69 @@
   }
 }
 
-/* ===== Dashboard v2 · 三层聚合仪表盘(T11)—— 1:1 移植自蓝本 knowledge.scss:2282-2452。
- * 白名单判据见附录 D.2(64 个新类:63 个 k2-* + k-suggest-chip;协调者原文说
- * "64 个 k2-* + k-suggest-chip=65"是笔误,已用 `sed -n 2282,2452p 蓝本 | grep -oE
- * '\.k2?-[a-z0-9-]+' | sort -u` 与附录 D.2 文本各自去重核对,两者都精确是 64 个,详见报告)。
- * --ly-wiki/-vec/-note 三组 token 已在 T4 的两个声明块里落好(两档皆有),本段只写规则,
- * 不重复声明。
+/* ===== Dashboard v2 · three-tier aggregate dashboard (T11) — ported 1:1 from the base
+ * knowledge.scss:2282-2452. Allowlist criterion is in Appendix D.2 (64 new classes: 63 k2-* +
+ * k-suggest-chip; the coordinator's original text saying "64 k2-* + k-suggest-chip = 65" was a
+ * typo — verified independently with `sed -n 2282,2452p base | grep -oE '\.k2?-[a-z0-9-]+' |
+ * sort -u` against the deduped Appendix D.2 text, both come out to exactly 64, see the report
+ * for details). The --ly-wiki/-vec/-note three token groups already landed in T4's two
+ * declaration blocks (both theme tiers), this section only writes rules, not redeclared.
  *
- * 【偏离 K2 —— 折叠蓝本的 [data-theme="dark"] 覆写块】蓝本这段末尾(:2443-2452)有一个
- * `[data-theme="dark"] .knowledge-app { ... }` 覆写块,内含:
- *   ① --ly-* 三组 token 的暗色重复声明 —— T4 已经在本档暗色声明块里给过,不重复。
- *   ② `.k2-chip[data-tone="live"/"warn"]` 的文字色覆写(蓝本 :2350/:2352 是浅色档的
- *      成功态绿/警告态橙 oklch 字面值,:2449/:2450 是暗色档同色相但明度更亮的 oklch
- *      字面值)—— 这两组数值本质就是"成功态绿"与"警告态橙"在浅/暗两档各自的明度调整,
- *      与本档已声明的 --success/--warning 两档取值(浅档偏深、暗档偏亮)是同一个"两档
- *      各给一份同色系不同明度"的语义,复用这两个既有 token(而非新增),下方对应规则
- *      处有逐条行尾注释说明取舍。
- *   ③ `.k2-ob-layer .k2-tag` 的背景覆写(蓝本 :2416 基础值是半透明白色蒙版,:2451
- *      暗色覆写是半透明黑色蒙版)—— 按 K2 拆成本仓的暗/浅二档
- *      写法(选择器改 `.knowledge-app` / `:root[data-theme="light"] .knowledge-app`,
- *      不留 `[data-theme="dark"]` 祖先选择器),规则内联在下方 .k2-ob-layer 分组里、
- *      浅色档那一半单独写在本文件末尾(因为浅色档没有另一个可续写的 `.knowledge-app`
- *      规则块可插入,新起一个选择器块)。这两个值都不在附录 B 的裸色对照表里,也不是
- *      "同色系不同明度"能直接复用既有色相 token 的情形(纯白/纯黑蒙版,和三层身份色/
- *      success/warning 都不同源)——改用 `color-mix()` 从已声明的同色 token 派生对应
- *      透明度,不新增自定义属性、不写死字面量,手法与 T4 的 .k-empty-illust 高光同款
- *      (见文件上方 T4 shell 段落对应注释)。
+ * [Deviation K2 — folding the base's [data-theme="dark"] override block] The base's section
+ * ends (:2443-2452) with a `[data-theme="dark"] .knowledge-app { ... }` override block, containing:
+ *   ① Dark-theme redeclarations of the --ly-* three token groups — T4 already provided these in
+ *      this file's dark-theme declaration block, not redeclared.
+ *   ② `.k2-chip[data-tone="live"/"warn"]`'s text-color override (base :2350/:2352 are the
+ *      light-theme's success-toned / warning-toned amber oklch literals, :2449/:2450 are
+ *      the dark-theme's same-hue but brighter oklch literals) — these two value sets are, at
+ *      root, just the light/dark lightness adjustment of the success tone and the warning tone
+ *      respectively, the same semantic as this file's already-declared --success/--warning
+ *      per-theme values (darker in light theme, brighter in dark theme): "each theme tier gets
+ *      one value at a different lightness, same hue." These two existing tokens are reused
+ *      (rather than adding new ones); the corresponding rules below have line-end comments
+ *      explaining the trade-off for each.
+ *   ③ `.k2-ob-layer .k2-tag`'s background override (base :2416's base value is a semi-transparent
+ *      light-toned overlay, :2451's dark-theme override is a semi-transparent dark-toned overlay)
+ *      — per K2, split into this repo's dark/light two-tier form (selector changed to
+ *      `.knowledge-app` / `:root[data-theme="light"] .knowledge-app`, no `[data-theme="dark"]`
+ *      ancestor selector kept). The rule is inlined in the .k2-ob-layer group below; the
+ *      light-theme half is written separately at the end of this file (because the light theme
+ *      has no other `.knowledge-app` rule block to continue into — a new selector block is
+ *      started). Neither value is in Appendix B's bare-color lookup table, nor is either case
+ *      of "same hue family, different lightness" where an existing hue token can be directly
+ *      reused (pure-light/pure-dark overlays share no origin with the three-tier identity
+ *      colors or success/warning) — `color-mix()` is used instead to derive the matching
+ *      opacity from an already-declared same-color token, without adding a custom property or
+ *      hard-coding a literal, the same technique as T4's .k-empty-illust highlight (see the
+ *      corresponding comment in the T4 shell section above).
  *
- * 【R2(T11 追加)】本段新用到 2 个不在 T4 4 个之列的 *-soft 家族 token:
- *   --danger-soft-border(k2-qchip[data-tone=danger] 的 hover 强化态,蓝本 :2384 的
- *   红色半透明背景裸值落在附录 B「0.2x~0.3x → danger-soft-border」桶)、
- *   --modal-scrim(k2-ob-layer .k2-tag 暗色蒙版的 color-mix 派生源,见上条③)。
- *   已在两个声明块里补齐(见文件上方),取值抄自 tokens.scss 对应主题块行号见那两处
- *   行尾注释。已同步扩 knowledgeStyles.test.ts 的 R2 断言(4→6 个)。
- *   附录 B 表里另外 4 个候选(--success-soft-border/--purple-soft/--danger-soft-faint/
- *   --teal-soft)逐行核对蓝本 :2282-2452 后确认本段未使用,未声明(不声明用不到的
- *   token,避免"发明"之外的另一种噪音)。
- *   【P5b-T2 补注】"本段未使用"这句仍然成立;但其中 --success-soft-border 与
- *   --danger-soft-faint 已被 P5b-T2 的共享底座段用到,故现在两档都有声明了(见文件
- *   上方"R2(P5b-T2 追加)"分组),R2 断言随之 6→9 个。--purple-soft 归 T6、
- *   --teal-soft 至今无人使用,仍未声明。
+ * [R2 (T11 addendum)] This section newly uses 2 *-soft family tokens outside T4's set of 4:
+ *   --danger-soft-border (k2-qchip[data-tone=danger]'s hover-intensified state; the base
+ *   :2384's danger-toned semi-transparent background literal lands in Appendix B's
+ *   "0.2x~0.3x → danger-soft-border" bucket), --modal-scrim (the color-mix derivation source
+ *   for k2-ob-layer .k2-tag's dark-theme overlay, see item ③ above).
+ *   Both have been filled in in the two declaration blocks (see above in the file); values are
+ *   copied from tokens.scss's corresponding theme-block line numbers, noted in the line-end
+ *   comments at those two spots. knowledgeStyles.test.ts's R2 assertion has been expanded in
+ *   sync (4→6 tokens).
+ *   The other 4 candidates in Appendix B's table (--success-soft-border/--purple-soft/
+ *   --danger-soft-faint/--teal-soft) were checked line-by-line against the base :2282-2452 and
+ *   confirmed unused in this section, so not declared (don't declare tokens that won't be used —
+ *   avoid a different kind of noise than "inventing" tokens).
+ *   [P5b-T2 addendum] The "unused in this section" statement above still holds; but of those,
+ *   --success-soft-border and --danger-soft-faint have since been used by P5b-T2's shared-base
+ *   section, so both theme tiers now have declarations for them (see the "R2 (P5b-T2 addendum)"
+ *   group above in the file), and the R2 assertion count grew accordingly, 6→9. --purple-soft
+ *   belongs to T6, and --teal-soft remains unused by anyone so far, still not declared.
  *
- * 【附录 D.3 属性态核对,与协调者给的清单有一处出入,已按蓝本为准】蓝本 :2378
- * `.k2-cc button` 的按下态实际选择器是 `[data-on="true"]`,不是协调者附录 D.3 里写的
- * `[data-active]`(附录与蓝本冲突,按治理文件 §11/公共约束"以蓝本为准"处理,照
- * `data-on` 搬,未新造 `data-active`)。其余四组属性态(`[data-tone]` on k2-chip/
- * k2-entry-ico/k2-entry-badge/k2-qchip、`[data-layer]` wiki/vec/note 三色 on k2-layer/
- * k2-ob-layer、`[data-disabled]` on k2-entry、`[data-ok]` on k2-live-ico)与蓝本逐字
- * 一致,原样搬。
+ * [Appendix D.3's attribute-state check has one discrepancy against the coordinator's list;
+ * resolved in the base's favor] The base :2378's `.k2-cc button` pressed state's actual selector
+ * is `[data-on="true"]`, not `[data-active]` as written in the coordinator's Appendix D.3 (the
+ * appendix conflicts with the base; per the governance doc §11 / the common rule "the base
+ * wins," ported per `data-on`, `data-active` was not newly invented). The other four
+ * attribute-state groups (`[data-tone]` on k2-chip/k2-entry-ico/k2-entry-badge/k2-qchip,
+ * `[data-layer]`'s three colors wiki/vec/note on k2-layer/k2-ob-layer, `[data-disabled]` on
+ * k2-entry, `[data-ok]` on k2-live-ico) match the base verbatim, ported as-is.
  */
 .knowledge-app {
   .k2-suggest .k-suggest-chip { white-space: nowrap; }
@@ -3147,13 +3352,15 @@
   .k2-root-badges { display: flex; flex-wrap: wrap; gap: 6px; }
   .k2-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg-chip); color: var(--text-secondary); }
   .k2-chip i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-quaternary); flex-shrink: 0; }
-  /* 蓝本 :2350/:2449 —— live 色相文本复用既有 --success/--success-soft(见文件顶部
-     偏离说明②),背景是绿色半透明裸值,RGB 三元组就是 --success 自身的颜色,精确
-     落在附录 B 的 success-soft 映射桶。 */
+  /* base :2350/:2449 — the live-tone text reuses the existing --success/--success-soft (see
+     item ② of the deviation note at the top of the file); the background is a success-toned
+     semi-transparent literal whose RGB triple is exactly --success's own color, landing
+     precisely in Appendix B's success-soft mapping bucket. */
   .k2-chip[data-tone="live"] { background: var(--success-soft); color: var(--success); }
   .k2-chip[data-tone="live"] i { background: var(--success); animation: k2pulse 2s ease infinite; }
-  /* 蓝本 :2352/:2450 —— warn 色相文本同理复用 --warning/--warning-soft,背景是橙色
-     半透明裸值,落在附录 B 的 warning-soft 映射桶。 */
+  /* base :2352/:2450 — the warn-tone text likewise reuses --warning/--warning-soft; the
+     background is an amber-toned semi-transparent literal, landing in Appendix B's
+     warning-soft mapping bucket. */
   .k2-chip[data-tone="warn"] { background: var(--warning-soft); color: var(--warning); }
   .k2-chip[data-tone="warn"] i { background: var(--warning); animation: k2pulse 1.2s ease infinite; }
   .k2-root-meta { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; margin-top: auto; }
@@ -3167,8 +3374,8 @@
   .k2-live { background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-md); overflow: hidden; }
   .k2-live-top { display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
   .k2-live-ico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; background: var(--ly-vec-soft); color: var(--ly-vec); }
-  /* 蓝本 :2365 —— 绿色半透明背景裸值同上落在「success-soft」桶,color 蓝本原文已是
-     var(--success),照抄。 */
+  /* base :2365 — success-toned semi-transparent background literal, lands in the "success-soft"
+     bucket same as above; the base's color is already var(--success), copied as-is. */
   .k2-live-ico[data-ok="true"] { background: var(--success-soft); color: var(--success); }
   .k2-live-ico .spin { display: inline-flex; animation: k2spin 1.1s linear infinite; }
   .k2-live-title { font-size: 13.5px; font-weight: 600; }
@@ -3182,17 +3389,18 @@
   .k2-cell-label { font-size: 10px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-quaternary); margin-bottom: 7px; }
   .k2-cc { display: inline-flex; gap: 2px; background: var(--bg-chip); border-radius: 999px; padding: 2px; }
   .k2-cc button { border: none; background: transparent; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--text-tertiary); padding: 3px 10px; border-radius: 999px; font-family: inherit; }
-  /* 蓝本 :2378 用的是 [data-on="true"],不是协调者附录 D.3 写的 [data-active] —— 见
-     文件顶部「附录 D.3 属性态核对」说明,以蓝本为准。 */
+  /* base :2378 uses [data-on="true"], not [data-active] as written in the coordinator's
+     Appendix D.3 — see the "Appendix D.3's attribute-state check" note at the top of the file, resolved in the base's favor. */
   .k2-cc button[data-on="true"] { background: var(--bg-elevated); color: var(--text-primary); box-shadow: var(--shadow-xs); }
   .k2-cc button:hover { color: var(--text-primary); }
   .k2-qrow { display: flex; flex-wrap: wrap; gap: 5px; }
   .k2-qchip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--bg-chip); border: none; border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; font-family: inherit; }
   .k2-qchip b { font-weight: 700; }
-  /* 蓝本 :2383 红色半透明背景裸值 → 附录 B「danger-soft」桶,color 原文已是 var(--danger)。 */
+  /* base :2383 danger-toned semi-transparent background literal → Appendix B's "danger-soft" bucket; the base's color is already var(--danger). */
   .k2-qchip[data-tone="danger"] { background: var(--danger-soft); color: var(--danger); cursor: pointer; }
-  /* 蓝本 :2384 更浓一档的红色半透明背景裸值 → 附录 B「0.2x~0.3x → danger-soft-border」桶
-     (hover 是强化态,取更浓的那一档;R2 已补声明,见文件顶部)。 */
+  /* base :2384's danger-toned semi-transparent background literal, one shade richer → Appendix B's
+     "0.2x~0.3x → danger-soft-border" bucket (hover is the intensified state, so the richer shade is
+     used; R2 has already added the declaration, see the top of the file). */
   .k2-qchip[data-tone="danger"]:hover { background: var(--danger-soft-border); }
   .k2-distill { display: flex; align-items: center; gap: 7px; background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; font-size: 12px; font-weight: 600; color: var(--ly-note); text-align: left; }
   .k2-distill:hover { text-decoration: underline; }
@@ -3211,8 +3419,9 @@
   .k2-entry-ico[data-tone="note"] { background: var(--ly-note-soft); color: var(--ly-note); }
   .k2-entry-cn { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
   .k2-entry-en { font-size: 10.5px; color: var(--text-quaternary); white-space: nowrap; }
-  /* 蓝本 :2402 前景裸色(纯白)→ 附录 B「前景纯白 → --text-on-accent」桶(与 :839/:145
-     两处已落地的同款前景裸色是同一条映射规则,见文件上方对应注释)。 */
+  /* base :2402's foreground literal (pure light) → Appendix B's "pure-light foreground →
+     --text-on-accent" bucket (the same mapping rule already landed at the :839/:145 spots for
+     this same foreground literal, see the corresponding comments above in the file). */
   .k2-entry-badge { margin-left: auto; font-size: 10px; font-weight: 700; background: var(--danger); color: var(--text-on-accent); border-radius: 999px; padding: 1px 6px; min-width: 17px; text-align: center; }
   .k2-entry-badge[data-tone="note"] { background: var(--ly-note); }
 
@@ -3227,11 +3436,13 @@
   .k2-ob-layer[data-layer="wiki"] { --ly: var(--ly-wiki); --ly-soft: var(--ly-wiki-soft); }
   .k2-ob-layer[data-layer="vec"] { --ly: var(--ly-vec); --ly-soft: var(--ly-vec-soft); }
   .k2-ob-layer[data-layer="note"] { --ly: var(--ly-note); --ly-soft: var(--ly-note-soft); }
-  /* 蓝本 :2451([data-theme="dark"] 覆写,半透明黑色蒙版)按 K2 映射到本仓
-     暗色档(本档默认无 data-theme 即暗色)。用 color-mix 从本档已声明的 --modal-scrim
-     (两档同值,50% 不透明黑)派生一半透明度,与蓝本这条裸值精确等值,不新增
-     自定义属性、不写死字面量。浅色档(蓝本 :2416 基础值,半透明白色蒙版)写在
-     本文件末尾的 :root[data-theme="light"] .knowledge-app 里(见该处注释)。 */
+  /* base :2451 ([data-theme="dark"] override, semi-transparent dark-toned overlay) is mapped
+     per K2 to this repo's dark theme (this file's default with no data-theme is dark). Uses
+     color-mix to derive a matching opacity from this file's already-declared --modal-scrim
+     (same value in both theme tiers, 50% opaque dark), exactly equal to the base's literal
+     here, without adding a custom property or hard-coding a literal. The light theme (base
+     :2416's base value, semi-transparent light-toned overlay) is written at the end of this
+     file inside :root[data-theme="light"] .knowledge-app (see the comment there). */
   .k2-ob-layer .k2-tag { background: color-mix(in srgb, var(--modal-scrim) 50%, transparent); }
   .k2-ob-name { font-size: 12px; font-weight: 650; margin: 8px 0 3px; }
   .k2-ob-desc { font-size: 11px; line-height: 1.5; color: var(--text-tertiary); }
@@ -3256,40 +3467,48 @@
   }
 }
 
-/* 蓝本 knowledge.scss:2440-2441 —— 只被本段 .k2-chip[data-tone]/.k2-live-ico .spin
- * 引用,必须顶层全局(同上方 T4 keyframes 的理由,模板里的 animation 引用不带作用域
- * 前缀)。 */
+/* base knowledge.scss:2440-2441 — only referenced by this section's
+ * .k2-chip[data-tone]/.k2-live-ico .spin, must stay top-level global (same reasoning as the T4
+ * keyframes above: the template's animation references carry no scope prefix). */
 @keyframes k2pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 @keyframes k2spin { to { transform: rotate(360deg); } }
 
-/* ===== .k2-ob-layer .k2-tag —— 浅色档(蓝本 :2416 基础值,半透明白色
- * 蒙版)。--text-on-accent 在两档都是不透明纯白(浅色档 var(--on-accent)),用
- * color-mix 派生一半透明度,与蓝本这条裸值精确等值,手法与暗色档同款(见上方
- * .k2-ob-layer 分组注释)、也与 T4 的 .k-empty-illust 高光同源。 */
+/* ===== .k2-ob-layer .k2-tag — light theme (base :2416's base value, semi-transparent
+ * light-toned overlay). --text-on-accent is opaque pure light in both theme tiers (light theme
+ * is var(--on-accent)); color-mix derives a matching opacity, exactly equal to the base's
+ * literal here, the same technique as the dark theme (see the .k2-ob-layer group comment
+ * above), and sharing the same origin as T4's .k-empty-illust highlight. */
 :root[data-theme="light"] .knowledge-app .k2-ob-layer .k2-tag {
   background: color-mix(in srgb, var(--text-on-accent) 50%, transparent);
 }
 
-/* ===== P5f-T2 · C —— Wiki 导航页(/ai/knowledge/wiki)· amber TREE 层 =====
- * 1:1 移植自蓝本 knowledge.scss **:2453-2561**(段边界与治理写的一致,无需订正)。
- * 🔴 **K9**:蓝本 `:2456` 的 `.knowledge-app {` 是**段头**,不是要搬的类 —— 本档已有
- * 6 处 `.knowledge-app`,这里按本档既定做法**另起一个 `.knowledge-app { … }` 顶层块**
- * 承接整段(与上方 Dashboard v2 段、P5e-T2 的 S5+S6 段同款),段内各条的相对优先级
- * 与蓝本完全一致。段位按蓝本原序落在 Dashboard v2(:2282-2452)之后 = 文件末尾。
+/* ===== P5f-T2 · C — Wiki navigation page (/ai/knowledge/wiki) · amber TREE tier =====
+ * Ported 1:1 from the base knowledge.scss **:2453-2561** (section boundaries match what
+ * governance wrote, no correction needed).
+ * 🔴 **K9**: the base's `:2456` `.knowledge-app {` is the **section header**, not a class to
+ * port — this file already has `.knowledge-app` in 6 places, so per this file's established
+ * practice, **another top-level `.knowledge-app { … }` block is started** to hold the whole
+ * section (same as the Dashboard v2 section above and P5e-T2's S5+S6 section); the relative
+ * specificity of every rule inside matches the base exactly. Section is placed following the
+ * base's original ordering, after Dashboard v2 (:2282-2452) = end of the file.
  *
- * 🔴 **两个 @media 随段一起搬、嵌在本块内**(附录 D §D.8):蓝本 `:2551-2553`
- * (max-width: 1080px)与 `:2554-2560`(max-width: 860px)。⚠️ 它们与本档上方那个既有的
- * `@media (max-width: 860px)`(在 .knowledge-app 的 grid 布局上下文里)**是不同块**,
- * **按蓝本源序另起,不合并** —— P5b-T2 当初合并过一次,是因为蓝本本来就写在同一个
- * @media 内部;本段不是那个情况。
+ * 🔴 **Both @media blocks are ported along with the section, nested inside this block**
+ * (Appendix D §D.8): the base's `:2551-2553` (max-width: 1080px) and `:2554-2560` (max-width:
+ * 860px). ⚠️ These are **different blocks** from the existing `@media (max-width: 860px)` above
+ * in this file (in the .knowledge-app grid-layout context) — **started separately per the
+ * base's source ordering, not merged** — P5b-T2 merged once before, because the base itself
+ * wrote those inside the same @media; this section is not that situation.
  *
- * 🔴 **配色:本段实扫 0 处色字面量,不是猜的**(附录 B §B.0.1 + 本刀独立复扫)。
- * 初扫在本段命中 6 行,逐行回读**全部是 `white-space` 属性名**的假阳性
- * (裁定 **R11**:`-` 是非单词字符 ⇒ 裸词边界写法会满足,这是 E-25 家族的复发)。
- * 整段已经是 `var(--ly-wiki)` / `var(--line-faint)` / `var(--text-*)` 一族,逐字照抄。
- * `:2529` 的 `var(--tone, var(--text-quaternary))` 是**消费方注入**式局部 token
- * (`--tone` 由 `.kw-change[data-type=…]` 四条规则各自声明),带兜底、照抄不改 ——
- * 与 K54 那两处「**全仓无声明**的兜底」不是一回事,不适用 K54。 */
+ * 🔴 **Color: this section's actual scan found 0 color literals, this is not a guess**
+ * (Appendix B §B.0.1 + an independent re-scan for this cut). The initial scan hit 6 lines in
+ * this section; reading each one back showed they were **all false positives on the
+ * `white-space` property name** (ruling **R11**: `-` is a non-word character ⇒ a bare-word
+ * boundary pattern would match it — this is a recurrence of the E-25 family). The whole section
+ * is already all `var(--ly-wiki)` / `var(--line-faint)` / `var(--text-*)` family, copied
+ * verbatim. `:2529`'s `var(--tone, var(--text-quaternary))` is a **consumer-injected**-style
+ * local token (`--tone` is declared separately by each of `.kw-change[data-type=…]`'s four
+ * rules), has a fallback, copied as-is unchanged — this is not the same situation as K54's two
+ * spots of "fallback with **zero declarations repo-wide**," so K54 doesn't apply. */
 .knowledge-app {
   .kw-split { flex: 1; min-height: 0; display: flex; }
   .kw-tree { width: 248px; flex-shrink: 0; border-right: 1px solid var(--line-faint); background: var(--bg-app); display: flex; flex-direction: column; min-height: 0; }
@@ -3397,34 +3616,43 @@
   }
 }
 
-/* ===== P5f-T2 · K53 —— RootsView 的 `<style lang="scss" scoped>` 整块搬入 =====
- * 来源:蓝本 `src/views/AI/Knowledge/RootsView.vue:223-289`(66 行 / 9 个 `kr-*` 类)。
- * 🔴 **勘误 E-63**:这 9 个类**不在** `p5-master-plan.md` §2 的差集清单里 —— 那份差集
- * 只按 `knowledge.scss` 算,**结构性地看不到 `.vue` 自带的 `<style scoped>`**
- * (同族漏法:P5e 的 `KFileViewer.vue` 51 行)。
+/* ===== P5f-T2 · K53 — RootsView's entire `<style lang="scss" scoped>` block ported in =====
+ * Source: the base `src/views/AI/Knowledge/RootsView.vue:223-289` (66 lines / 9 `kr-*` classes).
+ * 🔴 **Errata E-63**: these 9 classes are **not in** `p5-master-plan.md` §2's diff-set list —
+ * that diff set only counts against `knowledge.scss`, **structurally blind to a `.vue` file's
+ * own `<style scoped>`** (same family of miss: P5e's `KFileViewer.vue`, 51 lines).
  *
- * 🔴 **偏差 K53 / 纪律 K44**:整块搬进 `knowledge.scss` 并**嵌进 `.knowledge-app`**(K9),
- * `RootsView.vue` 侧**零 `<style>` 块**(T5 建文件时不写;本档已配一条「自动上膛」的
- * 文件系统条件断言钉住它)。做法与 P5e 的 `KFileViewer`(K46/K47)同款先例。
- * 🔴 **丢 `scoped` 无害的逐类判据**:`kr-` 前缀在**全仓唯一**(本刀用完整 token 精确
- * 匹配逐个复核过,禁 `\b`,见 E-25)⇒ 9 个类逐个与既有选择器零碰撞。
+ * 🔴 **Deviation K53 / discipline K44**: the whole block is ported into `knowledge.scss` and
+ * **nested inside `.knowledge-app`** (K9); `RootsView.vue`'s side has **zero `<style>` blocks**
+ * (T5 didn't write one when creating the file; this file already has an "auto-loaded" filesystem
+ * conditional assertion pinning that down). Same approach and precedent as P5e's `KFileViewer`
+ * (K46/K47).
+ * 🔴 **Per-class criterion for why dropping `scoped` is harmless**: the `kr-` prefix is **unique
+ * repo-wide** (verified one by one with exact full-token matching for this cut, `\b` forbidden,
+ * see E-25) ⇒ all 9 classes individually have zero collisions with existing selectors.
  *
- * 🔴 **偏差 K54 —— 两处 `var(--x, <字面量>)` 兜底改成纯 token**(附录 B §B.2,定死):
- *   · `.kr-input`(蓝本 `:254`)`var(--border, …)` → **`var(--line)`**
- *   · `.kr-badge`(蓝本 `:243`)`var(--bg-tertiary, …)` → **`var(--bg-chip)`**
- * 依据 = 本仓**既定先例**(P5c-T2a 的 FolderBrowser 段,就在本文件上方,对**同一对
- * token 的同款兜底**已经这样处理过)+ alpha 保序(中性灰叠暗底,α 越大越亮;先例把
- * 0.25/0.18 映射成 --line/--line-faint,本处 0.12 > 先例 0.06 ⇒ 取比 --bg-sunken 更亮
- * 一档的 --bg-chip)。两个 token 两档都有值。
- * 🔴 **诚实登记(勘误 E-73,不许照抄「兜底本是死代码」那句)**:那句话**只对 `--border`
- * 成立**(本仓全局层有声明 ⇒ 兜底确实从未生效);**对 `--bg-tertiary` 不成立** ——
- * 它在蓝本与本仓**两侧都零声明**,兜底一直在生效 ⇒ **`.kr-badge` 换成 --bg-chip 是
- * 可见变化,不是等价替换**。授权来自 K54(rgba 一律禁止)+ 裁定 R8。
+ * 🔴 **Deviation K54 — two `var(--x, <literal>)` fallbacks changed to pure tokens** (Appendix B
+ * §B.2, fixed):
+ *   · `.kr-input` (base `:254`) `var(--border, …)` → **`var(--line)`**
+ *   · `.kr-badge` (base `:243`) `var(--bg-tertiary, …)` → **`var(--bg-chip)`**
+ * Rationale = this repo's **established precedent** (P5c-T2a's FolderBrowser section, right
+ * above in this file, already handled **the same fallback for the same token pair** this way) +
+ * alpha ordering preserved (a neutral tone over a dark background, larger α is lighter; the
+ * precedent mapped 0.25/0.18 to --line/--line-faint, here 0.12 > the precedent's 0.06 ⇒ take
+ * --bg-chip, one shade lighter than --bg-sunken). Both tokens have values in both theme tiers.
+ * 🔴 **Honest disclosure (errata E-73, do not copy the line "the fallback is really dead code"
+ * verbatim)**: that statement **only holds for `--border`** (this repo's global layer has a
+ * declaration ⇒ the fallback genuinely never takes effect); **it does not hold for
+ * `--bg-tertiary`** — it has **zero declarations on both the base and this repo's side**, so the
+ * fallback has been in effect all along ⇒ **changing `.kr-badge` to --bg-chip is a visible
+ * change, not an equivalent substitution**. Authorized by K54 (rgba forbidden across the board) + ruling R8.
  *
- * ⚠️ **M-6 显式申报**:`.kr-path` / `.kr-input` 的 `font-family` **逐字照抄蓝本硬编码
- * 字体栈**(`:235` / `:259`);而同期搬入的 `.k-field-mono input`(蓝本 `:1365`)照抄的
- * 是 `var(--font-mono)`。**两者的差异来自蓝本自身不一致,不是本刀的取舍**;字体栈不是
- * 颜色、不在本仓 token 约束范围内(裁定 §三 M-6),**不许「顺手统一」**。 */
+ * ⚠️ **M-6 explicit disclosure**: `.kr-path` / `.kr-input`'s `font-family` **copies the base's
+ * hard-coded font stack verbatim** (`:235` / `:259`); whereas `.k-field-mono input` (base
+ * `:1365`), ported in the same period, copies `var(--font-mono)` instead. **The difference
+ * between the two comes from an inconsistency in the base itself, not a decision made in this
+ * cut**; a font stack isn't a color and isn't within this repo's token constraints (ruling §III
+ * M-6), **do not "unify them while we're at it."** */
 .knowledge-app {
   .kr-empty {
     padding: 44px 20px;
@@ -3437,7 +3665,7 @@
     gap: 12px;
   }
   .kr-path {
-    /* 蓝本 RootsView.vue:235 硬编码字体栈,逐字照抄(M-6,见段首申报) */
+    /* base RootsView.vue:235's hard-coded font stack, copied verbatim (M-6, see the disclosure at the top of the section) */
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     &[data-off="true"] { opacity: 0.45; }
   }
@@ -3446,9 +3674,10 @@
     padding: 1px 7px;
     border-radius: 999px;
     font-size: 11px;
-    /* 蓝本 :243 的 var(--bg-tertiary, <中性灰兜底>) → var(--bg-chip)(K54 / 附录 B §B.2.2-①)。
-       🔴 这一处是**可见变化**,不是等价替换(E-73):--bg-tertiary 两侧都零声明,
-       兜底一直在生效。取值依据 = 本档上方 P5c-T2a·FolderBrowser 段的既定先例 + alpha 保序。 */
+    /* base :243's var(--bg-tertiary, <neutral-toned fallback>) → var(--bg-chip) (K54 / Appendix B §B.2.2-①).
+       🔴 This spot is a **visible change**, not an equivalent substitution (E-73): --bg-tertiary
+       has zero declarations on both sides, so the fallback has been in effect all along. Value
+       basis = the established precedent of this file's P5c-T2a · FolderBrowser section above + alpha ordering preserved. */
     background: var(--bg-chip);
   }
   .kr-label {
@@ -3460,14 +3689,14 @@
   .kr-input {
     width: 100%;
     padding: 7px 10px;
-    /* 蓝本 :254 的 var(--border, <中性灰兜底>) → var(--line)(K54 / 附录 B §B.2.2-②)。
-       与先例 :2076 处理的**逐字同款**兜底(同 token、同 alpha)落同一个 token。 */
+    /* base :254's var(--border, <neutral-toned fallback>) → var(--line) (K54 / Appendix B §B.2.2-②).
+       Lands on the same token as the **verbatim-identical** fallback handled by the precedent at :2076 (same token, same alpha). */
     border: 1px solid var(--line);
     border-radius: 8px;
     background: transparent;
     color: var(--text-primary);
     font-size: 13px;
-    /* 蓝本 RootsView.vue:259 硬编码字体栈,逐字照抄(M-6,见段首申报) */
+    /* base RootsView.vue:259's hard-coded font stack, copied verbatim (M-6, see the disclosure at the top of the section) */
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   .kr-adv-row {
@@ -3500,4 +3729,4 @@
   }
 }
 
-/* P5b–P5f 的段落按 Vue2 原序续写在此之后 */
+/* P5b–P5f's sections continue below in Vue2's original order */

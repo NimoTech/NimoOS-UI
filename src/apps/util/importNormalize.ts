@@ -4,7 +4,7 @@ import composerize from 'composerize'
 type Dict = Record<string, unknown>
 const asDict = (v: unknown): Dict => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Dict) : {})
 
-/** 小写化 + 非 [a-z0-9-] 字符替换为 '-' + 折叠连续 '-' + 去首尾 '-'。 */
+/** Lowercase + replace non-[a-z0-9-] chars with '-' + collapse consecutive '-' + trim leading/trailing '-'. */
 function slugify(raw: string): string {
   return raw
     .toLowerCase()
@@ -13,7 +13,7 @@ function slugify(raw: string): string {
     .replace(/^-|-$/g, '')
 }
 
-/** image 短名:去掉 digest(@sha256:...)与 tag,再取最后一个 '/' 之后的段。 */
+/** Short image name: strip digest (@sha256:...) and tag, then take the segment after the last '/'. */
 function shortImageName(image: string): string {
   let img = image.split('@')[0] ?? ''
   const lastSlash = img.lastIndexOf('/')
@@ -22,8 +22,8 @@ function shortImageName(image: string): string {
   return img.slice(img.lastIndexOf('/') + 1)
 }
 
-/** 首个 service 里第一个可解析出的单端口 host 侧发布端口(短语法/长语法);找不到返 ''。
- *  range/裸端口条目解析不出确定的 host 端口,跳过。 */
+/** First parseable single host-side published port in the first service (short/long syntax); returns '' if none found.
+ *  Range/bare-port entries yield no definite host port and are skipped. */
 function firstPublishedPort(doc: Dict): string {
   const services = asDict(doc.services)
   const firstSvc = asDict(Object.values(services)[0])
@@ -39,12 +39,12 @@ function firstPublishedPort(doc: Dict): string {
   return ''
 }
 
-/** name 派生级联:顶层 name → 首个可用 service key → 首个 service 的 image 短名 → 'app' 兜底。 */
+/** Name derivation cascade: top-level name → first usable service key → short image name of first service → 'app' fallback. */
 function deriveRawName(doc: Dict): string {
   if (typeof doc.name === 'string' && doc.name.trim()) return doc.name.trim()
   const services = asDict(doc.services)
-  // container_name 优先于 service key:docker run 导入时用户的 --name 落在
-  // container_name 上,而 composerize 的 service key 只是镜像名(nginx 之类)。
+  // container_name takes priority over the service key: for docker run imports the user's --name
+  // lands in container_name, while composerize's service key is just the image name (nginx etc.).
   const firstSvc = asDict(Object.values(services)[0])
   const cname = typeof firstSvc.container_name === 'string' ? firstSvc.container_name.trim() : ''
   if (cname) return cname
@@ -55,14 +55,15 @@ function deriveRawName(doc: Dict): string {
   return 'app'
 }
 
-/** 合法 compose 项目名(后端 compose-go 同规):不合法的名字后端会另行归一,
- *  与前端进度跟踪 key 对不上号 → 幽灵 0% 卡。 */
+/** Valid compose project name (same rule as backend compose-go): invalid names get normalized
+ *  separately by the backend, mismatching the frontend progress-tracking key → ghost 0% card. */
 const VALID_COMPOSE_NAME = /^[a-z0-9][a-z0-9_-]*$/
 
 export function ensureComposeMeta(yamlText: string): { yaml: string; name: string } {
   const doc = asDict(YAML.parse(yamlText))
-  // 返回的 name 与写进 YAML 的顶层 name 必须严格一致(它同时是后端安装名、事件
-  // app:name、前端 track key)。已有且合法 → 原样用;缺失/不合法 → 派生 + slug 后写回。
+  // The returned name must strictly match the top-level name written into the YAML (it is the
+  // backend install name, the event app:name, and the frontend track key all at once).
+  // Present and valid → use as-is; missing/invalid → derive + slugify and write back.
   const existing = typeof doc.name === 'string' ? doc.name.trim() : ''
   const name = VALID_COMPOSE_NAME.test(existing) ? existing : slugify(deriveRawName(doc)) || 'app'
   doc.name = name
@@ -73,9 +74,10 @@ export function ensureComposeMeta(yamlText: string): { yaml: string; name: strin
   if (typeof title.custom !== 'string' || !title.custom) title.custom = name
   if (typeof title.en_us !== 'string' || !title.en_us) title.en_us = name
   ext.title = title
-  // 不注入 icon:icon.nimoos.io 域名不存在(Vue2 遗留死链,ERR_NAME_NOT_RESOLVED),
-  // 注入只会得到坏图;缺 icon 时磁贴/卡片用默认 glyph 兜底。用户自带的 icon 原样保留。
-  // 注入 port_map:桌面/已装列表靠它拼「打开」地址(appUrl 无 port 无 index 即无动作)。
+  // Do not inject icon: the icon.nimoos.io domain does not exist (Vue2 legacy dead link,
+  // ERR_NAME_NOT_RESOLVED), injecting only yields a broken image; when icon is missing the
+  // tile/card falls back to the default glyph. User-provided icons are kept as-is.
+  // Inject port_map: desktop/installed list uses it to build the "Open" URL (appUrl without port and index means no action).
   if (typeof ext.port_map !== 'string' || !ext.port_map) {
     const port = firstPublishedPort(doc)
     if (port) ext.port_map = port
@@ -86,14 +88,15 @@ export function ensureComposeMeta(yamlText: string): { yaml: string; name: strin
 }
 
 /**
- * Vue2 关键词映射逐字移植,实际调用点为
- * `NimoOS-UI/src/components/Apps/ComposeConfig.vue:585-608`(ImportPanel.vue 里也有一份同源拷贝)。
- * **逐字**包括大小写:除 config/download/pictures/photo/media 外,原版只有 tv 系列与
- * movie/music 系列各自罗列了几个大小写变体(`['tvshows','TV','tv']`、`['movies','Movie','movie']`、
- * `['Music','music']`),不是整体大小写不敏感 —— 因此这里逐关键词做区分大小写的 `includes`,
- * 不对 containerPath 做 toLowerCase()。
- * 保留其 forEach 逐条覆盖语义:数组靠后的关键词命中会覆盖靠前的命中结果
- * (例如 `/media/config` 同时命中 config 与 media,最终落在 media —— 这是刻意保留的原版怪癖,非 bug)。
+ * Verbatim port of the Vue2 keyword mapping; the actual call site is
+ * `NimoOS-UI/src/components/Apps/ComposeConfig.vue:585-608` (ImportPanel.vue has an identical copy).
+ * **Verbatim** includes casing: apart from config/download/pictures/photo/media, the original only
+ * lists a few case variants for the tv series and the movie/music series (`['tvshows','TV','tv']`,
+ * `['movies','Movie','movie']`, `['Music','music']`) — it is not globally case-insensitive.
+ * So we do a case-sensitive `includes` per keyword and do NOT toLowerCase() containerPath.
+ * Preserve its forEach last-match-wins semantics: a later keyword hit in the array overrides an earlier one
+ * (e.g. `/media/config` matches both config and media and ends up as media — a deliberately preserved
+ * quirk of the original, not a bug).
  */
 export function volumeAutoCheck(containerPath: string, appName: string): string {
   const checkOrder: { keywords: string[]; value: string }[] = [
@@ -116,23 +119,23 @@ function needsRewrite(source: string): boolean {
   return !source.startsWith('/')
 }
 
-/** 短语法字符串条目:"source:target[:mode]" 或裸 "target"(匿名卷,无 source)。 */
+/** Short-syntax string entry: "source:target[:mode]" or bare "target" (anonymous volume, no source). */
 function rewriteShortVolume(entry: string, appName: string): string {
   const parts = entry.split(':')
   if (parts.length === 1) {
-    // 裸路径 = 匿名卷,无 source
+    // Bare path = anonymous volume, no source
     const target = parts[0] ?? ''
     return `${volumeAutoCheck(target, appName)}:${target}`
   }
   const [source, target, ...rest] = parts
-  if (source && !needsRewrite(source)) return entry // 绝对路径不动
+  if (source && !needsRewrite(source)) return entry // leave absolute paths untouched
   const newSource = volumeAutoCheck(target ?? '', appName)
   return [newSource, target, ...rest].join(':')
 }
 
 const REWRITABLE_VOLUME_TYPES = new Set([undefined, 'bind', 'volume'])
 
-/** tmpfs/npipe/cluster 等非 bind/volume 类型没有真正的 host source 概念 —— 原样透传,绝不注入 source。 */
+/** Non-bind/volume types like tmpfs/npipe/cluster have no real host source concept — pass through as-is, never inject source. */
 function rewriteLongVolume(entry: Dict, appName: string): Dict {
   const type = typeof entry.type === 'string' ? entry.type : undefined
   if (!REWRITABLE_VOLUME_TYPES.has(type)) return entry
@@ -158,7 +161,7 @@ export function normalizeVolumes(yamlText: string, appName: string): string {
   }
   doc.services = services
 
-  // 顶层 volumes: 里不再被任何 service 引用的具名卷声明予以清理。
+  // Clean up named volume declarations in top-level volumes: no longer referenced by any service.
   const topVolumes = asDict(doc.volumes)
   if (Object.keys(topVolumes).length) {
     const referenced = new Set<string>()
@@ -185,12 +188,12 @@ export function normalizeVolumes(yamlText: string, appName: string): string {
   return YAML.stringify(doc)
 }
 
-/** composerize 是 CJS(module.exports = fn);esModuleInterop 下按默认导出使用即可,行为已在测试里锁定。 */
+/** composerize is CJS (module.exports = fn); with esModuleInterop just use it as the default export — behavior is locked in by tests. */
 export function dockerRunToCompose(cmd: string): string {
   const cleaned = cmd.replace(/`#.*?`/g, '').replace(/#.*$/gm, '').trim()
   const out = composerize(cleaned)
-  // composerize 顶部固定输出占位名 `name: <your project name>`(模板字样,非用户意图)。
-  // 剥掉它,让 ensureComposeMeta 的派生级联接手(container_name=用户的 --name 优先)。
+  // composerize always emits the placeholder `name: <your project name>` at the top (template text, not user intent).
+  // Strip it so ensureComposeMeta's derivation cascade takes over (container_name = the user's --name wins).
   const doc = asDict(YAML.parse(out))
   if (typeof doc.name === 'string' && /^<.*>$/.test(doc.name.trim())) {
     delete doc.name

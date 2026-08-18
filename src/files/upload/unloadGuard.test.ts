@@ -7,11 +7,20 @@ const mk = (p: Partial<UploadItem>): UploadItem => ({
   createdAt: 0, batchId: 'b', batchTotal: 1, conflictPolicy: '', ...p,
 })
 describe('hasActiveUploads', () => {
-  it('true for uploading or pending-with-file, false for paused/done', () => {
+  it('true for uploading or pending-with-file, false for fileless-paused/done', () => {
     expect(hasActiveUploads([mk({ status: 'uploading' })])).toBe(true)
     expect(hasActiveUploads([mk({ status: 'pending', file: new Blob(['x']) })])).toBe(true)
     expect(hasActiveUploads([mk({ status: 'paused', file: null })])).toBe(false)
     expect(hasActiveUploads([mk({ status: 'done' })])).toBe(false)
+  })
+
+  it('counts a paused item that still holds its File — leaving would lose it', () => {
+    // A paused upload's File lives only in this page's memory: closing or
+    // refreshing loses it forever, so it must trigger the leave prompt and the
+    // interrupt signal just like an uploading one. Before this rule, a
+    // paused-then-refreshed batch got no signal and sat active server-side
+    // until the sweeper badged it two minutes later.
+    expect(hasActiveUploads([mk({ status: 'paused', file: new Blob(['x']) })])).toBe(true)
   })
 })
 describe('installUnloadGuard', () => {
@@ -48,6 +57,14 @@ describe('pagehide interrupt signal', () => {
       { batchId: 'b1', status: 'pending', file: new Blob() },
       { batchId: 'b2', status: 'done', file: null },
       { batchId: '', status: 'uploading', file: new Blob() },
+    ] as unknown as UploadItem[]
+    expect(activeBatchIds(q)).toEqual(['b1'])
+  })
+
+  it('includes paused batches that still hold their Files', () => {
+    const q = [
+      { batchId: 'b1', status: 'paused', file: new Blob() },
+      { batchId: 'b2', status: 'paused', file: null },
     ] as unknown as UploadItem[]
     expect(activeBatchIds(q)).toEqual(['b1'])
   })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // P6b-T6: PlaceVisitHistory.vue —— 地点详情面板的"到访记录"时间线段。逐段照 Vue2
 // NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1204-1245(模板)移植;样式照
-// photos-places.scss:599-618(时间线本体)+ :835-851(`.visit-save-btn`,在文件另一处,
+// photos-places.scss:599-618(时间线本体)+ :837-853(`.visit-save-btn`,在文件另一处,
 // 已回源核对行号——brief 给的 scss 行号只覆盖到 :618,`.visit-save-btn` 需要单独定位)。
 //
 // 分工:纯展示 + emit,不碰 store、不发请求——PlaceDetailPanel 原样透传 save-trip /
@@ -107,69 +107,50 @@ function thumbUrl(assetId: string): string {
 </template>
 
 <style scoped>
-/* Vue scoped CSS 不跨组件边界(同 PlaceInsights.vue 文件头说明 + 先例):自带一份等价的
-   段落标题壳样式,不依赖 PlaceDetailPanel.vue 里已有的同名规则。 */
-.detail-section h4 {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--fg-subtle);
-  margin: 0 0 10px;
-  line-height: 1.4;
-  display: flex; align-items: baseline; justify-content: space-between;
-}
-/* 本段的 .more 是静态次数展示,不可点,不加 cursor:pointer(同 T4 spots 段 / T5 文件头
-   关于共享基类 vs is-clickable 修饰类的既定约定——这里干脆不共享基类,自成一份)。 */
-.detail-section h4 .more {
-  font-size: 11px; color: var(--accent); font-weight: 500;
-  text-transform: none; letter-spacing: 0;
-}
+/* Shadowing cleanup (Plan E Task 4, 2026-08-15): most of this file's former scoped rules have
+   been deleted. Two bug classes fixed:
+   (1) The header comment this block used to carry claimed "Vue scoped CSS doesn't cross
+       component boundaries, so this file needs its own `.detail-section h4` copy" — true of
+       PlaceDetailPanel.vue's *scoped* rule of the same name, false of parity's plain, unscoped
+       `photos-places.scss:675-682`, which reaches this component's `<h4>` the same way any
+       global stylesheet reaches any element. Deleted the redundant local copy.
+   (2) `.visit-history`/`.visit-card`/`.visit-rail`/`.visit-dot`/`.visit-body`/`.visit-head`/
+       `.visit-when`/`.visit-len`/`.visit-stats`/`b`/`.visit-thumbs`/`img`/`img:hover` all
+       substituted global New-UI tokens (`--card-border`/`--fg-subtle`/`--chip-bg`/`--fg`/
+       `--fg-muted`) for Photos-local ones (`--line`/`--text-3`/`--surface-2`/`--text-1`/
+       `--text-2`) that parity (`:599-618`, `:837-853` for `.visit-save-btn`) already declares
+       correctly for these exact selectors, plus `.visit-save-btn`/`:hover` used global blue-family
+       `--accent-soft-bd`/`--accent-text`/`--accent-soft-2` in place of Photos-local
+       `--accent-rgb`/`--accent-hi` (wrong hue) — same shadowing pattern as PlacesZoomBar.vue's
+       2026-08-15 fix (Task 3). Deleted; parity now governs all of it.
+   What survives: the three test-pinned "current trip" green rules (token-based, since this
+   app forbids bare color literals — parity's own current-trip-green literal isn't directly
+   reusable here), the last-child rail-hiding rule and the `pulseDot` keyframes
+   (PlaceVisitHistory.test.ts reads this file's own raw `<style>` text for all of these), and
+   an explicit cursor override on the non-clickable `.more` (see below). */
 
-.visit-history { display: flex; flex-direction: column; gap: 12px; }
-.visit-card { display: flex; gap: 10px; }
-.visit-rail { width: 14px; flex-shrink: 0; position: relative; display: flex; justify-content: center; padding-top: 6px; }
-.visit-rail::before { content: ""; position: absolute; top: 14px; bottom: -12px; left: 50%; width: 1px; background: var(--card-border); transform: translateX(-0.5px); }
-/* 照搬 Vue2 :603 —— 否则最后一条到访记录的竖线会拖一截悬空线(brief 明确点名的坑)。 */
+/* spec §7c-9 (same convention as PlaceDetailPanel.vue's spots-section `.more`): this section's
+   `.more` is a static "N trips" count, not an entry point — parity's global `.detail-section h4
+   .more` rule sets `cursor: pointer` (ported from Vue2, which coincidentally never made this
+   particular span clickable either, just inherited the shared class's cursor), and because
+   that global rule reaches every `.detail-section h4 .more` on the page regardless of scoped
+   boundaries, this local override is required — not optional — to actually cancel the inherited
+   pointer cursor for this non-clickable instance. */
+.detail-section h4 .more { cursor: auto; }
+
 .visit-card:last-child .visit-rail::before { display: none; }
-.visit-dot { width: 8px; height: 8px; border-radius: 99px; background: var(--fg-subtle); position: relative; z-index: 1; }
 .visit-dot[data-current="true"] {
   background: var(--place-current-trip);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--place-current-trip) 20%, transparent);
 }
-.visit-body { flex: 1; min-width: 0; background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; }
 .visit-card.is-current .visit-body {
   background: color-mix(in srgb, var(--place-current-trip) 5%, transparent);
   border-color: color-mix(in srgb, var(--place-current-trip) 25%, transparent);
 }
-.visit-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.visit-when { font-size: 12.5px; font-weight: 600; color: var(--fg); }
-.visit-len { font-size: 11px; color: var(--fg-subtle); font-variant-numeric: tabular-nums; margin-left: auto; }
 .visit-pill {
-  margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10.5px; font-weight: 500; padding: 2px 8px; border-radius: 99px;
   background: color-mix(in srgb, var(--place-current-trip) 15%, transparent);
   color: var(--place-current-trip);
 }
-.visit-pill .live-dot { width: 5px; height: 5px; border-radius: 99px; background: var(--place-current-trip); animation: pulseDot 1.5s infinite; }
+.visit-pill .live-dot { background: var(--place-current-trip); animation: pulseDot 1.5s infinite; }
 @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.visit-stats { font-size: 11px; color: var(--fg-subtle); margin-bottom: 8px; }
-.visit-stats b { color: var(--fg-muted); font-weight: 600; }
-/* .visit-save-btn(Vue2 photos-places.scss:835-851,不在 brief 给的 :599-618 范围内——
-   已单独定位回源核对)。--accent-rgb/--accent-hi 本仓不存在,改用既有三档 accent-soft
-   token(文件头已登记映射关系)。 */
-.visit-save-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; margin-left: 6px;
-  border-radius: 99px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-soft-bd);
-  color: var(--accent-text);
-  font: inherit; font-size: 10.5px; font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.visit-save-btn:hover { background: var(--accent-soft-2); }
-.visit-thumbs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
-.visit-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; }
-/* 偏离登记 15(见文件头):父格无 overflow:hidden,放大会溢出压邻格,Vue2 原状照搬。 */
-.visit-thumbs img:hover { transform: scale(1.05); }
 </style>

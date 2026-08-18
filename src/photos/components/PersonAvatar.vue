@@ -1,18 +1,20 @@
 <script setup lang="ts">
-// Task 5 (SP7-P5 人物): 通用人物头像 —— 被 T6(人物首页)/T7(合并对话框候选)/
-// T8(合并建议横幅)/T10/T13 共用。Vue2 把下面这套三级兜底结构在 5 处复制粘贴
-// (PhotosPeopleView.vue:135-145,254,314,391,409;PhotosPersonDetail.vue:9-19),
-// 这里收成一个组件。
+// Task 5 (SP7-P5 people): generic person avatar — shared by T6 (people home) / T7 (merge dialog
+// candidates) / T8 (merge suggestion banner) / T10 / T13. Vue2 copy-pastes this three-level
+// fallback structure in 5 places (PhotosPeopleView.vue:135-145, 254, 314, 391, 409;
+// PhotosPersonDetail.vue:9-19); consolidated to one component here.
 //
-// 三级兜底(照 PhotosPeopleView.vue:135-145):
-//   ① personId 存在且上次没有加载失败 → 真实头像图(personFaceThumbnailUrl(id, ver))
-//   ② 否则若 personInitial(name) 非空 → 渐变底 + 大写首字母
-//   ③ 否则 → 渐变底 + person 图标
+// Three-level fallback (copy PhotosPeopleView.vue:135-145):
+//   ① personId exists and load did not fail last time → real avatar image
+//     (personFaceThumbnailUrl(id, ver))
+//   ② else if personInitial(name) non-empty → gradient background + uppercase initial
+//   ③ else → gradient background + person icon
 //
-// 偏离登记(Vue2 的坏点不带过来):Vue2 把失败态记在父组件 avatarErrors 字典里且整个会话
-// 不清除(:474,566-571)——换了封面 URL 也不会重试,永久显示兜底。这里 `failed` 是组件
-// 自己的 ref,并 watch [personId, ver] 变化时复位为 false,换封面（ver=coverFaceId 变了）
-// 或换人（personId 变了）都会重新尝试加载真图,不会被上一次失败卡死。
+// Deviation registration (don't carry Vue2's bad pattern): Vue2 records failure state in parent's
+// avatarErrors dict and never clears during session (:474, 566-571) — even if cover URL changes,
+// won't retry, shows fallback permanently. Here `failed` is component's own ref, and when
+// [personId, ver] change, resets to false; changing cover (ver=coverFaceId changes) or switching
+// person (personId changes) both retry real image load, not stuck by previous failure.
 import { computed, ref, watch } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { personInitial } from '../util/peopleView'
@@ -25,10 +27,12 @@ const props = withDefaults(
     size?: number
     dashed?: boolean
     fav?: boolean
-    // Task 8 加性扩展(SP7-P5 人物,MergeReviewDialog):Vue2 合并建议审阅弹窗的两侧头像是
-    // 方形圆角(border-radius:12px + aspect-ratio:1),是全区唯一的方形头像处
-    // (PhotosPeopleView.vue:387,390,405,408)。默认仍是 'circle',不改变任何既有调用点的
-    // 渲染结果 —— 只在传 'square' 时切换圆环的 border-radius,三级兜底逻辑完全不变。
+    // Task 8 additive extension (SP7-P5 people, MergeReviewDialog): Vue2's merge suggestion
+    // review dialog has square avatars on both sides (border-radius:12px + aspect-ratio:1);
+    // only place in the whole area with square avatars (PhotosPeopleView.vue:387, 390, 405, 408).
+    // Default still 'circle', does not change rendering of any existing call sites — only when
+    // 'square' passed does it switch the ring's border-radius; three-level fallback logic
+    // unchanged.
     shape?: 'circle' | 'square'
   }>(),
   {
@@ -41,7 +45,7 @@ const props = withDefaults(
   },
 )
 
-// 内部自持失败态(见头部注释的偏离登记)。
+// Internal failure state (see deviation registration in file header).
 const failed = ref(false)
 watch(
   () => [props.personId, props.ver],
@@ -51,34 +55,42 @@ watch(
 )
 
 const showImg = computed(() => props.personId !== null && !failed.value)
-// service.photos.personFaceThumbnailUrl 内部已带 token,组件不手拼 URL(硬约束)。
-// 铁律:数字 id 原样传给 service 层,不做 String() 转换——转换发生在比较场景,不是这里。
+// service.photos.personFaceThumbnailUrl internally includes token; component does not manually
+// construct URL (hard constraint). Hard rule: numeric id passed as-is to service layer, no
+// String() conversion — conversion happens in comparison contexts, not here.
 const avatarUrl = computed(() =>
   props.personId === null ? '' : service.photos.personFaceThumbnailUrl(props.personId, props.ver),
 )
 const initial = computed(() => personInitial(props.name))
-// 首字母字号 = size * 0.32 向下取整(brief 明确公式)。
+// Initial letter font size = size * 0.32 rounded down (brief explicit formula).
 const initialFontSize = computed(() => Math.floor(props.size * 0.32))
 
-// 根元素上的 data-fav(照 Vue2 photos-people.scss:132 的 `.ring[data-fav="true"]`):
-// 父层要给收藏头像画 accent 内环时需要一个选择器钩子。评审 Important 2:原先父层
-// (PhotosPeople.vue)是**无条件**给 .face-grid-lg 下所有头像画环 —— 当前语义等价(Pinned
-// 分区只渲染收藏项),但这个网格类一旦被复用就会把非收藏头像也画上环。把条件挪回数据本身。
+// data-fav on root element (copy Vue2 photos-people.scss:132 `.ring[data-fav="true"]`):
+// parent needs a selector hook to draw accent inner ring around favorite avatars. Review
+// Important 2: original parent (PhotosPeople.vue) **unconditionally** drew rings around all
+// avatars under .face-grid-lg — current semantics equivalent (Pinned section only renders
+// favorites), but this grid class once reused would draw rings on non-favorites too. Move
+// condition back to the data itself.
 //
-// 收藏星标的尺寸与水平偏移都随 size **等比**缩放,唯一锚点是 Vue2 大号卡片那一档:
+// Favorite star size and horizontal offset both scale **proportionally** with size; only anchor
+// point is Vue2's large card tier:
 //   photos-people.scss:150-156  .face-card .fav-mark { width/height: 24px; transform: translateX(34px) }
-// 对应 size=124(scss:118 的 .ring 是 124px)。故比例 = 24/124 与 34/124,代回 124 精确复现 24px / 34px。
+// corresponds size=124 (scss:118 .ring is 124px). Thus ratio = 24/124 and 34/124; substituting
+// back to 124 precisely reproduces 24px / 34px.
 //
-// 为什么只认 124 这一个锚点(评审 Important 修正):scss:165 的
-// `.face-grid-md … .fav-mark { transform: translateX(20px) }` 在 Vue2 里是**死代码** ——
-// .face-grid-md 只出现在 Named 分区,而该分区的数据源是 `others = filteredNamed.filter(p => !p.favorite)`,
-// 星标本身又是 `v-if="p.favorite"`,那一档从未真正绘制过。上一轮我拿它当第二个锚点拟合直线,
-// 依据是假的,已废弃。
+// Why only this one 124 anchor point (review Important correction): scss:165
+// `.face-grid-md … .fav-mark { transform: translateX(20px) }` is **dead code** in Vue2 —
+// .face-grid-md only appears in Named section, whose data source is `others = filteredNamed
+// .filter(p => !p.favorite)`, and stars themselves are `v-if="p.favorite"`, that tier never
+// actually rendered. Previous round I used it as second anchor point to fit a line; basis was
+// fake, now discarded.
 //
-// 星标尺寸夹在 [15, 24]:上界是 Vue2 的原值,下界 15px 沿用本组件初版的 `min-width: 15px`
-// (星形图标再小就认不出)。**关键**:尺寸必须随 size 缩,不能像上一轮那样钉死 24px ——
-// 48px 头像配 24px 星标会占掉半个头像宽、压在人脸正中;等比缩放后 48px 头像的星标是 15px(31%),
-// 且「星标中心到圆心的距离 / 半径」在各尺寸下都稳定在 0.92-0.94,与 124px 那一档几何相似。
+// Star size constrained to [15, 24]: upper bound is Vue2's original value, lower bound 15px
+// inherited from this component's initial version's `min-width: 15px` (star icon unrecognizable
+// smaller). **Critical**: size must scale with size, cannot hard-code 24px like previous round —
+// 48px avatar with 24px star takes half avatar width, presses onto face center; after proportional
+// scaling, 48px avatar's star is 15px (31%), and "distance from star center to circle center /
+// radius" stays stable at 0.92-0.94 across sizes, geometrically similar to 124px tier.
 const favSize = computed(() => Math.min(24, Math.max(15, Math.round(props.size * (24 / 124)))))
 const favOffset = computed(() => Math.round(props.size * (34 / 124)))
 
@@ -140,6 +152,27 @@ function onImgError(): void {
 </template>
 
 <style scoped>
+/* Task 5 (Plan D) shadowing cleanup — audited, nothing to shrink here (and deliberately no
+   class renames): unlike the other five components in this task, this one has no single Vue2
+   ancestor to align to. It replaces FIVE different pieces of Vue2 markup that each use their
+   own class names for what is structurally the same three-tier avatar (real image / initial /
+   icon fallback): `.face-card .ring` (people list), `.rel-row .av` (co-appear list), `.coappear-
+   card .ring` (person-detail timeline strip), `.detail-hero .avatar` (hero), and the merge
+   dialog's own avatar markup. Parity anchors each of those five shapes to its own selector
+   path with its own sizing/border — this component can't literally *be* `.ring` and `.av` and
+   `.detail-hero .avatar` at once without either duplicating itself per call site or accepting
+   a variant-name prop (out of scope: "props/emits/logic untouched"). The already-established
+   pattern (see PhotosPeople.vue's Task 2 survivor comments) is the opposite direction: keep
+   this component's own class names (`.person-avatar-img` etc.) stable, and let each *consumer*
+   add its own `:deep()` override for the one Vue2 shape it needs. PersonHero.vue and
+   PersonRelationsTab.vue (both touched by this task) were checked against this same rule — see
+   task-5-report.md. Nothing here duplicates a parity anchor (there isn't one to duplicate),
+   and the `--card-border`/`--avatar-fallback`/`--overlay-bg`/`--star-fg` tokens below are this
+   app's own theme.css tokens (not parity's private set), left as-is: since there is no single
+   parity anchor this component's own class names should adopt, there's also no reason to
+   switch its token vocabulary — that decision belongs to whichever consumer's `:deep()`
+   override, if any, needs to match a specific parity anchor (see PhotosPeople.vue's Task 2
+   survivors for the established pattern). */
 .person-avatar {
   position: relative;
   flex-shrink: 0;
@@ -149,19 +182,22 @@ function onImgError(): void {
   height: 100%;
   border-radius: 50%;
   overflow: hidden;
-  /* 评审 Minor 修正:Vue2 的 .face-card .ring(photos-people.scss:124)**无条件**带一圈
-     1px 实线发丝边,原先只在 is-dashed 时给边 —— Named 分区 84px 头像因此少了一圈描边
-     (Pinned 124px 被 accent 光环盖住才没露出来)。这里改成默认实线、虚线态覆盖。 */
+  /* Review Minor correction: Vue2's .face-card .ring (photos-people.scss:124) **unconditionally**
+     has a 1px solid hairline border; originally only added border on is-dashed — Named section's
+     84px avatars therefore missing outline ring (Pinned 124px hidden by accent glow). Here changed
+     to default solid, dashed state overrides. */
   border: 1px solid var(--card-border);
 }
-/* --line / --line-stronger 在本仓 theme.css 都不存在(已 grep 确认,两套主题块均无这两个
-   token)—— 一律借用在两套主题都有真实定义的 --card-border(卡片描边),登记为对 Vue2/brief
-   字面 token 名的替代,而非新增或臆造。 */
+/* --line / --line-stronger don't exist in this repo's theme.css (grep confirmed, neither token
+   in either theme block) — uniformly reuse --card-border which is actually defined in both themes
+   (card outline); registered as substitute for Vue2/brief literal token names, not new or
+   fabricated. */
 .person-avatar.is-dashed .person-avatar-ring {
   border-style: dashed;
 }
-/* Task 8 加性扩展:方形圆角变体(默认仍是圆形 border-radius:50%,见上方规则),
-   仅 MergeReviewDialog 的两侧对比头像使用。 */
+/* Task 8 additive extension: square-with-rounded-corners variant (default still circular
+   border-radius:50%; see rule above); only used for MergeReviewDialog's side-by-side comparison
+   avatars. */
 .person-avatar.is-square .person-avatar-ring {
   border-radius: 12px;
 }
@@ -187,21 +223,24 @@ function onImgError(): void {
   width: 32%;
   height: 32%;
 }
-/* theme-exception: --avatar-fallback 不是纯 accent 实底（暗色主题一端混了 55% 黑，
-   见 theme.css 同名 token），--on-accent 默认暗色主题下是深藏青，叠在这种偏暗渐变上
-   会深底深字（评审 Critical 修正，同 PhotosAlbumDetail.vue:733 的 tile-cover-btn
-   先例）。沿渐变对角轴只偏移约 10% 对比度就跌破小字 4.5:1 门槛，字形笔画范围本身就
-   落在这个偏移量之外，圆形裁切裁不掉这个风险，合并候选行等小尺寸头像的字号更小，
-   没有大字 3:1 豁免。两套主题统一钉死浅色，不只改暗色分支。 */
+/* theme-exception: --avatar-fallback is not pure accent solid (dark theme mixes 55% black —
+   see same-name token in theme.css), --on-accent defaults to dark teal in dark theme — layered
+   on this dim gradient results in dark bottom, dark text (review Critical correction — precedent
+   PhotosAlbumDetail.vue:733 tile-cover-btn). Shifting ~10% contrast along gradient diagonal axis
+   drops below small-text 4.5:1 threshold — glyph strokes already fall outside this offset range —
+   circular clipping can't eliminate this risk — merge-candidate rows and similar small avatars
+   have even smaller font size, no large-text 3:1 exemption. Both themes uniformly pin to light
+   color, not just dark-theme branch. */
 .person-avatar-initial,
 .person-avatar-icon {
   color: #fff;
 }
-/* 几何逐条照 Vue2 photos-people.scss:150-164 的 .fav-mark:圆环「上方偏右」而不是右下角。
-   尺寸与水平偏移由 :style 注入(都随 size 等比缩放,见 script 的 favSize/favOffset 注释)。
-   top 的参考系换算(评审 Minor 修正):Vue2 的 .fav-mark 挂在 .face-card 上,该卡片有
-   padding:6px(scss:112),故它的 top:4px 实际等于「圆环顶边**上方** 2px」;本组件的定位
-   父级就是圆环本体,要还原同一视觉位置得写 -2px,直接照抄 4px 会比 Vue2 低 6px。 */
+/* Geometry mirrors Vue2 photos-people.scss:150-164 .fav-mark: upper-right of ring, not lower-
+   right. Size and horizontal offset injected via :style (both scale proportionally with size; see
+   favSize/favOffset comments in script). Top reference frame conversion (review Minor correction):
+   Vue2's .fav-mark hangs on .face-card, which has padding:6px (scss:112), so its top:4px actually
+   equals "2px **above** ring top edge"; this component's positioning parent is the ring itself; to
+   restore same visual position must write -2px; directly copying 4px would be 6px lower than Vue2. */
 .person-avatar-fav {
   position: absolute;
   top: -2px;
@@ -212,21 +251,23 @@ function onImgError(): void {
   border-radius: 50%;
   pointer-events: none;
   z-index: 2;
-  /* --overlay-bg 是两套主题各自定义的半透明暗底(非固定跨皮肤值),用于在不可控的
-     真实人脸缩略图之上垂放收藏星标,不需要 theme-exception。 */
+  /* --overlay-bg is semi-transparent dark base defined separately in each theme (not fixed
+     cross-skin value); used to place favorite star on top of uncontrollable real face thumbnail;
+     no theme-exception needed. */
   background: var(--overlay-bg);
   backdrop-filter: var(--blur);
 }
-/* theme-exception: 星标压在不可控的人脸照片上,暗底之上需要恒定的半透明浅色描边勾边 */
+/* theme-exception: star presses on uncontrollable face photo — needs constant semi-transparent
+   light border outline on top of dark base */
 .person-avatar-fav { border: 1px solid rgba(255, 255, 255, 0.12); }
 .person-avatar-fav svg {
-  /* 图标占星标底盘的一半(Vue2 是 24px 底盘配 12px 图标),跟着 favSize 一起缩 */
+  /* Icon occupies half of star base (Vue2 is 24px base with 12px icon), scales with favSize */
   width: 50%;
   height: 50%;
-  /* --star-fg 未在 theme.css 定义具体值,是本仓已确立的先例(PhotosGrid.vue:389,395 /
-     PhotoLightbox.vue:345 均为 var(--star-fg, #ffd60a)):固定金色星标跨皮肤不变,用
-     var(fallback) 形式表达而非字面量,color-guard 按 token 用法放行,这里复用同一先例
-     而不是另起字面量。 */
+  /* --star-fg not defined with concrete value in theme.css; established precedent in this repo
+     (PhotosGrid.vue:389, 395 / PhotoLightbox.vue:345 both use var(--star-fg, #ffd60a)): fixed
+     golden stars unchanged across skins; expressed via var(fallback) form not literal;
+     color-guard allows as token usage; reuse same precedent here rather than new literal. */
   color: var(--star-fg, #ffd60a);
 }
 </style>

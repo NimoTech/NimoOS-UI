@@ -10,7 +10,7 @@ export function rectFromPoints(x1: number, y1: number, x2: number, y2: number): 
   }
 }
 
-// 标准 AABB 严格相交(边缘相接不算)
+// Standard AABB strict intersection (edge touching does not count)
 function overlaps(a: Rect, b: Rect): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
 }

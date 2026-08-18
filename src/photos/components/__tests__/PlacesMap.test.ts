@@ -8,7 +8,27 @@ import PlacesMap from '../PlacesMap.vue'
 // 原始源码文本(Vite `?raw`)—— 一部分测试要读源文本本身(颜色 attribute 守卫、
 // theme-exception 注释合规),不是 DOM 断言能覆盖的,同 PlacesRail.test.ts:19 的既有先例。
 import placesMapRaw from '../PlacesMap.vue?raw'
+// Task 5 (Plan E #106 perf port): `.world-dot`'s CSS rule moved out of PlacesMap.vue's own
+// <style> block into PlacesWorldDots.vue's (the dots now render inside that child component's
+// own template, not this one's — see that file's own header comment on why the rule had to move
+// with the elements). The raw-source rule-lookup test below is repointed at the new home.
+import placesWorldDotsRaw from '../PlacesWorldDots.vue?raw'
 import { extractStyleBlock, parseCssRules } from './cssCascade'
+// Task 6 (Plan E, 2026-08-15): `.css?raw` comes back empty in this test environment (same
+// pitfall views/__tests__/photosGlassSurfaces.test.ts's header comment documents for CSS
+// files specifically — Vite's own CSS plugin intercepts the import before the raw-suffix
+// loader runs, unlike `.vue?raw` used elsewhere in this file, which isn't intercepted the same
+// way); read theme.css via node:fs instead, same as that file's own `read()` helper.
+import fs from 'node:fs'
+import path from 'node:path'
+
+const themeCssRaw = fs.readFileSync(path.resolve(__dirname, '../../../styles/theme.css'), 'utf8')
+// Fix-5 (owner acceptance, 2026-08-17): parity's own photos-places.scss, needed to verify the
+// `.geo-pin:hover` glow rule now governs from THERE (purple `rgba(var(--accent-rgb), …)`) rather
+// than from this component's own (now-deleted) local `--pin-glow`-consuming duplicate.
+const placesParityScssRaw = fs.readFileSync(
+  path.resolve(__dirname, '../../styles/vue2-parity/photos-places.scss'), 'utf8',
+)
 
 // 注意:cssCascade.ts 的 extractStyleBlock() 会先剥掉 CSS 注释再返回(给"选择器优先级"
 // 那组测试用,注释会污染选择器解析)。theme-exception 合规检查恰恰要看注释本身的原文,
@@ -95,12 +115,28 @@ describe('结构规格 3: 陆地点阵(删码⑤靶)', () => {
   // 评审 I1:.world-dot 的 fill 回落必须是专用 token --map-dot-bg-fallback,不能是 --fg-faint
   // ——深色 --fg-faint(0.52)会亮到盖过 is-visited 点,浅色 --fg-faint 是不透明暖灰,铺在地图
   // 黑底画布上会变成一块不透明色块(两条都是 Vue2 最常见路径,不是罕见分支)。
+  // Task 5 (Plan E #106 perf port): 这条规则现在住在 PlacesWorldDots.vue 自己的 <style> 块里
+  // (点阵 <circle> 已抽成那个子组件,scoped 属性只挂它自己模板产出的元素——留在 PlacesMap.vue
+  // 会变成一条谁都匹配不到的死规则),读源文本的靶子跟着挪过去,断言内容不变。
   it('.world-dot 的 fill 回落引用 --map-dot-bg-fallback,不是 --fg-faint(删码:换回 --fg-faint 必红)', () => {
-    const rules = parseCssRules(extractStyleBlock(placesMapRaw))
+    const rules = parseCssRules(extractStyleBlock(placesWorldDotsRaw))
     const rule = rules.find(r => r.selectors.length === 1 && r.selectors[0] === '.world-dot')
     expect(rule, '.world-dot 独立规则未找到').toBeTruthy()
     expect(rule!.body).toMatch(/fill:\s*var\(--map-dot-bg,\s*var\(--map-dot-bg-fallback\)\)/)
     expect(rule!.body).not.toContain('--fg-faint')
+  })
+
+  // Task 6 (Plan E, 2026-08-15): --map-dot-bg-fallback's own literal was still the pre-#106
+  // value (rgba(255,255,255,0.10)) — Vue2 PR #106 (git show 78cf3335) bumped it twice
+  // (0.10→0.20→0.30) and this repo's token never caught up. Both theme blocks (`:root` dark and
+  // `:root[data-theme="light"]`) must carry the same 0.30 literal — this fallback is only ever
+  // reached on the dark-canvas path (dotBg is null; a light preset always supplies its own
+  // dotBg), so it's intentionally theme-invariant, matching Vue2's own single non-varying
+  // literal at photos-places.scss:349.
+  it('--map-dot-bg-fallback 两套主题块都是 0.30(不是 pre-#106 的 0.10)', () => {
+    const matches = [...themeCssRaw.matchAll(/--map-dot-bg-fallback:\s*([^;]+);/g)].map(m => m[1].trim())
+    expect(matches.length, '两套主题块(:root / :root[data-theme="light"])都应定义这个 token').toBe(2)
+    for (const v of matches) expect(v).toBe('rgba(255, 255, 255, 0.30)')
   })
 })
 
@@ -241,11 +277,25 @@ describe('结构规格 4/8: .pin-scale 几何声明 + hover 发光引用(补测,
     expect(rule!.body).toMatch(/transform-origin:\s*center/)
   })
 
-  it('.geo-pin:hover 引用 var(--pin-glow) 做外发光', () => {
+  // Fix-5 (owner acceptance, 2026-08-17, P6a overturned): this local `.geo-pin:hover` rule (blue
+  // `var(--pin-glow)`) is DELETED from PlacesMap.vue's own `<style scoped>` — it was shadowing
+  // parity's already-correct, byte-transcribed-from-Vue2 purple rule at a cascade tie (see
+  // PlacesMap.vue's own Fix-5 header comment). Retargeted: assert the local rule is gone, and
+  // that parity's own `.photos-root .geo-pin:hover` (photos-places.scss) is what actually governs
+  // the glow now, using the purple `rgba(var(--accent-rgb), 0.7)` family Vue2 itself uses.
+  it('本地不再有 .geo-pin:hover 规则(已删除,让 parity 接管)', () => {
     const rules = parseCssRules(extractStyleBlock(placesMapRaw))
     const rule = rules.find(r => r.selectors.includes('.geo-pin:hover'))
-    expect(rule, '.geo-pin:hover 规则未找到').toBeTruthy()
-    expect(rule!.body).toMatch(/filter:\s*drop-shadow\([^)]*var\(--pin-glow\)/)
+    expect(rule, '.geo-pin:hover 规则应已从本地删除').toBeUndefined()
+  })
+
+  it('parity 的 .photos-root .geo-pin:hover 用紫色 rgba(var(--accent-rgb), 0.7) 做外发光(Vue2 原值)', () => {
+    // photos-places.scss is a bare .scss, not a Vue SFC -- no `<style>` wrapper for
+    // extractStyleBlock() to find, so strip comments directly and hand parseCssRules the raw text.
+    const rules = parseCssRules(placesParityScssRaw.replace(/\/\*[\s\S]*?\*\//g, ''))
+    const rule = rules.find(r => r.selectors.includes('.geo-pin:hover'))
+    expect(rule, 'parity 的 .geo-pin:hover 规则未找到').toBeTruthy()
+    expect(rule!.body).toMatch(/filter:\s*drop-shadow\(0 0 14px rgba\(var\(--accent-rgb\), 0\.7\)\)/)
   })
 })
 

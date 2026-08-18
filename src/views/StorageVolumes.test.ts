@@ -4,9 +4,10 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { defineComponent } from 'vue'
 
-// 父盘路径(GROUP.path)与分区路径(child.path)刻意不同,用来验证卸载转发的是父盘路径。
+// The parent disk path (GROUP.path) and the partition path (child.path) are deliberately
+// different, to verify that unmount forwards the parent disk path.
 const GROUP = {
-  path: '/dev/sda', // 父盘路径 —— 卸载必须转发这个,不是 child.path
+  path: '/dev/sda', // parent disk path — unmount must forward this, not child.path
   disk_name: 'WD',
   children: [
     { uuid: 'u1', label: 'Vol-A', type: 'ext4', size: '100', avail: '40', path: '/dev/sda1', mount_point: '/mnt/a' },
@@ -38,7 +39,7 @@ vi.mock('../composables/useMessageBus', () => ({
 import StorageVolumes from './StorageVolumes.vue'
 import { i18n } from '../i18n'
 
-// 一块可用于创建存储的候选盘(需格式化);path 与卷分区 path 刻意不同。
+// A candidate drive available for creating storage (needs formatting); its path is deliberately different from the volume partition's path.
 const AVAIL_DISK = { path: '/dev/sdb', name: 'sdb', model: 'WD-Blue', size: '200', need_format: 'true', serial: 's-b' }
 
 const Stub = defineComponent({ template: '<div />' })
@@ -76,18 +77,18 @@ beforeEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('StorageVolumes 卸载弹窗接线', () => {
-  it('卸载转发 v.disk(父盘路径)而非分区 path(P1 债②)', async () => {
+describe('StorageVolumes unmount dialog wiring', () => {
+  it('unmount forwards v.disk (parent disk path) rather than the partition path (P1 debt item 2)', async () => {
     umount.mockResolvedValue(undefined)
     const w = await mountView()
 
-    // 点 VolumeCard 上的移除按钮(危险色 .vc-act.danger)打开弹窗
+    // Click the remove button on VolumeCard (danger-colored .vc-act.danger) to open the dialog
     const removeBtn = w.find('.vc-act.danger')
     expect(removeBtn.exists()).toBe(true)
     await removeBtn.trigger('click')
     await w.vm.$nextTick()
 
-    // 弹窗渲染在 body(teleport),输入密码后点确认
+    // The dialog renders on body (teleport); enter the password then click confirm
     const input = document.body.querySelector<HTMLInputElement>('.ud-input')!
     expect(input).toBeTruthy()
     input.value = 'pw'
@@ -99,7 +100,7 @@ describe('StorageVolumes 卸载弹窗接线', () => {
     expect(umount).toHaveBeenCalledWith({ path: '/dev/sda', password: 'pw' })
   })
 
-  it('unmounting=true 时确认按钮禁用(在途防连点)', async () => {
+  it('the confirm button is disabled while unmounting=true (guards against double-click while in flight)', async () => {
     let resolveUmount: (() => void) | undefined
     umount.mockImplementation(
       () =>
@@ -118,7 +119,7 @@ describe('StorageVolumes 卸载弹窗接线', () => {
     await w.vm.$nextTick()
 
     document.body.querySelector<HTMLButtonElement>('.ud-btn.danger')!.click()
-    await flushAll() // 让 store.unmount 内部推进到 await service.disks.umount(...) 的挂起点
+    await flushAll() // let store.unmount's internals advance to the pending point at await service.disks.umount(...)
     await w.vm.$nextTick()
 
     const okBtn = document.body.querySelector<HTMLButtonElement>('.ud-btn.danger')!
@@ -126,14 +127,14 @@ describe('StorageVolumes 卸载弹窗接线', () => {
     expect(okBtn.disabled).toBe(true)
     expect(cancelBtn.disabled).toBe(true)
 
-    // 收尾:释放挂起的 promise,避免污染后续测试(不属于断言)
+    // Cleanup: resolve the pending promise so it doesn't pollute later tests (not an assertion)
     resolveUmount?.()
     await flushAll()
   })
 })
 
-describe('StorageVolumes 创建 + 格式化接线', () => {
-  it('无候选盘时创建按钮禁用并带提示 title', async () => {
+describe('StorageVolumes create + format wiring', () => {
+  it('the create button is disabled with a hint title when there are no candidate drives', async () => {
     getDiskList.mockResolvedValue({ disks: [], avail: [] })
     const w = await mountView()
 
@@ -143,30 +144,30 @@ describe('StorageVolumes 创建 + 格式化接线', () => {
     expect(btn.attributes('title')).toBe(i18n.global.t('storageCreateNoDisk'))
   })
 
-  it('创建链路:点创建→弹窗→确认→service.storage.create 收到 {path,name,format}', async () => {
+  it('create flow: click create -> dialog -> confirm -> service.storage.create receives {path,name,format}', async () => {
     getDiskList.mockResolvedValue({ disks: [], avail: [AVAIL_DISK] })
     const w = await mountView()
 
-    // 有候选盘 → 按钮可用,无 title 提示
+    // A candidate drive exists -> button enabled, no title hint
     const btn = w.find('.sv-create')
     expect(btn.attributes('disabled')).toBeUndefined()
     await btn.trigger('click')
     await w.vm.$nextTick()
 
-    // 弹窗渲染在 body(teleport):名称默认 Main-storage(与现有 Vol-A 卷不冲突)
+    // The dialog renders on body (teleport): name defaults to Main-storage (doesn't clash with the existing Vol-A volume)
     const nameInput = document.body.querySelector<HTMLInputElement>('input.cs-input')!
     expect(nameInput).toBeTruthy()
     expect(nameInput.value).toBe('Main-storage')
 
-    // 候选盘 need_format=true → 仅「格式化并创建」按钮(.cs-btn.danger)
+    // Candidate drive has need_format=true -> only the "format and create" button (.cs-btn.danger)
     document.body.querySelector<HTMLButtonElement>('.cs-btn.danger')!.click()
     await flushAll()
 
     expect(createMock).toHaveBeenCalledWith({ path: '/dev/sdb', name: 'Main-storage', format: true })
   })
 
-  it('默认名与现有卷名+RAID 名共享去重:Main-storage 卷 + Main-storage1 RAID → 默认填 Main-storage2', async () => {
-    // 现有卷叫 Main-storage
+  it('default name shares dedup with existing volume names + RAID names: Main-storage volume + Main-storage1 RAID -> defaults to Main-storage2', async () => {
+    // The existing volume is named Main-storage
     storageList.mockResolvedValue([
       {
         path: '/dev/sda',
@@ -174,7 +175,7 @@ describe('StorageVolumes 创建 + 格式化接线', () => {
         children: [{ uuid: 'u1', label: 'Main-storage', type: 'ext4', size: '100', avail: '40', path: '/dev/sda1', mount_point: '/mnt/a' }],
       },
     ])
-    // RAID 名占用 Main-storage1 → 只有卷去重会得 Main-storage1,加上 RAID 才推到 Main-storage2
+    // A RAID name takes up Main-storage1 -> volume dedup alone would land on Main-storage1, adding RAID pushes it to Main-storage2
     raidList.mockResolvedValue([{ name: 'Main-storage1', mount_point: '/mnt/raid' }])
     getDiskList.mockResolvedValue({ disks: [], avail: [AVAIL_DISK] })
     const w = await mountView()
@@ -186,16 +187,16 @@ describe('StorageVolumes 创建 + 格式化接线', () => {
     expect(nameInput.value).toBe('Main-storage2')
   })
 
-  it('格式化链路:VolumeCard format → FormatDialog 密码 → service.storage.format 收到 {path: v.path, volume: v.mountPoint, password}', async () => {
+  it('format flow: VolumeCard format -> FormatDialog password -> service.storage.format receives {path: v.path, volume: v.mountPoint, password}', async () => {
     const w = await mountView()
 
-    // VolumeCard 上的格式化按钮(非 danger 的 .vc-act)
+    // The format button on VolumeCard (the non-danger .vc-act)
     const formatBtn = w.findAll('.vc-act').find((b) => !b.classes().includes('danger'))!
     expect(formatBtn).toBeTruthy()
     await formatBtn.trigger('click')
     await w.vm.$nextTick()
 
-    // 格式化弹窗输入密码后确认
+    // Enter the password in the format dialog then confirm
     const input = document.body.querySelector<HTMLInputElement>('.fd-input')!
     expect(input).toBeTruthy()
     input.value = 'pw'
@@ -204,7 +205,7 @@ describe('StorageVolumes 创建 + 格式化接线', () => {
     document.body.querySelector<HTMLButtonElement>('.fd-btn.danger')!.click()
     await flushAll()
 
-    // path 是分区路径(/dev/sda1),volume 是挂载点(/mnt/a) —— 与卸载用的父盘路径 /dev/sda 区分
+    // path is the partition path (/dev/sda1), volume is the mount point (/mnt/a) — distinct from the parent disk path /dev/sda used for unmount
     expect(formatMock).toHaveBeenCalledWith({ path: '/dev/sda1', volume: '/mnt/a', password: 'pw' })
   })
 })

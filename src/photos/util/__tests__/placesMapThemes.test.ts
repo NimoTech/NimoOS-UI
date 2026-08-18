@@ -1,10 +1,18 @@
 // Task 10(SP7-P6a 地点·地图主视图):placesMapThemes.ts —— 地图主题预设表 + resolveMapTheme
 // 语义。逐条对应 task-10-brief.md 的「必含测试清单」+ 26 个色值逐字断言 + 5 处删码验证。
+//
+// Plan E Task 6 (2026-08-15): updated for Vue2 NimoOS-UI PR #106 sub-commits 1-3 (git show
+// 78cf3335) — the dotBg contrast finals (bumped twice: 0.10→0.20→0.30, plus the ocean/sand/mono
+// variants) and the custom-mode picker remap (Land dot color → dotBg via hexToRgba fixed-alpha
+// wash, City light color → dot solid, bg/grid following isLight). CUSTOM_GRID_DEFAULT is renamed
+// CUSTOM_CITY_DEFAULT here for the same reason Vue2 renamed its own `customGridColor` field to
+// `customCityColor`: the value it names now feeds the *city light* dot, never a grid line.
 import { describe, expect, it } from 'vitest'
 import {
+  CUSTOM_CITY_DEFAULT,
   CUSTOM_DOT_DEFAULT,
-  CUSTOM_GRID_DEFAULT,
   MAP_THEME_PRESETS,
+  hexToRgba,
   mapThemeStyleVars,
   resolveMapTheme,
   swatchColors,
@@ -36,7 +44,7 @@ describe('26 个色值逐字断言(保真移植合同)', () => {
     expect(p.light).toEqual({
       bg: 'oklch(0.975 0.004 80)',
       grid: 'rgba(28,28,30,0.07)',
-      dotBg: 'rgba(28,28,30,0.10)',
+      dotBg: 'rgba(28,28,30,0.30)',
       dot: '#6E5BFF',
     })
   })
@@ -49,7 +57,7 @@ describe('26 个色值逐字断言(保真移植合同)', () => {
     expect(p.light).toEqual({
       bg: 'oklch(0.97 0.008 230)',
       grid: 'rgba(10,100,160,0.08)',
-      dotBg: 'rgba(10,100,160,0.10)',
+      dotBg: 'rgba(10,100,160,0.32)',
       dot: '#0A84C2',
     })
   })
@@ -62,7 +70,7 @@ describe('26 个色值逐字断言(保真移植合同)', () => {
     expect(p.light).toEqual({
       bg: 'oklch(0.97 0.008 80)',
       grid: 'rgba(120,80,0,0.08)',
-      dotBg: 'rgba(120,80,0,0.10)',
+      dotBg: 'rgba(120,80,0,0.32)',
       dot: '#C77800',
     })
   })
@@ -75,28 +83,47 @@ describe('26 个色值逐字断言(保真移植合同)', () => {
     expect(p.light).toEqual({
       bg: 'oklch(0.975 0.004 80)',
       grid: 'rgba(28,28,30,0.08)',
-      dotBg: 'rgba(28,28,30,0.12)',
+      dotBg: 'rgba(28,28,30,0.34)',
       dot: '#3C4043',
     })
   })
 
   it('两个自定义默认色(Vue2 :86-87)', () => {
     expect(CUSTOM_DOT_DEFAULT).toBe('#6E5BFF')
-    expect(CUSTOM_GRID_DEFAULT).toBe('#9C8EFF')
+    expect(CUSTOM_CITY_DEFAULT).toBe('#9C8EFF')
   })
 })
 
-// ── resolveMapTheme 语义(Vue2 :134-151)──────────────────────────────────────
+// ── hexToRgba:custom 模式陆地点阵固定 0.30 alpha 的转换辅助(Vue2 :67-79)────────
+describe('hexToRgba', () => {
+  it('6 位 hex 转 rgba,alpha 原样代入', () => {
+    expect(hexToRgba('#111111', 0.3)).toBe('rgba(17,17,17,0.3)')
+  })
+
+  it('3 位 hex 先展开再转换', () => {
+    expect(hexToRgba('#fff', 0.5)).toBe('rgba(255,255,255,0.5)')
+  })
+
+  it('不带 # 前缀也能识别', () => {
+    expect(hexToRgba('abcdef', 1)).toBe('rgba(171,205,239,1)')
+  })
+
+  it('非 hex 输入原样透传(Vue2 :72-73 的降级路径)', () => {
+    expect(hexToRgba('not-a-color', 0.3)).toBe('not-a-color')
+  })
+})
+
+// ── resolveMapTheme 语义(Vue2 :134-151,custom 分支已按 #106 sub-commit 3 更新)───
 describe('resolveMapTheme', () => {
-  it('custom 模式:bg 恒为 #0A0A0C、dot/grid 取自定义色、dotBg 为 null', () => {
+  it('custom 模式 + 深色:bg/grid 取深色字面量,dot 取 customCityColor 原样,dotBg 是 customDotColor 经 hexToRgba(0.30) 转换的洗色', () => {
     expect(resolveMapTheme('custom', '#111111', '#222222', false)).toEqual({
-      bg: '#0A0A0C', dot: '#111111', grid: '#222222', dotBg: null,
+      bg: '#0A0A0C', grid: 'rgba(255,255,255,0.04)', dot: '#222222', dotBg: 'rgba(17,17,17,0.3)',
     })
   })
 
-  it('custom 模式:isLight=true 时结果完全相同(自定义模式不随 app 主题变)', () => {
+  it('custom 模式 + 浅色:bg/grid 跟随 default 预设的 light 变体,dot/dotBg 不变(#106 sub-commit 3:custom 画布跟随 app 主题,不再硬编码暗色)', () => {
     expect(resolveMapTheme('custom', '#111111', '#222222', true)).toEqual({
-      bg: '#0A0A0C', dot: '#111111', grid: '#222222', dotBg: null,
+      bg: 'oklch(0.975 0.004 80)', grid: 'rgba(28,28,30,0.07)', dot: '#222222', dotBg: 'rgba(17,17,17,0.3)',
     })
   })
 
@@ -108,7 +135,7 @@ describe('resolveMapTheme', () => {
 
   it('ocean + 浅色:四个字段全取 light.*', () => {
     expect(resolveMapTheme('ocean', '#111111', '#222222', true)).toEqual({
-      bg: 'oklch(0.97 0.008 230)', dot: '#0A84C2', grid: 'rgba(10,100,160,0.08)', dotBg: 'rgba(10,100,160,0.10)',
+      bg: 'oklch(0.97 0.008 230)', dot: '#0A84C2', grid: 'rgba(10,100,160,0.08)', dotBg: 'rgba(10,100,160,0.32)',
     })
   })
 
@@ -120,7 +147,7 @@ describe('resolveMapTheme', () => {
 
   it('未知 id 回落 default,浅色', () => {
     expect(resolveMapTheme('nonexistent', '#111111', '#222222', true)).toEqual({
-      bg: 'oklch(0.975 0.004 80)', dot: '#6E5BFF', grid: 'rgba(28,28,30,0.07)', dotBg: 'rgba(28,28,30,0.10)',
+      bg: 'oklch(0.975 0.004 80)', dot: '#6E5BFF', grid: 'rgba(28,28,30,0.07)', dotBg: 'rgba(28,28,30,0.30)',
     })
   })
 })

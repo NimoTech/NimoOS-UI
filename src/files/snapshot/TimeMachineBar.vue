@@ -9,9 +9,11 @@ function onEnter() { if (props.canEnter) emit('enter') }
 <template>
   <div class="tm-bar">
     <button class="tm-bar-cancel" @click="emit('cancel')">{{ t('filesCancel') }}</button>
-    <!-- "正在查看 …… 的历史版本"原本在左上角,但路径一长就横穿到齿轮那边,还压在卡堆
-         翻页动画上面(用户反馈)。挪到底栏、垫在时间上方:这里本来就是一列文字,长路径
-         有整条底栏的宽度可用,且完全避开动画区。 -->
+    <!-- "Viewing history of ……" was originally in the top-left corner, but with long paths it
+         extends across to the gear icon and overlaps the page-flip animation (user feedback).
+         Moved to the bottom bar, positioned above the time: this area is already a column of text,
+         long paths have the full width of the bottom bar available, and completely avoids the
+         animation area. -->
     <div class="tm-bar-center">
       <div v-if="props.folderText" class="tm-bar-folder">{{ props.folderText }}</div>
       <div class="tm-bar-moment">{{ props.momentText }}</div>

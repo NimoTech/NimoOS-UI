@@ -1,17 +1,19 @@
 <script setup lang="ts">
-// ISO 选择器弹窗 —— 官方模板半(分类过滤 + 卡片网格 + 下载三态)。
-// 视觉 1:1 对 Vue2 components/KVM/OSSelector.vue 模板 :1-52(header + 分类 + 卡片网格),
-// 逻辑对 filteredOS(:196-199)/getButtonClass(:251-255)/getButtonText(:257-265)/
-// handleOSAction(:267-275)/selectOS(:287-290)。
+// ISO selector dialog — official template half (category filter + card grid + download three-state).
+// Visual 1:1 mapping to Vue2 components/KVM/OSSelector.vue template :1-52 (header + categories + card grid),
+// logic maps to filteredOS(:196-199)/getButtonClass(:251-255)/getButtonText(:257-265)/
+// handleOSAction(:267-275)/selectOS(:287-290).
 //
-// 本组件是纯展示层:`isos` 由页面级 useIsoList()(KvmPage,Task 8 接线)持有并作为
-// props 传入,组件自己不创建 useIsoList、不订阅任何 MessageBus 事件——Vue2 的
-// OSSelector 是常驻挂载的(`v-if="visible"` 在它自己的根节点上),下载进度订阅一直
-// 活着,关闭弹窗不影响进度推进;New-UI 把这层状态提到页面级后,本组件降级成纯展示,
-// 通过 props 拿 isos、通过 emit 上报动作(brief「为什么 isos 是 props」一节)。
+// This component is a pure presentation layer: `isos` is held at page level by useIsoList()
+// (KvmPage, Task 8 wiring) and passed in as props. The component itself does not create useIsoList
+// or subscribe to any MessageBus events — Vue2's OSSelector is permanently mounted (`v-if="visible"`
+// on its own root), and the download-progress subscription stays active; closing the dialog doesn't
+// affect progress updates. New-UI moved this state up to page level, so this component degrades to
+// pure presentation, obtaining isos via props and reporting actions via emit (brief "why isos is props"
+// section).
 //
-// 自定义(本地文件浏览)区是 IsoBrowser 组件(Task 6),本组件只负责接线:透传
-// isos props、把它的 select 事件转发 + 关弹窗(见下面 onLocalSelect)。
+// The custom (local file browser) section is the IsoBrowser component (Task 6). This component only
+// handles wiring: relay isos props and forward its select event + close the dialog (see onLocalSelect below).
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import KvmDialog from './KvmDialog.vue'
@@ -20,9 +22,10 @@ import { filterByCategory } from '../util/isoMatch'
 import { osIconFor } from '../util/format'
 import type { IsoRow } from '../composables/useIsoList'
 
-/** 官方模板选中后派给上层(Task 7 创建弹窗 / Task 9 VM 设置)的规范形状。
- * Task 6(本地文件浏览)selectOS 分支也产出同一个类型,`isLocal` 区分来源。
- * ⚠️ 与 brief Interfaces 块逐字一致,改动需与 Task 6/7/9 一起协调。 */
+/** Standard shape of OS selection result passed to parent after official template is selected
+ * (Task 7 create dialog / Task 9 VM settings). Task 6 (local file browser) selectOS branch also
+ * produces the same type; `isLocal` distinguishes the source.
+ * ⚠️ Must match brief Interfaces block exactly; changes require coordination with Task 6/7/9. */
 export interface SelectedOs {
   isLocal: boolean
   id: string
@@ -38,32 +41,36 @@ export interface SelectedOs {
 const props = defineProps<{
   open: boolean
   isos: IsoRow[]
-  /** 全分支评审修复(A3,已申报):ISO 下载失败的内联报错文案。''=无错误。父组件
-   * (KvmPage)负责在新一轮下载开始前 / 关闭本弹窗时清空——本组件自己不管什么时候清,
-   * 只管显示,与 CreateVmDialog/VmSettingsDialog 的 submitError 是同一套契约。
-   * 为什么不走全局 toast:本组件的遮罩是 z-index 920(见下面 `<KvmDialog :z-base="920">`),
-   * 全局 toast 是 z-index 60(src/components/AppToast.vue:12)——下载失败通常发生在
-   * 用户正盯着这个弹窗里的百分比时,toast 会被这层遮罩完全盖住,卡片本身又只是从
-   * "12.34%" 悄悄退回"下载"(不像下载成功那样卡片会翻绿,还有个兜底视觉),净效果是
-   * 用户没有任何可见的失败解释。Vue2 能用 buefy toast 是因为它的 toast z-index 高于
-   * 它自己的 modal,这里 z 轴关系相反,不能照抄。 */
+  /** Full-branch review fix (A3, reported): inline error message when ISO download fails. ''=no error.
+   * Parent component (KvmPage) is responsible for clearing this before starting a new download round
+   * or when closing this dialog — this component itself doesn't manage timing, only displays, using
+   * the same contract as CreateVmDialog/VmSettingsDialog's submitError.
+   * Why not use global toast: this component's mask has z-index 920 (see `<KvmDialog :z-base="920">` below),
+   * global toast is z-index 60 (src/components/AppToast.vue:12) — download failures typically happen
+   * while the user is watching the percentage in this dialog; the toast would be completely hidden behind
+   * this mask. The card itself only quietly reverts from "12.34%" to "Download" (unlike successful downloads
+   * where the card turns green with a fallback visual), so the net effect is the user sees no visible
+   * failure explanation. Vue2 could use buefy toast because its toast z-index is higher than its own modal;
+   * here the z-axis relationship is reversed, so we can't copy that approach. */
   downloadError: string
-  /** SP16 Task 6:自定义(本地 ISO 浏览)区的展开态。本组件的内容由 reka 在关闭时卸载,
-   * 所以这个状态必须由页面持有才能跨越"关掉再打开";本组件只透传,不自己解释。 */
+  /** SP16 Task 6: expanded state of the custom (local ISO browser) section. This component's content is
+   * unmounted by reka when closed, so this state must be held at page level to persist across "close then
+   * reopen" cycles. This component only relays the state; it doesn't interpret it. */
   browserExpanded: boolean
 }>()
 const emit = defineEmits<{
   'update:open': [v: boolean]
   select: [os: SelectedOs]
   download: [id: string]
-  /** 点了正在下载的卡片 —— 视图层弹「请等待下载完成」,本组件不管怎么弹,只上报动作。 */
+  /** Clicked on a card that is currently downloading — parent shows "please wait for download to complete";
+   * this component doesn't manage how it's shown, only reports the action. */
   'need-wait': []
   'update:browserExpanded': [v: boolean]
 }>()
 
 const { t } = useI18n()
 
-// 照 Vue2 osCategories(:180-185),顺序不可变(all/windows/linux/bsd)。
+// Mirrors Vue2 osCategories(:180-185); order must not change (all/windows/linux/bsd).
 const CATEGORIES = [
   { key: 'all', label: 'kvmCatAll' },
   { key: 'windows', label: 'kvmCatWindows' },
@@ -73,29 +80,30 @@ const CATEGORIES = [
 
 const selectedCategory = ref<string>('all')
 
-// filterByCategory(Task 3)按 KvmISO[] 签名工作,IsoRow 结构上兼容(extends KvmISO),
-// 过滤结果里的元素本来就是 IsoRow 实例,这里只是把类型标注还原回来,不是重新实现过滤。
+// filterByCategory(Task 3) operates on KvmISO[] signature; IsoRow is structurally compatible (extends KvmISO).
+// The filtered result elements are already IsoRow instances; here we just restore the type annotation,
+// not re-implement filtering.
 const filtered = computed<IsoRow[]>(() => filterByCategory(props.isos, selectedCategory.value) as IsoRow[])
 
-// 照 Vue2 getButtonClass(:251-255)。
+// Mirrors Vue2 getButtonClass(:251-255).
 function buttonClass(os: IsoRow): string {
   if (os._downloaded) return 'is-selected'
   if (os._downloading) return 'is-downloading-btn'
   return 'is-download'
 }
 
-// 照 Vue2 getButtonText(:257-265)——**不搬** `${mb}MB` 分支(死代码,已申报):
-// 判断条件是 `os._progress >= 0`,进度非负恒真,那个分支永远到不了。
+// Mirrors Vue2 getButtonText(:257-265) — **does not port** the `${mb}MB` branch (dead code, already reported):
+// the condition is `os._progress >= 0`; progress non-negative is always true, so that branch is unreachable.
 function buttonText(os: IsoRow): string {
   if (os._downloaded) return t('kvmSelect')
   if (os._downloading) return `${os._progress.toFixed(2)}%`
   return t('kvmDownload')
 }
 
-// 照 Vue2 handleOSAction(:267-275)+ selectOS(:287-290),外加 path 缺失守卫
-// (Vue2 没有这层):`path` 是 `json:"path,omitempty"`,只有 status==='downloaded'
-// 才会出现。真出现「已下载但无 path」时 Vue2 会把 iso:undefined 发给后端换来 400——
-// 这里改正确:不 emit,不把半成品状态派发出去。
+// Mirrors Vue2 handleOSAction(:267-275) + selectOS(:287-290), plus path-missing guard
+// (Vue2 lacks this): `path` is `json:"path,omitempty"`, appears only when status==='downloaded'.
+// If "downloaded but no path" actually occurs, Vue2 would send iso:undefined to backend, getting 400 —
+// here we fix it: don't emit, don't dispatch incomplete state.
 function handleAction(os: IsoRow): void {
   if (os._downloaded) {
     if (!os.path) return
@@ -104,11 +112,12 @@ function handleAction(os: IsoRow): void {
       id: os.id,
       name: os.name,
       path: os.path,
-      // ⚠️ 有意不带 size(非疏漏,Task 5 遗留 Minor,补注于此免得 Task 7/9 翻错):
-      // `KvmISO.size` 是展示串(例如 "676 MB"),而 `SelectedOs.size?: number` 是
-      // 字节数——两者不同源、无法从前者推出合法的后者数值,硬填会把一个字符串或
-      // NaN 塞进本该是字节数的字段。本地文件路径(见 IsoBrowser.vue onItemClick)
-      // 才有真实的字节数(FolderEntry.size),那条分支正常带 size。
+      // ⚠️ Intentionally omitting size (not an oversight; Task 5 residual Minor note here
+      // to prevent Task 7/9 from making the wrong call): `KvmISO.size` is a display string
+      // (e.g. "676 MB"), while `SelectedOs.size?: number` is bytes — they come from different
+      // sources and can't be legally derived from each other. Hardcoding would smuggle a string
+      // or NaN into a field that should hold byte count. Local file paths (see IsoBrowser.vue
+      // onItemClick) have the real byte count (FolderEntry.size); that branch correctly includes size.
       recommendedVcpu: os.recommendedVcpu,
       recommendedMemory: os.recommendedMemory,
       minMemory: os.minMemory,
@@ -116,26 +125,27 @@ function handleAction(os: IsoRow): void {
     })
     emit('update:open', false)
   } else if (os._downloading) {
-    // 全分支评审记录的债务(A3 顺带项,不是本轮要修的缺陷,保持现状不改行为):Vue2
-    // 点正在下载的卡片其实什么都不做(OSSelector.vue:268-274 `else if (os._downloading)
-    // { return }`)——「请等待下载完成」那句 toast 挂在 selectOS 上,而 selectOS 只对
-    // `_downloaded` 的行触发,下载中的行永远走不到那句 toast,是 Vue2 里的死代码。
-    // 这里的 `need-wait` emit 把它复活成了"活着但看不见"——KvmPage.vue 确实会弹一条
-    // toast(`@need-wait="toast.show(...)"`),但这个弹窗自己的遮罩是 z 920、toast 是
-    // z 60,同 A3 的下载失败一样会被完全挡住。净效果与 Vue2 相同(点了没有可见反馈),
-    // 所以不改行为——但 `need-wait` 这个 emit + i18n 键 `kvmWaitForDownload` + KvmPage
-    // 那句 toast 接线,三者加在一起是纯粹的死重量(看着像有意设计,实际从未真正生效
-    // 过),记为债务,不在本轮清理(不属于 A3 的既定范围,清理它需要决定"要不要索性
-    // 删掉这条 emit"这类改动行为的问题,交给控制器/下一期裁定)。
+    // Full-branch review recorded debt (A3 side item, not a defect to fix this round; keeping current
+    // behavior unchanged): Vue2 clicking a card that is downloading does nothing (OSSelector.vue:268-274
+    // `else if (os._downloading) { return }`) — the "please wait for download to complete" toast is
+    // hooked to selectOS, but selectOS only fires for `_downloaded` rows, so downloading rows never reach
+    // that toast; it's dead code in Vue2. The `need-wait` emit here revives it into "alive but invisible" —
+    // KvmPage.vue does show a toast (`@need-wait="toast.show(...)"`), but this dialog's own mask is z 920
+    // and toast is z 60, so it gets completely hidden just like A3's download failure. Net effect matches Vue2
+    // (clicked but no visible feedback), so we don't change behavior — but `need-wait` emit + i18n key
+    // `kvmWaitForDownload` + KvmPage's toast wiring together form pure dead weight (looks intentionally designed,
+    // but actually never truly active), logged as debt, not cleaning up this round (outside A3's defined scope;
+    // cleaning it up requires deciding "should we simply delete this emit"; that's a behavior-change decision
+    // for the controller/next cycle).
     emit('need-wait')
   } else {
     emit('download', os.id)
   }
 }
 
-// Task 6:自定义区(本地文件浏览)选中的本地 ISO 走同一条 select 通道,同样关弹窗——
-// 与上面 handleAction 的已下载分支是同一个决定(选中即关闭),只是来源不同(官方模板
-// vs 本地文件),没有理由分叉成两套不同的关闭时机。
+// Task 6: local ISO selected in the custom section (local file browser) goes through the same select channel
+// and closes the dialog — same decision as handleAction's downloaded branch (select closes), just different
+// source (official template vs local file), no reason to fork into two different close timings.
 function onLocalSelect(os: SelectedOs): void {
   emit('select', os)
   emit('update:open', false)
@@ -151,7 +161,7 @@ function onLocalSelect(os: SelectedOs): void {
     @update:open="emit('update:open', $event)"
   >
     <div class="os-selector-body">
-      <!-- 分类过滤。容器偏离(已申报):Vue2 用 buefy b-button,New-UI 没有 buefy → 自绘。 -->
+      <!-- Category filter. Container markup divergence (reported): Vue2 uses buefy b-button, New-UI has no buefy → custom drawing. -->
       <div class="category-filter">
         <button
           v-for="cat in CATEGORIES"
@@ -165,9 +175,9 @@ function onLocalSelect(os: SelectedOs): void {
         </button>
       </div>
 
-      <!-- 全分支评审修复(A3):必须在遮罩(z 920)之上、用户看得见——复用既有 .cv-error
-           类(kvm.css 已有样式,不新增 CSS),放在分类 tab 与卡片网格之间,与「下载失败」
-           这个动作最相关的区域挨在一起。 -->
+      <!-- Full-branch review fix (A3): must be above the mask (z 920) where user can see it — reuse
+           existing .cv-error class (kvm.css already has styles, no new CSS), place between category tabs and
+           card grid, positioned near the area most related to the "download failed" action. -->
       <p v-if="props.downloadError" class="cv-error">{{ props.downloadError }}</p>
 
       <section class="os-section">

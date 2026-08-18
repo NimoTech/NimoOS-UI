@@ -187,7 +187,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | 项 | 蓝色（blue） | 白色（light） |
 |---|---|---|
 | `color-scheme`（`:root`） | `dark` | `light`（影响原生控件、默认滚动条外观） |
-| 滚动条滑块 `scrollbar-color` / `::-webkit-scrollbar-thumb` | `rgba(255,255,255,0.22)`（浅色滑块贴深底） | `rgba(28,27,25,0.22)` **†**（深色滑块贴浅底） |
+| 滚动条滑块 `--scrollbar-thumb` / `--scrollbar-thumb-hover`（token，供顶部 `*` 规则的 `scrollbar-color` 与 `::-webkit-scrollbar-thumb` 引用） | `rgba(255,255,255,0.28)` / `rgba(255,255,255,0.4)`（浅色滑块贴深底） | `rgba(28,27,25,0.22)` / `rgba(28,27,25,0.4)` **†**（深色滑块贴浅底） |
 | `body::before`（散景光斑层） | 多层 radial 光斑 + `blur(46px)` + 视差动画 | `background: none`（关闭光斑） |
 | `body::after`（顶部柔光 + 暗角） | `linear-gradient(...) , radial-gradient(...)` | `background: none`（关闭暗角） |
 
@@ -216,13 +216,11 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--place-row-bg` | 地点 rail 选中城市行背景（`PlacesRail.vue`，P6a-T5；Vue2 该视图仅有深色设计，蓝值精确复刻 `photos-places.scss:153`，白值按 accent 家族深→浅收敛惯例约 ×0.83 推导，无原件可照） | `rgba(138,180,255,0.10)` | `rgba(59,91,219,0.08)` **†**（无 Vue2 白色原件，按 accent 家族深→浅收敛惯例推算） |
 | `--place-row-border` | 地点 rail 选中城市行边框色（同上，蓝值复刻 `:154`） | `rgba(138,180,255,0.30)` | `rgba(59,91,219,0.25)` **†**（同上，无原件，按惯例推算） |
 | `--place-thumb-active` | 地点 rail 选中城市行缩略图遮罩（同上，蓝值复刻 `:163`） | `rgba(138,180,255,0.18)` | `rgba(59,91,219,0.15)` **†**（同上，无原件，按惯例推算） |
-| `--pin-bg` | 地图图钉底色（`PlacesMap.vue`，P6a-T6；精确复刻 Vue2 `photos-places.scss:367` 的 `rgba(var(--accent-rgb),0.16)`） | `rgba(138,180,255,0.16)` | `rgba(59,91,219,0.16)` |
-| `--pin-stroke` | 地图图钉描边（同上，复刻 `:368` 的 α=.55） | `rgba(138,180,255,0.55)` | `rgba(59,91,219,0.55)` |
-| `--pin-active-bg` | 激活图钉/簇图钉底色（同上，复刻 `:378`/`:401` 的 α=.30——Vue2 两处恰好同值，合并成一个 token） | `rgba(138,180,255,0.30)` | `rgba(59,91,219,0.30)` |
-| `--pin-pulse` | 激活图钉的扩散脉冲环（同上，复刻 `:413` 的 α=.25） | `rgba(138,180,255,0.25)` | `rgba(59,91,219,0.25)` |
-| `--pin-cluster-hover-bg` | 簇图钉悬停底色（同上，复刻 `:406` 的 α=.42） | `rgba(138,180,255,0.42)` | `rgba(59,91,219,0.42)` |
-| `--pin-glow` | 图钉悬停外发光（同上，复刻 `:365` 的 α=.7） | `rgba(138,180,255,0.7)` | `rgba(59,91,219,0.7)` |
-| `--pin-cluster-stroke` | 簇图钉描边（同上；Vue2 `:402` 原值是比 accent 更浅的淡紫 `rgba(196,184,255,0.85)`，这里 RGB 改取本仓 `--accent-text`——语义正是"比 accent 更浅/更可读的 accent 色"，alpha 精确复刻原值 0.85） | `rgba(169,198,255,0.85)` | `rgba(53,80,196,0.85)` |
+> **`--pin-*`(七个地图图钉 token,`PlacesMap.vue`)已迁出本表(Review I3,Plan E final-fix)**——
+> 原先只定义在这里,导致图钉跟全局 app 主题走、地图画布/点阵却跟 Photos 私有主题走的双信号
+> 分裂。现定义在 `src/photos/styles/vue2-parity/photos.scss` 的 `.photos-root { }` /
+> `.photos-root.is-light { }` 局部作用域,值与本表原记录逐字相同。
+
 | `--place-current-trip` | 当前行程标记色（同上，复刻 `:375` 的 `#34c759`，两套主题同值——不用 `--good`，那是本仓的青绿 `#5fe3b0`/`#15754c`，与 iOS 绿是近似而非精确复刻，已因此返工过一次） | `#34c759` | `#34c759` |
 | `--place-home-base` | 「常驻地」标记色（`PlaceDetailPanel.vue`，P6b-T3；精确复刻 Vue2 photos-places.scss 内联 `style="color:#c4b8ff"`，:1078。**偏离登记**：task-3-brief 字面要求深浅两套主题给不同值（深色浅紫、浅色改深色向，同 `--accent-text` 的做法），这里改成两套主题**同值**——它与紧邻的 `--place-current-trip` 用在完全相同的语境（`.ttl-region` 内，叠在 hero 固定暗化封面渐变之上，该遮罩本身恒为深色、与 app 是深色还是纸感皮肤无关），若照字面给浅色主题一个深紫版本，会在浅色 app 主题下把深紫字压在恒暗的照片渐变上，直接违反本任务"hero 前景色红线"的对比度要求，同 `--place-current-trip` 的既有先例） | `#c4b8ff` | `#c4b8ff` |
 | `--panel-bg-solid` | 完全不透明的侧栏大面板底（`PlaceDetailPanel.vue`，P6b 真机验收反馈；该面板绝对定位压在地图画布上，`--panel-bg` 的半透白会把地图网格点透上来、正文糊掉。取值 = `--popup-bg` 去掉 alpha 的同色实底，保持与弹层同一观感。左侧 `.map-rail` 在 grid 流内、底下只有 `--app-bg`，不受影响，仍用 `--panel-bg`） | `linear-gradient(157deg,#1e2234,#10131e 62%)` | `#ffffff` |

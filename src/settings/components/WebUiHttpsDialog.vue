@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// 对位 Vue2 WebUIHTTPSModal.vue(334 行)。6 行:主域名 / 生效时间 / 过期时间 / 端口 /
-// SSL 证书类型 /(auto 时)信任证书下载 或(custom 时)PEM+CRT 上传位。
-// 保存顺序照 Vue2:custom 且选了文件 → 先上传证书,成功后才保存配置。
+// Counterpart of Vue2 WebUIHTTPSModal.vue (334 lines). 6 rows: main domain / effective time /
+// expiration time / port / SSL cert type / (auto) trusted-cert download or (custom) PEM+CRT upload slots.
+// Save order follows Vue2: custom with files picked → upload the cert first, save config only on success.
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type SSLConfig } from '@nimotech/nimoos-service'
@@ -26,10 +26,11 @@ const crtFile = ref<File | null>(null)
 const saving = ref(false)
 const error = ref('')
 
-// 交错路径守卫(newui-async-stale-guard):弹窗打开后 getSSLConfig 还没返回时,
-// 用户可能已经手改了域名/端口/证书类型。迟到的服务端值到达时,如果用户已经动过
-// 表单,就不要再用服务端的旧值整体覆盖 cfg —— 否则会把用户刚打的字冲掉。
-// 就地放一个局部变量即可,不抽公共 composable(仓库里已有先例判过这个过早抽象)。
+// Interleaved-path guard (newui-async-stale-guard): while getSSLConfig is still pending after
+// the dialog opens, the user may have already hand-edited domain/port/cert type. When the late
+// server value arrives, don't wholesale overwrite cfg with the stale server value if the user
+// has touched the form — that would wipe what they just typed.
+// A local variable in place is enough; no shared composable (the repo already has precedent ruling this premature abstraction out).
 let editedDuringLoad = false
 function markEdited() { editedDuringLoad = true }
 
@@ -59,7 +60,7 @@ async function save() {
   saving.value = true
   try {
     if (cfg.value.cert_type === 'custom' && (pemFile.value || crtFile.value)) {
-      // 只选一个不行:后端要成对的 pem + crt
+      // Picking only one is not allowed: the backend requires a paired pem + crt
       if (!pemFile.value || !crtFile.value) {
         error.value = t('settingsHttpsBothFiles')
         return
@@ -70,13 +71,13 @@ async function save() {
       try {
         await service.sys.uploadSSLCert(fd)
       } catch (e) {
-        // 上传失败就不要再保存配置 —— 否则配置说 custom 而证书根本没上去
+        // If the upload fails, don't save the config — otherwise the config says custom while no cert was ever uploaded
         console.warn('[settings] uploadSSLCert failed', e)
         error.value = t('settingsHttpsUploadFailed')
         return
       }
     }
-    // 只下发这 4 个字段:effective_time / expiration_time 是后端只读产出
+    // Send only these 4 fields: effective_time / expiration_time are backend read-only outputs
     await service.sys.setSSLConfig({
       enabled: cfg.value.enabled,
       domain: cfg.value.domain,
@@ -88,7 +89,7 @@ async function save() {
     emit('update:open', false)
   } catch (e) {
     console.warn('[settings] setSSLConfig failed', e)
-    error.value = t('settingsSaveFailed')   // 不关窗,让用户改了再试
+    error.value = t('settingsSaveFailed')   // Keep the dialog open so the user can adjust and retry
   } finally {
     saving.value = false
   }

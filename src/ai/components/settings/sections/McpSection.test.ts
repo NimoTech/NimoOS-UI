@@ -9,9 +9,9 @@ import McpServerGroup from '../mcp/McpServerGroup.vue'
 import McpServerDetail from '../mcp/McpServerDetail.vue'
 import McpServerModal from '../mcp/McpServerModal.vue'
 
-// SP8-P4 Task 9(收官)—— 对齐 Vue2 src/views/AI/MCP/McpSection.vue(136 行)。
-// mock 骨架逐字照 brief §Step1「mock 骨架」段与公共约束 §9(vi.hoisted 避免 ESM
-// 提升的 TDZ,先例 agentStore.test.ts:4-19)。
+// SP8-P4 Task 9 (wrap-up) — matches Vue2 src/views/AI/MCP/McpSection.vue (136 lines).
+// The mock skeleton follows brief §Step1's "mock skeleton" section and public constraint
+// §9 verbatim (vi.hoisted avoids the ESM hoisting TDZ, precedent agentStore.test.ts:4-19).
 const h = vi.hoisted(() => ({
   listMCPServers: vi.fn(),
   createMCPServer: vi.fn(),
@@ -50,8 +50,9 @@ function srv(id: number, overrides: Partial<McpServer> = {}): McpServer {
 
 const mountSection = () => mount(McpSection, { global: { plugins: [i18n] }, attachTo: document.body })
 const flush = async () => { await nextTick(); await nextTick(); await nextTick() }
-// McpServerModal 打开态聚焦用 setTimeout(fn, 0)(宏任务,见该组件头注释「reka 初始
-// 焦点实测结论」),纯微任务级 flush() 追不上;先例 McpServerModal.test.ts::macroFlush。
+// McpServerModal's open-state focus uses setTimeout(fn, 0) (a macrotask, see that
+// component's header comment "reka initial-focus test findings") — a purely microtask-level
+// flush() can't catch up with it; precedent: McpServerModal.test.ts::macroFlush.
 const macroFlush = async () => { await flush(); await new Promise((r) => setTimeout(r, 0)); await flush() }
 
 function modalNameInput() { return document.querySelector('.sk-modal [data-f="name"]') as HTMLInputElement }
@@ -79,18 +80,18 @@ afterEach(() => {
 })
 
 describe('McpSection', () => {
-  // ===== 覆盖点 1:reload 单层取数 + 首项自动选中 =====
-  it('1. listMCPServers 返回裸数组 → 渲染两个分组条目,首项自动选中', async () => {
+  // ===== Coverage point 1: reload's single-layer unwrap + first item auto-selected =====
+  it('1. listMCPServers returns a bare array -> renders two group entries, first item auto-selected', async () => {
     h.listMCPServers.mockResolvedValue([srv(1), srv(2)])
     const w = mountSection()
     await flush()
     expect(w.findAll('.sk-item')).toHaveLength(2)
-    // 首项(server-1)自动选中——详情面板展示它的名字。
+    // The first item (server-1) is auto-selected -- the detail panel shows its name.
     expect(w.find('.sk-name span').text()).toBe('server-1')
   })
 
-  // ===== 覆盖点 2:reload 失败 =====
-  it('2. listMCPServers 抛错 → toast.show(aiMcpSrvLoadFailed, 3000, danger)', async () => {
+  // ===== Coverage point 2: reload failure =====
+  it('2. listMCPServers throws -> toast.show(aiMcpSrvLoadFailed, 3000, danger)', async () => {
     h.listMCPServers.mockRejectedValue(new Error('boom'))
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
@@ -99,8 +100,8 @@ describe('McpSection', () => {
     expect(show).toHaveBeenCalledWith(zh.aiMcpSrvLoadFailed, 3000, 'danger')
   })
 
-  // ===== 覆盖点 3:分组 =====
-  it('3. enabled 进「已启用服务」,disabled 进「已停用服务」,两组都有时渲染两个 McpServerGroup', async () => {
+  // ===== Coverage point 3: grouping =====
+  it('3. enabled goes into "Enabled servers", disabled goes into "Disabled servers", renders two McpServerGroup when both groups are non-empty', async () => {
     h.listMCPServers.mockResolvedValue([
       srv(1, { enabled: true }),
       srv(2, { enabled: false }),
@@ -115,8 +116,8 @@ describe('McpSection', () => {
     expect(groups[1].props('items').map((s: McpServer) => s.id)).toEqual([2])
   })
 
-  // ===== 覆盖点 4:搜索(name/url 命中 + 两种空态) =====
-  it('4a. 搜索按 name 命中', async () => {
+  // ===== Coverage point 4: search (name/url match + two empty states) =====
+  it('4a. search matches by name', async () => {
     h.listMCPServers.mockResolvedValue([
       srv(1, { name: 'brave-search-token', url: 'https://a.example.com' }),
       srv(2, { name: 'notion', url: 'https://b.example.com' }),
@@ -129,7 +130,7 @@ describe('McpSection', () => {
     expect(w.find('.sk-item-name').text()).toBe('brave-search-token')
   })
 
-  it('4b. 搜索按 url 命中', async () => {
+  it('4b. search matches by url', async () => {
     h.listMCPServers.mockResolvedValue([
       srv(1, { name: 'aaa', url: 'https://unique-url-token.example.com' }),
       srv(2, { name: 'bbb', url: 'https://other.example.com' }),
@@ -142,7 +143,7 @@ describe('McpSection', () => {
     expect(w.find('.sk-item-name').text()).toBe('aaa')
   })
 
-  it('4c. 都不命中 → .sk-col-empty 显示 aiMcpSrvNoMatch + <code> 里是查询词', async () => {
+  it('4c. neither matches -> .sk-col-empty shows aiMcpSrvNoMatch + the query term inside <code>', async () => {
     h.listMCPServers.mockResolvedValue([srv(1), srv(2)])
     const w = mountSection()
     await flush()
@@ -152,15 +153,15 @@ describe('McpSection', () => {
     expect(w.find('.sk-col-empty code').text()).toBe('nope-nothing-matches')
   })
 
-  it('4d. 空列表且无查询词 → aiMcpSrvEmpty', async () => {
+  it('4d. empty list with no query term -> aiMcpSrvEmpty', async () => {
     h.listMCPServers.mockResolvedValue([])
     const w = mountSection()
     await flush()
     expect(w.find('.sk-col-empty').text()).toBe(zh.aiMcpSrvEmpty)
   })
 
-  // ===== 覆盖点 5:搜索不清空右侧详情(N4 的钉子) =====
-  it('5. 选中某项后输入匹配不到的查询词 → 列表空,但详情面板仍显示该服务器', async () => {
+  // ===== Coverage point 5: search doesn't clear the right-hand detail panel (pins down N4) =====
+  it('5. selecting an item then typing a query with no match -> list is empty, but detail panel still shows that server', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'alpha' }), srv(2, { name: 'beta' })])
     const w = mountSection()
     await flush()
@@ -174,8 +175,8 @@ describe('McpSection', () => {
     expect(w.find('.sk-name span').text()).toBe('beta')
   })
 
-  // ===== 覆盖点 6:onToggle(204 不读返回值 + 分组移动 + toast 对照 + 失败） =====
-  it('6a. toggle 成功(enabled→disabled):204 不读返回值,列表项从已启用组移到已停用组,toast aiMcpSrvDisabledToast', async () => {
+  // ===== Coverage point 6: onToggle (204 return value not read + group move + toast comparison + failure) =====
+  it('6a. toggle succeeds (enabled -> disabled): 204 return value not read, list item moves from the enabled group to the disabled group, toast aiMcpSrvDisabledToast', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a', enabled: true })])
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
@@ -193,7 +194,7 @@ describe('McpSection', () => {
     expect(show).toHaveBeenCalledWith(zh.aiMcpSrvDisabledToast)
   })
 
-  it('6b. toggle 成功(disabled→enabled):toast aiMcpSrvEnabledToast(对照)', async () => {
+  it('6b. toggle succeeds (disabled -> enabled): toast aiMcpSrvEnabledToast (comparison)', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a', enabled: false })])
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
@@ -209,7 +210,7 @@ describe('McpSection', () => {
     expect(show).toHaveBeenCalledWith(zh.aiMcpSrvEnabledToast)
   })
 
-  it('6c. toggle 失败 → toast aiMcpSrvUpdateFailed danger,列表不变', async () => {
+  it('6c. toggle fails -> toast aiMcpSrvUpdateFailed danger, list unchanged', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a', enabled: true })])
     h.updateMCPServer.mockRejectedValue(new Error('boom'))
     const toast = useToast()
@@ -222,13 +223,13 @@ describe('McpSection', () => {
     await flush()
 
     expect(show).toHaveBeenCalledWith(zh.aiMcpSrvUpdateFailed, 3000, 'danger')
-    // 仍是 enabled,已启用组还在。
+    // Still enabled, the enabled group is still present.
     const groups = w.findAllComponents(McpServerGroup)
     expect(groups[0].props('label')).toBe(zh.aiMcpSrvGroupEnabled)
   })
 
-  // ===== 覆盖点 7:onDelete 成功/失败 =====
-  it('7a. 删除成功 → 条目消失 + toast aiMcpSrvRemovedName(含名称)', async () => {
+  // ===== Coverage point 7: onDelete success/failure =====
+  it('7a. delete succeeds -> item disappears + toast aiMcpSrvRemovedName (includes the name)', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'to-remove' })])
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
@@ -244,7 +245,7 @@ describe('McpSection', () => {
     expect(show).toHaveBeenCalledWith(zh.aiMcpSrvRemovedName.replace('{name}', 'to-remove'))
   })
 
-  it('7b. 删除失败 → toast aiCfgDeleteFailed danger', async () => {
+  it('7b. delete fails -> toast aiCfgDeleteFailed danger', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'stays' })])
     h.deleteMCPServer.mockRejectedValue(new Error('boom'))
     const toast = useToast()
@@ -260,58 +261,65 @@ describe('McpSection', () => {
     expect(w.findAll('.sk-item')).toHaveLength(1)
   })
 
-  // ===== 覆盖点 8:删除后选中项落位(两条对照)=====
-  // 三项 fixture [a,b,c],先切到 c(不是删完后剩余列表[a,c]的第一项)——若条件被
-  // 删/无条件回落 skills[0],activeId 会错误地跳成 a;条件生效则仍是 c。
-  it('8a. 删的是当前选中项 → activeId 落到剩余第一项', async () => {
+  // ===== Coverage point 8: selected-item placement after delete (two comparison cases) =====
+  // Three-item fixture [a,b,c], first switch to c (not the first item of the remaining
+  // list [a,c] after deletion) -- if the condition were removed / it unconditionally fell
+  // back to skills[0], activeId would wrongly jump to a; with the condition in effect it
+  // stays c.
+  it('8a. the deleted item is the currently selected one -> activeId falls back to the first remaining item', async () => {
     h.listMCPServers.mockResolvedValue([
       srv(1, { name: 'svc-a' }), srv(2, { name: 'svc-b' }), srv(3, { name: 'svc-c' }),
     ])
     const w = mountSection()
     await flush()
-    await w.findAll('.sk-item')[1].trigger('click') // 选中 b
+    await w.findAll('.sk-item')[1].trigger('click') // Select b
     await flush()
     expect(w.find('.sk-name span').text()).toBe('svc-b')
 
     const detail = w.findComponent(McpServerDetail)
-    detail.vm.$emit('delete', 2) // 删的正是当前选中的 b
+    detail.vm.$emit('delete', 2) // Delete exactly the currently selected b
     await flush()
 
-    // 剩余 [a, c],第一项是 a。
+    // Remaining [a, c], the first item is a.
     expect(w.find('.sk-name span').text()).toBe('svc-a')
   })
 
-  it('8b. 删的不是当前选中项 → activeId 不动', async () => {
+  it('8b. the deleted item is not the currently selected one -> activeId stays put', async () => {
     h.listMCPServers.mockResolvedValue([
       srv(1, { name: 'svc-a' }), srv(2, { name: 'svc-b' }), srv(3, { name: 'svc-c' }),
     ])
     const w = mountSection()
     await flush()
-    await w.findAll('.sk-item')[2].trigger('click') // 选中 c
+    await w.findAll('.sk-item')[2].trigger('click') // Select c
     await flush()
     expect(w.find('.sk-name span').text()).toBe('svc-c')
 
     const detail = w.findComponent(McpServerDetail)
-    detail.vm.$emit('delete', 2) // 删的是 b,不是当前选中的 c
+    detail.vm.$emit('delete', 2) // Delete b, not the currently selected c
     await flush()
 
-    // 剩余 [a, c] 的第一项是 a——若无条件回落会错误跳成 a;正确实现应仍是 c。
+    // The first item of the remaining [a, c] is a -- an unconditional fallback would
+    // wrongly jump to a; the correct implementation should still be c.
     expect(w.findAll('.sk-item')).toHaveLength(2)
     expect(w.find('.sk-name span').text()).toBe('svc-c')
   })
 
-  // ===== 覆盖点 9:onSave 新增单层取数 =====
-  // 终审 Important I1(2026-07-31)—— 原 fixture 是「空列表 → 新建后单条」,即使
-  // 实现写成 Vue2 式的双剥壳(`(created as any).data?.id` 恒 undefined),
-  // `reload()` 里 `!activeId.value` 的兜底也会**恰好**选中那条唯一记录,53 条
-  // 全绿,用例分辨不出对错(见终审 §5 RED 探针 A)。改成「新建前已有 2 条且已
-  // 选中其中一条」——后端 `service/mcp.go:63` 是 `ORDER BY id` 升序,新建的
-  // 服务器 id 最大,第二次 list 返回时排在**末尾**,不是 servers[0]。这样双剥壳
-  // 缺陷下 `id` 恒 undefined、`activeId` 保持先前选中的 svc-b 不动(reload 的
-  // `!activeId.value || !found` 兜底也不会触发,因为 svc-b 仍在新列表里)——
-  // 断言精确报红;单层取数的正确实现下 `activeId` 在 onSave 里被直接设成 7,
-  // 断言精确报绿。
-  it('9. createMCPServer 返回裸 {id:7} → activeId 变 7(不是此前选中的项)+ toast aiMcpSrvAddedName + 弹窗关闭 + 重新加载一次', async () => {
+  // ===== Coverage point 9: onSave create's single-layer unwrap =====
+  // Final review Important I1 (2026-07-31) -- the original fixture was "empty list ->
+  // single item after create", so even if the implementation were written Vue2-style with
+  // a double unwrap (`(created as any).data?.id` always undefined), `reload()`'s
+  // `!activeId.value` fallback would **coincidentally** select that one-and-only record,
+  // all 53 tests would still pass green, and the test case couldn't tell right from wrong
+  // (see final review §5 RED probe A). Changed to "already 2 items before creating, one of
+  // them already selected" -- the backend `service/mcp.go:63` is `ORDER BY id` ascending,
+  // and the newly created server has the largest id, so it lands at the **end** of the
+  // list on the second fetch, not at servers[0]. Under this setup, with the
+  // double-unwrap defect `id` is always undefined and `activeId` stays put on the
+  // previously selected svc-b (reload's `!activeId.value || !found` fallback won't
+  // trigger either, since svc-b is still in the new list) -- the assertion fails
+  // precisely; with the correct single-layer-unwrap implementation, `activeId` gets set
+  // directly to 7 inside onSave -- the assertion passes precisely.
+  it('9. createMCPServer returns a bare {id:7} -> activeId becomes 7 (not the previously selected item) + toast aiMcpSrvAddedName + dialog closes + reloads once', async () => {
     h.listMCPServers
       .mockResolvedValueOnce([srv(1, { name: 'svc-a' }), srv(2, { name: 'svc-b' })])
       .mockResolvedValueOnce([srv(1, { name: 'svc-a' }), srv(2, { name: 'svc-b' }), srv(7, { name: 'new-one' })])
@@ -321,7 +329,8 @@ describe('McpSection', () => {
     await flush()
     expect(h.listMCPServers).toHaveBeenCalledTimes(1)
 
-    // 真实场景的常态:新建前用户已经选中了某台服务器(不是空态)。
+    // The normal real-world scenario: the user already has a server selected before
+    // creating a new one (not the empty state).
     await w.findAll('.sk-item')[1].trigger('click')
     await flush()
     expect(w.find('.sk-name span').text()).toBe('svc-b')
@@ -338,16 +347,17 @@ describe('McpSection', () => {
     await flush()
 
     expect(h.createMCPServer).toHaveBeenCalledTimes(1)
-    expect(document.querySelector('.sk-modal')).toBeNull() // 弹窗已关
+    expect(document.querySelector('.sk-modal')).toBeNull() // Dialog already closed
     expect(show).toHaveBeenCalledWith(zh.aiMcpSrvAddedName.replace('{name}', 'new-one'))
-    expect(h.listMCPServers).toHaveBeenCalledTimes(2) // 触发一次重新加载
-    // activeId 落在新建的 7 上,不是此前选中的 svc-b,也不是列表第一项 svc-a——
-    // 双剥壳缺陷下这里会仍显示 svc-b(见上方用例头注释)。
+    expect(h.listMCPServers).toHaveBeenCalledTimes(2) // Triggers one reload
+    // activeId lands on the newly created 7, not the previously selected svc-b, and not
+    // the first item in the list svc-a -- under the double-unwrap defect this would still
+    // show svc-b (see this test case's header comment above).
     expect(w.find('.sk-name span').text()).toBe('new-one')
   })
 
-  // ===== 覆盖点 10:onSave 编辑 =====
-  it('10. 编辑保存 → 调 updateMCPServer(editingId, payload) + toast aiCfgSaved + 弹窗关', async () => {
+  // ===== Coverage point 10: onSave edit =====
+  it('10. saving an edit -> calls updateMCPServer(editingId, payload) + toast aiCfgSaved + dialog closes', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a', url: 'https://a.example.com' })])
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
@@ -367,8 +377,8 @@ describe('McpSection', () => {
     expect(document.querySelector('.sk-modal')).toBeNull()
   })
 
-  // ===== 覆盖点 11:保存失败弹窗不关 + 行内本地化错误 =====
-  it('11. 保存失败 → 弹窗不关,行内错误走 saveServerErrorKey 本地化文案,不含后端英文串', async () => {
+  // ===== Coverage point 11: on save failure the dialog stays open + inline localized error =====
+  it('11. save fails -> dialog stays open, inline error goes through saveServerErrorKey localized copy, doesn\'t contain the raw backend English string', async () => {
     h.listMCPServers.mockResolvedValue([])
     h.createMCPServer.mockRejectedValue({ response: { data: { message: 'url required for http/sse' } } })
     const w = mountSection()
@@ -383,13 +393,13 @@ describe('McpSection', () => {
     modalSubmitBtn().click()
     await flush()
 
-    expect(document.querySelector('.sk-modal')).not.toBeNull() // 弹窗仍开
+    expect(document.querySelector('.sk-modal')).not.toBeNull() // Dialog still open
     expect(modalFieldErr()?.textContent).toBe(zh.aiMcpSrvErrUrlRequired)
     expect(document.body.textContent).not.toContain('url required for http/sse')
   })
 
-  // ===== 覆盖点 12:+ 打开新增(server=null);edit 事件打开编辑(server=该项) =====
-  it('12a. 点 + 打开新增弹窗,server prop 为 null(名称输入框为空)', async () => {
+  // ===== Coverage point 12: + opens create (server=null); edit event opens edit (server=that item) =====
+  it('12a. clicking + opens the create dialog, server prop is null (name input is empty)', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'existing' })])
     const w = mountSection()
     await flush()
@@ -399,7 +409,7 @@ describe('McpSection', () => {
     expect(modalNameInput().value).toBe('')
   })
 
-  it('12b. 详情的 edit 事件打开编辑弹窗,server prop 为那一项(名称输入框回填)', async () => {
+  it('12b. the detail panel\'s edit event opens the edit dialog, server prop is that item (name input is backfilled)', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'existing-one' })])
     const w = mountSection()
     await flush()
@@ -410,13 +420,15 @@ describe('McpSection', () => {
     expect(modalNameInput().value).toBe('existing-one')
   })
 
-  // ===== 覆盖点 13(修复轮 M5,未申报偏离补正)=====
-  // Vue2 `closeModal()`(`:85`)是 `{ this.modalOpen = false; this.editing = null }`
-  // ——**任何**关闭路径都清 `editing`。本仓此前只在保存成功后调用的 `closeModal()`
-  // 里清,取消/X/遮罩三条关闭路径走 `v-model:open` 直接把 `modalOpen` 置 false,
-  // 不经过 `closeModal()`,`editing` 会残留旧值,传给 `McpServerModal` 的 `server`
-  // prop 也跟着残留——本次挪到 `watch(modalOpen)` 里统一清,钉住这条行为。
-  it('13. 编辑弹窗取消关闭(X 按钮,非保存路径)→ editing 清空,McpServerModal 的 server prop 变 null', async () => {
+  // ===== Coverage point 13 (fix round M5, correcting an undeclared divergence) =====
+  // Vue2's `closeModal()` (`:85`) is `{ this.modalOpen = false; this.editing = null }`
+  // -- **every** close path clears `editing`. This repo previously only cleared it inside
+  // `closeModal()` (only called after a successful save); the cancel/X/overlay close
+  // paths all go through `v-model:open` setting `modalOpen` to false directly, bypassing
+  // `closeModal()`, so `editing` would keep its stale value, and the `server` prop passed
+  // to `McpServerModal` would keep it too -- this was moved into `watch(modalOpen)` to
+  // clear it uniformly, pinning down this behavior.
+  it('13. canceling out of the edit dialog (X button, not the save path) -> editing is cleared, McpServerModal\'s server prop becomes null', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a' })])
     const w = mountSection()
     await flush()
@@ -427,7 +439,7 @@ describe('McpSection', () => {
     const modal = w.findComponent(McpServerModal)
     expect(modal.props('server')?.id).toBe(1)
 
-    modalCloseBtn().click() // 取消路径(X 按钮),不是保存
+    modalCloseBtn().click() // Cancel path (X button), not save
     await flush()
 
     expect(modal.props('server')).toBeNull()
@@ -435,12 +447,14 @@ describe('McpSection', () => {
 })
 
 // ============================================================================
-// 协调者追加的两条集成用例(T8 评审发现:McpServerModal 的 `watch(open)` true
-// 分支从 `props.server` 回填,依赖父组件同步设置 `server` + `open` 两个 prop 的
-// 时序——单组件测不到,必须在容器这里补集成用例)。
+// Two integration test cases the coordinator added (found during T8 review:
+// McpServerModal's `watch(open)` true branch backfills from `props.server`, relying on
+// the parent component setting the `server` + `open` props in sync -- a single-component
+// test can't catch this, so an integration test had to be added here at the container
+// level).
 // ============================================================================
-describe('McpSection — 弹窗常驻实例的表单残留回归', () => {
-  it('编辑 A → 关闭 → 编辑 B:弹窗里名称是 B 的,不是 A 的残留', async () => {
+describe('McpSection -- form-leftover regression for the always-mounted dialog instance', () => {
+  it('edit A -> close -> edit B: the name in the dialog is B\'s, not a leftover from A', async () => {
     h.listMCPServers.mockResolvedValue([
       srv(1, { name: 'server-A' }), srv(2, { name: 'server-B' }),
     ])
@@ -462,7 +476,7 @@ describe('McpSection — 弹窗常驻实例的表单残留回归', () => {
     expect(modalNameInput().value).not.toBe('server-A')
   })
 
-  it('新增 → 关闭 → 编辑:弹窗里是该服务器的数据,没有上一次新增时的残留', async () => {
+  it('create -> close -> edit: the dialog shows that server\'s data, no leftover from the previous create', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'existing-server' })])
     const w = mountSection()
     await flush()

@@ -1,14 +1,20 @@
 <script setup lang="ts">
-// 设置 · 文件夹权限。1:1 对位 Vue2 NimoOS-UI/src/components/settings/FolderPermissions.vue(337 行)。
+// Settings · Folder permissions. 1:1 parity with Vue2
+// NimoOS-UI/src/components/settings/FolderPermissions.vue (337 lines).
 //
-// ⚠️ **spec §5.7 把这块写成「权限矩阵(表头 / 行 / 各子系统列的开关)」,与源码不符** ——
-// Vue2 实际是**四个纵向堆叠的分区**(文件名索引 / 知识库 / 禁止 AI 访问的文件夹 / 照片),
-// 各自一份列表,没有矩阵表头也没有列。按 P0 先例「spec 与源码出入时以源码为准、界面严格 1:1」
-// 照源码做四分区(plan C3)。
+// ⚠️ **spec §5.7 describes this as a "permission matrix" (header / rows / a toggle
+// column per subsystem), which doesn't match the source** — Vue2 is actually **four
+// vertically stacked sections** (filename index / knowledge base / folders hidden
+// from AI / photos), each with its own list, with no matrix header and no columns.
+// Following the P0 precedent "when spec and source disagree, source wins, UI is
+// strictly 1:1", this builds four sections to match the source (plan C3).
 //
-// ⚠️ 本期按 spec §3.1 **政策三**只做界面骨架:数据源是 folderPermissionsSnapshot.ts 的空实现
-// (四路全 offline),写操作禁用。合并 sp7/sp8 后只换那个文件里的两个函数(债务 D11)。
-// 空快照四路 offline 正好复用 Vue2 的「服务离线」形态,不另造空态。
+// ⚠️ Per spec §3.1 **policy three**, this milestone only builds the UI skeleton:
+// the data source is folderPermissionsSnapshot.ts's stub implementation (all four
+// paths offline), and write operations are disabled. After sp7/sp8 merge, only the
+// two functions in that file need to be swapped in (debt D11).
+// The empty snapshot's four-path offline state conveniently reuses Vue2's "service
+// offline" form, so no separate empty state needs to be invented.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SettingsSection from '../components/SettingsSection.vue'
@@ -26,8 +32,11 @@ const { t } = useI18n()
 const snap = ref<FolderPermSnapshot>(emptySnapshot())
 const loading = ref(false)
 
-// 就地过期守卫(不抽公共 helper —— 评审判定过早抽象,plan C8)。本面板**确实有第二个触发点**
-// (刷新按钮),所以守卫不是空转:快速连点刷新 / 点完立刻切 tab 时,后落定的那次不许回写。
+// Inline stale-response guard (not extracted into a shared helper — reviewer judged
+// that premature, plan C8). This panel **genuinely has a second trigger point**
+// (the refresh button), so the guard isn't a no-op: when refresh is clicked
+// repeatedly in quick succession, or the tab is switched right after clicking, a
+// response that settles later must not be allowed to write back.
 let alive = true
 let seq = 0
 onUnmounted(() => {
@@ -59,8 +68,9 @@ const lists = computed(() => ({
 }))
 const browserRoots = computed(() => pickerRoots(snap.value.candidates))
 
-// 添加弹窗:本期只开得起来、确认按钮恒 disabled(政策三)。target 保留 Vue2 的 5 种取值,
-// 接线时直接照 Vue2 confirmAdd()(L304-323)的分流写。
+// Add dialog: this milestone only makes it openable, with the confirm button always
+// disabled (policy three). target keeps Vue2's 5 possible values so that wiring it up
+// can just follow Vue2 confirmAdd()'s (L304-323) branching directly.
 type AddTarget = 'search' | 'knowledge-root' | 'knowledge-exclude' | 'ai' | 'photos'
 const adding = ref(false)
 const addTarget = ref<AddTarget>('search')
@@ -75,7 +85,7 @@ const addTitle = computed(() =>
 
 <template>
   <SettingsSection :title="t('settingsTabFolderPermissions')">
-    <!-- 顶部:Vue2 L3-8 的说明 + 刷新按钮 -->
+    <!-- Header: Vue2 L3-8's description + refresh button -->
     <div class="set-fp-head">
       <p class="set-fp-intro">{{ t('settingsFpIntro') }}</p>
       <button class="set-btn" type="button" data-test="fp-refresh" :disabled="loading" @click="reload">
@@ -83,10 +93,10 @@ const addTitle = computed(() =>
       </button>
     </div>
 
-    <!-- 本期新增(Vue2 没有):政策三要求在界面上标注数据源留空 -->
+    <!-- New this milestone (Vue2 doesn't have this): policy three requires flagging the stubbed data source in the UI -->
     <p v-if="!WIRED" class="set-info" data-test="fp-pending">{{ t('settingsFpDataPending') }}</p>
 
-    <!-- ① 文件名索引 (Vue2 L10-36) -->
+    <!-- ① Filename index (Vue2 L10-36) -->
     <div class="set-fp-box">
       <div class="set-fp-box-head">
         <span class="set-fp-title">{{ t('settingsFpFilenameIndex') }}</span>
@@ -97,7 +107,7 @@ const addTitle = computed(() =>
       </div>
       <p class="set-fp-desc">{{ t('settingsFpFilenameDesc') }}</p>
       <template v-if="!offline.search">
-        <!-- D11 接线时补:!coveredBy 的行要有删除按钮 → run(path,'search',false)(Vue2 L30) -->
+        <!-- Add when wiring up D11: rows with !coveredBy need a delete button → run(path,'search',false) (Vue2 L30) -->
         <div v-for="it in lists.search" :key="`s-${it.path}`" class="set-fp-item">
           <span class="set-fp-path">{{ it.path }}</span>
           <span v-if="it.coveredBy" class="set-fp-tag">{{ t('settingsFpCoveredBy', { p: it.coveredBy }) }}</span>
@@ -106,7 +116,7 @@ const addTitle = computed(() =>
       </template>
     </div>
 
-    <!-- ② 知识库 (Vue2 L38-81) -->
+    <!-- ② Knowledge base (Vue2 L38-81) -->
     <div class="set-fp-box">
       <div class="set-fp-box-head">
         <span class="set-fp-title">{{ t('settingsFpKnowledge') }}</span>
@@ -120,7 +130,7 @@ const addTitle = computed(() =>
             + {{ t('settingsFpAddFolder') }}
           </button>
         </div>
-        <!-- D11 接线时补:每行一个开关 → run(path,'knowledge',v)(Vue2 L58-61) -->
+        <!-- Add when wiring up D11: a toggle per row → run(path,'knowledge',v) (Vue2 L58-61) -->
         <div v-for="it in lists.knowledgeRoots" :key="`kr-${it.rootId}`" class="set-fp-item">
           <span class="set-fp-path">{{ it.path }}</span>
         </div>
@@ -132,7 +142,7 @@ const addTitle = computed(() =>
             + {{ t('settingsFpAddExclusion') }}
           </button>
         </div>
-        <!-- D11 接线时补:每行一个删除按钮 → removeDenyRule(it.id)(Vue2 L75) -->
+        <!-- Add when wiring up D11: a delete button per row → removeDenyRule(it.id) (Vue2 L75) -->
         <div v-for="it in lists.knowledgeExcludes" :key="`ke-${it.id}`" class="set-fp-item">
           <span class="set-fp-path">{{ it.path }}</span>
         </div>
@@ -140,7 +150,7 @@ const addTitle = computed(() =>
       </template>
     </div>
 
-    <!-- ③ 禁止 AI 访问的文件夹 (Vue2 L83-115) -->
+    <!-- ③ Folders hidden from AI (Vue2 L83-115) -->
     <div class="set-fp-box">
       <div class="set-fp-box-head">
         <span class="set-fp-title">{{ t('settingsFpAiHidden') }}</span>
@@ -152,7 +162,7 @@ const addTitle = computed(() =>
       </div>
       <p class="set-fp-desc">{{ t('settingsFpAiDesc') }}</p>
       <template v-if="!offline.ai">
-        <!-- D11 接线时补:每行一个删除按钮 → run(path,'ai',true)(Vue2 L106) -->
+        <!-- Add when wiring up D11: a delete button per row → run(path,'ai',true) (Vue2 L106) -->
         <div v-for="it in lists.ai.items" :key="`a-${it.id}`" class="set-fp-item">
           <span class="set-fp-path">{{ it.path }}</span>
           <span v-if="it.coveredBy" class="set-fp-tag">{{ t('settingsFpCoveredBy', { p: it.coveredBy }) }}</span>
@@ -164,7 +174,7 @@ const addTitle = computed(() =>
       </template>
     </div>
 
-    <!-- ④ 照片 (Vue2 L117-155) -->
+    <!-- ④ Photos (Vue2 L117-155) -->
     <div class="set-fp-box">
       <div class="set-fp-box-head">
         <span class="set-fp-title">{{ t('settingsFpPhotos') }}</span>
@@ -177,8 +187,9 @@ const addTitle = computed(() =>
       <p class="set-fp-desc">{{ t('settingsFpPhotosDesc') }}</p>
       <template v-if="!offline.photos && !photosStale">
         <p v-if="photosAuto" class="set-info">{{ t('settingsFpPhotosAuto') }}</p>
-        <!-- D11 接线时补:非 auto 且 !coveredBy 的行要有删除按钮 → run(path,'photos',false)
-             (Vue2 L143);photosAuto 时底部还有「转为手动管理」按钮 → materialize()(L148) -->
+        <!-- Add when wiring up D11: non-auto rows with !coveredBy need a delete button →
+             run(path,'photos',false) (Vue2 L143); when photosAuto, there's also a
+             "switch to manual management" button at the bottom → materialize() (L148) -->
         <div v-for="it in lists.photos" :key="`p-${it.path}`" class="set-fp-item">
           <span class="set-fp-path">{{ it.path }}</span>
           <span v-if="it.coveredBy" class="set-fp-tag">{{ t('settingsFpCoveredBy', { p: it.coveredBy }) }}</span>

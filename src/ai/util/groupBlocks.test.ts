@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/stream/groupBlocks.spec.js
+// 1:1 ported from Vue2 src/views/AI/Agent/stream/groupBlocks.spec.js
 import { describe, it, expect } from 'vitest'
 import { groupBlocks } from './groupBlocks'
 

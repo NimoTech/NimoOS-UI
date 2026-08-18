@@ -6,10 +6,10 @@ import { useDock, __resetDockForTest } from './useDock'
 describe('useDock', () => {
   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); __resetDockForTest() })
   it('defaults favKeys to the 5 dock keys and computes moreKeys as the rest', () => {
-    useAppsStore() // 系统 6 应用就位
+    useAppsStore() // the 6 system apps are in place
     const d = useDock()
     expect(d.favKeys.value).toEqual(['files', 'photos', 'ai', 'vm', 'appstore'])
-    expect(d.moreKeys.value).toContain('settings') // 第 6 个系统应用进 more
+    expect(d.moreKeys.value).toContain('settings') // the 6th system app goes into more
     expect(d.moreKeys.value).not.toContain('files')
   })
   it('setFav persists to localStorage', () => {

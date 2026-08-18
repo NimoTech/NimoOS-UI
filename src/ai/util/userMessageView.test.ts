@@ -1,4 +1,4 @@
-// 改造自 Vue2 src/views/AI/Agent/stream/userMessageView.spec.js
+// Adapted from Vue2 src/views/AI/Agent/stream/userMessageView.spec.js
 import { describe, expect, it } from 'vitest'
 import { isContinueChip, textOf } from './userMessageView'
 

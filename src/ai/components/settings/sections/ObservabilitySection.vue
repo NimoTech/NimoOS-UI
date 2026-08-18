@@ -1,48 +1,52 @@
 <!--
-  SP8-P2b Task 8 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/ObservabilitySection.vue
-  (211 行)+ 既有测试 sections/__tests__/ObservabilitySection.spec.js(5 例,承接见
-  本档测试文件头注释的逐条对照表)。
+  SP8-P2b Task 8 — Port 1:1 from Vue2 src/views/AI/Settings/sections/ObservabilitySection.vue
+  (211 lines) + existing tests sections/__tests__/ObservabilitySection.spec.js(5 tests; see
+  mapping table in test file header comment).
 
-  【D2 申报】状态留在组件本地(ref)、直调 service.ai / service.compose —— 与 Vue2
-  归属一致(Vue2 data() 是组件本地状态),不做 store 集中(只有 blacklist 用 store,
-  见 BlacklistSection.vue 头注释,用户 2026-07-28 拍板)。
+  【D2 declaration】State stays local to component (ref), calling service.ai / service.compose directly —
+  matches Vue2 pattern (Vue2 data() is component-local state), not centralizing to store (only blacklist
+  uses store, see BlacklistSection.vue header comment, approved by user 2026-07-28).
 
-  【D4 申报,架构级偏离】本分区自己订 `app:install-progress` / `app:install-end` /
-  `app:install-error` 三个 MessageBus 事件、按 `Properties['app:name'] === 'arize-phoenix'`
-  过滤(逐字对应 Vue2 :70-89 的 `sockets:` 块),**不复用应用区的 installProgress
-  Pinia store**。理由:Phoenix 是本设置分区内的一个开关,不应作为「安装任务」出现在
-  应用区磁贴 / 首页事件流里(用户 2026-07-28 拍板)。代价:全仓两处独立订阅同一批
-  事件(本分区 + 应用区 installProgress store),已知并接受。
+  【D4 declaration, architectural divergence】This section subscribes to three MessageBus events
+  `app:install-progress` / `app:install-end` / `app:install-error`, filtering by
+  `Properties['app:name'] === 'arize-phoenix'` (maps exactly to Vue2 :70-89 `sockets:` block),
+  **not reusing the app-section's installProgress Pinia store**. Reason: Phoenix is a toggle
+  within this settings section and should not appear as an "installation task" in the app-section
+  tiles / home event stream (approved by user 2026-07-28). Trade-off: two independent subscribers
+  to the same event batch across the codebase (this section + app-section installProgress store),
+  accepted as known.
 
-  【逻辑修正】Vue2 组件卸载后,`pollStatus` 里的 setTimeout 循环仍会继续跑、继续
-  `setState`(Vue2 :110-117 没有任何卸载检查)。本分区是 stack 组的一员,用户在设置
-  页切换分区就会把它卸载,而 Phoenix 的两条轮询分别要跑 12×1500ms / 40×2000ms,很
-  容易撞上。这里引入 `alive` 标记,`onUnmounted` 置 false,并在 `pollStatus`
-  以及 `turnOnFlow`/`confirmInstall`/`turnOff` 里每个 `await` 之后都补
-  `if (!alive) return`,卸载后不再继续这条流程、也不再写任何 ref。
+  【Logic fix】After Vue2 component unmount, `pollStatus` setTimeout loop keeps running and
+  calling `setState` (Vue2 :110-117 has no unmount checks). This section is one of a stack group;
+  user switching sections in settings unmounts it, yet Phoenix's two polls run 12×1500ms / 40×2000ms
+  respectively, collision is likely. Here: introduce `alive` flag, set to false in `onUnmounted`,
+  and after every `await` in `pollStatus` and `turnOnFlow`/`confirmInstall`/`turnOff`, add
+  `if (!alive) return`. After unmount, stop flow and stop mutating any ref.
 
-  【框架 API 差异,非逻辑改动】Vue2 用 `$buefy.dialog.confirm({ onConfirm, onCancel })`
-  弹两次确认框;本仓换成两个受控 `AlertDialog`(reka-ui)。reka 的
-  `AlertDialogCancel` 只关闭对话框(驱动 `v-model:open` 变 false)、不单独 emit
-  取消事件,所以「取消要把开关拨回去」改用 `watch(open)`:开时置一个
-  `xxxConfirmed = false` 哨兵,`@confirm` 处理函数第一行把哨兵置 true;
-  关闭时哨兵仍是 false 就说明是「取消/点遮罩关闭」,补调 Vue2 `onCancel` 的等价逻辑。
+  【Framework API difference, not logic change】Vue2 uses `$buefy.dialog.confirm({ onConfirm, onCancel })`
+  for two confirm dialogs; here replace with two controlled `AlertDialog` (reka-ui). Reka's
+  `AlertDialogCancel` only closes the dialog (drives `v-model:open` to false), emitting no separate
+  cancel event. So "cancel reverts the toggle" now uses `watch(open)`: when opening, set
+  `xxxConfirmed = false` sentinel; in `@confirm` handler, set sentinel to true first;
+  when closing, if sentinel is still false, it means "cancel / mask click", calling Vue2's
+  equivalent `onCancel` logic.
 
-  【final review Fix 4,撤销一处未申报且无必要的偏离】`onToggle` 曾在**仅仅打开**两个
-  确认框(`confirmInstallOpen`/`confirmStopOpen` 置 true)的分支里顺手把
-  `enabled.value = v` 乐观写掉。Vue2(ObservabilitySection.vue:118-146)两处弹
-  `$buefy.dialog.confirm` 前都**不**碰 `this.enabled`——只在各自的 `onConfirm`
-  (`confirmInstall()`/`turnOff()`)里等真正成功之后才改。`SetSwitch` 是完全受控组件
-  (`:model-value="enabled"`),乐观写的后果是:开关先跳到新状态,但「Phoenix 正在运行但
-  监控未开启」警告条的显示条件是 `phoenixStatus === 'running' && !enabled`——乐观写发生
-  在确认框**还开着**的时候,会让警告条在确认框背后先冒出来又消失,是个视觉缺陷,且不
-  在原实现的申报清单里。现按 Vue2 改回:两处弹确认框的分支都不再写 `enabled.value`,
-  开关在对话框打开期间保持原值不动;`turnOnFlow()`/`turnOff()` 直调分支(不经确认框的
-  两条路径)不受影响,继续在各自异步流程成功后才改 `enabled`。`onInstallCancel`
-  (对应 Vue2 :130 `onCancel: () => { this.enabled = false }`)照 Vue2 保留显式置 false。
-  `onStopCancel` 原先的「乐观写需要取消时手动拨回开」的理由(此块之前的版本)随乐观写
-  一起撤销——不再乐观写之后,取消时 `enabled` 本就没被动过,`onStopCancel` 现在是
-  Vue2 `onCancel: () => {}` 的等价空操作(留一行注释说明,不留死代码赋值)。
+  【final review Fix 4, revoking undeclared unnecessary divergence】`onToggle` previously
+  optimistically wrote `enabled.value = v` **only in the branches opening** the two confirm dialogs
+  (`confirmInstallOpen`/`confirmStopOpen` set to true). Vue2 (ObservabilitySection.vue:118-146)
+  **never touches** `this.enabled` before calling `$buefy.dialog.confirm` — only after success in
+  respective `onConfirm` (`confirmInstall()`/`turnOff()`). `SetSwitch` is fully controlled
+  (`:model-value="enabled"`); optimistic write consequence: toggle jumps to new state, but the
+  "Phoenix running but monitoring off" warning condition is `phoenixStatus === 'running' && !enabled` —
+  optimistic write happens while dialog **is still open**, causing the warning to flicker behind
+  the dialog, visual glitch not in the original declaration. Now revert per Vue2: neither branch
+  opening confirm dialogs writes `enabled.value`; toggle stays original during dialog; `turnOnFlow()`/
+  `turnOff()` direct branches (non-dialog paths) unaffected, changing `enabled` after async success.
+  `onInstallCancel` (maps to Vue2 :130 `onCancel: () => { this.enabled = false }`) keeps explicit
+  false per Vue2. `onStopCancel`'s prior "optimistic write needs manual revert on cancel" rationale
+  (earlier version) revoked with optimistic write — after not writing optimistically, `enabled` was
+  never touched on cancel anyway, so `onStopCancel` is now equivalent to Vue2 `onCancel: () => {}`
+  (leave comment explaining, no dead-code assignment).
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
@@ -68,8 +72,8 @@ const error = ref('')
 const confirmInstallOpen = ref(false)
 const confirmStopOpen = ref(false)
 
-let alive = true // 卸载后不再改状态、不再排下一轮轮询(见文件头「逻辑修正」)
-const offs: Array<() => void> = [] // MessageBus 退订闭包
+let alive = true // After unmount, stop mutating state and stop scheduling next poll (see file header "Logic fix")
+const offs: Array<() => void> = [] // MessageBus unsubscribe closures
 let installConfirmed = false
 let stopConfirmed = false
 
@@ -79,9 +83,9 @@ const statusLabel = computed(() => {
   return t('aiCfgPhoenixStopped')
 })
 
-// useMessageBus().on 的 handler 第一个参数已经由 extractProps 剥掉 Properties/properties
-// 那层信封(New-UI composable 自己做的,见 src/composables/useMessageBus.ts),类型是
-// unknown,这里统一收窄一次,对应 Vue2 直接 `res.Properties['app:name']` 那一层。
+// useMessageBus().on handler's first parameter is already unwrapped by extractProps (removes
+// Properties/properties envelope, New-UI composable does this, see src/composables/useMessageBus.ts),
+// type is unknown. Here narrow it consistently, corresponding to Vue2's direct `res.Properties['app:name']`.
 function asProps(p: unknown): Record<string, string> {
   return p && typeof p === 'object' ? (p as Record<string, string>) : {}
 }
@@ -106,7 +110,7 @@ onMounted(() => {
     installing.value = false
     busy.value = false
     error.value = props.message || t('aiCfgInstallationFailed')
-    void service.ai.putTracingSetting({ enabled: false }).catch(() => { /* Vue2 :87 同样吞 */ }) // 回滚乐观启用
+    void service.ai.putTracingSetting({ enabled: false }).catch(() => { /* Vue2 :87 swallows similarly */ }) // Rollback optimistic enable
     enabled.value = false
   }))
 
@@ -123,7 +127,7 @@ async function load() {
     const s = (await service.ai.getTracingSetting()) as { enabled?: boolean }
     if (!alive) return
     enabled.value = !!s.enabled
-  } catch { /* Vue2 :99 同样静默 */ }
+  } catch { /* Vue2 :99 also silent */ }
   if (!alive) return
   await refreshStatus()
 }
@@ -134,7 +138,7 @@ async function refreshStatus() {
     if (!alive) return
     const entry = map?.[APP_ID]
     phoenixStatus.value = entry ? (entry.status || 'exited') : 'absent'
-  } catch { /* Vue2 :108 —— keep current */ }
+  } catch { /* Vue2 :108 — keep current */ }
 }
 
 async function pollStatus(pred: (s: string) => boolean, tries: number, intervalMs: number): Promise<boolean> {
@@ -151,14 +155,14 @@ async function pollStatus(pred: (s: string) => boolean, tries: number, intervalM
 function onToggle(v: boolean) {
   if (v) {
     if (phoenixStatus.value === 'absent') {
-      // final review Fix 4:等用户确认;不在这里乐观写 enabled,见文件头注释。
+      // final review Fix 4: wait for user confirmation; don't optimistically write enabled here, see file header comment.
       confirmInstallOpen.value = true
     } else {
       enabled.value = v
       void turnOnFlow()
     }
   } else if (phoenixStatus.value === 'running') {
-    // final review Fix 4:等用户确认;不在这里乐观写 enabled,见文件头注释。
+    // final review Fix 4: wait for user confirmation; don't optimistically write enabled here, see file header comment.
     confirmStopOpen.value = true
   } else {
     enabled.value = v
@@ -166,8 +170,8 @@ function onToggle(v: boolean) {
   }
 }
 
-// 见文件头「框架 API 差异」注释:reka AlertDialogCancel 只驱动 v-model:open 变
-// false、不单独 emit,取消要靠这两个 watch 补 Vue2 onCancel 的等价逻辑。
+// See file header "Framework API difference" comment: reka AlertDialogCancel only drives v-model:open to
+// false, not emitting separately. Cancel needs these two watch blocks to supply Vue2's equivalent onCancel logic.
 watch(confirmInstallOpen, (open) => {
   if (open) { installConfirmed = false; return }
   if (!installConfirmed) onInstallCancel()
@@ -178,9 +182,9 @@ watch(confirmStopOpen, (open) => {
 })
 
 function onInstallCancel() { enabled.value = false } // Vue2 :130 onCancel
-// final review Fix 4:不再乐观写,取消时 enabled 本就没被动过 —— 与 Vue2 :141
-// `onCancel: () => {}` 等价的空操作,不留死代码赋值。
-function onStopCancel() { /* no-op, 见文件头 final review Fix 4 注释 */ }
+// final review Fix 4: not optimistically writing anymore, enabled not touched on cancel anyway —
+// equivalent to Vue2 :141 `onCancel: () => {}` no-op, no dead-code assignment.
+function onStopCancel() { /* no-op, see file header final review Fix 4 comment */ }
 
 function onConfirmInstallClick() {
   installConfirmed = true
@@ -224,12 +228,12 @@ async function confirmInstall() {
   installing.value = true
   busy.value = true
   progress.value = 0
-  await turnOn() // 乐观先置 enabled(Vue2 :169)
+  await turnOn() // Optimistically set enabled first (Vue2 :169)
   if (!alive) return
   try {
     const yaml = (await service.ai.getObservabilityCompose()) as string
     if (!alive) return
-    await service.compose.install(yaml) // 包已带 yaml content-type,不再手搭 header(Vue2 :172 是手搭的)
+    await service.compose.install(yaml) // Package includes yaml content-type, no hand-crafted header needed (Vue2 :172 hand-crafts it)
     if (!alive) return
     const ok = await pollStatus((s) => s === 'running', 40, 2000)
     if (!alive) return
@@ -240,10 +244,10 @@ async function confirmInstall() {
     if (!alive) return
     installing.value = false
     busy.value = false
-    // apiErrorMessage 是 Vue2 :180 手写提取链(e.response.data.message)的等价封装,
-    // house style 要求统一走它,行为不变。
+    // apiErrorMessage is equivalent wrapper of Vue2 :180's manual extraction chain (e.response.data.message),
+    // house style requires using it, behavior unchanged.
     error.value = apiErrorMessage(e, t('aiCfgInstallationFailed'))
-    await service.ai.putTracingSetting({ enabled: false }).catch(() => { /* Vue2 :182 同样吞 */ })
+    await service.ai.putTracingSetting({ enabled: false }).catch(() => { /* Vue2 :182 also swallows */ })
     if (!alive) return
     enabled.value = false
   }
@@ -270,7 +274,7 @@ async function turnOff() {
 }
 
 function openPhoenix() {
-  window.open(`http://${window.location.hostname}:6006/`, '_blank') // Vue2 :202,6006 是 Phoenix 默认 UI 端口
+  window.open(`http://${window.location.hostname}:6006/`, '_blank') // Vue2 :202, 6006 is Phoenix default UI port
 }
 </script>
 
@@ -301,12 +305,12 @@ function openPhoenix() {
         <div class="px-status">
           <span class="k">{{ t('aiCfgPhoenixStatus') }}</span>
           <span class="state"><span class="d" />{{ statusLabel }}</span>
-          <!-- 【申报级偏离 Vue2 视觉 1:1,用户 2026-07-30 验收时拍板】
-               Vue2 :29 这里是 `download` 图标 + `--accent-softer` 极浅底色。两处问题:
-               ①download(向下箭头+底线)语义是「下载」,而本按钮是在新标签页打开 Phoenix 界面;
-               ②浅色主题下 accent-softer 几乎看不见,用户原话「看不出有按钮」。
-               改为 external(外链)图标 + 实底强调色(样式在 settings-styles.scss 的 .px-open)。
-               钉桩:ObservabilitySection.test.ts 用例 20 与 settingsStyles.test.ts 的 .px-open 一条。 -->
+          <!-- 【Declaration: visual divergence from Vue2 1:1, approved by user 2026-07-30 during acceptance】
+               Vue2 :29 uses `download` icon + `--accent-softer` very light background. Two issues:
+               ①download (downward arrow + underline) semantics mean "download", but this button opens Phoenix in new tab;
+               ②in light theme, accent-softer barely visible, user feedback "button not visible".
+               Changed to `external` (external link) icon + solid accent color (styled in settings-styles.scss `.px-open`).
+               Pinned: ObservabilitySection.test.ts case 20 and settingsStyles.test.ts `.px-open` case. -->
           <button v-if="phoenixStatus === 'running'" class="px-open" @click="openPhoenix">
             <AgentIcon name="external" :size="12" /> {{ t('aiCfgOpenPhoenix') }}
           </button>

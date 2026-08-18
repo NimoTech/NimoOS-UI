@@ -10,28 +10,59 @@
 // 读法一致),不额外建模板 ref——因为监听器本身就绑在 .zb-track 上,e.currentTarget 恒等于
 // Vue2 `this.$refs.zoomTrack`,只是同一元素的两种取法,不是行为改动。
 //
-// 偏离登记(颜色 token):
-//  1. Vue2 `.zb-btn:hover`/`.zb-track` 底色是 `rgba(var(--ink), 0.08/0.12)`——本仓没有
-//     `--ink` 这个 RGB 三元组 token,新增两个精确命名的 token(`--zb-hover-bg`/
-//     `--zb-track-bg`,见 theme.css/THEMING.md)。alpha 精确复刻 Vue2 的 0.08/0.12;RGB
-//     改取本仓 `--fg` 的真实分解值,不照抄 Vue2 light 主题里 `--ink` 的 `(35,37,43)`
-//     ——那本身只是 Vue2 注释自称的"AI --text-primary 近似",不是设计精确值。同类换基色
-//     先例见 theme.css `--pin-cluster-stroke`。
-//  2. `.zb-thumb` 的 `background: #fff` 与 box-shadow 第二层 `rgba(0,0,0,0.4)`——Vue2
-//     自己的深浅两套主题里这两个值从未变化。前者标 theme-exception(把手固定白,常见
-//     slider handle 惯例);后者新增 theme-invariant token `--zb-thumb-shadow`(两套主题
-//     块同值,先例见 `--place-current-trip`)。
-//  3. `.map-zoombar` 的 `background: var(--float-bg)` 是新增 token,精确复刻 Vue2
-//     photos.scss:49/84 的字面量(本仓之前没有等价的"浮动工具条底"token);
-//     `border: 1px solid var(--line)` 按既定映射表改用 `var(--card-border)`。
+// Shadowing cleanup (Plan E Task 3, 2026-08-15): this component's entire `<style scoped>`
+// block has been deleted. Every rule it carried was a byte-for-byte or same-resolved-value
+// duplicate of `src/photos/styles/vue2-parity/photos-places.scss:234-284` (`.map-zoombar`
+// family) — the old rationale below (kept for history) mapped Vue2's local
+// `rgba(var(--ink), α)` idiom onto three new global theme.css tokens (`--zb-hover-bg`/
+// `--zb-track-bg`/`--zb-thumb-shadow`) because "this repo has no --ink RGB-triple token" — but
+// that's only true of the *global* token set. `.photos-root` (photos.scss:53/88) already
+// defines a local `--ink` for exactly this purpose, and parity's own `.zb-btn:hover`/
+// `.zb-track`/`.zb-thumb` rules already consume it directly. Since this component always
+// renders inside `.photos-root`, the scoped rules were shadowing parity's correct local-token
+// values with global-token values via `[data-v-xxxx]` specificity — same bug pattern as
+// PhotosFilterChip.vue's 2026-08-13 fix round. `.map-zoombar`'s own background/border and
+// `.zb-fill`/`.zb-thumb`'s accent-driven parts already used shared or identical literals, so
+// nothing here was salvageable as a real deviation; deleting the block lets parity govern
+// 100% of `.map-zoombar`. `--zb-hover-bg`/`--zb-track-bg`/`--zb-thumb-shadow` in theme.css are
+// now unused by any component (grep-confirmed) — left in place as this task's scope is the
+// four component files, not theme.css pruning; noted in the task report as a follow-up.
+//
+// Historical rationale (superseded, kept only so the "why was this token created" question
+// doesn't need re-litigating from theme.css alone):
+//  1. Vue2's `.zb-btn:hover`/`.zb-track` background is `rgba(var(--ink), 0.08/0.12)` — alpha
+//     copied exactly from Vue2's 0.08/0.12; RGB instead took this repo's `--fg`'s real
+//     decomposed value.
+//  2. `.zb-thumb`'s `background: #fff` and the second box-shadow layer `rgba(0,0,0,0.4)` — these
+//     two values never changed across Vue2's two themes (theme-invariant).
+//  3. `.map-zoombar`'s `background: var(--float-bg)` — `--float-bg` had actually already been
+//     defined in photos.scss's `.photos-root` local token table; it was never "missing from this
+//     repo".
+//
+// Task 5 (Plan E #106 perf architecture port, 2026-08-15): `dotColor` used to feed the root
+// element's `--accent` via `:style="{ '--accent': dotColor }"` — a template binding, which ties
+// every colour pick to this component's own render effect (reading a prop in the template ties
+// it to that effect). Vue2's own applyMapVars() (PhotosPlacesView.vue :419-433) wrote to BOTH
+// `$refs.svg` and `$refs.zoombar` imperatively for exactly this reason; this component's half of
+// that same mechanism is ported here — `rootRef` + a `watch()` (a separate reactive effect from
+// the render effect) + `style.setProperty`, so `dotColor` changes no longer re-render this
+// component's own template at all, only repaint via CSS custom property inheritance.
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MAX_SCALE } from '../util/placesMap'
 
-defineProps<{
+const props = defineProps<{
   zoomFrac: number
   /** T10 地图主题的强调色,喂给 --accent 局部覆盖——D5 地图主题的一部分,不算违反 token 铁律。 */
   dotColor: string
 }>()
+
+const rootRef = ref<HTMLElement | null>(null)
+function applyAccent(color: string): void {
+  rootRef.value?.style.setProperty('--accent', color)
+}
+onMounted(() => applyAccent(props.dotColor))
+watch(() => props.dotColor, applyAccent)
 
 const emit = defineEmits<{
   (e: 'zoom-by', factor: number): void
@@ -98,7 +129,7 @@ function resetView(): void {
 </script>
 
 <template>
-  <div class="map-zoombar" :style="{ '--accent': dotColor }">
+  <div ref="rootRef" class="map-zoombar">
     <button class="zb-btn" :title="t('photosPlacesZoomIn')" @click="zoomIn">
       +
     </button>
@@ -119,70 +150,9 @@ function resetView(): void {
   </div>
 </template>
 
-<style scoped>
-.map-zoombar {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 6px;
-  background: var(--float-bg);
-  backdrop-filter: blur(14px);
-  border: 1px solid var(--card-border);
-  border-radius: 99px;
-}
-.map-zoombar .zb-btn {
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--fg-muted);
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 300;
-  border-radius: 50%;
-  transition: background 0.2s, color 0.2s;
-}
-.map-zoombar .zb-btn:hover { background: var(--zb-hover-bg); color: var(--fg); }
-.map-zoombar .zb-reset { font-size: 12px; }
-.map-zoombar .zb-track {
-  position: relative;
-  width: 6px;
-  height: 120px;
-  margin: 2px 0;
-  border-radius: 99px;
-  background: var(--zb-track-bg);
-  cursor: pointer;
-  touch-action: none;
-}
-.map-zoombar .zb-fill {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 100%;
-  border-radius: 99px;
-  background: var(--accent, #8950F2);
-  pointer-events: none;
-}
-.map-zoombar .zb-thumb {
-  position: absolute;
-  left: 50%;
-  width: 14px;
-  height: 14px;
-  margin-left: -7px;
-  margin-bottom: -7px;
-  border-radius: 50%;
-  /* theme-exception: 把手固定白色不随主题走,Vue2 两套主题下从未改过这个值,是常见 slider handle 惯例 */
-  background: #fff;
-  box-shadow: 0 0 0 3px var(--accent, #8950F2), 0 1px 4px var(--zb-thumb-shadow);
-  pointer-events: none;
-}
-</style>
+<!-- No <style scoped> block: every rule this component needs is governed by
+     src/photos/styles/vue2-parity/photos-places.scss:234-284 (`.map-zoombar` family),
+     which this component's root DOM always renders under `.photos-root` (re-skin
+     doctrine: component <style scoped> near zero — see PhotosSelectionToolbar.vue /
+     PhotosFilterChip.vue for the same pattern). See the script-block comment above
+     for what used to live here and why it was deleted rather than kept as a survivor. -->

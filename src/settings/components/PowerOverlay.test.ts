@@ -8,11 +8,11 @@ import type { PowerPhase } from '../util/powerFlow'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
 
-// 六个浮层态直接挂纯展示组件 PowerOverlay —— 它只吃一个 phase prop,
-// 不需要在 PowerFlow 上开 __setPhase 这类只为测试存在的生产接口。
-describe('PowerOverlay 六个浮层态', () => {
-  // 任务简报原稿把这里标成 (phase: string),vue-tsc strict 下与 prop 的
-  // PowerPhase 类型不兼容(TS2322)——按 PowerPhase 收紧,行为不变。
+// Mount the six overlay states directly on the pure presentational PowerOverlay —
+// it only takes a phase prop, so no test-only production hooks like __setPhase on PowerFlow.
+describe('PowerOverlay six overlay states', () => {
+  // The task brief originally typed this as (phase: string), which is incompatible with
+  // the prop's PowerPhase type under vue-tsc strict (TS2322) — tightened to PowerPhase, same behavior.
   const mountOverlay = (phase: PowerPhase) =>
     mount(PowerOverlay, { props: { phase }, global: { plugins: [i18n] } })
 
@@ -23,19 +23,19 @@ describe('PowerOverlay 六个浮层态', () => {
   it('done', () => expect(mountOverlay('done').text()).toContain('正在跳转'))
   it('appUpdating', () => expect(mountOverlay('appUpdating').text()).toContain('系统正在更新'))
 
-  it('每个态的标题都有译文(没渲染出裸 key)', () => {
+  it('every state has a translated title (no bare key rendered)', () => {
     for (const ph of ['shutting', 'offline', 'restarting', 'reconnecting', 'done', 'appUpdating', 'fallback'] as const) {
       expect(mountOverlay(ph).find('.pf-card-title').text()).not.toMatch(/^settings/)
     }
   })
 
-  it('fallback 带警示色与刷新按钮', () => {
+  it('fallback has a warning color and a reload button', () => {
     const w = mountOverlay('fallback')
     expect(w.find('.set-warn').exists()).toBe(true)
     expect(w.find('.pf-reload').exists()).toBe(true)
   })
 
-  it('offline 与 fallback 可关闭,点关闭 emit close(其余等待态不给关闭按钮)', async () => {
+  it('offline and fallback can be closed, clicking close emits close (other waiting states get no close button)', async () => {
     for (const ph of ['offline', 'fallback'] as const) {
       const w = mountOverlay(ph)
       expect(w.find('.pf-close').exists()).toBe(true)
@@ -47,7 +47,7 @@ describe('PowerOverlay 六个浮层态', () => {
     }
   })
 
-  it('idle 时什么都不渲染', () => {
+  it('renders nothing when idle', () => {
     expect(mountOverlay('idle').find('.pf-overlay').exists()).toBe(false)
   })
 })
