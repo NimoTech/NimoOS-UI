@@ -78,4 +78,15 @@ describe('GpuWidget', () => {
     expect(w.text()).toContain('54℃')
     expect(w.get('.ring').text()).toContain('43.5%')
   })
+
+  // A discrete card with real VRAM and nothing resident in it genuinely reports
+  // utilization_memory: 0 -- unlike temperature/memory_total/freq_mhz, a running
+  // card can legitimately be at 0% VRAM used. This must render as a real value,
+  // not be swallowed by the "zero means absent" rule that applies to the others.
+  it('shows a genuine 0% VRAM usage on a discrete card, not an em dash', () => {
+    const w = mountWith({ ...DISCRETE, utilization_memory: 0 }, 4)
+    const rows = w.findAll('.stat').map((r) => r.text())
+    expect(rows.some((r) => r.includes('显存占用') && r.includes('0%'))).toBe(true)
+    expect(rows.some((r) => r.includes('显存占用') && r.includes('—'))).toBe(false)
+  })
 })

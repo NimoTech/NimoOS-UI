@@ -40,9 +40,13 @@ const tempC = computed(() => nz(g.value && g.value.temperature))
 const temp = computed(() => (tempC.value == null ? '—' : Math.round(tempC.value) + '℃'))
 const vramTotal = computed(() => nz(g.value && g.value.memory_total))
 const vram = computed(() => (vramTotal.value == null ? '—' : fmtSize(vramTotal.value)))
+// utilization_memory is not gated through nz(): a discrete card with real VRAM
+// and nothing resident in it genuinely reports 0%, same as utilization_gpu can.
+// What actually means "no reading" here is the card having no VRAM at all, so
+// this is gated on vramTotal's presence instead of on the usage value itself.
 const memUse = computed(() => {
-  const m = nz(g.value && g.value.utilization_memory)
-  return m == null ? '—' : Math.round(m) + '%'
+  const m = g.value && g.value.utilization_memory
+  return vramTotal.value == null || typeof m !== 'number' ? '—' : Math.round(m) + '%'
 })
 const freq = computed(() => {
   const f = nz(g.value && g.value.freq_mhz)
