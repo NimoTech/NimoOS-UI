@@ -55,18 +55,32 @@ card is 416x200, content box 384x168, `cqmin = 168`:
 | text block height | 31px (Latin label) / 33px (CJK label) |
 | hole chord at the text block's top edge | 32.0px / 30.3px |
 | ink width of "42%" | ~34px |
+| **number's ink centre vs ring centre** | **0.00px** |
+| **label's ink centre vs ring centre** | **-7.52px** |
 
-**The text block is geometrically centred to within 0.01px.** The visible defect
-is that it does not *fit*: the big number overflows the hole horizontally onto
-the colour band, and the label touches the band at the bottom. The 2px
-difference between Latin and CJK line boxes at the same `font-size: 10px` makes
-the two rings in the Processor card spill by different amounts, which reads as
-"one is more crooked than the other".
+There are two separate defects here, and neither is the missing centring the
+symptom suggested.
+
+**Horizontal — the label is not centred, the number is.** `<s>` is
+`display: block`, so its box width is set by the wider `<b>` (36.17px for
+"42%"), and its computed `text-align` is `start`. The label's ink is 21.13px
+wide and sits flush left in that box, putting its centre **7.52px left of the
+ring's centre** — 13% of a 57px ring. The number's ink centre is exactly on the
+ring's centre. This is the larger and more visible of the two problems.
+
+**Vertical — the block is centred but does not fit.** The block is
+geometrically centred to within 0.01px; it is simply too big for the hole, so
+the number overflows sideways onto the colour band and the label touches the
+band from below. The 2px difference between Latin and CJK line boxes at the same
+`font-size: 10px` makes the Processor card's two rings spill by different
+amounts, which reads as "one is more crooked than the other".
 
 Arithmetic behind the chosen fix: with `line-height: 1` the block drops from
 31px to 27px, its top edge moves to -13.5px, and the available chord grows to
-2*sqrt(22.3^2 - 13.5^2) = 35.5px > 34px. **The line-height change alone is
-sufficient**; enlarging the hole to 82% is margin, not the fix.
+2*sqrt(22.3^2 - 13.5^2) = 35.5px > 34px. **That handles the vertical fit on its
+own**; enlarging the hole to 82% is margin, not the fix. The horizontal offset
+needs `text-align: center` on the text block, which is a separate one-line
+change — `line-height` does nothing for it.
 
 ### Storage ring's three colours
 
@@ -207,9 +221,11 @@ behind.
 
 ### 4. Processor card
 
-- `RingGauge.vue`: add `line-height: 1` to the text block (this is the actual
-  overflow fix and it also equalises Latin vs CJK); widen the hole from 78% to
-  82% for margin.
+- `RingGauge.vue`: add `text-align: center` to the text block, which is what
+  actually pulls the label onto the ring's centre (it is 7.52px left of it
+  today); add `line-height: 1`, which fixes the vertical fit and equalises Latin
+  vs CJK; widen the hole from 78% to 82% for margin. The text block needs a class
+  of its own (`.ring-txt`) to carry these — it is currently an unclassed `div`.
 - `RingGauge.vue`: delete the hardcoded 68%/84% three-colour CSS default
   background, together with the now-callerless `arc` prop (see change 3). It is
   dead code, and leaving it in place misleads the next reader. The hole
