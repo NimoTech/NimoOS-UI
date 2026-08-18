@@ -33,7 +33,8 @@ describe('GpuWidget', () => {
     const s = useLiveStatsStore()
     s.ingest({ cpu: null, mem: null, disk: null, net: null, gpu: [{ utilization_gpu: 33.4, temperature: 61, utilization_memory: 20, memory_total: 8e9, name: 'NV' }] } as any)
     const w = mount(GpuWidget, { props: { item: item(2) } })
-    expect(w.text()).toContain('33.4%')
+    expect(w.text()).toContain('33%')
+    expect(w.text()).not.toContain('33.4%')
     expect(w.text()).toContain('61℃')
   })
 
@@ -73,10 +74,33 @@ describe('GpuWidget', () => {
     expect(w.get('.ring').text()).toContain('0.7%')
   })
 
+  // The decimal only buys anything under 10%, and it costs a glyph the ring hole
+  // does not have: measured in Chromium at the GPU card's real ring size (42cqmin
+  // = 70.5px, 57.8px hole), "43.5%" is 64.1px of ink against a 49.2px chord at the
+  // text's top edge, so it prints across the colour band the ring uses to mean
+  // something. Two digits and up are rounded to keep the string three glyphs wide.
+  it('drops the decimal from ten percent up so the number stays inside the ring', () => {
+    const w = mountWith({ ...DISCRETE, utilization_gpu: 43.5 }, 4)
+    expect(w.get('.ring').text()).toContain('44%')
+    expect(w.get('.ring').text()).not.toContain('43.5')
+  })
+
+  it('rounds a full load to a whole number too', () => {
+    const w = mountWith({ ...DISCRETE, utilization_gpu: 99.94 }, 4)
+    expect(w.get('.ring').text()).toContain('100%')
+  })
+
+  it('keeps the decimal right up to the threshold', () => {
+    const w = mountWith({ ...DISCRETE, utilization_gpu: 9.96 }, 4)
+    expect(w.get('.ring').text()).toContain('10%') // 9.96 -> 10.0 -> "10%"
+    const w2 = mountWith({ ...DISCRETE, utilization_gpu: 9.44 }, 4)
+    expect(w2.get('.ring').text()).toContain('9.4%')
+  })
+
   it('still renders real readings from a discrete card', () => {
     const w = mountWith(DISCRETE, 4)
     expect(w.text()).toContain('54℃')
-    expect(w.get('.ring').text()).toContain('43.5%')
+    expect(w.get('.ring').text()).toContain('44%')
   })
 
   // A discrete card with real VRAM and nothing resident in it genuinely reports

@@ -32,9 +32,15 @@ const nz = (v: unknown): number | null => (typeof v === 'number' && v > 0 ? v : 
 
 const usage = computed(() => {
   const u = g.value && g.value.utilization_gpu
-  // One decimal, not a round(): an idling integrated GPU sits under 1%, and
-  // rounding turns its only live signal into a flat 0%.
-  return typeof u === 'number' ? Math.round(u * 10) / 10 : null
+  if (typeof u !== 'number') return null
+  // A decimal below 10%, a whole number from 10% up. The decimal is what keeps an
+  // idling integrated GPU's 0.687% from reading as a flat 0%, but it costs a glyph
+  // the ring hole does not have: measured in Chromium at this card's ring size
+  // (42cqmin = 70.5px, 57.8px hole), "43.5%" is 64.1px of ink against a 49.2px
+  // chord at the text's top edge, so it spills across the colour band -- the very
+  // defect RingGauge was resized to remove. Under 10% the string is still three
+  // digits wide and fits.
+  return u < 10 ? Math.round(u * 10) / 10 : Math.round(u)
 })
 const tempC = computed(() => nz(g.value && g.value.temperature))
 const temp = computed(() => (tempC.value == null ? '—' : Math.round(tempC.value) + '℃'))
