@@ -858,7 +858,7 @@ export default {
   aiMcpSrvTestStdioHint: 'stdio 首次可能需要几分钟(会现场下载 server)。',
   aiMcpSrvTestOk: '已连接 · {n} 个工具',
   aiMcpSrvTestFailed: '连接失败',
-  aiMcpSrvToolsNote: '工具由该服务在握手时声明。对话中首次调用会请求你的许可。',
+  aiMcpSrvToolsNote: '工具由该服务在握手时声明。下方开关控制是否还会再次询问你的许可。',
   aiMcpSrvRemoveTitle: '移除该 MCP 服务?',
   aiMcpSrvRemoveBody: 'Nimo 将断开与 {name} 的连接,其工具不再对 Agent 可用。你可以稍后重新添加。',
   aiMcpSrvRemoveConfirm: '移除',
@@ -904,6 +904,21 @@ export default {
   aiMcpSrvParseErrOnlyEnv: '只有环境变量,后面缺一条命令',
   aiMcpSrvParseErrQuotes: '引号没有配对',
   // <<< SP8-P4 Task 4
+  // >>> mcp-progressive-disclosure Task 20 —— 工具清单与授权开关,Vue2 没有对应文案,本期新造
+  aiMcpSrvToolsTitle: '工具',
+  aiMcpToolServerLevelLabel: '整台服务器',
+  aiMcpToolServerLevelHint: '批准这整台服务器,覆盖当前列出的全部工具,以及它日后新增的任何工具。',
+  aiMcpToolDescChanged: '描述已变更',
+  aiMcpToolMissingHint: '该工具当前不在服务器上,可能已被移除。',
+  aiMcpToolApprovalFailed: '更新授权失败',
+  // <<< mcp-progressive-disclosure Task 20
+  // >>> mcp-progressive-disclosure Task 20 fix round -- stale_reason_key → i18n
+  // (backend's service.StaleReasonXxx codes, config_changed/tool_removed/schema_changed/stale)
+  aiMcpToolStaleConfigChanged: '服务器的配置已变更,此前的授权已失效。',
+  aiMcpToolStaleToolRemoved: '该工具已不再由服务器提供。',
+  aiMcpToolStaleSchemaChanged: '该工具的接口已变更,需要重新确认。',
+  aiMcpToolStaleStale: '已有一段时间没有在服务器上看到这个工具了。',
+  // <<< mcp-progressive-disclosure Task 20 fix round
   // >>> SP8-P5a Task 5 —— 知识库占位页(K7),Vue2 没有对应文案,本期新造
   aiKbDeferredTitle: '即将上线',
   aiKbDeferredHint: '这个页面还在迁移到新界面。',
@@ -1548,4 +1563,15 @@ export default {
   aiKbWkTreeError: '加载 Wiki 树失败',
   aiKbWkViewSource: '查看原文',
   // <<< SP8-P5f Task 1
+  // >>> Task 21 (2026-08-13 mcp-progressive-disclosure plan) —— 跨服务器授权汇总页 +
+  // 删除确认的级联提示,Vue2 没有对应文案,本期新造
+  aiCfgMcpApprovals: 'MCP 授权',
+  aiMcpApprovalsDesc: '你曾经对某个 MCP 服务器选择"不再询问"的每一项授权,都汇总在这里,按服务器分组,可随时撤销。',
+  aiMcpApprovalsEmpty: '还没有任何已保存的授权。',
+  aiMcpApprovalsAllTools: '此服务器的全部工具',
+  aiMcpApprovalsRevoke: '撤销',
+  aiMcpApprovalsRevoked: '已撤销 {handle} 的全部授权',
+  aiMcpApprovalsRevokeFailed: '撤销授权失败',
+  aiMcpSrvRemoveApprovalsCount: '同时会删除 {count} 条已授权工具',
+  // <<< Task 21
 }

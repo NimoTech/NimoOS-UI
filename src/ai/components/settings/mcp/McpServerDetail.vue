@@ -8,6 +8,29 @@
   T7's two deviations (**D8** error localization + collapsible technical details, **D11** in-flight request race guard)
   see `<script>` `runTest`/`reqSeq` header comments and template `mcp-test-result` branch comments.
 
+  [Task 21 (2026-08-13 mcp-progressive-disclosure plan, the delete-confirm cascade
+  notice) -- declared deviation from the brief's file list] The brief lists this under
+  "Modify: ... McpSection.vue", but the delete-confirm dialog (`.sk-confirm`) has lived
+  in THIS file since T6; `McpSection.vue` only forwards the `@delete` event and never
+  owns the dialog's state -- the brief plainly missed that file boundary. Following the
+  already-authorised principle from the sections.ts registration ("where the brief and
+  the real code disagree, the real code wins"), the change lands here rather than in
+  `McpSection.vue`. Where the cascade count comes from and why is documented on
+  `approvalCascadeCount` below; the new standalone delete entry point
+  (`data-test="delete-server-<id>"`, one click straight to the confirm dialog, no need
+  to open the "..." menu first) is documented next to that button in the template.
+
+  [Task 21 fix round (added after review, 2026-08-15) -- the residual gap declared in
+  the paragraph above ("approvals for tools the server has since removed are not
+  counted") was never an architectural limit, just one line the backend had not wired
+  up: the `Tools` handler in `route/v2/mcp_approvals.go` had long since fetched the
+  full, ungated `ListForServer` result into its `approvals` variable and simply never
+  published `len(approvals)`. NimoOS-AI now ships a `total_stored_approvals` field
+  (committed separately in that repo) and `approvalCascadeCount` reads it first, falling
+  back to this file's original derivation only against a backend that predates the field
+  -- see that constant's own header comment below.]
+-->
+<!--
   【Deviation D3, public constraint §3 #3】`SkillIcon.vue` not ported, unified to use
   `../../icons/AgentIcon.vue` (following P3a/T5 precedent).
   Vue2 :121 passes named color literal to delete button `SkillIcon` — this repo doesn't.
@@ -71,11 +94,13 @@ import {
   DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, VisuallyHidden,
 } from 'reka-ui'
 import type { McpServer, McpTestView } from '../../../types/mcpServer'
+import type { McpToolRow } from '@nimotech/nimoos-service'
 import { toTestView, toTestViewFromError } from '../../../util/mcpErrorKey'
 import { protocolLine } from '../../../util/mcpProtocol'
 import { serverColor, transportLabel, SERVER_GLYPH } from '../../../util/mcpServerVisual'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import SkillTile from '../skills/SkillTile.vue'
+import McpToolList from '../sections/McpToolList.vue'
 
 // Aligned with Vue2 `props: { server: { type: Object, default: null } }` (:139).
 const props = defineProps<{ server: McpServer | null }>()
@@ -176,6 +201,99 @@ watch(() => props.server?.id, () => {
   testView.value = null
 })
 
+// Task 20 (mcp-progressive-disclosure plan) -- the persisted tool list +
+// approval state, read via `listMCPTools` and handed to `McpToolList.vue`.
+// Zero-network on the server side (see that component's file header), so
+// this loads instantly even for a server that is currently unreachable --
+// unlike `runTest()` above, which actually dials the server.
+const toolRows = ref<McpToolRow[]>([])
+const toolsLoading = ref(false)
+// Fix round (review point B/C): whether a server-level ('*') grant exists at
+// all, plus its own stale reason/key if void -- see McpToolList.vue's
+// `serverLevelApproved` prop doc comment for why this can't be derived from
+// `toolRows` alone.
+const serverLevelApproved = ref(false)
+const serverLevelStaleReason = ref('')
+const serverLevelStaleReasonKey = ref('')
+// Task 21 fix round -- see `approvalCascadeCount` below for why this (not a
+// derivation from `toolRows`/`serverLevelApproved`) is the count's primary
+// source. `undefined` (not 0) when the field is missing, so the computed can
+// tell "backend predates this field" apart from "honestly zero approvals".
+const totalStoredApprovals = ref<number | undefined>(undefined)
+// Same race the `reqSeq` guard above protects `runTest()` against, applied
+// to this independent request: switching servers while a `listMCPTools` call
+// is in flight must not let the old server's tools land in the new server's
+// panel. Kept as its own counter rather than reusing `reqSeq` -- the two
+// requests are unrelated and run concurrently, sharing one counter would let
+// finishing one wrongly invalidate the other.
+let toolsSeq = 0
+
+// Task 21 (mcp-progressive-disclosure plan, fix round) -- the honest count of
+// stored approval rows this server's delete cascades to. Deliberately NOT
+// `listMCPApprovals()` (the gated cross-server summary McpApprovalsSection.vue
+// reads) -- that endpoint only returns approvals that currently pass every
+// invalidation gate, so a stored-but-void approval (e.g. every approval for a
+// server goes void once its URL is edited) would silently disappear from the
+// count even though CASCADE will still drop its row.
+//
+// Primary source: `listMCPTools`'s `total_stored_approvals` (backend
+// `route/v2/mcp_approvals.go`'s `Tools` handler, Task 21 fix round) -- the
+// raw `len(approvals)` from `ListForServer`, which queries
+// `mcp_tool_approvals WHERE server_id = ?` with NO gate applied at all, the
+// same predicate a server-delete CASCADE acts against. This is the one
+// number that cannot undercount: unlike the per-tool `tools` rows below (each
+// built by ranging over the server's CURRENT handshake tool metas), it is not
+// filtered by whether a tool still appears in the latest listing -- an
+// approval for a tool the server has since stopped offering is still counted
+// here even though it no longer produces a `McpToolRow` at all. See that
+// field's doc comment in `packages/service/src/ai.ts` for the full backend
+// trace.
+//
+// Fallback: `toolRows.filter(approved).length + (serverLevelApproved ? 1 : 0)`
+// -- the original Task 21 derivation, kept only for a backend that predates
+// `total_stored_approvals` (the field is `undefined` there, not absent-but-
+// zero, so `!= null` distinguishes "old backend" from "field is honestly 0").
+// This fallback still has the removed-tool undercount `total_stored_approvals`
+// exists to close; it is a compatibility floor, not a second correct source.
+const approvalCascadeCount = computed(() => {
+  if (totalStoredApprovals.value != null) return totalStoredApprovals.value
+  return toolRows.value.filter((tool) => tool.approved).length + (serverLevelApproved.value ? 1 : 0)
+})
+
+async function loadTools(id: number) {
+  const seq = ++toolsSeq
+  toolsLoading.value = true
+  try {
+    const res = await service.ai.listMCPTools(id)
+    if (seq !== toolsSeq) return
+    toolRows.value = Array.isArray(res?.tools) ? res.tools : []
+    serverLevelApproved.value = !!res?.server_level_approved
+    serverLevelStaleReason.value = res?.server_level_stale_reason || ''
+    serverLevelStaleReasonKey.value = res?.server_level_stale_reason_key || ''
+    totalStoredApprovals.value = res?.total_stored_approvals
+  } catch {
+    if (seq !== toolsSeq) return
+    toolRows.value = []
+    serverLevelApproved.value = false
+    serverLevelStaleReason.value = ''
+    serverLevelStaleReasonKey.value = ''
+    totalStoredApprovals.value = undefined
+  } finally {
+    if (seq === toolsSeq) toolsLoading.value = false
+  }
+}
+
+watch(() => props.server?.id, (id) => {
+  toolsSeq += 1 // invalidate any in-flight load from the previous server
+  toolRows.value = []
+  toolsLoading.value = false
+  serverLevelApproved.value = false
+  serverLevelStaleReason.value = ''
+  serverLevelStaleReasonKey.value = ''
+  totalStoredApprovals.value = undefined
+  if (id !== undefined) loadTools(id)
+}, { immediate: true })
+
 // Aligned with Vue2 `closeAnd(fn)` (:155).
 function closeAnd(fn?: () => void) {
   menuOpen.value = false
@@ -229,6 +347,24 @@ function doDelete() {
           :aria-checked="server.enabled ? 'true' : 'false'"
           @click="emit('toggle', server.id, !server.enabled)"
         />
+        <!-- Task 21 (mcp-progressive-disclosure plan) -- a standalone, directly
+             clickable delete trigger, additional to the "..." menu's "Remove"
+             item below (kept as-is; existing tests 9a-9c drive it through the
+             menu). Both open the same `confirmOpen` dialog -- this one exists
+             so deleting a server is a single click, not "open menu, then find
+             the danger item inside it". Deliberately `.icon-btn`, not
+             `.sk-pill-more` -- that class is also on the "..." button right
+             below, and existing tests locate it with `find('.sk-pill-more')`
+             (which returns the FIRST match); sharing the class would make
+             those tests silently click this new button instead. -->
+        <button
+          class="icon-btn"
+          :data-test="`delete-server-${server.id}`"
+          :title="t('aiMcpSrvRemove')"
+          @click="openConfirmDialog"
+        >
+          <AgentIcon name="trash" :size="16" />
+        </button>
         <div ref="menuWrap" style="position: relative">
           <button class="sk-pill-more" @click="menuOpen = !menuOpen">
             <AgentIcon name="settings" :size="16" />
@@ -355,9 +491,27 @@ function doDelete() {
             </div>
           </div>
 
+          <!-- Task 20 (mcp-progressive-disclosure plan): the persisted tool
+               list + per-tool/server-level approval toggles, replacing what
+               was previously just a static note here. -->
           <div class="sk-section">
+            <div class="sk-section-head">
+              <div class="sk-section-title">{{ t('aiMcpSrvToolsTitle') }}</div>
+            </div>
             <div class="sk-section-body">
               <div class="sk-description">{{ t('aiMcpSrvToolsNote') }}</div>
+              <div v-if="toolsLoading" data-test="tools-loading" style="display: grid; place-items: center; padding: 14px 0">
+                <div class="sk-spinner" />
+              </div>
+              <McpToolList
+                v-else
+                :server-id="server.id"
+                :tools="toolRows"
+                show-server-level
+                :server-level-approved="serverLevelApproved"
+                :server-level-stale-reason="serverLevelStaleReason"
+                :server-level-stale-reason-key="serverLevelStaleReasonKey"
+              />
             </div>
           </div>
         </div>
@@ -370,9 +524,17 @@ function doDelete() {
           <DialogOverlay class="sk-modal-bg">
             <DialogContent class="sk-modal sk-confirm" :aria-describedby="undefined">
               <VisuallyHidden as-child><DialogTitle>{{ t('aiMcpSrvRemoveTitle') }}</DialogTitle></VisuallyHidden>
-              <div class="sk-confirm-body">
+              <div data-test="delete-confirm" class="sk-confirm-body">
                 <h3>{{ t('aiMcpSrvRemoveTitle') }}</h3>
                 <p>{{ t('aiMcpSrvRemoveBody', { name: server.name }) }}</p>
+                <!-- Task 21 (mcp-progressive-disclosure plan) -- the cascade
+                     must be named before the user confirms, not discovered
+                     after. Hidden entirely when there is nothing to lose
+                     (see approvalCascadeCount's doc comment for the count's
+                     source). -->
+                <p v-if="approvalCascadeCount > 0" class="mcp-reveal-warn" style="margin-top: 6px">
+                  {{ t('aiMcpSrvRemoveApprovalsCount', { count: approvalCascadeCount }) }}
+                </p>
               </div>
               <div class="sk-modal-foot">
                 <div class="right">

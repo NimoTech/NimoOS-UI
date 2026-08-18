@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  saveServerErrorKey, parseCommandErrorKey, toTestView, toTestViewFromError,
+  saveServerErrorKey, parseCommandErrorKey, toTestView, toTestViewFromError, staleReasonKeyToI18nKey,
 } from './mcpErrorKey'
 
 /** Create an axios-style error (shared package doesn't swallow error, throws as-is). */
@@ -230,5 +230,26 @@ describe('toTestViewFromError — thrown error → view', () => {
     const v = toTestViewFromError(httpErr(502, 'LEAKED-STRING-BODY'))
     expect(v).toEqual({ ok: false, msgKey: 'aiMcpSrvTestErrAgentDown', detail: '' })
     expect(JSON.stringify(v)).not.toContain('LEAKED-STRING-BODY')
+  })
+})
+
+// Task 20 fix round -- staleReasonKeyToI18nKey maps the backend's
+// stale_reason_key (service.StaleReasonXxx) to an i18n key, the same
+// backend-code-to-i18n-key shape as toTestView's error_key switch above.
+describe('staleReasonKeyToI18nKey', () => {
+  it('maps all four known codes to their i18n keys', () => {
+    expect(staleReasonKeyToI18nKey('config_changed')).toBe('aiMcpToolStaleConfigChanged')
+    expect(staleReasonKeyToI18nKey('tool_removed')).toBe('aiMcpToolStaleToolRemoved')
+    expect(staleReasonKeyToI18nKey('schema_changed')).toBe('aiMcpToolStaleSchemaChanged')
+    expect(staleReasonKeyToI18nKey('stale')).toBe('aiMcpToolStaleStale')
+  })
+
+  it('returns undefined for an unrecognized code (fallback to raw prose), not a key that resolves to nothing', () => {
+    expect(staleReasonKeyToI18nKey('a-future-code-not-shipped-yet')).toBeUndefined()
+  })
+
+  it('returns undefined for an empty or missing code', () => {
+    expect(staleReasonKeyToI18nKey('')).toBeUndefined()
+    expect(staleReasonKeyToI18nKey(undefined)).toBeUndefined()
   })
 })

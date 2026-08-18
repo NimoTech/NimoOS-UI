@@ -16,7 +16,7 @@
 export type SectionId =
   | 'models' | 'providers' | 'privacy' | 'thinking'
   | 'blacklist' | 'execution' | 'search' | 'memory' | 'observability'
-  | 'skills' | 'mcp' | 'mcptokens' | 'channels'
+  | 'skills' | 'mcp' | 'mcpapprovals' | 'mcptokens' | 'channels'
 
 export interface SectionItem {
   id: SectionId
@@ -62,6 +62,10 @@ export const GROUPS: SectionGroup[] = [
     items: [
       { id: 'skills', icon: 'layers', labelKey: 'aiCfgSkills' },
       { id: 'mcp', icon: 'grid', labelKey: 'aiCfgMcpConnections' },
+      // Task 21 (2026-08-13 mcp-progressive-disclosure plan) -- cross-server
+      // approvals overview, registered right after `mcp` per the task brief's
+      // resolved ambiguity #1.
+      { id: 'mcpapprovals', icon: 'lock', labelKey: 'aiCfgMcpApprovals' },
       { id: 'mcptokens', icon: 'key', labelKey: 'aiCfgMcpTokens' },
     ],
   },

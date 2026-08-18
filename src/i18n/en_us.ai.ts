@@ -835,7 +835,7 @@ export default {
   aiMcpSrvTestStdioHint: 'This can take up to a couple of minutes for stdio (first run downloads the server).',
   aiMcpSrvTestOk: 'Connected · {n} tools',
   aiMcpSrvTestFailed: 'Connection failed',
-  aiMcpSrvToolsNote: 'Tools are declared by this server during handshake. The first call in a conversation will ask for your permission.',
+  aiMcpSrvToolsNote: 'Tools are declared by this server during handshake. The switches below control whether you will be asked again.',
   aiMcpSrvRemoveTitle: 'Remove this MCP server?',
   aiMcpSrvRemoveBody: 'Nimo will disconnect from {name}; its tools will no longer be available to the agent. You can add it again later.',
   aiMcpSrvRemoveConfirm: 'Remove',
@@ -882,6 +882,21 @@ export default {
   aiMcpSrvParseErrOnlyEnv: 'Only environment variables — a command is missing',
   aiMcpSrvParseErrQuotes: 'Unbalanced quotes',
   // <<< SP8-P4 Task 4
+  // >>> mcp-progressive-disclosure Task 20 — tool list & approval toggles, new copy, no Vue2 equivalent
+  aiMcpSrvToolsTitle: 'Tools',
+  aiMcpToolServerLevelLabel: 'Entire server',
+  aiMcpToolServerLevelHint: 'Approve this whole server — covers every tool listed here now, plus any tools it adds later.',
+  aiMcpToolDescChanged: 'Description changed',
+  aiMcpToolMissingHint: 'Not currently offered by this server — it may have been removed.',
+  aiMcpToolApprovalFailed: 'Failed to update approval',
+  // <<< mcp-progressive-disclosure Task 20
+  // >>> mcp-progressive-disclosure Task 20 fix round -- stale_reason_key → i18n
+  // (backend's service.StaleReasonXxx codes, config_changed/tool_removed/schema_changed/stale)
+  aiMcpToolStaleConfigChanged: "The server's configuration changed — this approval is no longer valid.",
+  aiMcpToolStaleToolRemoved: 'This tool is no longer offered by the server.',
+  aiMcpToolStaleSchemaChanged: "This tool's interface changed — it needs to be re-approved.",
+  aiMcpToolStaleStale: "This tool hasn't been seen on the server in a while.",
+  // <<< mcp-progressive-disclosure Task 20 fix round
   // >>> SP8-P5a Task 5 — knowledge base deferred placeholder page (K7), new copy, no Vue2 equivalent
   aiKbDeferredTitle: 'Coming soon',
   aiKbDeferredHint: 'This page is still being migrated to the new UI.',
@@ -1511,4 +1526,16 @@ export default {
   aiKbWkTreeError: 'Failed to load the wiki tree',
   aiKbWkViewSource: 'View source',
   // <<< SP8-P5f Task 1
+  // >>> Task 21 (2026-08-13 mcp-progressive-disclosure plan) -- cross-server
+  // approvals overview + the delete confirmation's cascade warning, no Vue2
+  // counterpart, newly authored this round
+  aiCfgMcpApprovals: 'MCP approvals',
+  aiMcpApprovalsDesc: 'Every "don\'t ask again" you have granted to an MCP server is summarized here, grouped by server, so you can revoke it at any time.',
+  aiMcpApprovalsEmpty: 'No saved approvals yet.',
+  aiMcpApprovalsAllTools: 'All tools on this server',
+  aiMcpApprovalsRevoke: 'Revoke',
+  aiMcpApprovalsRevoked: 'Revoked all approvals for {handle}',
+  aiMcpApprovalsRevokeFailed: 'Failed to revoke approvals',
+  aiMcpSrvRemoveApprovalsCount: 'This will also delete {count} approvals',
+  // <<< Task 21
 }

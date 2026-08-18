@@ -108,6 +108,26 @@ export function toTestView(body: unknown): McpTestView {
   }
 }
 
+/** Task 20 fix round -- `stale_reason_key` (one of the backend's
+ *  `service.StaleReasonXxx` codes: `config_changed`/`tool_removed`/
+ *  `schema_changed`/`stale`, see `NimoOS-AI/service/mcp_approvals.go`) →
+ *  i18n key, the same "backend code → i18n key" shape as `toTestView`'s
+ *  `error_key` switch above. Returns `undefined` for an empty or
+ *  unrecognized code (rather than a key that resolves to nothing) so the
+ *  caller can fall back to rendering the raw `stale_reason` prose instead of
+ *  going blank -- a backend code shipped before its i18n key lands here must
+ *  still show *something*, not nothing. */
+const STALE_REASON_KEY_TO_I18N: Record<string, string> = {
+  config_changed: 'aiMcpToolStaleConfigChanged',
+  tool_removed: 'aiMcpToolStaleToolRemoved',
+  schema_changed: 'aiMcpToolStaleSchemaChanged',
+  stale: 'aiMcpToolStaleStale',
+}
+
+export function staleReasonKeyToI18nKey(key: string | undefined): string | undefined {
+  return key ? STALE_REASON_KEY_TO_I18N[key] : undefined
+}
+
 /** Thrown error (HTTP layer failure, not `{ok:false,...}` at 200) → view.
  *  `mcp.go:351` 502 `{ok:false,error:"agent unreachable"}` and 404
  *  `mcp server not found` each get dedicated key, rest all fall back to generic,
