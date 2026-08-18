@@ -132,6 +132,28 @@ describe('createSys baseinfo / paths / logs', () => {
   })
 })
 
+describe('createSys.getTimeZone', () => {
+  it('unwraps success envelope and hits /sys/timezone', async () => {
+    const { calls, http } = writeHttp({ success: 200, message: 'ok', data: { timezone: 'Asia/Shanghai' } })
+    const tz = await createSys(http).getTimeZone()
+    expect(calls[0]).toMatchObject({ method: 'get', url: '/sys/timezone' })
+    expect(tz).toBe('Asia/Shanghai')
+  })
+
+  // Same shape as the getLogs case above: a 200 envelope with data: null is a real,
+  // previously-observed backend behaviour in this file, not a hypothetical -- the
+  // `?.timezone ?? ''` fallback exists specifically to cover it.
+  it('returns empty string not undefined when data is null', async () => {
+    const s = createSys(http({ '/sys/timezone': { success: 200, message: 'ok', data: null } }))
+    expect(await s.getTimeZone()).toBe('')
+  })
+
+  it('throws on non-200 envelope', async () => {
+    const s = createSys(http({ '/sys/timezone': { success: 500, message: 'timezone unreadable' } }))
+    await expect(s.getTimeZone()).rejects.toThrow('timezone unreadable')
+  })
+})
+
 describe('createSys write operation payloads', () => {
   it('power only accepts off / restart, hits /sys/state/{action}', async () => {
     const { calls, http } = writeHttp()
