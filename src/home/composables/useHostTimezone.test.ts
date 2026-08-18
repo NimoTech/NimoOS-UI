@@ -2,14 +2,25 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // vi.hoisted, not a bare const: vi.mock is hoisted above top-level declarations,
 // so a plain `const getTimeZone = vi.fn()` would be read before initialization.
-const { getTimeZone } = vi.hoisted(() => ({ getTimeZone: vi.fn() }))
-vi.mock('@nimotech/nimoos-service', () => ({ service: { sys: { getTimeZone } } }))
+// `uninitialized` lets one test reproduce the real `service.sys` getter's
+// behaviour before initService() has run: it throws synchronously rather than
+// rejecting a promise (packages/service/src/index.ts:52 / http.ts:105).
+const { getTimeZone, uninitialized } = vi.hoisted(() => ({ getTimeZone: vi.fn(), uninitialized: { value: false } }))
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: {
+    get sys() {
+      if (uninitialized.value) throw new Error('@nimotech/nimoos-service: initService() not called')
+      return { getTimeZone }
+    },
+  },
+}))
 
 import { useHostTimezone, __resetHostTimezoneForTest } from './useHostTimezone'
 
 beforeEach(() => {
   __resetHostTimezoneForTest()
   getTimeZone.mockReset()
+  uninitialized.value = false
 })
 
 describe('useHostTimezone', () => {
@@ -42,5 +53,18 @@ describe('useHostTimezone', () => {
     const { zone } = useHostTimezone()
     await vi.waitFor(() => expect(getTimeZone).toHaveBeenCalled())
     expect(zone.value).toBeNull()
+  })
+
+  // Regression: WidgetCard.test.ts mounts ClockWidget without initService()
+  // ever having run, so `service.sys` throws synchronously (not a rejected
+  // promise) the instant useHostTimezone() reaches for it. That must be as
+  // harmless to the caller as a failed HTTP request -- an absent badge, not a
+  // crash that takes the whole widget mount down with it.
+  it('does not throw and leaves zone null when the service getter itself throws synchronously', async () => {
+    uninitialized.value = true
+    let zone
+    expect(() => { ({ zone } = useHostTimezone()) }).not.toThrow()
+    await vi.waitFor(() => expect(zone!.value).toBeNull())
+    expect(getTimeZone).not.toHaveBeenCalled() // the getter threw before getTimeZone() was ever reachable
   })
 })

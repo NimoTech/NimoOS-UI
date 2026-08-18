@@ -15,11 +15,19 @@ export function __resetHostTimezoneForTest() {
 
 export function useHostTimezone() {
   if (!inFlight) {
-    inFlight = service.sys
-      .getTimeZone()
+    // `service.sys` is a lazy getter that throws synchronously if initService()
+    // hasn't run yet (e.g. a test mounting the clock without the service
+    // package initialised). Reaching for it inside this .then() callback,
+    // rather than calling it directly, turns that synchronous throw into a
+    // rejection the .catch() below can see -- a throwing getter must be as
+    // harmless to the badge as a failed HTTP request, never a crash.
+    inFlight = Promise.resolve()
+      .then(() => service.sys.getTimeZone())
       .then((tz) => { zone.value = tz || null })
-      // An older backend has no such route. Leaving the zone null hides the
-      // badge, which the spec prefers to guessing from the browser.
+      // An older backend has no such route, or the service isn't initialised
+      // yet. Leaving the zone null hides the badge, which the spec prefers to
+      // guessing from the browser -- and it also keeps inFlight settled, so a
+      // synchronous throw doesn't leave every subsequent consumer retrying.
       .catch(() => { zone.value = null })
   }
   return { zone }
