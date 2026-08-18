@@ -1,10 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { useLayoutStore } from '../stores/layout'
 import GridCanvas from './GridCanvas.vue'
 
 describe('GridCanvas', () => {
+  // This suite mounts the clock widget without calling initService(), so
+  // useHostTimezone's fetch rejects and its .catch() deliberately logs a
+  // warning (see useHostTimezone.ts). That warning is expected here, not a
+  // regression, so it is stubbed for the duration of this file only.
+  let warn: ReturnType<typeof vi.spyOn>
+  beforeAll(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}) })
+  afterAll(() => { warn.mockRestore() })
+
   beforeEach(() => { setActivePinia(createPinia()); localStorage.clear() })
 
   it('renders one positioned GridItem per layout item', async () => {
