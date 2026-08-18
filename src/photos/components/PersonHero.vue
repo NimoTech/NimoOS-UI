@@ -568,8 +568,9 @@ onUnmounted(() => {
 /* Owner acceptance Fix-1: same reasoning as `.back` above — these two triggers carry their own
    themed `var(--float-bg)` pill background, so pinning their text white produced white-on-
    near-white in the light theme (owner-reported "Edit/No group pills... hard to read"). Vue2's
-   own `.edit-btn`/`.relation-select` (photos-people.scss:350/360, 442/452;
-   PhotosPersonDetail.vue:1175/1183/1197) have always used themed var(--text-2)/var(--text-1),
+   own `.edit-btn`/`.relation-select` (photos-people.scss:350/360, 442/452 — the latter's
+   `.relation-select` rule has since been deleted as a confirmed zero-consumer orphan, Plan H
+   Task 15; PhotosPersonDetail.vue:1175/1183/1197) have always used themed var(--text-2)/var(--text-1),
    correctly paired with the same themed pill background, no `is-light` branch needed. Base +
    hover still written as parity's own compound selectors so the scoped-attribute specificity
    bump reliably beats parity's `:hover` variant too (parity's hover selector is itself a
