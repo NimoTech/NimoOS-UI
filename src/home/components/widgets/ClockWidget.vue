@@ -8,9 +8,13 @@
 
   Size-adaptive (item.h = rows, item.w = columns):
     h<2            → time only (1×2)
-    w>=4, h>=2     → hands + large digits + greeting/date (2×4)
-    w==3, h>=2     → hands + weekday/time/date, centered (2×3)
+    w>=4, h>=2     → hands + large digits + greeting/date (2×4) -- date line also carries the UTC offset badge
+    w==3, h>=2     → hands + weekday/time/date, centered (2×3) -- weekday line also carries the UTC offset badge
     otherwise (2×2) → hands on top, time below, vertically centered
+
+  The UTC offset badge (e.g. "UTC+8") comes from useHostTimezone() + utcOffsetLabel();
+  it only exists in the 2×4 and 2×3 variants above, and is omitted entirely (not a
+  placeholder) when the host timezone is unavailable.
 -->
 <template>
   <div class="clock" :class="'v-' + variant" data-clock-widget>
@@ -35,10 +39,10 @@
       <template v-if="variant === 'wide'">
         <span class="greet">{{ greeting }}</span>
         <span class="time" data-clock-time>{{ time }}</span>
-        <span class="sub">{{ dateCN }} · {{ weekday }}</span>
+        <span class="sub">{{ dateCN }} · {{ weekday }}<template v-if="tzBadge"> · {{ tzBadge }}</template></span>
       </template>
       <template v-else-if="variant === 'med'">
-        <span class="wk">{{ weekday }}</span>
+        <span class="wk">{{ weekday }}<template v-if="tzBadge"> · {{ tzBadge }}</template></span>
         <span class="time" data-clock-time>{{ time }}</span>
         <span class="sub">{{ dateCN }}</span>
       </template>
@@ -53,9 +57,13 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { LayoutItem } from '../../grid/types'
+import { useHostTimezone } from '../../composables/useHostTimezone'
+import { utcOffsetLabel } from '../../util/timezone'
 
 const props = defineProps<{ item: LayoutItem }>()
 const { t } = useI18n()
+
+const { zone } = useHostTimezone()
 
 const now = ref(new Date())
 let timer: ReturnType<typeof setInterval> | null = null
@@ -68,6 +76,9 @@ const WEEK = computed(() => t('clockWeekdays').split(','))
 const time = computed(() => pad(now.value.getHours()) + ':' + pad(now.value.getMinutes()))
 const weekday = computed(() => WEEK.value[now.value.getDay()])
 const dateCN = computed(() => t('clockDate', { m: now.value.getMonth() + 1, d: now.value.getDate() }))
+// null whenever the host timezone is unknown or Intl rejects it, so the badge
+// disappears rather than showing something wrong.
+const tzBadge = computed(() => (zone.value ? utcOffsetLabel(zone.value, now.value) : null))
 const greeting = computed(() => {
   const h = now.value.getHours()
   const k = h < 5 ? 'clockGreetDawn' : h < 11 ? 'clockGreetMorning' : h < 13 ? 'clockGreetNoon' : h < 18 ? 'clockGreetAfternoon' : 'clockGreetEvening'

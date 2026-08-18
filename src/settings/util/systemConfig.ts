@@ -33,7 +33,13 @@ export interface SystemBlob {
  * language on read.
  */
 export const SYSTEM_DEFAULTS: Readonly<SystemBlob> = Object.freeze({
-  timezone: 'America/New_York',
+  // Vue2 defaulted this to America/New_York and its settings page persisted that
+  // default on load, which is how devices ended up with a stored timezone that
+  // has nothing to do with the host. Follow the browser instead, so an untouched
+  // install at least agrees with the machine looking at it. This only helps
+  // installs where the server has never stored the field; an existing wrong
+  // value has to be corrected in the settings page by hand.
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   search_switch: true,
   recommend_switch: true,
   existing_apps_switch: true,
