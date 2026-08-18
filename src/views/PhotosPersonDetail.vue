@@ -139,6 +139,7 @@ import PersonPlacesTab from '../photos/components/PersonPlacesTab.vue'
 import PersonRelationsTab from '../photos/components/PersonRelationsTab.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePersonDetail } from '../photos/composables/usePersonDetail'
 import { usePhotosPeople } from '../photos/stores/people'
@@ -1283,6 +1284,10 @@ watch(() => route.params.id, (raw) => {
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
+  <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+       shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+       mount this once at. -->
+  <AskNimoHost />
   </div>
 </template>
 

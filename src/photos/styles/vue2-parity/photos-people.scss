@@ -417,10 +417,16 @@
   background: linear-gradient(135deg, var(--accent), #b46cff);
   border-color: transparent;
 }
-/* Final review incidental item 4: dead in real Vue2 (this button's inline `style` prop wins over these
-   rules for every property it sets, including on hover — see PersonHero.vue's own Fix round 1/2
-   comments on its `.fav-toggle` survivor rules); neutralized here by those PersonHero survivors.
-   Kept for source fidelity to Vue2's own stylesheet; removal decision deferred to Plan H. */
+/* Plan H Task 15 ruling (2026-08-17): kept, not deleted. Dead in real Vue2 (this button's
+   inline `style` prop wins over these rules for every property it sets, including on hover —
+   see PersonHero.vue's own Fix round 1/2 comments on its `.fav-toggle` survivor rules), and
+   still fully neutralized here by those PersonHero survivor rules. Unlike `.relation-select`
+   below (deleted by this same task — that class has zero DOM consumers anywhere in New-UI),
+   `.fav-toggle` DOES have a real consumer: PersonHero.vue's template renders
+   `class="fav-toggle"` on its favorite-toggle button. A parity rule that could still match a
+   real, existing DOM node isn't safe to delete just because it's currently shadowed by
+   specificity — a future refactor of PersonHero.vue's survivor rules could make this rule's
+   values live again — so it stays, kept for source fidelity to Vue2's own stylesheet. */
 .detail-hero .name .fav-toggle {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -432,26 +438,6 @@
   background: rgba(0, 0, 0, 0.5);
   border-color: var(--line-strong);
 }
-/* Final review incidental item 4: zero consumers in New-UI's DOM (New-UI uses .relation-picker/
-   .relation-trigger instead — see PersonHero.vue's own template); kept for Vue2-source fidelity,
-   removal decision deferred to Plan H. */
-.detail-hero .name .relation-select {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-2);
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 4px 10px;
-  cursor: pointer;
-  outline: none;
-}
-.detail-hero .name .relation-select:hover {
-  color: var(--text-1);
-  border-color: var(--line-strong);
-}
-.detail-hero .name .relation-select option { color: #1a1a1a; }
 
 /* Tabs */
 .detail-tabs {
@@ -615,15 +601,11 @@
   cursor: pointer;
 }
 .rel-row:hover { background: var(--surface-2); }
-.rel-row .av {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex: none;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-}
-.rel-row .av img { width: 100%; height: 100%; object-fit: cover; }
+/* Plan H Task 15 (2026-08-17): `.rel-row .av`/`.rel-row .av img` deleted here — confirmed
+   zero consumers. `PersonRelationsTab.vue` actually renders `<PersonAvatar>`, whose root class
+   is `.person-avatar` (bordered ring is that component's own internal `.person-avatar-ring`),
+   so `.rel-row .av` never matches any node in the current DOM. `.rel-row`/`.rel-row:hover`
+   above are unaffected — only the two orphan child-selector rules were removed. */
 .rel-row .body { flex: 1; min-width: 0; }
 .rel-row .nm { font-size: 13px; font-weight: 500; }
 .rel-row .ct { font-size: 11.5px; color: var(--text-3); }
@@ -1791,20 +1773,10 @@
   .person-skeleton-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
-/* Vue2 photos-people.scss:777-786 defines this OUTSIDE its own
-   `.photos-root{}` wrapper — a bare top-level selector. Per the Plan A
-   precedent, parity must never reproduce a root-external bare selector, so
-   it is folded in here instead (values unchanged from Vue2).
-   Final review incidental item 4: zero consumers in New-UI's DOM (New-UI uses .relation-picker/
-   .relation-trigger instead); kept for Vue2-source fidelity, removal decision deferred to Plan H. */
-.relation-select {
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text-1);
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 8px;
-  cursor: pointer;
-}
+/* Plan H Task 15 (2026-08-17): the folded-in `.relation-select` rule that used to live here
+   (Vue2 photos-people.scss:777-786, a bare top-level selector folded inside this file's
+   `.photos-root{}` wrapper per the Plan A precedent) has been deleted — confirmed zero
+   consumers repo-wide (New-UI uses `.relation-picker`/`.relation-trigger` instead; see
+   PersonHero.vue's own template). The `.detail-hero .name .relation-select`/`:hover`/`option`
+   trio above was removed in the same task for the same reason. */
 }

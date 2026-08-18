@@ -39,6 +39,7 @@ import PersonAvatar from './PersonAvatar.vue'
 import nimoLogoUrl from '../assets/nimo-logo.png'
 import { nimoReadParts, type Person, type PlaceGroup } from '../util/peopleView'
 import type { PersonRelation } from '../composables/usePersonDetail'
+import { useAskNimo } from '../composables/useAskNimo'
 
 const props = defineProps<{
   relations: PersonRelation[]
@@ -96,10 +97,11 @@ const nimoReadHtml = computed(() => {
     .join(' ')
 })
 
-// Task 8 (Plan D): Vue2 :228 emits 'ask-nimo' with a canned prompt string; this component's
-// own ask-nimo wiring lands in Plan G (per this task's brief).
-// wired in Plan G (Ask Nimo)
-function onDigDeeper(): void {}
+// Plan G: opens the Ask Nimo popup with Vue2's exact canned prompt (PhotosPersonDetail.vue:228-230).
+function onDigDeeper(): void {
+  const name = props.person?.name?.trim() || t('photosPersonThisPerson')
+  useAskNimo().openWith(t('photosPersonDigDeeperPrompt', { name }))
+}
 </script>
 
 <template>

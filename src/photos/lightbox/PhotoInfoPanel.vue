@@ -26,6 +26,7 @@ import { osmEmbedSrc } from './util/osmMap'
 import { usePhotosPeople } from '../stores/people'
 import { resolvePersonByName, personInitial } from '../util/peopleView'
 import PersonAvatar from '../components/PersonAvatar.vue'
+import { useAskNimo } from '../composables/useAskNimo'
 import type { Photo } from '../util/assetToPhoto'
 
 const props = defineProps<{ photo: Photo | null; visible: boolean }>()
@@ -65,13 +66,18 @@ const faceEntries = computed(() =>
   faces.value.map((f) => ({ name: f, person: resolvePersonByName(people.people, f) })),
 )
 
-// Fix-2 item 2 (owner acceptance, 2026-08-16): "Hand off to Nimo" button, restored per Vue2
-// PhotosLightbox.vue:84-87 (`.give-nimo`, dropped by this component's original Task 7 delta #1
-// -- see this file's header comment). Real wiring (opening the Ask Nimo popover/composing the
-// canned "Edit this photo: {title}" prompt Vue2 emits) belongs to Plan G -- same no-op-function
-// precedent as PersonHero.vue's onAskNimo.
-// wired in Plan G (Ask Nimo)
-function onGiveNimo(): void {}
+// Plan G: opens the Ask Nimo popup with Vue2's exact canned prompt (PhotosLightbox.vue:84
+// -- `$emit('ask-nimo', $t('Edit this photo: {title}', { title: photo.title }))`; Vue2 has no
+// filePath-basename fallback chain, it always uses photo.title as-is). photo.title is already
+// the extension-stripped filename in both codebases (Vue2 photos.js:154/238; this app's own
+// assetToPhoto.ts:333-335), so no further basename derivation belongs here. `props.photo?.id`
+// is only a last-resort fallback for the type's `title: string | number` looseness -- in
+// practice assetToPhoto() always sets title (falling back to id itself when originalName is
+// missing), so this ?? branch should be unreachable in real data.
+function onGiveNimo(): void {
+  const title = String(props.photo?.title ?? props.photo?.id ?? '')
+  useAskNimo().openWith(t('photosHandOffToNimoPrompt', { title }))
+}
 
 // —— 复制文件路径 ——(HTTP 非安全上下文兜底走 src/files/util/clipboard.ts 既有 copyText)
 const justCopied = ref(false)

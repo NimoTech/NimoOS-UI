@@ -202,7 +202,8 @@ onMounted(() => {
       <div class="psc-seg" data-test="retention-seg">
         <button
           v-for="d in RETENTION_OPTIONS" :key="d" type="button" class="seg-btn"
-          :data-active="store.retentionDays === d" @click="selectRetention(d)"
+          :data-active="store.retentionDays === d" :aria-pressed="store.retentionDays === d"
+          @click="selectRetention(d)"
         >{{ t('photosSettingsRetentionDay', { n: d }) }}</button>
       </div>
     </div>
@@ -226,7 +227,8 @@ onMounted(() => {
       <div class="psc-seg" data-test="scan-seg">
         <button
           v-for="opt in scanIntervalOptions" :key="opt.min" type="button" class="seg-btn"
-          :data-active="store.scanIntervalMinutes === opt.min" @click="selectScanInterval(opt.min)"
+          :data-active="store.scanIntervalMinutes === opt.min" :aria-pressed="store.scanIntervalMinutes === opt.min"
+          @click="selectScanInterval(opt.min)"
         >{{ opt.label }}</button>
       </div>
     </div>

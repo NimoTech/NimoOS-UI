@@ -191,6 +191,37 @@ describe('Photos.vue lightbox wiring', () => {
     expect(photosToast.toasts.value).toHaveLength(0)
   })
 
+  // Owner-acceptance Fix-3 follow-up (delete-chain diagnosis): onLightboxDelete used to
+  // show the success+Undo toast unconditionally, ignoring store.deleteAssets's real
+  // return value (it hardcoded count: 1). This asserts the honest failure path: a
+  // backend delete that reports zero actual successes must show an error toast with no
+  // Undo action, not the success toast.
+  it('the lightbox delete failing entirely (store.deleteAssets resolves 0) shows an error toast with no Undo action', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    const photosToast = usePhotosToast()
+    vi.spyOn(store, 'deleteAssets').mockResolvedValue(0)
+    store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(lb.open.value).toBe(true)
+
+    await w.find('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta-danger').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(photosToast.toasts.value).toHaveLength(1)
+    const toastItem = photosToast.toasts.value[0]
+    expect(toastItem.text).toBe('删除失败')
+    expect(toastItem.action).toBeUndefined()
+  })
+
   // Task 9: the lightbox emits add-to-album(id) -> Photos.vue opens AlbumPickerDialog, assetIds=[id].
   it('lightbox "add to album" -> the picker opens with assetIds=[the current item id]', async () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Solo', assetCount: 0 }])

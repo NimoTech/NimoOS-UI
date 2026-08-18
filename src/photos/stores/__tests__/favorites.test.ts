@@ -8,6 +8,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
     unfavorite: vi.fn(() => Promise.resolve()),
     recordView: vi.fn(() => Promise.resolve()),
     exportFavoritesUrl: vi.fn(() => '/v1/photos/favorites/export?token=T1'),
+    topFavorites: vi.fn(() => Promise.resolve([])),
   } },
 }))
 import { service } from '@nimotech/nimoos-service'
@@ -127,6 +128,27 @@ describe('photosFavorites store', () => {
     const s = usePhotosFavorites()
     s.exportZip()
     expect(service.photos.exportFavoritesUrl).toHaveBeenCalled()
+  })
+
+  // Task 4 (Plan H): server-ranked "most favorited" top-5 list (GET /favorites/top),
+  // independent from the main favoritesList/favoritesLoaded pair -- see the comment on
+  // fetchTopFavorites in favorites.ts for why it must not be conflated with them.
+  it('fetchTopFavorites loads the server-ranked top-5 list and marks itself loaded', async () => {
+    ;(service.photos.topFavorites as any).mockResolvedValueOnce([{ id: 'p1', mimeType: 'image/jpeg' }])
+    const fav = usePhotosFavorites()
+    expect(fav.topFavoritesLoaded).toBe(false)
+    await fav.fetchTopFavorites()
+    expect(service.photos.topFavorites).toHaveBeenCalledWith(5)
+    expect(fav.topFavorites).toHaveLength(1)
+    expect(fav.topFavorites[0]!.id).toBe('p1')
+    expect(fav.topFavoritesLoaded).toBe(true)
+  })
+
+  it('fetchTopFavorites tolerates a rejected call (leaves topFavorites empty, does not throw)', async () => {
+    ;(service.photos.topFavorites as any).mockRejectedValueOnce(new Error('boom'))
+    const fav = usePhotosFavorites()
+    await expect(fav.fetchTopFavorites()).resolves.toBeUndefined()
+    expect(fav.topFavorites).toEqual([])
   })
 
   // Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into

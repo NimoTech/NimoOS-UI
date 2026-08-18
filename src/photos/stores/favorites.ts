@@ -25,6 +25,9 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   const favoritesLoaded = ref(false)
   const favoritesExhausted = ref(false)
   const loadingMore = ref(false)
+  // Task 4 (Plan H): server-ranked "most favorited" top-5 list (GET /favorites/top).
+  const topFavorites = ref<Photo[]>([])
+  const topFavoritesLoaded = ref(false)
   let _offset = 0
   let _generation = 0
   // Review fix round 2: a separate ownership sequence for `loadingMore`, distinct from
@@ -211,6 +214,20 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     })
   }
 
+  // Task 4 (Plan H): server-ranked "most favorited" list (GET /favorites/top) -- Vue2
+  // PhotosFavoritesView.vue:391's topFavorites computed does no client-side re-sort/
+  // truncation either. Independent load flag from favoritesLoaded: a separate widget with its
+  // own failure mode, must not be conflated with the main grid's load state.
+  async function fetchTopFavorites(): Promise<void> {
+    try {
+      const list = (await service.photos.topFavorites(5)) as unknown[]
+      topFavorites.value = (list ?? []).map((a) => assetToPhoto(a as Record<string, unknown>))
+      topFavoritesLoaded.value = true
+    } catch (e) {
+      console.error('[photos-favorites] fetchTopFavorites', e)
+    }
+  }
+
   function exportZip(): void {
     const url = service.photos.exportFavoritesUrl()
     if (typeof window !== 'undefined') window.location.href = url
@@ -224,6 +241,8 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     loadError.value = false
     favoritesExhausted.value = false
     loadingMore.value = false
+    topFavorites.value = []
+    topFavoritesLoaded.value = false
     _offset = 0
     _generation = 0
     _loadMoreSeq = 0
@@ -233,8 +252,10 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   return {
     favIds, favIdsLoaded, favoritesList, favoritesLoaded, loadError,
     favoritesExhausted, loadingMore, favoritesTotal,
+    topFavorites, topFavoritesLoaded,
     isFav, favoritesMonths,
     reconcileFavIds, fetchFavorites, loadMoreFavorites, toggle, recordView, exportZip,
+    fetchTopFavorites,
     __resetForTest,
   }
 })

@@ -1,14 +1,21 @@
 <script setup lang="ts">
 // Task 9 (SP7-P3): Trash view — its own hand-rolled bucketed grid (doesn't reuse PhotosGrid: trash
 // data is the slimmed-down TrashPhoto, and the countdown badge is unique UI the grid doesn't have).
-// The shell copies Photos.vue/PhotosFavorites.vue's AreaShell/photos-layout/photos-main (see
-// task-9-brief.md). Route registration is left for T10.
 //
-// P3 hard rule: clicking a tile (including blank areas) = toggle selection, does NOT open the
-// lightbox — trash items are slimmed-down objects "pending restore / pending permanent deletion",
-// and the lightbox's favorite-star/delete-trash button semantics don't hold here (does delete mean
-// permanent deletion? or restore? ambiguous), so lightbox wiring is skipped entirely for this view,
-// tracked in the ledger (see task-9-report.md).
+// Task 8 (Plan H re-shell): the transitional AreaShell/.photos-layout shell has been swapped for
+// Photos.vue/PhotosFavorites.vue's own `.photos-root > .app[data-collapsed] > PhotosSidebar +
+// main.main > PhotosTopbar + .photos-main` structure (useSidebarCollapse shared singleton), and
+// the hero/tile/multi-select/bulk-bar/confirm-modal classes were renamed to their parity anchors
+// (`.lib-hero`/`.trash-tile-check`/`.trash-countdown`/`.trash-bulk-bar`/`.trash-modal*`). The
+// topbar's Ask Nimo button is wired to the real drawer entry (`show-ask-nimo` +
+// `@ask-nimo="useAskNimo().openDrawer()"`), same as PhotosFavorites.vue.
+//
+// Task 9 (Plan H): superseded the P3 placeholder above -- Vue2 PhotosTrashView.vue actually does
+// wire a lightbox (onTileClick :211-216), so this view now mounts one too. A plain tile click
+// with nothing selected opens it against the bucketed flat list; once anything is selected,
+// every further click toggles selection instead. Inside the lightbox, "delete" is remapped to
+// permanent purge (the asset is already soft-deleted) and favorite/add-to-album are no-ops --
+// see onLightboxDelete below.
 //
 // The selected state uses Set<string|number>, compared by id value (not object reference) — Vue3's
 // ref() has dedicated reactivity hooks for Set/Map (collection handlers), so calling
@@ -18,17 +25,25 @@ import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
+import PhotosIcon from '../photos/components/PhotosIcon.vue'
 import { usePhotosTrash } from '../photos/stores/trash'
 import { useToast } from '../stores/toast'
 import type { TrashPhoto } from '../photos/util/trashAssetToPhoto'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useLightbox } from '../photos/lightbox/useLightbox'
+import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const trash = usePhotosTrash()
 const toast = useToast()
+const lb = useLightbox()
 
 // Bucket constants, following Vue2 PhotosTrashView.vue:126-131 (4 buckets, min/max/tone). tone is
 // just a semantic label — the actual color is mapped to an existing token in the style block
@@ -58,7 +73,27 @@ let undoIds: Array<string | number> | null = null
 const isEmpty = computed(() => trash.loaded && trash.items.length === 0)
 const photoCount = computed(() => trash.items.filter((p) => !p.isVideo).length)
 const videoCount = computed(() => trash.items.filter((p) => p.isVideo).length)
-const totalSize = computed(() => trash.items.reduce((s, p) => s + (Number(p.sizeMb) || 0), 0).toFixed(1))
+// Owner-acceptance Fix-5 (delete-chain diagnosis follow-up): Vue2 PhotosTrashView.vue:180 sums
+// `Number(p.sizeMb) || 4.2` per item, not `|| 0` -- a per-item literal placeholder that kicks in
+// whenever the real computed sizeMb is falsy (0, NaN, absent). trashAssetToPhoto's own mapping
+// of `asset.fileSize` was checked end to end (field name matches the backend's `fileSize` JSON
+// tag, unit conversion is correct bytes->MB) and is NOT the bug -- the discrepancy the owner's
+// screenshot caught ("0.0 MB" here vs Vue2's "4.2 MB" for the same photo) is explained entirely
+// by this Vue2-side fallback constant papering over an item whose real fileSize is genuinely
+// zero. Vue2 is authority, so this reproduces its exact (if slightly odd) arithmetic rather than
+// "fixing" it to a more honest 0 -- that would diverge further from Vue2, not less. Only this
+// hero aggregate carries the `|| 4.2` fallback in Vue2; the bulk-delete/lightbox-delete per-item
+// sums below (deleteSelected/onLightboxDelete) use `Number(p.sizeMb || 0)` with no such fallback,
+// matching Vue2's own deleteSelected (:233-235) exactly -- left unchanged.
+const totalSize = computed(() => trash.items.reduce((s, p) => s + (Number(p.sizeMb) || 4.2), 0).toFixed(1))
+
+// Owner-acceptance Fix-5: Vue2 :68 conditionally singularizes the bucket-subtitle item count
+// (`b.photos.length !== 1 ? $t('items') : $t('item')`) -- the previous unconditional
+// `photosItemsCount` call always rendered the plural form even for a single item ("1 items"),
+// which is what the owner's screenshot caught.
+function bucketItemsLabel(count: number): string {
+  return count === 1 ? t('photosItemSingular', { count }) : t('photosItemsCount', { count })
+}
 
 const filtered = computed(() => {
   if (filter.value === 'photo') return trash.items.filter((p) => !p.isVideo)
@@ -94,7 +129,35 @@ function toggleSelect(id: string | number) {
   else selected.value.add(id)
 }
 function clearSelection() { selected.value.clear() }
-function onTileClick(p: TrashPhoto) { toggleSelect(p.id) }
+
+// Task 9 (review fix): matches Vue2 PhotosTrashView.vue onTileClick(:211-216, template :72
+// passes $event) -- a plain click with no active selection opens the lightbox against the
+// bucketed flat list; once anything is selected, OR the click is shift-held (starts multi-select
+// even from zero), every further click toggles selection instead of opening the viewer.
+function onTileClick(p: TrashPhoto, e: MouseEvent): void {
+  if (e.shiftKey || selected.value.size > 0) { toggleSelect(p.id); return }
+  const flat = bucketed.value.flatMap((b) => b.photos)
+  lb.openAt(p, flat, 0)
+}
+
+// Task 9: "delete" from inside the trash lightbox means permanent purge -- the asset is
+// already soft-deleted. add-to-album makes no product sense on a trashed asset either, so
+// both are deliberate no-ops, same convention as Photos.vue's unused @toggle-fav.
+//
+// Owner-acceptance Fix-3 (delete-chain diagnosis): trash.purge() now resolves to the ACTUAL
+// success count (see trash.ts), not a fire-and-forget void -- a single-item purge only has
+// two possible outcomes (1 or 0), so this checks that instead of unconditionally showing the
+// success toast regardless of whether the backend actually purged anything.
+async function onLightboxDelete(id: string | number): Promise<void> {
+  const p = trash.items.find((x) => x.id === id)
+  const size = p ? Number(p.sizeMb) || 0 : 0
+  const successCount = await trash.purge([id])
+  if (successCount > 0) {
+    toast.show(t('photosTrashPurgedToast', { count: 1, size: size.toFixed(1) }), 4500)
+  } else {
+    toast.show(t('photosTrashDeleteFailed'), 4500)
+  }
+}
 
 function askConfirm(cfg: ConfirmState) { confirm.value = cfg }
 function closeConfirm() { confirm.value = null }
@@ -173,9 +236,23 @@ function deleteSelected() {
     onConfirm: async () => {
       clearSelection()
       undoIds = null
+      // Owner-acceptance Fix-3 (delete-chain diagnosis): trash.purge() now resolves to the
+      // ACTUAL per-item success count (Promise.allSettled internally), not a fire-and-forget
+      // void that always "succeeded" regardless of how many purgeTrash() calls actually
+      // failed. The toast must reflect that honestly: full success keeps the existing exact
+      // wording, a partial result says so instead of quoting the original click-time count as
+      // if every item made it, and zero success is an error, not a success toast. purge()
+      // itself never rejects (its own errors are caught per-item), but the try/catch stays as
+      // a defensive fallback in case that ever changes.
       try {
-        await trash.purge(ids)
-        toast.show(t('photosTrashPurgedToast', { count, size }), 4500)
+        const successCount = await trash.purge(ids)
+        if (successCount === count) {
+          toast.show(t('photosTrashPurgedToast', { count, size }), 4500)
+        } else if (successCount > 0) {
+          toast.show(t('photosTrashPurgedPartialToast', { ok: successCount, fail: count - successCount }), 4500)
+        } else {
+          toast.show(t('photosTrashDeleteFailed'), 4500)
+        }
       } catch {
         toast.show(t('photosTrashDeleteFailed'), 4500)
       }
@@ -270,297 +347,324 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <AreaShell :title="t('photosTrashTitle')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
-        <div class="trash-hero">
-          <div class="trash-hero-info">
-            <h1 class="trash-hero-title">{{ t('photosTrashTitle') }}</h1>
-            <div class="trash-hero-sub">
-              <b>{{ trash.items.length }}</b> {{ t('photosTrashItems') }} ·
-              {{ t('photosCountSummary', { photos: photoCount, videos: videoCount }) }} ·
-              <b>{{ totalSize }} MB</b> {{ t('photosTrashCanFree') }}
-              <!-- Task 12 (SP15-P3): totalSize sums sizeMb over trash.items, which is only the
-                   pages fetched so far while pagination is still catching up — say so out loud
-                   instead of silently under-reporting (same pattern as PhotosFavorites.vue). -->
-              <span v-if="!trash.trashExhausted" data-test="trash-loaded-hint">
-                · {{ t('photosLoadedSubsetHint', { n: trash.items.length }) }}
-              </span>
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <!-- Fix wave (post-final-review): `sub` was left unbound before, so the topbar fell
+             back to its default library-wide photo/video count -- wrong for this view. Matches
+             Vue2 PhotosTimeline.vue:231 navMap.trash ('{count} items · auto-deletes in 30
+             days'), except {days} reads the live trash.retentionDays (fetched via
+             trash.fetchRetention() below) rather than Vue2's hardcoded 30 -- ruled. -->
+        <PhotosTopbar
+          :collapsed="collapsed" :title="t('photosTrashTitle')"
+          :sub="t('photosTrashSubtitle', { count: trash.items.length, days: trash.retentionDays })"
+          :show-search="false"
+          show-ask-nimo
+          @toggle-collapse="onToggleCollapse"
+          @ask-nimo="useAskNimo().openDrawer()"
+        />
+        <div class="photos-main">
+          <!-- Task 8 (Plan H re-shell): hero follows Vue2 PhotosTrashView.vue:4-23's `.lib-hero`
+               (parity photos.scss ~1231-1267), matching PhotosFavorites.vue's own `.lib-hero`
+               re-shell precedent. `data-tint="warn"` only sits on `.lib-hero-icon` (Vue2 :5's
+               only tint usage, selects parity's red-tinted circle background, photos.scss:1248)
+               -- `.lib-hero` itself never carried it in Vue2 or in parity CSS, dead weight,
+               dropped (same cleanup PhotosFavorites.vue already did). The icon glyph itself has
+               no parity color rule (same gap as Favorites' `.fav-hero-star-icon`), so
+               `.trash-danger-icon` below supplies Vue2's own explicit `color="#FF6B5C"` (:6). -->
+          <div class="lib-hero">
+            <div class="lib-hero-icon" data-tint="warn">
+              <PhotosIcon name="trash" :size="22" class="trash-danger-icon" />
             </div>
-          </div>
-          <div class="trash-hero-actions">
-            <button
-              type="button" class="bar-btn" data-test="trash-restore-all"
-              :disabled="!trash.items.length || preparingBulkAction" @click="restoreAll"
-            >{{ t('photosTrashRestoreAll') }}</button>
-            <button
-              type="button" class="bar-btn trash-btn-danger" data-test="trash-empty-btn"
-              :disabled="!trash.items.length || preparingBulkAction" @click="emptyTrash"
-            >{{ t('photosTrashEmpty') }}</button>
-          </div>
-        </div>
-
-        <div v-if="isEmpty" class="empty-state" data-test="trash-empty">
-          <div class="empty-state-title">{{ t('photosTrashEmptyTitle') }}</div>
-          <div class="empty-state-desc">{{ t('photosTrashEmptyHint', { days: trash.retentionDays }) }}</div>
-        </div>
-
-        <template v-else>
-          <div v-if="selected.size > 0" class="trash-bulk-bar">
-            <span class="bulk-count">{{ t('photosTrashSelectedCount', { count: selected.size }) }}</span>
-            <span class="bulk-spacer"></span>
-            <button type="button" class="sel-btn" data-test="trash-bulk-restore" @click="restoreSelected">
-              {{ t('photosTrashRestore') }}
-            </button>
-            <button type="button" class="sel-btn danger" data-test="trash-bulk-delete" @click="deleteSelected">
-              {{ t('photosTrashDeleteForever') }}
-            </button>
-            <button type="button" class="sel-btn" data-test="trash-bulk-cancel" @click="clearSelection">
-              {{ t('photosCancel') }}
-            </button>
-          </div>
-
-          <div class="trash-filters">
-            <button type="button" class="trash-chip" :data-active="filter === 'all'" @click="filter = 'all'">
-              {{ t('photosTabAll') }} <span class="ct">{{ trash.items.length }}</span>
-            </button>
-            <button type="button" class="trash-chip" :data-active="filter === 'photo'" @click="filter = 'photo'">
-              {{ t('photosTabPhotos') }} <span class="ct">{{ photoCount }}</span>
-            </button>
-            <button type="button" class="trash-chip" :data-active="filter === 'video'" @click="filter = 'video'">
-              {{ t('photosTabVideos') }} <span class="ct">{{ videoCount }}</span>
-            </button>
-            <div class="trash-filters-spacer"></div>
-            <div class="trash-sort">
-              <button type="button" :data-active="sort === 'daysleft'" @click="sort = 'daysleft'">
-                {{ t('photosTrashSortDaysLeft') }}
-              </button>
-              <button type="button" :data-active="sort === 'recent'" @click="sort = 'recent'">
-                {{ t('photosTrashSortRecent') }}
-              </button>
-            </div>
-          </div>
-
-          <div class="trash-scroll scroll">
-            <div v-for="b in bucketed" :key="b.id" class="trash-bucket">
-              <div class="trash-bucket-head">
-                <span class="trash-bucket-dot" :data-tone="b.tone"></span>
-                <span class="trash-bucket-title">{{ b.title }}</span>
-                <span class="trash-bucket-sub">{{ t('photosItemsCount', { count: b.photos.length }) }} · {{ b.desc }}</span>
+            <div style="flex:1">
+              <h1 class="lib-hero-title">{{ t('photosTrashTitle') }}</h1>
+              <div class="lib-hero-sub">
+                <b>{{ trash.items.length }}</b> {{ t('photosTrashItems') }} ·
+                {{ t('photosCountSummary', { photos: photoCount, videos: videoCount }) }} ·
+                <b>{{ totalSize }} MB</b> {{ t('photosTrashCanFree') }}
+                <!-- Task 12 (SP15-P3): totalSize sums sizeMb over trash.items, which is only the
+                     pages fetched so far while pagination is still catching up — say so out loud
+                     instead of silently under-reporting (same pattern as PhotosFavorites.vue). -->
+                <span v-if="!trash.trashExhausted" data-test="trash-loaded-hint">
+                  · {{ t('photosLoadedSubsetHint', { n: trash.items.length }) }}
+                </span>
               </div>
-              <div class="trash-grid">
-                <div
-                  v-for="p in b.photos" :key="p.id"
-                  class="trash-tile" :data-selected="isSelected(p.id)"
-                  @click="onTileClick(p)"
-                >
-                  <img :src="thumbUrl(p.id)" alt="" loading="lazy">
-                  <div class="trash-tile-overlay"></div>
+            </div>
+            <div class="lib-hero-actions">
+              <!-- R-6: guard keeps both halves of the expression (not just the length check) so
+                   the button isn't a dead click during the paging-in-the-rest step in
+                   restoreAll/emptyTrash below, and so the two bulk actions can't race each other.
+                   Leading icons restored per Vue2 :17/:20 (upload/trash, size 13). -->
+              <button type="button" class="btn" data-test="trash-restore-all" :disabled="!trash.items.length || preparingBulkAction" @click="restoreAll"><PhotosIcon name="upload" :size="13" /> {{ t('photosTrashRestoreAll') }}</button>
+              <button type="button" class="btn trash-btn-danger" data-test="trash-empty-btn" :disabled="!trash.items.length || preparingBulkAction" @click="emptyTrash"><PhotosIcon name="trash" :size="13" class="trash-danger-icon" /> {{ t('photosTrashEmpty') }}</button>
+            </div>
+          </div>
+
+          <div v-if="isEmpty" class="empty-state" data-test="trash-empty">
+            <div class="empty-state-title">{{ t('photosTrashEmptyTitle') }}</div>
+            <div class="empty-state-desc">{{ t('photosTrashEmptyHint', { days: trash.retentionDays }) }}</div>
+          </div>
+
+          <template v-else>
+            <!-- Leading icons restored per Vue2 :37-39 (upload/trash/x, size 11, default
+                 currentColor -- the danger button's red only shows on hover via parity's own
+                 `.trash-bulk-bar button[data-danger="true"]:hover` rule, same as Vue2). -->
+            <div v-if="selected.size > 0" class="trash-bulk-bar">
+              <span class="ct">{{ t('photosTrashSelectedCount', { count: selected.size }) }}</span>
+              <span class="spacer"></span>
+              <button type="button" data-test="trash-bulk-restore" @click="restoreSelected"><PhotosIcon name="upload" :size="11" /> {{ t('photosTrashRestore') }}</button>
+              <button type="button" data-danger="true" data-test="trash-bulk-delete" @click="deleteSelected"><PhotosIcon name="trash" :size="11" /> {{ t('photosTrashDeleteForever') }}</button>
+              <button type="button" data-test="trash-bulk-cancel" @click="clearSelection"><PhotosIcon name="x" :size="11" /> {{ t('photosCancel') }}</button>
+            </div>
+
+            <!-- Fix wave (post-final-review): renamed to parity's own `.lib-filters`/`.lib-chip`/
+                 `.lib-sort` anchors (photos.scss:1294-1327) -- this page's own bespoke
+                 `.trash-filters`/`.trash-chip`/`.trash-sort` rules are deleted below now that
+                 the template uses parity's exact selectors, same convention as the
+                 `.lib-hero`/`.lib-tile` classes above. `.trash-filters-spacer` stays page-local
+                 (Vue2 uses an inline `style="flex:1"` div here, not a class, so parity has
+                 nothing to rename it to). Leading chip icons restored per Vue2 :48/:51
+                 (album/video, size 11) -- the "All" chip has no leading icon in Vue2 either,
+                 left as-is. -->
+            <div class="lib-filters">
+              <button type="button" class="lib-chip" :data-active="filter === 'all'" @click="filter = 'all'">
+                {{ t('photosTabAll') }} <span class="ct">{{ trash.items.length }}</span>
+              </button>
+              <button type="button" class="lib-chip" :data-active="filter === 'photo'" @click="filter = 'photo'">
+                <PhotosIcon name="album" :size="11" /> {{ t('photosTabPhotos') }} <span class="ct">{{ photoCount }}</span>
+              </button>
+              <button type="button" class="lib-chip" :data-active="filter === 'video'" @click="filter = 'video'">
+                <PhotosIcon name="video" :size="11" /> {{ t('photosTabVideos') }} <span class="ct">{{ videoCount }}</span>
+              </button>
+              <div class="trash-filters-spacer"></div>
+              <!-- Owner-acceptance Fix-5: Vue2 :55 puts a leading `.lib-sort-label` span
+                   ($t('Sort')) before the two sort buttons -- this was missing entirely,
+                   leaving parity's own `.lib-sort-label` rule (photos.scss) unused. -->
+              <div class="lib-sort">
+                <span class="lib-sort-label">{{ t('photosTrashSort') }}</span>
+                <button type="button" :data-active="sort === 'daysleft'" @click="sort = 'daysleft'">
+                  {{ t('photosTrashSortDaysLeft') }}
+                </button>
+                <button type="button" :data-active="sort === 'recent'" @click="sort = 'recent'">
+                  {{ t('photosTrashSortRecent') }}
+                </button>
+              </div>
+            </div>
+
+            <div class="trash-scroll scroll">
+              <!-- Owner-acceptance Fix-5: Vue2 :63-70 reuses the archive view's own
+                   `.arc-section*` classes (shared parity anchors, photos.scss ~1690-1725) for
+                   the bucket header, not a page-local reinvention -- switched to match, which
+                   also fixes the missing/wrong-colored separator rule (parity's own
+                   `.arc-section-head` already carries `border-bottom: 1px solid var(--line)`,
+                   the photos-local divider token Vue2 effectively gets "for free" through this
+                   class, vs. the page-local `.trash-bucket-head` rule this replaces, which used
+                   the *global* `--divider` token instead -- wrong shade in this photos-private
+                   scope, see PlaceDetailPanel.vue's shadowing-cleanup precedent for the same
+                   class of bug). The grid wrapper is renamed `.trash-grid` -> `.lib-grid` +
+                   Vue2's own inline `style="margin-top:14px"` (:70) for the same reason --
+                   parity's `.lib-grid` rule is byte-identical to the page-local rule it
+                   replaces. `.arc-section-head`'s own `margin-top: 24px` applies unconditionally
+                   to every bucket including the first (matching Vue2, which has no first-child
+                   exception either) -- the page's own `.trash-bucket:first-child { margin-top:
+                   0 }` override is dropped as a New-UI-only deviation. -->
+              <div v-for="b in bucketed" :key="b.id" class="arc-section">
+                <div class="arc-section-head">
+                  <span class="arc-section-dot" :data-tone="b.tone"></span>
+                  <span class="arc-section-title">{{ b.title }}</span>
+                  <!-- Owner-acceptance Fix-5: Vue2 :68 conditionally singularizes this word
+                       (`b.photos.length !== 1 ? $t('items') : $t('item')`) -- the previous
+                       `photosItemsCount` call always rendered the plural form ("1 items"),
+                       which is what the owner's screenshot caught. bucketItemsLabel() below
+                       reproduces the same singular/plural branch. -->
+                  <span class="arc-section-sub">{{ bucketItemsLabel(b.photos.length) }} · {{ b.desc }}</span>
+                </div>
+                <div class="lib-grid" style="margin-top:14px">
                   <div
-                    class="trash-tile-countdown"
-                    :data-urgent="p.daysLeft <= 7" :data-warn="p.daysLeft > 7 && p.daysLeft <= 14"
-                  >{{ t('photosTrashDaysLeft', { days: p.daysLeft }) }}</div>
-                  <div
-                    class="trash-tile-select" :data-selected="isSelected(p.id)"
-                    @click.stop="toggleSelect(p.id)"
+                    v-for="p in b.photos" :key="p.id"
+                    class="lib-tile trash-tile" :data-selected="isSelected(p.id)"
+                    @click="onTileClick(p, $event)"
                   >
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6" /></svg>
-                  </div>
-                  <div class="trash-tile-meta">
-                    <span>{{ t('photosTrashFrom', { source: p.from }) }}{{ p.deletedAt ? ' · ' + p.deletedAt : '' }}</span>
+                    <!-- pixel parity: Vue2 PhotosTrashView.vue:73 dims the thumbnail via an
+                         inline style (not a class), 0.78 opacity -- kept as an inline style
+                         here too rather than folded into a scoped `.trash-tile img` rule. -->
+                    <img :src="thumbUrl(p.id)" alt="" loading="lazy" :style="{ opacity: 0.78 }">
+                    <div class="lib-tile-overlay"></div>
+                    <div
+                      class="trash-countdown"
+                      :data-urgent="p.daysLeft <= 7" :data-warn="p.daysLeft > 7 && p.daysLeft <= 14"
+                    ><PhotosIcon name="clock" :size="10" /> {{ t('photosTrashDaysLeft', { days: p.daysLeft }) }}</div>
+                    <div
+                      class="trash-tile-check" :data-selected="isSelected(p.id)"
+                      @click.stop="toggleSelect(p.id)"
+                    >
+                      <PhotosIcon name="check" :size="12" :stroke-width="2.4" />
+                    </div>
+                    <div class="lib-tile-meta">
+                      <span class="lib-tile-place">{{ t('photosTrashFrom', { source: p.from }) }}{{ p.deletedAt ? ' · ' + p.deletedAt : '' }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Task 12 (SP15-P3): the backend caps a single request at 500 rows now
-               (NimoOS-Photos#54), so anything past the first page only shows up once clicked. -->
-          <div v-if="!trash.trashExhausted" class="trash-load-more">
-            <button
-              type="button"
-              class="bar-btn"
-              data-test="trash-load-more"
-              :disabled="trash.loadingMore"
-              @click="trash.loadMoreTrash()"
-            >{{ t('photosLoadMore') }}</button>
-          </div>
-        </template>
+            <!-- Task 12 (SP15-P3): the backend caps a single request at 500 rows now
+                 (NimoOS-Photos#54), so anything past the first page only shows up once clicked. -->
+            <div v-if="!trash.trashExhausted" class="trash-load-more">
+              <button
+                type="button"
+                class="btn"
+                data-test="trash-load-more"
+                :disabled="trash.loadingMore"
+                @click="trash.loadMoreTrash()"
+              >{{ t('photosLoadMore') }}</button>
+            </div>
+          </template>
+        </div>
       </main>
     </div>
-  </AreaShell>
 
-  <transition name="trash-modal">
-    <div v-if="confirm" class="trash-modal-scrim" @click.self="closeConfirm">
-      <div class="trash-modal" :data-danger="confirm.danger">
-        <div class="trash-modal-title">{{ confirm.title }}</div>
-        <div class="trash-modal-body">{{ confirm.body }}</div>
-        <div class="trash-modal-foot">
-          <button type="button" class="trash-btn-ghost" @click="closeConfirm">{{ t('photosCancel') }}</button>
-          <button type="button" class="trash-btn-cta" :class="{ danger: confirm.danger }" @click="runConfirm">
-            {{ confirm.ctaLabel }}
-          </button>
+    <!-- R-1 (the other half of F-09, previously left open): the confirm scrim+transition and
+         AskNimoHost both belong INSIDE .photos-root, as siblings of .app -- NOT after
+         .photos-root's own closing tag. Photos-private tokens (--surface-2/--text-1/--line etc.)
+         are declared on .photos-root with no global fallback (see Photos.vue's same-shaped
+         incident record); anything left outside it renders with blank/unresolved colors, on top
+         of failing the overlay-subtree rule this very task is supposed to honor. -->
+    <transition name="trash-modal">
+      <div v-if="confirm" class="trash-modal-scrim" @click.self="closeConfirm">
+        <div class="trash-modal" :data-danger="confirm.danger">
+          <!-- Task 8 review fix: Vue2 :100-102 uses 'upload' (not 'refresh') for the
+               non-danger/restore case, :size="22" (not 20), with explicit state colors
+               (non-danger #5e94ff, danger #FF6B5C) -- fixed via the wrapper's `color`
+               (.trash-modal-icon rule below), inherited by the glyph's `currentColor` stroke. -->
+          <div class="trash-modal-icon">
+            <PhotosIcon :name="confirm.danger ? 'trash' : 'upload'" :size="22" />
+          </div>
+          <div class="trash-modal-title">{{ confirm.title }}</div>
+          <div class="trash-modal-body">{{ confirm.body }}</div>
+          <div class="trash-modal-foot">
+            <button type="button" class="trash-btn-ghost" @click="closeConfirm">{{ t('photosCancel') }}</button>
+            <!-- Task 8 review fix: Vue2 :108-111's CTA also carries a leading icon (same
+                 trash/upload pair, :size="12", color="white" -- inherited here from parity's
+                 own `.trash-btn-cta { color: white; }`, no extra class needed). -->
+            <button type="button" class="trash-btn-cta" :class="{ 'trash-btn-cta-danger': confirm.danger }" @click="runConfirm">
+              <PhotosIcon :name="confirm.danger ? 'trash' : 'upload'" :size="12" />
+              {{ confirm.ctaLabel }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  </transition>
+    </transition>
+
+    <!-- Task 9: lightbox re-nested inside .photos-root per the F8 module-singleton rule (any
+         page calling useLightbox().openAt must mount its own <PhotoLightbox>), same shape as
+         Photos.vue/PhotosFavorites.vue. Delete/toggle-fav/add-to-album semantics: see
+         onLightboxDelete's comment above. -->
+    <PhotoLightbox
+      @delete="onLightboxDelete"
+      @toggle-fav="() => {}"
+      @add-to-album="() => {}"
+    />
+
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+         shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+         mount this once at. -->
+    <AskNimoHost />
+  </div>
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height (not min-height): this screen is capped, only the inner scroll container scrolls — a
-   same-source fix; for the rationale and Vue2 origin see the comment on the same rule in
-   src/views/Photos.vue. */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Task 8 (Plan H re-shell): this page now mounts the shared `.app` CSS Grid shell
+   (Photos.vue/PhotosFavorites.vue's own re-shell precedent) instead of the old flex-row
+   `.photos-layout` + unpinned `.sidebar` transitional rules -- both deleted, the `.app` grid's
+   own column track now owns the sidebar width and the height cap. `.photos-main` has no
+   parity counterpart (Vue2 has no such wrapper div; a New-UI-only layout container, same as
+   PhotosFavorites.vue's identical survivor rule), so it stays as-is. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
-.empty-state-desc { font-size: 13px; max-width: 340px; line-height: 1.5; }
+/* Hero/tile/multi-select/bulk-bar/confirm-modal classes renamed to parity's own
+   `.lib-hero*`/`.trash-tile-check`/`.trash-countdown`/`.trash-bulk-bar`/`.trash-modal*`
+   anchors this task -- their old bespoke rules (`.trash-hero*`, `.bulk-count`/`.bulk-spacer`/
+   `.sel-btn*`, `.trash-tile-countdown`/`.trash-tile-select`/`.trash-tile[data-selected]`,
+   `.empty-state*`) are deleted below; parity (photos/styles/vue2-parity/photos.scss) governs
+   those now that the template uses its exact selectors. `.trash-tile[data-selected="true"]`
+   in particular is dropped outright rather than kept: it had no Vue2 counterpart at all (Vue2
+   PhotosTrashView.vue only tints the check-circle on selection, no tile outline) -- it was a
+   New-UI-only deviation from pixel parity, not a survivor worth keeping. */
 
-/* ── Hero ── */
-.trash-hero { display: flex; align-items: center; gap: 16px; padding: 4px 4px 14px; flex-wrap: wrap; }
-.trash-hero-info { flex: 1 1 auto; min-width: 200px; }
-.trash-hero-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; color: var(--fg); }
-.trash-hero-sub { font-size: 12.5px; color: var(--fg-muted); }
-.trash-hero-sub b { color: var(--fg); font-weight: 600; }
-/* Task 12 (SP15-P3): reuses the same muted-text treatment already used throughout this line
-   (--fg-muted, inherited 12.5px) — no new token, just a conditional trailing span. */
-.trash-hero-sub [data-test="trash-loaded-hint"] { color: var(--fg-muted); }
-.trash-hero-actions { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
-.trash-hero-actions .bar-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
-/* .trash-btn-danger reuses .bar-btn's glass pill shape, only overriding the foreground color with
-   the existing danger-tone token (deeper in the light theme, lighter in the dark theme, flips
-   automatically with the theme — same convention as ContextMenu.vue .ui-ctx-item.danger). */
-.trash-hero-actions .trash-btn-danger { color: var(--remove-fg, #ff8a8a); }
-.trash-hero-actions .trash-btn-danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 16%, transparent);
-}
+/* Icon glyph colors: parity's own `.lib-hero-icon[data-tint]`/`.trash-modal-icon` rules only
+   set the background circle, not the glyph itself (same gap as PhotosFavorites.vue's own
+   `.fav-hero-star-icon`) -- these two page-local overrides supply Vue2's explicit inline
+   `color` props, via the photos-private `--trash-danger-fg`/`--trash-confirm-fg` tokens
+   (defined on `.photos-root`/`.photos-root.is-light` in photos/styles/vue2-parity/photos.scss,
+   review fix). Neither this file's own `--accent` (a different hue entirely) nor theme.css's
+   app-wide `--remove-fg` (itself re-themed per light/dark, so its value drifts across themes)
+   already carries Vue2's literal colors, hence the two dedicated tokens rather than reusing
+   either -- see that scss file's own comment for the exact hex values and the full reasoning.
+   `.trash-danger-icon` is Vue2's always-red icon (PhotosTrashView.vue:6 hero icon, :20 hero
+   "Empty trash" button icon). `.trash-modal-icon`'s color is dynamic (:101-102: blue for the
+   informational/restore case, red for the danger/delete case), inherited by the glyph via
+   `currentColor`. */
+.trash-danger-icon { color: var(--trash-danger-fg); }
+.trash-modal-icon { color: var(--trash-confirm-fg); }
+.trash-modal[data-danger="true"] .trash-modal-icon { color: var(--trash-danger-fg); }
 
-/* ── Bulk selection bar (same .sel-btn language as PhotosSelectionToolbar/SelectionToolbar, with
-     one extra "restore" action, so it's inlined here instead of reusing the component directly) ── */
-.trash-bulk-bar { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 12px; background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); font-size: 13px; }
-.bulk-count { flex: 0 0 auto; }
-.bulk-spacer { flex: 1 1 auto; }
-.sel-btn { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
-.sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
-.sel-btn.danger { color: var(--remove-fg, #ff8a8a); border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent); }
-.sel-btn.danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 22%, transparent); }
-
-/* ── Filters / sort ── */
-.trash-filters { display: flex; align-items: center; gap: 6px; padding: 8px 4px; flex-wrap: wrap; }
+/* ── Filters / sort: Fix wave (post-final-review) renamed the template to parity's own
+     `.lib-filters`/`.lib-chip`/`.lib-sort` anchors (photos.scss:1294-1327, which already carry
+     the 12px 32px padding + border-bottom this page's own bespoke copy below used to hand-roll
+     with a divergent 8px/32px value) -- this page's own `.trash-filters`/`.trash-chip`/
+     `.trash-sort` rules (including the 32px padding survivor from the earlier review fix) are
+     now fully superseded and deleted; parity governs. `.trash-filters-spacer` stays page-local
+     (Vue2 uses an inline `style="flex:1"` div here, not a class, so parity has nothing to
+     rename it to). ── */
 .trash-filters-spacer { flex: 1 1 auto; }
-.trash-chip {
-  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px;
-  border-radius: 999px; background: var(--chip-bg); border: 1px solid var(--chip-border);
-  color: var(--fg-muted); font: inherit; font-size: 11.5px; cursor: pointer;
-}
-.trash-chip:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.trash-chip[data-active="true"] { background: var(--accent-soft); border-color: var(--accent-soft-bd); color: var(--accent-text); }
-.trash-chip .ct { font-variant-numeric: tabular-nums; opacity: 0.75; font-size: 10.5px; }
-.trash-sort { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--chip-bg); }
-.trash-sort button { height: 22px; padding: 0 10px; border-radius: 999px; border: 0; background: transparent; color: var(--fg-muted); font: inherit; font-size: 11.5px; cursor: pointer; }
-.trash-sort button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
 
 /* Task 12 (SP15-P3): same secondary-button treatment as .fav-load-more in
-   PhotosFavorites.vue — reuses .bar-btn, no new token. */
+   PhotosFavorites.vue — reuses .btn (parity's own bare-button class, this task's re-shell). */
 .trash-load-more { display: flex; justify-content: center; padding: 16px 0; }
-.trash-load-more .bar-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.trash-load-more .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* ── Bucketed grid ── */
-.trash-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.trash-bucket { margin-top: 20px; }
-.trash-bucket:first-child { margin-top: 0; }
-.trash-bucket-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); }
-.trash-bucket-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
+/* ── Bucketed grid. `.trash-scroll` has no Vue2/parity counterpart (Vue2 uses `.lib-scroll
+     scroll`, a shared class this page can't reuse verbatim since its own scroll container
+     isn't the same DOM shape as the library grid's -- kept page-local), padding mirrors
+     parity's own `.lib-scroll` (photos.scss:1343-1347, `padding: 0 32px 80px`) so this
+     container's side inset lines up with `.lib-hero`/`.trash-filters`/`.trash-bulk-bar` above
+     it (review fix).
+     Owner-acceptance Fix-5: the bucket head/dot/title/sub and the grid wrapper used to be
+     page-local reinventions (`.trash-bucket*`/`.trash-grid`) of classes that already exist,
+     byte-identical, as shared parity anchors (`.arc-section*` from the archive view /
+     `.lib-grid` from the library grid) -- the template now uses those anchors directly
+     (matching Vue2 PhotosTrashView.vue:63-70 exactly, which does the same reuse), so the
+     page-local rules below are deleted; parity governs `.arc-section-head`'s border-bottom
+     separator, margin-top, dot geometry, title/sub typography, and `.lib-grid`'s columns/gap.
+     Only the dot's *tone color* survives as a page-local override (below) -- parity's own
+     `.arc-section-dot` sets geometry only, no color; Vue2 sets the tone color inline per-item
+     (:65-66), this page reuses existing semantic tokens instead (ruled, see the tone-color
+     comment kept below) via `data-tone`. ── */
+.trash-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 32px 80px; }
+.arc-section-dot { background: var(--accent); }
 /* The three countdown-severity tiers reuse existing semantic tokens, no new token added (the brief
    explicitly allows reuse): urgent = danger tone (--remove-fg, already used consistently across
    the codebase for delete/danger buttons), warn = warning tone (--dem-fg, already used for
    SearchDialog's "demote" semantics and UploadPanel's warning state), normal = regular accent tone
    (--accent). */
-.trash-bucket-dot[data-tone="urgent"] { background: var(--remove-fg); }
-.trash-bucket-dot[data-tone="warn"] { background: var(--dem-fg); }
-.trash-bucket-title { font-size: 13.5px; font-weight: 600; color: var(--fg); }
-.trash-bucket-sub { font-size: 11.5px; color: var(--fg-muted); }
+.arc-section-dot[data-tone="urgent"] { background: var(--remove-fg); }
+.arc-section-dot[data-tone="warn"] { background: var(--dem-fg); }
 
-.trash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; margin-top: 14px; }
+/* Transition-class spelling gap only (Vue2 -> Vue3): parity's own `.trash-modal-enter`/
+   `.trash-modal-leave-to` (photos.scss ~2393-2399) are Vue2-spelled -- Vue3's <transition>
+   renders the bare `-enter` as `-enter-from` instead, so this SFC needs its own copy of just
+   the renamed half (same convention as PhotosAlbumDetail.vue's `.lb-confirm-enter-from` shim /
+   PhotoLightbox.vue's `.lb-swap-*-enter-from`). `-leave-to` is unchanged between Vue2/Vue3, so
+   it needs no shim here -- already covered by parity's own rule. Every other confirm-modal
+   rule (scrim/box/icon-circle/title/body/foot/ghost-btn/cta-btn) is fully superseded by
+   parity's own unscoped `.trash-modal*` rules (imported globally via
+   `../photos/styles/vue2-parity`) and is deleted, not duplicated here. */
+.trash-modal-enter-from { opacity: 0; }
+.trash-modal-enter-from .trash-modal { transform: translateY(8px) scale(0.97); opacity: 0; }
 
-.trash-tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
-.trash-tile img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0.82; }
-.trash-tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
-/* theme-exception: a fixed dark gradient overlay on the thumbnail (props up legibility of the meta
-   text below it), same convention as .lib-tile-overlay/PhotosGrid.vue .tile-fav — media content
-   color isn't controllable, so the overlay must always stay dark and never flip with the theme. */
-.trash-tile-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.5) 100%); opacity: 0; transition: opacity 0.15s; pointer-events: none; }
-.trash-tile:hover .trash-tile-overlay { opacity: 1; }
-
-.trash-tile-countdown {
-  position: absolute; left: 6px; bottom: 6px; z-index: 2;
-  display: flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px;
-  background: var(--overlay-bg); color: #fff; /* theme-exception: a fixed dark-backed badge overlaid on the thumbnail, same convention as .tile-vid, skin-independent, needs constant contrast */
-  font-size: 10.5px; font-weight: 500; font-variant-numeric: tabular-nums;
-}
-.trash-tile-countdown[data-urgent="true"] { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 78%, black); }
-.trash-tile-countdown[data-warn="true"] { background: color-mix(in srgb, var(--dem-fg, #f5a623) 70%, black); }
-
-.trash-tile-select {
-  position: absolute; top: 6px; right: 6px; z-index: 3;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--overlay-bg); border: 1.5px solid rgba(255, 255, 255, 0.7); /* theme-exception: a fixed stroke on the thumbnail, same convention as .tile-fav, needs to stay visible against any photo background */
-  display: inline-flex; align-items: center; justify-content: center; color: transparent; cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.trash-tile-select[data-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); }
-
-.trash-tile-meta {
-  position: absolute; left: 8px; right: 8px; bottom: 30px; z-index: 2;
-  opacity: 0; transition: opacity 0.15s; pointer-events: none;
-  font-size: 10.5px; color: rgba(255,255,255,0.92); /* theme-exception: caption text overlaid on the thumbnail, same convention as .lib-tile-place/.tile-vid, needs to stay legible against any photo background */
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* theme-exception: same as above, a matching shadow to guarantee legibility, fixed dark tint that never flips with the theme */
-}
-.trash-tile:hover .trash-tile-meta { opacity: 1; }
-
-/* ── Confirm modal ── */
-.trash-modal-scrim {
-  position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
-  display: flex; align-items: center; justify-content: center; padding: 40px 24px;
-}
-.trash-modal { width: 420px; max-width: 100%; background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 16px; box-shadow: var(--card-shadow-hi); padding: 24px 24px 20px; text-align: center; }
-.trash-modal[data-danger="true"] { border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 30%, transparent); }
-.trash-modal-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 8px; color: var(--fg); }
-.trash-modal-body { font-size: 13px; color: var(--fg-muted); line-height: 1.5; margin-bottom: 20px; }
-.trash-modal-foot { display: flex; gap: 8px; }
-.trash-btn-ghost { flex: 1; height: 38px; border-radius: 9px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
-.trash-btn-ghost:hover { background: var(--chip-bg-hi); }
-.trash-btn-cta {
-  flex: 1.3; height: 38px; padding: 0 18px; border-radius: 9px; border: 0;
-  color: #fff; /* theme-exception: gradient pill button text — background is always a colored gradient (--grad-a/--grad-b or a danger-tone gradient), so the button's light-colored text keeps stable contrast in both themes — same convention as SearchDialog.vue .btn-primary/MediaViewer.vue .np-play */
-  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
-  box-shadow: 0 6px 18px -3px var(--accent-soft-bd);
-  transition: transform 0.12s, box-shadow 0.15s;
-}
-.trash-btn-cta:hover { transform: translateY(-1px); }
-.trash-btn-cta.danger { background: linear-gradient(135deg, var(--remove-fg), var(--remove-bg)); }
-
-.trash-modal-enter-active, .trash-modal-leave-active { transition: opacity 0.18s ease; }
-.trash-modal-enter-active .trash-modal, .trash-modal-leave-active .trash-modal { transition: transform 0.22s var(--ease, ease), opacity 0.18s ease; }
-.trash-modal-enter-from, .trash-modal-leave-to { opacity: 0; }
-.trash-modal-enter-from .trash-modal, .trash-modal-leave-to .trash-modal { transform: translateY(8px) scale(0.97); opacity: 0; }
-
-/* ≤768px: sidebar has collapsed to a drawer, layout goes single-column */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
-  .trash-hero { padding: 4px 0 12px; }
+  .app { grid-template-columns: 1fr; }
 }
 </style>

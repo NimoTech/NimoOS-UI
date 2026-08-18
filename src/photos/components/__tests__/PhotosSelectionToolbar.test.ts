@@ -15,6 +15,7 @@ const i18n = createI18n({
       photosDelete: '删除',
       photosAddToAlbum: '加入相册',
       photosClose: '关闭',
+      photosAskNimo: '问 Nimo',
     },
   },
 })
@@ -25,12 +26,12 @@ describe('PhotosSelectionToolbar', () => {
     expect(w.get('.selectbar-count').text()).toBe('已选择 3 项')
   })
 
-  // B-scope button set: Add to Album / Delete / close(x) — no Favorite, no Ask Nimo
-  // (owner-registered scope cut, see component header comment).
-  it('renders as the Vue2 glass pill .selectbar with exactly three .selectbar-btn buttons', () => {
+  // B-scope button set + Plan G Task 17's Ask Nimo: Add to Album / Delete / Ask Nimo /
+  // close(x) — no Favorite (owner-registered scope cut, see component header comment).
+  it('renders as the Vue2 glass pill .selectbar with exactly four .selectbar-btn buttons', () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     expect(w.find('.selectbar').exists()).toBe(true)
-    expect(w.findAll('.selectbar-btn')).toHaveLength(3)
+    expect(w.findAll('.selectbar-btn')).toHaveLength(4)
   })
 
   // Vue2's close (x) icon button replaces P1's leading text "Cancel" button, but keeps
@@ -54,16 +55,43 @@ describe('PhotosSelectionToolbar', () => {
   })
 
   // The "Add to Album" button sits between count and delete, non-danger; click only emits add-to-album (regression).
+  // Order (Plan G Task 17): Add to Album → Delete → Ask Nimo → close — matches Vue2
+  // PhotosGrid.vue:114-126 with Favorite (already cut in this repo) removed from the front.
   it('"Add to Album" sits between count and delete, non-danger, click only emits add-to-album', async () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     const btns = w.findAll('.selectbar-btn')
     expect(btns[0]!.attributes('data-test')).toBe('selectbar-add-album')
     expect(btns[1]!.attributes('data-test')).toBe('selectbar-delete')
-    expect(btns[2]!.attributes('data-test')).toBe('selectbar-close')
+    expect(btns[2]!.attributes('data-test')).toBe('selectbar-ask-nimo')
+    expect(btns[3]!.attributes('data-test')).toBe('selectbar-close')
     expect(btns[0]!.attributes('data-danger')).toBeUndefined()
     await btns[0]!.trigger('click')
     expect(w.emitted('add-to-album')).toBeTruthy()
     expect(w.emitted('clear')).toBeUndefined()
     expect(w.emitted('delete')).toBeUndefined()
+  })
+
+  // Plan G Task 17: Ask Nimo button — data-ai="true" (Vue2 PhotosGrid.vue:120), emits
+  // ask-nimo only, not clear/delete/add-to-album.
+  it('clicking the Ask Nimo button (data-ai) emits ask-nimo (not clear/delete/add-to-album)', async () => {
+    const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
+    const ask = w.get('[data-test="selectbar-ask-nimo"]')
+    expect(ask.attributes('data-ai')).toBe('true')
+    await ask.trigger('click')
+    expect(w.emitted('ask-nimo')).toBeTruthy()
+    expect(w.emitted('clear')).toBeUndefined()
+    expect(w.emitted('delete')).toBeUndefined()
+    expect(w.emitted('add-to-album')).toBeUndefined()
+  })
+})
+
+// Brief's own minimal repro (uses the globally-installed real i18n plugin from
+// vitest.setup.ts, not the local zh_cn stub above — photosAskNimo already exists in
+// src/i18n/*.photos.ts, pre-staged by an earlier task).
+describe('PhotosSelectionToolbar — Plan G ask-nimo action', () => {
+  it('renders an Ask Nimo button that emits ask-nimo on click', async () => {
+    const w = mount(PhotosSelectionToolbar, { props: { count: 3 } })
+    await w.find('[data-test="selectbar-ask-nimo"]').trigger('click')
+    expect(w.emitted('ask-nimo')).toBeTruthy()
   })
 })

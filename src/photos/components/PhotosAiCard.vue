@@ -26,7 +26,9 @@
 
   Color tokens: card adds zero new tokens — all reuse existing semantic tokens (--accent/--accent2/
   --accent-soft/--sem-bg/--sem-fg/--sem-bd/--chip-bg/--chip-bg-hi/--border/--fg/
-  --on-accent/--divider/--fg-muted). Privacy banner original color Vue2 is exact iOS green
+  --divider/--fg-muted). Theme exception: the AI-feature switch knob is literal `#fff` in both
+  on/off states per Plan H Task 13 owner ruling (see the switch rule's own comment further
+  below) — `--on-accent` is no longer used by this card. Privacy banner original color Vue2 is exact iOS green
   rgba(52,199,89,α)/#34C759, but this repo has generic "success/positive" semantic token --sem-*
   (success badges, RAID health state used multiple places, hue is teal-green not Apple green) — following T3's precedent
   of mapping Vue2 literal #6E5BFF closest to existing --accent-soft/--accent without adding token,
@@ -275,8 +277,8 @@ async function doRecluster(): Promise<void> {
 .aic-feature-text .desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 2px; line-height: 1.4; }
 
 /* switch: follow this repo's existing conventions (settings/styles/settings.css .set-switch,
-   SnapshotSettingsDialog.vue .ss-switch) — off state outline+chip bg, on state solid accent,
-   thumb off state --fg, on state --on-accent ("only usable over solid accent", this is that case). */
+   SnapshotSettingsDialog.vue .ss-switch) — off state outline+chip bg, on state solid accent.
+   Knob color is a theme exception, see the knob rule's own comment below. */
 .st-switch {
   position: relative;
   width: 36px;
@@ -296,11 +298,15 @@ async function doRecluster(): Promise<void> {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--fg);
-  transition: left 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.15s var(--ease);
+  /* theme-exception: owner ruling (Plan H Task 13) -- the knob stays literal white in both
+     on/off states, matching Vue2 photos.scss:2963's own literal `background: white`. This
+     supersedes the "follow this repo's --fg/--on-accent switch convention" comment that used
+     to be here, aligning `.st-switch` with the `.sv-switch` family's own same-shaped ruling. */
+  background: #fff;
+  transition: left 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .st-switch[data-on="true"] { background: var(--accent); border-color: var(--accent); }
-.st-switch[data-on="true"]::after { left: 18px; background: var(--on-accent); }
+.st-switch[data-on="true"]::after { left: 18px; }
 .st-switch:hover { background: var(--chip-bg-hi); }
 /* This area's four-times trap: base class `.st-switch:hover` (specificity 2) and variant
    `.st-switch[data-on="true"]` (specificity 2) equal weight — mouse enters switch, without dedicated

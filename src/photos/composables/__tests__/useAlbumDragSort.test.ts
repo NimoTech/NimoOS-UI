@@ -124,6 +124,25 @@ describe('useAlbumDragSort', () => {
     expect(onOrder).toHaveBeenCalledWith(['b', 'c', 'a'])
   })
 
+  // Fix-6 (owner acceptance, 2026-08-18): drag-reorder smoothness. See useAlbumDragSort.ts's
+  // header comment for the full root-cause trace (forceFallback's real cursor sweeping across
+  // sibling tiles while the ghost floats, firing their hover transitions for no visual purpose).
+  it('onStart adds the is-dragging class to the container; onEnd removes it (synchronously, no nextTick needed)', () => {
+    const container = ref<HTMLElement | null>(makeContainer())
+    const s = useAlbumDragSort({ container, enabled: () => true, onOrder: vi.fn() })
+    s.refresh()
+
+    expect(container.value!.classList.contains('is-dragging')).toBe(false)
+    lastOptions!.onStart()
+    expect(container.value!.classList.contains('is-dragging')).toBe(true)
+    lastOptions!.onEnd()
+    // Unlike isDragging() (deliberately deferred a tick past the drop's own click, see the
+    // regression case below), the CSS class only needs to survive while the pointer is actually
+    // sweeping across siblings -- nothing gates it on the post-drop click guard, so it clears
+    // the instant the drop itself is handled.
+    expect(container.value!.classList.contains('is-dragging')).toBe(false)
+  })
+
   it('guard timing regression: isDragging() still true after onEnd and before nextTick; false only after nextTick', async () => {
     const container = ref<HTMLElement | null>(makeContainer())
     const onOrder = vi.fn()

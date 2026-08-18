@@ -51,6 +51,7 @@ import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
 import { useTimelineStore } from '../stores/timeline'
 import { usePhotosSettingsStore } from '../stores/settings'
 import { usePhotosFavorites } from '../stores/favorites'
+import { usePhotosTrash } from '../stores/trash'
 import { usePhotosTheme } from '../composables/usePhotosTheme'
 import { useSessionStore } from '../../stores/session'
 import { renderSize } from '../../files/util/format'
@@ -73,6 +74,7 @@ const route = useRoute()
 const { t } = useI18n()
 const timeline = useTimelineStore()
 const favorites = usePhotosFavorites()
+const trash = usePhotosTrash()
 const session = useSessionStore()
 
 // Task 3: sidebar-head theme toggle (Vue2 PhotosSidebar.vue:27-33's
@@ -94,6 +96,12 @@ function toggleTheme() {
 // to worry about the dedup details.
 const settings = usePhotosSettingsStore()
 onMounted(() => { void settings.fetchAiFeatures() })
+
+// Task 10 (closing the registered gap in this file's own header comment): fetch trash once
+// per app session -- `trash.loaded` (a Pinia singleton flag) guards against every sidebar
+// remount firing a fresh request; only the FIRST mount after app start pays this cost, same
+// shape as favorites' favIdsLoaded gate.
+onMounted(() => { if (!trash.loaded) void trash.fetchTrash() })
 // Storage-bar data (timeline.indexStatus) is deliberately NOT fetched here — Photos.vue
 // already owns that (fetchIndexStatus/startIndexPoll, Task 8's socket wiring). Unlike Vue2
 // (single-page tab-switcher, sidebar mounts once per session), this sidebar remounts on every
@@ -164,13 +172,20 @@ function isActive(n: { id: string }): boolean {
 
 // Favorites count badge (Vue2 nav2 :129 `this.favCount`) — sourced from the favorites store,
 // which every photos page already reconciles on mount elsewhere (Task 10, Photos.vue).
-// Trash's count badge is intentionally NOT wired this task: unlike favorites, there is no
-// cheap always-loaded source for it in New-UI's current store split (trash.ts only fetches
-// on the Trash page itself) and fetching it eagerly from every sidebar mount would mean an
-// extra backend call on every photos-area page just for a badge — out of scope for a
-// shell/sidebar re-skin. Registered gap, not an oversight.
+// Task 10 (Plan H): trash's badge is now wired the same way as favorites' -- see the
+// onMounted guard above. Known remaining deviation: this count is loaded-page-only once the
+// backend's 500-row cap kicks in, same limitation the Trash view's own loaded-subset hint
+// already discloses.
+// Review fix (Task 10 round 2): Vue2 PhotosSidebar.vue:129-131 builds both counts as
+// `this.favCount || null` / `this.trashCount || null` -- a falsy 0 collapses to null there, so
+// a loaded-but-empty list hides the badge entirely rather than rendering a literal "0". Our
+// `!= null` template guard (":47/:73" there, this file's `countFor(n.id) != null` here) only
+// catches null/undefined, not 0, so both branches below must fold zero into null themselves to
+// match. This applies to favorites too, not just trash -- same pre-existing gap, fixed in the
+// same pass since it's the identical shape.
 function countFor(id: string): number | null {
-  if (id === 'favorites') return favorites.favIdsLoaded ? favorites.favIds.size : null
+  if (id === 'favorites') return favorites.favIdsLoaded && favorites.favIds.size > 0 ? favorites.favIds.size : null
+  if (id === 'trash') return trash.loaded && trash.items.length > 0 ? trash.items.length : null
   return null
 }
 

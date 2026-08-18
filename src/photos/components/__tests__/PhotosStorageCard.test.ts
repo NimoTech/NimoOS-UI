@@ -282,6 +282,21 @@ describe('PhotosStorageCard', () => {
     release?.()
     await flushPromises()
   })
+
+  it('retention and scan-interval segmented buttons expose aria-pressed matching data-active', async () => {
+    const { wrapper, store } = mountCard()
+    store.retentionDays = 30
+    await nextTick()
+    const retentionBtns = wrapper.findAll('[data-test="retention-seg"] .seg-btn')
+    const activeBtn = retentionBtns.find((b) => b.attributes('data-active') === 'true')
+    expect(activeBtn!.attributes('aria-pressed')).toBe('true')
+    const inactiveBtn = retentionBtns.find((b) => b.attributes('data-active') !== 'true')
+    expect(inactiveBtn!.attributes('aria-pressed')).toBe('false')
+
+    const scanBtns = wrapper.findAll('[data-test="scan-seg"] .seg-btn')
+    const activeScan = scanBtns.find((b) => b.attributes('data-active') === 'true')
+    expect(activeScan!.attributes('aria-pressed')).toBe('true')
+  })
 })
 
 describe('Styles: segmented control [data-active] variant with built-in hover background (this area has fallen 4 times)', () => {

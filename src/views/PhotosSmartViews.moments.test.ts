@@ -146,6 +146,36 @@ describe('grid', () => {
     expect(cards[1].classes()).toContain('mo-card-tall')
   })
 
+  // Fix-6 (owner acceptance, 2026-08-18): masonry placement. jsdom has no ResizeObserver and
+  // clientWidth is always 0 (this file's convention — see PhotosSmartViews.vue's own
+  // startObservingMomentGrid() feature-detect comment), so the measured container width stays 0
+  // and numColumns falls back to its documented floor of 1 — a real, deterministic end-to-end
+  // path (not a stub), just the single-column case. It still exercises the exact wiring a real
+  // browser uses (packMasonry's output reaching each card as an inline grid-column/grid-row
+  // style via Vue's attribute fallthrough onto MomentCard's root), which is what this fix
+  // actually changed — the pure packing algorithm itself (including the void-elimination cases)
+  // has its own dedicated coverage in momentLayout.test.ts.
+  it('applies packMasonry\'s placement to each card as an inline grid-column/grid-row style', async () => {
+    const { w } = await mountPage()
+    const s = usePhotosMoments()
+    // b is a portrait cover (tall, row-span 5); a/c are standard (row-span 3). With numColumns
+    // stuck at 1 (see above), every card stacks in column 1, rows accumulating in DOM order.
+    s.moments = [
+      makeMoment({ id: 'a' }),
+      makeMoment({ id: 'b', coverRatio: 0.6 }),
+      makeMoment({ id: 'c' }),
+    ]
+    await nextTick()
+    const cards = w.findAll('.mo-card')
+    expect(cards).toHaveLength(3)
+    expect((cards[0].element as HTMLElement).style.gridColumn).toBe('1 / span 1')
+    expect((cards[0].element as HTMLElement).style.gridRow).toBe('1 / span 3')
+    expect((cards[1].element as HTMLElement).style.gridColumn).toBe('1 / span 1')
+    expect((cards[1].element as HTMLElement).style.gridRow).toBe('4 / span 5') // stacked right after a's 3 rows
+    expect((cards[2].element as HTMLElement).style.gridColumn).toBe('1 / span 1')
+    expect((cards[2].element as HTMLElement).style.gridRow).toBe('9 / span 3') // stacked right after b's 5 rows
+  })
+
   it('clicking a card navigates to /photos/moments/:id', async () => {
     const { w, router } = await mountPage()
     const s = usePhotosMoments()

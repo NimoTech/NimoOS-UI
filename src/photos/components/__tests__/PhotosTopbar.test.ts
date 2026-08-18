@@ -327,6 +327,41 @@ describe('back=true 时搜索框自动聚焦(Plan F Task 1,对齐 Vue2 searchMod
   })
 })
 
+// Plan G Task 16 (preflight F-06/F-17): additive `showAskNimo` prop (default false, non-breaking
+// for the 5 existing library/albums/smart-views/people/places callers) + `ask-nimo` emit. Vue2
+// truth: the topbar Ask button is a labeled pill (`class="btn btn-ai"` + 18px `.nimo-orb` +
+// visible "Ask Nimo" text, NimoOS-UI PhotosTopbar.vue:29-32) that opens the drawer directly, no
+// prefill (baseline research report §2.1) — this component only emits, the caller (T2's
+// useAskNimo().openDrawer()) owns that behavior.
+//
+// Review fix (Critical): the first version used a novel `icon-btn btn-ai` combo with no text and
+// a 16px orb — no precedent in either repo, and `.icon-btn` has no border so `.btn-ai`'s
+// border-color was inert. Corrected to match Vue2 byte-for-byte: `btn btn-ai` + 18px orb +
+// visible label, no title tooltip (Vue2 has none there since the label is visible).
+describe('showAskNimo prop(额外覆盖,Plan G Task 16)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('does not render the Ask Nimo button by default (non-breaking for existing callers)', () => {
+    const w = mountTopbar({ title: 'x' })
+    expect(w.find('[data-test="topbar-ask-nimo"]').exists()).toBe(false)
+  })
+
+  it('renders it when showAskNimo is true, with Vue2\'s btn/btn-ai classes and visible label', () => {
+    const w = mountTopbar({ title: 'x', showAskNimo: true })
+    const btn = w.get('[data-test="topbar-ask-nimo"]')
+    expect(btn.classes()).toContain('btn')
+    expect(btn.classes()).toContain('btn-ai')
+    expect(btn.text()).toBe(zh.photosAskNimo)
+    expect(btn.get('.nimo-orb')).toBeTruthy()
+  })
+
+  it('emits ask-nimo on click', async () => {
+    const w = mountTopbar({ title: 'x', showAskNimo: true })
+    await w.find('[data-test="topbar-ask-nimo"]').trigger('click')
+    expect(w.emitted('ask-nimo')).toBeTruthy()
+  })
+})
+
 // 非颜色视觉属性锚定(I5,曾与已退役的 PhotosSearchBar.test.ts 同一约定):组件自身 scoped style 里
 // 唯一允许存在的规则是搜索框 FILL 的已拍板玻璃质感偏离(chip-bg/chip-border),不应该出现
 // 任何 Vue2 已在 parity scss 里给出的其它视觉属性(高度/圆角/尺寸等一律让 parity 生效)。

@@ -67,9 +67,12 @@ import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import MomentCard from '../photos/components/MomentCard.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { usePhotosMoments } from '../photos/stores/moments'
 import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
+import { packMasonry, spanForMomentSize } from '../photos/util/momentLayout'
 import { useToast } from '../stores/toast'
 
 const { t } = useI18n()
@@ -152,12 +155,84 @@ function onMomentOpen(id: string): void {
   router.push('/photos/moments/' + id)
 }
 
+// Fix-6 (owner acceptance, 2026-08-18): explicit masonry placement, replacing reliance on the
+// browser's own `grid-auto-flow: row dense` for `.mo-grid` (still declared in the parity scss —
+// harmless to leave, since an item with its own explicit inline `grid-column`/`grid-row` is never
+// auto-placed regardless). Root cause + full algorithm are documented on packMasonry itself
+// (momentLayout.ts): CSS Grid's own dense heuristic can leave a column empty for several rows
+// when a same-row tie goes to a leftward column, producing the "void above a card" the owner
+// found — reproduced against this exact CSS in an isolated repro (see the acceptance report), not
+// a light/dark theme difference. `numColumns` mirrors `.sv-grid`'s own
+// `repeat(auto-fill, minmax(320px, 1fr))` formula (photos-smartview.scss:8) against the
+// container's REAL measured width, which is strictly more accurate than the CSS-only version's
+// `@media (max-width: 1055px)` viewport-based approximation for the wide-card fallback (deleted
+// from the packer's own `Math.min(colSpan, cols)` clamp — see packMasonry's own comment).
+const MOMENT_MIN_COL_WIDTH = 320
+const MOMENT_GRID_GAP = 16
+const containerWidth = ref(0)
+const numColumns = computed(() => {
+  const w = containerWidth.value
+  if (w <= 0) return 1
+  return Math.max(1, Math.floor((w + MOMENT_GRID_GAP) / (MOMENT_MIN_COL_WIDTH + MOMENT_GRID_GAP)))
+})
+const packedPlacements = computed(() => {
+  if (!showMoments.value) return {}
+  const items = moments.moments.map((m) => ({
+    id: m.id,
+    ...spanForMomentSize(moments.sizeMap[m.id]?.size ?? 'standard'),
+  }))
+  return packMasonry(items, numColumns.value)
+})
+/** Bound via MomentCard's Vue 3 attribute fallthrough (MomentCard.vue declares no `style` prop
+ *  and has a single root element, so `:style` here lands directly on its `.sv-card.mo-card` root
+ *  — no edit to MomentCard.vue itself needed). Returns undefined (no inline style at all) before
+ *  the container has been measured even once, so the CSS class-based spans (`.mo-card-wide`
+ *  etc., still present in the parity scss) cover that one frame instead of collapsing everything
+ *  into a guessed single column. */
+function momentGridStyle(id: string): { gridColumn: string; gridRow: string } | undefined {
+  const p = packedPlacements.value[id]
+  if (!p) return undefined
+  return { gridColumn: `${p.colStart} / span ${p.colSpan}`, gridRow: `${p.rowStart} / span ${p.rowSpan}` }
+}
+
+let momentGridResizeObserver: ResizeObserver | null = null
+function measureMomentGrid(): void {
+  containerWidth.value = moGrid.value?.clientWidth ?? 0
+}
+function stopObservingMomentGrid(): void {
+  momentGridResizeObserver?.disconnect()
+  momentGridResizeObserver = null
+}
+function startObservingMomentGrid(): void {
+  stopObservingMomentGrid()
+  if (!moGrid.value) return
+  measureMomentGrid()
+  // Same feature-detect convention as the other measured-container composables in this repo
+  // (FileGridView.vue, Breadcrumb.vue, SnapCarousel.vue, PhotoImageViewer.vue) — jsdom (this
+  // repo's test environment) has no ResizeObserver; the one-shot `measureMomentGrid()` call
+  // above still runs, it just never gets live updates in that environment.
+  if (typeof ResizeObserver !== 'undefined') {
+    momentGridResizeObserver = new ResizeObserver(() => measureMomentGrid())
+    momentGridResizeObserver.observe(moGrid.value)
+  }
+}
+
 watch(showMoments, (next) => {
-  if (next) void nextTick(() => drag.refresh())
-  else drag.destroy()
+  if (next) {
+    void nextTick(() => {
+      drag.refresh()
+      startObservingMomentGrid()
+    })
+  } else {
+    drag.destroy()
+    stopObservingMomentGrid()
+  }
 }, { immediate: true })
 
-onBeforeUnmount(() => drag.destroy())
+onBeforeUnmount(() => {
+  drag.destroy()
+  stopObservingMomentGrid()
+})
 
 onMounted(() => {
   // The sidebar (PhotosSidebar, which this page also mounts) also calls fetchAiFeatures() in
@@ -179,7 +254,9 @@ onMounted(() => {
           :collapsed="collapsed"
           :title="t('photosMoForYou')"
           :show-search="false"
+          show-ask-nimo
           @toggle-collapse="onToggleCollapse"
+          @ask-nimo="useAskNimo().openDrawer()"
         />
        <div class="photos-main">
         <!-- ── Moments · For You (Vue2 939a7d3a :18-32) -- now this page's sole content.
@@ -208,6 +285,7 @@ onMounted(() => {
               v-for="m in moments.moments" :key="m.id" :moment="m"
               :size="moments.sizeMap[m.id]?.size ?? 'standard'"
               :template="moments.sizeMap[m.id]?.template ?? 'T1'"
+              :style="momentGridStyle(m.id)"
               @open="onMomentOpen"
             />
           </div>
@@ -227,6 +305,10 @@ onMounted(() => {
        </div>
       </main>
     </div>
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+         shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+         mount this once at. -->
+    <AskNimoHost />
   </div>
 </template>
 
@@ -298,6 +380,13 @@ onMounted(() => {
 }
 .mo-grid :deep(.mo-drag-chosen) { cursor: grabbing; }
 
+/* Fix-6 (owner acceptance, 2026-08-18): same drag-smoothness fix as the album detail grid's
+   `.album-photo-grid.is-dragging` (photos.scss), applied here via `:deep()` since MomentCard's
+   own hover lift (`.sv-card:hover { transform: translateY(-2px) }`, MomentCard.vue) lives behind
+   its scoped-style boundary -- see useAlbumDragSort.ts's header comment for the full mechanism
+   (forceFallback's real cursor sweeping over siblings while the ghost floats). */
+.mo-grid.is-dragging :deep(.sv-card) { transition: none !important; will-change: transform; }
+
 /* `.sv-grid`'s base shape (display/grid-template-columns/gap) duplicated parity's own
    `.photos-root .sv-grid` (photos-smartview.scss:6-10) -- deleted. `flex: 1 1 auto` survives:
    parity has no equivalent (this page's own flex-column scroll container needs the grid to
@@ -305,7 +394,7 @@ onMounted(() => {
 .sv-grid { flex: 1 1 auto; }
 
 /* ── Slim settings hint (SP15-P2b Task 5, replaces the entire old .svs-banner) -- reuses
-   the same --dem-fg family as the banner (precedent: PhotosTrash.vue .trash-bucket-dot
+   the same --dem-fg family as the banner (precedent: PhotosTrash.vue .arc-section-dot
    [data-tone="warn"]).
    SP15-P2b final fix wave: geometry now matches Vue2's own slim hint (939a7d3a:
    PhotosSmartViewsView.vue:31 inline style -- padding:12px 14px, no margin, centred) instead

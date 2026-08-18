@@ -7,12 +7,12 @@ describe('trashAssetToPhoto', () => {
   it('daysLeft = retention - days elapsed, floored at 0', () => {
     const a = { id: '1', mimeType: 'image/jpeg', deletedAt: '2026-07-20T00:00:00Z', originalPath: '/DATA/Gallery/2026/x.jpg', originalName: 'x.jpg', fileSize: 2 * 1024 * 1024 }
     const p = trashAssetToPhoto(a, 30, NOW)
-    expect(p.daysLeft).toBe(23) // 30 - 7
+    expect(p.daysLeft).toBe(23)
     expect(p.isVideo).toBe(false)
-    expect(p.from).toBe('2026')  // second-to-last segment of originalPath
+    expect(p.from).toBe('2026')
     expect(p.sizeMb).toBe('2.0')
-    expect(p.size).toBe(2 * 1024 * 1024)
-    expect(p.title).toBe('x')    // extension stripped
+    expect(p.sizeBytes).toBe(2 * 1024 * 1024)
+    expect(p.title).toBe('x')
   })
   it('daysLeft clamps to 0 once past due', () => {
     const a = { id: '2', deletedAt: '2026-01-01T00:00:00Z', fileSize: 0 }
@@ -28,5 +28,11 @@ describe('trashAssetToPhoto', () => {
   })
   it('title = id when originalName is absent', () => {
     expect(trashAssetToPhoto({ id: 'zid', fileSize: 0 }, 30, NOW).title).toBe('zid')
+  })
+  it('carries every base Photo field (e.g. place/hasOcr), not just the trash-only ones', () => {
+    const p = trashAssetToPhoto({ id: '9', mimeType: 'image/jpeg', fileSize: 0, hasOcr: true, placeName: 'Kyoto' }, 30, NOW)
+    expect(p.hasOcr).toBe(true)
+    expect(p.mimeType).toBe('image/jpeg')
+    expect(p.place).toBe('Kyoto')
   })
 })

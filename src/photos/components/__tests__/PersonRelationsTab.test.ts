@@ -5,10 +5,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
 import en from '../../../i18n/en_us'
 import type { PersonRelation } from '../../composables/usePersonDetail'
 import type { Person, PlaceGroup } from '../../util/peopleView'
+import { useAgentStore } from '../../../ai/stores/agentStore'
+import { useAskNimo } from '../../composables/useAskNimo'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -175,14 +178,43 @@ describe('PersonRelationsTab.vue', () => {
   // Task 8 (Plan D): previously deferred and unrendered in SP8, now added back here per Vue2
   // PhotosPersonDetail.vue:228-230 — the click is a no-op (wiring belongs to Plan G), this only
   // adds the render + visuals first.
-  it('renders the Deep Dive button at the bottom of the insights card; clicking it neither throws nor emits (no-op, wiring belongs to Plan G)', async () => {
+  it('renders the Deep Dive button at the bottom of the insights card; clicking it does not emit (opens Ask Nimo instead, no navigation)', async () => {
+    // Preflight F-13: this it()'s own stub -- openWith() below calls ensureNimoAgentInit(), and
+    // this test file has no beforeEach of Plan G's own to rely on, so the stub goes right here.
+    setActivePinia(createPinia())
+    const agent = useAgentStore('photos')
+    agent.loadAvailableModels = vi.fn(async () => {})
+    agent.createSession = vi.fn(async () => { agent.activeSessionId = 's0' })
+    agent.deleteSession = vi.fn(async () => {})
+    agent.setSessionTitle = vi.fn(async () => {})
+    useAskNimo().__resetForTests()
+
     const w = mountTab({ relations: [{ personId: 1, name: 'A', count: 1 }], person: P(), places: [] })
     const btn = w.get('.nimo-btn')
     expect(btn.attributes('data-test')).toBe('rel-insight-dig-deeper')
     expect(btn.text()).toBe(zh.photosPersonDigDeeper)
     await btn.trigger('click')
-    // The one business emit (open-person) shouldn't fire — a no-op, no navigation.
+    // The one business emit (open-person) shouldn't fire — a no-op business-wise, no navigation.
     expect(w.emitted('open-person')).toBeUndefined()
+  })
+
+  // Task 15 (Plan G): wires the previously no-op onDigDeeper to useAskNimo().openWith() with
+  // Vue2's exact canned prompt (PhotosPersonDetail.vue:228-230).
+  it('clicking "Dig deeper" opens Ask Nimo with the canned tell-me-more prompt', async () => {
+    // Re-check F-13: same rationale as above -- this it()'s own stub.
+    setActivePinia(createPinia())
+    const agent = useAgentStore('photos')
+    agent.loadAvailableModels = vi.fn(async () => {})
+    agent.createSession = vi.fn(async () => { agent.activeSessionId = 's0' })
+    agent.deleteSession = vi.fn(async () => {})
+    agent.setSessionTitle = vi.fn(async () => {})
+    useAskNimo().__resetForTests()
+
+    const w = mountTab({ relations: [{ personId: 1, name: 'A', count: 1 }], person: P({ name: '小明' }), places: [] })
+    await w.get('[data-test="rel-insight-dig-deeper"]').trigger('click')
+    expect(useAskNimo().popupOpen.value).toBe(true)
+    expect(useAskNimo().prefill.value).toContain('多告诉我一些关于')
+    expect(useAskNimo().prefill.value).toContain('小明')
   })
 
   it('No bare color literals in template (hex or rgba()/hsla() function form, fallback assertion)', () => {

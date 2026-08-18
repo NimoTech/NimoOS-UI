@@ -65,6 +65,32 @@ const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   { name: '.picker-scrim', selector: '.picker-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.sv-select-bar', selector: '.photos-root .sv-select-bar {', files: ['photos/styles/vue2-parity/photos-smartview.scss'] },
   { name: '.sv-toast', selector: '.photos-root .sv-toast {', files: ['photos/styles/vue2-parity/photos-smartview.scss'] },
+  // Plan G (Ask Nimo): these three previously carried Vue2's original low z-index values
+  // (50/50/60) as dead CSS -- nothing consumed them yet. Bumped below alongside the components
+  // that finally use them, normalized to this codebase's existing overlay/menu tiers rather than
+  // kept at Vue2's raw numbers (see photos-people.scss:1330 (rule start) / :1338 (z-index)'s
+  // own precedent for `.cluster-menu`).
+  { name: '.nimo-pop', selector: '.photos-root .nimo-pop {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  { name: '.chat-drawer', selector: '.photos-root .chat-drawer {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  { name: '.nimo-mp-list', selector: '.photos-root .nimo-mp-list {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  // Plan H Task 1 (F-20), re-skinned in Acceptance Fix-2: PhotosFavorites.vue's save-as-album
+  // naming modal scrim -- originally a New-UI-only bespoke `.favsave-scrim` living in the
+  // component's own `<style scoped>`; Fix-2 re-skinned the template onto Vue2
+  // PhotosFavoritesView.vue's own `.fav-modal-scrim` anchor, whose rule (bare selector, matching
+  // Vue2's own lack of a `.photos-root`-equivalent wrapper) already lived in parity photos.scss
+  // byte-exact and unused. Same subtree rule as every other overlay in this table (nests as a
+  // `.photos-root` descendant, see the component's template).
+  { name: '.fav-modal-scrim', selector: '.fav-modal-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  // Plan H Task 5: the Favorites slideshow overlay -- parity-sourced (photos.scss), bare
+  // top-level selector (no `.photos-root ` prefix, same shape as `.picker-scrim` above), already
+  // carries z-index: 400 (well above the 100 floor and above every other overlay in this table).
+  { name: '.fav-slideshow', selector: '.fav-slideshow {', files: ['photos/styles/vue2-parity/photos.scss'] },
+  // Plan H Task 8: PhotosTrash.vue's confirm modal scrim -- parity-sourced (photos.scss), bare
+  // top-level selector (no `.photos-root ` prefix, same shape as `.picker-scrim`/`.fav-slideshow`
+  // above). This task's re-shell deleted PhotosTrash.vue's own local duplicate of this rule
+  // (redundant with the globally-imported parity copy), so the only surviving declaration lives
+  // in the parity file, not the component's own `<style scoped>`.
+  { name: '.trash-modal-scrim', selector: '.trash-modal-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
 ]
 
 describe('Fix-8 round 2: sibling-of-.app overlays keep an explicit z-index above .app\'s own (1)', () => {

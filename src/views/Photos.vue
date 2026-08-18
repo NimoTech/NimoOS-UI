@@ -68,6 +68,8 @@ import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosTrash } from '../photos/stores/trash'
 import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -266,21 +268,36 @@ function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
   lb.openAt(photo, filtered, startMs)
 }
 
+// Owner-acceptance Fix-3 follow-up (delete-chain diagnosis): this used to show the
+// success+Undo toast unconditionally, ignoring store.deleteAssets's return value
+// entirely (it hardcoded `count: 1` even when nothing was actually deleted) — the
+// identical swallow-and-lie shape already fixed in PhotosFavorites.vue's own
+// onLightboxDelete. A single-item delete only has two possible outcomes (1 or 0
+// actually deleted); on 0 there is nothing to undo, so the failure branch omits the
+// Undo action entirely rather than offering one that would try to "restore" an id
+// that was never deleted.
 async function onLightboxDelete(id: string | number) {
   // 灯箱已在用户确认删除时自行 close(见 PhotoLightbox.vue doDelete),这里不再重复关闭。
   const snapshot = [String(id)]
-  await store.deleteAssets(snapshot)
-  // Same toast/Undo shape as onBatchDelete — Vue2's lightbox delete reuses
-  // onBatchDelete([id]) wholesale (PhotosTimeline.vue:1138), so a single
-  // delete gets the identical trash-icon + Undo toast, count 1.
-  photosToast.show({
-    text: t('photosDeletedToast', { count: 1 }),
-    icon: 'trash',
-    action: {
-      label: t('photosTrashUndo'),
-      onClick: () => { void trash.restore(snapshot) },
-    },
-  })
+  const count = await store.deleteAssets(snapshot)
+  if (count > 0) {
+    // Same toast/Undo shape as onBatchDelete — Vue2's lightbox delete reuses
+    // onBatchDelete([id]) wholesale (PhotosTimeline.vue:1138), so a single
+    // delete gets the identical trash-icon + Undo toast, count 1.
+    photosToast.show({
+      text: t('photosDeletedToast', { count: 1 }),
+      icon: 'trash',
+      action: {
+        label: t('photosTrashUndo'),
+        onClick: () => { void trash.restore(snapshot) },
+      },
+    })
+  } else {
+    // Reuses the existing "Delete failed" family (same key PhotosTrash.vue /
+    // PhotosFavorites.vue reuse for their own zero-success cases) rather than adding a
+    // near-duplicate key.
+    photosToast.show({ text: t('photosTrashDeleteFailed'), icon: 'trash' })
+  }
 }
 
 // ─── task-done toast coalescing ───────────────────────────────────────────
@@ -366,7 +383,7 @@ onUnmounted(() => {
            photos-area page has no topbar and needs the sidebar's own trigger. -->
       <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
-        <PhotosTopbar :collapsed="collapsed" @toggle-collapse="onToggleCollapse" @search-submit="onSearchSubmit" />
+        <PhotosTopbar :collapsed="collapsed" show-ask-nimo @toggle-collapse="onToggleCollapse" @search-submit="onSearchSubmit" @ask-nimo="useAskNimo().openDrawer()" />
         <div class="photos-main">
           <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
           <template v-else>
@@ -399,6 +416,7 @@ onUnmounted(() => {
                 @clear="cancelSelection"
                 @delete="onBatchDelete([...selected])"
                 @add-to-album="openAlbumPicker([...selected])"
+                @ask-nimo="useAskNimo().openWith(t('photosGridAskNimoRecap', { count: selected.length }))"
               />
               <PhotosGrid
                 :months="gridMonths" :tab="tab" :density="density" :selected="selected"
@@ -440,6 +458,9 @@ onUnmounted(() => {
       @toggle-fav="() => {}"
       @add-to-album="(id) => openAlbumPicker([id])"
     />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+         as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
+    <AskNimoHost />
   </div>
   <!-- Task 8: Photos-private toast queue (delete/Undo) — mounted once per photos view,
        Teleports to <body> (see PhotosToastHost.vue). -->
