@@ -90,6 +90,53 @@ describe('HomeDock', () => {
     expect(hrefs.length).toBe(0)
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
   })
+
+  // The reported symptom -- a no-drop cursor, and dropping on a browser tab
+  // opening the icon image -- is the browser's own image drag, not this code.
+  // PhotoImageViewer.vue:221 records that draggable="false" alone is not enough,
+  // because a text selection re-enables the native drag.
+  it('suppresses the browser\'s native image drag on dock icons', () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    const imgs = w.findAll('.dock-app img')
+    expect(imgs.length).toBeGreaterThan(0)
+    for (const img of imgs) expect(img.attributes('draggable')).toBe('false')
+  })
+
+  it('shows an insertion placeholder while dragging and clears it afterwards', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click') // drag needs the expanded dock
+    const nav = w.get('nav').element as HTMLElement
+    nav.setPointerCapture = (() => {}) as never
+    expect(w.find('.dock-ph').exists()).toBe(false)
+
+    await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 3, clientX: 100, clientY: 100 })
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 3, clientX: 140, clientY: 100 }) // crosses the 5px threshold
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    expect(w.find('.dock-ph').exists()).toBe(true)
+
+    const up = new Event('pointerup') as PointerEvent
+    Object.assign(up, { pointerId: 3, clientX: 140, clientY: 100 })
+    window.dispatchEvent(up)
+    await w.vm.$nextTick()
+    expect(w.find('.dock-ph').exists()).toBe(false)
+  })
+
+  // A click that never crosses the threshold must not flash a placeholder.
+  it('shows no placeholder for a plain click', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 4, clientX: 100, clientY: 100 })
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 4, clientX: 102, clientY: 100 }) // under the threshold
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    expect(w.find('.dock-ph').exists()).toBe(false)
+  })
 })
 
 // ── Mobile: fixed 5 slots + all-apps drawer (spec 2026-07-18-mobile-home-launcher increment) ──

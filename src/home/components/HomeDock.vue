@@ -5,11 +5,27 @@
   >
     <div class="dock-main">
       <div class="dock-zone" data-zone="fav">
-        <DockApp v-for="k in favVisible" :key="k" :app-key="k" />
+        <template v-for="k in favVisible" :key="k">
+          <span v-if="showPh('fav', k)" class="dock-app dock-ph" aria-hidden="true">
+            <span class="dock-ic" /><span class="dock-label">&#8203;</span>
+          </span>
+          <DockApp :app-key="k" />
+        </template>
+        <span v-if="showPh('fav', null)" class="dock-app dock-ph" aria-hidden="true">
+          <span class="dock-ic" /><span class="dock-label">&#8203;</span>
+        </span>
       </div>
       <span v-if="!isMobile" class="dock-sep" />
       <div v-if="!isMobile" class="dock-zone dock-more" data-zone="more" :inert="!dock.expanded.value || undefined">
-        <DockApp v-for="k in dock.moreKeys.value" :key="k" :app-key="k" />
+        <template v-for="k in dock.moreKeys.value" :key="k">
+          <span v-if="showPh('more', k)" class="dock-app dock-ph" aria-hidden="true">
+            <span class="dock-ic" /><span class="dock-label">&#8203;</span>
+          </span>
+          <DockApp :app-key="k" />
+        </template>
+        <span v-if="showPh('more', null)" class="dock-app dock-ph" aria-hidden="true">
+          <span class="dock-ic" /><span class="dock-label">&#8203;</span>
+        </span>
       </div>
       <button class="dock-app dock-toggle" :aria-expanded="isMobile ? sheetOpen : dock.expanded.value" @click="onToggle">
         <span class="dock-ic ic-all"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span><span class="dock-label">{{ (isMobile ? sheetOpen : dock.expanded.value) ? t('dockDone') : t('dockAllApps') }}</span>
@@ -40,7 +56,7 @@ import DockApp from './DockApp.vue'
 import { useDock } from '../composables/useDock'
 import { useAppsStore } from '../stores/apps'
 import { useIsMobile } from '../composables/useIsMobile'
-import { magScale } from '../grid/dockMath'
+import { magScale, dropTarget, type DockSlot } from '../grid/dockMath'
 
 const { t } = useI18n()
 const dock = useDock()
@@ -82,6 +98,8 @@ interface DragState {
   ghostCls: string
   ghostIcon: string | null
   ghostGlyph: string
+  toZone: 'fav' | 'more' | null
+  beforeKey: string | null
 }
 
 const drag = reactive<DragState>({
@@ -96,6 +114,8 @@ const drag = reactive<DragState>({
   ghostCls: '',
   ghostIcon: null,
   ghostGlyph: '',
+  toZone: null,
+  beforeKey: null,
 })
 
 function onDragStart(e: PointerEvent) {
@@ -152,6 +172,11 @@ function onDragMove(e: PointerEvent) {
     left: (e.clientX - drag.offX - dockRect.left) + 'px',
     top: (e.clientY - drag.offY - dockRect.top) + 'px',
   }
+
+  // Same call the drop uses, so the preview cannot disagree with the outcome.
+  const t = computeDropTarget(e.clientX, e.clientY)
+  drag.toZone = t.toZone
+  drag.beforeKey = t.beforeKey
 }
 
 function onDragEnd(e: PointerEvent) {
@@ -199,50 +224,38 @@ function resetDragState() {
   drag.key = ''
   drag.pointerId = -1
   drag.ghostStyle = {}
+  drag.toZone = null
+  drag.beforeKey = null
 }
 
-/**
- * Given the drop position, find the target zone ('fav'|'more') and the key of the item
- * the dragged icon should be inserted before (null = end of zone).
- *
- * Zone decision: separator midpoint rule — drop left of sep midX → 'fav', right → 'more'.
- * beforeKey: find nearest item in the chosen zone by midX; insert-before if clientX < its
- * midX, else end (beforeKey = null).
- */
 function computeDropTarget(clientX: number, _clientY: number): { toZone: 'fav' | 'more'; beforeKey: string | null } {
   if (!root.value) return { toZone: 'more', beforeKey: null }
 
-  // Separator-midpoint zone decision
-  const sep = root.value.querySelector<HTMLElement>('.dock-sep')
-  const sepRect = sep?.getBoundingClientRect()
-  const toZone: 'fav' | 'more' = (sepRect && clientX < (sepRect.left + sepRect.right) / 2) ? 'fav' : 'more'
+  const sepRect = root.value.querySelector<HTMLElement>('.dock-sep')?.getBoundingClientRect()
+  const sepMidX = sepRect ? (sepRect.left + sepRect.right) / 2 : null
 
-  const favZone = root.value.querySelector<HTMLElement>('[data-zone="fav"]')
-  const moreZone = root.value.querySelector<HTMLElement>('[data-zone="more"]')
-
-  // Collect candidates in the chosen zone (excluding the item being dragged)
-  interface Candidate { key: string; midX: number }
-  const candidates: Candidate[] = []
-  const targetZoneEl = toZone === 'fav' ? favZone : moreZone
-  targetZoneEl?.querySelectorAll<HTMLElement>('.dock-app[data-app]').forEach((btn) => {
-    if (btn.dataset.app === drag.key) return
-    const r = btn.getBoundingClientRect()
-    candidates.push({ key: btn.dataset.app!, midX: r.left + r.width / 2 })
-  })
-
-  if (candidates.length === 0) return { toZone, beforeKey: null }
-
-  // Find nearest item in target zone by midX
-  let best = candidates[0]
-  let bestDist = Math.abs(clientX - best.midX)
-  for (const c of candidates) {
-    const d = Math.abs(clientX - c.midX)
-    if (d < bestDist) { bestDist = d; best = c }
+  // The dragged item is excluded but still occupies its slot (it is hidden with
+  // opacity, not display), which is what keeps these midpoints stable mid-drag.
+  const slots = (zone: string): DockSlot[] => {
+    const out: DockSlot[] = []
+    root.value?.querySelectorAll<HTMLElement>(`[data-zone="${zone}"] .dock-app[data-app]`).forEach((btn) => {
+      if (btn.dataset.app === drag.key) return
+      const r = btn.getBoundingClientRect()
+      out.push({ key: btn.dataset.app!, midX: r.left + r.width / 2 })
+    })
+    return out
   }
 
-  // Insert before best if drop is to its left, otherwise end of zone
-  const beforeKey = clientX < best.midX ? best.key : null
-  return { toZone, beforeKey }
+  return dropTarget(clientX, sepMidX, slots('fav'), slots('more'))
+}
+
+/**
+ * True when the insertion placeholder belongs at this position: in the zone the
+ * drop is currently targeting, immediately before `key` (or at the end when
+ * `key` is null).
+ */
+function showPh(zone: 'fav' | 'more', key: string | null): boolean {
+  return drag.active && drag.toZone === zone && drag.beforeKey === key
 }
 
 defineExpose({ root })
@@ -284,6 +297,15 @@ defineExpose({ root })
 .dock-ghost .dock-ic.has-img { background: none; }
 .dock-ghost .dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .dock-ghost .dock-ic :deep(svg) { width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 1.6; }
+/* Insertion preview, mirroring the desktop grid's drop ghost (GridGhost.vue) so
+   the two surfaces read the same. Reuses --accent and --drop-bg; theme.css is
+   off-limits for this batch. */
+.dock-ph { pointer-events: none; }
+.dock-ph .dock-ic {
+  border: 2px dashed var(--accent);
+  background: var(--drop-bg);
+  box-shadow: none;
+}
 /* ── Responsive ≤720px ── */
 @media (max-width: 720px) {
   .dock { left: 12px; right: 12px; transform: none; max-width: none; }
