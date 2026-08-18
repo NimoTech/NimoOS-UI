@@ -55,7 +55,7 @@ export const GROUPS: SectionGroup[] = [
       { id: 'search', icon: 'search', labelKey: 'aiCfgSearch' },
       { id: 'memory', icon: 'book', labelKey: 'aiCfgMemory' },
       { id: 'observability', icon: 'waves', labelKey: 'aiCfgObservability' },
-      { id: 'web', icon: 'globe', labelKey: 'aiCfgWebAccess' },
+      { id: 'web', icon: 'cloud', labelKey: 'aiCfgWebAccess' },
     ],
   },
   {

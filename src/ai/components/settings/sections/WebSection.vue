@@ -20,13 +20,16 @@
      `toast.show(apiErrorMessage(e, t(fallbackKey)), 3000, 'danger')`,fallback 分别用
      `aiCfgLoadFailed`(读取失败)/`aiCfgSaveFailed`(保存失败)两个已存在的通用键。
 
-  【发现 brief 与已落地 Vue2 (a1de5fe2) 的不一致,原样保留 brief 值并在此申报,不擅自改】
-  brief 给的 sections.ts 片段是 `icon: 'globe'`,但 Vue2 侧实际落地的
-  `sections.js` diff 用的是 `icon: 'cloud'`。本仓 `AgentIcon.vue` 的 PATHS 表里没有
-  'globe' 这个键(只有 cloud/lock/key/search/book/waves 等),按 brief 写 'globe' 会
-  让导航栏这一项渲染出**空图标**(pathHtml 落空,不报错但看不见图标)——是本仓的一个
-  真实视觉缺陷,不是风格分歧。遵照任务约束「照抄 brief,不擅自改进,报告里说明」,
-  这里原样使用 'globe',缺陷记在报告里,留给评审定夺是否改回 'cloud'。
+  【fix round 1(协调者确认,2026-08-18)】sections.ts 的 icon 已从 brief 原文的
+  'globe' 改成 'cloud'。原因:本仓 `AgentIcon.vue` 的 PATHS 表里根本没有 'globe'
+  这个键,写 'globe' 会让导航栏这一项渲染出空图标;而 Vue2 侧已落地的
+  `sections.js`(commit a1de5fe2)本来就是 `icon: 'cloud'`——协调者确认这是
+  ta自己 brief 里的笔误(移植 Vue2 时因为 SkillIcon.vue 同样没有 globe 才把
+  Vue2 侧改成了 cloud,但漏了把这个修正带进本任务的 brief)。'cloud' 与
+  「Cloud providers」项(`providers`)撞图标是已知问题,留作后续:给两侧图标集
+  各加一个真正的 globe/link 图标再拆开,不在本任务里改。本仓 `external` 图标
+  已存在、语义上更贴近"网页",留给做该后续的人做候选,这里不用它——移植纪律
+  是与 Vue2 落地版 1:1,不为了美观在本任务里临时挑一个不同的图标。
 -->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
