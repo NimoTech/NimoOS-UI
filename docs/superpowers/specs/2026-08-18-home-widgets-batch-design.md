@@ -302,3 +302,19 @@ uncommitted Time Machine changes will be swept into these commits.
 - `GpuWidget` reads only `gpu[0]`. On a host with both a discrete card and an
   iGPU, the iGPU is silently dropped. Not reachable on this device (no working
   NVIDIA driver), so not addressed.
+- **The clock's digits and its badge can describe two different clocks.**
+  `ClockWidget.vue` renders `time`, `weekday` and `dateCN` from browser-local
+  getters (`new Date().getHours()` etc.), while `tzBadge` reports the *host's*
+  offset from `GET /v1/sys/timezone`. The two agree only while the browser runs on
+  the host — which is the normal case here, and the reason design item 1 above says
+  the clock "keeps using browser-local getters". Access the desktop remotely and
+  they part company: a viewer in London sees `07:09 · 星期一 · UTC+8`, London's time
+  labelled with Shanghai's offset. That is a confidently wrong reading of exactly
+  the kind item 5 of this batch removes from the GPU card.
+  This is a **deliberate choice, not an oversight**. The risk was raised explicitly
+  before implementation and the repo owner chose to keep the browser-local time
+  with the host badge; the code stands as it is. The two honest alternatives, if it
+  is ever revisited, are to render the whole clock in the host's zone
+  (`Intl.DateTimeFormat(..., { timeZone })`) so digits and badge always agree, or
+  to label the badge as the server's zone rather than the displayed time's. Both
+  are behaviour changes beyond this batch.
