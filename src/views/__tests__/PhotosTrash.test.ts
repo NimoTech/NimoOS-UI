@@ -16,6 +16,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../../i18n/zh_cn'
+import en from '../../i18n/en_us'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -52,6 +53,11 @@ import { useLightbox } from '../../photos/lightbox/useLightbox'
 const lb = useLightbox()
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+// Owner-acceptance Fix-5: a couple of the regressions this fix covers (the sort-label copy,
+// the bucket subtitle's singular/plural word) render identical text in zh (photosItemSingular
+// and photosItemsCount share the same zh value, Chinese has no plural form) -- an English-locale
+// mount is needed to actually distinguish "1 item" from "N items" in an assertion.
+const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { en_us: en } })
 
 function makeRouter() {
   return createRouter({
@@ -68,6 +74,20 @@ async function mountView() {
   const w = mount(
     { components: { PhotosTrash, AppToast }, template: '<div><PhotosTrash /><AppToast /></div>' },
     { global: { plugins: [i18n, router] } },
+  )
+  await flushPromises()
+  await w.vm.$nextTick()
+  return w
+}
+
+// Owner-acceptance Fix-5: English-locale variant of mountView(), see the i18nEn comment above.
+async function mountViewEn() {
+  const router = makeRouter()
+  router.push('/photos/trash')
+  await router.isReady()
+  const w = mount(
+    { components: { PhotosTrash, AppToast }, template: '<div><PhotosTrash /><AppToast /></div>' },
+    { global: { plugins: [i18nEn, router] } },
   )
   await flushPromises()
   await w.vm.$nextTick()
@@ -158,7 +178,9 @@ describe('PhotosTrash.vue', () => {
     const w = await mountView()
 
     expect(w.find('[data-test="trash-empty"]').exists()).toBe(false)
-    const buckets = w.findAll('.trash-bucket')
+    // Owner-acceptance Fix-5: bucket wrapper renamed .trash-bucket -> .arc-section (Vue2 :63
+    // reuses the archive view's shared `.arc-section` class, not a page-local reinvention).
+    const buckets = w.findAll('.arc-section')
     expect(buckets).toHaveLength(2) // urgent(daysLeft=3) + fresh(daysLeft=29)
 
     const tiles = w.findAll('.trash-tile')
@@ -169,6 +191,55 @@ describe('PhotosTrash.vue', () => {
     const countdowns = w.findAll('.trash-countdown').map((c) => c.text())
     expect(countdowns.some((t) => t.includes('3'))).toBe(true)
     expect(countdowns.some((t) => t.includes('29'))).toBe(true)
+  })
+
+  // Owner-acceptance Fix-5 (screenshot review vs Vue2 PhotosTrashView.vue): Vue2 :55 renders a
+  // leading `Sort` label span before the two sort buttons -- it was missing from this view
+  // entirely (parity's own `.lib-sort-label` rule sat unused).
+  it('the sort control has a leading "Sort" label, matching Vue2 :55', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    const w = await mountViewEn()
+    expect(w.find('.lib-sort-label').text()).toBe('Sort')
+  })
+
+  // Owner-acceptance Fix-5 (screenshot review): the bucket header used to read "1 items ·
+  // Recently deleted items" for a single freshly-deleted photo -- wrong pluralization (Vue2 :68
+  // singularizes) and wrong subtitle copy (Vue2's 'fresh' bucket desc is "Auto-deletes after the
+  // retention period", :136, not "Recently deleted items"). Also asserts the bucket header now
+  // uses the shared `.arc-section-head` anchor (carries parity's own separator rule), not the
+  // page's former bespoke `.trash-bucket-head`.
+  it('bucket subtitle: singular "item" wording + Vue2\'s actual "fresh" bucket copy + shared .arc-section-head anchor', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('b', '2026-07-26T00:00:00Z')]) // daysLeft=29 -> 'fresh' bucket, 1 item
+    const w = await mountViewEn()
+
+    expect(w.find('.arc-section-head').exists()).toBe(true)
+    const sub = w.find('.arc-section-sub').text()
+    expect(sub).toBe('1 item · Auto-deletes after the retention period')
+  })
+
+  it('bucket subtitle: plural "items" wording for more than one item in the same bucket', async () => {
+    svc.photos.listTrash.mockResolvedValue([
+      asset('b', '2026-07-26T00:00:00Z'),
+      asset('c', '2026-07-25T00:00:00Z'),
+    ]) // both land in the 'fresh' bucket (daysLeft 29/28)
+    const w = await mountViewEn()
+
+    const sub = w.find('.arc-section-sub').text()
+    expect(sub).toBe('2 items · Auto-deletes after the retention period')
+  })
+
+  // Owner-acceptance Fix-5 (REAL BUG, delete-chain diagnosis follow-up): the hero used to show
+  // "0.0 MB can be freed" for an item whose real fileSize is 0/absent. Root cause: this isn't a
+  // field-name or bytes-vs-MB mismatch in trashAssetToPhoto (verified correct, see that file's
+  // own tests) -- it's that Vue2 PhotosTrashView.vue:180 sums `Number(p.sizeMb) || 4.2` per item
+  // (a literal placeholder fallback), not `|| 0`. This pins the aggregate at the Vue2-matching
+  // non-zero value instead of the honest-but-diverging 0.0.
+  it('hero total MB: falls back to Vue2\'s 4.2-per-item placeholder when the real size is zero (not 0.0)', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z', { fileSize: 0 })])
+    const w = await mountViewEn()
+    const sub = w.find('.lib-hero-sub').text()
+    expect(sub).toContain('4.2 MB')
+    expect(sub).not.toContain('0.0 MB')
   })
 
   it('clicking the select circle -> the item enters selected, bulk bar appears', async () => {

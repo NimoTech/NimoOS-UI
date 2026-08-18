@@ -73,7 +73,27 @@ let undoIds: Array<string | number> | null = null
 const isEmpty = computed(() => trash.loaded && trash.items.length === 0)
 const photoCount = computed(() => trash.items.filter((p) => !p.isVideo).length)
 const videoCount = computed(() => trash.items.filter((p) => p.isVideo).length)
-const totalSize = computed(() => trash.items.reduce((s, p) => s + (Number(p.sizeMb) || 0), 0).toFixed(1))
+// Owner-acceptance Fix-5 (delete-chain diagnosis follow-up): Vue2 PhotosTrashView.vue:180 sums
+// `Number(p.sizeMb) || 4.2` per item, not `|| 0` -- a per-item literal placeholder that kicks in
+// whenever the real computed sizeMb is falsy (0, NaN, absent). trashAssetToPhoto's own mapping
+// of `asset.fileSize` was checked end to end (field name matches the backend's `fileSize` JSON
+// tag, unit conversion is correct bytes->MB) and is NOT the bug -- the discrepancy the owner's
+// screenshot caught ("0.0 MB" here vs Vue2's "4.2 MB" for the same photo) is explained entirely
+// by this Vue2-side fallback constant papering over an item whose real fileSize is genuinely
+// zero. Vue2 is authority, so this reproduces its exact (if slightly odd) arithmetic rather than
+// "fixing" it to a more honest 0 -- that would diverge further from Vue2, not less. Only this
+// hero aggregate carries the `|| 4.2` fallback in Vue2; the bulk-delete/lightbox-delete per-item
+// sums below (deleteSelected/onLightboxDelete) use `Number(p.sizeMb || 0)` with no such fallback,
+// matching Vue2's own deleteSelected (:233-235) exactly -- left unchanged.
+const totalSize = computed(() => trash.items.reduce((s, p) => s + (Number(p.sizeMb) || 4.2), 0).toFixed(1))
+
+// Owner-acceptance Fix-5: Vue2 :68 conditionally singularizes the bucket-subtitle item count
+// (`b.photos.length !== 1 ? $t('items') : $t('item')`) -- the previous unconditional
+// `photosItemsCount` call always rendered the plural form even for a single item ("1 items"),
+// which is what the owner's screenshot caught.
+function bucketItemsLabel(count: number): string {
+  return count === 1 ? t('photosItemSingular', { count }) : t('photosItemsCount', { count })
+}
 
 const filtered = computed(() => {
   if (filter.value === 'photo') return trash.items.filter((p) => !p.isVideo)
@@ -418,7 +438,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 <PhotosIcon name="video" :size="11" /> {{ t('photosTabVideos') }} <span class="ct">{{ videoCount }}</span>
               </button>
               <div class="trash-filters-spacer"></div>
+              <!-- Owner-acceptance Fix-5: Vue2 :55 puts a leading `.lib-sort-label` span
+                   ($t('Sort')) before the two sort buttons -- this was missing entirely,
+                   leaving parity's own `.lib-sort-label` rule (photos.scss) unused. -->
               <div class="lib-sort">
+                <span class="lib-sort-label">{{ t('photosTrashSort') }}</span>
                 <button type="button" :data-active="sort === 'daysleft'" @click="sort = 'daysleft'">
                   {{ t('photosTrashSortDaysLeft') }}
                 </button>
@@ -429,13 +453,34 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             </div>
 
             <div class="trash-scroll scroll">
-              <div v-for="b in bucketed" :key="b.id" class="trash-bucket">
-                <div class="trash-bucket-head">
-                  <span class="trash-bucket-dot" :data-tone="b.tone"></span>
-                  <span class="trash-bucket-title">{{ b.title }}</span>
-                  <span class="trash-bucket-sub">{{ t('photosItemsCount', { count: b.photos.length }) }} · {{ b.desc }}</span>
+              <!-- Owner-acceptance Fix-5: Vue2 :63-70 reuses the archive view's own
+                   `.arc-section*` classes (shared parity anchors, photos.scss ~1690-1725) for
+                   the bucket header, not a page-local reinvention -- switched to match, which
+                   also fixes the missing/wrong-colored separator rule (parity's own
+                   `.arc-section-head` already carries `border-bottom: 1px solid var(--line)`,
+                   the photos-local divider token Vue2 effectively gets "for free" through this
+                   class, vs. the page-local `.trash-bucket-head` rule this replaces, which used
+                   the *global* `--divider` token instead -- wrong shade in this photos-private
+                   scope, see PlaceDetailPanel.vue's shadowing-cleanup precedent for the same
+                   class of bug). The grid wrapper is renamed `.trash-grid` -> `.lib-grid` +
+                   Vue2's own inline `style="margin-top:14px"` (:70) for the same reason --
+                   parity's `.lib-grid` rule is byte-identical to the page-local rule it
+                   replaces. `.arc-section-head`'s own `margin-top: 24px` applies unconditionally
+                   to every bucket including the first (matching Vue2, which has no first-child
+                   exception either) -- the page's own `.trash-bucket:first-child { margin-top:
+                   0 }` override is dropped as a New-UI-only deviation. -->
+              <div v-for="b in bucketed" :key="b.id" class="arc-section">
+                <div class="arc-section-head">
+                  <span class="arc-section-dot" :data-tone="b.tone"></span>
+                  <span class="arc-section-title">{{ b.title }}</span>
+                  <!-- Owner-acceptance Fix-5: Vue2 :68 conditionally singularizes this word
+                       (`b.photos.length !== 1 ? $t('items') : $t('item')`) -- the previous
+                       `photosItemsCount` call always rendered the plural form ("1 items"),
+                       which is what the owner's screenshot caught. bucketItemsLabel() below
+                       reproduces the same singular/plural branch. -->
+                  <span class="arc-section-sub">{{ bucketItemsLabel(b.photos.length) }} · {{ b.desc }}</span>
                 </div>
-                <div class="trash-grid">
+                <div class="lib-grid" style="margin-top:14px">
                   <div
                     v-for="p in b.photos" :key="p.id"
                     class="lib-tile trash-tile" :data-selected="isSelected(p.id)"
@@ -580,32 +625,32 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-load-more { display: flex; justify-content: center; padding: 16px 0; }
 .trash-load-more .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* ── Bucketed grid (parity has no `.trash-bucket*`/`.trash-grid`/`.trash-scroll` anchors --
-     out of this task's rewrite scope, kept as-is; the tile itself now carries the parity
-     `.lib-tile`/`.trash-tile` combo, see the header comment above). Padding mirrors parity's
-     own `.lib-scroll` (photos.scss:1343-1347, `padding: 0 32px 80px`) so this container's side
-     inset lines up with `.lib-hero`/`.trash-filters`/`.trash-bulk-bar` above it (review fix). ── */
+/* ── Bucketed grid. `.trash-scroll` has no Vue2/parity counterpart (Vue2 uses `.lib-scroll
+     scroll`, a shared class this page can't reuse verbatim since its own scroll container
+     isn't the same DOM shape as the library grid's -- kept page-local), padding mirrors
+     parity's own `.lib-scroll` (photos.scss:1343-1347, `padding: 0 32px 80px`) so this
+     container's side inset lines up with `.lib-hero`/`.trash-filters`/`.trash-bulk-bar` above
+     it (review fix).
+     Owner-acceptance Fix-5: the bucket head/dot/title/sub and the grid wrapper used to be
+     page-local reinventions (`.trash-bucket*`/`.trash-grid`) of classes that already exist,
+     byte-identical, as shared parity anchors (`.arc-section*` from the archive view /
+     `.lib-grid` from the library grid) -- the template now uses those anchors directly
+     (matching Vue2 PhotosTrashView.vue:63-70 exactly, which does the same reuse), so the
+     page-local rules below are deleted; parity governs `.arc-section-head`'s border-bottom
+     separator, margin-top, dot geometry, title/sub typography, and `.lib-grid`'s columns/gap.
+     Only the dot's *tone color* survives as a page-local override (below) -- parity's own
+     `.arc-section-dot` sets geometry only, no color; Vue2 sets the tone color inline per-item
+     (:65-66), this page reuses existing semantic tokens instead (ruled, see the tone-color
+     comment kept below) via `data-tone`. ── */
 .trash-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 32px 80px; }
-.trash-bucket { margin-top: 20px; }
-.trash-bucket:first-child { margin-top: 0; }
-.trash-bucket-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); }
-.trash-bucket-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
+.arc-section-dot { background: var(--accent); }
 /* The three countdown-severity tiers reuse existing semantic tokens, no new token added (the brief
    explicitly allows reuse): urgent = danger tone (--remove-fg, already used consistently across
    the codebase for delete/danger buttons), warn = warning tone (--dem-fg, already used for
    SearchDialog's "demote" semantics and UploadPanel's warning state), normal = regular accent tone
    (--accent). */
-.trash-bucket-dot[data-tone="urgent"] { background: var(--remove-fg); }
-.trash-bucket-dot[data-tone="warn"] { background: var(--dem-fg); }
-/* Fix wave (post-final-review): --fg/--fg-muted are global New-UI tokens (they resolve, but to
-   the wrong shade here) -- this page renders inside `.photos-root`'s photos-private scope,
-   which defines its own --text-1/--text-3 (photos.scss's `.photos-root`/`.photos-root.is-light`
-   blocks), the tokens the rest of this page's bucket-head siblings already use. Corrected to
-   match. */
-.trash-bucket-title { font-size: 13.5px; font-weight: 600; color: var(--text-1); }
-.trash-bucket-sub { font-size: 11.5px; color: var(--text-3); }
-
-.trash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; margin-top: 14px; }
+.arc-section-dot[data-tone="urgent"] { background: var(--remove-fg); }
+.arc-section-dot[data-tone="warn"] { background: var(--dem-fg); }
 
 /* Transition-class spelling gap only (Vue2 -> Vue3): parity's own `.trash-modal-enter`/
    `.trash-modal-leave-to` (photos.scss ~2393-2399) are Vue2-spelled -- Vue3's <transition>

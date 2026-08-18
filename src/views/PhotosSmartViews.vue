@@ -313,7 +313,7 @@ onMounted(() => {
 .sv-grid { flex: 1 1 auto; }
 
 /* ── Slim settings hint (SP15-P2b Task 5, replaces the entire old .svs-banner) -- reuses
-   the same --dem-fg family as the banner (precedent: PhotosTrash.vue .trash-bucket-dot
+   the same --dem-fg family as the banner (precedent: PhotosTrash.vue .arc-section-dot
    [data-tone="warn"]).
    SP15-P2b final fix wave: geometry now matches Vue2's own slim hint (939a7d3a:
    PhotosSmartViewsView.vue:31 inline style -- padding:12px 14px, no margin, centred) instead

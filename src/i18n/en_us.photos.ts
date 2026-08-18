@@ -20,6 +20,11 @@ export default {
   photosTabOcr: 'OCR',
   photosTabVideos: 'Videos',
   photosItemsCount: '{count} items',
+  // Owner-acceptance Fix-5: singular sibling of photosItemsCount, matching Vue2's
+  // `{{ b.photos.length !== 1 ? $t('items') : $t('item') }}` conditional (currently only
+  // consumed by PhotosTrash.vue's bucket subtitle -- the other photosItemsCount call sites
+  // are untouched by this fix, out of scope here).
+  photosItemSingular: '{count} item',
   photosSelectedCount: '{count} selected',
   photosDelete: 'Delete',
   photosCancel: 'Cancel',
@@ -137,6 +142,13 @@ export default {
   photosTrashCanFree: 'can be freed',
   photosTrashItems: 'items',
   photosTrashSelectedCount: '{count} selected',
+  // Owner-acceptance Fix-5: Vue2 PhotosTrashView.vue template:55 puts a leading label span
+  // before the two sort buttons ($t('Sort')) -- this key was missing entirely, so the label
+  // span was never rendered (parity's own `.lib-sort-label` rule at photos.scss went unused).
+  // Named per-view like the sibling photosFavSort/photosSearchSort/photosAlbumSort keys
+  // rather than a single shared "Sort" key (established convention: each view keeps its own
+  // copy of this word).
+  photosTrashSort: 'Sort',
   photosTrashSortDaysLeft: 'Days left',
   photosTrashSortRecent: 'Recently deleted',
   photosTrashUndo: 'Undo',
@@ -145,10 +157,15 @@ export default {
   photosTrashBucketSoon: 'Deleting in 8–14 days',
   photosTrashBucketLater: 'Deleting in 15–21 days',
   photosTrashBucketFresh: 'Deleted recently',
-  photosTrashBucketUrgentDesc: 'Will be deleted within a week',
-  photosTrashBucketSoonDesc: 'Will be deleted within two weeks',
-  photosTrashBucketLaterDesc: 'Will be deleted within three weeks',
-  photosTrashBucketFreshDesc: 'Recently deleted items',
+  // Owner-acceptance Fix-5: all four descriptions below were paraphrases, not Vue2's actual
+  // copy -- corrected to match Vue2 PhotosTrashView.vue:133-136's BUCKETS `desc` fields
+  // verbatim (the owner's screenshot review specifically caught the 'fresh' one showing
+  // "Recently deleted items" instead of Vue2's "Auto-deletes after the retention period";
+  // the other three had the same kind of drift, caught in the same-view sweep).
+  photosTrashBucketUrgentDesc: 'Will be gone soon — recover now if needed',
+  photosTrashBucketSoonDesc: 'Heads up — auto-removal coming',
+  photosTrashBucketLaterDesc: 'Still plenty of time to restore',
+  photosTrashBucketFreshDesc: 'Auto-deletes after the retention period',
   // ── Photos: Confirmation dialogs ──
   photosTrashRestoreAllTitle: 'Restore all {count} item(s)?',
   photosTrashRestoreAllBody: "They'll go back to where they came from and resume appearing in your library, albums and timelines.",
