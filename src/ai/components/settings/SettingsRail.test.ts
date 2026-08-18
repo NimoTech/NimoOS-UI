@@ -54,7 +54,7 @@ describe('SettingsRail', () => {
 
   it('skills / mcp also only emit select (don\'t jump routes themselves)', async () => {
     const w = mountRail({ activeId: 'skills' })
-    const skills = w.findAll('.set-nav-item').find((n) => n.text().includes('Skills'))!
+    const skills = w.findAll('.set-nav-item').find((n) => n.text().includes('技能'))!
     await skills.trigger('click')
     expect(w.emitted('select')![0]).toEqual(['skills'])
   })
@@ -81,7 +81,7 @@ describe('SettingsRail', () => {
     const w = mountRail({ activeId: 'providers' })
     const active = w.findAll('.set-nav-item').filter((n) => n.attributes('data-active') === 'true')
     expect(active).toHaveLength(1)
-    expect(active[0].text()).toContain('Cloud Provider')
+    expect(active[0].text()).toContain('云端提供商')
   })
 
   it('render badge on models item when modelCount is non-zero', () => {
