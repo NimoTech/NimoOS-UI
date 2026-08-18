@@ -3831,6 +3831,19 @@
 .photos-root .album-photo-grid.is-compact {
   grid-template-columns: repeat(9, 1fr);
 }
+/* Fix-6 (owner acceptance, 2026-08-18, New-UI-only -- not a Vue2 port, no equivalent selector
+   exists in the source scss): drag-reorder smoothness. useAlbumDragSort toggles `.is-dragging`
+   on this container for the duration of a drag (see that composable's own header comment for the
+   full mechanism trace) -- `forceFallback: true` drags via real `mousemove`, so the actual cursor
+   keeps crossing sibling tiles while the floating ghost moves, firing each one's `:hover` zoom
+   transition on the way. That transition work has no visual purpose mid-drag and competes with
+   Sortable's own `animation: 150` FLIP move for the frame budget -- suppressed here exactly like
+   the Ask Nimo FAB's own `.is-dragging` already does for its drag (:860-867 above), reusing the
+   same `transition: none !important` idea. `will-change` is scoped to the same window (not a
+   permanent per-tile cost on albums with hundreds of photos) so the browser only pays the
+   compositor-layer promotion while tiles are actually being FLIP-animated into place. */
+.photos-root .album-photo-grid.is-dragging .tile img { transition: none !important; }
+.photos-root .album-photo-grid.is-dragging .tile { will-change: transform; }
 /* Per-tile "set as cover" button (hover-revealed; always visible for the
    current cover). The discoverable place to pick an album cover. */
 .photos-root .album-photo-grid .tile .tile-cover-btn {
