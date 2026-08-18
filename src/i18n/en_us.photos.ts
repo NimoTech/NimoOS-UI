@@ -289,9 +289,16 @@ export default {
   photosAddToAlbumEmpty: 'No albums yet — create one first.',
   photosAddToAlbumNew: '+ New album',
   // ── Photos: Favorites view - Save as Album ──
-  photosFavSaveAlbum: 'Save as album',
-  photosFavSaveAlbumTitle: 'Save favorites as album',
+  // Acceptance Fix-2 (owner finding): Vue2 PhotosFavoritesView.vue reuses the exact same
+  // $t('Save as Album') string for both the hero button (:22) and the modal header title
+  // (:282) -- aligned to Vue2's literal value and reused for both here too (the previous
+  // separate photosFavSaveAlbumTitle key, whose value differed from Vue2, is retired rather
+  // than kept alongside a now-matching key).
+  photosFavSaveAlbum: 'Save as Album',
   photosFavSaveAlbumDefault: 'Favorites · {year}',
+  // Vue2 :291's input placeholder -- a literal hardcoded string (not templated with the
+  // current year, unlike the pre-filled default value above), transcribed verbatim.
+  photosFavSaveAlbumPlaceholder: 'e.g. Favorites · 2026',
   // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
   // 键清单漏列)。英文值逐字取自 Vue2 源(插值变量对齐成 {count})。
   photosFavSaveAlbumSub: 'Snapshot {count} favorited photos into a new album',

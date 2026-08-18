@@ -298,9 +298,13 @@ export default {
   photosAddToAlbumEmpty: '还没有相册,先新建一个。',
   photosAddToAlbumNew: '+ 新建相册',
   // ── 相册:收藏视图 Save as Album ──
-  photosFavSaveAlbum: '存为相册',
-  photosFavSaveAlbumTitle: '把收藏存为相册',
+  // Acceptance Fix-2(owner finding):Vue2 PhotosFavoritesView.vue 的 hero 按钮(:22)与弹窗标题
+  // (:282)用的是同一句 $t('Save as Album'),值对齐 Vue2(NimoOS-UI zh_CN.json:2269)后两处复用
+  // 同一个 key(旧的、值不一致的 photosFavSaveAlbumTitle 废弃,不与已对齐的 key 并存)。
+  photosFavSaveAlbum: '保存为相册',
   photosFavSaveAlbumDefault: '收藏 · {year}',
+  // Vue2 :291 的输入框 placeholder —— 字面硬编码字符串(不像上面的默认值那样按当前年份模板化),逐字转录。
+  photosFavSaveAlbumPlaceholder: '如 收藏 · 2026',
   // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
   // 键清单漏列)。中文值取自 NimoOS-UI/src/assets/lang/zh_CN.json:2187/2231。
   photosFavSaveAlbumSub: '将 {count} 张收藏的照片快照保存为新相册',

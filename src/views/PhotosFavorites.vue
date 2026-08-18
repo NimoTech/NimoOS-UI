@@ -772,48 +772,69 @@ function onSlideKey(e: KeyboardEvent): void {
          AreaShell wrapper). -->
     <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
 
-    <div
-      v-if="saveAlbumOpen"
-      class="favsave-scrim"
-      data-test="fav-savealbum-modal"
-      @click.self="closeSaveAlbum"
-    >
-      <div class="favsave-modal">
-        <div class="favsave-head">
-          <div class="favsave-head-text">
-            <div class="favsave-title">{{ t('photosFavSaveAlbumTitle') }}</div>
-            <!-- Review Important 2: adds Vue2 :267-268's dynamic subtitle (structure follows the
-                 concurrent T7 PhotosAlbums.vue:269 .albums-modal-sub).
-                 Task 11 review fix: use the exact total, not the loaded-page length — the
-                 number shown here is what confirmSaveAlbum now actually pages in and saves. -->
-            <div class="favsave-sub" data-test="fav-savealbum-sub">
-              {{ t('photosFavSaveAlbumSub', { count: fav.favoritesTotal }) }}
+    <!-- Acceptance Fix-2 (owner finding, screenshot-verified): re-skinned onto Vue2
+         PhotosFavoritesView.vue's own `.fav-modal*` class family (:275-306) -- parity photos.scss
+         already carried these rules byte-exact (transcribed but unused until now), so landing the
+         template on the same class names is the whole fix; no new CSS needed beyond the Vue2->Vue3
+         transition-class shim below. The old bespoke `.favsave-*` family (wrong title, no icon
+         tile, no field label, purple CTA, heavier blur/scrim) is retired, not kept alongside. -->
+    <transition name="fav-modal">
+      <div
+        v-if="saveAlbumOpen"
+        class="fav-modal-scrim"
+        data-test="fav-savealbum-modal"
+        @click.self="closeSaveAlbum"
+      >
+        <div class="fav-modal">
+          <div class="fav-modal-head">
+            <div class="fav-modal-icon"><PhotosIcon name="album" :size="15" color="white" /></div>
+            <div style="flex:1">
+              <!-- Vue2 :282 reuses the exact same `$t('Save as Album')` string as the hero
+                   button (:22) -- both now read the same `photosFavSaveAlbum` key. -->
+              <div class="fav-modal-title">{{ t('photosFavSaveAlbum') }}</div>
+              <!-- Review Important 2: adds Vue2 :267-268's dynamic subtitle. Task 11 review fix:
+                   use the exact total, not the loaded-page length — the number shown here is what
+                   confirmSaveAlbum now actually pages in and saves. -->
+              <div class="fav-modal-sub" data-test="fav-savealbum-sub">
+                {{ t('photosFavSaveAlbumSub', { count: fav.favoritesTotal }) }}
+              </div>
             </div>
+            <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeSaveAlbum">
+              <PhotosIcon name="x" :size="15" />
+            </button>
           </div>
-          <button type="button" class="favsave-close" :aria-label="t('photosCancel')" @click="closeSaveAlbum">&#215;</button>
-        </div>
-        <input
-          ref="saveAlbumInputRef"
-          v-model="saveAlbumName"
-          class="favsave-input"
-          data-test="fav-savealbum-input"
-          @keydown.enter.prevent="confirmSaveAlbum"
-        >
-        <!-- Review Important 2: adds Vue2 :279-281's static footnote (the album is a snapshot and
-             doesn't stay in sync with later favorites changes). -->
-        <div class="favsave-note" data-test="fav-savealbum-note">{{ t('photosFavSaveAlbumNote') }}</div>
-        <div class="favsave-foot">
-          <button type="button" class="favsave-btn-ghost" @click="closeSaveAlbum">{{ t('photosCancel') }}</button>
-          <button
-            type="button"
-            class="favsave-btn-cta"
-            data-test="fav-savealbum-confirm"
-            :disabled="!saveAlbumName.trim() || saveAlbumSaving"
-            @click="confirmSaveAlbum"
-          >{{ t('photosAlbumCreate') }}</button>
+          <div class="fav-modal-body">
+            <!-- Vue2 :288-293's field label + placeholder, previously missing entirely. -->
+            <label class="fav-modal-field">
+              <span class="fav-modal-label">{{ t('photosAlbumNameLabel') }}</span>
+              <input
+                ref="saveAlbumInputRef"
+                v-model="saveAlbumName"
+                :placeholder="t('photosFavSaveAlbumPlaceholder')"
+                class="fav-modal-input"
+                data-test="fav-savealbum-input"
+                @keydown.enter.prevent="confirmSaveAlbum"
+              >
+            </label>
+            <!-- Review Important 2: adds Vue2 :279-281's static footnote (the album is a snapshot
+                 and doesn't stay in sync with later favorites changes). -->
+            <div class="fav-modal-note" data-test="fav-savealbum-note">{{ t('photosFavSaveAlbumNote') }}</div>
+          </div>
+          <div class="fav-modal-foot">
+            <button type="button" class="fav-btn-ghost" @click="closeSaveAlbum">{{ t('photosCancel') }}</button>
+            <button
+              type="button"
+              class="fav-btn-primary"
+              data-test="fav-savealbum-confirm"
+              :disabled="!saveAlbumName.trim() || saveAlbumSaving"
+              @click="confirmSaveAlbum"
+            >
+              <PhotosIcon name="album" :size="12" color="white" /> {{ t('photosAlbumCreate') }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
 
     <!-- Task 5 (Plan H): slideshow overlay -- follows Vue2 PhotosFavoritesView.vue:237-273
          verbatim (crossfade full-image render, no count cap, progress bar via a CSS animation
@@ -911,39 +932,17 @@ function onSlideKey(e: KeyboardEvent): void {
    style does not have. */
 .fav-stat-sub { font-size: 11px; color: var(--text-3); font-weight: 400; }
 
-/* Save-as-album naming modal -- structure follows PhotosAlbums.vue's (T7) new-album modal
-   (hard-won P2/P3 lesson: the background must use --popup-bg, not --card-bg -- in the dark
-   theme --card-bg is near-transparent, and stacking it on a dark background lets things show
-   through). */
-.favsave-scrim {
-  position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
-  display: flex; align-items: center; justify-content: center; padding: 32px 20px;
-}
-.favsave-modal {
-  width: min(400px, 100%); background: var(--popup-bg); border: 1px solid var(--card-border);
-  border-radius: 16px; box-shadow: var(--card-shadow-hi); padding: 20px 22px 18px;
-}
-.favsave-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
-.favsave-head-text { flex: 1 1 auto; min-width: 0; }
-.favsave-title { font-size: 16px; font-weight: 600; color: var(--fg); }
-.favsave-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
-.favsave-close {
-  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.favsave-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.favsave-input {
-  width: 100%; height: 38px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--chip-border);
-  background: var(--chip-bg); color: var(--fg); font: inherit; font-size: 13.5px;
-}
-.favsave-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-.favsave-note { font-size: 11.5px; color: var(--fg-muted); margin-top: 10px; line-height: 1.5; }
-.favsave-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
-.favsave-btn-ghost { padding: 8px 16px; border-radius: 9px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
-.favsave-btn-ghost:hover { background: var(--chip-bg-hi); }
-.favsave-btn-cta { padding: 8px 18px; border-radius: 9px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.favsave-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Acceptance Fix-2: the save-as-album naming modal's own bespoke `.favsave-*` rules (purple CTA,
+   --popup-bg card, heavier blur scrim) are retired -- the template now uses Vue2
+   PhotosFavoritesView.vue's own `.fav-modal*` class names, and parity photos.scss already
+   carries every one of those rules byte-exact (unscoped, imported globally via
+   `../photos/styles/vue2-parity`), so nothing needs duplicating here. Only the Vue2->Vue3
+   transition-class spelling gap needs a page-local shim (same convention as PhotosTrash.vue's
+   `.trash-modal-enter-from` / PhotosAlbumDetail.vue's `.lb-confirm-enter-from`): Vue3 renders the
+   bare `-enter` as `-enter-from` instead, `-leave-to` is unchanged and already covered by
+   parity's own `.fav-modal-enter`/`.fav-modal-leave-to` rule. */
+.fav-modal-enter-from { opacity: 0; }
+.fav-modal-enter-from .fav-modal { transform: translateY(8px) scale(0.98); opacity: 0; }
 
 /* Task 3 review handoff (Minor-4): .empty-state/-title/-desc's own scoped copy (a coin-flip
    specificity tie with parity photos.scss:1196-1205) used to live here -- deleted, parity

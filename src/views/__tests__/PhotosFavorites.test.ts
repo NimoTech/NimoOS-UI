@@ -438,6 +438,40 @@ describe('PhotosFavorites.vue', () => {
       expect(w.find('[data-test="fav-savealbum-note"]').text().length).toBeGreaterThan(0)
     })
 
+    // Acceptance Fix-2 (owner finding, screenshot-verified): the dialog and its backdrop were
+    // NOT the Vue2 design (wrong title, no icon tile, no field label, purple CTA, wrong scrim).
+    // Re-skinned onto Vue2 PhotosFavoritesView.vue's own `.fav-modal*` class family (photos.scss
+    // already carried the byte-exact transcribed rules, unused until now) -- this locks the
+    // markup onto those anchors so the parity CSS actually governs.
+    it('re-skinned onto Vue2\'s .fav-modal* anchors: icon tile, exact title/label copy, ghost+primary footer buttons, .fav-modal-scrim backdrop', async () => {
+      svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
+      const w = await mountView()
+      await w.find('[data-test="fav-save-album-btn"]').trigger('click')
+      await w.vm.$nextTick()
+
+      // Backdrop + shell land on Vue2's own class names, not the old bespoke `.favsave-*` family.
+      expect(w.find('.fav-modal-scrim').exists()).toBe(true)
+      expect(w.find('.fav-modal').exists()).toBe(true)
+      expect(w.find('.favsave-scrim').exists()).toBe(false)
+
+      // Header: icon tile + title (Vue2 :280-282 -- title reuses the exact same copy as the
+      // hero "Save as Album" button, both `photosFavSaveAlbum`) + subtitle.
+      expect(w.find('.fav-modal-head .fav-modal-icon').exists()).toBe(true)
+      expect(w.find('.fav-modal-title').text()).toBe(zh.photosFavSaveAlbum)
+      expect(w.find('.fav-modal-sub').exists()).toBe(true)
+
+      // Body: field label (Vue2 :289, previously missing entirely) + placeholder (Vue2 :291).
+      expect(w.find('.fav-modal-label').text()).toBe(zh.photosAlbumNameLabel)
+      expect(w.find('.fav-modal-input').attributes('placeholder')).toBe(zh.photosFavSaveAlbumPlaceholder)
+      expect(w.find('.fav-modal-note').exists()).toBe(true)
+
+      // Footer: plain Cancel + amber "Create album" CTA with a leading icon (Vue2 :299-302),
+      // not the old purple `.favsave-btn-cta`.
+      expect(w.find('.fav-modal-foot .fav-btn-ghost').exists()).toBe(true)
+      expect(w.find('.fav-modal-foot .fav-btn-primary').exists()).toBe(true)
+      expect(w.find('.fav-modal-foot .fav-btn-primary svg').exists()).toBe(true)
+    })
+
     it('submit -> albums.saveAsAlbum(name, [favorite ids]) is called + success toast (exact copy) + modal closes', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
       const w = await mountView()

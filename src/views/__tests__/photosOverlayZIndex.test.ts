@@ -73,13 +73,14 @@ const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   { name: '.nimo-pop', selector: '.photos-root .nimo-pop {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.chat-drawer', selector: '.photos-root .chat-drawer {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.nimo-mp-list', selector: '.photos-root .nimo-mp-list {', files: ['photos/styles/vue2-parity/photos.scss'] },
-  // Plan H Task 1 (F-20): PhotosFavorites.vue's own save-as-album naming modal scrim -- unlike
-  // the parity-sourced overlays above, this one is New-UI-only (no Vue2 counterpart) and lives
-  // in the component's own `<style scoped>`, so its selector has no `.photos-root ` prefix (a
-  // scoped style's own implicit scoping does that job instead) and its own re-shell (this same
-  // task) now nests it as a `.photos-root` descendant in the template, same subtree rule as
-  // every other overlay in this table.
-  { name: '.favsave-scrim', selector: '.favsave-scrim {', files: ['views/PhotosFavorites.vue'] },
+  // Plan H Task 1 (F-20), re-skinned in Acceptance Fix-2: PhotosFavorites.vue's save-as-album
+  // naming modal scrim -- originally a New-UI-only bespoke `.favsave-scrim` living in the
+  // component's own `<style scoped>`; Fix-2 re-skinned the template onto Vue2
+  // PhotosFavoritesView.vue's own `.fav-modal-scrim` anchor, whose rule (bare selector, matching
+  // Vue2's own lack of a `.photos-root`-equivalent wrapper) already lived in parity photos.scss
+  // byte-exact and unused. Same subtree rule as every other overlay in this table (nests as a
+  // `.photos-root` descendant, see the component's template).
+  { name: '.fav-modal-scrim', selector: '.fav-modal-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
   // Plan H Task 5: the Favorites slideshow overlay -- parity-sourced (photos.scss), bare
   // top-level selector (no `.photos-root ` prefix, same shape as `.picker-scrim` above), already
   // carries z-index: 400 (well above the 100 floor and above every other overlay in this table).
