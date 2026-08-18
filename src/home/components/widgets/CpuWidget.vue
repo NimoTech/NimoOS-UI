@@ -8,7 +8,9 @@
       <div class="ring-col"><RingGauge :percent="pct" label="CPU" /><div class="num-sub">{{ t('widgetTemp') }} {{ temp }} · {{ cores }}</div></div>
       <div class="ring-col"><RingGauge :percent="memp" :label="t('memory')" /><div class="num-sub">{{ memTotal }}</div></div>
     </div>
-    <Sparkline :points="store.cpuHist" />
+    <!-- The chart needs a third row: at h=2 (the default size, defaultLayout.ts:22)
+         it is squeezed against the rings with no usable height. -->
+    <Sparkline v-if="item.h > 2" :points="store.cpuHist" />
   </template>
 </template>
 <script setup lang="ts">
