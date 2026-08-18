@@ -20,7 +20,7 @@ const VIEWS_DIR = 'src/views'
 
 // 已封顶:内层滚动链完整(`.photos-main` flex:1 + min-height:0 → 自带 overflow-y:auto 的
 // 滚动容器),封顶后由内层容器接管滚动。
-const CAPPED = [
+const CAPPED: string[] = [
   // Task 3(壳 + 侧栏重刻)起,Photos.vue 不再有 `.photos-layout` 规则字符串——外壳换成了
   // Vue2 结构的 `.app` CSS Grid(`height: 100vh; overflow: hidden`,parity scss
   // photos.scss:116-128),高度封顶职责由那条规则接管,与本文件锁的 `.photos-layout` 规则
@@ -57,7 +57,10 @@ const CAPPED = [
   // grid shell, so it's dropped from below the same way (`.trash-scroll` still takes over the
   // inner scroll responsibility, unchanged) — it no longer contains a literal `.photos-layout {`,
   // so `allPhotosLayoutViews()` excludes it automatically; no need to move it into EXEMPT.
-  'PhotosSettings.vue',         // .ps-scroll
+  // As of Plan H Task 11 (Settings re-shell), PhotosSettings.vue has likewise switched to the
+  // `.app` grid shell, so it's dropped from below the same way (`.ps-scroll` still takes over the
+  // inner scroll responsibility, unchanged) — it no longer contains a literal `.photos-layout {`,
+  // so `allPhotosLayoutViews()` excludes it automatically; no need to move it into EXEMPT.
 ]
 
 // 豁免:这一页整页都没有内层滚动容器,封顶会把内容裁掉够不着 —— 必须先给它建滚动容器

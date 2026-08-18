@@ -358,6 +358,35 @@ describe('PhotosSettings container', () => {
     expect(scrollCalls).toHaveLength(2)
     expect(scrollCalls[1]).toBe(w.get('#storage').element)
   })
+
+  // Plan H Task 11 (re-shell): swaps the transitional AreaShell/.photos-layout shell for the
+  // shared `.app` CSS Grid (PhotosSidebar + main.main > PhotosTopbar + .photos-main), following
+  // every other re-shelled Photos view's own precedent.
+  it('mounts the .app shell with PhotosTopbar (Settings title, search hidden)', async () => {
+    const w = await mountView()
+    expect(w.find('.photos-root .app').exists()).toBe(true)
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.exists()).toBe(true)
+    expect(topbar.props('showSearch')).toBe(false)
+  })
+
+  // PhotosSidebar.vue already has a `toggleTheme` icon button consuming the same
+  // usePhotosTheme() singleton -- this page used to mount a second, redundant entry point
+  // (PhotosThemeToggle.vue), which this task drops.
+  it('does not render a second, page-local theme toggle -- the sidebar icon button is the only entry point', async () => {
+    const w = await mountView()
+    expect(w.findComponent({ name: 'PhotosThemeToggle' }).exists()).toBe(false)
+  })
+
+  // X-1/X-6: negative guard mirroring Plan G's own askNimoHostMounted.test.ts assertion for
+  // this specific page -- this page must never mount AskNimoHost or pass show-ask-nimo (Vue2
+  // Settings has no Ask Nimo entry point in its topbar).
+  it('does not mount AskNimoHost or pass show-ask-nimo (Vue2 Settings has no Ask Nimo entry)', async () => {
+    const w = await mountView()
+    expect(w.findComponent({ name: 'AskNimoHost' }).exists()).toBe(false)
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.props('showAskNimo')).toBeFalsy()
+  })
 })
 
 // A real regression caught by the full sign-off gate (459 files / 5893 cases): .ps-toast was
