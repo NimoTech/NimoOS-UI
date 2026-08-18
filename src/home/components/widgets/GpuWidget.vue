@@ -1,8 +1,13 @@
 <template>
   <div class="ring-row solo"><RingGauge :percent="usage" :label="t('widgetUsage')" :color="col" /></div>
+  <!-- Two pills, never three: this is the card's default 2x2 size (registry.ts:27)
+       and there is no room for another. A card with no VRAM has nothing to put in
+       the second pill, and its frequency is the one field integrated graphics does
+       fill in, so the frequency takes that slot rather than an em dash. -->
   <div v-if="item.w <= 2" class="pill-grid">
     <div class="pill"><s>{{ t('widgetTemp') }}</s><b>{{ temp }}</b></div>
-    <div class="pill"><s>{{ t('widgetVram') }}</s><b>{{ memUse }}</b></div>
+    <div v-if="vramTotal == null && freq" class="pill"><s>{{ t('widgetFreq') }}</s><b>{{ freq }}</b></div>
+    <div v-else class="pill"><s>{{ t('widgetVram') }}</s><b>{{ memUse }}</b></div>
   </div>
   <div v-else class="stats">
     <div class="stat"><span>{{ t('widgetModel') }}</span><b>{{ g && g.name ? g.name : '—' }}</b></div>
