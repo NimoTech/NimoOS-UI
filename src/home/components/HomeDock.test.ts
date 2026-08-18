@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore } from '../stores/apps'
-import { __resetDockForTest } from '../composables/useDock'
+import { useDock, __resetDockForTest } from '../composables/useDock'
 import HomeDock from './HomeDock.vue'
 
 // P8 cutover: dock's files icon changed to in-app router.push, need to mock router singleton (vi.mock is hoisted before imports).
@@ -123,6 +123,94 @@ describe('HomeDock', () => {
     window.dispatchEvent(up)
     await w.vm.$nextTick()
     expect(w.find('.dock-ph').exists()).toBe(false)
+  })
+
+  // ── The placeholder must not feed back into the geometry the drag measures ──
+  // .dock is centred with a shrink-to-fit width and .dock-ph is an in-flow
+  // .dock-app, so showing it moves every slot midpoint. jsdom does no layout, so
+  // the shift is injected by hand: the rects change the moment the drag activates,
+  // exactly as the browser's would. Both the preview and the drop must keep using
+  // the geometry measured before the placeholder existed.
+  const stubMids = (w: ReturnType<typeof mount>, mids: Record<string, () => number>) => {
+    for (const [sel, mid] of Object.entries(mids)) {
+      const el = w.get(sel).element
+      Object.defineProperty(el, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: mid() - 10, right: mid() + 10, width: 20, top: 0, bottom: 20, height: 20, x: mid() - 10, y: 0, toJSON: () => ({}) }),
+      })
+    }
+  }
+
+  // Base mids put the pointer at 190 just left of "knowledge" (200), so the
+  // placeholder previews before it. The shift then moves both more-zone slots
+  // right by half a pitch, which would flip a re-measuring drop to "append".
+  const startShiftedDrag = async (w: ReturnType<typeof mount>, shift: { v: number }) => {
+    const nav = w.get('nav').element as HTMLElement
+    nav.setPointerCapture = (() => {}) as never
+    stubMids(w, {
+      '.dock-sep': () => 50,
+      '.dock-app[data-app="storage"]': () => 100 + shift.v,
+      '.dock-app[data-app="knowledge"]': () => 200 + shift.v,
+    })
+    await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 9, clientX: 180, clientY: 0 })
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 9, clientX: 190, clientY: 0 }) // crosses the 5px threshold
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+  }
+
+  it('drops where the placeholder was previewed even after the placeholder shifts the dock', async () => {
+    useAppsStore()
+    const dock = useDock()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    const shift = { v: 0 }
+    await startShiftedDrag(w, shift)
+
+    // Preview: placeholder immediately before "knowledge".
+    const ph = w.get('.dock-ph').element
+    expect(ph.nextElementSibling?.getAttribute('data-app')).toBe('knowledge')
+
+    shift.v = 50 // the layout the placeholder itself produced
+    const up = new Event('pointerup') as PointerEvent
+    Object.assign(up, { pointerId: 9, clientX: 190, clientY: 0 })
+    window.dispatchEvent(up)
+    await w.vm.$nextTick()
+
+    // Re-measuring here would nearest-match the shifted "storage" (150) and append
+    // instead: ['storage', 'knowledge', 'settings'].
+    expect(dock.moreKeys.value).toEqual(['storage', 'settings', 'knowledge'])
+  })
+
+  // A resize is the one event that legitimately invalidates the snapshot, so it
+  // must re-measure -- but only after dropping the preview, or it would measure
+  // the placeholder's own displacement.
+  it('re-measures on resize, and does so with no placeholder in the DOM', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    const shift = { v: 0 }
+    await startShiftedDrag(w, shift)
+    expect(w.get('.dock-ph').element.nextElementSibling?.getAttribute('data-app')).toBe('knowledge')
+
+    shift.v = 50 // the viewport changed; slots really are somewhere else now
+    window.dispatchEvent(new Event('resize'))
+    await w.vm.$nextTick()
+    expect(w.find('.dock-ph').exists()).toBe(false) // preview dropped before measuring
+    await w.vm.$nextTick()
+
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 9, clientX: 190, clientY: 0 })
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    // Against the new geometry (storage 150, knowledge 250) x=190 is right of the
+    // nearest slot, so the preview belongs at the end of the zone.
+    const ph = w.get('.dock-ph').element
+    expect(ph.nextElementSibling).toBeNull()
+
+    const up = new Event('pointerup') as PointerEvent
+    Object.assign(up, { pointerId: 9, clientX: 190, clientY: 0 })
+    window.dispatchEvent(up)
   })
 
   // A click that never crosses the threshold must not flash a placeholder.

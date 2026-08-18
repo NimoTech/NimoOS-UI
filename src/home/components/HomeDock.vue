@@ -50,13 +50,13 @@
   </nav>
 </template>
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DockApp from './DockApp.vue'
 import { useDock } from '../composables/useDock'
 import { useAppsStore } from '../stores/apps'
 import { useIsMobile } from '../composables/useIsMobile'
-import { magScale, dropTarget, type DockSlot } from '../grid/dockMath'
+import { magScale, dropTargetIn, type DockSlot, type DockGeometry, type DropDecision } from '../grid/dockMath'
 
 const { t } = useI18n()
 const dock = useDock()
@@ -118,6 +118,10 @@ const drag = reactive<DragState>({
   beforeKey: null,
 })
 
+// Slot geometry, measured once when the drag activates. Deliberately not part of
+// `drag`: nothing renders from it, so it has no business being reactive.
+let geom: DockGeometry | null = null
+
 function onDragStart(e: PointerEvent) {
   // Only initiate in expanded mode
   if (!dock.expanded.value) return
@@ -148,6 +152,7 @@ function onDragStart(e: PointerEvent) {
   window.addEventListener('pointermove', onDragMove, { passive: true })
   window.addEventListener('pointerup', onDragEnd)
   window.addEventListener('pointercancel', onDragCancel)
+  window.addEventListener('resize', onResize)
 }
 
 function onDragMove(e: PointerEvent) {
@@ -163,6 +168,9 @@ function onDragMove(e: PointerEvent) {
     // hide the source element while dragging
     const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
     if (src) src.style.opacity = '0'
+    // Measure now, while no placeholder is in the DOM yet, and never again for the
+    // rest of this drag (see measureGeometry / dropTargetIn).
+    geom = measureGeometry()
   }
 
   // Position ghost: fixed, offset relative to dock rect so it appears at correct position
@@ -173,10 +181,11 @@ function onDragMove(e: PointerEvent) {
     top: (e.clientY - drag.offY - dockRect.top) + 'px',
   }
 
-  // Same call the drop uses, so the preview cannot disagree with the outcome.
-  const t = computeDropTarget(e.clientX, e.clientY)
-  drag.toZone = t.toZone
-  drag.beforeKey = t.beforeKey
+  // Resolved from the snapshot, which the drop reuses verbatim, so the preview
+  // cannot disagree with the outcome. (`target`, not `t` — `t` is the translator.)
+  const target = resolveDrop(e.clientX)
+  drag.toZone = target.toZone
+  drag.beforeKey = target.beforeKey
 }
 
 function onDragEnd(e: PointerEvent) {
@@ -193,8 +202,9 @@ function onDragEnd(e: PointerEvent) {
   const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
   if (src) src.style.opacity = ''
 
-  // Determine drop target: which zone and which beforeKey
-  const { toZone, beforeKey } = computeDropTarget(e.clientX, e.clientY)
+  // Determine drop target: which zone and which beforeKey. Same snapshot the last
+  // preview used, so the icon lands where the placeholder was standing.
+  const { toZone, beforeKey } = resolveDrop(e.clientX)
 
   dock.reorder(drag.key, toZone, beforeKey)
 
@@ -217,6 +227,7 @@ function cleanupDragListeners() {
   window.removeEventListener('pointermove', onDragMove)
   window.removeEventListener('pointerup', onDragEnd)
   window.removeEventListener('pointercancel', onDragCancel)
+  window.removeEventListener('resize', onResize)
 }
 
 function resetDragState() {
@@ -226,19 +237,28 @@ function resetDragState() {
   drag.ghostStyle = {}
   drag.toZone = null
   drag.beforeKey = null
+  geom = null
 }
 
-function computeDropTarget(clientX: number, _clientY: number): { toZone: 'fav' | 'more'; beforeKey: string | null } {
-  if (!root.value) return { toZone: 'more', beforeKey: null }
+/**
+ * Reads every slot midpoint out of the DOM, dragged icon excluded.
+ *
+ * Call this only when no `.dock-ph` is rendered. The placeholder is an in-flow
+ * `.dock-app`, and `.dock` is centred with a shrink-to-fit width, so its presence
+ * moves the midpoints this function reports — measuring with it in place is the
+ * feedback loop the snapshot exists to break.
+ *
+ * The dragged item is excluded but still occupies its own slot (it is hidden with
+ * opacity, not display), so the remaining midpoints are the ones the user sees.
+ */
+function measureGeometry(): DockGeometry {
+  const el = root.value
+  if (!el) return { sepMidX: null, favSlots: [], moreSlots: [] }
 
-  const sepRect = root.value.querySelector<HTMLElement>('.dock-sep')?.getBoundingClientRect()
-  const sepMidX = sepRect ? (sepRect.left + sepRect.right) / 2 : null
-
-  // The dragged item is excluded but still occupies its slot (it is hidden with
-  // opacity, not display), which is what keeps these midpoints stable mid-drag.
+  const sepRect = el.querySelector<HTMLElement>('.dock-sep')?.getBoundingClientRect()
   const slots = (zone: string): DockSlot[] => {
     const out: DockSlot[] = []
-    root.value?.querySelectorAll<HTMLElement>(`[data-zone="${zone}"] .dock-app[data-app]`).forEach((btn) => {
+    el.querySelectorAll<HTMLElement>(`[data-zone="${zone}"] .dock-app[data-app]`).forEach((btn) => {
       if (btn.dataset.app === drag.key) return
       const r = btn.getBoundingClientRect()
       out.push({ key: btn.dataset.app!, midX: r.left + r.width / 2 })
@@ -246,7 +266,27 @@ function computeDropTarget(clientX: number, _clientY: number): { toZone: 'fav' |
     return out
   }
 
-  return dropTarget(clientX, sepMidX, slots('fav'), slots('more'))
+  return {
+    sepMidX: sepRect ? (sepRect.left + sepRect.right) / 2 : null,
+    favSlots: slots('fav'),
+    moreSlots: slots('more'),
+  }
+}
+
+function resolveDrop(clientX: number): DropDecision {
+  return geom ? dropTargetIn(clientX, geom) : { toZone: 'more', beforeKey: null }
+}
+
+/**
+ * A viewport resize is the one thing that can invalidate the snapshot mid-drag.
+ * Drop the preview first so the placeholder leaves the DOM, and only re-measure
+ * once Vue has flushed that removal.
+ */
+function onResize() {
+  if (!drag.active) return
+  drag.toZone = null
+  drag.beforeKey = null
+  void nextTick(() => { if (drag.active) geom = measureGeometry() })
 }
 
 /**

@@ -7,6 +7,23 @@ export function magScale(distance: number): number {
 export interface DockSlot { key: string; midX: number }
 
 /**
+ * One measurement of the dock's slot geometry: the separator's midpoint and the
+ * midpoint of every slot in each zone, with the dragged icon left out.
+ *
+ * It exists as a value object because the drag must measure it exactly once, when
+ * it starts, and then hand the same numbers to both the live preview and the drop.
+ * Measuring per pointermove fed the insertion placeholder back into its own input
+ * (see `dropTargetIn`).
+ */
+export interface DockGeometry {
+  sepMidX: number | null
+  favSlots: DockSlot[]
+  moreSlots: DockSlot[]
+}
+
+export type DropDecision = { toZone: 'fav' | 'more'; beforeKey: string | null }
+
+/**
  * Decides where a dragged dock icon would land.
  *
  * `sepMidX` is the midpoint of the separator between the favourites and "more"
@@ -23,7 +40,7 @@ export function dropTarget(
   sepMidX: number | null,
   favSlots: DockSlot[],
   moreSlots: DockSlot[],
-): { toZone: 'fav' | 'more'; beforeKey: string | null } {
+): DropDecision {
   const toZone: 'fav' | 'more' = sepMidX != null && clientX < sepMidX ? 'fav' : 'more'
   const slots = toZone === 'fav' ? favSlots : moreSlots
   if (slots.length === 0) return { toZone, beforeKey: null }
@@ -34,4 +51,23 @@ export function dropTarget(
     if (d < bestDist) { bestDist = d; best = s }
   }
   return { toZone, beforeKey: clientX < best.midX ? best.key : null }
+}
+
+/**
+ * `dropTarget` against one immutable geometry snapshot.
+ *
+ * The preview and the drop must be the same decision, and the only way to
+ * guarantee that is to resolve both from geometry that the preview cannot change.
+ * `.dock` is `position: fixed; left: 50%; transform: translateX(-50%)` with a
+ * shrink-to-fit width, and the insertion placeholder is an in-flow `.dock-app`, so
+ * showing it moves the very midpoints a live measurement would read. Driven
+ * against real Chromium layout that feedback loop had no fixed point: at
+ * `--app-size: 64px` with five icons in the "more" zone (pitch 83.2px, midpoints
+ * 479 / 562 / 646 / 729 / 812) the decision alternated between "insert before the
+ * third icon" and "append" on every pointermove for 12 of 38 sampled pointer
+ * positions — and because the drop re-measured while the placeholder was still in
+ * the DOM, it landed on the opposite of what had just been previewed.
+ */
+export function dropTargetIn(clientX: number, geom: DockGeometry): DropDecision {
+  return dropTarget(clientX, geom.sepMidX, geom.favSlots, geom.moreSlots)
 }
