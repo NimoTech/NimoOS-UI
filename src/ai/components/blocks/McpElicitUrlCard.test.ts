@@ -10,7 +10,7 @@ vi.mock('../../composables/useProvidedAgentStore', () => ({
 function mountCard(props: Record<string, unknown> = {}) {
   return mount(McpElicitUrlCard, {
     props: {
-      confirmId: 'c1', server: 'notion', message: 'Please authorize',
+      confirmId: 'c1', server: 'notion', message: '请授权',
       url: 'https://auth.example.com/oauth?x=1', host: 'auth.example.com',
       hostAscii: '', punycode: false, insecure: false, ...props,
     },
@@ -31,7 +31,7 @@ describe('McpElicitUrlCard', () => {
     await flushPromises()
     expect(open).toHaveBeenCalledWith('https://auth.example.com/oauth?x=1', '_blank', 'noopener,noreferrer')
     expect(resolveElicitation).toHaveBeenCalledWith('c1', 'accept', null)
-    expect(w.text()).toContain('opened in new tab')
+    expect(w.text()).toContain('已在新标签页打开')
   })
 
   it.each([
@@ -45,12 +45,12 @@ describe('McpElicitUrlCard', () => {
     await flushPromises()
     expect(open).not.toHaveBeenCalled()
     expect(resolveElicitation).not.toHaveBeenCalled()
-    expect(w.find('.mcc-err').text()).toContain('only allow http and https')
+    expect(w.find('.mcc-err').text()).toContain('只允许 http 与 https')
   })
 
   it('http(not https) is allowed to open, but insecure warning must be present', async () => {
     const w = mountCard({ url: 'http://plain.example.com/x', host: 'plain.example.com', insecure: true })
-    expect(w.text()).toContain('is not HTTPS')
+    expect(w.text()).toContain('不是 HTTPS')
     await w.find('button.mcc-btn.primary').trigger('click')
     await flushPromises()
     expect(open).toHaveBeenCalled()
@@ -71,7 +71,7 @@ describe('McpElicitUrlCard', () => {
 
   it('punycode warning; when hostAscii present, display punycode spelling side-by-side', () => {
     const w = mountCard({ punycode: true, hostAscii: 'xn--80ak6aa92e.com' })
-    expect(w.find('.mcc-alarm').text()).toContain('internationalized domain name')
+    expect(w.find('.mcc-alarm').text()).toContain('国际化域名')
     expect(w.find('.mcc-alarm .ascii').text()).toContain('xn--80ak6aa92e.com')
   })
 
@@ -86,7 +86,7 @@ describe('McpElicitUrlCard', () => {
     const w = mountCard()
     await w.find('button.mcc-btn.primary').trigger('click')
     await flushPromises()
-    expect(w.text()).toContain('confirmation expired')
+    expect(w.text()).toContain('确认已过期')
     expect(w.findAll('button')).toHaveLength(0)
   })
 

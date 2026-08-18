@@ -33,7 +33,7 @@ describe('McpPermissionCard', () => {
     const w = mountCard()
     await w.find('.mcc-allow-once').trigger('click')
     await flushPromises()
-    expect(w.text()).toContain('confirmation expired')
+    expect(w.text()).toContain('确认已过期')
     expect(w.findAll('button')).toHaveLength(0)
   })
 
