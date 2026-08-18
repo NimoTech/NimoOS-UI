@@ -27,6 +27,11 @@
      PhotosTopbar inside `.app` — this is not "the shell auto-generating a
      sidebar", the dedup here means "exactly one PhotosSidebar copy on the
      whole page", not "mount none at all". See the guard test below.
+     Review fix (Plan H Task 11, controller ruling — Minor 5): with AreaShell gone, this
+     page's own exit path is the same as every other one of the 10 already-re-shelled
+     Photos views — there is no dedicated "return to home" entry point on the page itself;
+     navigation is handled entirely by the shared PhotosSidebar's own nav links (a
+     region-level design decision, not a gap specific to this task).
   2. No `open` prop, no ESC-to-close, no `$emit('close')` — the routed page
      relies on the browser back button, consistent with the rest of this
      area. Consequently there's also no global keydown listener equivalent to
@@ -187,7 +192,7 @@ onUnmounted(() => {
     <div class="app" :data-collapsed="collapsed">
       <PhotosSidebar :collapsed="collapsed" />
       <main class="main">
-        <PhotosTopbar :collapsed="collapsed" :title="t('photosSettingsTitle')" :show-search="false" @toggle-collapse="onToggleCollapse" />
+        <PhotosTopbar :collapsed="collapsed" :title="t('photosSettingsTitle')" :sub="t('photosSettingsSubtitle')" :show-search="false" @toggle-collapse="onToggleCollapse" />
         <div class="photos-main">
           <div ref="pageRef" class="ps-scroll scroll">
             <div class="ps-hero">
@@ -226,22 +231,42 @@ onUnmounted(() => {
    `.sidebar` flex rule (both needed only while this page still used the old flex-row shell)
    are deleted -- the shared `.app` CSS Grid's own column track now owns the sidebar width and
    the height cap (same as every other re-shelled Photos view, e.g. PhotosFavorites.vue's own
-   Task 1 header comment). C1: `.ps-*` below had zero parity-scss coverage before this task
-   (grep-confirmed) and still has none after -- these rules are New-UI-only survivors, not a
-   parity transcription gap. */
+   Task 1 header comment). `.photos-main` has no parity counterpart (Vue2 has no such wrapper
+   div; a New-UI-only layout container, same as PhotosFavorites.vue/PhotosTrash.vue's identical
+   survivor rule), so it stays as-is. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
+/* Review fix (Plan H Task 11, controller ruling — corrects a factually wrong claim this
+   comment used to make): parity photos.scss:3013-3248 DOES carry this page's anchors, under
+   Vue2's own original class names -- `.st-page`/`.st-hero`/`.st-quicknav`/`.st-footer*`/
+   `.st-toast` (Vue2 PhotosSettings.vue's own `.st-*` prefix). This page's own classes below
+   (`.ps-scroll`/`.ps-hero`/`.ps-quicknav`/`.ps-footer*`/`.ps-toast`) are NOT that parity
+   scss -- renaming this page's whole scroll/hero/quicknav/footer/toast block from `.ps-*` to
+   `.st-*` (which would also mean re-skinning the two child cards, PhotosStorageCard.vue/
+   PhotosAiCard.vue, to match `.st-card`/`.st-row`/etc.) is a full re-skin of this page's
+   content area, out of Plan H's re-shell scope (Plan H only re-skins the outer `.app`
+   shell/topbar, not each page's own body). These New-UI approximations survive here pending a
+   dedicated follow-up task to do that content re-skin. */
 .ps-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 4px 4px 24px; }
 
-.ps-hero h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--fg); }
-.ps-hero p { font-size: 13px; color: var(--fg-muted); margin: 0 0 12px; max-width: 640px; }
+/* Review fix (Plan H Task 11, controller ruling — Important 3): the `.app` shell above now
+   paints the photos-private dark `--bg`/`--text-1` pair unconditionally (see
+   photos.scss:218-225's `.photos-root .app` rule) regardless of the *global* New-UI theme —
+   these four text-color declarations used to read the *global* `--fg`/`--fg-muted` tokens,
+   which under the global light theme resolve to a dark color painted on top of this
+   photos-private dark background (a white-on-white-class legibility bug, just inverted).
+   Swapped to the photos-private `--text-1`/`--text-3` tokens (defined on `.photos-root`,
+   photos.scss:14-26), matching the values parity's own `.st-hero`/`.st-footer-app` rules use
+   for the same visual role. */
+.ps-hero h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--text-1); }
+.ps-hero p { font-size: 13px; color: var(--text-3); margin: 0 0 12px; max-width: 640px; }
 .ps-quicknav { display: flex; gap: 16px; }
 .ps-quicknav a { color: var(--accent-text); font-size: 13px; font-weight: 500; text-decoration: none; }
 .ps-quicknav a:hover { text-decoration: underline; }
 
 .ps-footer { display: flex; flex-direction: column; gap: 2px; padding: 12px 4px 4px; }
-.ps-footer-app { font-size: 12.5px; font-weight: 600; color: var(--fg); }
-.ps-footer-host { font-size: 12px; color: var(--fg-muted); }
+.ps-footer-app { font-size: 12.5px; font-weight: 600; color: var(--text-1); }
+.ps-footer-host { font-size: 12px; color: var(--text-3); }
 
 /* Review Important (2026-08-04, caught by the full acceptance gate): this
    visually borrows this repo's global toast (AppToast.vue) style language

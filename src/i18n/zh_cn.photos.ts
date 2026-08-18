@@ -970,10 +970,13 @@ export default {
   // 本期不迁:主题开关(台账第二笔)· AI 入口(D1)· Sign out(D22)· 上传整块(D21)。
   // 自拟(Vue2 PhotosSettings.vue:18 内联 "Settings")
   photosSettingsTitle: '设置',
-  // 终审 Minor 4:此处原有 photosSettingsSubtitle(「存储 · AI 行为」,对应 Vue2
-  // PhotosSettings.vue:19 顶栏副标题)已删 —— 全仓零引用。AreaShell.vue:6 的 props 只有
-  // `title`,没有承载副标题的位置,这行 Vue2 顶栏文案在 New-UI 里因此被刻意丢弃,不是漏迁。
-  // 同 :1256 处 photosSvSettingsPending 的删除先例。
+  // Plan H Task 11 review fix:photosSettingsSubtitle(「存储 · AI 行为」,对应 Vue2
+  // PhotosSettings.vue:19 顶栏副标题)已恢复。终审 Minor 4 当初的删除理由现已不成立——那条
+  // 理由说 AreaShell.vue 只有 `title` 一个 prop,没有承载副标题的位置;但 Task 11 换壳已经
+  // 把 AreaShell 整体换成了 PhotosTopbar(它本来就有 `sub` prop,与其它所有已换壳的相册页
+  // 一致),这个前提不再成立,键位恢复,经 `:sub="t('photosSettingsSubtitle')"` 接回顶栏。
+  // 自拟(Vue2 PhotosSettings.vue:19 内联 "Storage · AI behavior")
+  photosSettingsSubtitle: '存储 · AI 行为',
   // 自拟(Vue2 PhotosSettings.vue:31 内联英文长句)
   photosSettingsHeroDesc: 'Nimo 在你的 NAS 上做的一切 —— 什么在跑、跑在哪、占多少空间。',
   // 自拟(Vue2 PhotosSettings.vue:33 内联 "Storage")
