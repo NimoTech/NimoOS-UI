@@ -954,7 +954,7 @@ export default {
   // 自拟(Vue2 PhotosSettings.vue:18 内联 "Settings")
   photosSettingsTitle: 'Settings',
   // Plan H Task 11 review fix: photosSettingsSubtitle (Vue2 PhotosSettings.vue:19 topbar
-  // subtitle "Storage · AI behavior") is RESTORED here. The 终审 Minor 4 deletion rationale
+  // subtitle "Storage · AI behavior") is RESTORED here. The final-review Minor 4 deletion rationale
   // that used to sit on this line is now false: it argued AreaShell.vue's `title`-only prop
   // had no slot for a subtitle, but Task 11's re-shell dropped AreaShell entirely in favor of
   // PhotosTopbar (which DOES take a `sub` prop, same as every other re-shelled Photos view) —
