@@ -28,7 +28,6 @@ import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
-import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosIcon from '../photos/components/PhotosIcon.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
@@ -41,10 +40,9 @@ import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
-import { matchesTab } from '../photos/util/tabFilter'
 import { isConflict } from '../photos/util/httpErrors'
 import { topPersons, topPlaces, byYear as byYearOf } from '../photos/util/peopleView'
-import { groupPhotosByMonth } from '../photos/util/groupPhotosByMonth'
+import { groupFavoritesByMonthOrdered } from '../photos/util/groupPhotosByMonth'
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
@@ -62,49 +60,105 @@ const store = useTimelineStore()
 const toast = useToast()
 const lb = useLightbox()
 
-// The favorites view defaults to tab='all' (unlike the timeline's default 'photo' -- favorites
-// is already a small, hand-picked set, so it shouldn't pre-filter out video/OCR favorites by
-// type).
-const tab = ref('all')
+// Fixed at 'comfortable' -- Vue2 Favorites has no density switcher at all (its own bespoke
+// `.lib-grid` markup, not the shared timeline PhotosGrid.vue this view reuses), so there is
+// nothing here for a user control to drive; PhotosGrid still needs SOME density value to size
+// its fixed column-count lookup, hence the ref stays, just without a UI to change it.
 const density = ref('comfortable')
 const selected = ref<Array<string | number>>([])
 
 const isEmpty = computed(() => fav.favoritesLoaded && (fav.favoritesList?.length ?? 0) === 0)
 
-// Task 6 (Plan H): place filter -- follows Vue2 PhotosFavoritesView.vue:412-416's byPlaceAll
-// (group the loaded page by exact `place` string, sort by count desc) + :353-360's filtered
-// (exact string match against `l:<place>`).
-const openFilter = ref<'places' | null>(null)
-const placeFilter = ref('')
+// Acceptance Fix-1 (owner finding, Plans G+H): the filter row is All + THREE mutually-exclusive
+// dropdowns (People / Places / Years), plus a Sort Recent/Oldest toggle -- follows Vue2
+// PhotosFavoritesView.vue's `filter` data() (:329, single string: 'all' | 'p:<name>' |
+// 'l:<place>' | 'y:<year>') + `sort` data() (:328). Task 6 had modeled this as an independent
+// `placeFilter` ref, which was correct in isolation but doesn't generalize: Vue2's `filter` is
+// ONE string across all three facets (selecting a place is mutually exclusive with a person or
+// year selection, not an AND of three), so adding People/Years as their own separate refs would
+// let a user "stack" e.g. person=Alice AND place=Paris, which Vue2's UI cannot even express.
+// Replaced with the same single-string model Vue2 uses.
+const filter = ref('all')
+const sort = ref<'recent' | 'oldest'>('recent')
+const openFilter = ref<'people' | 'places' | 'years' | null>(null)
 
-const byPlaceAll = computed(() => {
-  const counts = new Map<string, number>()
-  for (const p of fav.favoritesList ?? []) {
-    if (!p.place) continue
-    counts.set(p.place, (counts.get(p.place) ?? 0) + 1)
-  }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1])
-})
-const activePlaceLabel = computed(() => (placeFilter.value ? placeFilter.value.split(',')[0] ?? '' : ''))
+// byPersonAll/byPlaceAll/byYearAll -- Vue2 :407-424. topPersons/topPlaces/byYearOf
+// (peopleView.ts) already implement these exact sort keys (count desc / count desc / year
+// string desc) for the hero stat cards (Task 15A) -- reused here unsliced, matching Vue2's own
+// byPerson()/byPlace()/byYear() computeds, which slice/pass-through these same "All" arrays
+// rather than recomputing independently (:426-428).
+const byPersonAll = computed(() => topPersons(fav.favoritesList ?? []))
+const byPlaceAll = computed(() => topPlaces(fav.favoritesList ?? []))
+// Vue2 byYear() (:428) is simply `return this.byYearAll` -- unsliced, no separate variable
+// needed; the hero stat card and the Years dropdown read the very same computed.
+const byYear = computed(() => byYearOf(fav.favoritesList ?? []))
+const byPerson = computed(() => byPersonAll.value.slice(0, 4))
+const byPlace = computed(() => byPlaceAll.value.slice(0, 3))
 
+// Vue2 :436-438's activePersonLabel/activePlaceLabel/activeYearLabel.
+const activePersonLabel = computed(() => (filter.value.startsWith('p:') ? filter.value.slice(2) : ''))
+const activePlaceLabel = computed(() => (filter.value.startsWith('l:') ? filter.value.slice(2).split(',')[0] ?? '' : ''))
+const activeYearLabel = computed(() => (filter.value.startsWith('y:') ? filter.value.slice(2) : ''))
+
+// Vue2 :353-360's filtered computed -- a single active facet, never a combination of two.
 const filtered = computed(() => {
   const base = fav.favoritesList ?? []
-  return placeFilter.value ? base.filter((p) => p.place === placeFilter.value) : base
+  const f = filter.value
+  if (f === 'all') return base
+  if (f.startsWith('p:')) {
+    const n = f.slice(2)
+    return base.filter((p) => (p.faces ?? []).map(String).includes(n))
+  }
+  if (f.startsWith('l:')) {
+    const v = f.slice(2)
+    return base.filter((p) => (p.place ?? '') === v)
+  }
+  if (f.startsWith('y:')) {
+    const v = f.slice(2)
+    return base.filter((p) => String(p.takenAt ?? '').startsWith(v))
+  }
+  return base
 })
-// F-18: re-group after filtering rather than flatMap-ing `filtered` directly, so the flat
-// order the grid/lightbox/slideshow walk stays identical to the pre-filter month-grouped
-// order -- filtering narrows the set, it does not reorder it.
-const filteredMonths = computed(() => groupPhotosByMonth(filtered.value))
 
-function toggleOpenFilter(name: 'places'): void {
+// Vue2 :361-374's sorted computed -- items with no takenAt (unknown date) all sink to the
+// end, exempt from normal time-based sorting, regardless of sort direction.
+const sortedFiltered = computed(() => {
+  const arr = [...filtered.value]
+  arr.sort((a, b) => {
+    const ta = a.takenAt != null ? String(a.takenAt) : ''
+    const tb = b.takenAt != null ? String(b.takenAt) : ''
+    if (!ta && !tb) return 0
+    if (!ta) return 1
+    if (!tb) return -1
+    return sort.value === 'recent' ? tb.localeCompare(ta) : ta.localeCompare(tb)
+  })
+  return arr
+})
+
+// Vue2 :375-390's grouped computed -- groupFavoritesByMonthOrdered groups AFTER sorting and
+// preserves `sortedFiltered`'s own order (see that function's own header comment), so toggling
+// Sort re-orders the month groups themselves, not just each month's internal tile order.
+const filteredMonths = computed(() => groupFavoritesByMonthOrdered(sortedFiltered.value))
+
+function toggleOpenFilter(name: 'people' | 'places' | 'years'): void {
   openFilter.value = openFilter.value === name ? null : name
 }
-function selectPlace(place: string): void {
-  placeFilter.value = place
+function selectPerson(name: string): void {
+  filter.value = 'p:' + name
   openFilter.value = null
 }
-function clearPlaceFilter(): void {
-  placeFilter.value = ''
+function selectPlace(place: string): void {
+  filter.value = 'l:' + place
+  openFilter.value = null
+}
+function selectYear(year: string): void {
+  filter.value = 'y:' + year
+  openFilter.value = null
+}
+// Vue2's "All" chip and each dropdown's own "Clear filter" item all do the same
+// `filter = 'all'; openFilter = null` (:115/:134/:160/:186) -- unified into one function.
+function clearFilter(): void {
+  filter.value = 'all'
   openFilter.value = null
 }
 
@@ -116,21 +170,11 @@ function onFilterDocumentClick(e: MouseEvent): void {
 }
 onMounted(() => document.addEventListener('mousedown', onFilterDocumentClick))
 
-const filteredCount = computed(() =>
-  filteredMonths.value.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value)).length,
-)
-
 // Task 15A (SP7-P5, closing out two ledger items): the hero stats' three cards -- follows Vue2
-// PhotosFavoritesView.vue :369-385 (byPersonAll/byPlaceAll/byYearAll). The three pure functions
-// (peopleView.ts) already each implement Vue2's sort key (count desc / count desc / year
-// string desc), so this only does the slice -- Vue2's template slices byPerson/byPlace (which
-// are already sliced results from the computed) again in the v-for (:62/:70); the two slice
-// counts are the same, so it's a redundant double-trim. Here it's done once, and the render
-// result matches Vue2. byYear isn't sliced (Vue2 :378-385's byYear computed is itself the
-// untrimmed byYearAll).
-const byPerson = computed(() => topPersons(fav.favoritesList ?? []).slice(0, 4))
-const byPlace = computed(() => topPlaces(fav.favoritesList ?? []).slice(0, 3))
-const byYear = computed(() => byYearOf(fav.favoritesList ?? []))
+// PhotosFavoritesView.vue :369-385 (byPersonAll/byPlaceAll/byYearAll). Acceptance Fix-1 moved
+// byPerson/byPlace/byYear up next to byPersonAll/byPlaceAll/byYearAll above (the People/Places/
+// Years dropdowns' option sources) since Vue2 :426-428 defines them as slices/pass-throughs of
+// those same "All" computeds, not independent re-derivations -- kept as one source of truth.
 
 // Task 3 (Plan H): hero sub-line -- photoCount/videoCount have no server-side per-type
 // aggregate (only favoritesTotal, from favIds.size, is exact), so these stay derived from
@@ -281,9 +325,10 @@ async function onBatchDelete(ids: Array<string | number>) {
 }
 
 function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
-  // The paging set = the place- and tab-filtered favorites set (matches what's shown, and uses
-  // the same data source/predicate as the PhotosToolbar count below).
-  const list = filteredMonths.value.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
+  // Acceptance Fix-1: no more tab filter to also apply -- the paging set is just the
+  // person/place/year-filtered, sorted, grouped favorites (matches Vue2's own flatList,
+  // :404: `this.grouped.flatMap(g => g.photos)`).
+  const list = filteredMonths.value.flatMap((m) => m.photos)
   lb.openAt(photo, list, startMs)
 }
 
@@ -328,38 +373,32 @@ onMounted(() => {
   void fav.fetchTopFavorites()
 })
 
-// Task 4 (Plan H): pinned card click opens the lightbox against the SAME place/tab-filtered
-// paging set as the grid below (not just the 5-card strip) -- matches Vue2's own @click passing
-// the full grouped-by-month favorites list, not top5. Task 6: narrowed to filteredMonths so the
-// paging order matches the visible (possibly place-filtered) grid (F-18).
+// Task 4 (Plan H): pinned card click opens the lightbox against the SAME filtered paging set
+// as the grid below (not just the 5-card strip) -- matches Vue2's own @click passing the full
+// grouped-by-month favorites list, not top5.
 function onOpenPinned(photo: Photo): void {
-  const list = filteredMonths.value.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
+  const list = filteredMonths.value.flatMap((m) => m.photos)
   lb.openAt(photo, list, 0)
 }
 
 // Task 5 (Plan H): real slideshow (not the known-dead album-detail Slideshow stub) -- follows
-// Vue2 PhotosFavoritesView.vue:469-501. Task 6: slidePhotos is now narrowed by the same
-// place+tab-filtered set (filteredMonths) as the grid below, keeping its own fallback.
+// Vue2 PhotosFavoritesView.vue:469-501.
 const slideOpen = ref(false)
 const slideIdx = ref(0)
 const slidePlaying = ref(true)
 const slideInterval = ref(4000)
 let slideTimer: ReturnType<typeof setTimeout> | undefined
 
-// Review fix (Important 3): restores Vue2 :439's fallback --
-// `slidePhotos() { return this.sorted.length ? this.sorted : this.favorites }`. Without this,
-// opening the slideshow while the active tab has zero matches (e.g. "Videos" selected but every
-// favorite is a photo) would silently play an empty deck instead of falling back to the whole
-// (place-filtered) favorites set, same as Vue2.
-// Task 6: both `all` and the tab-filtered set are now sourced from filteredMonths (which is
-// itself narrowed by the place filter, per F-18) rather than the unfiltered fav.favoritesMonths
-// -- so the fallback shape (tab-filter, falling back to the wider set) is unchanged, but the
-// "wider set" it falls back to is the place-filtered one, keeping the slideshow in sync with
-// the visible grid/count chip.
+// Vue2 :439's slidePhotos: `return this.sorted.length ? this.sorted : this.favorites` -- the
+// filtered+sorted set when non-empty, else the FULL unfiltered/unsorted favorites list (not
+// filteredMonths flattened). Acceptance Fix-1: there is no more tab filter, so this branch is
+// reachable only if a person/place/year selection somehow yields zero photos -- which can't
+// happen in practice since the three dropdowns' own options are derived from the same
+// favorites list (byPersonAll/byPlaceAll/byYearAll), so any selectable value always matches at
+// least one photo. Kept anyway: it's Vue2's own defensive fallback, not dead weight added here.
 const slidePhotos = computed(() => {
-  const all = filteredMonths.value.flatMap((m) => m.photos)
-  const byTab = all.filter((p) => matchesTab(p, tab.value))
-  return byTab.length ? byTab : all
+  const s = sortedFiltered.value
+  return s.length ? s : (fav.favoritesList ?? [])
 })
 const slidePhoto = computed(() => slidePhotos.value[slideIdx.value] ?? null)
 
@@ -567,48 +606,128 @@ function onSlideKey(e: KeyboardEvent): void {
               </div>
             </div>
 
-            <!-- Task 6 (Plan H): place-filter dropdown -- Vue2 PhotosFavoritesView.vue:412-416's
-                 byPlaceAll (group the loaded page by exact `place` string, sort by count desc) +
-                 :353-360's filtered (exact string match against `l:<place>`). Global
-                 mousedown-to-close is wired via filterBarRef + onFilterDocumentClick (onMounted
-                 above). -->
-            <div class="fav-filter-wrap" ref="filterBarRef">
+            <!-- Acceptance Fix-1 (owner finding, Plans G+H): the filter row -- follows Vue2
+                 PhotosFavoritesView.vue :112-203 verbatim: an "All <count>" chip + THREE
+                 mutually-exclusive dropdowns (People / Places / Years, each disabled when its
+                 own option list is empty), a flex spacer, then a Sort Recent/Oldest segmented
+                 toggle. No media-type tab chips, no density switcher, no right-edge timeline
+                 scrubber -- Vue2 Favorites has none of the three (PhotosGrid's `show-scrubber`
+                 below is set to false to match). Global mousedown-to-close for whichever
+                 dropdown is open is wired via filterBarRef + onFilterDocumentClick (onMounted
+                 above), covering the whole row (Vue2 :113 `ref="filterBar"` sits on this same
+                 `.lib-filters` div, not on each dropdown individually). -->
+            <div class="lib-filters" ref="filterBarRef">
               <button
-                type="button" class="lib-chip" data-test="fav-filter-places-btn"
-                :data-active="!!placeFilter" :disabled="!byPlaceAll.length"
-                @click.stop="toggleOpenFilter('places')"
+                type="button" class="lib-chip" data-test="fav-filter-all-btn"
+                :data-active="filter === 'all'" @click="clearFilter"
               >
-                <PhotosIcon name="map" :size="11" />
-                {{ activePlaceLabel || t('photosFavFilterPlaces') }}
-                <span v-if="byPlaceAll.length" class="ct">{{ byPlaceAll.length }}</span>
-                <!-- Review fix: Vue2 :126/:152 trails the count badge with a small down-chevron
-                     (raw `<svg width="9" height="9" viewBox="0 0 12 12">` +
-                     `<path d="M3 4.5l3 3 3-3" stroke-width="1.5">`). PhotosIcon's existing
-                     `chevD` branch (`d="m6 9 6 6 6-6"` in a 24-viewBox) is the exact same
-                     chevron-down shape at 2x scale, so it's reused here rather than inlining a
-                     second one-off svg -- size/style transcribed from Vue2's inline svg. -->
-                <PhotosIcon name="chevD" :size="9" style="margin-left:2px;opacity:0.75" />
+                {{ t('photosFavFilterAll') }} <span class="ct">{{ fav.favoritesTotal }}</span>
               </button>
-              <transition name="fav-menu">
-                <div v-if="openFilter === 'places'" class="fav-filter-menu" @click.stop>
-                  <button v-if="placeFilter" type="button" class="fav-filter-item is-clear" @click="clearPlaceFilter">
-                    {{ t('photosFavFilterClear') }}
-                  </button>
-                  <button
-                    v-for="[place, count] in byPlaceAll" :key="place" type="button"
-                    class="fav-filter-item has-text-full-04" :data-active="placeFilter === place"
-                    @click="selectPlace(place)"
-                  >
-                    <span class="fav-filter-label">{{ place.split(',')[0] }}</span>
-                    <span class="ct">{{ count }}</span>
-                  </button>
-                </div>
-              </transition>
+
+              <!-- People dropdown -- Vue2 :119-143's byPersonAll (peopleView.ts's topPersons,
+                   count desc) + filtered's `p:<name>` branch (exact match against `p.faces`). -->
+              <div class="fav-filter-wrap">
+                <button
+                  type="button" class="lib-chip" data-test="fav-filter-people-btn"
+                  :data-active="filter.startsWith('p:')" :disabled="!byPersonAll.length"
+                  @click.stop="toggleOpenFilter('people')"
+                >
+                  <PhotosIcon name="person" :size="11" />
+                  {{ activePersonLabel || t('photosFavFilterPeople') }}
+                  <span v-if="byPersonAll.length" class="ct">{{ byPersonAll.length }}</span>
+                  <PhotosIcon name="chevD" :size="9" style="margin-left:2px;opacity:0.75" />
+                </button>
+                <transition name="fav-menu">
+                  <div v-if="openFilter === 'people'" class="fav-filter-menu" @click.stop>
+                    <button v-if="filter.startsWith('p:')" type="button" class="fav-filter-item is-clear" @click="clearFilter">
+                      {{ t('photosFavFilterClear') }}
+                    </button>
+                    <button
+                      v-for="[name, count] in byPersonAll" :key="'p-' + name" type="button"
+                      class="fav-filter-item has-text-full-04" :data-active="filter === ('p:' + name)"
+                      @click="selectPerson(name)"
+                    >
+                      <span class="fav-filter-label">{{ name }}</span>
+                      <span class="ct">{{ count }}</span>
+                    </button>
+                  </div>
+                </transition>
+              </div>
+
+              <!-- Places dropdown -- Vue2 :412-416's byPlaceAll (group the loaded page by exact
+                   `place` string, sort by count desc) + :353-360's filtered (exact string match
+                   against `l:<place>`). -->
+              <div class="fav-filter-wrap">
+                <button
+                  type="button" class="lib-chip" data-test="fav-filter-places-btn"
+                  :data-active="filter.startsWith('l:')" :disabled="!byPlaceAll.length"
+                  @click.stop="toggleOpenFilter('places')"
+                >
+                  <PhotosIcon name="map" :size="11" />
+                  {{ activePlaceLabel || t('photosFavFilterPlaces') }}
+                  <span v-if="byPlaceAll.length" class="ct">{{ byPlaceAll.length }}</span>
+                  <!-- Review fix (Task 6): Vue2 :126/:152 trails the count badge with a small
+                       down-chevron (raw `<svg width="9" height="9" viewBox="0 0 12 12">` +
+                       `<path d="M3 4.5l3 3 3-3" stroke-width="1.5">`). PhotosIcon's existing
+                       `chevD` branch (`d="m6 9 6 6 6-6"` in a 24-viewBox) is the exact same
+                       chevron-down shape at 2x scale, reused for all three dropdowns here
+                       (Vue2 :177's Years chevron is identical markup, :150's Places likewise). -->
+                  <PhotosIcon name="chevD" :size="9" style="margin-left:2px;opacity:0.75" />
+                </button>
+                <transition name="fav-menu">
+                  <div v-if="openFilter === 'places'" class="fav-filter-menu" @click.stop>
+                    <button v-if="filter.startsWith('l:')" type="button" class="fav-filter-item is-clear" @click="clearFilter">
+                      {{ t('photosFavFilterClear') }}
+                    </button>
+                    <button
+                      v-for="[place, count] in byPlaceAll" :key="'l-' + place" type="button"
+                      class="fav-filter-item has-text-full-04" :data-active="filter === ('l:' + place)"
+                      @click="selectPlace(place)"
+                    >
+                      <span class="fav-filter-label">{{ place.split(',')[0] }}</span>
+                      <span class="ct">{{ count }}</span>
+                    </button>
+                  </div>
+                </transition>
+              </div>
+
+              <!-- Years dropdown -- Vue2 :417-424's byYearAll (peopleView.ts's byYear, year
+                   string desc) + filtered's `y:<year>` branch (`takenAt` string-prefix match). -->
+              <div class="fav-filter-wrap">
+                <button
+                  type="button" class="lib-chip" data-test="fav-filter-years-btn"
+                  :data-active="filter.startsWith('y:')" :disabled="!byYear.length"
+                  @click.stop="toggleOpenFilter('years')"
+                >
+                  <PhotosIcon name="clock" :size="11" />
+                  {{ activeYearLabel || t('photosFavFilterYears') }}
+                  <span v-if="byYear.length" class="ct">{{ byYear.length }}</span>
+                  <PhotosIcon name="chevD" :size="9" style="margin-left:2px;opacity:0.75" />
+                </button>
+                <transition name="fav-menu">
+                  <div v-if="openFilter === 'years'" class="fav-filter-menu" @click.stop>
+                    <button v-if="filter.startsWith('y:')" type="button" class="fav-filter-item is-clear" @click="clearFilter">
+                      {{ t('photosFavFilterClear') }}
+                    </button>
+                    <button
+                      v-for="[year, count] in byYear" :key="'y-' + year" type="button"
+                      class="fav-filter-item has-text-full-04" :data-active="filter === ('y:' + year)"
+                      @click="selectYear(year)"
+                    >
+                      <span class="fav-filter-label">{{ year }}</span>
+                      <span class="ct">{{ count }}</span>
+                    </button>
+                  </div>
+                </transition>
+              </div>
+
+              <div style="flex:1"></div>
+              <div class="lib-sort">
+                <span class="lib-sort-label">{{ t('photosFavSort') }}</span>
+                <button type="button" data-test="fav-sort-recent" :data-active="sort === 'recent'" @click="sort = 'recent'">{{ t('photosFavSortRecent') }}</button>
+                <button type="button" data-test="fav-sort-oldest" :data-active="sort === 'oldest'" @click="sort = 'oldest'">{{ t('photosFavSortOldest') }}</button>
+              </div>
             </div>
-            <PhotosToolbar
-              :tab="tab" :density="density" :count="filteredCount"
-              @update:tab="tab = $event" @update:density="density = $event"
-            />
             <!-- Task 7 (D19, ported alongside Photos.vue's same move): the floating
                  selectbar mounts INSIDE the grid slot (already `position: relative`, see this
                  file's style block below) so its absolute top:50px anchors to the grid area, same
@@ -622,8 +741,13 @@ function onSlideKey(e: KeyboardEvent): void {
                 @add-to-album="openAlbumPicker([...selected])"
                 @ask-nimo="useAskNimo().openWith(t('photosGridAskNimoRecap', { count: selected.length }))"
               />
+              <!-- Acceptance Fix-1: Vue2 Favorites has no right-edge timeline scrubber at all
+                   (see PhotosGrid.vue's `showScrubber` prop comment) -- `tab="all"` is now a
+                   fixed literal, not a reactive ref, since there is no tab-filter UI left to
+                   drive it. -->
               <PhotosGrid
-                :months="filteredMonths" :tab="tab" :density="density" :selected="selected"
+                :months="filteredMonths" tab="all" :density="density" :selected="selected"
+                :show-scrubber="false"
                 @open="onOpenTile"
                 @toggle-select="toggleSelect"
               />

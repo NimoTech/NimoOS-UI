@@ -233,12 +233,15 @@ describe('PhotosFavorites.vue', () => {
     expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
   })
 
-  it('PhotosGrid emit open -> lightbox opens, paging set is the favorites filtered by tab (default tab=all, no filtering)', async () => {
+  // Acceptance Fix-1: renamed off "filtered by tab" -- there is no more media-type tab filter
+  // on this view (Vue2 Favorites never had one). Default filter='all' still shows every media
+  // type (photos + OCR + videos), unlike the timeline view's own default of 'photo'.
+  it('PhotosGrid emit open -> lightbox opens, paging set is every favorite (default filter=all, no narrowing)', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b', { mimeType: 'video/mp4' }), photo('c')])
     const w = await mountView()
 
     const tiles = w.findAll('.tile')
-    expect(tiles).toHaveLength(3) // Default tab='all', shows everything (unlike the timeline's default of 'photo')
+    expect(tiles).toHaveLength(3) // Default filter='all', shows everything (unlike the timeline's default of 'photo')
     await tiles[0].trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -378,20 +381,18 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('.selectbar').exists()).toBe(false)
   })
 
-  // Review Finding 2: PhotosToolbar's 3 density buttons previously weren't wired to
-  // :density/@update:density — they were dead controls. After wiring them up, verify that
-  // clicking actually passes density through to PhotosGrid (observed via .grid[data-density]).
-  it('switching the density button -> PhotosGrid\'s data-density follows along (previously a dead control)', async () => {
+  // Acceptance Fix-1 (owner finding, Plans G+H): the PhotosToolbar-driven density switcher
+  // (previously the "Review Finding 2" test right here) has been removed along with the whole
+  // media-type tab row -- Vue2 PhotosFavoritesView.vue has neither a density switcher nor tab
+  // chips at all (its own bespoke `.lib-grid` markup has no density concept). density stays
+  // fixed at 'comfortable' internally (PhotosGrid still needs some density value to size its
+  // column-count lookup), just with no UI control left to drive it.
+  it('renders the grid at a fixed comfortable density with no density switcher UI', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a')])
     const w = await mountView()
 
     expect(w.find('.grid').attributes('data-density')).toBe('comfortable')
-
-    const compactBtn = w.findAll('.density button')[0]
-    await compactBtn.trigger('click')
-    await w.vm.$nextTick()
-
-    expect(w.find('.grid').attributes('data-density')).toBe('compact')
+    expect(w.find('.density').exists()).toBe(false)
   })
 
   // Task 10 (SP7-P4 albums, closing out a P3 deferral): the favorites view's "save as
@@ -732,23 +733,19 @@ describe('PhotosFavorites.vue', () => {
       }
     })
 
-    // Review fix (Important 3): restores Vue2 :439's playlist fallback --
+    // Review fix (Important 3, pre-existing): restores Vue2 :439's playlist fallback --
     // `slidePhotos() { return this.sorted.length ? this.sorted : this.favorites }`.
-    it('falls back to the full favorites set (not an empty/no-op deck) when the active tab has zero matches', async () => {
-      svc.photos.listFavorites.mockResolvedValueOnce([
-        { id: 'a', mimeType: 'image/jpeg' }, { id: 'b', mimeType: 'image/jpeg' },
-      ])
-      const w = await mountView()
-      // Every favorite above is a photo -- switching to the Videos tab makes the tab-filtered
-      // set empty, but the slideshow must still play the full (unfiltered) favorites set.
-      const videoTab = w.findAll('.tab').find((b) => b.text() === zh.photosTabVideos)
-      await videoTab?.trigger('click')
-      await w.vm.$nextTick()
-
-      await w.find('[data-test="fav-slideshow-btn"]').trigger('click')
-      expect(w.find('.fav-slideshow').exists()).toBe(true)
-      expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 2')
-    })
+    // Acceptance Fix-1 note: this used to be exercised via the media-type tab filter (switch
+    // to "Videos" while every favorite is a photo -> tab-filtered set empties out, slideshow
+    // must still fall back to the full set). That tab filter no longer exists on this view
+    // (Vue2 Favorites never had one -- see the filter-row rewrite above). Under the new
+    // person/place/year filter model this fallback branch is structurally unreachable through
+    // the UI: every dropdown's own option list (byPersonAll/byPlaceAll/byYear) is derived from
+    // the very same favorites list `filtered` narrows, so any value a user can actually select
+    // is guaranteed to match at least one photo -- there is no way to pick a filter that empties
+    // the set out from under a non-empty favorites list. The fallback code itself is kept
+    // verbatim (it's Vue2's own defensive branch, harmless to keep even if unreachable here),
+    // just with no reachable regression test left to pin it down at this layer.
 
     it('not rendered on the empty-favorites branch (F-10, same gating as the save-album/export buttons); ArrowRight/ArrowLeft navigate, speed presets update the interval', async () => {
       svc.photos.listFavorites.mockResolvedValueOnce([])
@@ -807,9 +804,11 @@ describe('PhotosFavorites.vue', () => {
       await w.findAll('.fav-filter-item').find((b) => b.text().includes('Kyoto'))!.trigger('click')
       expect(w.find('[data-test="fav-filter-places-btn"]').text()).toContain('Kyoto')
 
-      // Grid narrows to just the Kyoto photo (PhotosToolbar's count chip + lightbox
-      // paging set + slideshow all read off the same filteredMonths).
-      expect(w.find('.muted-text').text()).toBe(zh.photosItemsCount.replace('{count}', '1'))
+      // Grid narrows to just the Kyoto photo (Acceptance Fix-1: PhotosToolbar's own
+      // `.muted-text` count chip is gone along with the rest of the toolbar -- the grid tile
+      // count and the per-month `.month-count` head both read off the same filteredMonths,
+      // asserted here via the tile count; lightbox paging set + slideshow both follow too).
+      expect(w.findAll('.tile')).toHaveLength(1)
       await w.find('[data-test="fav-slideshow-btn"]').trigger('click')
       expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 1')
       await w.find('.fav-slide-close').trigger('click')
@@ -840,6 +839,164 @@ describe('PhotosFavorites.vue', () => {
       const btn = w.find('[data-test="fav-filter-places-btn"]')
       expect(btn.attributes('disabled')).toBeDefined()
       expect(btn.find('.ct').exists()).toBe(false)
+    })
+  })
+
+  // Acceptance Fix-1 (owner finding, Plans G+H): People dropdown -- follows Vue2
+  // PhotosFavoritesView.vue's byPersonAll (:407-410, group by `p.faces` entries, count desc) +
+  // filtered (:353-360, exact match against `p:<name>` -- `(p.faces || []).includes(n)`).
+  describe('people filter dropdown (Acceptance Fix-1)', () => {
+    it('people filter dropdown narrows the grid and slideshow to the selected person', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        photo('1', { faces: ['Alice', 'Bob'] }),
+        photo('2', { faces: ['Bob'] }),
+      ])
+      const w = await mountView()
+      const btn = w.find('[data-test="fav-filter-people-btn"]')
+      expect(btn.find('.ct').text()).toBe('2') // 2 distinct people (Alice, Bob)
+
+      await btn.trigger('click')
+      expect(w.find('.fav-filter-menu').exists()).toBe(true)
+      await w.findAll('.fav-filter-item').find((b) => b.text().includes('Alice'))!.trigger('click')
+      expect(w.find('[data-test="fav-filter-people-btn"]').text()).toContain('Alice')
+      expect(w.findAll('.tile')).toHaveLength(1)
+
+      await w.find('[data-test="fav-filter-people-btn"]').trigger('click')
+      await w.find('.fav-filter-item.is-clear').trigger('click')
+      expect(w.find('[data-test="fav-filter-people-btn"]').text()).not.toContain('Alice')
+      expect(w.findAll('.tile')).toHaveLength(2)
+    })
+
+    it('disabled (no faces among the loaded favorites), count badge not rendered', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([photo('1')])
+      const w = await mountView()
+      const btn = w.find('[data-test="fav-filter-people-btn"]')
+      expect(btn.attributes('disabled')).toBeDefined()
+      expect(btn.find('.ct').exists()).toBe(false)
+    })
+  })
+
+  // Acceptance Fix-1: Years dropdown -- follows Vue2 byYearAll (:417-424, group by
+  // `takenAt.slice(0,4)`, sorted year string desc) + filtered's `y:<year>` branch (`takenAt`
+  // string-prefix match).
+  describe('years filter dropdown (Acceptance Fix-1)', () => {
+    it('years filter dropdown narrows the grid and slideshow to the selected year', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        photo('1', { takenAt: '2024-06-01T00:00:00Z' }),
+        photo('2', { takenAt: '2026-01-01T00:00:00Z' }),
+      ])
+      const w = await mountView()
+      const btn = w.find('[data-test="fav-filter-years-btn"]')
+      expect(btn.find('.ct').text()).toBe('2') // 2 distinct years
+
+      await btn.trigger('click')
+      expect(w.find('.fav-filter-menu').exists()).toBe(true)
+      await w.findAll('.fav-filter-item').find((b) => b.text().includes('2024'))!.trigger('click')
+      expect(w.find('[data-test="fav-filter-years-btn"]').text()).toContain('2024')
+      expect(w.findAll('.tile')).toHaveLength(1)
+    })
+
+    it('disabled (no takenAt among the loaded favorites), count badge not rendered', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([photo('1', { takenAt: null })])
+      const w = await mountView()
+      const btn = w.find('[data-test="fav-filter-years-btn"]')
+      expect(btn.attributes('disabled')).toBeDefined()
+      expect(btn.find('.ct').exists()).toBe(false)
+    })
+  })
+
+  // Acceptance Fix-1: the three dropdowns + the "All" chip together are a SINGLE
+  // mutually-exclusive filter, following Vue2's single `filter` string (:329) -- selecting a
+  // person clears any active place/year selection, not an independent facet stacked on top.
+  describe('"All" chip + mutual exclusivity (Acceptance Fix-1)', () => {
+    it('the "All" chip shows the exact favoritesTotal and clears whichever facet is active', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        photo('1', { placeName: 'Kyoto, Japan' }), photo('2'),
+      ])
+      svc.photos.listFavoriteIds.mockResolvedValueOnce(['1', '2'])
+      const w = await mountView()
+      expect(w.find('[data-test="fav-filter-all-btn"]').find('.ct').text()).toBe('2')
+      expect(w.find('[data-test="fav-filter-all-btn"]').attributes('data-active')).toBe('true')
+
+      await w.find('[data-test="fav-filter-places-btn"]').trigger('click')
+      await w.findAll('.fav-filter-item').find((b) => b.text().includes('Kyoto'))!.trigger('click')
+      expect(w.find('[data-test="fav-filter-all-btn"]').attributes('data-active')).toBe('false')
+      expect(w.findAll('.tile')).toHaveLength(1)
+
+      await w.find('[data-test="fav-filter-all-btn"]').trigger('click')
+      expect(w.find('[data-test="fav-filter-all-btn"]').attributes('data-active')).toBe('true')
+      expect(w.find('[data-test="fav-filter-places-btn"]').attributes('data-active')).toBe('false')
+      expect(w.findAll('.tile')).toHaveLength(2)
+    })
+
+    it('selecting a person clears an already-active place selection (single shared filter, not stacked facets)', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        photo('1', { placeName: 'Kyoto, Japan', faces: ['Alice'] }),
+        photo('2', { placeName: 'Osaka, Japan', faces: ['Bob'] }),
+      ])
+      const w = await mountView()
+
+      await w.find('[data-test="fav-filter-places-btn"]').trigger('click')
+      await w.findAll('.fav-filter-item').find((b) => b.text().includes('Kyoto'))!.trigger('click')
+      expect(w.find('[data-test="fav-filter-places-btn"]').attributes('data-active')).toBe('true')
+
+      await w.find('[data-test="fav-filter-people-btn"]').trigger('click')
+      await w.findAll('.fav-filter-item').find((b) => b.text().includes('Bob'))!.trigger('click')
+      expect(w.find('[data-test="fav-filter-people-btn"]').attributes('data-active')).toBe('true')
+      // The place selection is gone -- only one facet can be active at a time.
+      expect(w.find('[data-test="fav-filter-places-btn"]').attributes('data-active')).toBe('false')
+      expect(w.findAll('.tile')).toHaveLength(1) // Bob's photo (Osaka), not Kyoto's
+    })
+
+    it('only one dropdown menu is open at a time (opening People closes an already-open Places menu)', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        photo('1', { placeName: 'Kyoto, Japan', faces: ['Alice'] }),
+      ])
+      const w = await mountView()
+      await w.find('[data-test="fav-filter-places-btn"]').trigger('click')
+      expect(w.find('.fav-filter-menu').exists()).toBe(true)
+      await w.find('[data-test="fav-filter-people-btn"]').trigger('click')
+      expect(w.findAll('.fav-filter-menu')).toHaveLength(1) // the Places menu closed, People's opened
+    })
+  })
+
+  // Acceptance Fix-1: Sort Recent/Oldest -- follows Vue2 :361-374's sorted computed (items
+  // without takenAt sink to the end regardless of direction) + :375-390's grouped computed
+  // (group ORDER follows sorted's own order, not a re-sort by month key -- see
+  // groupFavoritesByMonthOrdered's header comment).
+  describe('sort Recent/Oldest toggle (Acceptance Fix-1)', () => {
+    it('defaults to Recent (newest month first); switching to Oldest re-orders the month groups themselves, not just each month\'s tiles', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        photo('old', { takenAt: '2024-01-15T00:00:00Z' }),
+        photo('new', { takenAt: '2026-06-15T00:00:00Z' }),
+      ])
+      const w = await mountView()
+
+      expect(w.find('[data-test="fav-sort-recent"]').attributes('data-active')).toBe('true')
+      let titles = w.findAll('.month-title').map((n) => n.text())
+      expect(titles[0]).toContain('2026')
+      expect(titles[1]).toContain('2024')
+
+      await w.find('[data-test="fav-sort-oldest"]').trigger('click')
+      expect(w.find('[data-test="fav-sort-oldest"]').attributes('data-active')).toBe('true')
+      expect(w.find('[data-test="fav-sort-recent"]').attributes('data-active')).toBe('false')
+      titles = w.findAll('.month-title').map((n) => n.text())
+      expect(titles[0]).toContain('2024')
+      expect(titles[1]).toContain('2026')
+    })
+
+    it('items with no takenAt always sink to the end, regardless of sort direction', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        photo('known', { takenAt: '2025-03-01T00:00:00Z' }),
+        photo('unknown', { takenAt: null }),
+      ])
+      const w = await mountView()
+      let titles = w.findAll('.month-title').map((n) => n.text())
+      expect(titles[titles.length - 1]).toBe(zh.photosUnknownDate)
+
+      await w.find('[data-test="fav-sort-oldest"]').trigger('click')
+      titles = w.findAll('.month-title').map((n) => n.text())
+      expect(titles[titles.length - 1]).toBe(zh.photosUnknownDate)
     })
   })
 

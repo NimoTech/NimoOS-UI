@@ -591,6 +591,17 @@ export default {
   // ── Task 6 (Plan H): place-filter dropdown — Vue2 PhotosFavoritesView.vue:412-416/353-360.
   photosFavFilterPlaces: 'Places',
   photosFavFilterClear: 'Clear filter',
+  // ── Acceptance Fix-1 (owner finding, Plans G+H): the "All" chip + People/Years dropdowns
+  // — Vue2 PhotosFavoritesView.vue :114-116 ($t('All')) / :125 ($t('People')) / :177
+  // ($t('Years')). en values verbatim from old zh_CN.json's own English source, matching
+  // the already-landed photosFavFilterPlaces above ($t('Places')).
+  photosFavFilterAll: 'All',
+  photosFavFilterPeople: 'People',
+  photosFavFilterYears: 'Years',
+  // Vue2 :198-202's Sort/Recent/Oldest segmented toggle — old zh_CN.json:2294/2250/2219.
+  photosFavSort: 'Sort',
+  photosFavSortRecent: 'Recent',
+  photosFavSortOldest: 'Oldest',
   // ── Final-review Minor 6 / 7: short copy on the hero ────────────────────────
   // M6: Vue2 :38/:41 uses short verbs in the Edit dropdown (`Rename` / `Merge into…`).
   // The original implementation reused photosPersonRename / photosPersonMergeInto, which

@@ -52,17 +52,25 @@ import PhotosIcon from './PhotosIcon.vue'
 // consumers (Photos.vue/PhotosFavorites.vue) both need selection state, so the hardcoded `.tile-checkbox`
 // render never had a "don't want it" case before. Add a `selectable` (default true) gate; the default
 // guarantees zero behavior change for the existing two consumers, so their call sites don't need updating one by one.
+// Acceptance Fix-1 (owner finding, Plans G+H): the Favorites view is the 4th consumer, and
+// unlike the previous three it has no right-edge timeline scrubber at all in Vue2 --
+// Vue2 PhotosFavoritesView.vue builds its own bespoke `.lib-*` grid markup, never mounting
+// this shared component in the first place, so there is no Vue2 scrubber to port for it.
+// A `showScrubber` (default true) gate keeps the other three consumers (Photos.vue,
+// PhotosPlaceAssets.vue) byte-identical while letting Favorites opt out.
 const props = withDefaults(defineProps<{
   months: Month[]
   tab?: string
   density?: string
   selected?: Array<string | number>
   selectable?: boolean
+  showScrubber?: boolean
 }>(), {
   tab: 'all',
   density: 'comfortable',
   selected: () => [],
   selectable: true,
+  showScrubber: true,
 })
 
 const emit = defineEmits<{
@@ -505,7 +513,7 @@ onBeforeUnmount(() => {
        element (photos.scss:307's two-column grid `1fr 66px`), not a New-UI-only
        wrapper. `.photos-wrap` and `.scrubber` are its two grid-column children,
        siblings, not the old flex-column + absolutely-positioned overlay. -->
-  <div class="content">
+  <div class="content" :data-no-scrubber="!showScrubber || undefined">
     <div ref="wrapRef" class="photos-wrap scroll" @scroll="onScroll">
       <div v-if="!anyContent" class="empty-state" data-test="empty-state">
         <div class="empty-state-title">{{ t('photosNoPhotos') }}</div>
@@ -606,7 +614,7 @@ onBeforeUnmount(() => {
       <div style="height:80px"></div>
     </div>
 
-    <div v-if="anyContent" ref="scrubberRef" class="scrubber">
+    <div v-if="anyContent && showScrubber" ref="scrubberRef" class="scrubber">
       <div class="scrubber-inner" :style="{ height: scrubberInnerHeight }">
         <div
           v-for="(tk, i) in scrubberTicks" :key="tk.key"
@@ -652,6 +660,14 @@ onBeforeUnmount(() => {
    slot itself is still a flex-item with a real used height, so `height:100%`
    resolves against it correctly. */
 .content { height: 100%; }
+
+/* Acceptance Fix-1: when the caller opts out of the scrubber (Favorites -- see the
+   `showScrubber` prop comment above), the parity `.content` grid's fixed
+   `1fr 66px` two-column track (photos.scss) would otherwise leave a permanent blank
+   66px gutter where the scrubber column used to sit. This override has no Vue2
+   counterpart to be byte-exact against (Vue2 never renders this shared component for
+   Favorites at all), so it lives here rather than in the parity scss file. */
+.content[data-no-scrubber] { grid-template-columns: 1fr; }
 
 /* The Vue2 contract (photos.scss:103 `.photos-root, .photos-root * { scrollbar-width:
    none; ... }` + :314 `.photos-wrap::-webkit-scrollbar { width: 0 }`) is already

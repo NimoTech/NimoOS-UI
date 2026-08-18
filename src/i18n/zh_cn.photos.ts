@@ -594,6 +594,15 @@ export default {
   // ── Task 6 (Plan H): place-filter dropdown -- Vue2 PhotosFavoritesView.vue:412-416/353-360. ──
   photosFavFilterPlaces: '地点',
   photosFavFilterClear: '清除筛选',
+  // ── Acceptance Fix-1(拍板发现，Plans G+H):"全部"筹码 + 人物/年份下拉 —— 值取自旧仓
+  // zh_CN.json:761/2226/2337。
+  photosFavFilterAll: '全部',
+  photosFavFilterPeople: '人物',
+  photosFavFilterYears: '年份',
+  // Vue2 :198-202 的 排序/最近/最早 分段切换 —— 旧仓 zh_CN.json:2294/2250/2219。
+  photosFavSort: '排序',
+  photosFavSortRecent: '最近',
+  photosFavSortOldest: '最早',
   // ── 终审 Minor 6 / 7:hero 上的短文案 ────────────────────────────────────────
   // M6:Vue2 :38/:41 的 Edit 下拉两项是**短动词**(`Rename` / `Merge into…`),原实现塞的是
   // photosPersonRename / photosPersonMergeInto —— 那两个键同时是弹窗 <h*> 标题(「重命名人物」/
