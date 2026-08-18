@@ -88,17 +88,18 @@ export default {
   photosFavHeroPhotosNoun: '张照片',
   photosFavHeroVideosNoun: '视频',
   photosFavHeroKeptForever: '永久保留',
-  // Task 4 (Plan H):置顶精选条(服务端排序 top5,GET /favorites/top)—— 对应 Vue2
-  // PhotosFavoritesView.vue:89-90。
+  // Task 4 (Plan H): pinned-highlights strip (server-ranked top 5, GET /favorites/top) --
+  // matches Vue2 PhotosFavoritesView.vue:89-90.
   photosFavPinnedTitle: '精选亮点',
   photosFavPinnedSub: '你最常收藏的瞬间 · Nimo 精选',
-  // Task 5 (Plan H):幻灯片播放 —— 对应 Vue2 PhotosFavoritesView.vue:18-19(入口按钮)/
-  // :237-273(播放层:关闭、上一张/下一张、暂停/播放、三档速度)。
+  // Task 5 (Plan H): slideshow playback -- matches Vue2 PhotosFavoritesView.vue:18-19 (entry
+  // button) / :237-273 (playback layer: close, prev/next, play/pause, three speed tiers).
   photosFavSlideshow: '幻灯片播放',
   photosFavSlideClose: '关闭 (Esc)',
   photosFavSlidePrev: '上一张 (←)',
   photosFavSlideNext: '下一张 (→)',
-  // 评审 Minor 4:补 Vue2 :256 播放/暂停按钮的 title(值取自 NimoOS-UI/src/assets/lang/zh_CN.json:2244)。
+  // Review Minor 4: adds Vue2 :256's play/pause button title (value taken from
+  // NimoOS-UI/src/assets/lang/zh_CN.json:2244).
   photosFavSlidePlayPause: '播放/暂停 (空格)',
   photosFavSlideSpeed: '速度',
   photosFavSlideFast: '快',
@@ -106,6 +107,14 @@ export default {
   photosFavSlideSlow: '慢',
   // ── 相册:最近删除视图 ──
   photosTrashTitle: '最近删除',
+  // Fix wave (post-final-review): topbar `sub` was previously left unbound, defaulting to the
+  // library-wide photo/video count string (wrong content for this view). Matches Vue2
+  // PhotosTimeline.vue:231 navMap.trash ('{count} items · auto-deletes in 30 days'), except
+  // {days} is dynamic here (ruled: reads the live retention setting instead of Vue2's
+  // hardcoded 30). zh wording reused verbatim from NimoOS-UI/src/assets/lang/zh_CN.json's
+  // existing translation of that exact Vue2 string ('{count} 项 · 30 天后自动删除'), just with
+  // {days} substituted in for the literal 30.
+  photosTrashSubtitle: '{count} 项 · {days} 天后自动删除',
   photosTrashEmptyTitle: '最近删除是空的',
   photosTrashEmptyHint: '已删除的照片和视频会在这里保留 {days} 天，之后从 NAS 永久移除。',
   photosTrashRestore: '恢复',
@@ -582,7 +591,7 @@ export default {
   photosFavStatInYear: '于 {year} 年',
   photosFavStatYearsTotal: '共 {n} 年',
   photosFavNoFaces: '暂无人脸',
-  // ── Task 6 (Plan H):地点筛选下拉 —— Vue2 PhotosFavoritesView.vue:412-416/353-360。
+  // ── Task 6 (Plan H): place-filter dropdown -- Vue2 PhotosFavoritesView.vue:412-416/353-360. ──
   photosFavFilterPlaces: '地点',
   photosFavFilterClear: '清除筛选',
   // ── 终审 Minor 6 / 7:hero 上的短文案 ────────────────────────────────────────
@@ -970,12 +979,13 @@ export default {
   // 本期不迁:主题开关(台账第二笔)· AI 入口(D1)· Sign out(D22)· 上传整块(D21)。
   // 自拟(Vue2 PhotosSettings.vue:18 内联 "Settings")
   photosSettingsTitle: '设置',
-  // Plan H Task 11 review fix:photosSettingsSubtitle(「存储 · AI 行为」,对应 Vue2
-  // PhotosSettings.vue:19 顶栏副标题)已恢复。终审 Minor 4 当初的删除理由现已不成立——那条
-  // 理由说 AreaShell.vue 只有 `title` 一个 prop,没有承载副标题的位置;但 Task 11 换壳已经
-  // 把 AreaShell 整体换成了 PhotosTopbar(它本来就有 `sub` prop,与其它所有已换壳的相册页
-  // 一致),这个前提不再成立,键位恢复,经 `:sub="t('photosSettingsSubtitle')"` 接回顶栏。
-  // 自拟(Vue2 PhotosSettings.vue:19 内联 "Storage · AI behavior")
+  // Plan H Task 11 review fix: photosSettingsSubtitle ('Storage · AI behavior', matching Vue2
+  // PhotosSettings.vue:19's topbar subtitle) is restored. The final-review Minor 4 deletion
+  // rationale no longer holds -- it argued AreaShell.vue's `title`-only prop had no slot for a
+  // subtitle, but Task 11's re-shell dropped AreaShell entirely in favor of PhotosTopbar (which
+  // DOES take a `sub` prop, same as every other re-shelled Photos view) -- that premise no
+  // longer applies, so the key is back and wired via `:sub="t('photosSettingsSubtitle')"`.
+  // Ad-hoc (Vue2 PhotosSettings.vue:19 inline "Storage · AI behavior")
   photosSettingsSubtitle: '存储 · AI 行为',
   // 自拟(Vue2 PhotosSettings.vue:31 内联英文长句)
   photosSettingsHeroDesc: 'Nimo 在你的 NAS 上做的一切 —— 什么在跑、跑在哪、占多少空间。',

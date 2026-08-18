@@ -14,11 +14,14 @@
 // 这道闸只锁源文本,防复发。读盘一律 node:fs —— `?raw` 在本仓测试环境恒空(历史坑:
 // color-guard 曾因此空转)。
 //
-// Plan H Task 11(Settings 换壳,本文件最后一次登记摘除)起,CAPPED/EXEMPT 两份名单均已清空
-// ——全相册区 13 页悉数换成 `.app` CSS Grid 壳,不再有任何一页还带字面量 `.photos-layout {`
-// 规则。本文件此后的实际把关职责落在下面两条「反向」目录扫描断言(`allPhotosLayoutViews()`
-// 遍历 src/views 自动发现)上:防止未来新增的相册页又把 min-height:100% 那条旧规则复制回来、
-// 以及确保新页面不会绕开本文件的登记。CAPPED/EXEMPT 名单本身留空即可,不需要为空数组找借口。
+// As of Plan H Task 11 (Settings re-shell, the last entry this file ever removed), both the
+// CAPPED and EXEMPT lists are empty -- all 13 Photos-area pages have been switched to the `.app`
+// CSS Grid shell, so none of them carry a literal `.photos-layout {` rule anymore. This file's
+// real gatekeeping duty now lives in the two "reverse" directory-scan assertions below
+// (`allPhotosLayoutViews()`, which auto-discovers pages by walking src/views): they guard
+// against a future new Photos page copy-pasting the old min-height:100% rule back in, and make
+// sure a new page can't bypass registration in this file. The CAPPED/EXEMPT lists themselves are
+// fine left empty -- no need to invent an excuse for the empty arrays.
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 

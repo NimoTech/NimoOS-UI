@@ -113,6 +113,11 @@ export default {
   photosFavSlideSlow: 'Slow',
   // ── Photos: Trash view ──
   photosTrashTitle: 'Recently Deleted',
+  // Fix wave (post-final-review): topbar `sub` was previously left unbound, defaulting to the
+  // library-wide photo/video count string. Matches Vue2 PhotosTimeline.vue:231 navMap.trash
+  // ('{count} items · auto-deletes in 30 days'), except {days} is dynamic here (ruled: reads
+  // the live retention setting instead of Vue2's hardcoded 30).
+  photosTrashSubtitle: '{count} items · auto-deletes in {days} days',
   photosTrashEmptyTitle: 'Trash is empty',
   photosTrashEmptyHint: 'Deleted items stay here for {days} days before being permanently removed.',
   photosTrashRestore: 'Restore',
@@ -954,7 +959,7 @@ export default {
   // had no slot for a subtitle, but Task 11's re-shell dropped AreaShell entirely in favor of
   // PhotosTopbar (which DOES take a `sub` prop, same as every other re-shelled Photos view) —
   // that premise no longer holds, so the key is back and wired via `:sub="t('photosSettingsSubtitle')"`.
-  // 自拟(Vue2 PhotosSettings.vue:19 内联 "Storage · AI behavior")
+  // Ad-hoc (Vue2 PhotosSettings.vue:19 inline "Storage · AI behavior")
   photosSettingsSubtitle: 'Storage · AI behavior',
   // 自拟(Vue2 PhotosSettings.vue:31 内联英文长句)
   photosSettingsHeroDesc: 'Everything Nimo does on your NAS — what runs, where it runs, and how much space it takes.',

@@ -308,8 +308,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
     <div class="app" :data-collapsed="collapsed">
       <PhotosSidebar :collapsed="collapsed" />
       <main class="main">
+        <!-- Fix wave (post-final-review): `sub` was left unbound before, so the topbar fell
+             back to its default library-wide photo/video count -- wrong for this view. Matches
+             Vue2 PhotosTimeline.vue:231 navMap.trash ('{count} items · auto-deletes in 30
+             days'), except {days} reads the live trash.retentionDays (fetched via
+             trash.fetchRetention() below) rather than Vue2's hardcoded 30 -- ruled. -->
         <PhotosTopbar
-          :collapsed="collapsed" :title="t('photosTrashTitle')" :show-search="false"
+          :collapsed="collapsed" :title="t('photosTrashTitle')"
+          :sub="t('photosTrashSubtitle', { count: trash.items.length, days: trash.retentionDays })"
+          :show-search="false"
           show-ask-nimo
           @toggle-collapse="onToggleCollapse"
           @ask-nimo="useAskNimo().openDrawer()"
@@ -368,18 +375,27 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               <button type="button" data-test="trash-bulk-cancel" @click="clearSelection"><PhotosIcon name="x" :size="11" /> {{ t('photosCancel') }}</button>
             </div>
 
-            <div class="trash-filters">
-              <button type="button" class="trash-chip" :data-active="filter === 'all'" @click="filter = 'all'">
+            <!-- Fix wave (post-final-review): renamed to parity's own `.lib-filters`/`.lib-chip`/
+                 `.lib-sort` anchors (photos.scss:1294-1327) -- this page's own bespoke
+                 `.trash-filters`/`.trash-chip`/`.trash-sort` rules are deleted below now that
+                 the template uses parity's exact selectors, same convention as the
+                 `.lib-hero`/`.lib-tile` classes above. `.trash-filters-spacer` stays page-local
+                 (Vue2 uses an inline `style="flex:1"` div here, not a class, so parity has
+                 nothing to rename it to). Leading chip icons restored per Vue2 :48/:51
+                 (album/video, size 11) -- the "All" chip has no leading icon in Vue2 either,
+                 left as-is. -->
+            <div class="lib-filters">
+              <button type="button" class="lib-chip" :data-active="filter === 'all'" @click="filter = 'all'">
                 {{ t('photosTabAll') }} <span class="ct">{{ trash.items.length }}</span>
               </button>
-              <button type="button" class="trash-chip" :data-active="filter === 'photo'" @click="filter = 'photo'">
-                {{ t('photosTabPhotos') }} <span class="ct">{{ photoCount }}</span>
+              <button type="button" class="lib-chip" :data-active="filter === 'photo'" @click="filter = 'photo'">
+                <PhotosIcon name="album" :size="11" /> {{ t('photosTabPhotos') }} <span class="ct">{{ photoCount }}</span>
               </button>
-              <button type="button" class="trash-chip" :data-active="filter === 'video'" @click="filter = 'video'">
-                {{ t('photosTabVideos') }} <span class="ct">{{ videoCount }}</span>
+              <button type="button" class="lib-chip" :data-active="filter === 'video'" @click="filter = 'video'">
+                <PhotosIcon name="video" :size="11" /> {{ t('photosTabVideos') }} <span class="ct">{{ videoCount }}</span>
               </button>
               <div class="trash-filters-spacer"></div>
-              <div class="trash-sort">
+              <div class="lib-sort">
                 <button type="button" :data-active="sort === 'daysleft'" @click="sort = 'daysleft'">
                   {{ t('photosTrashSortDaysLeft') }}
                 </button>
@@ -526,24 +542,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-modal-icon { color: var(--trash-confirm-fg); }
 .trash-modal[data-danger="true"] .trash-modal-icon { color: var(--trash-danger-fg); }
 
-/* ── Filters / sort (parity has no `.trash-filters`/`.trash-chip`/`.trash-sort` anchors --
-     out of this task's rewrite scope, kept as-is). Horizontal padding bumped from 4px to 32px
-     (review fix) to line up with `.lib-hero`/`.trash-bulk-bar`'s own 32px side inset (parity
-     photos.scss:1235/:1734) -- vertical padding (8px) is this page's own pre-existing rhythm,
-     untouched. ── */
-.trash-filters { display: flex; align-items: center; gap: 6px; padding: 8px 32px; flex-wrap: wrap; }
+/* ── Filters / sort: Fix wave (post-final-review) renamed the template to parity's own
+     `.lib-filters`/`.lib-chip`/`.lib-sort` anchors (photos.scss:1294-1327, which already carry
+     the 12px 32px padding + border-bottom this page's own bespoke copy below used to hand-roll
+     with a divergent 8px/32px value) -- this page's own `.trash-filters`/`.trash-chip`/
+     `.trash-sort` rules (including the 32px padding survivor from the earlier review fix) are
+     now fully superseded and deleted; parity governs. `.trash-filters-spacer` stays page-local
+     (Vue2 uses an inline `style="flex:1"` div here, not a class, so parity has nothing to
+     rename it to). ── */
 .trash-filters-spacer { flex: 1 1 auto; }
-.trash-chip {
-  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px;
-  border-radius: 999px; background: var(--chip-bg); border: 1px solid var(--chip-border);
-  color: var(--fg-muted); font: inherit; font-size: 11.5px; cursor: pointer;
-}
-.trash-chip:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.trash-chip[data-active="true"] { background: var(--accent-soft); border-color: var(--accent-soft-bd); color: var(--accent-text); }
-.trash-chip .ct { font-variant-numeric: tabular-nums; opacity: 0.75; font-size: 10.5px; }
-.trash-sort { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--chip-bg); }
-.trash-sort button { height: 22px; padding: 0 10px; border-radius: 999px; border: 0; background: transparent; color: var(--fg-muted); font: inherit; font-size: 11.5px; cursor: pointer; }
-.trash-sort button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
 
 /* Task 12 (SP15-P3): same secondary-button treatment as .fav-load-more in
    PhotosFavorites.vue — reuses .btn (parity's own bare-button class, this task's re-shell). */
@@ -567,8 +574,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
    (--accent). */
 .trash-bucket-dot[data-tone="urgent"] { background: var(--remove-fg); }
 .trash-bucket-dot[data-tone="warn"] { background: var(--dem-fg); }
-.trash-bucket-title { font-size: 13.5px; font-weight: 600; color: var(--fg); }
-.trash-bucket-sub { font-size: 11.5px; color: var(--fg-muted); }
+/* Fix wave (post-final-review): --fg/--fg-muted are global New-UI tokens (they resolve, but to
+   the wrong shade here) -- this page renders inside `.photos-root`'s photos-private scope,
+   which defines its own --text-1/--text-3 (photos.scss's `.photos-root`/`.photos-root.is-light`
+   blocks), the tokens the rest of this page's bucket-head siblings already use. Corrected to
+   match. */
+.trash-bucket-title { font-size: 13.5px; font-weight: 600; color: var(--text-1); }
+.trash-bucket-sub { font-size: 11.5px; color: var(--text-3); }
 
 .trash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; margin-top: 14px; }
 

@@ -144,6 +144,13 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <template v-else-if="name === 'upload'">
       <path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
     </template>
+    <!-- Fix wave (post-final-review): transcribed byte-identical from Vue2 PhotosIcon.vue's
+         'video' branch -- needed for PhotosTrashView.vue's filters row "Videos" chip leading
+         icon (:51), which the parity class rename (.trash-chip -> .lib-chip) this wave lands
+         restores alongside the pre-existing 'album' branch (the "Photos" chip's own icon). -->
+    <template v-else-if="name === 'video'">
+      <rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3z" />
+    </template>
     <template v-else>
       <g></g>
     </template>

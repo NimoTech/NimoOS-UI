@@ -97,14 +97,13 @@
   --accent-soft: rgba(138, 180, 255, 0.14);
   --accent-soft-2: rgba(138, 180, 255, 0.24);
   --accent-soft-bd: rgba(138, 180, 255, 0.36);
-  /* PlacesRail.vue (P6a-T5) selected-city row -- an exact port of Vue2
-     photos-places.scss:163-167's rgba(var(--accent-rgb), 0.18) (that view only ever had a
-     dark design; the numeric precision required calls for a dedicated token instead of
-     settling for one of --accent-soft's three tiers, following the existing precedent set by
-     --drop-bg/--spark-fill/--orb-glow). Plan H Task 15 (2026-08-17) removed the sibling
-     --place-row-bg/--place-row-border tokens that used to sit here (confirmed zero
-     consumers repo-wide). */
-  --place-thumb-active: rgba(138, 180, 255, 0.18);
+  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
+     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
+     removed --place-thumb-active itself for the same reason (re-verified zero consumers
+     repo-wide, both theme blocks) -- the comment this replaces described it as PlacesRail.vue's
+     selected-city row token, but that rule (`.rail-place.is-active:hover`, PlacesRail.vue's own
+     `<style scoped>`) actually blends `rgba(var(--accent-rgb), 0.10)` directly rather than
+     reading a dedicated token; --place-thumb-active was never wired to anything. */
   /* Review I3 (Plan E final-fix): the seven --pin-* geo-pin tokens that used to live here have
      moved to `src/photos/styles/vue2-parity/photos.scss`'s `.photos-root { }`/
      `.photos-root.is-light { }` blocks — see that file for the values and rationale. They were
@@ -529,12 +528,10 @@
   --accent-soft: rgba(59, 91, 219, 0.11);
   --accent-soft-2: rgba(59, 91, 219, 0.2);
   --accent-soft-bd: rgba(59, 91, 219, 0.3);
-  /* Vue2 only ever designed a dark version of this view, so there's no original to copy
-     for the light value -- derived using the accent family's dark->light convergence
-     convention (.14->.11, .24->.20, .36->.30, roughly x0.83): .18->.15. Plan H Task 15
-     (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens that used to
-     sit here (confirmed zero consumers repo-wide). */
-  --place-thumb-active: rgba(59, 91, 219, 0.15);
+  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
+     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
+     removed --place-thumb-active itself -- see the dark `:root` block's own comment for why
+     (it was never actually consumed; re-verified zero consumers repo-wide in both blocks). */
   /* Fix-5: the seven --pin-* geo-pin tokens that used to be redefined here (blue-family
      light-mode values) are removed — see the dark `.photos-root` block's own Fix-5 comment
      above for the full rationale. */

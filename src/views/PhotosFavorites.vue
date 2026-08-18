@@ -777,10 +777,15 @@ function onSlideKey(e: KeyboardEvent): void {
    value-divergent flex layout -- deleted so parity governs; .fav-stat-sub (the "in {year}"
    caption) has no parity counterpart (Vue2 uses an inline style, not a class) and stays, values
    aligned exactly to Vue2 PhotosFavoritesView.vue :77's inline style
-   (`font-size:11px;color:var(--text-3);font-weight:400`, --text-3 mapped to this repo's
-   equivalent --fg-muted token) -- review fix: dropped this file's own extra `margin-left: 4px`,
-   which Vue2's inline style does not have. */
-.fav-stat-sub { font-size: 11px; color: var(--fg-muted); font-weight: 400; }
+   (`font-size:11px;color:var(--text-3);font-weight:400`). Fix wave (post-final-review): the
+   old --fg-muted mapping rationale predates this view's Plan H re-shell into `.photos-root`'s
+   scope -- --fg-muted resolves fine (it's a real global New-UI token), but it's the wrong
+   shade for pixel parity: Vue2's inline style literally names --text-3, and photos.scss's
+   `.photos-root`/`.photos-root.is-light` blocks define a photos-private --text-3 with its own
+   distinct value, not merely an alias for the global --fg-muted. Corrected to the real token.
+   Review fix already dropped this file's own extra `margin-left: 4px`, which Vue2's inline
+   style does not have. */
+.fav-stat-sub { font-size: 11px; color: var(--text-3); font-weight: 400; }
 
 /* Save-as-album naming modal -- structure follows PhotosAlbums.vue's (T7) new-album modal
    (hard-won P2/P3 lesson: the background must use --popup-bg, not --card-bg -- in the dark

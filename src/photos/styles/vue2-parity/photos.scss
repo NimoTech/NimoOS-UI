@@ -1918,6 +1918,12 @@
   transform-origin: top right;
 }
 .fav-menu-enter, .fav-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+/* Fix wave (post-final-review): Vue2->Vue3 framework-difference shim, same precedent as
+   .fav-slide-enter-from (~:2148) / .nimo-fab-swap-enter-from (~:890) / .chat-drawer-enter-from
+   (~:2623). Vue3 renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept
+   its name in both versions, so it needs no shim -- already covered by the rule above). Without
+   this, the Favorites place-filter menu pops in with no animation at all. */
+.fav-menu-enter-from { opacity: 0; transform: translateY(-4px) scale(0.97); }
 
 /* Filter group dropdowns (People / Places / Years) */
 .fav-filter-wrap {

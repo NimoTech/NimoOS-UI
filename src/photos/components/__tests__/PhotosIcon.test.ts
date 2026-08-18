@@ -45,4 +45,12 @@ describe('PhotosIcon — Plan H additions', () => {
     const w = mount(PhotosIcon, { props: { name: 'upload' } })
     expect(w.find('path').attributes('d')).toBe('M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2')
   })
+
+  // Fix wave (post-final-review): PhotosTrashView.vue's filters row "Videos" chip (:51) needs
+  // this leading icon (Vue2 PhotosIcon.vue's 'video' branch).
+  it('renders a rect+path pair for name="video" (byte-identical to Vue2 PhotosIcon.vue)', () => {
+    const w = mount(PhotosIcon, { props: { name: 'video' } })
+    expect(w.find('rect').attributes()).toMatchObject({ x: '3', y: '6', width: '13', height: '12', rx: '2' })
+    expect(w.find('path').attributes('d')).toBe('m16 10 5-3v10l-5-3z')
+  })
 })

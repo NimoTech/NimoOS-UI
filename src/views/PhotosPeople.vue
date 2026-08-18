@@ -1018,6 +1018,13 @@ onUnmounted(() => {
 .people-hidden-head { cursor: pointer; }
 .people-hidden-title { display: flex; align-items: center; gap: 8px; }
 .people-hidden-count { color: var(--text-3); font-weight: 400; font-size: 13px; }
-.people-hidden-static { cursor: default; }
+/* Fix wave (post-final-review): hardened to a compound selector -- `.people-hidden-static`
+   alone is a single-class rule, the same specificity as parity's own `.face-card { cursor:
+   pointer; }` (photos-people.scss:109), so the two only avoided flip-flopping by import/injection
+   order rather than by an actual specificity win. `.face-card.people-hidden-static` (both
+   classes always co-occur on this element per the template above) ties the specificity in this
+   file's favor unconditionally, following the same defensive convention as PlacesRail.vue's own
+   hover-cascade-lock rules. */
+.face-card.people-hidden-static { cursor: default; }
 .people-unhide-btn { margin-top: 2px; }
 </style>

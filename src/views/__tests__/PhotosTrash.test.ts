@@ -125,6 +125,23 @@ describe('PhotosTrash.vue', () => {
     expect(w.findComponent({ name: 'AskNimoHost' }).exists()).toBe(true)
   })
 
+  // Fix wave (post-final-review): the topbar's `sub` used to be left unbound entirely, which
+  // falls back to PhotosTopbar's own default -- the library-wide photo/video count summary
+  // (photosCountSummary), not this view's trash item count. Asserts the real trash.items.length
+  // + trash.retentionDays render here instead (Vue2 PhotosTimeline.vue:231 navMap.trash shape).
+  it('topbar sub renders the trash item count + retention days, not the library-wide photo/video summary', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z'), asset('b', '2026-07-26T00:00:00Z')])
+    const w = await mountView()
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.props('sub')).toBe('2 项 · 30 天后自动删除')
+    const subEl = w.find('.topbar-sub')
+    expect(subEl.exists()).toBe(true)
+    expect(subEl.text()).toContain('2')
+    expect(subEl.text()).toContain('30')
+    // Must NOT be the library-wide "{photos} photos · {videos} videos" fallback shape.
+    expect(subEl.text()).not.toMatch(/张照片.*视频|photos.*videos/)
+  })
+
   it('loaded and empty -> renders the empty state, hero buttons disabled', async () => {
     const w = await mountView()
     const trash = usePhotosTrash()
