@@ -27,6 +27,14 @@ export default {
   photosNoPhotosHint: 'Photos will appear here once indexed',
   photosUnknownDate: 'Unknown Date',
   photosDeletedToast: '{count} item(s) moved to Recently Deleted',
+  // Owner-acceptance Fix-3: honest partial-failure toast for the "move to Recently Deleted"
+  // flow (PhotosFavorites.vue's onBatchDelete/onLightboxDelete) -- store.deleteAssets already
+  // returns the ACTUAL success count (per-id try/catch), this key surfaces it instead of
+  // silently reporting the click-time selection size as if every item succeeded. Zero-success
+  // reuses the existing photosTrashDeleteFailed "Delete failed" family rather than adding a
+  // near-duplicate key (see trash.ts's purge()/PhotosTrash.vue for the sibling permanent-delete
+  // flow, which follows the exact same three-way branch).
+  photosDeletedPartialToast: '{ok} item(s) moved to Recently Deleted, {fail} failed',
   photosIndexedToast: 'Indexed {n} photos',
   photosTaskCompletedToast: '{label} completed',
   photosDensityCompact: 'Compact',
@@ -151,6 +159,12 @@ export default {
   // ── Photos: Toast messages ──
   photosTrashRestoredToast: '{count} item(s) restored to Library',
   photosTrashPurgedToast: '{count} item(s) permanently deleted · {size} MB freed',
+  // Owner-acceptance Fix-3: trash.ts's purge() now reports the ACTUAL per-item success count
+  // (Promise.allSettled, not the old swallow-and-lie Promise.all) -- this key covers the
+  // 0 < success < total case. Freed-size is intentionally omitted here (same reasoning as
+  // photosTrashEmptiedToastPartial below: it was only ever a sum over the full requested
+  // selection, which overstates it once some of those items never actually got purged).
+  photosTrashPurgedPartialToast: 'Permanently deleted {ok} item(s), {fail} failed',
   photosTrashEmptiedToast: 'Trash emptied · {size} MB freed',
   // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
   // loaded subset — these size-less variants are used instead until trashExhausted.

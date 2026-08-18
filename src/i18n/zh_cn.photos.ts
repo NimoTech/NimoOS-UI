@@ -27,6 +27,14 @@ export default {
   photosNoPhotosHint: '照片入库后会出现在这里',
   photosUnknownDate: '未知日期',
   photosDeletedToast: '{count} 项已移入最近删除',
+  // Owner-acceptance Fix-3: honest partial-failure toast for the "move to Recently Deleted"
+  // flow (PhotosFavorites.vue's onBatchDelete/onLightboxDelete) -- store.deleteAssets already
+  // returns the ACTUAL success count (per-id try/catch), this key surfaces it instead of
+  // silently reporting the click-time selection size as if every item succeeded. Zero-success
+  // reuses the existing photosTrashDeleteFailed "Delete failed" family rather than adding a
+  // near-duplicate key (see trash.ts's purge()/PhotosTrash.vue for the sibling permanent-delete
+  // flow, which follows the exact same three-way branch).
+  photosDeletedPartialToast: '{ok} 项已移入最近删除，{fail} 项失败',
   photosIndexedToast: '已索引 {n} 张照片',
   photosTaskCompletedToast: '{label} 已完成',
   photosDensityCompact: '紧凑',
@@ -148,6 +156,12 @@ export default {
   // ── 相册:Toast ──
   photosTrashRestoredToast: '{count} 项已恢复到资料库',
   photosTrashPurgedToast: '{count} 项已永久删除 · 释放 {size} MB',
+  // Owner-acceptance Fix-3: trash.ts's purge() now reports the ACTUAL per-item success count
+  // (Promise.allSettled, not the old swallow-and-lie Promise.all) -- this key covers the
+  // 0 < success < total case. Freed-size is intentionally omitted here (same reasoning as
+  // photosTrashEmptiedToastPartial below: it was only ever a sum over the full requested
+  // selection, which overstates it once some of those items never actually got purged).
+  photosTrashPurgedPartialToast: '已永久删除 {ok} 项，{fail} 项失败',
   photosTrashEmptiedToast: '最近删除已清空 · 释放 {size} MB',
   // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
   // loaded subset — these size-less variants are used instead until trashExhausted.

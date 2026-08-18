@@ -278,6 +278,35 @@ describe('PhotosFavorites.vue', () => {
     expect(lb.open.value).toBe(false) // PhotoLightbox already closes itself inside doDelete
   })
 
+  // Owner-acceptance Fix-3 (delete-chain diagnosis): onLightboxDelete used to show the
+  // "1 item(s) moved to Recently Deleted" success toast unconditionally, even when
+  // store.deleteAssets reports that nothing actually got deleted (its per-id try/catch
+  // already returns the ACTUAL count -- the bug was in this view ignoring it).
+  it('PhotoLightbox delete failing entirely shows an error toast, not a fabricated success one', async () => {
+    svc.photos.listFavorites.mockResolvedValue([photo('a')])
+    const w = await mountView()
+    const store = useTimelineStore()
+    const fav = usePhotosFavorites()
+    vi.spyOn(store, 'deleteAssets').mockResolvedValue(0)
+    const fetchFavSpy = vi.spyOn(fav, 'fetchFavorites')
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(lb.open.value).toBe(true)
+
+    await w.find('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta-danger').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(showSpy).toHaveBeenCalledWith('删除失败', 4000)
+    expect(fetchFavSpy).toHaveBeenCalled() // still refreshes so the UI reflects server truth
+  })
+
   // Review Finding 1: PhotosGrid wired up :selected/@toggle-select but had no matching
   // selection toolbar — checking one box would switch the whole grid's click behavior into
   // a "keep selecting" branch with no exit. After adding PhotosSelectionToolbar (following
@@ -313,6 +342,52 @@ describe('PhotosFavorites.vue', () => {
     expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
     expect(fetchFavSpy).toHaveBeenCalled()
     expect(w.find('.selectbar').exists()).toBe(false) // selection cleared -> toolbar disappears
+  })
+
+  // Owner-acceptance Fix-3 (delete-chain diagnosis): the selection-toolbar batch delete used
+  // to quote the click-time selection size unconditionally in its success toast, regardless of
+  // how many of those ids store.deleteAssets actually reported as deleted -- the same
+  // swallow-and-lie shape flagged for PhotosTrash.vue's deleteSelected(). This covers the
+  // 0 < success < total case: 2 selected, only 1 actually deleted.
+  it('batch delete with a partial backend failure shows the honest "N of M failed" toast, not the full-count success one', async () => {
+    svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
+    const w = await mountView()
+    const store = useTimelineStore()
+    const fav = usePhotosFavorites()
+    vi.spyOn(store, 'deleteAssets').mockResolvedValue(1) // only 1 of the 2 requested actually succeeded
+    const fetchFavSpy = vi.spyOn(fav, 'fetchFavorites')
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await w.findAll('.tile-checkbox')[0]!.trigger('click')
+    await w.findAll('.tile-checkbox')[1]!.trigger('click')
+    await w.vm.$nextTick()
+
+    const bar = w.find('.selectbar')
+    expect(bar.exists()).toBe(true)
+    await bar.find('[data-test="selectbar-delete"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(showSpy).toHaveBeenCalledWith('1 项已移入最近删除，1 项失败', 4000)
+    expect(fetchFavSpy).toHaveBeenCalled() // refreshes so the UI reflects server truth
+  })
+
+  it('batch delete where every backend delete fails shows an error toast, not a fabricated success one', async () => {
+    svc.photos.listFavorites.mockResolvedValue([photo('a')])
+    const w = await mountView()
+    const store = useTimelineStore()
+    vi.spyOn(store, 'deleteAssets').mockResolvedValue(0)
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await w.find('.tile-checkbox').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="selectbar-delete"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(showSpy).toHaveBeenCalledWith('删除失败', 4000)
   })
 
   // Task 9: selection toolbar "add to album" -> picker (assetIds=selected) -> selecting an

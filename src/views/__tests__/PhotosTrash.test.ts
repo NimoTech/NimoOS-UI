@@ -262,6 +262,83 @@ describe('PhotosTrash.vue', () => {
     expect(purgeSpy).toHaveBeenCalledWith(['a'])
   })
 
+  // Owner-acceptance Fix-3 (delete-chain diagnosis): the toast used to unconditionally quote
+  // the click-time selection size, regardless of how many purgeTrash() calls actually
+  // succeeded -- trash.purge() now reports the real count and this view must show a distinct
+  // "N of M failed" toast for the partial case, not the exact-count success wording.
+  it('permanently deleting a selection with a partial backend failure shows the honest "N of M failed" toast, not the full-count success one', async () => {
+    svc.photos.listTrash.mockResolvedValue([
+      asset('a', '2026-06-30T00:00:00Z'),
+      asset('b', '2026-06-30T00:00:00Z'),
+    ])
+    svc.photos.purgeTrash
+      .mockImplementationOnce(() => Promise.resolve()) // 'a' succeeds
+      .mockImplementationOnce(() => Promise.reject(new Error('boom'))) // 'b' fails
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const w = await mountView()
+
+    const checks = w.findAll('.trash-tile-check')
+    await checks[0]!.trigger('click')
+    await checks[1]!.trigger('click')
+    await w.vm.$nextTick()
+
+    await w.find('[data-test="trash-bulk-delete"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const toastEl = w.find('.toast')
+    expect(toastEl.exists()).toBe(true)
+    expect(toastEl.text()).toBe('已永久删除 1 项，1 项失败')
+    spy.mockRestore()
+  })
+
+  it('permanently deleting a selection where every backend purge fails shows an error toast, not a fabricated success one', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    svc.photos.purgeTrash.mockRejectedValue(new Error('boom'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const w = await mountView()
+
+    await w.find('.trash-tile-check').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="trash-bulk-delete"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const toastEl = w.find('.toast')
+    expect(toastEl.exists()).toBe(true)
+    expect(toastEl.text()).toBe('删除失败')
+    spy.mockRestore()
+  })
+
+  // Owner-acceptance Fix-3: the lightbox's "delete" is remapped to permanent purge for
+  // already-trashed assets (onLightboxDelete) -- it used to show the success toast
+  // unconditionally, ignoring whether the backend purge actually succeeded.
+  it('lightbox permanent-delete shows an error toast (not the purged-success toast) when the backend purge actually fails', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    svc.photos.purgeTrash.mockRejectedValue(new Error('boom'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const w = await mountView()
+
+    await w.find('.trash-tile').trigger('click') // nothing selected yet -> opens the lightbox
+    await w.vm.$nextTick()
+    expect(lb.open.value).toBe(true)
+
+    await w.find('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta-danger').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const toastEl = w.find('.toast')
+    expect(toastEl.exists()).toBe(true)
+    expect(toastEl.text()).toBe('删除失败')
+    spy.mockRestore()
+  })
+
   it('canceling selection (bulk bar "Cancel") -> selected is cleared, bulk bar disappears', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()

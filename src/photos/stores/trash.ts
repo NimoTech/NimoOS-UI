@@ -138,15 +138,22 @@ export const usePhotosTrash = defineStore('photosTrash', () => {
     refreshTimelineAfterTrashChange()
   }
 
-  async function purge(ids: Array<string | number>): Promise<void> {
-    await Promise.all(
-      ids.map((id) =>
-        service.photos.purgeTrash(id).then(undefined, (e) => {
-          console.error('[photos-trash] purge', id, e)
-        }),
-      ),
-    )
+  // Owner-acceptance Fix-3 (delete-chain diagnosis): used to be a Promise.all with a
+  // swallow-and-lie per-item catch -- every call resolved regardless of how many purgeTrash()
+  // calls actually failed, so callers could only ever report the click-time selection size,
+  // not the truth. Promise.allSettled + counting fulfilled results gives callers the ACTUAL
+  // number of assets that were really purged, so the honest three-way toast (full / partial /
+  // zero success) in PhotosTrash.vue is possible at all. Per-item failures are still logged
+  // (not re-thrown) -- one bad id must not abort the rest of the batch.
+  async function purge(ids: Array<string | number>): Promise<number> {
+    const results = await Promise.allSettled(ids.map((id) => service.photos.purgeTrash(id)))
+    let successCount = 0
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') successCount++
+      else console.error('[photos-trash] purge', ids[i], result.reason)
+    })
     await fetchTrash()
+    return successCount
   }
 
   async function empty(): Promise<void> {

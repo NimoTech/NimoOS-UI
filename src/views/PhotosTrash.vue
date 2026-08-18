@@ -123,11 +123,20 @@ function onTileClick(p: TrashPhoto, e: MouseEvent): void {
 // Task 9: "delete" from inside the trash lightbox means permanent purge -- the asset is
 // already soft-deleted. add-to-album makes no product sense on a trashed asset either, so
 // both are deliberate no-ops, same convention as Photos.vue's unused @toggle-fav.
+//
+// Owner-acceptance Fix-3 (delete-chain diagnosis): trash.purge() now resolves to the ACTUAL
+// success count (see trash.ts), not a fire-and-forget void -- a single-item purge only has
+// two possible outcomes (1 or 0), so this checks that instead of unconditionally showing the
+// success toast regardless of whether the backend actually purged anything.
 async function onLightboxDelete(id: string | number): Promise<void> {
   const p = trash.items.find((x) => x.id === id)
   const size = p ? Number(p.sizeMb) || 0 : 0
-  await trash.purge([id])
-  toast.show(t('photosTrashPurgedToast', { count: 1, size: size.toFixed(1) }), 4500)
+  const successCount = await trash.purge([id])
+  if (successCount > 0) {
+    toast.show(t('photosTrashPurgedToast', { count: 1, size: size.toFixed(1) }), 4500)
+  } else {
+    toast.show(t('photosTrashDeleteFailed'), 4500)
+  }
 }
 
 function askConfirm(cfg: ConfirmState) { confirm.value = cfg }
@@ -207,9 +216,23 @@ function deleteSelected() {
     onConfirm: async () => {
       clearSelection()
       undoIds = null
+      // Owner-acceptance Fix-3 (delete-chain diagnosis): trash.purge() now resolves to the
+      // ACTUAL per-item success count (Promise.allSettled internally), not a fire-and-forget
+      // void that always "succeeded" regardless of how many purgeTrash() calls actually
+      // failed. The toast must reflect that honestly: full success keeps the existing exact
+      // wording, a partial result says so instead of quoting the original click-time count as
+      // if every item made it, and zero success is an error, not a success toast. purge()
+      // itself never rejects (its own errors are caught per-item), but the try/catch stays as
+      // a defensive fallback in case that ever changes.
       try {
-        await trash.purge(ids)
-        toast.show(t('photosTrashPurgedToast', { count, size }), 4500)
+        const successCount = await trash.purge(ids)
+        if (successCount === count) {
+          toast.show(t('photosTrashPurgedToast', { count, size }), 4500)
+        } else if (successCount > 0) {
+          toast.show(t('photosTrashPurgedPartialToast', { ok: successCount, fail: count - successCount }), 4500)
+        } else {
+          toast.show(t('photosTrashDeleteFailed'), 4500)
+        }
       } catch {
         toast.show(t('photosTrashDeleteFailed'), 4500)
       }

@@ -317,9 +317,22 @@ onUnmounted(() => {
 // out (Review Finding 1, filling this in to match the Photos.vue:59-66 batch-delete precedent
 // -- not a new feature surface, just giving the selected/toggle-select already wired to
 // PhotosGrid a UI with an exit).
+// Owner-acceptance Fix-3 (delete-chain diagnosis): store.deleteAssets already reports the
+// ACTUAL success count (per-id try/catch in timeline.ts), but this toast used to quote it
+// unconditionally as if `count === total` always held -- with 0 actually deleted it would
+// have shown "0 item(s) moved to Recently Deleted" as a plain success toast, the exact
+// swallow-and-lie shape the diagnosis flagged for the sibling Trash view. Same three-way
+// branch as PhotosTrash.vue's deleteSelected()/onLightboxDelete: full / partial / zero.
 async function onBatchDelete(ids: Array<string | number>) {
+  const total = ids.length
   const count = await store.deleteAssets(ids.map(String))
-  toast.show(t('photosDeletedToast', { count }), 4000)
+  if (count === total) {
+    toast.show(t('photosDeletedToast', { count }), 4000)
+  } else if (count > 0) {
+    toast.show(t('photosDeletedPartialToast', { ok: count, fail: total - count }), 4000)
+  } else {
+    toast.show(t('photosTrashDeleteFailed'), 4000)
+  }
   selected.value = []
   await fav.fetchFavorites()
 }
@@ -359,11 +372,19 @@ function onExport() {
   toast.show(t('photosFavExporting'), 4000)
 }
 
+// Owner-acceptance Fix-3 (delete-chain diagnosis): a single-item delete only has two possible
+// outcomes (1 or 0 actually deleted) -- this used to show the success toast unconditionally
+// regardless of what store.deleteAssets actually reported, same swallow-and-lie shape as
+// onBatchDelete above.
 async function onLightboxDelete(id: string | number) {
   // The lightbox already closes itself when the user confirms deletion (PhotoLightbox.vue
   // doDelete), so no need to close it again here.
-  await store.deleteAssets([String(id)])
-  toast.show(t('photosDeletedToast', { count: 1 }), 4000)
+  const count = await store.deleteAssets([String(id)])
+  if (count > 0) {
+    toast.show(t('photosDeletedToast', { count: 1 }), 4000)
+  } else {
+    toast.show(t('photosTrashDeleteFailed'), 4000)
+  }
   void fav.fetchFavorites()
 }
 
