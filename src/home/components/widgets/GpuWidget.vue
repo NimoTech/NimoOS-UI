@@ -9,6 +9,7 @@
     <div class="stat"><span>{{ t('widgetTemp') }}</span><b>{{ temp }}</b></div>
     <div class="stat"><span>{{ t('widgetVram') }}</span><b>{{ vram }}</b></div>
     <div class="stat"><span>{{ t('widgetVramUsage') }}</span><b>{{ memUse }}</b></div>
+    <div v-if="freq" class="stat"><span>{{ t('widgetFreq') }}</span><b>{{ freq }}</b></div>
   </div>
 </template>
 <script setup lang="ts">
@@ -22,11 +23,35 @@ defineProps<{ item: LayoutItem }>()
 const { t } = useI18n()
 const store = useLiveStatsStore()
 const g = computed<any>(() => store.gpu && store.gpu[0])
-const usage = computed(() => g.value && g.value.utilization_gpu != null ? Math.round(g.value.utilization_gpu) : null)
-const memUse = computed(() => g.value && g.value.utilization_memory != null ? Math.round(g.value.utilization_memory) + '%' : '—')
-const col = computed(() => heatColor(g.value && g.value.temperature))
-const vram = computed(() => g.value && g.value.memory_total != null ? fmtSize(g.value.memory_total) : '—')
-const temp = computed(() => g.value && g.value.temperature != null ? Math.round(g.value.temperature) + '℃' : '—')
+
+// An integrated GPU reports temperature 0 and memory_total 0 because the driver
+// exposes neither, not because it is cold and has no memory. Treat 0 in these
+// fields as "absent" so the row shows an em dash; freq_mhz is the one field
+// integrated graphics does fill in, so it earns a row of its own.
+const nz = (v: unknown): number | null => (typeof v === 'number' && v > 0 ? v : null)
+
+const usage = computed(() => {
+  const u = g.value && g.value.utilization_gpu
+  // One decimal, not a round(): an idling integrated GPU sits under 1%, and
+  // rounding turns its only live signal into a flat 0%.
+  return typeof u === 'number' ? Math.round(u * 10) / 10 : null
+})
+const tempC = computed(() => nz(g.value && g.value.temperature))
+const temp = computed(() => (tempC.value == null ? '—' : Math.round(tempC.value) + '℃'))
+const vramTotal = computed(() => nz(g.value && g.value.memory_total))
+const vram = computed(() => (vramTotal.value == null ? '—' : fmtSize(vramTotal.value)))
+const memUse = computed(() => {
+  const m = nz(g.value && g.value.utilization_memory)
+  return m == null ? '—' : Math.round(m) + '%'
+})
+const freq = computed(() => {
+  const f = nz(g.value && g.value.freq_mhz)
+  return f == null ? null : Math.round(f) + ' MHz'
+})
+// Pass the absent temperature through as null so heatColor takes its neutral
+// branch. A literal 0 lands in `t < 60` and paints a confident "cool green" from
+// a reading that does not exist (util/format.ts:25).
+const col = computed(() => heatColor(tempC.value))
 </script>
 <style scoped>
 /* base.css:142,147,156-158,186-192 — gpu widget (ring-row.solo + stats + pill-grid) */

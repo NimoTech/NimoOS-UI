@@ -298,6 +298,7 @@ export default {
   widgetVram: 'VRAM',
   widgetVramUsage: 'VRAM usage',
   widgetModel: 'Model',
+  widgetFreq: 'Frequency',
   widgetAiGreetShort: 'Good evening',
   widgetAiGreet: 'Good evening — how can I help?',
   widgetAiPlaceholder: 'Message the AI assistant…',

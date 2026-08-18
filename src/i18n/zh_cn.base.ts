@@ -298,6 +298,7 @@ export default {
   widgetVram: '显存',
   widgetVramUsage: '显存占用',
   widgetModel: '型号',
+  widgetFreq: '频率',
   widgetAiGreetShort: '晚上好',
   widgetAiGreet: '晚上好，有什么可以帮你？',
   widgetAiPlaceholder: '发消息给 AI 助手…',
