@@ -63,10 +63,14 @@ describe('ClockWidget', () => {
     // must leave the clock exactly as it was rather than render a placeholder.
     it('renders no badge when the host timezone is unavailable', async () => {
       getTimeZone.mockRejectedValue(new Error('404'))
+      // useHostTimezone warns on this path by design; asserted in its own test,
+      // stubbed here so the expected failure does not look like a real one.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const w = mount(ClockWidget, { props: { item: item(3, 2) } })
       await vi.waitFor(() => expect(getTimeZone).toHaveBeenCalled())
       expect(w.text()).not.toContain('UTC')
       expect(w.get('.wk').text()).toContain('星期')
+      warn.mockRestore()
     })
 
     it('leaves the 2x2 and 1x2 variants alone', async () => {

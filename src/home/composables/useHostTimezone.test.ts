@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // vi.hoisted, not a bare const: vi.mock is hoisted above top-level declarations,
 // so a plain `const getTimeZone = vi.fn()` would be read before initialization.
@@ -17,11 +17,18 @@ vi.mock('@nimotech/nimoos-service', () => ({
 
 import { useHostTimezone, __resetHostTimezoneForTest } from './useHostTimezone'
 
+// The failure path warns on purpose (a missing badge is also the correct look at
+// the clock's small sizes, so it must be possible to tell the two apart). Spied,
+// not silenced, so the tests below can assert it and the run stays quiet.
+let warn: ReturnType<typeof vi.spyOn>
+
 beforeEach(() => {
   __resetHostTimezoneForTest()
   getTimeZone.mockReset()
   uninitialized.value = false
+  warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
+afterEach(() => { warn.mockRestore() })
 
 describe('useHostTimezone', () => {
   it('exposes the fetched zone', async () => {
@@ -48,11 +55,23 @@ describe('useHostTimezone', () => {
     expect(zone.value).toBeNull()
   })
 
+  // Silent towards the user, not towards whoever is debugging: an absent badge is
+  // also the correct rendering at the clock's 2x2 and 1x2 sizes, so a broken route
+  // must leave some trace or the two look identical.
+  it('warns once when the reading cannot be had', async () => {
+    getTimeZone.mockRejectedValue(new Error('404'))
+    const { zone } = useHostTimezone()
+    await vi.waitFor(() => expect(zone.value).toBeNull())
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1))
+    expect(String(warn.mock.calls[0][0])).toContain('timezone')
+  })
+
   it('treats an empty reading as unavailable', async () => {
     getTimeZone.mockResolvedValue('')
     const { zone } = useHostTimezone()
     await vi.waitFor(() => expect(getTimeZone).toHaveBeenCalled())
     expect(zone.value).toBeNull()
+    expect(warn).not.toHaveBeenCalled() // an empty reading is an answer, not a failure
   })
 
   // Regression: WidgetCard.test.ts mounts ClockWidget without initService()

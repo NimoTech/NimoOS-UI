@@ -28,7 +28,15 @@ export function useHostTimezone() {
       // yet. Leaving the zone null hides the badge, which the spec prefers to
       // guessing from the browser -- and it also keeps inFlight settled, so a
       // synchronous throw doesn't leave every subsequent consumer retrying.
-      .catch(() => { zone.value = null })
+      //
+      // The silence towards the user is deliberate; the silence towards whoever
+      // is debugging is not. A missing badge has two innocent explanations -- the
+      // clock's 2x2 and 1x2 variants never render one -- and this one broken
+      // explanation, and nothing else distinguishes them.
+      .catch((err) => {
+        console.warn('[home] host timezone unavailable, clock offset badge hidden:', err)
+        zone.value = null
+      })
   }
   return { zone }
 }
