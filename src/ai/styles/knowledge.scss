@@ -1434,7 +1434,7 @@
   /* ---------- P5f-T2 · A (base :985-1141, "Allowlist page" main body) ----------
      🔴 **segment boundary only one number: `:985-1141`** (ruling R4 / errata E-69). Actual final
      content landing in this file is base `:1139`'s `}` (.k-priority-hint closure); `:1140` is blank,
-     `:1141` is `/* ---------- Settings page ---------- */` section header comment — **that line don't port**
+     `:1141` is the "Settings page" section header comment — **that line don't port**
      (porting would point here to non-existent Settings segment, misleading).
 
      🔴 **Why can't "port whole segment :985-1160 then delete dead classes"** (Appendix D §D.3.1):
