@@ -117,8 +117,8 @@ describe('SettingsRail', () => {
 
   it('折叠的组其导航项仍留在 DOM 里(窄屏 CSS 靠 display:flex!important 平铺,v-if 会让它失效)', () => {
     const w = mountRail({ activeId: 'models' })
-    // model 组展开、其余三组折叠;13 项应当全部渲染
-    expect(w.findAll('.set-nav-item')).toHaveLength(13)
+    // model 组展开、其余三组折叠;14 项应当全部渲染(agent web tools Task 9 新增 'web' 分区,13→14)
+    expect(w.findAll('.set-nav-item')).toHaveLength(14)
     const bodies = w.findAll('.set-nav-groupbody')
     expect(bodies).toHaveLength(4)
   })

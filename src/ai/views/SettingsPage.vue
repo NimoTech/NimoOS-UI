@@ -57,6 +57,7 @@ import ExecutionSection from '../components/settings/sections/ExecutionSection.v
 import SearchSection from '../components/settings/sections/SearchSection.vue'
 import MemorySection from '../components/settings/sections/MemorySection.vue'
 import ObservabilitySection from '../components/settings/sections/ObservabilitySection.vue'
+import WebSection from '../components/settings/sections/WebSection.vue'
 import SkillsSection from '../components/settings/sections/SkillsSection.vue'
 import McpSection from '../components/settings/sections/McpSection.vue'
 import McpTokensSection from '../components/settings/sections/McpTokensSection.vue'
@@ -104,6 +105,7 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
   search: SearchSection, // SP8-P2b Task 7 —— 已实现,收官接线
   memory: MemorySection, // SP8-P2b Task 6 —— 已实现,收官接线
   observability: ObservabilitySection, // SP8-P2b Task 8 —— 已实现,收官接线
+  web: WebSection, // agent web tools Task 9 —— 已实现,收官接线
   skills: SkillsSection, // SP8-P3a Task 7 —— 已实现,收官接线
   mcp: McpSection, // SP8-P4 Task 9 —— 已实现,收官接线(DEFERRED_SECTIONS 就此清空)
   mcptokens: McpTokensSection, // SP8-P2b Task 10 —— 已实现,收官接线

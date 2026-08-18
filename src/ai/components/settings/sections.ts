@@ -17,6 +17,7 @@
 export type SectionId =
   | 'models' | 'providers' | 'privacy' | 'thinking'
   | 'blacklist' | 'execution' | 'search' | 'memory' | 'observability'
+  | 'web'
   | 'skills' | 'mcp' | 'mcptokens' | 'channels'
 
 export interface SectionItem {
@@ -54,6 +55,7 @@ export const GROUPS: SectionGroup[] = [
       { id: 'search', icon: 'search', labelKey: 'aiCfgSearch' },
       { id: 'memory', icon: 'book', labelKey: 'aiCfgMemory' },
       { id: 'observability', icon: 'waves', labelKey: 'aiCfgObservability' },
+      { id: 'web', icon: 'globe', labelKey: 'aiCfgWebAccess' },
     ],
   },
   {

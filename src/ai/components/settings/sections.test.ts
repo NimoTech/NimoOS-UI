@@ -9,10 +9,11 @@ describe('sections 导航配置', () => {
     expect(GROUPS.map((g) => g.id)).toEqual(['model', 'agent', 'plugin', 'channel'])
   })
 
-  it('仍然覆盖全部 13 个分区', () => {
+  // Task 9 (agent web tools) 新增 'web' 分区 —— 13 → 14 个,列表与下方每处断言同步更新。
+  it('仍然覆盖全部 14 个分区', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
       'blacklist', 'channels', 'execution', 'mcp', 'mcptokens', 'memory',
-      'models', 'observability', 'privacy', 'providers', 'search', 'skills', 'thinking',
+      'models', 'observability', 'privacy', 'providers', 'search', 'skills', 'thinking', 'web',
     ])
   })
 
@@ -27,17 +28,17 @@ describe('sections 导航配置', () => {
     expect(GROUPS.find((g) => g.id === 'model')!.items.map((i) => i.id))
       .toEqual(['models', 'providers', 'privacy', 'thinking'])
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
-      .toEqual(['blacklist', 'execution', 'search', 'memory', 'observability'])
+      .toEqual(['blacklist', 'execution', 'search', 'memory', 'observability', 'web'])
     expect(GROUPS.find((g) => g.id === 'plugin')!.items.map((i) => i.id))
       .toEqual(['skills', 'mcp', 'mcptokens'])
     expect(GROUPS.find((g) => g.id === 'channel')!.items.map((i) => i.id))
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS 是四个组的扁平拼接,长度 13', () => {
-    expect(ALL_ITEMS).toHaveLength(13)
+  it('ALL_ITEMS 是四个组的扁平拼接,长度 14', () => {
+    expect(ALL_ITEMS).toHaveLength(14)
     expect(ALL_ITEMS[0].id).toBe('models')
-    expect(ALL_ITEMS[12].id).toBe('channels')
+    expect(ALL_ITEMS[13].id).toBe('channels')
   })
 
   it('groupOf 找到分区所属的组', () => {
@@ -72,5 +73,11 @@ describe('sections 导航配置', () => {
       expect(it.icon.length).toBeGreaterThan(0)
       expect(it.labelKey).toMatch(/^aiCfg/)
     }
+  })
+
+  // Task 9 (agent web tools) —— web_search/web_fetch 设置分区挂进 agent 组。
+  it('exposes the web section in the agent group', () => {
+    const agent = GROUPS.find((g) => g.id === 'agent')!
+    expect(agent.items.map((i) => i.id)).toContain('web')
   })
 })
