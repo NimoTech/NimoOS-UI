@@ -25,6 +25,27 @@
   --text-3: rgba(var(--ink), 0.42);
   --text-4: rgba(var(--ink), 0.26);
 
+  /* Acceptance Fix-4 follow-up (controller diagnosis, 2026-08-18): this is a real property
+     (not a custom-property token), deliberately set on the BARE `.photos-root` rule itself, not
+     just on `.photos-root .app` (which already had its own `color: var(--text-1)`, further down
+     this file). Root cause of the owner's light-theme "white/illegible modal text" screenshot:
+     `.app` is the only element inside `.photos-root` that ever declared a `color` -- every
+     OVERLAY that renders as a sibling of `.app` (not a descendant), e.g. `.fav-modal-scrim`/
+     `.trash-modal-scrim`/AlbumPickerDialog/the slideshow, has titles/bodies with no `color`
+     declaration of their own (see e.g. `.trash-modal-title`/`.fav-modal-title` below, both
+     colorless by design, meant to inherit `var(--text-1)`). With no color anywhere on
+     `.photos-root` itself, "inherit" for those siblings fell through past `.photos-root` to
+     `<body>`'s GLOBAL app-wide theme color -- in the owner's combo (Photos set to its OWN light
+     theme, while the global New-UI theme stays on its dark default), that resolves to
+     near-white, painted on top of these siblings' near-white `--surface-1` modal background:
+     the exact bug. `.app`'s own content was always immune (it has its own explicit color rule),
+     which is why this was invisible until an .app-SIBLING overlay was screenshotted in that
+     specific theme combo. Both `.photos-root`/`.photos-root.is-light` blocks already define
+     `--text-1`, so this one declaration on the shared base rule is correct in both themes and
+     makes the whole `.photos-root` subtree color-self-contained, matching `.app`'s own
+     already-correct behavior instead of leaking to the page's unrelated global theme. */
+  color: var(--text-1);
+
   --accent:      #6E5BFF;
   --accent-soft: rgba(110,91,255,0.18);
   --accent-glow: rgba(110,91,255,0.35);

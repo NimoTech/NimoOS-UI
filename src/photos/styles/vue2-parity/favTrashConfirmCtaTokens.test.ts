@@ -21,6 +21,20 @@
 //    with NO bare white/dark-theme-only literal found anywhere in either family. This suite pins
 //    that state down as a regression guard, so a future edit can't silently reintroduce a
 //    hardcoded literal on these selectors without failing a test.
+//
+// Follow-up (controller diagnosis, 2026-08-18): the "inherit .photos-root's own base color"
+// premise above was actually FALSE at the time this file was first written -- only
+// `.photos-root .app` declared a `color`, the bare `.photos-root` rule never did. Every overlay
+// that renders as a SIBLING of `.app` (not a descendant) -- `.fav-modal-scrim`/
+// `.trash-modal-scrim`/AlbumPickerDialog/the slideshow -- therefore inherited past `.photos-root`
+// to <body>'s GLOBAL app-wide theme color instead, which is white in the New-UI global-dark
+// default. In the owner's screenshot combo (Photos set to its own LIGHT theme, global New-UI
+// theme left on its dark default), that produced white titles on these overlays' near-white
+// `--surface-1` modal background -- exactly the reported bug, invisible to the grep-only sweep
+// above because no LITERAL was involved, only a missing declaration. Fixed by adding
+// `color: var(--text-1);` to the bare `.photos-root` rule itself (both theme blocks already
+// define `--text-1`, so one declaration covers both) -- see that rule's own comment in
+// photos.scss. The two tests below guard this directly.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 
@@ -142,4 +156,24 @@ describe('Fix-4: light-theme legibility sweep -- .fav-modal*/.trash-modal* text 
       expect(body).not.toMatch(/color:\s*(white|#fff|#000|black)\b/i)
     })
   }
+})
+
+describe('Fix-4 follow-up: .photos-root itself is color-self-contained (guards the inheritance-leak fix)', () => {
+  it('the bare .photos-root rule declares color: var(--text-1), not just .photos-root .app', () => {
+    // Header string is exactly ".photos-root {" (period, selector, space, brace) -- does not
+    // match ".photos-root.is-light {" (no space before the brace there) or ".photos-root .app {"
+    // (an extra " .app" before the brace), so this isolates the bare base rule only.
+    const body = ruleBody(PHOTOS_SCSS, '.photos-root {')
+    expect(body).toMatch(/[^-]color\s*:\s*var\(--text-1\)\s*;/)
+  })
+
+  it('.photos-root .app still declares its own color: var(--text-1) too (unchanged -- in-page content was never the bug)', () => {
+    const body = ruleBody(PHOTOS_SCSS, '.photos-root .app {')
+    expect(body).toMatch(/[^-]color\s*:\s*var\(--text-1\)\s*;/)
+  })
+
+  it('.photos-root.is-light still redefines --text-1 (the fix rides the existing per-theme token, no new one added)', () => {
+    const lightBlock = ruleBody(PHOTOS_SCSS, '.photos-root.is-light {')
+    expect(lightBlock).toMatch(/--text-1:\s*oklch\(/)
+  })
 })
