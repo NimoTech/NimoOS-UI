@@ -561,6 +561,8 @@ describe('createAi — user-settings / memory / observability / search 知识库
     await ai.deleteUserMemory(1)
     await ai.getMemorySettings()
     await ai.putMemorySettings({ enabled: true, compaction_enabled: false, context_window: 8000 })
+    await ai.getWebSettings()
+    await ai.putWebSettings({ backend: 'tavily', base_url: '', enabled: true, api_key: 'tvly-x' })
     await ai.getObservabilityCompose()
     await ai.getSearchSettings()
     await ai.putSearchSettings({ foo: 'bar' })
@@ -597,6 +599,8 @@ describe('createAi — user-settings / memory / observability / search 知识库
       'delete /ai/agent/user-memory/1',
       'get /ai/agent/user-memory/settings',
       'put /ai/agent/user-memory/settings',
+      'get /ai/agent/web-settings',
+      'put /ai/agent/web-settings',
       'get /ai/agent/observability/compose',
       'get /ai/search/settings',
       'put /ai/search/settings',
@@ -657,6 +661,36 @@ describe('createAi — user-settings / memory / observability / search 知识库
       context_window: 16000,
     })
     expect(calls[0].body).toEqual({ enabled: true, compaction_enabled: false, context_window: 16000 })
+  })
+
+  // agent web tools Task 9 —— putWebSettings 原样透传 payload,不做任何重塑;
+  // 关键在于「不传 api_key」时请求体里真的**没有这个 key**(而不是
+  // `api_key: undefined`),否则后端「不传=保留旧密钥」的语义就会被破坏。
+  it('putWebSettings 透传 payload,省略 api_key 时请求体里真的没有这个字段', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).putWebSettings({
+      backend: 'tavily',
+      base_url: '',
+      enabled: true,
+    })
+    expect(calls[0].body).toEqual({ backend: 'tavily', base_url: '', enabled: true })
+    expect('api_key' in (calls[0].body as object)).toBe(false)
+  })
+
+  it('putWebSettings 带 api_key 时原样透传', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).putWebSettings({
+      backend: 'searxng',
+      base_url: 'http://searx.lan:8080',
+      enabled: false,
+      api_key: 'tvly-abc',
+    })
+    expect(calls[0].body).toEqual({
+      backend: 'searxng',
+      base_url: 'http://searx.lan:8080',
+      enabled: false,
+      api_key: 'tvly-abc',
+    })
   })
 
   it('nimoosSearch body {name:"nimoos_search", arguments:{query, sources, top_k}},topK 默认 20', async () => {
