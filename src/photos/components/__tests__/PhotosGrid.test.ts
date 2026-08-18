@@ -138,6 +138,19 @@ describe('PhotosGrid', () => {
     expect(tiles[1].attributes('data-selected')).toBe('true')
   })
 
+  // Task 14 (a11y): `.tile-checkbox` is a plain div with a click handler, not a native
+  // <input type="checkbox"> (Task 6's deliberate parity choice, see the test above), so it
+  // needs explicit ARIA to be exposed as a checkbox to assistive tech at all.
+  it('tile-checkbox exposes role=checkbox and aria-checked matching selection state', async () => {
+    const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
+    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: ['b'] } })
+    const boxes = w.findAll('.tile-checkbox')
+    expect(boxes[0].attributes('role')).toBe('checkbox')
+    expect(boxes[0].attributes('aria-checked')).toBe('false')
+    expect(boxes[1].attributes('role')).toBe('checkbox')
+    expect(boxes[1].attributes('aria-checked')).toBe('true')
+  })
+
   // P6b-T9: `selectable` prop (deviation log 14) -- the place-photos page (D10) doesn't support
   // multi-select, so reusing this component there shouldn't show a checkbox. The default value
   // must stay true, or the two existing consumers Photos.vue/PhotosFavorites.vue (neither passes

@@ -553,7 +553,10 @@ onBeforeUnmount(() => {
                   :scrub-ratio="scrubRatio"
                 />
                 <div class="tile-overlay"></div>
-                <div v-if="selectable" class="tile-checkbox" @click.stop="toggleSelect(p.id)">
+                <div
+                  v-if="selectable" class="tile-checkbox" role="checkbox" :aria-checked="isSelected(p.id)"
+                  @click.stop="toggleSelect(p.id)"
+                >
                   <PhotosIcon name="check" :size="12" :stroke-width="2.4" />
                 </div>
                 <!-- Decorative only (no click handler) — Vue2 PhotosGrid.vue:65-67 hides this
