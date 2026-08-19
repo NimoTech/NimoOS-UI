@@ -64,7 +64,7 @@ const freq = computed(() => {
 const col = computed(() => heatColor(tempC.value))
 </script>
 <style scoped>
-/* base.css:142,147,156-158,186-192 — gpu widget (ring-row.solo + stats + pill-grid) */
+/* base.css:142,147,156-158,186-192 — gpu widget (ring-row.solo + stats) */
 .ring-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px; flex: 1; }
 .ring-row.solo { grid-template-columns: 1fr; place-items: center; }
 .stats { display: grid; gap: 2px; }

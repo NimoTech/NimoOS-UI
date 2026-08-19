@@ -362,7 +362,7 @@ describe('HomeDock', () => {
     expect(spawnPlace.mock.calls[0].slice(1)).toEqual([1, 1])
   })
 
-  it('does nothing when released outside the grid', async () => {
+  it('does not place a copy when released outside the grid', async () => {
     spawnPlace.mockClear()
     await dragOnto(100, 560) // still down by the dock, nowhere near the grid
     expect(spawnPlace).not.toHaveBeenCalled()

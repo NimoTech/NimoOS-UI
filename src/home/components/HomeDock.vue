@@ -272,9 +272,9 @@ function onDragEnd(e: PointerEvent) {
 
   // Released over the desktop: add a copy there and leave the dock alone.
   // spawnPlace displaces whatever it overlaps, refuses an app already on the
-  // desktop, and raises the toast for each outcome. Released anywhere that is
-  // neither the grid nor the dock, nothing happens at all -- falling through to a
-  // reorder or to pinToFree would act on a gesture the user aborted.
+  // desktop, and raises the toast for each outcome. gridCellAt is the only gate
+  // on this branch, so it takes over solely when the pointer is over the grid;
+  // a release anywhere else falls through to the reorder below.
   const cell = gridCellAt(e.clientX, e.clientY)
   if (cell) {
     addPanel.spawnPlace({ kind: 'app', key: drag.key, w: 1, h: 1 }, cell.tc, cell.tr)
@@ -286,6 +286,12 @@ function onDragEnd(e: PointerEvent) {
 
   // Determine drop target: which zone and which beforeKey. Same snapshot the last
   // preview used, so the icon lands exactly where its offset preview showed it going.
+  // resolveDrop/dropTargetIn decide purely from clientX -- clientY never enters
+  // it -- so a release above the dock but off the grid still reorders here;
+  // there is no Y-bounded "void" region where a release does nothing. That is
+  // deliberate: a void bucket is new behaviour and a call for the repo owner,
+  // not something this reflow work took on, and it would break the existing
+  // clientY: 0 release test below, which this batch was required to preserve.
   const { toZone, beforeKey } = resolveDrop(e.clientX)
 
   // Suppress the reflow transition for the commit frame. dock.reorder() below and
@@ -477,9 +483,17 @@ function reserveStyle(zone: 'fav' | 'more'): Record<string, string> | undefined 
 function shiftStyle(zone: 'fav' | 'more', key: string): Record<string, string> | undefined {
   if (!drag.active) return undefined
   const keys = zoneKeys(zone)
-  const insertAt = drag.toZone !== zone
-    ? null
-    : drag.beforeKey == null ? keys.length : Math.max(0, keys.indexOf(drag.beforeKey))
+  let insertAt: number | null = null
+  if (drag.toZone === zone) {
+    if (drag.beforeKey == null) insertAt = keys.length
+    else {
+      // beforeKey not found in this zone cannot happen today, but should it, insert
+      // at the end rather than silently falling to the front -- matches
+      // dock.reorder's own `idx < 0 ? length : idx` convention for the same case.
+      const i = keys.indexOf(drag.beforeKey)
+      insertAt = i < 0 ? keys.length : i
+    }
+  }
   const shift = slotShifts(keys, holeFor(zone), insertAt).find((s) => s.key === key)
   if (!shift) return undefined
   return { transform: `translateX(${shift.slots * pitchFor(zone)}px)` }
@@ -508,7 +522,9 @@ defineExpose({ root })
 .dock.expanded .dock-more { max-width: 82vw; opacity: 1; overflow: visible; pointer-events: auto; }
 .dock-sep { width: 1px; align-self: stretch; margin: 4px 10px; background: var(--dock-border); }
 .dock-toggle { margin-left: 10px; }
-/* Drag ghost — mapped from prototype .dock-ph (dashed placeholder) */
+/* Drag ghost — named for the prototype's own element, `.dock-ph` (a dashed
+   placeholder); that class exists only in the prototype, not anywhere in this
+   file. */
 .dock-ghost {
   position: absolute; pointer-events: none; z-index: 100; opacity: .85;
   align-self: flex-end;
