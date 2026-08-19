@@ -14,6 +14,7 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import { useTimelineStore, __resetBucketProbeForTest } from '../timeline'
+import { tabCountOf } from '../../util/timelineBuckets'
 
 const GROUP_A = { year: 2026, month: 7, assets: [{ id: 'a1', mimeType: 'image/jpeg', originalName: 'a1.jpg' }] }
 const GROUP_B = {
@@ -907,6 +908,44 @@ describe('photos-timeline deleteAssets (bucket patching)', () => {
     expect(svc.photos.getTimeline).not.toHaveBeenCalled()
     expect(svc.photos.getTimelineBuckets).not.toHaveBeenCalled()
     expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
+  })
+
+  // Final-review finding 1 (Important): removeAssetsFromBuckets tracked
+  // {total, videos} per key but never counted OCR/document deletions, so a
+  // surviving bucket's ocrCount was never decremented. Consequence: delete
+  // every document out of a mixed month and the bucket keeps claiming the same
+  // ocrCount forever — on the 'ocr' tab, tabCountOf/hasContent still sees a
+  // positive estimate for a month that (after the delete) has zero matching
+  // assets, reintroducing the exact ghost-month-group/ghost-scrubber-tick bug
+  // this whole branch exists to eliminate, this time via the delete path
+  // instead of the directory-refresh path.
+  it('decrements ocrCount too, so a fully-deleted OCR month stops showing ocr-tab content', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 10, videoCount: 0, ocrCount: 5 }])
+    await s.fetchTimeline()
+    const photoIds = ['p1', 'p2', 'p3', 'p4', 'p5']
+    const docIds = ['d1', 'd2', 'd3', 'd4', 'd5']
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([
+      ...photoIds.map((id) => ({ id, mimeType: 'image/jpeg' })),
+      ...docIds.map((id) => ({ id, mimeType: 'application/pdf', hasOcr: true })),
+    ])
+    await s.fetchBucket('2026-08')
+    svc.photos.deleteAsset.mockResolvedValue(undefined)
+
+    expect(await s.deleteAssets(docIds)).toBe(5)
+    const month = s.months.find((m) => m.key === '2026-08')
+    expect(month).toBeDefined()
+    // The 5 surviving photos are still there and untouched.
+    expect(month?.photos.map((p) => p.id).sort()).toEqual(photoIds)
+    expect(month?.count).toBe(5)
+    expect(month?.videoCount).toBe(0)
+    // The fix: ocrCount must drop to 0, not stay at 5.
+    expect(month?.ocrCount).toBe(0)
+    // Store-level equivalent of "no longer counts as having ocr-tab content":
+    // tabCountOf must estimate 0 for the ocr tab now that every document is gone.
+    expect(tabCountOf({ count: month!.count!, videoCount: month!.videoCount!, ocrCount: month!.ocrCount! }, 'ocr')).toBe(0)
+    // Photo-tab math must stay right too: count - videoCount - ocrCount = 5.
+    expect(tabCountOf({ count: month!.count!, videoCount: month!.videoCount!, ocrCount: month!.ocrCount! }, 'photo')).toBe(5)
   })
 
   it('decrements by what actually got deleted, not by what was asked for', async () => {

@@ -78,9 +78,11 @@ async function mountView() {
 const ALICE = { id: 42, name: 'Alice', favorite: true, relation: 'family', count: 120, confidence: 0.99, lastSeen: '2026-07-20T00:00:00Z', firstSeen: '2020-01-01T00:00:00Z' }
 const CAROL = { id: 3, name: 'Carol', favorite: false, relation: 'family', count: 50, confidence: 0.98, lastSeen: '2026-07-10T00:00:00Z', firstSeen: '2021-01-01T00:00:00Z' }
 const BOB = { id: 'b7', name: 'Bob', favorite: false, relation: 'friend', count: 90, confidence: 0.97, lastSeen: '2026-06-01T00:00:00Z', firstSeen: '2019-01-01T00:00:00Z' }
-// Unnamed (empty-string name). Under the defaults confidence=80 / showSingletons=false:
-// u1+u2 are visible, u3 (0.95 but only 1 photo) is the one hidden by the singleton toggle,
-// u4 (0.72) is below the threshold.
+// Unnamed (empty-string name). Visibility is distribution-based now, not a confidence gate:
+// u1, u2, and u4 are all multi-photo clusters (count>1), so they render regardless of
+// confidence — with only 3 multi-photo clusters in this fixture, well under
+// splitUnnamedByDistribution's MIN_SHOW=12, none of them ever get folded either. u3
+// (0.95 but only 1 photo) is the one hidden, by the singleton toggle.
 const U1 = { id: 'u1', name: '', favorite: false, relation: '', count: 9, confidence: 0.87 }
 const U2 = { id: 'u2', name: '', favorite: false, relation: '', count: 5, confidence: 0.93 }
 const U3 = { id: 'u3', name: '', favorite: false, relation: '', count: 1, confidence: 0.95 }

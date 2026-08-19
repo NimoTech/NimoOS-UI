@@ -483,19 +483,27 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     if (!bucketMode.value || ids.length === 0) return
     const doomed = new Set(ids.map(String))
     const map = new Map(bucketAssets.value)
-    const removedPerKey = new Map<string, { total: number; videos: number }>()
+    // Final-review finding 1: `ocrs` tracks OCR/document deletions alongside
+    // `videos`, so the surviving-bucket branch below can decrement ocrCount the
+    // same way it already decrements videoCount. Without it, deleting every
+    // document out of a mixed month left ocrCount claiming assets that no
+    // longer exist — tabCountOf/hasContent would keep seeing positive 'ocr'-tab
+    // content forever, reintroducing the ghost-month bug this file eliminates.
+    const removedPerKey = new Map<string, { total: number; videos: number; ocrs: number }>()
     for (const [key, photos] of map) {
       let total = 0
       let videos = 0
+      let ocrs = 0
       const kept = photos.filter((p) => {
         if (!doomed.has(String(p.id))) return true
         total++
         if (p.isVideo) videos++
+        if (p.hasOcr) ocrs++
         return false
       })
       if (total === 0) continue
       map.set(key, kept)
-      removedPerKey.set(key, { total, videos })
+      removedPerKey.set(key, { total, videos, ocrs })
     }
     if (removedPerKey.size === 0) return
     // A bucket decremented all the way to 0 is dropped outright rather than
@@ -526,8 +534,9 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       if (!hit) { nextBuckets.push(b); continue }
       const count = Math.max(0, b.count - hit.total)
       const videoCount = Math.max(0, b.videoCount - hit.videos)
+      const ocrCount = Math.max(0, b.ocrCount - hit.ocrs)
       if (count > 0) {
-        nextBuckets.push({ ...b, count, videoCount })
+        nextBuckets.push({ ...b, count, videoCount, ocrCount })
       } else {
         map.delete(key)
       }
