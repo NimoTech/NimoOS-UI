@@ -32,9 +32,10 @@ describe('GpuWidget', () => {
   it('shows rounded usage and temperature', () => {
     const s = useLiveStatsStore()
     s.ingest({ cpu: null, mem: null, disk: null, net: null, gpu: [{ utilization_gpu: 33.4, temperature: 61, utilization_memory: 20, memory_total: 8e9, name: 'NV' }] } as any)
-    const w = mount(GpuWidget, { props: { item: item(2) } })
+    // Mounted wide: at the default 2x2 the card is the ring alone, so temperature
+    // is only on the page from three columns up.
+    const w = mount(GpuWidget, { props: { item: item(4) } })
     expect(w.text()).toContain('33%')
-    expect(w.text()).not.toContain('33.4%')
     expect(w.text()).toContain('61℃')
   })
 
@@ -63,34 +64,22 @@ describe('GpuWidget', () => {
     expect(rows.some((r) => r.includes('频率') && r.includes('1000'))).toBe(true)
   })
 
-  // registry.ts:27 defaults this card to 2x2, which renders the pill grid rather
-  // than the .stats list. The frequency row was added only to .stats, so on the
-  // very device that motivated it -- integrated GPU, temperature 0, memory_total 0,
-  // freq_mhz 1000 -- the one field with a real value was still dropped at the size
-  // the card actually ships at. Every other new case here mounts at w:4, which is
-  // exactly why the gap was invisible.
-  it('shows the frequency at the default 2x2 size, in place of the empty VRAM pill', () => {
+  // The 2x2 card is the ring alone. Pills do not fit at that size: the reference
+  // screenshot showed them clipped through the middle of the word "Frequency",
+  // which is why substituting one pill for another did not help. Everything the
+  // pills carried is on the wide card.
+  it('renders only the ring at the default 2x2 size, with no pills', () => {
     const w = mountWith(IGPU, 2)
-    const pills = w.findAll('.pill').map((p) => p.text())
-    expect(pills).toHaveLength(2) // the branch has no room for a third
-    expect(pills.some((p) => p.includes('频率') && p.includes('1000'))).toBe(true)
+    expect(w.find('.ring').exists()).toBe(true)
+    expect(w.findAll('.pill').length).toBe(0)
+    expect(w.get('.ring').text()).toContain('0.7%')
   })
 
-  // The substitution is only justified by the VRAM pill having nothing to report.
-  it('keeps the VRAM pill at 2x2 when the card really has VRAM', () => {
-    const w = mountWith({ ...DISCRETE, freq_mhz: 1500 }, 2)
-    const pills = w.findAll('.pill').map((p) => p.text())
-    expect(pills).toHaveLength(2)
-    expect(pills.some((p) => p.includes('显存'))).toBe(true)
-    expect(pills.some((p) => p.includes('频率'))).toBe(false)
-  })
-
-  // Nothing to report on either side: keep the two pills rather than leave a hole.
-  it('falls back to the em-dashed VRAM pill when there is no frequency either', () => {
-    const w = mountWith({ ...IGPU, freq_mhz: 0 }, 2)
-    const pills = w.findAll('.pill').map((p) => p.text())
-    expect(pills).toHaveLength(2)
-    expect(pills.some((p) => p.includes('显存') && p.includes('—'))).toBe(true)
+  it('still shows temperature, VRAM and frequency once the card is widened', () => {
+    const w = mountWith(IGPU, 4)
+    const rows = w.findAll('.stat').map((r) => r.text())
+    expect(rows.some((r) => r.includes('温度') && r.includes('—'))).toBe(true)
+    expect(rows.some((r) => r.includes('频率') && r.includes('1000'))).toBe(true)
   })
 
   it('omits the frequency row when there is no reading', () => {

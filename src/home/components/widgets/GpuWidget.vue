@@ -1,15 +1,10 @@
 <template>
   <div class="ring-row solo"><RingGauge :percent="usage" :label="t('widgetUsage')" :color="col" /></div>
-  <!-- Two pills, never three: this is the card's default 2x2 size (registry.ts:27)
-       and there is no room for another. A card with no VRAM has nothing to put in
-       the second pill, and its frequency is the one field integrated graphics does
-       fill in, so the frequency takes that slot rather than an em dash. -->
-  <div v-if="item.w <= 2" class="pill-grid">
-    <div class="pill"><s>{{ t('widgetTemp') }}</s><b>{{ temp }}</b></div>
-    <div v-if="vramTotal == null && freq" class="pill"><s>{{ t('widgetFreq') }}</s><b>{{ freq }}</b></div>
-    <div v-else class="pill"><s>{{ t('widgetVram') }}</s><b>{{ memUse }}</b></div>
-  </div>
-  <div v-else class="stats">
+  <!-- At 2x2 — the card's default size (registry.ts:27) — the ring is the whole
+       card. Pills were tried there and do not fit: they render clipped through the
+       middle of their own labels. Temperature, VRAM and frequency are on the wide
+       card below. -->
+  <div v-if="item.w > 2" class="stats">
     <div class="stat"><span>{{ t('widgetModel') }}</span><b>{{ g && g.name ? g.name : '—' }}</b></div>
     <div class="stat"><span>{{ t('widgetTemp') }}</span><b>{{ temp }}</b></div>
     <div class="stat"><span>{{ t('widgetVram') }}</span><b>{{ vram }}</b></div>
@@ -75,10 +70,4 @@ const col = computed(() => heatColor(tempC.value))
 .stats { display: grid; gap: 2px; }
 .stat { display: flex; justify-content: space-between; gap: 12px; font-size: clamp(11px, 5cqmin, 14px); color: var(--fg-muted); padding: 4px 0; }
 .stat b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); }
-.pill-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.card-in > .pill-grid { flex: 1; grid-auto-rows: 1fr; }
-.card-in > .pill-grid .pill { display: flex; flex-direction: column; justify-content: center; }
-.pill { padding: 9px 11px; border: 1px solid var(--inner-border); border-radius: var(--radius-sm); background: var(--inner-bg); }
-.pill s { text-decoration: none; display: block; font-size: clamp(9px, 4.5cqmin, 12px); color: var(--fg-faint); }
-.pill b { display: block; margin-top: 4px; font-size: clamp(12px, 6cqmin, 16px); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--num-font, inherit); color: var(--num-color, var(--fg)); }
 </style>
