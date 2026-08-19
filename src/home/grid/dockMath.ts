@@ -74,3 +74,27 @@ export function dropTarget(
 export function dropTargetIn(clientX: number, geom: DockGeometry): DropDecision {
   return dropTarget(clientX, geom.sepMidX, geom.favSlots, geom.moreSlots)
 }
+
+export interface DockShift { key: string; slots: -1 | 0 | 1 }
+
+/**
+ * How far each icon in one dock zone must move so a gap opens at `insertAt`.
+ *
+ * While a drag is live each zone has `keys.length + 1` slots and exactly one of
+ * them is empty: the dragged icon's own former index in the zone it came from, or
+ * an appended spare in the other zone. A hole at the end is the same thing as an
+ * appended spare, which is why one formula serves both zones — and why the zones
+ * can reflow independently, with nothing ever pushed across the divider.
+ *
+ * `insertAt` of null means the pointer is in the other zone: the hole stays where
+ * it is and nothing moves. The result is a shift in whole slots, never more than
+ * one, which the caller turns into pixels using the measured slot pitch.
+ */
+export function slotShifts(keys: string[], holeIndex: number, insertAt: number | null): DockShift[] {
+  return keys.map((key, j) => {
+    if (insertAt == null) return { key, slots: 0 as const }
+    const to = j < insertAt ? j : j + 1
+    const from = j < holeIndex ? j : j + 1
+    return { key, slots: (to - from) as -1 | 0 | 1 }
+  })
+}

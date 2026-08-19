@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dropTarget, dropTargetIn, type DockGeometry, type DockSlot, type DropDecision } from './dockMath'
+import { dropTarget, dropTargetIn, slotShifts, type DockGeometry, type DockSlot, type DropDecision } from './dockMath'
 
 // The dock's fisheye magnification, switched off at the owner's request and kept
 // rather than deleted so it can be restored. Its only caller was HomeDock's
@@ -146,5 +146,55 @@ describe('dropTargetIn (placeholder feedback)', () => {
 
   it('reads the same numbers dropTarget would from the same geometry', () => {
     expect(dropTargetIn(610, BASE)).toEqual(dropTarget(610, BASE.sepMidX, BASE.favSlots, BASE.moreSlots))
+  })
+})
+
+// Each zone has keys.length + 1 slots while a drag is live: the dragged icon's own
+// slot in the zone it came from, or an appended spare in the other zone. Moving the
+// hole from holeIndex to insertAt is what opens a gap under the pointer.
+describe('slotShifts', () => {
+  const keys = ['a', 'b', 'c', 'd']
+  const shifts = (hole: number, at: number | null) =>
+    slotShifts(keys, hole, at).map((s) => s.slots)
+
+  it('shifts nothing when the hole is already at the insertion point', () => {
+    expect(shifts(2, 2)).toEqual([0, 0, 0, 0])
+  })
+
+  it('shifts nothing when the pointer is in the other zone', () => {
+    expect(shifts(0, null)).toEqual([0, 0, 0, 0])
+  })
+
+  // Hole at the front, inserting further back: the icons in between close up
+  // leftwards behind the pointer.
+  it('pulls icons back when the hole moves forward', () => {
+    expect(shifts(0, 3)).toEqual([-1, -1, -1, 0])
+  })
+
+  // Hole at the end (an appended spare), inserting near the front: everything from
+  // the insertion point onward slides forward into the spare.
+  it('pushes icons forward when the hole moves back', () => {
+    expect(shifts(4, 1)).toEqual([0, 1, 1, 1])
+  })
+
+  it('handles the two ends as ordinary insertion points', () => {
+    expect(shifts(4, 0)).toEqual([1, 1, 1, 1])
+    expect(shifts(0, 4)).toEqual([-1, -1, -1, -1])
+  })
+
+  it('never reports a shift outside -1..1', () => {
+    for (let hole = 0; hole <= keys.length; hole++) {
+      for (let at = 0; at <= keys.length; at++) {
+        for (const s of shifts(hole, at)) expect(Math.abs(s)).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it('keeps every key, in order', () => {
+    expect(slotShifts(keys, 1, 3).map((s) => s.key)).toEqual(keys)
+  })
+
+  it('returns nothing for an empty zone', () => {
+    expect(slotShifts([], 0, 0)).toEqual([])
   })
 })
