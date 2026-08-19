@@ -965,4 +965,54 @@ describe('photos-timeline deleteAssets (bucket patching)', () => {
     expect(s.months.map((m) => m.key)).toEqual(['2026-07'])
     expect(s.months.find((m) => m.key === '2026-08')).toBeUndefined()
   })
+
+  // Fix round 1 (Important, reviewer-reproduced regression from the drop-empty-
+  // bucket change above): dropping the bucket from `buckets` is not enough on
+  // its own — `bucketAssets` must lose the key too, or the month becomes
+  // unrecoverable if it reappears. Without the fix:
+  //  - staleBucketKeys/applyDirectory only re-checks keys still present in
+  //    bucketAssets (loadedKeys), so a key that survives there with a stale `[]`
+  //    keeps being treated as "loaded, and unchanged" once the directory reports
+  //    the month again with a real count — nothing flags it stale;
+  //  - fetchBucket short-circuits on `bucketAssets.value.has(key)`, which stays
+  //    true forever for a `[]` entry.
+  // The month comes back as `{ loaded: true, count: 3, photos: [] }` — a
+  // container claiming 3 items with zero tiles, unrecoverable until a full page
+  // reload. This test mirrors that exact repro shape: delete a month's only
+  // asset, then have the directory report the same month reappearing with
+  // count>0, and require the month to come back genuinely unloaded and
+  // fetchable again.
+  it('lets a fully-deleted month reload cleanly if it reappears in a later directory refresh', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 1, videoCount: 0 }])
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([{ id: 'a1', mimeType: 'image/jpeg' }])
+    await s.fetchBucket('2026-08')
+    svc.photos.deleteAsset.mockResolvedValue(undefined)
+    expect(await s.deleteAssets(['a1'])).toBe(1)
+    // Bucket is gone (asserted by the test above too), and so must its cached
+    // assets entry be — this is the part the fix adds.
+    expect(s.months.find((m) => m.key === '2026-08')).toBeUndefined()
+    expect(s.bucketAssets.has('2026-08')).toBe(false)
+
+    // The month reappears: a restore, or a new asset landed in August.
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 3, videoCount: 0 }])
+    await s.refreshBuckets()
+    const reborn = s.months.find((m) => m.key === '2026-08')
+    expect(reborn).toBeDefined()
+    expect(reborn?.count).toBe(3)
+    // Must be genuinely unloaded — not the "claims 3 items, photos: []" husk.
+    expect(reborn?.loaded).toBe(false)
+    expect(reborn?.photos).toEqual([])
+
+    // fetchBucket must not short-circuit on a stale cache entry.
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([
+      { id: 'b1', mimeType: 'image/jpeg' }, { id: 'b2', mimeType: 'image/jpeg' }, { id: 'b3', mimeType: 'image/jpeg' },
+    ])
+    await s.fetchBucket('2026-08')
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalled()
+    const loaded = s.months.find((m) => m.key === '2026-08')
+    expect(loaded?.loaded).toBe(true)
+    expect(loaded?.photos.map((p) => p.id)).toEqual(['b1', 'b2', 'b3'])
+  })
 })

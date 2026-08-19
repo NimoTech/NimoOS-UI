@@ -498,22 +498,42 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       removedPerKey.set(key, { total, videos })
     }
     if (removedPerKey.size === 0) return
-    bucketAssets.value = map
     // A bucket decremented all the way to 0 is dropped outright rather than
     // kept as an empty row: `months` is derived straight from `buckets`, so a
     // count:0 entry would render an empty-but-present month forever — there is
     // nothing left to load and nothing that would ever bring it back.
-    buckets.value = buckets.value
-      .map((b) => {
-        const hit = removedPerKey.get(bucketKey(b))
-        if (!hit) return b
-        return {
-          ...b,
-          count: Math.max(0, b.count - hit.total),
-          videoCount: Math.max(0, b.videoCount - hit.videos),
-        }
-      })
-      .filter((b) => b.count > 0)
+    //
+    // Fix round 1 (Important, reviewer-reproduced regression): dropping the
+    // bucket from `buckets` is not enough by itself — its `bucketAssets` entry
+    // (set to `[]` a few lines up) must be deleted too, not just left behind.
+    // If the month later reappears in the directory (a restore, or a fresh
+    // asset lands in it), two things independently rely on the key being gone:
+    //  - applyDirectory only re-checks staleness for keys still present in
+    //    bucketAssets (its `loadedKeys` param); a surviving `[]` entry looks
+    //    "loaded and, per staleBucketKeys, unchanged" once the reborn directory
+    //    entry is diffed against nothing (the bucket already left `buckets`, so
+    //    prevByKey has no entry to compare against — see staleBucketKeys);
+    //  - fetchBucket short-circuits on `bucketAssets.value.has(key)`, which
+    //    would stay true forever for that stale `[]`.
+    // Left unfixed, the month comes back as `{ loaded: true, count: 3, photos: []
+    // }` — a container claiming items with zero tiles, unrecoverable until a
+    // full page reload. Deleting the key makes bucketToMonth see `null` again,
+    // i.e. genuinely unloaded, exactly as if this month had never been fetched.
+    const nextBuckets: BucketMeta[] = []
+    for (const b of buckets.value) {
+      const key = bucketKey(b)
+      const hit = removedPerKey.get(key)
+      if (!hit) { nextBuckets.push(b); continue }
+      const count = Math.max(0, b.count - hit.total)
+      const videoCount = Math.max(0, b.videoCount - hit.videos)
+      if (count > 0) {
+        nextBuckets.push({ ...b, count, videoCount })
+      } else {
+        map.delete(key)
+      }
+    }
+    bucketAssets.value = map
+    buckets.value = nextBuckets
   }
 
   async function deleteAssets(ids: string[]): Promise<number> {
