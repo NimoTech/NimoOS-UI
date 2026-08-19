@@ -1,5 +1,4 @@
-// People-view pure functions: normalization + named/unnamed partition +
-// singleton filter predicates + sort. Ported from Vue2:
+// People-view pure functions: normalization + named/unnamed partition + sort. Ported from Vue2:
 //   store/modules/photos.js:333-344 (peopleNamed/peopleUnnamed/peopleUnnamedVisible)
 //   views/Photos/PhotosPeopleView.vue:493-516,551-558
 //     (filteredNamed sort/filter, hiddenSingletonCount, mergeReason)
@@ -12,15 +11,24 @@
 //
 // Task 4 (2026-08-19 timeline/people-visibility fix): the confidence dropdown/gate that used
 // to live here (Vue2's peopleUnnamedVisible getter / hiddenSingletonCount computed / a third
-// predicate unnamedCountAt, unified in an earlier pass into visibleUnnamedOf/
-// hiddenSingletonCountOf/unnamedCountAt) has been removed entirely -- a product decision, not
-// a bug fix half-measure. A fixed 80%-confidence default silently hid a real 221-photo cluster
-// at confidence 0.796 with zero indication to the user. It is replaced by
+// predicate unnamedCountAt) has been removed entirely -- a product decision, not a bug fix
+// half-measure. A fixed 80%-confidence default silently hid a real 221-photo cluster at
+// confidence 0.796 with zero indication to the user. It is replaced by
 // splitUnnamedByDistribution below, which decides visibility from the cluster-size
 // distribution instead of a confidence score. mergeConfidencePct (the per-cluster percentage
-// badge) is unrelated and stays. Fix round 1: visibleUnnamedOf/hiddenSingletonCountOf
-// themselves are now deleted too (dead code once the store switched to
-// splitUnnamedByDistribution exclusively — see that function's own comment below).
+// badge) is unrelated and stays.
+//
+// Fix round 1: the confidence-minus-confidence-clause helpers visibleUnnamedOf/
+// hiddenSingletonCountOf (an intermediate state from the first Task 4 pass) were deleted as
+// dead production code once the store switched to splitUnnamedByDistribution exclusively.
+//
+// Fix round 2 (2026-08-19, product decision): the People page's unnamed grid now shows ONLY
+// splitUnnamedByDistribution's `visible` head -- the singleton toggle (and the PeopleFilter
+// type/showSingletons field that backed it, which had already lost its confidence-gate sibling
+// in the original Task 4 pass and had no consumer left besides this toggle) is gone too, along
+// with the fold expander that briefly existed in between. splitUnnamedByDistribution's own
+// logic is untouched -- it still computes folded/singletons, callers just don't consume those
+// fields anymore.
 
 import { countryFromCoords, type Photo } from './assetToPhoto'
 
@@ -36,10 +44,6 @@ export interface Person {
   firstSeen: string | null
   lastSeen: string | null
   placesCount: number
-}
-
-export interface PeopleFilter {
-  showSingletons: boolean
 }
 
 // Structural mirror of usePersonDetail.ts's PersonPlace interface. Not
@@ -130,8 +134,7 @@ export function unnamedOf(people: Person[]): Person[] {
 // confidence-minus-the-confidence-clause helpers from the original Task 4 pass) were dead
 // production code — splitUnnamedByDistribution below is the store's only visibility source
 // now, and grep confirmed these two had no consumer left outside their own unit tests.
-// Deleted rather than kept around as unused exports. Their showSingletons-gating logic lives
-// on inline in the store's own `visibleUnnamed`/`hiddenSingletonCount` computeds instead.
+// Deleted rather than kept around as unused exports.
 
 // Task 4 (2026-08-19 timeline/people-visibility fix): replaces the confidence gate with a
 // size-distribution-based split. Product decision, not a bug fix half-measure — a fixed
@@ -139,9 +142,10 @@ export function unnamedOf(people: Person[]): Person[] {
 // 0.796 with no indication to the user (see peopleView.test.ts's regression case). Shows the
 // smallest top-k clusters (by photo count, descending) whose cumulative count reaches 80% of
 // all multi-photo faces, clamped to [12, 60], and never splits a tie (equal counts stay on
-// the same side of the cut). Singletons (count < 2) are always carved out separately —
-// whether they're shown at all is still the existing showSingletons toggle's job (see the
-// store), not this function's.
+// the same side of the cut). Singletons (count < 2) are always carved out separately from
+// `visible`/`folded` here, but fix round 2 removed the last consumer that ever showed them
+// (the singleton toggle) — `singletons` is still computed and returned below for API
+// completeness/future use, it's just not read by the store/view anymore.
 export interface UnnamedSplit { visible: Person[]; folded: Person[]; singletons: Person[] }
 export function splitUnnamedByDistribution(unnamed: Person[]): UnnamedSplit {
   const MIN_SHOW = 12, MAX_SHOW = 60, COVERAGE = 0.8

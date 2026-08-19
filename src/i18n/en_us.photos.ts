@@ -386,15 +386,13 @@ export default {
   photosPeopleNamedHint: '{n} more — sorted by frequency',
   photosPeopleUnnamedSection: 'Unnamed clusters',
   photosPeopleUnnamedHint: '{n} clusters · click to name, merge or delete',
-  photosPeopleHideSingle: 'Hide single-photo',
-  photosPeopleShowSingle: 'Show {n} single-photo',
+  // Fix round 2 (2026-08-19 timeline/people-visibility fix, product decision): the singleton
+  // toggle (photosPeopleHideSingle/photosPeopleShowSingle) and the fold expander
+  // (photosPeopleShowMoreClusters/photosPeopleCollapseClusters) are both deleted — the unnamed
+  // grid now shows ONLY the distribution split's `visible` head, with no way to reach singleton
+  // or folded clusters from this page. Verified zero remaining references before removal.
   photosPeopleHide: 'Hide',
   photosPeopleShow: 'Show',
-  // Task 4 (2026-08-19 timeline/people-visibility fix): the fold-expander for the long tail of
-  // multi-photo unnamed clusters below the distribution's 80%-coverage cut, replacing the
-  // confidence dropdown. New copy, no Vue2 source (this mechanism doesn't exist in Vue2).
-  photosPeopleShowMoreClusters: 'Show {n} more clusters',
-  photosPeopleCollapseClusters: 'Show fewer',
   photosPeoplePhotosCount: '{n} photos',
   // 用户验收新增键(Vue2 无对应原文),键序与 zh_cn.ts 严格一致(parity.test.ts 会断言)。
   photosPersonViewPhotos: 'View these photos',

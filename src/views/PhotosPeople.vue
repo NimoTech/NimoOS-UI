@@ -69,9 +69,18 @@
 // menu, photosPeopleMinScore subheading, the per-tier preview count) is removed entirely — a
 // product decision, not a partial fix. It defaulted to an 80% confidence gate that silently
 // hid a real 221-photo cluster at confidence 0.796, with no way for the user to discover it.
-// Replaced by a "Show N more clusters" expander below the unnamed grid, driven by the store's
-// splitUnnamedByDistribution-based fold state (see peopleView.ts / stores/people.ts). The
-// per-cluster confidence percentage badge (mergeConfidencePct) is unrelated and stays.
+// Visibility now comes from the store's splitUnnamedByDistribution size-distribution cut
+// instead (see peopleView.ts's file header). The per-cluster confidence percentage badge
+// (mergeConfidencePct) is unrelated and stays.
+//
+// Fix round 2 (2026-08-19, product decision — supersedes the fold-expander part of Task 4):
+// the unnamed-clusters grid shows ONLY splitUnnamedByDistribution's `visible` head. Nothing
+// else on this page can reach the folded long tail or the singleton clusters — the "Show N
+// more clusters" expander and the "Show N single-photo" toggle (plus all the store state that
+// fed them: showFoldedClusters/foldedCount/toggleFoldedClusters, and
+// PeopleFilter.showSingletons/setShowSingletons once it lost every other consumer) are removed
+// entirely, not hidden behind a flag. splitUnnamedByDistribution itself is untouched — it
+// still computes folded/singletons, this page just no longer reads those two fields.
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -108,9 +117,9 @@ const timeline = useTimelineStore()
 const settings = usePhotosSettingsStore()
 const toast = useToast()
 
-// Vue2 data() :461-472. sort is deliberately not persisted (matching Vue2); showSingletons is
-// persisted in the store, showFoldedClusters lives in the store too (Task 4) but resets every
-// page load.
+// Vue2 data() :461-472. sort is deliberately not persisted (matching Vue2). Fix round 2: the
+// showSingletons/showFoldedClusters store state this comment used to describe is gone —
+// the grid always shows exactly splitUnnamedByDistribution's `visible` head.
 const filter = ref<FilterId>('all')
 const sort = ref<SortId>('freq')
 const showUnnamed = ref(true)
@@ -226,9 +235,6 @@ function formatIndexedDate(iso: string | null): string {
 function pickSort(id: SortId): void {
   sort.value = id
   sortOpen.value = false
-}
-function toggleSingletons(): void {
-  people.setShowSingletons(!people.filter.showSingletons)
 }
 function openPerson(p: Person): void {
   // Vue2 does an in-page switch via $emit('open', p.id); New-UI uses a real route (registered
@@ -707,22 +713,15 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Unnamed (Vue2 :176-206) -->
+            <!-- Unnamed (Vue2 :176-206). Fix round 2 (product decision, 2026-08-19): the grid
+                 shows ONLY splitUnnamedByDistribution's `visible` head -- nothing else is
+                 reachable from this page. Both the "Show N more clusters" fold expander and the
+                 "Show N single-photo" singleton toggle (and the store state feeding them) are
+                 removed entirely; see the header comment above. -->
             <div class="section-head" data-test="section-unnamed">
               <h2>{{ t('photosPeopleUnnamedSection') }}</h2>
               <span class="sub">{{ t('photosPeopleUnnamedHint', { n: filteredUnnamed.length }) }}</span>
               <div class="section-actions">
-                <button
-                  v-if="showUnnamed && (people.hiddenSingletonCount > 0 || people.filter.showSingletons)"
-                  type="button"
-                  class="more"
-                  data-test="singleton-toggle"
-                  @click="toggleSingletons"
-                >
-                  {{ people.filter.showSingletons
-                    ? t('photosPeopleHideSingle')
-                    : t('photosPeopleShowSingle', { n: people.hiddenSingletonCount }) }}
-                </button>
                 <button type="button" class="more" data-test="unnamed-toggle" @click="showUnnamed = !showUnnamed">
                   {{ showUnnamed ? t('photosPeopleHide') : t('photosPeopleShow') }}
                 </button>
@@ -743,18 +742,6 @@ onUnmounted(() => {
                 <!-- Swaps with .ct on hover (scss:242-243): the photo count hides, the action hint shows -->
                 <div class="name-action" data-test="cluster-hint">{{ t('photosPeopleClusterHint') }}</div>
               </div>
-            </div>
-            <!-- Task 4: the fold expander for the long tail of multi-photo unnamed clusters
-                 below the distribution's 80%-coverage cut. Same visibility-condition shape as
-                 the singleton-toggle button above it (count>0 OR already expanded), for the
-                 same reason — foldedCount doesn't itself change when the toggle flips, but the
-                 defensive `|| showFoldedClusters` keeps this consistent with that precedent. -->
-            <div v-if="showUnnamed && (people.foldedCount > 0 || people.showFoldedClusters)" class="cluster-grid-actions">
-              <button type="button" class="more" data-test="fold-toggle" @click="people.toggleFoldedClusters()">
-                {{ people.showFoldedClusters
-                  ? t('photosPeopleCollapseClusters')
-                  : t('photosPeopleShowMoreClusters', { n: people.foldedCount }) }}
-              </button>
             </div>
           </template>
 
@@ -1007,13 +994,4 @@ onUnmounted(() => {
    hover-cascade-lock rules. */
 .face-card.people-hidden-static { cursor: default; }
 .people-unhide-btn { margin-top: 2px; }
-
-/* Task 4 (2026-08-19 timeline/people-visibility fix): the fold expander below the unnamed
-   grid. No Vue2/parity source at all -- this whole mechanism is new (replaces the confidence
-   dropdown). Styled to match parity's own `.section-head .more` (photos-people.scss:95-101)
-   rather than introducing new tokens: same color/size/hover-accent, just centered under the
-   grid instead of right-aligned in a section header. */
-.cluster-grid-actions { display: flex; justify-content: center; padding-top: 14px; }
-.cluster-grid-actions .more { background: none; border: none; padding: 0; cursor: pointer; color: var(--text-3); font-size: 12px; }
-.cluster-grid-actions .more:hover { color: var(--accent-hi); }
 </style>

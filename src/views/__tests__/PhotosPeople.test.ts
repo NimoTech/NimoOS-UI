@@ -1,6 +1,6 @@
-// Task 6 (SP7-P5 People): PhotosPeople.vue —— the people list view (banner + confidence
-// dropdown + filter/sort + two warning banners + merge-suggestion banner + Pinned/Named/
-// Unnamed sections + floating action menu + empty state).
+// Task 6 (SP7-P5 People): PhotosPeople.vue —— the people list view (banner + filter/sort +
+// two warning banners + merge-suggestion banner + Pinned/Named/Unnamed sections + floating
+// action menu + empty state).
 // Mounts Pinia + i18n + a real router (spy on push, don't mock the whole vue-router — both
 // AreaShell and PhotosSidebar use useRouter(), following the existing mounting pattern from
 // PhotosAlbums.test.ts), mocks the shared package's photos methods.
@@ -82,7 +82,8 @@ const BOB = { id: 'b7', name: 'Bob', favorite: false, relation: 'friend', count:
 // u1, u2, and u4 are all multi-photo clusters (count>1), so they render regardless of
 // confidence — with only 3 multi-photo clusters in this fixture, well under
 // splitUnnamedByDistribution's MIN_SHOW=12, none of them ever get folded either. u3
-// (0.95 but only 1 photo) is the one hidden, by the singleton toggle.
+// (0.95 but only 1 photo) is a singleton — fix round 2: singletons are permanently excluded
+// from the grid now, with no toggle anywhere on the page to reveal them.
 const U1 = { id: 'u1', name: '', favorite: false, relation: '', count: 9, confidence: 0.87 }
 const U2 = { id: 'u2', name: '', favorite: false, relation: '', count: 5, confidence: 0.93 }
 const U3 = { id: 'u3', name: '', favorite: false, relation: '', count: 1, confidence: 0.95 }
@@ -292,61 +293,39 @@ describe('PhotosPeople.vue — unnamed clusters', () => {
     expect(w.find('[data-test="conf-menu"]').exists()).toBe(false)
   })
 
-  it('singleton toggle: when off, count===1 doesn\'t appear, button text shows the hidden count; clicking calls setShowSingletons(true)', async () => {
-    const { w } = await mountView()
-    const people = usePhotosPeople()
-    expect(ids(w, '[data-test="cluster-card"]')).not.toContain('u3')
-    const btn = w.find('[data-test="singleton-toggle"]')
-    expect(btn.exists()).toBe(true)
-    expect(btn.text()).toBe('显示 1 张单照片')
-
-    const spy = vi.spyOn(people, 'setShowSingletons')
-    await btn.trigger('click')
-    expect(spy).toHaveBeenCalledWith(true)
-    await w.vm.$nextTick()
-    expect(ids(w, '[data-test="cluster-card"]')).toContain('u3')
-    expect(w.find('[data-test="singleton-toggle"]').text()).toBe('隐藏单张照片')
-  })
-
   it('master toggle: clicking "Hide" makes the whole unnamed grid disappear', async () => {
     const { w } = await mountView()
     expect(w.find('[data-test="cluster-grid"]').exists()).toBe(true)
     await w.find('[data-test="unnamed-toggle"]').trigger('click')
     expect(w.find('[data-test="cluster-grid"]').exists()).toBe(false)
-    // When the master toggle is off, the singleton toggle disappears too (per the Vue2 :180 showUnnamed && … condition)
-    expect(w.find('[data-test="singleton-toggle"]').exists()).toBe(false)
   })
 
-  // Task 4: the fold expander that replaces the confidence dropdown. With only 3 multi-photo
-  // clusters (well under MIN_SHOW=12), the default fixture never folds anything — the button
-  // must not render at all in that case.
-  it('fold toggle does not render when nothing is folded (fixture has only 3 multi-photo clusters)', async () => {
-    const { w } = await mountView()
-    expect(w.find('[data-test="fold-toggle"]').exists()).toBe(false)
-  })
-
-  it('fold toggle: clusters beyond the 80%-coverage cut are folded by default; clicking reveals them, clicking again re-collapses', async () => {
-    // 15 multi-photo clusters, descending, so the coverage cut (with MIN_SHOW=12) leaves 3 folded
-    // -- independently verified against splitUnnamedByDistribution's algorithm before writing
-    // this fixture (see peopleView.test.ts's own copy of the same numbers).
-    const counts = [50, 45, 40, 35, 30, 25, 20, 18, 16, 14, 12, 10, 8, 6, 4]
+  // Fix round 2 (2026-08-19, product decision — supersedes the singleton toggle and the fold
+  // expander that briefly existed between fix rounds 1 and 2): the grid renders EXACTLY
+  // splitUnnamedByDistribution's `visible` head, and nothing on the page can reach the folded
+  // long tail or the singleton clusters, even when both are non-empty.
+  it('the unnamed grid renders exactly the distribution split\'s visible head — no singleton toggle, no fold expander, even with a large folded tail and a singleton both present', async () => {
+    // 15 multi-photo clusters (coverage cut leaves the first 12 visible, folds the last 3 —
+    // same fixture independently verified in peopleView.test.ts) plus one singleton, so both
+    // "reachable via some hidden toggle" possibilities are exercised in a single fixture.
+    const tail = [50, 45, 40, 35, 30, 25, 20, 18, 16, 14, 12, 10, 8, 6, 4]
     svc.photos.listPersons.mockResolvedValue({
-      persons: counts.map((count, i) => ({ id: `f${i}`, name: '', favorite: false, relation: '', count, confidence: 0.9 })),
+      persons: [
+        { id: 's1', name: '', favorite: false, relation: '', count: 1, confidence: 0.9 }, // singleton
+        ...tail.map((count, i) => ({ id: `f${i}`, name: '', favorite: false, relation: '', count, confidence: 0.9 })),
+      ],
       facesIndexedUpTo: null,
     })
     const { w } = await mountView()
-    expect(ids(w, '[data-test="cluster-card"]')).toHaveLength(12)
-    const btn = w.find('[data-test="fold-toggle"]')
-    expect(btn.exists()).toBe(true)
-    expect(btn.text()).toBe('显示其余 3 个人物簇')
-
-    await btn.trigger('click')
-    expect(ids(w, '[data-test="cluster-card"]')).toHaveLength(15)
-    expect(w.find('[data-test="fold-toggle"]').text()).toBe('收起')
-
-    await w.find('[data-test="fold-toggle"]').trigger('click')
-    expect(ids(w, '[data-test="cluster-card"]')).toHaveLength(12)
-    expect(w.find('[data-test="fold-toggle"]').text()).toBe('显示其余 3 个人物簇')
+    // Exactly the visible head (first 12 of the descending tail) — no singleton, no folded tail.
+    expect(ids(w, '[data-test="cluster-card"]')).toEqual(
+      ['f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11'],
+    )
+    // Neither control exists anywhere in the rendered page, under any circumstance.
+    expect(w.find('[data-test="singleton-toggle"]').exists()).toBe(false)
+    expect(w.find('[data-test="fold-toggle"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('张单照片') // the old singleton-toggle copy fragment
+    expect(w.text()).not.toContain('人物簇') // the old fold-expander copy fragment ("N clusters")
   })
 })
 

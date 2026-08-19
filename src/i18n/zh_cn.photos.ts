@@ -377,15 +377,13 @@ export default {
   photosPeopleNamedHint: '{n} 个，按频率排序',
   photosPeopleUnnamedSection: '未命名人物', // 术语规则直给,不查表(表里是"未命名聚类")
   photosPeopleUnnamedHint: '{n} 个人物 · 点击命名、合并或删除', // [聚类→人物]
-  photosPeopleHideSingle: '隐藏单张照片',
-  photosPeopleShowSingle: '显示 {n} 张单照片',
+  // Fix round 2 (2026-08-19 timeline/people-visibility fix, product decision): the singleton
+  // toggle (photosPeopleHideSingle/photosPeopleShowSingle) and the fold expander
+  // (photosPeopleShowMoreClusters/photosPeopleCollapseClusters) are both deleted — the unnamed
+  // grid now shows ONLY the distribution split's `visible` head, with no way to reach singleton
+  // or folded clusters from this page. Verified zero remaining references before removal.
   photosPeopleHide: '隐藏',
   photosPeopleShow: '显示',
-  // Task 4 (2026-08-19 timeline/people-visibility fix): the fold-expander for the long tail of
-  // multi-photo unnamed clusters below the distribution's 80%-coverage cut, replacing the
-  // confidence dropdown. New copy, no Vue2 source (this mechanism doesn't exist in Vue2).
-  photosPeopleShowMoreClusters: '显示其余 {n} 个人物簇',
-  photosPeopleCollapseClusters: '收起',
   photosPeoplePhotosCount: '{n} 张照片',
   // 用户验收新增键(Vue2 无对应原文):未命名人物菜单的详情页入口 + 详情页 hero 在人物
   // 无名字时的兜底标题。Vue2 里未命名人物根本进不去详情页,所以这两处它都不需要文案。

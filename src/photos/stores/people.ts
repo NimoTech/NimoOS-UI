@@ -9,11 +9,10 @@ import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import {
   toPerson, namedOf, unnamedOf, splitUnnamedByDistribution,
-  type Person, type PeopleFilter,
+  type Person,
 } from '../util/peopleView'
 import { isNotFound } from '../util/httpErrors'
 
-const LS_SHOW_SINGLETONS = 'nimo_people_show_singletons'
 const PURGE_DELAY_MS = 5000
 
 // Purge cancellation pending items. Timer and snapshot are not serializable, follow Vue2 to place at module scope (photos.js:230-231), not in state.
@@ -30,19 +29,12 @@ const _purgeTimers = new Map<string, PurgeEntry>()
 // clearer and won't interfere with purge's "reuse the first idx" branch.
 const _pendingHides = new Set<string>()
 
-function readFilter(): PeopleFilter {
-  // Follow Vue2 photos.js:283-291 IIFE: strict '1' comparison + overall try fallback (private mode/SSR).
-  // Task 4 (2026-08-19 timeline/people-visibility fix): the confidence half of this filter
-  // (localStorage key nimo_people_confidence, whitelist validation) is gone — the confidence
-  // gate no longer exists at all, see peopleView.ts's file header for why.
-  const def: PeopleFilter = { showSingletons: false }
-  try {
-    def.showSingletons = localStorage.getItem(LS_SHOW_SINGLETONS) === '1'
-  } catch {
-    /* Keep default value when localStorage is unavailable */
-  }
-  return def
-}
+// Fix round 2 (2026-08-19, product decision): readFilter/PeopleFilter/the
+// nimo_people_show_singletons localStorage key are gone along with the singleton toggle they
+// backed — once the toggle's confidence-gate sibling was removed in Task 4, showSingletons was
+// PeopleFilter's only remaining field and this filter object's only remaining consumer; deleted
+// as a unit rather than left around as a single-field type with no other use (verified
+// repo-wide via grep before deleting).
 
 export const usePhotosPeople = defineStore('photosPeople', () => {
   const people = ref<Person[]>([])
@@ -50,13 +42,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // (P3 hard lesson: unconditional setting makes transient failure indistinguishable from "confirmed zero people"). Vue2's peopleLoaded is a write-only dead field.
   const peopleLoaded = ref(false)
   const facesIndexedUpTo = ref<string | null>(null)
-  const filter = ref<PeopleFilter>(readFilter())
   const mergeSuggestions = ref<Array<Record<string, unknown>>>([])
-  // Task 4: whether the folded long-tail of multi-photo unnamed clusters (below the
-  // distribution's 80%-coverage cut) is expanded. Deliberately NOT persisted — every fresh
-  // page load starts folded (per the brief's "进页默认折叠"), unlike filter.showSingletons
-  // which does persist.
-  const showFoldedClusters = ref(false)
 
   // Task 7 (Plan D): Hidden people section state (mirroring Vue2 photos.js:392-399).
   const hiddenPeople = ref<Person[]>([])
@@ -68,28 +54,17 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
 
   const named = computed(() => namedOf(people.value))
   const unnamed = computed(() => unnamedOf(people.value))
-  // Task 4 (2026-08-19 timeline/people-visibility fix): the confidence gate is gone —
-  // visibility now comes from splitUnnamedByDistribution's size-distribution cut instead of a
-  // fixed confidence threshold (see peopleView.ts's file header for the bug this replaces).
-  const unnamedSplit = computed(() => splitUnnamedByDistribution(unnamed.value))
-  // The default-visible head (multi-photo clusters within the 80%-coverage cut), plus the
-  // folded long-tail once expanded, plus singletons once that separate toggle is on. This
-  // composition is what keeps the pre-existing singleton toggle behavior unchanged while
-  // layering the new fold mechanism on top of it, per the brief.
-  const visibleUnnamed = computed(() => {
-    const { visible, folded, singletons } = unnamedSplit.value
-    const multi = showFoldedClusters.value ? [...visible, ...folded] : visible
-    return filter.value.showSingletons ? [...multi, ...singletons] : multi
-  })
+  // Fix round 2 (2026-08-19, product decision): the grid shows ONLY the distribution split's
+  // `visible` head -- nothing else is reachable from this page. splitUnnamedByDistribution
+  // itself is untouched (still computes folded/singletons for whoever might need them later);
+  // this store just no longer reads those two fields at all. Superseded the earlier Task 4
+  // fold-expander mechanism (showFoldedClusters/foldedCount/toggleFoldedClusters) and the
+  // pre-existing singleton toggle (PeopleFilter.showSingletons/setShowSingletons/
+  // hiddenSingletonCount) — both deleted outright, not hidden behind a flag.
+  const visibleUnnamed = computed(() => splitUnnamedByDistribution(unnamed.value).visible)
   const namedCount = computed(() => named.value.length)
   // Sidebar/topbar count and grid must use the same calibration: unnamed count uses "visible" not all (Vue2 photos.js:344 comment emphasizes).
   const unnamedCount = computed(() => visibleUnnamed.value.length)
-  // Task 4: no longer conditioned on the showSingletons toggle at all (previously returned 0
-  // when the toggle was on) -- behaviorally equivalent, since the view only ever reads this
-  // count in the toggle's *off* label ("Show N single-photo"); the *on* label ("Hide") never
-  // references it.
-  const hiddenSingletonCount = computed(() => unnamedSplit.value.singletons.length)
-  const foldedCount = computed(() => unnamedSplit.value.folded.length)
 
   const key = (id: string | number): string => String(id)
   function personById(id: string | number): Person | null {
@@ -154,18 +129,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
       // Same as above: Vue2 :1095-1098 clears on failure, here keep previous data.
       console.error('[photos-people] fetchMergeSuggestions', e)
     }
-  }
-
-  // ── Filter preferences (write to localStorage, follow Vue2 mutation :350-361) ──
-  // Task 4: setConfidence removed along with the confidence gate itself.
-  function setShowSingletons(v: boolean): void {
-    filter.value = { ...filter.value, showSingletons: !!v }
-    try { localStorage.setItem(LS_SHOW_SINGLETONS, v ? '1' : '0') } catch { /* Ignore write failure */ }
-  }
-  // Task 4: toggles the folded long-tail of multi-photo unnamed clusters (see
-  // showFoldedClusters's own comment above).
-  function toggleFoldedClusters(): void {
-    showFoldedClusters.value = !showFoldedClusters.value
   }
 
   // ── Write operations (optimistic strategy, verify each case separately, note each differs) ──
@@ -440,19 +403,17 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     peopleLoaded.value = false
     facesIndexedUpTo.value = null
     mergeSuggestions.value = []
-    filter.value = readFilter()
-    showFoldedClusters.value = false
     hiddenPeople.value = []
     hiddenPeopleLoaded.value = false
     hiddenPeopleSupported.value = true
   }
 
   return {
-    people, peopleLoaded, facesIndexedUpTo, filter, mergeSuggestions, showFoldedClusters,
+    people, peopleLoaded, facesIndexedUpTo, mergeSuggestions,
     hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
-    named, unnamed, visibleUnnamed, namedCount, unnamedCount, hiddenSingletonCount, foldedCount,
+    named, unnamed, visibleUnnamed, namedCount, unnamedCount,
     personById, patchPerson,
-    fetchPeople, fetchMergeSuggestions, setShowSingletons, toggleFoldedClusters,
+    fetchPeople, fetchMergeSuggestions,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     acceptMergeSuggestion, rejectMergeSuggestion, dismissAllMerges,
