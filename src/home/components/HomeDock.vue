@@ -1,6 +1,5 @@
 <template>
   <nav ref="root" class="dock" :class="{ expanded: dock.expanded.value }" :aria-label="t('dockAria')"
-    @pointermove="onMove" @pointerleave="reset"
     @pointerdown.capture="onDragStart"
   >
     <div class="dock-main">
@@ -56,7 +55,12 @@ import DockApp from './DockApp.vue'
 import { useDock } from '../composables/useDock'
 import { useAppsStore } from '../stores/apps'
 import { useIsMobile } from '../composables/useIsMobile'
-import { magScale, dropTargetIn, type DockSlot, type DockGeometry, type DropDecision } from '../grid/dockMath'
+import { dropTargetIn, type DockSlot, type DockGeometry, type DropDecision } from '../grid/dockMath'
+// The dock's fisheye magnification, switched off at the owner's request and kept
+// rather than deleted so it can be restored. theme.css still carries the rule that
+// consumes --mag; with nothing writing it the fallback of 1 is identity, so the
+// effect is off without that file being touched.
+// import { magScale } from '../grid/dockMath'
 
 const { t } = useI18n()
 const dock = useDock()
@@ -73,15 +77,15 @@ function onToggle() {
   dock.toggleExpanded()
 }
 
-// ── Magnification ────────────────────────────────────────────────────────────
-function onMove(e: PointerEvent) {
-  if (drag.active) return // skip mag while dragging
-  root.value?.querySelectorAll<HTMLElement>('.dock-app:not(.dock-dragging) .dock-ic').forEach((ic) => {
-    const r = ic.getBoundingClientRect()
-    ic.style.setProperty('--mag', magScale(e.clientX - (r.left + r.width / 2)).toFixed(3))
-  })
-}
-function reset() { root.value?.querySelectorAll<HTMLElement>('.dock-ic').forEach((ic) => ic.style.setProperty('--mag', '1')) }
+// ── Magnification (switched off; see the note on the magScale import) ─────────
+// function onMove(e: PointerEvent) {
+//   if (drag.active) return // skip mag while dragging
+//   root.value?.querySelectorAll<HTMLElement>('.dock-app:not(.dock-dragging) .dock-ic').forEach((ic) => {
+//     const r = ic.getBoundingClientRect()
+//     ic.style.setProperty('--mag', magScale(e.clientX - (r.left + r.width / 2)).toFixed(3))
+//   })
+// }
+// function reset() { root.value?.querySelectorAll<HTMLElement>('.dock-ic').forEach((ic) => ic.style.setProperty('--mag', '1')) }
 
 // ── Drag state ───────────────────────────────────────────────────────────────
 const DRAG_THRESHOLD = 5

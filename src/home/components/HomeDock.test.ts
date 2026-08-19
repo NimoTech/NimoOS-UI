@@ -16,6 +16,16 @@ beforeEach(() => {
 })
 
 describe('HomeDock', () => {
+  // The fisheye is switched off on request. Nothing may write --mag any more; the
+  // theme.css rule that consumes it falls back to 1, which is identity, so the
+  // effect is gone without that file being edited.
+  it('no longer magnifies icons on hover', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('nav').trigger('pointermove', { clientX: 100, clientY: 10 })
+    const styled = w.findAll('.dock-ic').filter((ic) => (ic.element as HTMLElement).style.getPropertyValue('--mag') !== '')
+    expect(styled.length).toBe(0)
+  })
   it('renders favorite dock apps with labels', () => {
     useAppsStore()
     const w = mount(HomeDock)
