@@ -52,6 +52,11 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   const facesIndexedUpTo = ref<string | null>(null)
   const filter = ref<PeopleFilter>(readFilter())
   const mergeSuggestions = ref<Array<Record<string, unknown>>>([])
+  // Task 4: whether the folded long-tail of multi-photo unnamed clusters (below the
+  // distribution's 80%-coverage cut) is expanded. Deliberately NOT persisted — every fresh
+  // page load starts folded (per the brief's "进页默认折叠"), unlike filter.showSingletons
+  // which does persist.
+  const showFoldedClusters = ref(false)
 
   // Task 7 (Plan D): Hidden people section state (mirroring Vue2 photos.js:392-399).
   const hiddenPeople = ref<Person[]>([])
@@ -67,13 +72,14 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // visibility now comes from splitUnnamedByDistribution's size-distribution cut instead of a
   // fixed confidence threshold (see peopleView.ts's file header for the bug this replaces).
   const unnamedSplit = computed(() => splitUnnamedByDistribution(unnamed.value))
-  // The default-visible head (multi-photo clusters within the 80%-coverage cut), plus
-  // singletons once that separate toggle is on -- preserves the pre-existing singleton toggle
-  // behavior unchanged even though the underlying visibility mechanism switched from a
-  // confidence gate to a size-distribution cut.
+  // The default-visible head (multi-photo clusters within the 80%-coverage cut), plus the
+  // folded long-tail once expanded, plus singletons once that separate toggle is on. This
+  // composition is what keeps the pre-existing singleton toggle behavior unchanged while
+  // layering the new fold mechanism on top of it, per the brief.
   const visibleUnnamed = computed(() => {
-    const { visible, singletons } = unnamedSplit.value
-    return filter.value.showSingletons ? [...visible, ...singletons] : visible
+    const { visible, folded, singletons } = unnamedSplit.value
+    const multi = showFoldedClusters.value ? [...visible, ...folded] : visible
+    return filter.value.showSingletons ? [...multi, ...singletons] : multi
   })
   const namedCount = computed(() => named.value.length)
   // Sidebar/topbar count and grid must use the same calibration: unnamed count uses "visible" not all (Vue2 photos.js:344 comment emphasizes).
@@ -83,6 +89,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // count in the toggle's *off* label ("Show N single-photo"); the *on* label ("Hide") never
   // references it.
   const hiddenSingletonCount = computed(() => unnamedSplit.value.singletons.length)
+  const foldedCount = computed(() => unnamedSplit.value.folded.length)
 
   const key = (id: string | number): string => String(id)
   function personById(id: string | number): Person | null {
@@ -154,6 +161,11 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   function setShowSingletons(v: boolean): void {
     filter.value = { ...filter.value, showSingletons: !!v }
     try { localStorage.setItem(LS_SHOW_SINGLETONS, v ? '1' : '0') } catch { /* Ignore write failure */ }
+  }
+  // Task 4: toggles the folded long-tail of multi-photo unnamed clusters (see
+  // showFoldedClusters's own comment above).
+  function toggleFoldedClusters(): void {
+    showFoldedClusters.value = !showFoldedClusters.value
   }
 
   // ── Write operations (optimistic strategy, verify each case separately, note each differs) ──
@@ -429,17 +441,18 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     facesIndexedUpTo.value = null
     mergeSuggestions.value = []
     filter.value = readFilter()
+    showFoldedClusters.value = false
     hiddenPeople.value = []
     hiddenPeopleLoaded.value = false
     hiddenPeopleSupported.value = true
   }
 
   return {
-    people, peopleLoaded, facesIndexedUpTo, filter, mergeSuggestions,
+    people, peopleLoaded, facesIndexedUpTo, filter, mergeSuggestions, showFoldedClusters,
     hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
-    named, unnamed, visibleUnnamed, namedCount, unnamedCount, hiddenSingletonCount,
+    named, unnamed, visibleUnnamed, namedCount, unnamedCount, hiddenSingletonCount, foldedCount,
     personById, patchPerson,
-    fetchPeople, fetchMergeSuggestions, setShowSingletons,
+    fetchPeople, fetchMergeSuggestions, setShowSingletons, toggleFoldedClusters,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     acceptMergeSuggestion, rejectMergeSuggestion, dismissAllMerges,

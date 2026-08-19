@@ -381,6 +381,11 @@ export default {
   photosPeopleShowSingle: '显示 {n} 张单照片',
   photosPeopleHide: '隐藏',
   photosPeopleShow: '显示',
+  // Task 4 (2026-08-19 timeline/people-visibility fix): the fold-expander for the long tail of
+  // multi-photo unnamed clusters below the distribution's 80%-coverage cut, replacing the
+  // confidence dropdown. New copy, no Vue2 source (this mechanism doesn't exist in Vue2).
+  photosPeopleShowMoreClusters: '显示其余 {n} 个人物簇',
+  photosPeopleCollapseClusters: '收起',
   photosPeoplePhotosCount: '{n} 张照片',
   // 用户验收新增键(Vue2 无对应原文):未命名人物菜单的详情页入口 + 详情页 hero 在人物
   // 无名字时的兜底标题。Vue2 里未命名人物根本进不去详情页,所以这两处它都不需要文案。

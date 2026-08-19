@@ -314,6 +314,38 @@ describe('PhotosPeople.vue — unnamed clusters', () => {
     // When the master toggle is off, the singleton toggle disappears too (per the Vue2 :180 showUnnamed && … condition)
     expect(w.find('[data-test="singleton-toggle"]').exists()).toBe(false)
   })
+
+  // Task 4: the fold expander that replaces the confidence dropdown. With only 3 multi-photo
+  // clusters (well under MIN_SHOW=12), the default fixture never folds anything — the button
+  // must not render at all in that case.
+  it('fold toggle does not render when nothing is folded (fixture has only 3 multi-photo clusters)', async () => {
+    const { w } = await mountView()
+    expect(w.find('[data-test="fold-toggle"]').exists()).toBe(false)
+  })
+
+  it('fold toggle: clusters beyond the 80%-coverage cut are folded by default; clicking reveals them, clicking again re-collapses', async () => {
+    // 15 multi-photo clusters, descending, so the coverage cut (with MIN_SHOW=12) leaves 3 folded
+    // -- independently verified against splitUnnamedByDistribution's algorithm before writing
+    // this fixture (see peopleView.test.ts's own copy of the same numbers).
+    const counts = [50, 45, 40, 35, 30, 25, 20, 18, 16, 14, 12, 10, 8, 6, 4]
+    svc.photos.listPersons.mockResolvedValue({
+      persons: counts.map((count, i) => ({ id: `f${i}`, name: '', favorite: false, relation: '', count, confidence: 0.9 })),
+      facesIndexedUpTo: null,
+    })
+    const { w } = await mountView()
+    expect(ids(w, '[data-test="cluster-card"]')).toHaveLength(12)
+    const btn = w.find('[data-test="fold-toggle"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.text()).toBe('显示其余 3 个人物簇')
+
+    await btn.trigger('click')
+    expect(ids(w, '[data-test="cluster-card"]')).toHaveLength(15)
+    expect(w.find('[data-test="fold-toggle"]').text()).toBe('收起')
+
+    await w.find('[data-test="fold-toggle"]').trigger('click')
+    expect(ids(w, '[data-test="cluster-card"]')).toHaveLength(12)
+    expect(w.find('[data-test="fold-toggle"]').text()).toBe('显示其余 3 个人物簇')
+  })
 })
 
 describe('PhotosPeople.vue — filter and sort', () => {

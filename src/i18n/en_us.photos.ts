@@ -390,6 +390,11 @@ export default {
   photosPeopleShowSingle: 'Show {n} single-photo',
   photosPeopleHide: 'Hide',
   photosPeopleShow: 'Show',
+  // Task 4 (2026-08-19 timeline/people-visibility fix): the fold-expander for the long tail of
+  // multi-photo unnamed clusters below the distribution's 80%-coverage cut, replacing the
+  // confidence dropdown. New copy, no Vue2 source (this mechanism doesn't exist in Vue2).
+  photosPeopleShowMoreClusters: 'Show {n} more clusters',
+  photosPeopleCollapseClusters: 'Show fewer',
   photosPeoplePhotosCount: '{n} photos',
   // 用户验收新增键(Vue2 无对应原文),键序与 zh_cn.ts 严格一致(parity.test.ts 会断言)。
   photosPersonViewPhotos: 'View these photos',

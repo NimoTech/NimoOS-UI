@@ -195,6 +195,37 @@ describe('photosPeople store', () => {
     })
   })
 
+  // Task 4: showFoldedClusters/toggleFoldedClusters/foldedCount — the fold mechanism that
+  // replaces the old confidence dropdown for the long tail of multi-photo unnamed clusters.
+  describe('showFoldedClusters / toggleFoldedClusters / foldedCount', () => {
+    it('starts folded (false) on a fresh store, not persisted across __resetForTest', async () => {
+      const s = usePhotosPeople()
+      expect(s.showFoldedClusters).toBe(false)
+      s.toggleFoldedClusters()
+      expect(s.showFoldedClusters).toBe(true)
+      s.__resetForTest()
+      expect(s.showFoldedClusters).toBe(false)
+    })
+
+    it('expanding folds in the long tail (beyond MIN_SHOW/coverage) into visibleUnnamed; foldedCount matches', async () => {
+      // 15 multi-photo clusters, strictly descending, so the 80%-coverage cut with MIN_SHOW=12
+      // lands well before all 15 are shown — leaving some in the folded tail.
+      const counts = [50, 45, 40, 35, 30, 25, 20, 18, 16, 14, 12, 10, 8, 6, 4]
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({
+        persons: counts.map((count, i) => rawPerson({ id: `u${i}`, count })),
+      })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      const collapsedCount = s.visibleUnnamed.length
+      expect(s.foldedCount).toBeGreaterThan(0)
+      expect(collapsedCount + s.foldedCount).toBe(15)
+
+      s.toggleFoldedClusters()
+      expect(s.visibleUnnamed.length).toBe(15)
+      expect(s.foldedCount).toBe(15 - collapsedCount) // unchanged by the toggle itself
+    })
+  })
+
   describe('store initialization reads localStorage', () => {
     it("showSingletons==='1' — true", () => {
       localStorage.setItem(LS_SHOW_SINGLETONS, '1')
