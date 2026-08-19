@@ -1,42 +1,19 @@
 <!--
-  agent web tools Task 9 —— 1:1 移植自 Vue2 NimoOS-UI `src/views/AI/Settings/sections/WebSection.vue`
-  (commit a1de5fe2)。web_search / web_fetch 设置分区:服务商选择(Tavily/Brave/SearXNG)、
-  启用开关、write-only 的 API key 输入框(从不回显/预填,保存成功后清空;留空保存时
-  整个不带 api_key 字段,防止误清已存密钥)。
+  web_search / web_fetch 的设置分区,1:1 对应 Vue2 的
+  `NimoOS-UI/src/views/AI/Settings/sections/WebSection.vue`——两侧行为必须保持一致。
 
-  【与 brief 的差异,申报】
-  1. SetSwitch 的 v-model 契约是 `modelValue`(见同目录 SetSwitch.vue / MemorySection.vue
-     的 `:model-value="enabled" @change="..."`),brief 示例误写成 `:value`——按真实
-     props 契约改用 `:model-value`,行为(受控绑定 + change 回调)不变。
-  2. 错误提示:brief 示例写的是 `toast.error(apiErrorMessage(e))`,但本仓 `useToast`
-     store 只有 `show(text, duration?, tier?)`,没有 `error()` 方法,且 `apiErrorMessage`
-     的签名是 `(e, fallback)` 两个必填参数(见 apiError.ts:21),brief 的单参调用编译不过。
-     按同目录 MemorySection.vue 的真实用法改为
-     `toast.show(apiErrorMessage(e, t(fallbackKey)), 3000, 'danger')`,fallback 分别用
-     `aiCfgLoadFailed`(读取失败)/`aiCfgSaveFailed`(保存失败)两个已存在的通用键。
+  改这个组件前要知道的两件事:
 
-  【fix round 1(协调者确认,2026-08-18)】sections.ts 的 icon 已从 brief 原文的
-  'globe' 改成 'cloud'。原因:本仓 `AgentIcon.vue` 的 PATHS 表里根本没有 'globe'
-  这个键,写 'globe' 会让导航栏这一项渲染出空图标;而 Vue2 侧已落地的
-  `sections.js`(commit a1de5fe2)本来就是 `icon: 'cloud'`——协调者确认这是
-  brief 自己的笔误(移植 Vue2 时因为 SkillIcon.vue 同样没有 globe 才把 Vue2
-  侧改成了 cloud,但漏了把这个修正带进本任务的 brief)。'cloud' 与「Cloud
-  providers」项(`providers`)撞图标是已知问题,留作后续:给两侧图标集各加
-  一个真正的 globe/link 图标再拆开,不在本任务里改。本仓 `external` 图标已
-  存在、语义上更贴近"网页",留给做该后续的人做候选,这里不用它——移植纪律
-  是与 Vue2 落地版 1:1,不为了美观在本任务里临时挑一个不同的图标。
+  1. API key 是 write-only。服务端永远不返回它(响应只有 `has_key` 布尔),所以输入框
+     绝不能从服务端回填,保存成功后要清空。
+  2. 输入框留空时,payload 里**整个不带** `api_key` 字段。后端语义是不对称的:省略
+     = 保留已存密钥,发 `""` = 清除。发空串会让用户仅仅拨一下开关就抹掉可用的密钥。
 
-  【fix round 2(协调者确认,2026-08-18)—— 撤回批量保存按钮,改回逐字段自动保存】
-  brief 原模板给的是"改一堆字段 + 点一个 Save 按钮批量提交"。这是 brief 自己的
-  设计缺陷,不是移植需要:Vue2 落地版(a1de5fe2)里这个分区**没有保存按钮**——
-  switch/下拉/SearXNG 地址/API key 四个字段各自在 `@change` 时立即调用同一个
-  `save()`;本仓同目录 `MemorySection.vue` 的 `onEnabledChange`/`onCompactionChange`/
-  `saveContextWindow`(input 上 `v-model` 叠 `@change`)也是同一套自动保存约定。
-  批量保存按钮版本一度让两个 UI 在同一功能上出现用户可见的行为分歧(且与本仓
-  自己的姊妹分区风格不一致),现改回自动保存,`.set-actions` 保存按钮整块与
-  `data-test="web-save"` 一并撤走;`data-test="web-backend"` / `web-api-key` 两个
-  钩子保留。留空跳过 api_key、保存成功清空输入框、掩码占位符、"已保存密钥"提示、
-  隐私横幅这几条不受影响,原样保留。
+  四个字段都在 `@change` 时各自调用同一个 `save()`(与 Vue2 侧及本目录
+  `MemorySection.vue` 的自动保存约定一致),没有批量保存按钮。
+
+  侧栏图标用 `cloud`,与「Cloud providers」撞图标是已知的待办:两侧图标集都缺一个
+  globe/link 图标(本仓有 `external` 可作候选),补齐后再拆开。
 -->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'

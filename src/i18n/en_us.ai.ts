@@ -587,8 +587,8 @@ export default {
   aiCfgPhoenixNotInstalled: 'Not installed',
   aiCfgPhoenixStopped: 'Stopped',
   // <<< SP8-P2b Task 8
-  // >>> agent web tools Task 9 —— WebSection (web_search / web_fetch settings). Values are
-  // verbatim from the task-9 brief. Reused key (not redefined here): aiCfgSave.
+  // >>> agent web tools —— WebSection (web_search / web_fetch settings). Reused keys
+  // (not redefined here): aiCfgLoadFailed / aiCfgSaveFailed, the error-toast fallbacks.
   aiCfgWebAccess: 'Web access',
   aiCfgWebAccessDesc: 'Let the assistant search the web and read web pages. The first visit to a host always asks you to confirm.',
   aiCfgWebSearch: 'Web search',

@@ -609,8 +609,8 @@ export default {
   aiCfgPhoenixNotInstalled: '未安装',
   aiCfgPhoenixStopped: '已停止',
   // <<< SP8-P2b Task 8
-  // >>> agent web tools Task 9 —— WebSection(web_search / web_fetch 设置)。值逐字取自
-  // task-9 brief。复用键(未在此重复定义):aiCfgSave。
+  // >>> agent web tools —— WebSection(web_search / web_fetch 设置)。
+  // 复用键(未在此重复定义):aiCfgLoadFailed / aiCfgSaveFailed(错误 toast 兜底文案)。
   aiCfgWebAccess: '联网',
   aiCfgWebAccessDesc: '允许助手搜索网页、读取网址。每个域名首次访问都会先征求你的同意。',
   aiCfgWebSearch: '网页搜索',
