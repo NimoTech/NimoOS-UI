@@ -1,5 +1,5 @@
 <template>
-  <nav ref="root" class="dock" :class="{ expanded: dock.expanded.value }" :aria-label="t('dockAria')"
+  <nav ref="root" class="dock" :class="{ expanded: dock.expanded.value, [NO_REFLOW_ANIM_CLASS]: suppressReflowAnim }" :aria-label="t('dockAria')"
     @pointerdown.capture="onDragStart"
   >
     <div class="dock-main">
@@ -95,6 +95,14 @@ function onToggle() {
 
 // ── Drag state ───────────────────────────────────────────────────────────────
 const DRAG_THRESHOLD = 5
+// Suppresses the reflow's transition for the drop's commit frame — see onDragEnd.
+// A ref, not a direct classList.add/remove: dock.reorder()/resetDragState() right
+// after setting it also trigger a Vue re-render of this same element, and Vue's
+// class patching sets `el.className` wholesale from the :class binding on every
+// patch -- a class added outside that binding would be wiped by that very patch,
+// the one render this needs to survive.
+const NO_REFLOW_ANIM_CLASS = 'dock-no-reflow-anim'
+const suppressReflowAnim = ref(false)
 
 interface DragState {
   active: boolean
@@ -280,6 +288,20 @@ function onDragEnd(e: PointerEvent) {
   // preview used, so the icon lands exactly where its offset preview showed it going.
   const { toZone, beforeKey } = resolveDrop(e.clientX)
 
+  // Suppress the reflow transition for the commit frame. dock.reorder() below and
+  // resetDragState() right after it land in the same render: Vue's patch reorders
+  // the keyed v-for (which only moves the *dragged* icon's own node — its
+  // neighbours' nodes stay put) and clears shiftStyle's inline transform in one
+  // go. Without this, a neighbour's `transition: transform .18s` is never
+  // cancelled — it starts animating from its old inline offset against the
+  // already-final layout, a one-pitch overshoot the eye reads as an extra slide.
+  // The icons' final visual position already equals their pre-drop visual
+  // position, so a hard cut is the correct commit-frame behaviour here, not a
+  // tween. Removed on the next paint (rAF), so the transition is back in time
+  // for the icons' next legitimate move.
+  suppressReflowAnim.value = true
+  requestAnimationFrame(() => { suppressReflowAnim.value = false })
+
   dock.reorder(drag.key, toZone, beforeKey)
 
   // Suppress the upcoming click that pointer devices fire after pointerup
@@ -295,6 +317,10 @@ function onDragCancel(e: PointerEvent) {
   const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
   if (src) src.style.opacity = ''
   homeUi.spawnGhost = null
+  // Defensive: this flag is only ever set in onDragEnd's reorder path, but a
+  // cancel racing that path (or a second drag starting before the first drop's
+  // rAF fires) must not leave the transition suppressed indefinitely.
+  suppressReflowAnim.value = false
   resetDragState()
 }
 
@@ -505,6 +531,13 @@ defineExpose({ root })
 @media (prefers-reduced-motion: reduce) {
   .dock-zone :deep(.dock-app) { transition: none; }
 }
+/* The drop's commit frame (see onDragEnd's suppressReflowAnim): the reorder and
+   the clearing of shiftStyle's inline transform land in the same render, so
+   without this a neighbour's transition above animates from its stale offset
+   against the already-final layout -- a one-pitch overshoot. The icons' final
+   visual position already equals their pre-drop visual position, so cutting the
+   transition for this one frame is correct, not a loss of polish. */
+.dock-no-reflow-anim .dock-zone :deep(.dock-app) { transition: none; }
 /* ── Responsive ≤720px ── */
 @media (max-width: 720px) {
   .dock { left: 12px; right: 12px; transform: none; max-width: none; }
