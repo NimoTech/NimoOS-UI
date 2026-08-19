@@ -25,11 +25,28 @@ describe('dropTarget', () => {
     expect(dropTarget(120, 300, fav, more).toZone).toBe('fav')
     expect(dropTarget(420, 300, fav, more).toZone).toBe('more')
   })
-  it('inserts before the nearest slot when dropped to its left', () => {
+  it('inserts before the first slot the pointer has not passed', () => {
     expect(dropTarget(180, 300, fav, more).beforeKey).toBe('photos')
   })
-  it('appends when dropped to the right of the nearest slot', () => {
+  it('appends when dropped past every slot in the zone', () => {
     expect(dropTarget(230, 300, fav, more).beforeKey).toBeNull()
+  })
+
+  // Three slots, because two cannot tell the bug from the fix: with two, "right of
+  // the last icon" and "the end of the zone" are the same place. Standing right of
+  // a MIDDLE icon must insert one place further along, not jump to the end and
+  // collapse everything in between a slot leftwards.
+  const three = [{ key: 'a', midX: 100 }, { key: 'b', midX: 200 }, { key: 'c', midX: 300 }]
+  it('walks the insertion point one slot at a time across a zone', () => {
+    expect(dropTarget(50, 900, three, more).beforeKey).toBe('a')   // before all of them
+    expect(dropTarget(150, 900, three, more).beforeKey).toBe('b')  // right of a, left of b
+    expect(dropTarget(250, 900, three, more).beforeKey).toBe('c')  // right of b, left of c
+    expect(dropTarget(350, 900, three, more).beforeKey).toBeNull() // past c: the end
+  })
+  it('does not jump to the end merely because the pointer is right of the nearest slot', () => {
+    // 210 is nearest to b (200) and to its right. The end of the zone is one slot
+    // further than that, and picking it would drag every icon after b leftwards.
+    expect(dropTarget(210, 900, three, more).beforeKey).toBe('c')
   })
   it('appends into an empty zone', () => {
     expect(dropTarget(120, 300, [], more)).toEqual({ toZone: 'fav', beforeKey: null })
@@ -104,30 +121,45 @@ function simulateDrag(clientX: number, remeasure: boolean, mode: 'clamped' | 're
 }
 
 describe('dropTargetIn (placeholder feedback)', () => {
-  // Negative control. If this ever goes green the shift model has become a no-op
-  // and the fixed-point assertions below would prove nothing.
-  it('re-measuring the placeholder-shifted dock never settles', () => {
-    const oscillating = SAMPLES.filter((x) => {
-      const keys = simulateDrag(x, true, 'clamped').previews.map((d) => String(d.beforeKey))
-      return new Set(keys).size > 1
-    })
-    expect(oscillating.length).toBeGreaterThan(0)
-    // The three positions the review measured in Chromium, each alternating
-    // between "insert before this icon" and "append".
-    for (const [x, key] of [[610, 'm2'], [690, 'm3'], [780, 'm4']] as const) {
-      expect(simulateDrag(x, true, 'clamped').previews.map((d) => d.beforeKey))
-        .toEqual([key, null, key, null])
+  // These two tests used to be negative controls asserting that re-measuring
+  // NEVER settles — 12 of 38 sampled positions alternated between "insert before
+  // this icon" and "append", and the three sequences measured in Chromium were
+  // pinned literally ([610, m2], [690, m3], [780, m4], each flipping every tick).
+  //
+  // Fixing dropTarget turned them green, which is worth recording rather than
+  // deleting: that oscillation was a symptom of the nearest-slot rule, not of
+  // re-measuring as such. Under "insert before the first slot the pointer has not
+  // passed" the decision is a fixed point of the shift it causes — the slots from
+  // the insertion point onward move further away from the pointer and the ones
+  // before it do not move past it, so no shift can change which gap the pointer
+  // is in. The old rule had no such guarantee, because moving a slot could make a
+  // different slot the nearest one.
+  //
+  // The snapshot stays regardless, and the tests below still pin it. A transform
+  // is included in getBoundingClientRect, so a live measurement mid-drag reads the
+  // reflow's own displacement; being one bug away from a feedback loop is not a
+  // reason to stand in it.
+  it('no longer diverges even when every tick re-reads the shifted dock', () => {
+    for (const mode of ['clamped', 'recentred'] as const) {
+      for (const x of SAMPLES) {
+        const { previews, drop } = simulateDrag(x, true, mode)
+        const first = previews[0]
+        for (const p of previews) expect(p, `preview flickered at x=${x} (${mode})`).toEqual(first)
+        expect(drop, `drop disagreed with the preview at x=${x} (${mode})`).toEqual(first)
+      }
     }
   })
 
-  // And re-measuring is not merely jittery: the drop resolves while the
-  // placeholder is still in the DOM, so it lands on the opposite of the preview.
-  it('re-measuring lets the drop disagree with the preview it just showed', () => {
-    const disagreeing = SAMPLES.filter((x) => {
-      const { previews, drop } = simulateDrag(x, true, 'clamped')
-      return drop.beforeKey !== previews[previews.length - 1].beforeKey
+  // The shift model is not a no-op — the guard the old negative control gave us.
+  // If this goes red the simulation has stopped moving anything and neither this
+  // test nor the snapshot ones below prove a thing.
+  it('still models a dock whose slots really move', () => {
+    const moved = SAMPLES.filter((x) => {
+      const d = dropTargetIn(x, BASE)
+      const shifted = withPlaceholder(BASE, d, 'clamped')
+      return shifted.moreSlots.some((s, i) => s.midX !== BASE.moreSlots[i].midX)
     })
-    expect(disagreeing.length).toBeGreaterThan(0)
+    expect(moved.length).toBeGreaterThan(0)
   })
 
   // The property that matters: a decision taken from the snapshot is a fixed

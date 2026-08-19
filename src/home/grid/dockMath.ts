@@ -31,8 +31,19 @@ export type DropDecision = { toZone: 'fav' | 'more'; beforeKey: string | null }
  *
  * `sepMidX` is the midpoint of the separator between the favourites and "more"
  * zones: a drop to its left targets 'fav', otherwise 'more'. Within the chosen
- * zone the nearest slot by midX wins, and the icon goes before it when the
- * pointer is to its left, otherwise to the end (`beforeKey === null`).
+ * zone the icon lands before the first slot whose midpoint the pointer has not
+ * yet passed, and at the end (`beforeKey === null`) once it has passed them all.
+ *
+ * That "first slot not yet passed" is the whole rule, and it is worth stating
+ * because the obvious-looking alternative is wrong. This used to pick the
+ * *nearest* slot and then ask whether the pointer was left or right of it,
+ * appending whenever it was to the right — so standing in the right half of any
+ * icon's cell sent the insertion point to the end of the zone rather than one
+ * place further along, and every icon in between collapsed a slot leftwards. The
+ * repo owner reported it as "the icons on the right get squeezed to the left" and
+ * "it only makes room properly once you reach the gap between two icons". Every
+ * test zone here held two slots, where "right of the last icon" and "the end"
+ * coincide, which is why it survived.
  *
  * Lifted out of HomeDock's computeDropTarget so the insertion preview and the
  * drop itself are driven by one decision, and so the decision is testable at all
@@ -46,14 +57,8 @@ export function dropTarget(
 ): DropDecision {
   const toZone: 'fav' | 'more' = sepMidX != null && clientX < sepMidX ? 'fav' : 'more'
   const slots = toZone === 'fav' ? favSlots : moreSlots
-  if (slots.length === 0) return { toZone, beforeKey: null }
-  let best = slots[0]
-  let bestDist = Math.abs(clientX - best.midX)
-  for (const s of slots) {
-    const d = Math.abs(clientX - s.midX)
-    if (d < bestDist) { bestDist = d; best = s }
-  }
-  return { toZone, beforeKey: clientX < best.midX ? best.key : null }
+  const next = slots.find((s) => clientX < s.midX)
+  return { toZone, beforeKey: next ? next.key : null }
 }
 
 /**

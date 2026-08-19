@@ -311,19 +311,26 @@ describe('HomeDock', () => {
     await w.vm.$nextTick()
 
     const move = new Event('pointermove') as PointerEvent
-    Object.assign(move, { pointerId: 9, clientX: 190, clientY: 0 })
+    // 220, not the 190 this test used to probe with. Under "insert before the
+    // first slot the pointer has not passed", x=190 lands before "knowledge" on
+    // BOTH the stale mids (100/200) and the fresh ones (150/250), so it can no
+    // longer tell a re-measure from a missing one. 220 sits between the two
+    // geometries: past everything on the stale mids, still short of "knowledge"
+    // on the fresh ones.
+    Object.assign(move, { pointerId: 9, clientX: 220, clientY: 0 })
     window.dispatchEvent(move)
     await w.vm.$nextTick()
-    // Against the new geometry (storage 150, knowledge 250) x=190 is nearest to
-    // "storage" and to its right, so the drop appends at the end of the zone --
-    // exactly where the hole already is (holeIndex=2, insertAt=2), so nothing
-    // needs to move. Had onResize kept using the stale pre-resize geometry
-    // instead, "knowledge" would show a 100px shift here.
+    // Against the new geometry (storage 150, knowledge 250) x=220 is short of
+    // "knowledge", so the icon inserts before it: holeIndex=2, insertAt=1, which
+    // moves "knowledge" one 100px slot along. Had onResize kept the stale
+    // pre-resize geometry, 220 would be past both slots, the insertion point
+    // would be the end of the zone -- where the hole already is -- and nothing
+    // would move at all.
     expect(shiftPx(w.get('.dock-app[data-app="storage"]').element)).toBe(0)
-    expect(shiftPx(w.get('.dock-app[data-app="knowledge"]').element)).toBe(0)
+    expect(shiftPx(w.get('.dock-app[data-app="knowledge"]').element)).toBe(100)
 
     const up = new Event('pointerup') as PointerEvent
-    Object.assign(up, { pointerId: 9, clientX: 190, clientY: 0 })
+    Object.assign(up, { pointerId: 9, clientX: 220, clientY: 0 })
     window.dispatchEvent(up)
   })
 
