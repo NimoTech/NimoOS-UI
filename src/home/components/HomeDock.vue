@@ -361,12 +361,24 @@ function resolveDrop(clientX: number): DropDecision {
  * A viewport resize is the one thing that can invalidate the snapshot mid-drag.
  * Clear the preview first so every icon offset drops back to zero, and only
  * re-measure once Vue has flushed that reset.
+ *
+ * `drag.sparePx` is sized from a pitch too, and a resize that crosses the
+ * <= 720px breakpoint changes that pitch exactly like it changes everything
+ * else measureGeometry reads -- so it is re-derived here from the same fresh
+ * snapshot, the same zone onDragMove originally sized it from, or the
+ * reservation stays padded for the stale pitch while the transforms above it
+ * already use the new one.
  */
 function onResize() {
   if (!drag.active) return
   drag.toZone = null
   drag.beforeKey = null
-  void nextTick(() => { if (drag.active) geom = measureGeometry() })
+  void nextTick(() => {
+    if (!drag.active) return
+    geom = measureGeometry()
+    const spareZone: 'fav' | 'more' = drag.fromZone === 'fav' ? 'more' : 'fav'
+    drag.sparePx = pitchFor(spareZone, geom)
+  })
 }
 
 /** The icons still on the ground in a zone: everything but the one being dragged. */
@@ -392,10 +404,26 @@ function holeFor(zone: 'fav' | 'more'): number {
  * sizing the spare-slot reservation in onDragMove happens before that snapshot
  * exists yet (it's what the reservation's own presence then gets measured
  * into), so that call site passes the pre-reservation measurement instead.
+ *
+ * `measureGeometry` skips the dragged icon, but that icon still occupies its
+ * slot (hidden with opacity, not removed from flow) -- so in the zone the drag
+ * came from, the collected slots are NOT physically adjacent: slot j's real
+ * index is `j < hole ? j : j + 1`. Averaging over the zone's whole span with
+ * that correction is exact for every hole position; naively taking
+ * `slots[1] - slots[0]` doubled the pitch whenever the dragged icon was the
+ * second slot in its zone (hole === 1), because slots[0]/slots[1] were then
+ * physical neighbours 0 and 2, not 0 and 1. The other zone has no hole
+ * (`holeFor` returns its full length there), so this reduces to the same
+ * plain average for that call site.
  */
 function pitchFor(zone: 'fav' | 'more', g: DockGeometry | null = geom): number {
   const slots = zone === 'fav' ? g?.favSlots : g?.moreSlots
-  if (slots && slots.length >= 2) return slots[1].midX - slots[0].midX
+  if (slots && slots.length >= 2) {
+    const hole = holeFor(zone)
+    const phys = (j: number) => (j < hole ? j : j + 1)
+    const last = slots.length - 1
+    return (slots[last].midX - slots[0].midX) / (phys(last) - phys(0))
+  }
   const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
   return (src?.getBoundingClientRect().width ?? 0) * 1.3
 }

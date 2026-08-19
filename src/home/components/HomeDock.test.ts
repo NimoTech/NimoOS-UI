@@ -216,6 +216,52 @@ describe('HomeDock', () => {
     return m ? Number(m[1]) : 0
   }
 
+  // Regression: measureGeometry skips the dragged icon, but the icon still
+  // occupies its slot (hidden with opacity, not removed from flow) -- so when
+  // the dragged icon is the *middle* of its zone, the two remaining slots
+  // collected are not physical neighbours. pitchFor used to take
+  // `slots[1].midX - slots[0].midX` unconditionally, which read the full span
+  // across the hole as if it were a single pitch, doubling it -- so a
+  // one-slot shift rendered as a two-slot jump onto the neighbour.
+  it('shifts a neighbour by exactly one pitch when the dragged icon is the middle of its zone', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    const nav = w.get('nav').element as HTMLElement
+    nav.setPointerCapture = (() => {}) as never
+    stubMids(w, {
+      '.dock-sep': () => 50,
+      '.dock-app[data-app="storage"]': () => 100,
+      '.dock-app[data-app="settings"]': () => 300,
+    })
+
+    // Drag "knowledge" -- the middle of the three-item more-zone
+    // (storage, knowledge, settings) -- so its holeIndex is 1.
+    await w.get('.dock-app[data-app="knowledge"]').trigger('pointerdown', { pointerId: 11, clientX: 200, clientY: 0 })
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 11, clientX: 90, clientY: 0 }) // crosses the 5px threshold
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    // Second pointermove at the same spot resolves the preview against the
+    // now-measured snapshot, same shape startShiftedDrag uses below.
+    const move2 = new Event('pointermove') as PointerEvent
+    Object.assign(move2, { pointerId: 11, clientX: 90, clientY: 0 })
+    window.dispatchEvent(move2)
+    await w.vm.$nextTick()
+
+    // clientX=90 is nearest "storage" (100) and to its left, so the preview
+    // targets insertAt=0 (before "storage") -- one slot short of the hole at
+    // index 1, so "storage" slides right by exactly one pitch (100px, the
+    // stubbed storage/settings gap spread over two physical slots). The old,
+    // doubled pitch would have shown 200px here.
+    expect(shiftPx(w.get('.dock-app[data-app="storage"]').element)).toBe(100)
+    expect(shiftPx(w.get('.dock-app[data-app="settings"]').element)).toBe(0)
+
+    const up = new Event('pointerup') as PointerEvent
+    Object.assign(up, { pointerId: 11, clientX: 90, clientY: 0 })
+    window.dispatchEvent(up)
+  })
+
   it('drops where the reflow was previewed even after the reflow itself shifts the dock', async () => {
     useAppsStore()
     const dock = useDock()
