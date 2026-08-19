@@ -943,4 +943,26 @@ describe('photos-timeline deleteAssets (bucket patching)', () => {
     await s.deleteAssets(['whatever'])
     expect(s.months[0].count).toBe(5)
   })
+
+  // A month decremented all the way to 0 must not linger as an empty row: the
+  // scrubber and month list are both derived from `buckets`, so a bucket stuck
+  // at count:0 would render an empty-but-present month forever (no assets to
+  // load, nothing left to ever bring it back). The two existing tests above only
+  // assert the decrement itself; this pins the follow-on removal.
+  it('removes a month from buckets and months once its last assets are deleted', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 2, videoCount: 0 },
+      { year: 2026, month: 7, count: 1, videoCount: 0 },
+    ])
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([
+      { id: 'a1', mimeType: 'image/jpeg' }, { id: 'a2', mimeType: 'image/jpeg' },
+    ])
+    await s.fetchBucket('2026-08')
+    svc.photos.deleteAsset.mockResolvedValue(undefined)
+    expect(await s.deleteAssets(['a1', 'a2'])).toBe(2)
+    expect(s.months.map((m) => m.key)).toEqual(['2026-07'])
+    expect(s.months.find((m) => m.key === '2026-08')).toBeUndefined()
+  })
 })

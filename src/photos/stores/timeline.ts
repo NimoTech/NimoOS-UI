@@ -388,12 +388,17 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
         // A counter would drop this write on ANY refresh, and while indexing the
         // directory refreshes every few seconds — a big month that takes longer
         // than that to page in would be re-requested and re-dropped forever. The
-        // condition below is the same one staleBucketKeys uses (count or
-        // videoCount moved, or the bucket is gone), so a month that did not change
+        // condition below is the same one staleBucketKeys uses (count, video, or
+        // ocr count moved, or the bucket is gone), so a month that did not change
         // keeps the pages it just paid for, and one that did change is refetched
         // by the grid's level-triggered request.
         const nowMeta = buckets.value.find((b) => bucketKey(b) === key)
-        if (!nowMeta || nowMeta.count !== meta.count || nowMeta.videoCount !== meta.videoCount) {
+        if (
+          !nowMeta
+          || nowMeta.count !== meta.count
+          || nowMeta.videoCount !== meta.videoCount
+          || nowMeta.ocrCount !== meta.ocrCount
+        ) {
           console.warn('[photos-timeline] bucket changed while loading, dropping the page', key)
           droppedByDirectoryChange = true
           return
@@ -494,15 +499,21 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     }
     if (removedPerKey.size === 0) return
     bucketAssets.value = map
-    buckets.value = buckets.value.map((b) => {
-      const hit = removedPerKey.get(bucketKey(b))
-      if (!hit) return b
-      return {
-        ...b,
-        count: Math.max(0, b.count - hit.total),
-        videoCount: Math.max(0, b.videoCount - hit.videos),
-      }
-    })
+    // A bucket decremented all the way to 0 is dropped outright rather than
+    // kept as an empty row: `months` is derived straight from `buckets`, so a
+    // count:0 entry would render an empty-but-present month forever — there is
+    // nothing left to load and nothing that would ever bring it back.
+    buckets.value = buckets.value
+      .map((b) => {
+        const hit = removedPerKey.get(bucketKey(b))
+        if (!hit) return b
+        return {
+          ...b,
+          count: Math.max(0, b.count - hit.total),
+          videoCount: Math.max(0, b.videoCount - hit.videos),
+        }
+      })
+      .filter((b) => b.count > 0)
   }
 
   async function deleteAssets(ids: string[]): Promise<number> {

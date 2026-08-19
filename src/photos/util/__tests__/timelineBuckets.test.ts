@@ -109,6 +109,12 @@ describe('staleBucketKeys', () => {
   it('invalidates on a videoCount-only change (the photo tab estimates from it)', () => {
     expect(staleBucketKeys([B(2026, 8, 3, 0)], [B(2026, 8, 3, 1)], ['2026-08'])).toEqual(['2026-08'])
   })
+  // Symmetric with the videoCount case above: the photo tab's estimate
+  // subtracts ocrCount too (tabCountOf), so an ocrCount-only move is just as
+  // real a staleness signal as a videoCount-only one.
+  it('invalidates on an ocrCount-only change (the photo tab estimates from it too)', () => {
+    expect(staleBucketKeys([B(2026, 8, 3, 0, 0)], [B(2026, 8, 3, 0, 1)], ['2026-08'])).toEqual(['2026-08'])
+  })
   it('ignores buckets that were never loaded', () => {
     expect(staleBucketKeys([B(2026, 8, 3)], [B(2026, 8, 9)], [])).toEqual([])
   })

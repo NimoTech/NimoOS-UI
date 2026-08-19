@@ -92,9 +92,11 @@ export function bucketToMonth(b: BucketMeta, photos: Photo[] | null): Month {
 }
 
 // Which cached buckets a refreshed directory invalidates. Only loaded buckets can
-// be stale, and only a changed count (either total or video) or a vanished bucket
+// be stale, and only a changed count (total, video, or ocr) or a vanished bucket
 // counts as stale — an unchanged bucket must be left byte-identical so a refresh
-// during indexing does not make the grid flash.
+// during indexing does not make the grid flash. ocrCount is checked alongside
+// videoCount because tabCountOf's photo-tab estimate subtracts both: an
+// ocrCount-only move is just as real a staleness signal as a videoCount-only one.
 export function staleBucketKeys(
   prev: BucketMeta[],
   next: BucketMeta[],
@@ -108,7 +110,11 @@ export function staleBucketKeys(
     if (!after) { stale.push(key); continue }
     const before = prevByKey.get(key)
     if (!before) continue
-    if (before.count !== after.count || before.videoCount !== after.videoCount) stale.push(key)
+    if (
+      before.count !== after.count
+      || before.videoCount !== after.videoCount
+      || before.ocrCount !== after.ocrCount
+    ) stale.push(key)
   }
   return stale
 }
