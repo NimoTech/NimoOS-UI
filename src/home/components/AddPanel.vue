@@ -131,6 +131,7 @@ import { useFoldersStore } from '../stores/folders'
 import { usePhotosStore } from '../stores/photos'
 import { useLiveStatsStore } from '../stores/liveStats'
 import { WIDGETS } from '../widgets/registry'
+import { cellAtPointer } from '../grid/pointerMath'
 import type { Kind } from '../grid/types'
 
 const props = defineProps<{ open: boolean; cell?: number; gap?: number; cols?: number; rows?: number; gridEl?: HTMLElement | null }>()
@@ -152,20 +153,17 @@ function appLabel(key: string): string {
   return m.system ? t(m.name) : m.name
 }
 
-// Pointer → grid cell, shared by the live drop-ghost and the final placement.
-// Returns null when the pointer isn't over the grid.
+// Pointer → grid cell, shared with the dock via pointerMath so both agree on what
+// counts as "over the grid". Returns null when it is not.
 function targetCellAt(ev: PointerEvent, desc: SpawnDesc): { tc: number; tr: number } | null {
   const grid = props.gridEl
   if (!grid) return null
-  const rect = grid.getBoundingClientRect()
-  if (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom) return null
-  const cell = props.cell ?? 60
-  const step = cell + (props.gap ?? 16)
-  const cols = props.cols ?? 12
-  const rows = props.rows ?? 8
-  const tc = Math.max(1, Math.min(cols - desc.w + 1, Math.round((ev.clientX - rect.left - cell / 2) / step) + 1))
-  const tr = Math.max(1, Math.min(rows - desc.h + 1, Math.round((ev.clientY - rect.top - cell / 2) / step) + 1))
-  return { tc, tr }
+  return cellAtPointer(ev.clientX, ev.clientY, grid.getBoundingClientRect(), desc, {
+    cell: props.cell ?? 60,
+    gap: props.gap ?? 16,
+    cols: props.cols ?? 12,
+    rows: props.rows ?? 8,
+  })
 }
 
 // ─── Spawn drag/click logic ───────────────────────────────────────────────────
