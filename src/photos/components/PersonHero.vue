@@ -87,6 +87,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import PersonAvatar from './PersonAvatar.vue'
 import nimoLogoUrl from '../assets/nimo-logo.png'
+import { useAskNimo } from '../composables/useAskNimo'
 import type { Person } from '../util/peopleView'
 
 const props = defineProps<{
@@ -177,12 +178,10 @@ function pickRelation(value: string): void {
   emit('pick-relation', value)
 }
 
-// Task 8 (Plan D): Vue2 :89 emits 'ask-nimo' with a canned prompt string; this component's
-// own ask-nimo wiring lands in Plan G (per this task's brief). Kept as a real no-op function
-// (not an inline no-op in the template) so it reads as a deliberate placeholder, not a
-// forgotten handler.
-// wired in Plan G (Ask Nimo)
-function onAskNimo(): void {}
+// Plan G: opens the Ask Nimo popup with Vue2's exact canned prompt (PhotosPersonDetail.vue:89-92).
+function onAskNimo(): void {
+  useAskNimo().openWith(t('photosPersonAskAboutPrompt', { name: heroTitle.value }))
+}
 
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
@@ -569,8 +568,9 @@ onUnmounted(() => {
 /* Owner acceptance Fix-1: same reasoning as `.back` above — these two triggers carry their own
    themed `var(--float-bg)` pill background, so pinning their text white produced white-on-
    near-white in the light theme (owner-reported "Edit/No group pills... hard to read"). Vue2's
-   own `.edit-btn`/`.relation-select` (photos-people.scss:350/360, 442/452;
-   PhotosPersonDetail.vue:1175/1183/1197) have always used themed var(--text-2)/var(--text-1),
+   own `.edit-btn`/`.relation-select` (photos-people.scss:350/360, 442/452 — the latter's
+   `.relation-select` rule has since been deleted as a confirmed zero-consumer orphan, Plan H
+   Task 15; PhotosPersonDetail.vue:1175/1183/1197) have always used themed var(--text-2)/var(--text-1),
    correctly paired with the same themed pill background, no `is-light` branch needed. Base +
    hover still written as parity's own compound selectors so the scoped-attribute specificity
    bump reliably beats parity's `:hover` variant too (parity's hover selector is itself a

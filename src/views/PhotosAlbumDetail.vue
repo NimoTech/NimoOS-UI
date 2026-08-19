@@ -44,6 +44,7 @@ import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
@@ -1259,6 +1260,9 @@ watch(gridRef, () => {
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+         as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
+    <AskNimoHost />
   </div>
   <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/etc.) --
        mounted once per photos view, Teleports to <body> and re-applies photos-root + themeClass

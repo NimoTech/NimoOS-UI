@@ -20,6 +20,11 @@ export default {
   photosTabOcr: 'OCR',
   photosTabVideos: 'Videos',
   photosItemsCount: '{count} items',
+  // Owner-acceptance Fix-5: singular sibling of photosItemsCount, matching Vue2's
+  // `{{ b.photos.length !== 1 ? $t('items') : $t('item') }}` conditional (currently only
+  // consumed by PhotosTrash.vue's bucket subtitle -- the other photosItemsCount call sites
+  // are untouched by this fix, out of scope here).
+  photosItemSingular: '{count} item',
   photosSelectedCount: '{count} selected',
   photosDelete: 'Delete',
   photosCancel: 'Cancel',
@@ -27,6 +32,14 @@ export default {
   photosNoPhotosHint: 'Photos will appear here once indexed',
   photosUnknownDate: 'Unknown Date',
   photosDeletedToast: '{count} item(s) moved to Recently Deleted',
+  // Owner-acceptance Fix-3: honest partial-failure toast for the "move to Recently Deleted"
+  // flow (PhotosFavorites.vue's onBatchDelete/onLightboxDelete) -- store.deleteAssets already
+  // returns the ACTUAL success count (per-id try/catch), this key surfaces it instead of
+  // silently reporting the click-time selection size as if every item succeeded. Zero-success
+  // reuses the existing photosTrashDeleteFailed "Delete failed" family rather than adding a
+  // near-duplicate key (see trash.ts's purge()/PhotosTrash.vue for the sibling permanent-delete
+  // flow, which follows the exact same three-way branch).
+  photosDeletedPartialToast: '{ok} item(s) moved to Recently Deleted, {fail} failed',
   photosIndexedToast: 'Indexed {n} photos',
   photosTaskCompletedToast: '{label} completed',
   photosDensityCompact: 'Compact',
@@ -86,8 +99,38 @@ export default {
   photosFavExport: 'Download as ZIP',
   photosFavExporting: 'Preparing download…',
   photosFavCount: '{count} favorites',
+  // Task 3 (Plan H) review fix: hero stats sub-line -- Vue2 bolds ONLY the raw
+  // number (`<b>{{ photoCount }}</b> {{ $t('photos_count') }}`), the noun sits
+  // outside <b>, so these are noun-only keys (not "{n} photos" one-piece
+  // strings) matching Vue2 PhotosFavoritesView.vue:11-12's photos_count/videos
+  // copy exactly.
+  photosFavHeroPhotosNoun: 'photos',
+  photosFavHeroVideosNoun: 'videos',
+  photosFavHeroKeptForever: 'kept forever',
+  // Task 4 (Plan H): pinned-highlights strip (server-ranked top 5, GET /favorites/top) --
+  // Vue2 PhotosFavoritesView.vue:89-90.
+  photosFavPinnedTitle: 'Pinned highlights',
+  photosFavPinnedSub: 'Your most-favorited moments · Nimo curated',
+  // Task 5 (Plan H): slideshow -- Vue2 PhotosFavoritesView.vue:18-19 (entry button) /
+  // :237-273 (playback overlay: close, prev/next, pause/play, 3 speed presets).
+  photosFavSlideshow: 'Slideshow',
+  photosFavSlideClose: 'Close (Esc)',
+  photosFavSlidePrev: 'Previous (←)',
+  photosFavSlideNext: 'Next (→)',
+  // Review Minor 4: adds Vue2 :256's play/pause button title (value verbatim from
+  // NimoOS-UI/src/assets/lang/en_US.json:2168).
+  photosFavSlidePlayPause: 'Play/Pause (Space)',
+  photosFavSlideSpeed: 'Speed',
+  photosFavSlideFast: 'Fast',
+  photosFavSlideNormal: 'Normal',
+  photosFavSlideSlow: 'Slow',
   // ── Photos: Trash view ──
   photosTrashTitle: 'Recently Deleted',
+  // Fix wave (post-final-review): topbar `sub` was previously left unbound, defaulting to the
+  // library-wide photo/video count string. Matches Vue2 PhotosTimeline.vue:231 navMap.trash
+  // ('{count} items · auto-deletes in 30 days'), except {days} is dynamic here (ruled: reads
+  // the live retention setting instead of Vue2's hardcoded 30).
+  photosTrashSubtitle: '{count} items · auto-deletes in {days} days',
   photosTrashEmptyTitle: 'Trash is empty',
   photosTrashEmptyHint: 'Deleted items stay here for {days} days before being permanently removed.',
   photosTrashRestore: 'Restore',
@@ -99,6 +142,13 @@ export default {
   photosTrashCanFree: 'can be freed',
   photosTrashItems: 'items',
   photosTrashSelectedCount: '{count} selected',
+  // Owner-acceptance Fix-5: Vue2 PhotosTrashView.vue template:55 puts a leading label span
+  // before the two sort buttons ($t('Sort')) -- this key was missing entirely, so the label
+  // span was never rendered (parity's own `.lib-sort-label` rule at photos.scss went unused).
+  // Named per-view like the sibling photosFavSort/photosSearchSort/photosAlbumSort keys
+  // rather than a single shared "Sort" key (established convention: each view keeps its own
+  // copy of this word).
+  photosTrashSort: 'Sort',
   photosTrashSortDaysLeft: 'Days left',
   photosTrashSortRecent: 'Recently deleted',
   photosTrashUndo: 'Undo',
@@ -107,10 +157,15 @@ export default {
   photosTrashBucketSoon: 'Deleting in 8–14 days',
   photosTrashBucketLater: 'Deleting in 15–21 days',
   photosTrashBucketFresh: 'Deleted recently',
-  photosTrashBucketUrgentDesc: 'Will be deleted within a week',
-  photosTrashBucketSoonDesc: 'Will be deleted within two weeks',
-  photosTrashBucketLaterDesc: 'Will be deleted within three weeks',
-  photosTrashBucketFreshDesc: 'Recently deleted items',
+  // Owner-acceptance Fix-5: all four descriptions below were paraphrases, not Vue2's actual
+  // copy -- corrected to match Vue2 PhotosTrashView.vue:133-136's BUCKETS `desc` fields
+  // verbatim (the owner's screenshot review specifically caught the 'fresh' one showing
+  // "Recently deleted items" instead of Vue2's "Auto-deletes after the retention period";
+  // the other three had the same kind of drift, caught in the same-view sweep).
+  photosTrashBucketUrgentDesc: 'Will be gone soon — recover now if needed',
+  photosTrashBucketSoonDesc: 'Heads up — auto-removal coming',
+  photosTrashBucketLaterDesc: 'Still plenty of time to restore',
+  photosTrashBucketFreshDesc: 'Auto-deletes after the retention period',
   // ── Photos: Confirmation dialogs ──
   photosTrashRestoreAllTitle: 'Restore all {count} item(s)?',
   photosTrashRestoreAllBody: "They'll go back to where they came from and resume appearing in your library, albums and timelines.",
@@ -121,6 +176,12 @@ export default {
   // ── Photos: Toast messages ──
   photosTrashRestoredToast: '{count} item(s) restored to Library',
   photosTrashPurgedToast: '{count} item(s) permanently deleted · {size} MB freed',
+  // Owner-acceptance Fix-3: trash.ts's purge() now reports the ACTUAL per-item success count
+  // (Promise.allSettled, not the old swallow-and-lie Promise.all) -- this key covers the
+  // 0 < success < total case. Freed-size is intentionally omitted here (same reasoning as
+  // photosTrashEmptiedToastPartial below: it was only ever a sum over the full requested
+  // selection, which overstates it once some of those items never actually got purged).
+  photosTrashPurgedPartialToast: 'Permanently deleted {ok} item(s), {fail} failed',
   photosTrashEmptiedToast: 'Trash emptied · {size} MB freed',
   // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
   // loaded subset — these size-less variants are used instead until trashExhausted.
@@ -259,9 +320,16 @@ export default {
   photosAddToAlbumEmpty: 'No albums yet — create one first.',
   photosAddToAlbumNew: '+ New album',
   // ── Photos: Favorites view - Save as Album ──
-  photosFavSaveAlbum: 'Save as album',
-  photosFavSaveAlbumTitle: 'Save favorites as album',
+  // Acceptance Fix-2 (owner finding): Vue2 PhotosFavoritesView.vue reuses the exact same
+  // $t('Save as Album') string for both the hero button (:22) and the modal header title
+  // (:282) -- aligned to Vue2's literal value and reused for both here too (the previous
+  // separate photosFavSaveAlbumTitle key, whose value differed from Vue2, is retired rather
+  // than kept alongside a now-matching key).
+  photosFavSaveAlbum: 'Save as Album',
   photosFavSaveAlbumDefault: 'Favorites · {year}',
+  // Vue2 :291's input placeholder -- a literal hardcoded string (not templated with the
+  // current year, unlike the pre-filled default value above), transcribed verbatim.
+  photosFavSaveAlbumPlaceholder: 'e.g. Favorites · 2026',
   // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
   // 键清单漏列)。英文值逐字取自 Vue2 源(插值变量对齐成 {count})。
   photosFavSaveAlbumSub: 'Snapshot {count} favorited photos into a new album',
@@ -558,6 +626,20 @@ export default {
   photosFavStatInYear: 'in {year}',
   photosFavStatYearsTotal: '{n} years total',
   photosFavNoFaces: 'No faces yet',
+  // ── Task 6 (Plan H): place-filter dropdown — Vue2 PhotosFavoritesView.vue:412-416/353-360.
+  photosFavFilterPlaces: 'Places',
+  photosFavFilterClear: 'Clear filter',
+  // ── Acceptance Fix-1 (owner finding, Plans G+H): the "All" chip + People/Years dropdowns
+  // — Vue2 PhotosFavoritesView.vue :114-116 ($t('All')) / :125 ($t('People')) / :177
+  // ($t('Years')). en values verbatim from old zh_CN.json's own English source, matching
+  // the already-landed photosFavFilterPlaces above ($t('Places')).
+  photosFavFilterAll: 'All',
+  photosFavFilterPeople: 'People',
+  photosFavFilterYears: 'Years',
+  // Vue2 :198-202's Sort/Recent/Oldest segmented toggle — old zh_CN.json:2294/2250/2219.
+  photosFavSort: 'Sort',
+  photosFavSortRecent: 'Recent',
+  photosFavSortOldest: 'Oldest',
   // ── Final-review Minor 6 / 7: short copy on the hero ────────────────────────
   // M6: Vue2 :38/:41 uses short verbs in the Edit dropdown (`Rename` / `Merge into…`).
   // The original implementation reused photosPersonRename / photosPersonMergeInto, which
@@ -920,10 +1002,14 @@ export default {
   // 本期不迁:主题开关(台账第二笔)· AI 入口(D1)· Sign out(D22)· 上传整块(D21)。
   // 自拟(Vue2 PhotosSettings.vue:18 内联 "Settings")
   photosSettingsTitle: 'Settings',
-  // 终审 Minor 4:此处原有 photosSettingsSubtitle(Vue2 PhotosSettings.vue:19 顶栏
-  // 副标题 "Storage · AI behavior")已删 —— 全仓零引用。AreaShell.vue:6 的 props 只有
-  // `title`,没有承载副标题的位置,这行 Vue2 顶栏文案在 New-UI 里因此被刻意丢弃,不是漏迁。
-  // 同 photosSvSettingsPending 的删除先例(zh_cn.ts 对应处)。
+  // Plan H Task 11 review fix: photosSettingsSubtitle (Vue2 PhotosSettings.vue:19 topbar
+  // subtitle "Storage · AI behavior") is RESTORED here. The final-review Minor 4 deletion rationale
+  // that used to sit on this line is now false: it argued AreaShell.vue's `title`-only prop
+  // had no slot for a subtitle, but Task 11's re-shell dropped AreaShell entirely in favor of
+  // PhotosTopbar (which DOES take a `sub` prop, same as every other re-shelled Photos view) —
+  // that premise no longer holds, so the key is back and wired via `:sub="t('photosSettingsSubtitle')"`.
+  // Ad-hoc (Vue2 PhotosSettings.vue:19 inline "Storage · AI behavior")
+  photosSettingsSubtitle: 'Storage · AI behavior',
   // 自拟(Vue2 PhotosSettings.vue:31 内联英文长句)
   photosSettingsHeroDesc: 'Everything Nimo does on your NAS — what runs, where it runs, and how much space it takes.',
   // 自拟(Vue2 PhotosSettings.vue:33 内联 "Storage")
@@ -1127,4 +1213,48 @@ export default {
   photosPersonDupMergeInto: 'Merge into existing',
   // Vue2's dupconfirm "name anyway" button at both call sites: $t('Name anyway').
   photosPersonDupNameAnyway: 'Name anyway',
+  // Plan G (Ask Nimo): FAB label + composer placeholder, Vue2 PhotosAskNimo.vue / PhotosAgentChat.vue.
+  photosAskNimo: 'Ask Nimo',
+  photosAskNimoPlaceholder: 'Ask Nimo…',
+  // Canned prompts sent when clicking a hero/relations/lightbox Ask Nimo trigger -- distinct from
+  // the button LABEL keys (photosPersonAskAbout etc.), which already existed before this plan.
+  photosPersonAskAboutPrompt: 'Show me my favorite photos of {name}',
+  photosPersonDigDeeperPrompt: 'Tell me more about my photos of {name}',
+  photosHandOffToNimoPrompt: 'Edit this photo: {title}',
+  photosNimoAgent: 'Nimo Agent',
+  photosSelectModel: 'Select model',
+  photosGoToSettingsConfigure: 'Go to Settings to configure →',
+  photosClearConversation: 'Clear conversation',
+  photosOpenFullConversation: 'Open the full conversation in the side drawer',
+  photosNimoHideHint: 'Hide — drag from the right edge to bring it back',
+  photosNimoDragHint: 'Drag to move · click to show Ask Nimo',
+  photosBackgroundTasksCount: '{n} background tasks',
+  photosConfirmAction: 'Confirm: {action}',
+  photosRequestingAccess: 'Requesting access: {reason}',
+  photosAllow: 'Allow',
+  photosDeny: 'Deny',
+  photosAllowed: 'Allowed',
+  photosDenied: 'Denied',
+  photosConfirmMissingId: 'Invalid confirmation request (missing confirmId)',
+  photosSubmissionFailed: 'Submission failed: {detail}',
+  photosUnknownError: 'Unknown error',
+  photosModelGroupLocalOllama: 'Local · Ollama',
+  photosModelGroupCloudDeepSeek: 'Cloud · DeepSeek',
+  photosModelGroupCloudOpenAI: 'Cloud · OpenAI',
+  photosModelGroupCloudAnthropic: 'Cloud · Anthropic',
+  photosModelGroupCloudQwen: 'Cloud · Qwen',
+  photosModelGroupOther: 'Other',
+  photosModelProviderCloudFallback: 'Cloud',
+  photosTaskIndexing: 'Indexing photos',
+  photosTaskEmbedding: 'Generating AI index',
+  photosTaskOcr: 'Recognizing text in images',
+  photosTaskFace: 'Recognizing people',
+  photosTaskRebuild: 'Rebuilding AI index',
+  photosTaskAesthetic: 'Scoring photo aesthetics',
+  photosTaskFailed: 'Failed',
+  photosSuggestLastWeekend: 'Last weekend',
+  photosSuggestBestSunsets: 'Best sunsets',
+  photosSuggestFindPeople: 'Find people',
+  photosGridAskNimoRecap: 'Build a recap album from these {count} photos.',
+  photosSearchFindPhotosPrefix: 'Find photos: ',
 }

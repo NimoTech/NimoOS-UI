@@ -499,3 +499,124 @@ describe('McpSection -- form-leftover regression for the always-mounted dialog i
     expect(modalNameInput().value).not.toBe('leftover-draft-name')
   })
 })
+
+// ============================================================================
+// Task 19 follow-up (review finding 1): the brief listed this file as a file
+// to modify for the synchronous post-save probe (`probing` flag +
+// `service.ai.testMCPServer` + `toTestView`/`toTestViewFromError` mapping),
+// but the commit never added component-level coverage for it. These cases
+// pin: the `probing` lifecycle around the in-flight request, the `finally`
+// clearing it even when the probe throws, a `{ok:false}` resolution
+// surfacing as a danger toast (never a success one), and `probeServer`
+// receiving the right server id from both the create and the edit branch of
+// `onSave`.
+// ============================================================================
+describe('McpSection — probe-on-save wiring (Task 19)', () => {
+  function pendingTestMCPServer() {
+    let resolve!: (v: unknown) => void
+    const promise = new Promise((res) => { resolve = res })
+    h.testMCPServer.mockReturnValue(promise)
+    return { resolve }
+  }
+
+  function probingSpinner() {
+    return document.querySelector('.sk-spinner[title]')
+  }
+
+  it('14. probing is true while testMCPServer is in flight, and false once it resolves', async () => {
+    h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a' })])
+    const { resolve } = pendingTestMCPServer()
+    const w = mountSection()
+    await flush()
+
+    const detail = w.findComponent(McpServerDetail)
+    detail.vm.$emit('edit', srv(1, { name: 'svc-a' }))
+    await macroFlush()
+    modalSubmitBtn().click()
+    await flush()
+    await flush()
+
+    // The save (updateMCPServer) and reload have both already resolved by
+    // here -- the still-pending testMCPServer call is the only thing left
+    // in flight, so the probing indicator must be up.
+    expect(probingSpinner()).not.toBeNull()
+
+    resolve({ ok: true, tool_count: 2, tools: [] })
+    await flush()
+
+    expect(probingSpinner()).toBeNull()
+  })
+
+  it('15. testMCPServer throwing still clears probing (finally path) -- no stuck "in progress" indicator', async () => {
+    h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a' })])
+    h.testMCPServer.mockRejectedValue(new Error('network timeout'))
+    const w = mountSection()
+    await flush()
+
+    const detail = w.findComponent(McpServerDetail)
+    detail.vm.$emit('edit', srv(1, { name: 'svc-a' }))
+    await macroFlush()
+    modalSubmitBtn().click()
+    await flush()
+    await flush()
+
+    expect(probingSpinner()).toBeNull()
+  })
+
+  it('16. a probe resolving with {ok:false} surfaces a danger toast, never a success one', async () => {
+    h.listMCPServers.mockResolvedValue([srv(1, { name: 'svc-a' })])
+    h.testMCPServer.mockResolvedValue({ ok: false, error_key: 'connect_failed', detail: 'x' })
+    const toast = useToast()
+    const show = vi.spyOn(toast, 'show')
+    const w = mountSection()
+    await flush()
+
+    const detail = w.findComponent(McpServerDetail)
+    detail.vm.$emit('edit', srv(1, { name: 'svc-a' }))
+    await macroFlush()
+    modalSubmitBtn().click()
+    await flush()
+    await flush()
+
+    expect(show).toHaveBeenCalledWith(zh.aiMcpSrvTestErrConnect, 3000, 'danger')
+    expect(show).not.toHaveBeenCalledWith(expect.stringContaining('已连接'))
+  })
+
+  it('17a. probeServer is invoked with the newly created server id (create branch)', async () => {
+    h.listMCPServers
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([srv(9, { name: 'new-one' })])
+    h.createMCPServer.mockResolvedValue({ id: 9 })
+    h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 1, tools: [] })
+    const w = mountSection()
+    await flush()
+
+    await w.find('.sk-add-btn').trigger('click')
+    await macroFlush()
+    setValue(modalNameInput(), 'new-one')
+    const urlInput = document.querySelector('.sk-modal [data-f="url"]') as HTMLInputElement
+    setValue(urlInput, 'https://example.com/new')
+    await flush()
+    modalSubmitBtn().click()
+    await flush()
+    await flush()
+
+    expect(h.testMCPServer).toHaveBeenCalledWith(9)
+  })
+
+  it('17b. probeServer is invoked with the edited server id (edit branch)', async () => {
+    h.listMCPServers.mockResolvedValue([srv(4, { name: 'svc-d' })])
+    h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 1, tools: [] })
+    const w = mountSection()
+    await flush()
+
+    const detail = w.findComponent(McpServerDetail)
+    detail.vm.$emit('edit', srv(4, { name: 'svc-d' }))
+    await macroFlush()
+    modalSubmitBtn().click()
+    await flush()
+    await flush()
+
+    expect(h.testMCPServer).toHaveBeenCalledWith(4)
+  })
+})

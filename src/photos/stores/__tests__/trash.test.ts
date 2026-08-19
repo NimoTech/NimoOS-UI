@@ -61,6 +61,37 @@ describe('photosTrash store', () => {
     expect(s.loaded).toBe(true)
   })
 
+  // Task 10 (Plan H review fix round 2): PhotosSidebar's own onMounted and PhotosTrash.vue's
+  // onMounted can both call fetchTrash() in the same frame (sidebar mounts as PhotosTrash.vue's
+  // child) -- without dedup that fired two concurrent listTrash() requests, which corrupted
+  // callers relying on ordered mock queues (see task report). Same in-flight-dedup shape as
+  // settings.ts's fetchAiFeatures.
+  it('dedupes concurrent fetchTrash calls into a single service request, both callers resolve', async () => {
+    const s = usePhotosTrash()
+    ;(service.photos.listTrash as any).mockClear()
+    const p1 = s.fetchTrash()
+    const p2 = s.fetchTrash()
+    await expect(Promise.all([p1, p2])).resolves.toBeDefined()
+    expect(service.photos.listTrash).toHaveBeenCalledTimes(1)
+    expect(s.loaded).toBe(true)
+    expect(s.items.length).toBe(1)
+  })
+
+  it('after a failed fetch, a retry issues a new service call (in-flight guard cleared)', async () => {
+    const s = usePhotosTrash()
+    ;(service.photos.listTrash as any).mockClear()
+    ;(service.photos.listTrash as any).mockRejectedValueOnce(new Error('boom'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await s.fetchTrash()
+    expect(s.loaded).toBe(false)
+    expect(service.photos.listTrash).toHaveBeenCalledTimes(1)
+
+    await s.fetchTrash()
+    expect(service.photos.listTrash).toHaveBeenCalledTimes(2)
+    expect(s.loaded).toBe(true)
+    spy.mockRestore()
+  })
+
   it('restore re-fetches trash and, in legacy mode, refetches the full timeline', async () => {
     const s = usePhotosTrash()
     await s.restore(['t1'])
@@ -85,21 +116,38 @@ describe('photosTrash store', () => {
     expect(service.photos.emptyTrash).toHaveBeenCalled()
   })
 
-  it('purge deletes one by one then re-fetches', async () => {
+  it('purge deletes one by one then re-fetches, resolving to the full success count', async () => {
     const s = usePhotosTrash()
-    await s.purge(['t1', 't2'])
+    const n = await s.purge(['t1', 't2'])
     expect(service.photos.purgeTrash).toHaveBeenCalledTimes(2)
+    expect(n).toBe(2)
   })
 
-  it('purge swallows and logs a single item failure without affecting the rest or the follow-up re-fetch', async () => {
+  // Owner-acceptance Fix-3 (delete-chain diagnosis): purge() used to swallow a per-item
+  // failure behind a Promise.all that always resolved, so a caller had no way to tell "2
+  // requested, 1 actually purged" from "2 requested, 2 actually purged" -- both looked
+  // identical from the outside. It must now report the real count so PhotosTrash.vue can
+  // show an honest partial-failure toast instead of a fabricated success one.
+  it('purge logs a single item failure but still resolves to the ACTUAL success count (not the requested count)', async () => {
     const s = usePhotosTrash()
     ;(service.photos.purgeTrash as any)
       .mockImplementationOnce(() => Promise.reject(new Error('boom')))
       .mockImplementationOnce(() => Promise.resolve())
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    await s.purge(['t1', 't2'])
+    const n = await s.purge(['t1', 't2'])
     expect(spy).toHaveBeenCalledWith('[photos-trash] purge', 't1', expect.any(Error))
     expect(service.photos.listTrash).toHaveBeenCalled()
+    expect(n).toBe(1) // only t2 actually succeeded
+    spy.mockRestore()
+  })
+
+  it('purge resolves to 0 when every item fails, without throwing', async () => {
+    const s = usePhotosTrash()
+    ;(service.photos.purgeTrash as any).mockRejectedValue(new Error('boom'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const n = await s.purge(['t1', 't2'])
+    expect(n).toBe(0)
+    expect(spy).toHaveBeenCalledTimes(2)
     spy.mockRestore()
   })
 

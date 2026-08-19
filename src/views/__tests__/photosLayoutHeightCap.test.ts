@@ -13,6 +13,15 @@
 // jsdom 测不到布局高度(getBoundingClientRect 恒 0),所以布局是否真的生效以真机验收为准;
 // 这道闸只锁源文本,防复发。读盘一律 node:fs —— `?raw` 在本仓测试环境恒空(历史坑:
 // color-guard 曾因此空转)。
+//
+// As of Plan H Task 11 (Settings re-shell, the last entry this file ever removed), both the
+// CAPPED and EXEMPT lists are empty -- all 13 Photos-area pages have been switched to the `.app`
+// CSS Grid shell, so none of them carry a literal `.photos-layout {` rule anymore. This file's
+// real gatekeeping duty now lives in the two "reverse" directory-scan assertions below
+// (`allPhotosLayoutViews()`, which auto-discovers pages by walking src/views): they guard
+// against a future new Photos page copy-pasting the old min-height:100% rule back in, and make
+// sure a new page can't bypass registration in this file. The CAPPED/EXEMPT lists themselves are
+// fine left empty -- no need to invent an excuse for the empty arrays.
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 
@@ -20,7 +29,7 @@ const VIEWS_DIR = 'src/views'
 
 // 已封顶:内层滚动链完整(`.photos-main` flex:1 + min-height:0 → 自带 overflow-y:auto 的
 // 滚动容器),封顶后由内层容器接管滚动。
-const CAPPED = [
+const CAPPED: string[] = [
   // Task 3(壳 + 侧栏重刻)起,Photos.vue 不再有 `.photos-layout` 规则字符串——外壳换成了
   // Vue2 结构的 `.app` CSS Grid(`height: 100vh; overflow: hidden`,parity scss
   // photos.scss:116-128),高度封顶职责由那条规则接管,与本文件锁的 `.photos-layout` 规则
@@ -48,9 +57,19 @@ const CAPPED = [
   // still takes over the inner scroll responsibility, unchanged) — it no longer contains a
   // literal `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to
   // move it into EXEMPT.
-  'PhotosFavorites.vue',        // PhotosGrid 的 .photos-wrap
-  'PhotosTrash.vue',            // .trash-scroll
-  'PhotosSettings.vue',         // .ps-scroll
+  // As of Plan H Task 1 (Favorites re-shell), PhotosFavorites.vue has likewise switched to the
+  // `.app` grid shell, so it's dropped from below the same way (PhotosGrid's own `.photos-wrap`
+  // still takes over the inner scroll responsibility, unchanged) — it no longer contains a
+  // literal `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to
+  // move it into EXEMPT.
+  // As of Plan H Task 8 (Trash re-shell), PhotosTrash.vue has likewise switched to the `.app`
+  // grid shell, so it's dropped from below the same way (`.trash-scroll` still takes over the
+  // inner scroll responsibility, unchanged) — it no longer contains a literal `.photos-layout {`,
+  // so `allPhotosLayoutViews()` excludes it automatically; no need to move it into EXEMPT.
+  // As of Plan H Task 11 (Settings re-shell), PhotosSettings.vue has likewise switched to the
+  // `.app` grid shell, so it's dropped from below the same way (`.ps-scroll` still takes over the
+  // inner scroll responsibility, unchanged) — it no longer contains a literal `.photos-layout {`,
+  // so `allPhotosLayoutViews()` excludes it automatically; no need to move it into EXEMPT.
 ]
 
 // 豁免:这一页整页都没有内层滚动容器,封顶会把内容裁掉够不着 —— 必须先给它建滚动容器

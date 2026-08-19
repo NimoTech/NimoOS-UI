@@ -25,6 +25,24 @@ export interface AlbumDragSort {
   destroy(): void
 }
 
+// Fix-6 (owner acceptance, 2026-08-18): reuses the exact `.is-dragging` convention already
+// established for the Ask Nimo FAB's own drag (AskNimoFab.vue's `dragging` ref -> photos.scss
+// :860-867 `.nimo-fab.is-dragging { transition: none !important; ... }`) -- same idea, applied
+// to the *container* here rather than the single dragged element. Root cause this addresses:
+// both call sites (`.tile`/`.mo-card`) use `forceFallback: true`, which drives the drag with
+// real `mousemove` events rather than native HTML5 dragover -- the floating ghost moves, but the
+// REAL cursor is still physically sweeping across every sibling tile/card it passes over on the
+// way, firing each one's own `:hover` CSS transition (image zoom / card lift / overlay fade) in
+// rapid succession. None of that is `onOrder`'s doing (that still only fires once, on drop --
+// unchanged) -- it is pure per-frame paint/composite cost competing with Sortable's own
+// `animation: 150` FLIP transition for the frame budget, which is what reads as "janky" even
+// though the reorder itself is cheap. Toggling this class lets each consumer's own stylesheet
+// suppress exactly the transitions that don't serve any purpose mid-drag (see
+// `.album-photo-grid.is-dragging` in photos.scss and `.mo-grid.is-dragging` in
+// PhotosSmartViews.vue) without touching Sortable's own config values (still byte-identical to
+// Vue2's five options -- see this file's header and useAlbumDragSort.test.ts's exact-keys case).
+export const DRAG_ACTIVE_CLASS = 'is-dragging'
+
 export function useAlbumDragSort(opts: {
   container: Ref<HTMLElement | null>
   enabled: () => boolean
@@ -67,12 +85,17 @@ export function useAlbumDragSort(opts: {
       // Guard the post-drop click so a drag doesn't also toggle selection.
       onStart: () => {
         dragging = true
+        el.classList.add(DRAG_ACTIVE_CLASS)
       },
       onEnd: () => {
         const ids = Array.from(el.querySelectorAll(itemSelector))
           .map((n) => n.getAttribute('data-id'))
           .filter((id): id is string => id !== null)
         opts.onOrder(ids)
+        // Fix-6: cleared synchronously (unlike `dragging` below) -- the transitions this class
+        // suppresses only matter while the pointer is actively sweeping across siblings; nothing
+        // about the post-drop click guard depends on it lingering an extra tick.
+        el.classList.remove(DRAG_ACTIVE_CLASS)
         void nextTick(() => {
           dragging = false
         })

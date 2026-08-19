@@ -156,8 +156,11 @@ function onImgError(): void {
    class renames): unlike the other five components in this task, this one has no single Vue2
    ancestor to align to. It replaces FIVE different pieces of Vue2 markup that each use their
    own class names for what is structurally the same three-tier avatar (real image / initial /
-   icon fallback): `.face-card .ring` (people list), `.rel-row .av` (co-appear list), `.coappear-
-   card .ring` (person-detail timeline strip), `.detail-hero .avatar` (hero), and the merge
+   icon fallback): `.face-card .ring` (people list), `.rel-row .av` (co-appear list — this
+   parity selector was itself a confirmed zero-consumer orphan, deleted in Plan H Task 15;
+   named here only for the historical Vue2 shape this component replaces, not as a live
+   anchor), `.coappear-card .ring` (person-detail timeline strip), `.detail-hero .avatar`
+   (hero), and the merge
    dialog's own avatar markup. Parity anchors each of those five shapes to its own selector
    path with its own sizing/border — this component can't literally *be* `.ring` and `.av` and
    `.detail-hero .avatar` at once without either duplicating itself per call site or accepting

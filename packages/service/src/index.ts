@@ -45,6 +45,7 @@ export type { TerminalMode, TerminalSessionInfo, TerminalSettings, TerminalWindo
 export type { SearchSource, SearchFilePath, SearchCite, SemanticHit, FileNameHit, ImageHit, NoteHit, NormalizedAggregate } from './search.js'
 export type { Note, CreateNoteFields, UpdateNoteFields, NotesSettings, SettingsFields, NotesDistillSettings, DistillSettingsPatch, DistillJob, DistillJobsView } from './notes.js'
 export type { WikiRoot, WikiCandidate, WikiTreeNode, WikiChildMapEntry, WikiRecentChange, WikiNode } from './wiki.js'
+export type { McpToolRow, McpApprovalRow } from './ai.js'
 
 // Lazy domain services: access only after initService.
 export const service = {

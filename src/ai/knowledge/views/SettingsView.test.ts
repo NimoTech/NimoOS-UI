@@ -325,25 +325,25 @@ describe('SettingsView — service card two states (blueprint :7-19)', () => {
     const card = w.find('.k-set-card.k-set-svc')
     expect(card.exists()).toBe(true)
     expect(card.find('.k-svc-light').attributes('data-state')).toBe('paused')
-    expect(card.find('.k-svc-name').text()).toBe('⏸ Paused')
-    expect(card.find('.k-svc-cn').text()).toBe('New files will not be auto-indexed')
+    expect(card.find('.k-svc-name').text()).toBe('⏸ 已暂停')
+    expect(card.find('.k-svc-cn').text()).toBe('新文件不会被自动收录')
     const btn = card.find('.k-svc-state button')
     expect(btn.classes()).toEqual(['k-btn', 'primary'])
     expect(btn.findComponent(KIcon).props('name')).toBe('play')
     expect(btn.findComponent(KIcon).props('size')).toBe(12)
-    expect(btn.text()).toBe('Resume')
+    expect(btn.text()).toBe('恢复')
   })
 
   it('fixture variant paused:false — light data-state="running", text "✅ Running" + secondary line, button outline + pause + "Pause"', async () => {
     const { w } = await mountPage({ paused: false })
     const card = w.find('.k-set-card.k-set-svc')
     expect(card.find('.k-svc-light').attributes('data-state')).toBe('running')
-    expect(card.find('.k-svc-name').text()).toBe('✅ Running')
-    expect(card.find('.k-svc-cn').text()).toBe('Continuously monitoring and indexing new files')
+    expect(card.find('.k-svc-name').text()).toBe('✅ 运行中')
+    expect(card.find('.k-svc-cn').text()).toBe('正在持续监控并索引新文件')
     const btn = card.find('.k-svc-state button')
     expect(btn.classes()).toEqual(['k-btn', 'outline'])
     expect(btn.findComponent(KIcon).props('name')).toBe('pause')
-    expect(btn.text()).toBe('Pause')
+    expect(btn.text()).toBe('暂停')
   })
 
   it('N16: `⏸` / `✅` **inside** t() — key value includes emoji (not template-composed)', () => {
@@ -366,9 +366,9 @@ describe('SettingsView — config card · concurrency row (blueprint :22-34)', (
   it('three lines: title / Chinese / description verbatim', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[0]!
-    expect(row.find('.k-set-row-title').text()).toBe('Concurrent files')
-    expect(row.find('.k-set-row-cn').text()).toBe('Concurrency level')
-    expect(row.find('.k-set-row-desc').text()).toBe('Higher value faster, more resource use. Recommend 4 when NAS idle.')
+    expect(row.find('.k-set-row-title').text()).toBe('同时处理几个文件')
+    expect(row.find('.k-set-row-cn').text()).toBe('并发档位')
+    expect(row.find('.k-set-row-desc').text()).toBe('数值越大越快、越占资源。NAS 空闲时建议 4。')
   })
 
   it('🔴 button text **is just the number** — no level names (`Power-saving`/`Balanced`/`Full power` belong to ParserStatus)', async () => {
@@ -408,9 +408,9 @@ describe('SettingsView — config card · device row (blueprint :36-49)', () => 
   it('three lines: title / Chinese + three level text ("Auto" via i18n, bare GPU / CPU are hardcoded tech identifiers)', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[1]!
-    expect(row.find('.k-set-row-title').text()).toBe('Inference device')
-    expect(row.find('.k-set-row-cn').text()).toBe('Inference device · maintainers only')
-    expect(devBtns(w).map((b) => b.text())).toEqual(['Auto', 'GPU', 'CPU'])
+    expect(row.find('.k-set-row-title').text()).toBe('推理设备')
+    expect(row.find('.k-set-row-cn').text()).toBe('推理设备 · 仅维护者关心')
+    expect(devBtns(w).map((b) => b.text())).toEqual(['自动', 'GPU', 'CPU'])
     // blueprint `:46-47` those two deliberately skip i18n (N22 same family) → in source **bare literals**,
     // not via t()
     const src: string = readFileSync(SRC_PATH, 'utf8')
@@ -451,13 +451,13 @@ describe('SettingsView — deviceLabel four branches + null fallback (blueprint 
 
   it('branch ① `auto` — on device resolved_device:"cpu" → "Currently using: Auto (currently CPU)"(toUpperCase)', async () => {
     const { w } = await mountPage()
-    expect(label(w)).toBe('Currently using:  Auto (currently CPU)')
-    expect(devLabelB(w).text()).toBe('Auto (currently CPU)')
+    expect(label(w)).toBe('当前用： 自动（当前 CPU）')
+    expect(devLabelB(w).text()).toBe('自动（当前 CPU）')
   })
 
   it('branch ① edge case — resolved_device is empty string → renders "Auto (currently )" without error', async () => {
     const { w } = await mountPage({ resolved_device: '' })
-    expect(devLabelB(w).text()).toBe('Auto (currently )')
+    expect(devLabelB(w).text()).toBe('自动（当前 ）')
   })
 
   it('🔴 branch ① edge case — when backend omits `resolved_device` field, blueprint\'s `(r || "")` fallback truly activates', async () => {
@@ -466,7 +466,7 @@ describe('SettingsView — deviceLabel four branches + null fallback (blueprint 
     //  first version only had empty string case, probe immediately saw zero discrimination against
     //  "remove fallback".)
     const { w } = await mountPage({ resolved_device: undefined as unknown as string })
-    expect(devLabelB(w).text()).toBe('Auto (currently )')
+    expect(devLabelB(w).text()).toBe('自动（当前 ）')
   })
 
   it('branch ② `cuda` → bare `GPU (CUDA)` (note differs from bare `GPU` in setDevice toast, blueprint different in two places)', async () => {
@@ -495,15 +495,15 @@ describe('SettingsView — config card · OCR row (blueprint :51-60)', () => {
   it('title / Chinese line + `.warn` warning line: period and second half position copy verbatim (blueprint :56)', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[2]!
-    expect(row.find('.k-set-row-title').text()).toBe('Scanned text recognition (OCR)')
-    expect(row.find('.k-set-row-cn').text()).toBe('Scan PDF text recognition (OCR)')
+    expect(row.find('.k-set-row-title').text()).toBe('扫描件文字识别 (OCR)')
+    expect(row.find('.k-set-row-cn').text()).toBe('扫描 PDF 文字识别 (OCR)')
     const warn = row.find('.k-set-row-desc .warn')
     expect(warn.exists()).toBe(true)
     expect(warn.findComponent(KIcon).props('name')).toBe('danger')
     expect(warn.findComponent(KIcon).props('size')).toBe(11)
-    expect(norm(warn.text())).toBe('5-10× slower when enabled')
+    expect(norm(warn.text())).toBe('开启后速度慢 5-10×')
     // period **outside** `</span>`, second half immediately follows — wrong position fails test
-    expect(norm(row.find('.k-set-row-desc').text())).toBe('5-10× slower when enabled. Only useful for scanned PDFs.')
+    expect(norm(row.find('.k-set-row-desc').text())).toBe('开启后速度慢 5-10×. 只对扫描 PDF 有用。')
   })
 
   it('🔴 data-on both sides — on device ocr_enabled:false → "false"', async () => {
@@ -591,7 +591,7 @@ describe('SettingsView — success toast keys each (blueprint :285/:293/:302/:31
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
     expect(store.controlState.paused).toBe(false) // backend refreshed (prerequisite met)
-    expect(toast).toHaveBeenCalledWith('Resumed')
+    expect(toast).toHaveBeenCalledWith('已继续')
   })
 
   it('🔴 pause → "Paused" (same as above, reversed)', async () => {
@@ -605,7 +605,7 @@ describe('SettingsView — success toast keys each (blueprint :285/:293/:302/:31
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
     expect(store.controlState.paused).toBe(true)
-    expect(toast).toHaveBeenCalledWith('Paused')
+    expect(toast).toHaveBeenCalledWith('已暂停')
   })
 
   it('concurrency → "Concurrency changed to 4" (`aiKbSetConcurrencySet` with {n})', async () => {
@@ -613,7 +613,7 @@ describe('SettingsView — success toast keys each (blueprint :285/:293/:302/:31
     const toast = vi.spyOn(store, 'toast')
     await concBtns(w)[2]!.trigger('click')
     await flushPromises()
-    expect(toast).toHaveBeenCalledWith('Concurrency changed to 4')
+    expect(toast).toHaveBeenCalledWith('并发改为 4')
   })
 
   it('device → "Inference device: Auto / CPU / GPU" (label ternary copy verbatim: auto via i18n, other two bare strings)', async () => {
@@ -622,14 +622,14 @@ describe('SettingsView — success toast keys each (blueprint :285/:293/:302/:31
     const btns = devBtns(w)
     await btns[0]!.trigger('click')
     await flushPromises()
-    expect(toast).toHaveBeenLastCalledWith('Inference device: Auto')
+    expect(toast).toHaveBeenLastCalledWith('推理设备：自动')
     await btns[2]!.trigger('click')
     await flushPromises()
-    expect(toast).toHaveBeenLastCalledWith('Inference device: CPU')
+    expect(toast).toHaveBeenLastCalledWith('推理设备：CPU')
     await btns[1]!.trigger('click')
     await flushPromises()
     // 🔴 bare `GPU`, **not** `GPU (CUDA)` in deviceLabel — blueprint :301 vs :220 intentionally different
-    expect(toast).toHaveBeenLastCalledWith('Inference device: GPU')
+    expect(toast).toHaveBeenLastCalledWith('推理设备：GPU')
   })
 
   it('OCR → "OCR enabled" / "OCR disabled" both sides', async () => {
@@ -637,21 +637,21 @@ describe('SettingsView — success toast keys each (blueprint :285/:293/:302/:31
     const toast = vi.spyOn(store, 'toast')
     await w.find('.k-sw').trigger('click')
     await flushPromises()
-    expect(toast).toHaveBeenLastCalledWith('OCR enabled')
+    expect(toast).toHaveBeenLastCalledWith('OCR 已开启')
 
     setActivePinia(createPinia())
     const { w: w2, store: s2 } = await mountPage({ ocr_enabled: true })
     const toast2 = vi.spyOn(s2, 'toast')
     await w2.find('.k-sw').trigger('click')
     await flushPromises()
-    expect(toast2).toHaveBeenLastCalledWith('OCR disabled')
+    expect(toast2).toHaveBeenLastCalledWith('OCR 已关闭')
   })
 
   it('toast goes through store.toast(K27) → truly lands in global toast stack (2400ms level, knowledgeStore.ts:311-313)', async () => {
     const { w } = await mountPage()
     await w.find('.k-sw').trigger('click')
     await flushPromises()
-    expect(useToast().toasts.map((x) => x.text)).toEqual(['OCR enabled'])
+    expect(useToast().toasts.map((x) => x.text)).toEqual(['OCR 已开启'])
   })
 })
 
@@ -685,7 +685,7 @@ describe('SettingsView — K30: four catches exclusion assertions (blueprint :28
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('Operation failed')
+    expect(toast).toHaveBeenCalledWith('操作失败')
     assertNoLeak(w, toast)
   })
 
@@ -694,7 +694,7 @@ describe('SettingsView — K30: four catches exclusion assertions (blueprint :28
     await concBtns(w)[0]!.trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('Operation failed')
+    expect(toast).toHaveBeenCalledWith('操作失败')
     assertNoLeak(w, toast)
   })
 
@@ -703,8 +703,8 @@ describe('SettingsView — K30: four catches exclusion assertions (blueprint :28
     await devBtns(w)[2]!.trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('Switch failed')
-    expect(toast).not.toHaveBeenCalledWith('Operation failed')
+    expect(toast).toHaveBeenCalledWith('切换失败')
+    expect(toast).not.toHaveBeenCalledWith('操作失败')
     assertNoLeak(w, toast)
   })
 
@@ -713,7 +713,7 @@ describe('SettingsView — K30: four catches exclusion assertions (blueprint :28
     await w.find('.k-sw').trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('Operation failed')
+    expect(toast).toHaveBeenCalledWith('操作失败')
     assertNoLeak(w, toast)
   })
 
@@ -743,7 +743,7 @@ describe('SettingsView — sandbox entry (blueprint :158-166)', () => {
     expect(icons[0]!.props('size')).toBe(20)
     expect(link.find('.k-sandbox-icon').exists()).toBe(true)
     // ⚠️ `.text()` gets textContent — **no** space between adjacent `<div>`s, don't add one
-    expect(norm(link.text())).toBe('🧪 Test sandbox - parse single file, no index write')
+    expect(norm(link.text())).toBe('🧪 测试沙盒单文件试解析，不写入索引')
     expect(icons[1]!.props('name')).toBe('chev')
     expect(icons[1]!.props('size')).toBe(14)
     expect(icons[1]!.props('color')).toBe('var(--text-tertiary)')
@@ -778,25 +778,25 @@ describe('SettingsView — danger zone (blueprint :168-186)', () => {
     // locator (section with `.k-set-danger` card), no index needed.
     const head = dangerSection(w).find('.k-section-head')
     const title = head.find('.k-section-title')
-    expect(title.text()).toBe('⚠️ Danger zone')
+    expect(title.text()).toBe('⚠️ 危险区')
     // Vue re-serializes static style attribute, so use toContain to pin token (inline value already
     // var(), no literals)
     expect(title.attributes('style')).toContain('var(--danger)')
-    expect(head.find('.k-section-hint').text()).toBe('Coming soon')
+    expect(head.find('.k-section-hint').text()).toBe('即将上线')
   })
 
   it('🔴 rebuild button hardcoded disabled (blueprint :181, never clickable) + "Coming soon" badge beside it', async () => {
     const { w } = await mountPage()
     const card = w.find('.k-set-card.k-set-danger')
     expect(card.exists()).toBe(true)
-    expect(card.find('.k-set-row-title').text()).toBe('Rebuild all indexes Coming soon')
-    expect(card.find('.k-set-soon').text()).toBe('Coming soon')
-    expect(card.find('.k-set-row-cn').text()).toBe('Rebuild all indexes')
-    expect(card.find('.k-set-row-desc').text()).toBe('Discards current index, rescans all files')
+    expect(card.find('.k-set-row-title').text()).toBe('重建全部索引 即将上线')
+    expect(card.find('.k-set-soon').text()).toBe('即将上线')
+    expect(card.find('.k-set-row-cn').text()).toBe('重建全部索引')
+    expect(card.find('.k-set-row-desc').text()).toBe('会丢弃现有索引重新扫描所有文件')
     const btn = card.find('button.k-btn.danger')
     expect((btn.element as HTMLButtonElement).disabled).toBe(true)
     expect(btn.findComponent(KIcon).props('name')).toBe('danger')
-    expect(btn.text()).toBe('Rebuild…')
+    expect(btn.text()).toBe('重建…')
   })
 
   it('clicking it does nothing (governance §13: spec only verifies "is gray + has badge")', async () => {
@@ -912,7 +912,7 @@ describe('SettingsView — 🔴 §9.2: en-only strong assertions (zh collisions,
 
   it('switch back to zh service card is still "Resume" (proves locale restored, no pollution)', async () => {
     const { w } = await mountPage()
-    expect(w.find('.k-svc-state button').text()).toBe('Resume')
+    expect(w.find('.k-svc-state button').text()).toBe('恢复')
   })
 
   // 🔴 ruling A-1 (device "Auto" uses `aiKbDeviceAuto`, doesn't reuse `aiKbOriginAuto`) guard **can only land in
@@ -1115,8 +1115,8 @@ describe('SettingsView/T9 — notes section static render (blueprint :63-102)', 
     const { w } = await mountPage()
     // notes section is first `.k-section` (danger zone after sandbox entry)
     const sec = w.findAll('.k-section')[0]!
-    expect(sec.find('.k-section-title').text()).toBe('📝 Knowledge notes')
-    expect(sec.find('.k-section-hint').text()).toBe('notes = Markdown files on disk')
+    expect(sec.find('.k-section-title').text()).toBe('📝 知识笔记')
+    expect(sec.find('.k-section-hint').text()).toBe('笔记 = 磁盘上的 Markdown 文件')
     // reverse: the key itself **does not include** emoji (no symbols moved into t())
     const zh = zhCn as Record<string, string>
     expect(zh.aiKbSetNotesSection).toBe('知识笔记')
@@ -1126,18 +1126,18 @@ describe('SettingsView/T9 — notes section static render (blueprint :63-102)', 
   it('notes directory row: title / Chinese / description + <code> showing fixture notesRoot', async () => {
     const { w } = await mountPage()
     const row = folderRow(w)
-    expect(row.find('.k-set-row-title').text()).toBe('Notes directory')
-    expect(row.find('.k-set-row-cn').text()).toBe('Location for note Markdown files')
+    expect(row.find('.k-set-row-title').text()).toBe('笔记目录')
+    expect(row.find('.k-set-row-cn').text()).toBe('笔记 Markdown 文件的存放位置')
     expect(row.find('.k-set-row-desc code').text()).toBe('/DATA/Notes')
     // em-dash and second half position copy verbatim blueprint :77
     expect(norm(row.find('.k-set-row-desc').text())).toBe(
-      '/DATA/Notes — one subdirectory per user; files are pure Markdown.',
+      '/DATA/Notes — 每个用户一个子目录;文件是纯 Markdown。',
     )
     // collapsible default closed → no FolderBrowser, no two action buttons
     expect(row.find('.fb').exists()).toBe(false)
     expect(row.find('.kn-pick-actions').exists()).toBe(false)
     expect(changeBtn(w).classes()).toEqual(['k-btn', 'outline'])
-    expect(changeBtn(w).text()).toBe('Change')
+    expect(changeBtn(w).text()).toBe('更改')
   })
 
   it('🔴 N7 same family: notesRoot empty string uses `|| "/DATA/Notes"` fallback (not render empty)', async () => {
@@ -1165,10 +1165,10 @@ describe('SettingsView/T9 — auto-capture row two states (blueprint :104-116)',
   it('title / Chinese / description verbatim; on device auto_extract:true → toggle green, `.warn` line **not rendered**', async () => {
     const { w } = await mountPage()
     const row = captureRow(w)
-    expect(row.find('.k-set-row-title').text()).toBe('Auto-capture conversation insights')
-    expect(row.find('.k-set-row-cn').text()).toBe('Auto-capture insights into notes')
+    expect(row.find('.k-set-row-title').text()).toBe('自动沉淀对话洞见')
+    expect(row.find('.k-set-row-cn').text()).toBe('对话洞见自动沉淀')
     expect(norm(row.find('.k-set-row-desc').text())).toBe(
-      'After session idle, conclusions worth saving auto-save as "AI draft" notes, await your confirmation.',
+      '会话空闲后,值得保留的结论会自动存为「AI 草稿」笔记,等你确认。',
     )
     expect(captureSw(w).attributes('data-on')).toBe('true')
     // governance §13: doesn't render on device data, is **correct behavior**
@@ -1184,7 +1184,7 @@ describe('SettingsView/T9 — auto-capture row two states (blueprint :104-116)',
     expect(warn.exists()).toBe(true)
     expect(warn.findComponent(KIcon).props('name')).toBe('danger')
     expect(warn.findComponent(KIcon).props('size')).toBe(11)
-    expect(norm(warn.text())).toBe('Disabled — queued drafts will also be discarded')
+    expect(norm(warn.text())).toBe('已关闭 — 排队中的草稿也会被丢弃')
   })
 
   it('🔴 `!!` double negation copy verbatim (blueprint :115) — autoExtract missing is "false", not "undefined"', async () => {
@@ -1223,7 +1223,7 @@ describe('SettingsView/T9 — auto-capture row two states (blueprint :104-116)',
     await flushPromises()
     expect(notes.putSettings).toHaveBeenCalledTimes(1)
     expect(notes.putSettings).toHaveBeenCalledWith({ autoExtract: false })
-    expect(toast).toHaveBeenCalledWith('Auto-capture disabled')
+    expect(toast).toHaveBeenCalledWith('自动沉淀已关闭')
     expect(captureSw(w).attributes('data-on')).toBe('false')
     expect(captureRow(w).find('.warn').exists()).toBe(true)
   })
@@ -1237,7 +1237,7 @@ describe('SettingsView/T9 — auto-capture row two states (blueprint :104-116)',
     await captureSw(w).trigger('click')
     await flushPromises()
     expect(notes.putSettings).toHaveBeenCalledWith({ autoExtract: true })
-    expect(toast).toHaveBeenCalledWith('Auto-capture enabled')
+    expect(toast).toHaveBeenCalledWith('自动沉淀已开启')
     expect(captureSw(w).attributes('data-on')).toBe('true')
   })
 })
@@ -1249,7 +1249,7 @@ describe('SettingsView/T9 — openRootPicker (blueprint :232-240, continues Vue2
     expect(wiki.getCandidates).not.toHaveBeenCalled()
     await openPicker(w)
     expect(changeBtn(w).classes()).toEqual(['k-btn', 'ghost'])
-    expect(changeBtn(w).text()).toBe('Cancel')
+    expect(changeBtn(w).text()).toBe('取消')
     expect(folderRow(w).find('.fb').exists()).toBe(true)
     // ⚠️ handoff item #7: `loadCandidates()` **no silent parameter** (blueprint also no params)
     expect(wiki.getCandidates).toHaveBeenCalledTimes(1)
@@ -1283,7 +1283,7 @@ describe('SettingsView/T9 — openRootPicker (blueprint :232-240, continues Vue2
     await changeBtn(w).trigger('click')
     await flushPromises()
     expect(folderRow(w).find('.fb').exists()).toBe(false)
-    expect(changeBtn(w).text()).toBe('Change')
+    expect(changeBtn(w).text()).toBe('更改')
     // closing **doesn't** fetch candidates again (blueprint if only in open branch)
     expect(wiki.getCandidates).toHaveBeenCalledTimes(1)
   })
@@ -1351,7 +1351,7 @@ describe('SettingsView/T9 — dirProbe four-state badge + migratable three-combi
     await openPicker(w)
     await pickRoot(w, 0)
     expect(badge(w).attributes('data-s')).toBe('archived')
-    expect(badge(w).text()).toBe('Checking...')
+    expect(badge(w).text()).toBe('检查中…')
     d.resolve({ exists: false, empty: false })
     await flushPromises()
   })
@@ -1362,7 +1362,7 @@ describe('SettingsView/T9 — dirProbe four-state badge + migratable three-combi
     await openPicker(w)
     await pickRoot(w, 0)
     expect(badge(w).attributes('data-s')).toBe('curated')
-    expect(badge(w).text()).toBe('Empty directory · migratable')
+    expect(badge(w).text()).toBe('空目录 · 可迁移')
   })
 
   it('② done + migratable (directory **exists and empty**) — same level', async () => {
@@ -1379,7 +1379,7 @@ describe('SettingsView/T9 — dirProbe four-state badge + migratable three-combi
     await openPicker(w)
     await pickRoot(w, 0)
     expect(badge(w).attributes('data-s')).toBe('draft')
-    expect(badge(w).text()).toBe('Non-empty directory — pointer only')
+    expect(badge(w).text()).toBe('非空目录 — 只能指向')
   })
 
   it('🔴 migratable criterion is `!exists || empty` (**or**, not and) — swap to && both sides collapse to draft', async () => {
@@ -1415,16 +1415,16 @@ describe('SettingsView/T9 — dirProbe four-state badge + migratable three-combi
     // ⚠️ **no space** between `</code>` and badge `<span>`: adjacent across lines in template, Vue's
     //   `whitespace: 'condense'` (default) entirely removes "whitespace nodes containing only newlines".
     //   Blueprint `:82-83` same cross-line adjacency, same compilation stance → render verbatim, don't add space.
-    expect(norm(folderRow(w).find('.kn-picked').text())).toBe('Selected: /DATAEmpty directory · migratable')
+    expect(norm(folderRow(w).find('.kn-picked').text())).toBe('已选择: /DATA空目录 · 可迁移')
     // **one space** after colon (that's bare ASCII space in template `}}: <code>`, not newline)
-    expect(folderRow(w).find('.kn-picked').text()).toContain('Selected: ')
+    expect(folderRow(w).find('.kn-picked').text()).toContain('已选择: ')
   })
 
   it('.kn-pick-note long note verbatim (with Chinese quotes)', async () => {
     const { w } = await mountPage()
     await openPicker(w)
     expect(folderRow(w).find('.kn-pick-note').text()).toBe(
-      '"Point to" does not move files, directly adopts existing .md in directory; "migrate" moves existing note files there (target must be empty).',
+      '「指向」不动文件,直接收编目录里已有的 .md;「迁移」把现有笔记文件移动过去(目标目录必须为空)。',
     )
   })
 })
@@ -1558,10 +1558,10 @@ describe('SettingsView/T9 — two action buttons disabled (blueprint :88 / :91)'
     await openPicker(w)
     expect(adoptBtn(w).findComponent(KIcon).props('name')).toBe('folder')
     expect(adoptBtn(w).findComponent(KIcon).props('size')).toBe(12)
-    expect(adoptBtn(w).text()).toBe('Point to existing directory')
+    expect(adoptBtn(w).text()).toBe('指向已有目录')
     expect(moveBtn(w).findComponent(KIcon).props('name')).toBe('upload')
     expect(moveBtn(w).findComponent(KIcon).props('size')).toBe(12)
-    expect(moveBtn(w).text()).toBe('Migrate files to new directory…')
+    expect(moveBtn(w).text()).toBe('迁移文件到新目录…')
   })
 
   it('🔴 click "move files" only opens dialog, **no requests** (blueprint :92 is just `migrating = true`)', async () => {
@@ -1611,7 +1611,7 @@ describe('SettingsView/T9 — K29: reka migration confirmation dialog', () => {
     // overlay class copy verbatim blueprint :121
     expect(host.querySelector('.k-modal-bg')).not.toBeNull()
     // head: title + × button
-    expect(modal!.querySelector('.k-modal-head .k-modal-title')!.textContent).toBe('Migrate notes file?')
+    expect(modal!.querySelector('.k-modal-head .k-modal-title')!.textContent).toBe('迁移笔记文件?')
     expect(modal!.querySelector('.k-modal-head button.k-modal-x')).not.toBeNull()
     const titleEl = modal!.querySelector('.k-modal-title') as HTMLElement
     expect(titleEl.id).toBe(modal!.getAttribute('aria-labelledby'))
@@ -1623,18 +1623,18 @@ describe('SettingsView/T9 — K29: reka migration confirmation dialog', () => {
     // body: three requirements
     const lis = Array.from(modal!.querySelectorAll('.kn-mig-req li'))
     expect(lis).toHaveLength(3)
-    expect(norm(lis[0]!.textContent!)).toBe('Target directory must be empty — non-empty directory backend will reject.')
-    expect(norm(lis[1]!.textContent!)).toBe('Files are moved (not copied), original directory becomes empty afterwards.')
-    expect(norm(lis[2]!.textContent!)).toBe('During migration notes temporarily read-only, usually completes in seconds.')
+    expect(norm(lis[0]!.textContent!)).toBe('目标目录必须为空 — 非空目录后端会拒绝迁移。')
+    expect(norm(lis[1]!.textContent!)).toBe('文件会被移动(不是复制),原目录随后为空。')
+    expect(norm(lis[2]!.textContent!)).toBe('迁移期间笔记短暂只读,通常几秒内完成。')
     // body: acknowledgement line
     const check = modal!.querySelector('.kn-checkline input') as HTMLInputElement
     expect(check.type).toBe('checkbox')
     expect(norm(modal!.querySelector('.kn-checkline')!.textContent!)).toBe(
-      'I understand this moves disk files',
+      '我已了解这是移动磁盘文件的操作',
     )
     // foot: cancel + danger start migration
     const footBtns = Array.from(modal!.querySelectorAll('.k-modal-foot button'))
-    expect(footBtns.map((b) => norm(b.textContent!))).toEqual(['Cancel', 'Start migration'])
+    expect(footBtns.map((b) => norm(b.textContent!))).toEqual(['取消', '开始迁移'])
     expect(footBtns[0]!.className).toBe('k-btn ghost')
     expect(footBtns[1]!.className).toBe('k-btn danger')
   })
@@ -1691,7 +1691,7 @@ describe('SettingsView/T9 — K29: reka migration confirmation dialog', () => {
     ])
     const b = host.querySelector('.kn-mig-req li b')
     expect(b).not.toBeNull()
-    expect(b!.textContent).toBe('Currently selected directory not empty.')
+    expect(b!.textContent).toBe('当前所选目录非空。')
     expect(b!.getAttribute('style')).toContain('var(--danger)')
   })
 
@@ -1731,7 +1731,7 @@ describe('SettingsView/T9 — K29: reka migration confirmation dialog', () => {
   it('click "Cancel" close and no request', async () => {
     const { host } = await openModal()
     const cancel = Array.from(host.querySelectorAll('.k-modal-foot button')).find(
-      (b) => norm(b.textContent!) === 'Cancel',
+      (b) => norm(b.textContent!) === '取消',
     ) as HTMLElement
     cancel.click()
     await nextTick()
@@ -1773,7 +1773,7 @@ describe('SettingsView/T9 — applyRoot two modes + doMigrate close-then-send (b
     await flushPromises()
     expect(notes.putSettings).toHaveBeenCalledTimes(1)
     expect(notes.putSettings).toHaveBeenCalledWith({ notesRoot: '/DATA', mode: 'adopt' })
-    expect(toast).toHaveBeenCalledWith('Notes directory updated')
+    expect(toast).toHaveBeenCalledWith('笔记目录已更新')
     // collapsible closed + <code> swaps to new value backend returned
     expect(folderRow(w).find('.fb').exists()).toBe(false)
     expect(folderRow(w).find('.k-set-row-desc code').text()).toBe('/DATA')
@@ -1861,7 +1861,7 @@ describe('SettingsView/T9 — K30: lower two catches exclusion assertions', () =
     await adoptBtn(w).trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('Operation failed')
+    expect(toast).toHaveBeenCalledWith('操作失败')
     // on failure collapsible **doesn't close** (blueprint `rootPicker.open = false` after await, outside catch)
     expect(folderRow(w).find('.fb').exists()).toBe(true)
     assertNoLeak(w, toast)
@@ -1875,7 +1875,7 @@ describe('SettingsView/T9 — K30: lower two catches exclusion assertions', () =
     await captureSw(w).trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('Operation failed')
+    expect(toast).toHaveBeenCalledWith('操作失败')
     expect(captureSw(w).attributes('data-on')).toBe('true') // failure → value stays
     assertNoLeak(w, toast)
   })
@@ -1896,7 +1896,7 @@ describe('SettingsView/T9 — K30: lower two catches exclusion assertions', () =
     dangerFootBtn(host).click()
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('Operation failed')
+    expect(toast).toHaveBeenCalledWith('操作失败')
     assertNoLeak(w, toast)
   })
 })
@@ -1928,8 +1928,8 @@ describe('SettingsView/T9 — §9.2/§9.3 bidirectional same-family scan: this c
   it('all 29 keys added by this cut exist in both locales (key names traced back to Appendix A + bidirectional locale-pack verification -- lesson from E-18)', () => {
     expect(T9_KEYS).toHaveLength(29)
     for (const k of T9_KEYS) {
-      expect(typeof zh[k], `zh_cn.ts is missing ${k}`).toBe('string')
-      expect(typeof en[k], `en_us.ts is missing ${k}`).toBe('string')
+      expect(typeof zh[k], `zh_cn.ts 缺 ${k}`).toBe('string')
+      expect(typeof en[k], `en_us.ts 缺 ${k}`).toBe('string')
     }
     // Full-table key count is computed via **real module import** (governance §9.3 clause 2:
     // text parsing would undercount).

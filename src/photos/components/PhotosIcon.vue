@@ -109,6 +109,48 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <template v-else-if="name === 'filter'">
       <path d="M3 5h18l-7 9v6l-4-2v-4z" />
     </template>
+    <!-- Plan G (Ask Nimo): transcribed byte-identical from Vue2 PhotosIcon.vue:130-132
+         ('panelRight', the popup's "expand to drawer" icon) and :57-59 ('chevL', the FAB
+         mini edge-tab's chevron). -->
+    <template v-else-if="name === 'panelRight'">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" />
+    </template>
+    <template v-else-if="name === 'chevL'">
+      <path d="m15 6-6 6 6 6" />
+    </template>
+    <!-- Plan H: transcribed byte-identical from Vue2 PhotosIcon.vue:114-117 ('pause', the
+         slideshow pause button — two filled rects, self-contained :fill, does not go
+         through the outer stroke/fill="none" default) and :161-164 ('refresh', a standard
+         stroked circular-arrow icon -- not currently consumed by any view (Task 8 review fix
+         corrected the trash confirm dialog to use 'upload' per Vue2 pixel truth instead, see
+         below), kept transcribed for whichever future icon need matches it). -->
+    <template v-else-if="name === 'pause'">
+      <rect x="6" y="4" width="4" height="16" rx="1" :fill="color || 'currentColor'" />
+      <rect x="14" y="4" width="4" height="16" rx="1" :fill="color || 'currentColor'" />
+    </template>
+    <template v-else-if="name === 'refresh'">
+      <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8" /><path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15.5 6.3L3 16" /><path d="M3 21v-5h5" />
+    </template>
+    <!-- Task 3 review fix (Plan H): transcribed byte-identical from Vue2 PhotosIcon.vue's
+         'download' branch -- needed for the Favorites hero's Export button leading icon
+         (PhotosFavoritesView.vue:27). -->
+    <template v-else-if="name === 'download'">
+      <path d="M12 4v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </template>
+    <!-- Task 8 review fix (Plan H): transcribed byte-identical from Vue2 PhotosIcon.vue:42-44 --
+         needed for PhotosTrashView.vue's hero "Restore all" button (:17), bulk-bar "Restore"
+         (:37), and the confirm modal's icon/CTA (:101/:109, the non-danger/restore branch). -->
+    <template v-else-if="name === 'upload'">
+      <path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </template>
+    <!-- Fix wave (post-final-review): transcribed byte-identical from Vue2 PhotosIcon.vue's
+         'video' branch -- needed for PhotosTrashView.vue's filters row "Videos" chip leading
+         icon (:51), which the parity class rename (.trash-chip -> .lib-chip) this wave lands
+         restores alongside the pre-existing 'album' branch (the "Photos" chip's own icon). -->
+    <template v-else-if="name === 'video'">
+      <rect x="3" y="6" width="13" height="12" rx="2" /><path d="m16 10 5-3v10l-5-3z" />
+    </template>
     <template v-else>
       <g></g>
     </template>

@@ -20,6 +20,7 @@ export default {
   photosTabOcr: '文字',
   photosTabVideos: '视频',
   photosItemsCount: '{count} 项',
+  photosItemSingular: '{count} 项',
   photosSelectedCount: '已选择 {count} 项',
   photosDelete: '删除',
   photosCancel: '取消',
@@ -27,6 +28,14 @@ export default {
   photosNoPhotosHint: '照片入库后会出现在这里',
   photosUnknownDate: '未知日期',
   photosDeletedToast: '{count} 项已移入最近删除',
+  // Owner-acceptance Fix-3: honest partial-failure toast for the "move to Recently Deleted"
+  // flow (PhotosFavorites.vue's onBatchDelete/onLightboxDelete) -- store.deleteAssets already
+  // returns the ACTUAL success count (per-id try/catch), this key surfaces it instead of
+  // silently reporting the click-time selection size as if every item succeeded. Zero-success
+  // reuses the existing photosTrashDeleteFailed "Delete failed" family rather than adding a
+  // near-duplicate key (see trash.ts's purge()/PhotosTrash.vue for the sibling permanent-delete
+  // flow, which follows the exact same three-way branch).
+  photosDeletedPartialToast: '{ok} 项已移入最近删除，{fail} 项失败',
   photosIndexedToast: '已索引 {n} 张照片',
   photosTaskCompletedToast: '{label} 已完成',
   photosDensityCompact: '紧凑',
@@ -80,8 +89,41 @@ export default {
   photosFavExport: '下载为 ZIP',
   photosFavExporting: '开始打包下载…',
   photosFavCount: '{count} 张收藏',
+  // Task 3 (Plan H) review fix: hero stats sub-line -- Vue2 bolds ONLY the raw
+  // number (`<b>{{ photoCount }}</b> {{ $t('photos_count') }}`), the noun sits
+  // outside <b>, so these are noun-only keys (not "{n} photos" one-piece
+  // strings) matching Vue2 PhotosFavoritesView.vue:11-12's photos_count/videos
+  // copy exactly ('张照片'/'视频', no quantifier word).
+  photosFavHeroPhotosNoun: '张照片',
+  photosFavHeroVideosNoun: '视频',
+  photosFavHeroKeptForever: '永久保留',
+  // Task 4 (Plan H): pinned-highlights strip (server-ranked top 5, GET /favorites/top) --
+  // matches Vue2 PhotosFavoritesView.vue:89-90.
+  photosFavPinnedTitle: '精选亮点',
+  photosFavPinnedSub: '你最常收藏的瞬间 · Nimo 精选',
+  // Task 5 (Plan H): slideshow playback -- matches Vue2 PhotosFavoritesView.vue:18-19 (entry
+  // button) / :237-273 (playback layer: close, prev/next, play/pause, three speed tiers).
+  photosFavSlideshow: '幻灯片播放',
+  photosFavSlideClose: '关闭 (Esc)',
+  photosFavSlidePrev: '上一张 (←)',
+  photosFavSlideNext: '下一张 (→)',
+  // Review Minor 4: adds Vue2 :256's play/pause button title (value taken from
+  // NimoOS-UI/src/assets/lang/zh_CN.json:2244).
+  photosFavSlidePlayPause: '播放/暂停 (空格)',
+  photosFavSlideSpeed: '速度',
+  photosFavSlideFast: '快',
+  photosFavSlideNormal: '正常',
+  photosFavSlideSlow: '慢',
   // ── 相册:最近删除视图 ──
   photosTrashTitle: '最近删除',
+  // Fix wave (post-final-review): topbar `sub` was previously left unbound, defaulting to the
+  // library-wide photo/video count string (wrong content for this view). Matches Vue2
+  // PhotosTimeline.vue:231 navMap.trash ('{count} items · auto-deletes in 30 days'), except
+  // {days} is dynamic here (ruled: reads the live retention setting instead of Vue2's
+  // hardcoded 30). zh wording reused verbatim from NimoOS-UI/src/assets/lang/zh_CN.json's
+  // existing translation of that exact Vue2 string ('{count} 项 · 30 天后自动删除'), just with
+  // {days} substituted in for the literal 30.
+  photosTrashSubtitle: '{count} 项 · {days} 天后自动删除',
   photosTrashEmptyTitle: '最近删除是空的',
   photosTrashEmptyHint: '已删除的照片和视频会在这里保留 {days} 天，之后从 NAS 永久移除。',
   photosTrashRestore: '恢复',
@@ -93,6 +135,7 @@ export default {
   photosTrashCanFree: '可释放',
   photosTrashItems: '项',
   photosTrashSelectedCount: '已选择 {count} 项',
+  photosTrashSort: '排序',
   photosTrashSortDaysLeft: '剩余天数',
   photosTrashSortRecent: '最近删除',
   photosTrashUndo: '撤销',
@@ -101,10 +144,10 @@ export default {
   photosTrashBucketSoon: '8–14 天内删除',
   photosTrashBucketLater: '15–21 天内删除',
   photosTrashBucketFresh: '最近删除',
-  photosTrashBucketUrgentDesc: '将在一周内删除',
-  photosTrashBucketSoonDesc: '将在两周内删除',
-  photosTrashBucketLaterDesc: '将在三周内删除',
-  photosTrashBucketFreshDesc: '最近删除的项',
+  photosTrashBucketUrgentDesc: '即将删除 — 如需保留请尽快恢复',
+  photosTrashBucketSoonDesc: '提醒 — 即将自动删除',
+  photosTrashBucketLaterDesc: '还有充足时间可以恢复',
+  photosTrashBucketFreshDesc: '超过保留期后将自动删除',
   // ── 相册:确认弹窗 ──
   photosTrashRestoreAllTitle: '恢复全部 {count} 项？',
   photosTrashRestoreAllBody: '它们会回到原来的位置，重新出现在资料库、相册和时间线中。',
@@ -115,6 +158,12 @@ export default {
   // ── 相册:Toast ──
   photosTrashRestoredToast: '{count} 项已恢复到资料库',
   photosTrashPurgedToast: '{count} 项已永久删除 · 释放 {size} MB',
+  // Owner-acceptance Fix-3: trash.ts's purge() now reports the ACTUAL per-item success count
+  // (Promise.allSettled, not the old swallow-and-lie Promise.all) -- this key covers the
+  // 0 < success < total case. Freed-size is intentionally omitted here (same reasoning as
+  // photosTrashEmptiedToastPartial below: it was only ever a sum over the full requested
+  // selection, which overstates it once some of those items never actually got purged).
+  photosTrashPurgedPartialToast: '已永久删除 {ok} 项，{fail} 项失败',
   photosTrashEmptiedToast: '最近删除已清空 · 释放 {size} MB',
   // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
   // loaded subset — these size-less variants are used instead until trashExhausted.
@@ -265,9 +314,13 @@ export default {
   photosAddToAlbumEmpty: '还没有相册,先新建一个。',
   photosAddToAlbumNew: '+ 新建相册',
   // ── 相册:收藏视图 Save as Album ──
-  photosFavSaveAlbum: '存为相册',
-  photosFavSaveAlbumTitle: '把收藏存为相册',
+  // Acceptance Fix-2(owner finding):Vue2 PhotosFavoritesView.vue 的 hero 按钮(:22)与弹窗标题
+  // (:282)用的是同一句 $t('Save as Album'),值对齐 Vue2(NimoOS-UI zh_CN.json:2269)后两处复用
+  // 同一个 key(旧的、值不一致的 photosFavSaveAlbumTitle 废弃,不与已对齐的 key 并存)。
+  photosFavSaveAlbum: '保存为相册',
   photosFavSaveAlbumDefault: '收藏 · {year}',
+  // Vue2 :291 的输入框 placeholder —— 字面硬编码字符串(不像上面的默认值那样按当前年份模板化),逐字转录。
+  photosFavSaveAlbumPlaceholder: '如 收藏 · 2026',
   // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
   // 键清单漏列)。中文值取自 NimoOS-UI/src/assets/lang/zh_CN.json:2187/2231。
   photosFavSaveAlbumSub: '将 {count} 张收藏的照片快照保存为新相册',
@@ -558,6 +611,18 @@ export default {
   photosFavStatInYear: '于 {year} 年',
   photosFavStatYearsTotal: '共 {n} 年',
   photosFavNoFaces: '暂无人脸',
+  // ── Task 6 (Plan H): place-filter dropdown -- Vue2 PhotosFavoritesView.vue:412-416/353-360. ──
+  photosFavFilterPlaces: '地点',
+  photosFavFilterClear: '清除筛选',
+  // ── Acceptance Fix-1(拍板发现，Plans G+H):"全部"筹码 + 人物/年份下拉 —— 值取自旧仓
+  // zh_CN.json:761/2226/2337。
+  photosFavFilterAll: '全部',
+  photosFavFilterPeople: '人物',
+  photosFavFilterYears: '年份',
+  // Vue2 :198-202 的 排序/最近/最早 分段切换 —— 旧仓 zh_CN.json:2294/2250/2219。
+  photosFavSort: '排序',
+  photosFavSortRecent: '最近',
+  photosFavSortOldest: '最早',
   // ── 终审 Minor 6 / 7:hero 上的短文案 ────────────────────────────────────────
   // M6:Vue2 :38/:41 的 Edit 下拉两项是**短动词**(`Rename` / `Merge into…`),原实现塞的是
   // photosPersonRename / photosPersonMergeInto —— 那两个键同时是弹窗 <h*> 标题(「重命名人物」/
@@ -943,10 +1008,14 @@ export default {
   // 本期不迁:主题开关(台账第二笔)· AI 入口(D1)· Sign out(D22)· 上传整块(D21)。
   // 自拟(Vue2 PhotosSettings.vue:18 内联 "Settings")
   photosSettingsTitle: '设置',
-  // 终审 Minor 4:此处原有 photosSettingsSubtitle(「存储 · AI 行为」,对应 Vue2
-  // PhotosSettings.vue:19 顶栏副标题)已删 —— 全仓零引用。AreaShell.vue:6 的 props 只有
-  // `title`,没有承载副标题的位置,这行 Vue2 顶栏文案在 New-UI 里因此被刻意丢弃,不是漏迁。
-  // 同 :1256 处 photosSvSettingsPending 的删除先例。
+  // Plan H Task 11 review fix: photosSettingsSubtitle ('Storage · AI behavior', matching Vue2
+  // PhotosSettings.vue:19's topbar subtitle) is restored. The final-review Minor 4 deletion
+  // rationale no longer holds -- it argued AreaShell.vue's `title`-only prop had no slot for a
+  // subtitle, but Task 11's re-shell dropped AreaShell entirely in favor of PhotosTopbar (which
+  // DOES take a `sub` prop, same as every other re-shelled Photos view) -- that premise no
+  // longer applies, so the key is back and wired via `:sub="t('photosSettingsSubtitle')"`.
+  // Ad-hoc (Vue2 PhotosSettings.vue:19 inline "Storage · AI behavior")
+  photosSettingsSubtitle: '存储 · AI 行为',
   // 自拟(Vue2 PhotosSettings.vue:31 内联英文长句)
   photosSettingsHeroDesc: 'Nimo 在你的 NAS 上做的一切 —— 什么在跑、跑在哪、占多少空间。',
   // 自拟(Vue2 PhotosSettings.vue:33 内联 "Storage")
@@ -1166,4 +1235,48 @@ export default {
   photosPersonDupMergeInto: '合并到已有人物',
   // Vue2's two dupconfirm "name anyway" buttons: $t('Name anyway').
   photosPersonDupNameAnyway: '仍然使用这个名字',
+  // Plan G (Ask Nimo): FAB label + composer placeholder, Vue2 PhotosAskNimo.vue / PhotosAgentChat.vue.
+  photosAskNimo: '问 Nimo',
+  photosAskNimoPlaceholder: '问 Nimo…',
+  // Canned prompts sent when clicking a hero/relations/lightbox Ask Nimo trigger -- distinct from
+  // the button LABEL keys (photosPersonAskAbout etc.), which already existed before this plan.
+  photosPersonAskAboutPrompt: '给我看看我最喜欢的 {name} 的照片',
+  photosPersonDigDeeperPrompt: '多告诉我一些关于 {name} 的照片',
+  photosHandOffToNimoPrompt: '编辑这张照片：{title}',
+  photosNimoAgent: 'Nimo 助手',
+  photosSelectModel: '选择模型',
+  photosGoToSettingsConfigure: '去 Settings 配置 →',
+  photosClearConversation: '清空会话',
+  photosOpenFullConversation: '在侧边抽屉中打开完整对话',
+  photosNimoHideHint: '隐藏——从右侧边缘拖出可恢复',
+  photosNimoDragHint: '拖动移动位置 · 点击显示问 Nimo',
+  photosBackgroundTasksCount: '{n} 个后台任务',
+  photosConfirmAction: '需要确认：{action}',
+  photosRequestingAccess: '请求访问：{reason}',
+  photosAllow: '同意',
+  photosDeny: '拒绝',
+  photosAllowed: '已同意',
+  photosDenied: '已拒绝',
+  photosConfirmMissingId: '确认请求无效（缺少 confirmId）',
+  photosSubmissionFailed: '提交失败：{detail}',
+  photosUnknownError: '未知错误',
+  photosModelGroupLocalOllama: '本地 · Ollama',
+  photosModelGroupCloudDeepSeek: '云 · DeepSeek',
+  photosModelGroupCloudOpenAI: '云 · OpenAI',
+  photosModelGroupCloudAnthropic: '云 · Anthropic',
+  photosModelGroupCloudQwen: '云 · Qwen',
+  photosModelGroupOther: '其他',
+  photosModelProviderCloudFallback: '云端',
+  photosTaskIndexing: '索引照片',
+  photosTaskEmbedding: '生成 AI 索引',
+  photosTaskOcr: '识别图片文字',
+  photosTaskFace: '识别人物',
+  photosTaskRebuild: '重建 AI 索引',
+  photosTaskAesthetic: '评估照片美学分',
+  photosTaskFailed: '已失败',
+  photosSuggestLastWeekend: '上周末',
+  photosSuggestBestSunsets: '最佳日落',
+  photosSuggestFindPeople: '找人物',
+  photosGridAskNimoRecap: '从这 {count} 张照片创建一个回顾相册。',
+  photosSearchFindPhotosPrefix: '查找照片：',
 }

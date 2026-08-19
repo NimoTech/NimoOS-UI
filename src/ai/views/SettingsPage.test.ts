@@ -55,6 +55,10 @@ const ai = vi.hoisted(() => ({
   // safety net won't throw, adding this key makes "mocks are complete" explicit, rather than
   // relying on the safety net's silent fallback).
   listMCPServers: vi.fn(),
+  // Task 21 (mcp-progressive-disclosure) —— mcpapprovals 分区挂载真组件
+  // McpApprovalsSection,onMounted 里调 service.ai.listMCPApprovals()。同上,
+  // 补上这个键让「mock 齐全」显式,不依赖 Array.isArray 兜底的隐性容错。
+  listMCPApprovals: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
@@ -357,7 +361,9 @@ describe('SettingsPage — ③ Content area: two render modes', () => {
   // leaving it is just empty assertion spinning, better to delete it directly; mechanism-level
   // anchoring is already covered by two new test cases in `sections.test.ts` (DEFERRED_SECTIONS
   // is empty / mechanism still works), no need to duplicate an equivalent empty-spinning assertion here.
-  it('SP8-P4 closure — 13 implemented sections render without placeholder text in page (no section still a SectionPlaceholder)', async () => {
+  // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals' on top of those,
+  // so the implemented count is 14 now, not 13.
+  it('SP8-P4 closure + Task 21 — 14 implemented sections render without placeholder text in page (no section still a SectionPlaceholder)', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
     const { w } = await mountPage()
@@ -365,7 +371,8 @@ describe('SettingsPage — ③ Content area: two render modes', () => {
 
     const implemented: SectionId[] = [
       'models', 'providers', 'privacy', 'thinking',
-      'blacklist', 'execution', 'search', 'memory', 'observability', 'skills', 'mcp', 'mcptokens', 'channels',
+      'blacklist', 'execution', 'search', 'memory', 'observability', 'skills', 'mcp',
+      'mcpapprovals', 'mcptokens', 'channels',
     ]
     for (const id of implemented) {
       store.setActiveSection(id)

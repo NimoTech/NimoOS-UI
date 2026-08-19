@@ -25,6 +25,27 @@
   --text-3: rgba(var(--ink), 0.42);
   --text-4: rgba(var(--ink), 0.26);
 
+  /* Acceptance Fix-4 follow-up (controller diagnosis, 2026-08-18): this is a real property
+     (not a custom-property token), deliberately set on the BARE `.photos-root` rule itself, not
+     just on `.photos-root .app` (which already had its own `color: var(--text-1)`, further down
+     this file). Root cause of the owner's light-theme "white/illegible modal text" screenshot:
+     `.app` is the only element inside `.photos-root` that ever declared a `color` -- every
+     OVERLAY that renders as a sibling of `.app` (not a descendant), e.g. `.fav-modal-scrim`/
+     `.trash-modal-scrim`/AlbumPickerDialog/the slideshow, has titles/bodies with no `color`
+     declaration of their own (see e.g. `.trash-modal-title`/`.fav-modal-title` below, both
+     colorless by design, meant to inherit `var(--text-1)`). With no color anywhere on
+     `.photos-root` itself, "inherit" for those siblings fell through past `.photos-root` to
+     `<body>`'s GLOBAL app-wide theme color -- in the owner's combo (Photos set to its OWN light
+     theme, while the global New-UI theme stays on its dark default), that resolves to
+     near-white, painted on top of these siblings' near-white `--surface-1` modal background:
+     the exact bug. `.app`'s own content was always immune (it has its own explicit color rule),
+     which is why this was invisible until an .app-SIBLING overlay was screenshotted in that
+     specific theme combo. Both `.photos-root`/`.photos-root.is-light` blocks already define
+     `--text-1`, so this one declaration on the shared base rule is correct in both themes and
+     makes the whole `.photos-root` subtree color-self-contained, matching `.app`'s own
+     already-correct behavior instead of leaking to the page's unrelated global theme. */
+  color: var(--text-1);
+
   --accent:      #6E5BFF;
   --accent-soft: rgba(110,91,255,0.18);
   --accent-glow: rgba(110,91,255,0.35);
@@ -34,6 +55,22 @@
   --warning: #FF9F0A;
   --danger:  #FF453A;
   --info:    #5AC8FA;
+
+  /* Plan H Task 8 review fix: PhotosTrashView.vue's confirm-modal icon (:100-102) and its
+     hero/hero-button danger icons (:6/:20) use two literal Vue2 colors that are NEITHER of
+     this file's own `--accent`/`--danger` (both a different hue) NOR theme.css's app-wide
+     `--remove-fg` (which is itself re-themed per light/dark, #ff8a8a / #c0392b -- neither
+     value is Vue2's literal). Theme-invariant by design (Vue2 has no light/dark toggle at
+     all), same "identical literal in both blocks" convention as `--nimo-ring-*` below --
+     not a token-substitution gap, a deliberate parity choice.
+     Acceptance Fix-4 (owner ruling): `--trash-confirm-fg` was Vue2's literal blue (#5e94ff) --
+     repointed to this file's own purple `--accent` hex (#6E5BFF) so the non-danger confirm-modal
+     icon glyph reads coherently against the now-purple `.trash-btn-cta` CTA instead of clashing
+     blue-icon-next-to-purple-button. `--trash-danger-fg` is untouched (still Vue2's literal red)
+     -- same "keep destructive red" interpretation as `.trash-btn-cta-danger`'s own Fix-4 comment
+     below; flagged there for the owner to re-judge together with the CTA question. */
+  --trash-confirm-fg: #6E5BFF; /* confirm-modal icon, non-danger/restore case -- purple (Fix-4), was Vue2's literal #5e94ff */
+  --trash-danger-fg: #FF6B5C;  /* hero icon (:6), hero "Empty trash" button icon (:20), confirm-modal icon danger case (:101-102) */
 
   --r-sm: 6px;
   --r-md: 10px;
@@ -64,6 +101,14 @@
   --accent-ink: #CFC6FF;           /* readable accent-tinted text */
   --accent-ink-dim: rgba(179,155,255,0.6);
   --hero-scrim: rgba(10,10,12,0.30); /* veil over blurred hero backdrops */
+
+  /* Plan G (Ask Nimo): FAB progress ring gradient endpoints. Theme-invariant by design (Vue2
+     itself never re-themes this ring), so both theme blocks carry the identical literal values --
+     not a token-substitution gap, a deliberate parity choice. */
+  --nimo-ring-from: #b39bff;
+  --nimo-ring-to: #6e5bff;
+  --nimo-ring-err-from: #FFB783;
+  --nimo-ring-err-to: #FF9F43;
 
   /* Fix-5 (owner acceptance, 2026-08-17, P6a formally overturned): the seven `--pin-bg`/
      `--pin-stroke`/`--pin-active-bg`/`--pin-pulse`/`--pin-cluster-hover-bg`/`--pin-glow`/
@@ -143,6 +188,21 @@
      before, byte-for-byte (see photosGlassSurfaces.test.ts's own guard for this). */
   --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.62));
   --chip-border: rgba(var(--ink), 0.14);
+
+  /* Plan G (Ask Nimo): FAB progress ring gradient endpoints. Theme-invariant by design (Vue2
+     itself never re-themes this ring), so both theme blocks carry the identical literal values --
+     not a token-substitution gap, a deliberate parity choice. */
+  --nimo-ring-from: #b39bff;
+  --nimo-ring-to: #6e5bff;
+  --nimo-ring-err-from: #FFB783;
+  --nimo-ring-err-to: #FF9F43;
+
+  /* Plan H Task 8 review fix: same theme-invariant pair as the dark `.photos-root` block above
+     (see its own comment) -- identical literal values, Vue2 has no light-mode override.
+     Acceptance Fix-4 (owner ruling): --trash-confirm-fg repointed to purple, same value as the
+     dark block above (kept identical across both -- see that block's own Fix-4 comment). */
+  --trash-confirm-fg: #6E5BFF;
+  --trash-danger-fg: #FF6B5C;
 }
 
 .photos-root * { box-sizing: border-box; }
@@ -790,7 +850,7 @@
   display: inline-flex; align-items: center; gap: 10px;
   font-size: 13px; font-weight: 500;
   box-shadow: 0 12px 40px -8px rgba(0,0,0,0.7), 0 0 0 1px rgba(110,91,255,0.10);
-  z-index: 50;
+  z-index: 148; /* Plan G: normalized to the drawer-adjacent overlay tier, was Vue2's raw 50 */
   cursor: grab;
   user-select: none;
   transition: background 0.15s, transform 0.12s, box-shadow 0.15s;
@@ -862,6 +922,18 @@
 .photos-root .nimo-fab.nimo-fab-swap-leave-to { transform: scale(0.9) translateX(8px); }
 .photos-root .nimo-fab-mini.nimo-fab-swap-enter,
 .photos-root .nimo-fab-mini.nimo-fab-swap-leave-to { transform: translateX(100%); }
+/* Review fix (IMPORTANT #1): Vue2→Vue3 framework-difference fix, same precedent as
+   PlacesMap.vue's .pin-merge-enter-from and PhotoLightbox.vue's .lb-swap-*-enter-from. Vue3
+   renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept its name in
+   both versions). The three `-enter` selectors just above are the verbatim Vue2 transcription
+   (parity record, kept as documented dead source -- Vue3's <transition> never applies that
+   class name, so they never actually fire); this block supplies the real Vue3 selector so
+   AskNimoFab.vue's `<transition name="nimo-fab-swap">` swap animation actually runs. The
+   `-leave-to` half is unchanged between Vue2 and Vue3, so it needs no shim -- already covered
+   by the combined selectors above. */
+.photos-root .nimo-fab-swap-enter-from { opacity: 0; }
+.photos-root .nimo-fab.nimo-fab-swap-enter-from { transform: scale(0.9) translateX(8px); }
+.photos-root .nimo-fab-mini.nimo-fab-swap-enter-from { transform: translateX(100%); }
 
 /* FAB orb specific size */
 .photos-root .nimo-fab .nimo-orb {
@@ -955,7 +1027,8 @@
   background: var(--pop-bg); backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid var(--line-strong); border-radius: 16px;
   box-shadow: 0 24px 80px -12px rgba(0,0,0,0.7);
-  z-index: 51;
+  z-index: 190; /* Plan G: overlay tier, deliberately 10 below the lightbox's 200 so an
+                   in-chat photo tile always opens the lightbox on top regardless of DOM order */
   overflow: hidden;
   animation: pop-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -1874,6 +1947,12 @@
   transform-origin: top right;
 }
 .fav-menu-enter, .fav-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+/* Fix wave (post-final-review): Vue2->Vue3 framework-difference shim, same precedent as
+   .fav-slide-enter-from (~:2148) / .nimo-fab-swap-enter-from (~:890) / .chat-drawer-enter-from
+   (~:2623). Vue3 renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept
+   its name in both versions, so it needs no shim -- already covered by the rule above). Without
+   this, the Favorites place-filter menu pops in with no animation at all. */
+.fav-menu-enter-from { opacity: 0; transform: translateY(-4px) scale(0.97); }
 
 /* Filter group dropdowns (People / Places / Years) */
 .fav-filter-wrap {
@@ -2096,6 +2175,12 @@
 
 .fav-slide-enter-active, .fav-slide-leave-active { transition: opacity 0.22s ease; }
 .fav-slide-enter, .fav-slide-leave-to { opacity: 0; }
+/* Task 5 review fix (Important 1): Vue2->Vue3 framework-difference shim, same precedent as
+   .nimo-fab-swap-enter-from (~:890) / .chat-drawer-enter-from (~:2623). Vue3 renamed the bare
+   `-enter` transition class to `-enter-from` (`-leave-to` kept its name in both versions, so it
+   needs no shim -- already covered by the rule above). Without this, Vue3 never applies the
+   opacity:0 starting state and the overlay snaps in with no fade. */
+.fav-slide-enter-from { opacity: 0; }
 
 /* ============================================================
    Save as Album modal
@@ -2188,25 +2273,36 @@
   transition: background 0.15s;
 }
 .fav-btn-ghost:hover { background: var(--surface-3); }
+/* Acceptance Fix-4 (owner ruling, screenshot-verified): the Create-album CTA is now PURPLE in
+   BOTH themes, overriding Vue2's own literal amber (#FFD60A/#FFAA00 gradient, #29240B text) that
+   Fix-2 had faithfully transcribed one task ago -- the owner explicitly called this out as an
+   intentional Vue2 override, not a parity regression. Uses this file's own theme-invariant
+   `--accent`/`--accent-hi`/`--accent-glow`/`--accent-soft` family (identical in `.photos-root`
+   and `.photos-root.is-light`, see the header block's own comment: "Accent purple family ...
+   intentionally NOT overridden"), so this one edit already renders the same purple in both
+   themes with no separate light-mode rule needed. White text (theme-invariant, same convention
+   as `.trash-btn-cta`'s own `color: white` on its blue/red gradients below) replaces the old
+   dark-on-amber `#29240B`, since white is illegible on the old amber but reads correctly on the
+   new purple gradient in both themes. */
 .fav-btn-primary {
   height: 36px;
   padding: 0 16px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #FFD60A, #FFAA00);
+  background: linear-gradient(135deg, var(--accent-hi), var(--accent));
   border: 0;
-  color: #29240B;
+  color: white;
   font: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 6px;
-  box-shadow: 0 4px 14px -4px rgba(255, 214, 10, 0.55);
+  box-shadow: 0 4px 14px -4px var(--accent-glow);
   transition: transform 0.12s, box-shadow 0.15s, opacity 0.15s;
 }
-.fav-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 22px -6px rgba(255, 214, 10, 0.6); }
+.fav-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 22px -6px var(--accent-glow); }
 .fav-btn-primary:disabled {
-  background: rgba(255, 214, 10, 0.35);
-  color: rgba(41, 36, 11, 0.6);
+  background: var(--accent-soft);
+  color: var(--text-3);
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
@@ -2289,10 +2385,15 @@
   border-color: rgba(255, 107, 92, 0.25);
   box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255, 107, 92, 0.1);
 }
+/* Acceptance Fix-4 (owner ruling): the non-danger icon circle now uses the same purple
+   `--accent-soft` family as the CTA below (was a literal blue rgba(94,148,255,…), Vue2's own
+   restore/informational blue) -- kept for coherence now that the CTA next to it is purple; the
+   danger variant is untouched (still literal red), see this file's own Fix-4 comment on
+   `.trash-btn-cta` below for why the danger tone was deliberately left alone. */
 .trash-modal-icon {
   width: 52px; height: 52px;
   border-radius: 50%;
-  background: rgba(94, 148, 255, 0.14);
+  background: var(--accent-soft);
   margin: 4px auto 14px;
   display: flex; align-items: center; justify-content: center;
 }
@@ -2332,12 +2433,26 @@
   transition: background 0.15s;
 }
 .trash-btn-ghost:hover { background: var(--surface-3); }
+/* Acceptance Fix-4 (owner ruling, screenshot-verified): "右下角确认按钮得是紫色的，两色模式下也是"
+   -- the confirm modal's primary CTA is purple in both themes, overriding Vue2's own literal blue
+   gradient (#7aa7ff/#5e94ff). This BASE rule governs the non-danger case (restore-all confirm --
+   PhotosTrash.vue's `confirm.danger === false` path never adds the `-danger` modifier below), now
+   using this file's own theme-invariant `--accent`/`--accent-hi`/`--accent-glow` family (identical
+   in `.photos-root` and `.photos-root.is-light`), same reasoning as `.fav-btn-primary` above.
+   INTERPRETATION FLAGGED FOR OWNER RE-JUDGMENT: `.trash-btn-cta-danger` (empty-trash / delete-
+   forever confirms) is deliberately left red below, not purple -- the task brief's own hedge
+   ("if the destructive confirm previously used red and that distinction seems intentional, ...
+   NOTE this interpretation prominently") is read here as: red-for-destructive is a deliberate,
+   pre-existing safety signal (matches `.trash-btn-danger`'s hero-button red and the danger-tinted
+   modal border/icon a few rules up), so only the non-destructive base CTA turns purple. If the
+   owner actually wants ALL THREE confirms' CTAs purple (destructive included), only the
+   `.trash-btn-cta-danger` rule below needs to be pointed at the same purple family too. */
 .trash-btn-cta {
   flex: 1.3;
   height: 38px;
   padding: 0 18px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #7aa7ff, #5e94ff);
+  background: linear-gradient(135deg, var(--accent-hi), var(--accent));
   border: 0;
   color: white;
   font: inherit;
@@ -2345,10 +2460,10 @@
   font-weight: 600;
   cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  box-shadow: 0 6px 18px -3px rgba(94, 148, 255, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 18px -3px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transition: transform 0.12s, box-shadow 0.15s;
 }
-.trash-btn-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px -6px rgba(94, 148, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.trash-btn-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px -6px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 .trash-btn-cta-danger {
   background: linear-gradient(135deg, #FF7B6D, #E0463A);
   box-shadow: 0 6px 18px -3px rgba(255, 107, 92, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
@@ -2561,15 +2676,37 @@
 
 /* === Chat Drawer (from shell.js injectChatDrawerStyle) === */
 .photos-root .chat-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 96vw; z-index: 50;
+  position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 96vw; z-index: 191; /* Plan G: same overlay tier as .nimo-pop, still below lightbox's 200 */
   background: var(--surface-1); border-left: 1px solid var(--line);
   display: flex; flex-direction: column;
   box-shadow: -16px 0 40px rgba(0,0,0,0.5);
 }
-.chat-drawer-enter-active, .chat-drawer-leave-active {
+/* Review fix (residual #4): prefixed with `.photos-root`, matching the T10
+   `.nimo-fab-swap-enter-active`/`-leave-active` precedent (~:871-873) -- `.chat-drawer` itself
+   only ever renders inside `.photos-root` (AskNimoDrawer.vue), so this is behavior-preserving.
+   `-active` class names are unchanged between Vue2 and Vue3, so both halves of this rule fire. */
+.photos-root .chat-drawer-enter-active, .photos-root .chat-drawer-leave-active {
   transition: transform 0.22s cubic-bezier(.3,.7,.4,1), opacity 0.18s;
 }
-.chat-drawer-enter, .chat-drawer-leave-to { transform: translateX(100%); opacity: 0.5; }
+/* `.chat-drawer-enter` is the verbatim Vue2 transcription (parity record, kept as documented
+   dead source, deliberately left unprefixed -- Vue3's <transition> never applies that class
+   name at all, renamed/superseded by `-enter-from` below, so prefixing it would change nothing
+   observable either way). */
+.chat-drawer-enter { transform: translateX(100%); opacity: 0.5; }
+/* Review fix (residual #4): `-leave-to` is unchanged between Vue2 and Vue3 (only `-enter` /
+   `-leave` themselves were renamed to `-enter-from` / `-leave-from`), so this half is live and
+   gets the same `.photos-root` prefix as its `-active` siblings above. */
+.photos-root .chat-drawer-leave-to { transform: translateX(100%); opacity: 0.5; }
+/* Review fix (Important, Task 12): Vue2->Vue3 framework-difference fix, same precedent as
+   .nimo-fab-swap-enter-from (~:890) / .pin-merge-enter-from / .lb-swap-*-enter-from. Vue3
+   renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept its name in
+   both versions, so it needs no shim -- already covered by the rule above). This rule supplies
+   the real Vue3 selector so AskNimoDrawer.vue's `<transition name="chat-drawer">` slide
+   actually runs. */
+/* Review fix (minor #9): prefixed with `.photos-root`, matching the T10
+   `.nimo-fab-swap-enter-from` shim precedent (~:890) -- `.chat-drawer` itself only ever renders
+   inside `.photos-root` (AskNimoDrawer.vue), so this is behavior-preserving. */
+.photos-root .chat-drawer-enter-from { transform: translateX(100%); opacity: 0.5; }
 .photos-root .cd-head {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
@@ -3694,6 +3831,19 @@
 .photos-root .album-photo-grid.is-compact {
   grid-template-columns: repeat(9, 1fr);
 }
+/* Fix-6 (owner acceptance, 2026-08-18, New-UI-only -- not a Vue2 port, no equivalent selector
+   exists in the source scss): drag-reorder smoothness. useAlbumDragSort toggles `.is-dragging`
+   on this container for the duration of a drag (see that composable's own header comment for the
+   full mechanism trace) -- `forceFallback: true` drags via real `mousemove`, so the actual cursor
+   keeps crossing sibling tiles while the floating ghost moves, firing each one's `:hover` zoom
+   transition on the way. That transition work has no visual purpose mid-drag and competes with
+   Sortable's own `animation: 150` FLIP move for the frame budget -- suppressed here exactly like
+   the Ask Nimo FAB's own `.is-dragging` already does for its drag (:860-867 above), reusing the
+   same `transition: none !important` idea. `will-change` is scoped to the same window (not a
+   permanent per-tile cost on albums with hundreds of photos) so the browser only pays the
+   compositor-layer promotion while tiles are actually being FLIP-animated into place. */
+.photos-root .album-photo-grid.is-dragging .tile img { transition: none !important; }
+.photos-root .album-photo-grid.is-dragging .tile { will-change: transform; }
 /* Per-tile "set as cover" button (hover-revealed; always visible for the
    current cover). The discoverable place to pick an album cover. */
 .photos-root .album-photo-grid .tile .tile-cover-btn {
@@ -4151,7 +4301,8 @@
 .photos-root .nimo-mp-list {
   position: fixed;
   min-width: 220px; max-height: 280px; overflow-y: auto;
-  z-index: 60;
+  z-index: 260; /* Plan G: reuses the established "fixed dropdown menu" tier, exact analog to
+                   .cluster-menu (photos-people.scss:1338) -- same UI role (portaled dropdown list) */
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 10px; padding: 4px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
@@ -4254,6 +4405,129 @@
   box-shadow: 0 4px 14px -4px rgba(255,107,92,0.55);
 }
 
+/* === NimoChat message body (from PhotosAgentChat.vue's own <style>, not scoped in Vue2 --
+   global under .photos-root there too, so this is a straight append, no selector rewrite). === */
+.photos-root .nimo-md { line-height: 1.5; }
+.photos-root .nimo-md p { margin: 0 0 6px; }
+.photos-root .nimo-md p:last-child { margin-bottom: 0; }
+.photos-root .nimo-md ul,
+.photos-root .nimo-md ol { margin: 0 0 6px; padding-left: 18px; }
+.photos-root .nimo-md li { margin-bottom: 2px; }
+.photos-root .nimo-md code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-ink);
+  background: rgba(var(--accent-rgb), 0.16);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.photos-root .nimo-md pre {
+  background: var(--well-bg);
+  border: 1px solid rgba(var(--ink), 0.06);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+.photos-root .nimo-md pre code { background: transparent; padding: 0; font-size: 11px; }
+.photos-root .nimo-md strong { font-weight: 600; color: var(--accent-hi); }
+.photos-root .nimo-md em { font-style: italic; }
+.photos-root .nimo-md a { color: var(--accent-hi); text-decoration: underline; }
+.photos-root .nimo-md h1,
+.photos-root .nimo-md h2,
+.photos-root .nimo-md h3 { font-weight: 600; margin: 6px 0 4px; line-height: 1.3; }
+.photos-root .nimo-md table { border-collapse: collapse; margin: 4px 0 6px; font-size: 11px; max-width: 100%; }
+.photos-root .nimo-md th,
+.photos-root .nimo-md td { border: 1px solid rgba(var(--ink), 0.10); padding: 3px 6px; text-align: left; vertical-align: top; }
+.photos-root .nimo-md th { font-weight: 600; color: var(--accent-hi); background: rgba(var(--accent-rgb), 0.10); }
+
+.photos-root .nimo-tool-line { font-size: 10.5px; color: rgba(var(--ink), 0.38); padding: 1px 0; line-height: 1.3; }
+.photos-root .nimo-tool-line.is-running { color: var(--accent-ink-dim); animation: nimoToolPulse 1.4s ease-in-out infinite; }
+@keyframes nimoToolPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.photos-root .nimo-tool-err { color: #ff6b5c; }
+
+.photos-root .nimo-photo-grid { width: 100%; }
+.photos-root .nimo-photo-grid-label { font-size: 10.5px; color: rgba(var(--ink), 0.42); margin-bottom: 5px; }
+.photos-root .nimo-photo-grid-tiles { display: flex; flex-wrap: wrap; gap: 3px; }
+.photos-root .nimo-photo-tile {
+  width: 56px; height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(var(--ink), 0.06);
+  flex-shrink: 0;
+  position: relative;
+}
+.photos-root .nimo-photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.15s; }
+.photos-root .nimo-photo-tile:hover img { opacity: 0.8; }
+.photos-root .nimo-photo-tile-more {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600;
+  color: rgba(var(--ink), 0.6);
+  background: rgba(var(--ink), 0.08);
+}
+
+.photos-root .nimo-typing { display: inline-block; font-size: 14px; color: var(--accent-ink-dim); animation: nimoTyping 1.1s ease-in-out infinite; letter-spacing: 2px; }
+@keyframes nimoTyping { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+.photos-root .nimo-ctx-chip {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10.5px; color: var(--accent-ink);
+  background: rgba(var(--accent-rgb), 0.12);
+  border-radius: 6px; padding: 2px 8px; margin-bottom: 6px;
+  width: fit-content;
+}
+.photos-root .nimo-ctx-chip-x { background: none; border: none; color: rgba(var(--ink), 0.5); cursor: pointer; font-size: 12px; padding: 0 2px; }
+.photos-root .nimo-ctx-chip-x:hover { color: var(--text-1); }
+
+/* === Confirm/access_request card (from PhotosAgentConfirm.vue's own <style>) === */
+.photos-root .pac-wrap {
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(var(--ink), 0.04);
+  border: 1px solid rgba(var(--ink), 0.10);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 2px 0;
+}
+.photos-root .pac-desc { font-size: 11.5px; color: rgba(var(--ink), 0.80); line-height: 1.4; }
+.photos-root .pac-code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: rgba(var(--ink), 0.50);
+  background: var(--well-bg);
+  border-radius: 4px;
+  padding: 3px 6px;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+.photos-root .pac-btns { display: flex; align-items: center; gap: 6px; }
+.photos-root .pac-btn {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.photos-root .pac-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.photos-root .pac-btn-allow { background: var(--accent); color: white; border-color: var(--accent); }
+.photos-root .pac-btn-allow:not(:disabled):hover { background: var(--accent-hi); }
+.photos-root .pac-btn-deny {
+  background: rgba(var(--ink), 0.06);
+  color: rgba(var(--ink), 0.70);
+  border-color: rgba(var(--ink), 0.12);
+}
+.photos-root .pac-btn-deny:not(:disabled):hover { background: rgba(var(--ink), 0.12); }
+.photos-root .pac-err { font-size: 10.5px; color: #ff6b5c; }
+.photos-root .pac-result { font-size: 10.5px; }
+.photos-root .pac-result-allow { color: rgba(52,199,89,0.85); }
+.photos-root .pac-result-deny { color: rgba(var(--ink), 0.38); }
+
 /* === NimoTaskBar === */
 .photos-root .nimo-tb {
   flex-shrink: 0;
@@ -4282,6 +4556,47 @@
 .photos-root .nimo-tb-row { display: flex; align-items: center; padding: 2px 0; }
 .photos-root .nimo-tb-row-label { flex: 1; font-size: 11px; color: var(--text-2); }
 .photos-root .nimo-tb-row-pct { font-size: 10px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* === NimoTaskBar expanded per-type breakdown -- the .nimo-tb-list / .nimo-tb-row family above
+   is Vue2 photos.scss's OWN dead code, retained here only because that file was transcribed
+   whole; the block below is the live style, ported byte-exact from
+   NimoTaskBar.vue's own <style scoped> (NimoOS-UI/src/views/Photos/NimoTaskBar.vue:111-157). === */
+.photos-root .nimo-tb-types {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  /* Vue2 NimoTaskBar.vue:117 -- task area when expanded: uses a background color distinct from
+     its surroundings, like a dropdown panel. */
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(var(--ink), 0.05);
+}
+/* Vue2 NimoTaskBar.vue:127 -- use theme color variables, following light/dark theme; don't
+   hardcode a color (otherwise white text would be invisible in light theme). */
+.photos-root .nimo-tb-type-head { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+.photos-root .nimo-tb-type-label { flex: 1; }
+.photos-root .nimo-tb-type-pct { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--text-3); }
+.photos-root .nimo-tb-type-count { color: var(--text-3); opacity: 0.7; }
+/* Vue2 NimoTaskBar.vue:137 -- smooth progress bar animation: so even tasks the backend finishes
+   instantly still show a rolling effect. */
+.photos-root .nimo-tb-bar i { transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.photos-root .nimo-tb-type.has-error .nimo-tb-bar i { background: #FF9F43; }
+.photos-root .nimo-tb-row-alert {
+  display: inline-block;
+  width: 14px; height: 14px; line-height: 14px;
+  border-radius: 999px;
+  background: #FF9F43; color: #fff;
+  font-size: 10px; text-align: center; font-weight: 700;
+}
+.photos-root .nimo-tb-error-detail {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 159, 67, 0.10);
+  border-left: 2px solid #FF9F43;
+  color: var(--text-2);
+  font-size: 0.75rem;
+}
 
 /* Auto-resume upload: lightweight corner notice bar */
 .recovery-notice {
@@ -4351,6 +4666,12 @@
   pointer-events: none;
   animation: nimoRingIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* === FAB ring transition (from PhotosAskNimo.vue's own <style scoped>) === */
+.photos-root .nimo-fab-ring stop,
+.photos-root .nimo-fab-mini-ring stop { transition: stop-color 0.3s; }
+.photos-root .nimo-fab-ring circle,
+.photos-root .nimo-fab-mini-ring circle { transition: stroke-dashoffset 0.5s cubic-bezier(0.22, 0.61, 0.36, 1); }
 
 /* ──────────────────────────────────────────────────────────────
    Album detail — drag-to-reorder ghost

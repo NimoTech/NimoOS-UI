@@ -79,16 +79,23 @@ const props = withDefaults(defineProps<{
   showSearch?: boolean
   back?: boolean
   query?: string
+  // Plan G Task 16 (Ask Nimo topbar button): additive, defaults false -- non-breaking for every
+  // existing caller. Vue2 truth (preflight F-17, baseline research report §2.1): the topbar Ask
+  // button opens the drawer directly, no prefill -- this component only emits the click, the
+  // caller (useAskNimo().openDrawer()) owns that behavior.
+  showAskNimo?: boolean
 }>(), {
   showSearch: true,
   back: false,
   query: '',
+  showAskNimo: false,
 })
 
 const emit = defineEmits<{
   (e: 'toggle-collapse'): void
   (e: 'search-submit', q: string): void
   (e: 'back'): void
+  (e: 'ask-nimo'): void
 }>()
 
 const { t } = useI18n()
@@ -189,6 +196,14 @@ onMounted(() => {
         <span class="kbd">↵</span>
       </div>
     </div>
+    <!-- Plan G Task 16 (preflight F-17): Vue2 PhotosTopbar.vue:29-32 -- a labeled pill
+         (`class="btn btn-ai"` + 18px `.nimo-orb` + visible "Ask Nimo" text), opens the drawer
+         directly, no prefill, no title tooltip (Vue2 has none there since the label is visible).
+         This component only emits; the caller wires `useAskNimo().openDrawer()`. -->
+    <button v-if="showAskNimo" type="button" class="btn btn-ai" data-test="topbar-ask-nimo" @click="emit('ask-nimo')">
+      <span class="nimo-orb" style="width:18px;height:18px;flex:none" />
+      {{ t('photosAskNimo') }}
+    </button>
   </header>
 </template>
 

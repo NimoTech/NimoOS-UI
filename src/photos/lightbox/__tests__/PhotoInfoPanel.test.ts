@@ -23,6 +23,8 @@ const PARITY_SRC = fs.readFileSync(
 )
 import { osmEmbedSrc } from '../util/osmMap'
 import { usePhotosPeople } from '../../stores/people'
+import { useAgentStore } from '../../../ai/stores/agentStore'
+import { useAskNimo } from '../../composables/useAskNimo'
 import type { Photo } from '../../util/assetToPhoto'
 
 // 复用既有剪贴板 util(src/files/util/clipboard.ts 的 HTTP 非安全上下文兜底写法)——打桩验证调用,
@@ -72,6 +74,14 @@ beforeEach(() => {
   setActivePinia(createPinia())
   svc.photos.listPersons.mockClear().mockResolvedValue({ persons: [], facesIndexedUpTo: null })
   svc.photos.personFaceThumbnailUrl.mockClear()
+  // Task 15 (Plan G): this file's own beforeEach -- Preflight F-13, onGiveNimo now calls
+  // useAskNimo().openWith(), which calls ensureNimoAgentInit() internally.
+  const agent = useAgentStore('photos')
+  agent.loadAvailableModels = vi.fn(async () => {})
+  agent.createSession = vi.fn(async () => { agent.activeSessionId = 's0' })
+  agent.deleteSession = vi.fn(async () => {})
+  agent.setSessionTitle = vi.fn(async () => {})
+  useAskNimo().__resetForTests()
 })
 
 afterEach(() => {
@@ -312,9 +322,24 @@ describe('PhotoInfoPanel', () => {
       expect(btn.text()).toBe(zh.photosHandOffToNimo)
     })
 
-    it('点击不抛异常(no-op,真接线属 Plan G)', async () => {
-      const w = mountPanel(makePhoto())
-      await expect(w.find('[data-test="lb-give-nimo"]').trigger('click')).resolves.not.toThrow()
+    // Task 15 (Plan G): wires the previously no-op onGiveNimo to useAskNimo().openWith() with
+    // Vue2's exact canned prompt (PhotosLightbox.vue:84 -- `$t('Edit this photo: {title}',
+    // { title: photo.title })`, always photo.title as-is, no filePath-basename derivation).
+    // filePath is deliberately set to a DIFFERENT basename than title here, to prove the prefill
+    // tracks title only and is not silently re-derived from the file path.
+    it('点击后打开 Ask Nimo,预填文案取 photo.title(不做 filePath basename 派生)', async () => {
+      const photo = makePhoto({ title: 'sunset', filePath: '/a/b/unrelated-name.jpg' })
+      const w = mountPanel(photo)
+      await w.find('[data-test="lb-give-nimo"]').trigger('click')
+      expect(useAskNimo().popupOpen.value).toBe(true)
+      expect(useAskNimo().prefill.value).toBe('编辑这张照片：sunset')
+    })
+
+    it('photo.title 缺失(null/undefined)时回退到 photo.id', async () => {
+      const photo = makePhoto({ title: undefined as unknown as string, id: 'p42' })
+      const w = mountPanel(photo)
+      await w.find('[data-test="lb-give-nimo"]').trigger('click')
+      expect(useAskNimo().prefill.value).toBe('编辑这张照片：p42')
     })
 
     it('visible=false 时按钮也不渲染(随整个面板一起隐藏)', () => {

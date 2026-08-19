@@ -278,9 +278,9 @@ describe('ParserTest — K31 two-layer root element (scroll container + 900px ce
 describe('ParserTest — page header + help card (blueprint :3-18)', () => {
   it('title exact match, back link `← Back to details` with href (N16: `←` outside t(); page title no emoji)', async () => {
     const w = await mountPage()
-    expect(w.find('.page-header h2').text()).toBe('Parser test sandbox')
+    expect(w.find('.page-header h2').text()).toBe('Parser 测试沙盒')
     const link = w.find('a.back-link')
-    expect(link.text()).toBe('← Back to details')
+    expect(link.text()).toBe('← 返回详情')
     // hash router: href resolved in jsdom is pure hash (production is `…/app/#/ai/parser`)
     expect(link.attributes('href')).toBe('#/ai/parser')
     // 🔴 brief §4.3 says page title has `🧪` — source verification shows wrong (E-15): `🧪` is at
@@ -293,9 +293,9 @@ describe('ParserTest — page header + help card (blueprint :3-18)', () => {
     const ps = w.findAll('.help-card p')
     expect(ps).toHaveLength(2)
     expect(sq(ps[0]!.text())).toBe(
-      'Upload a file to see how Parser processes it (chunking + embedding + scoring). Does not write to index, preview only.',
+      '上传一个文件，看 Parser 怎么处理它（切块 + 嵌入 + 评分）。 不会写入索引, 纯预览.',
     )
-    expect(ps[0]!.find('strong').text()).toBe('Does not write to index')
+    expect(ps[0]!.find('strong').text()).toBe('不会写入索引')
   })
 
   it('help card second paragraph: two `<code>` extension lists are technical identifiers (N22), not in i18n', async () => {
@@ -307,8 +307,8 @@ describe('ParserTest — page header + help card (blueprint :3-18)', () => {
     expect(codes[0]!.text()).toBe('.md .txt .html .json .csv .py .go .ts .java')
     expect(codes[1]!.text()).toBe('.pdf .docx .pptx .xlsx')
     expect(sq(p.text())).toBe(
-      'Supports .md .txt .html .json .csv .py .go .ts .java, and .pdf .docx .pptx .xlsx (converted to markdown via docling). ' +
-        'Maximum 30 MB. PDF will trigger model weight download on first use (~200 MB, one-time).',
+      '支持 .md .txt .html .json .csv .py .go .ts .java, 以及 .pdf .docx .pptx .xlsx （经 docling 转 markdown）. ' +
+        '最大 30 MB。PDF 首次会触发模型权重下载（~200 MB，一次性）。',
     )
   })
 })
@@ -358,8 +358,8 @@ describe('ParserTest — drop zone three states + dragActive class toggle (bluep
 describe('ParserTest — pick file / clear (blueprint :27-37 / :183-197)', () => {
   it('no file selected: pick-btn + hint; click pick-btn forwards to hidden input click()', async () => {
     const w = await mountPage()
-    expect(w.find('.pick-btn').text()).toBe('Choose file')
-    expect(w.find('.dropzone .hint').text()).toBe('or drag and drop here')
+    expect(w.find('.pick-btn').text()).toBe('选择文件')
+    expect(w.find('.dropzone .hint').text()).toBe('或拖拽到此处')
     const input = w.find('input[type="file"]').element as HTMLInputElement
     const click = vi.spyOn(input, 'click').mockImplementation(() => {})
     await w.find('.pick-btn').trigger('click')
@@ -413,7 +413,7 @@ describe('ParserTest — 🔴 30 MB frontend check: only set error, do not clear
     expect(ai.parserTestAnalyze).toHaveBeenCalledTimes(1)
 
     await pickFile(w, makeFile('huge.bin', 30 * 1024 * 1024 + 1))
-    expect(w.find('.error-box').text()).toBe('File exceeds 30 MB, sandbox does not support')
+    expect(w.find('.error-box').text()).toBe('文件超过 30 MB，沙盒不支持')
     // 🔴 blueprint only does `return`: file was not cleared, result was not cleared
     expect(w.find('.file-meta strong').text()).toBe('good.md')
     expect(w.find('.chunks-card').exists()).toBe(true)
@@ -427,7 +427,7 @@ describe('ParserTest — 🔴 30 MB frontend check: only set error, do not clear
       .find('.dropzone')
       .trigger('drop', { dataTransfer: { files: [makeFile('huge.md', 40 * 1024 * 1024)] } })
     await nextTick()
-    expect(w.find('.error-box').text()).toBe('File exceeds 30 MB, sandbox does not support')
+    expect(w.find('.error-box').text()).toBe('文件超过 30 MB，沙盒不支持')
     expect(w.find('.file-meta').exists()).toBe(false)
     expect(ai.parserTestAnalyze).not.toHaveBeenCalled()
   })
@@ -498,7 +498,7 @@ describe('ParserTest — three parameter inputs + resetParams (blueprint :39-53 
       '45',
       '6',
     ])
-    expect(w.find('.reset-btn').text()).toBe('Reset')
+    expect(w.find('.reset-btn').text()).toBe('重置')
     expect((w.find('.reset-btn').element as HTMLButtonElement).type).toBe('button')
     await w.find('.reset-btn').trigger('click')
     await nextTick()
@@ -513,11 +513,11 @@ describe('ParserTest — three parameter inputs + resetParams (blueprint :39-53 
     const w = await mountPage()
     const line = w.find('.hint-line')
     expect(sq(line.text())).toBe(
-      'Defaults: target=600, overlap=80, min=2 (sandbox loose values; production uses 600/80/5–20). ' +
-        'overlap only applies to plain text; markdown/source splits by paragraph or function boundary.',
+      '默认 target=600, overlap=80, min=2（沙盒宽松值；生产用 600/80/5–20）。 ' +
+        'overlap 只对 plain 文本生效；markdown/source 按段落或函数边界切。',
     )
     expect(line.find('em').text()).toBe(
-      'overlap only applies to plain text; markdown/source splits by paragraph or function boundary.',
+      'overlap 只对 plain 文本生效；markdown/source 按段落或函数边界切。',
     )
     // U+2013 (EN DASH) is not ASCII `-` — Appendix A §A.2 mandates copying each code point verbatim
     expect((enUs as Record<string, string>).aiKbPtDefaults).toContain('5–20')
@@ -529,12 +529,12 @@ describe('ParserTest — query / rerank / OCR three inputs (blueprint :59-71)', 
   it('query input placeholder goes through i18n; rerank label is hardcoded `rerank top-20` (N22)', async () => {
     const w = await mountPage()
     expect(w.find('.query-input').attributes('placeholder')).toBe(
-      '(Optional) Enter a query to compute cosine similarity per chunk',
+      '（可选）输入 query，会计算每个 chunk 的余弦相似度',
     )
     const boxes = w.findAll('.row .checkbox')
     expect(boxes).toHaveLength(2)
     expect(sq(boxes[0]!.text())).toBe('rerank top-20')
-    expect(sq(boxes[1]!.text())).toBe('OCR (scanned PDF)')
+    expect(sq(boxes[1]!.text())).toBe('OCR（扫描 PDF）')
   })
 
   it('both checkboxes default to false', async () => {
@@ -569,7 +569,7 @@ describe('ParserTest — 🔴 K27 / K1 / FormData nine fields (blueprint :201-22
     const w = await mountPage()
     await runWith(w)
     expect(w.find('.ok-hint').exists()).toBe(true)
-    expect(w.find('.chunks-card h3').text()).toBe('Chunking result (1 chunk)')
+    expect(w.find('.chunks-card h3').text()).toBe('切块结果（1 块）')
   })
 
   it('🔴 FormData nine fields **order and values** copied verbatim (when query not empty)', async () => {
@@ -661,7 +661,7 @@ describe('ParserTest — submit button :disabled both sides + loading text (blue
     const w = await mountPage()
     const btn = w.find('.submit-btn')
     expect((btn.element as HTMLButtonElement).disabled).toBe(true)
-    expect(btn.text()).toBe('Run')
+    expect(btn.text()).toBe('运行')
   })
 
   it('file selected → button enabled', async () => {
@@ -678,13 +678,13 @@ describe('ParserTest — submit button :disabled both sides + loading text (blue
     await w.find('.submit-btn').trigger('click')
     await nextTick()
     expect((w.find('.submit-btn').element as HTMLButtonElement).disabled).toBe(true)
-    expect(w.find('.submit-btn').text()).toBe('Processing…')
+    expect(w.find('.submit-btn').text()).toBe('处理中…')
 
     d.resolve(MD_OK)
     await flushPromises()
     await nextTick()
     expect((w.find('.submit-btn').element as HTMLButtonElement).disabled).toBe(false)
-    expect(w.find('.submit-btn').text()).toBe('Run')
+    expect(w.find('.submit-btn').text()).toBe('运行')
   })
 
   it('`submit()` start guard `if (!file) return`: direct call does not send request', async () => {
@@ -751,7 +751,7 @@ describe('ParserTest — chunks card complete rendering (blueprint :126-149)', (
   it('md-ok: title `Chunking result (1 chunk)`, one chunk-item, chunk-head + chunk-text exact match', async () => {
     const w = await mountPage()
     await runWith(w)
-    expect(w.find('.chunks-card h3').text()).toBe('Chunking result (1 chunk)')
+    expect(w.find('.chunks-card h3').text()).toBe('切块结果（1 块）')
     const items = w.findAll('.chunk-item')
     expect(items).toHaveLength(1)
     expect(items[0]!.find('.chunk-head strong').text()).toBe('chunk #0') // N22
@@ -803,9 +803,9 @@ describe('ParserTest — chunks card complete rendering (blueprint :126-149)', (
     ai.parserTestAnalyze.mockResolvedValue(EMPTY_200)
     const w = await mountPage()
     await runWith(w, makeFile('p5c-empty.md', 0))
-    expect(w.find('.chunks-card h3').text()).toBe('Chunking result (0 chunks)')
+    expect(w.find('.chunks-card h3').text()).toBe('切块结果（0 块）')
     expect(w.find('.chunks-card .empty').text()).toBe(
-      'Parsing resulted in 0 chunks. File may be too short or entirely filtered segments.',
+      '解析得到 0 个 chunk。可能是文件太短或全是过滤掉的小段。',
     )
     expect(w.findAll('.chunk-list')).toHaveLength(0)
     expect(w.findAll('.chunk-item')).toHaveLength(0)
@@ -823,7 +823,7 @@ describe('ParserTest — scored card two states + N18 + 🔴 governance §4.2 fa
   it('md-ok: title `Query similarity ranking (top 1)`, cos three decimals, chunk-ref, rank-text has original chunk text', async () => {
     const w = await mountPage()
     await runWith(w)
-    expect(w.find('.scored-card h3').text()).toBe('Query similarity ranking (top 1)')
+    expect(w.find('.scored-card h3').text()).toBe('Query 相似度排名（top 1）')
     expect(w.find('.rank-no').text()).toBe('#1') // N18: indexOf(s) + 1
     expect(w.find('.score').text()).toBe('cos 0.508') // N22: `cos ` hardcoded; toFixed(3)
     expect(w.find('.chunk-ref').text()).toBe('chunk #0') // N22

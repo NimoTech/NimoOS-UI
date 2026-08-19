@@ -24,9 +24,11 @@
 // PhotosFilterChip.vue's 2026-08-13 fix round. `.map-zoombar`'s own background/border and
 // `.zb-fill`/`.zb-thumb`'s accent-driven parts already used shared or identical literals, so
 // nothing here was salvageable as a real deviation; deleting the block lets parity govern
-// 100% of `.map-zoombar`. `--zb-hover-bg`/`--zb-track-bg`/`--zb-thumb-shadow` in theme.css are
-// now unused by any component (grep-confirmed) — left in place as this task's scope is the
-// four component files, not theme.css pruning; noted in the task report as a follow-up.
+// 100% of `.map-zoombar`. `--zb-hover-bg`/`--zb-track-bg`/`--zb-thumb-shadow` in theme.css were
+// unused by any component at the time (grep-confirmed) — left in place then, as that task's
+// scope was the four component files, not theme.css pruning; the follow-up noted in that task's
+// report has since happened: Plan H Task 15 (2026-08-17) deleted all three token definitions
+// from theme.css as confirmed dead.
 //
 // Historical rationale (superseded, kept only so the "why was this token created" question
 // doesn't need re-litigating from theme.css alone):

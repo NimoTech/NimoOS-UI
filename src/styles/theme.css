@@ -97,14 +97,13 @@
   --accent-soft: rgba(138, 180, 255, 0.14);
   --accent-soft-2: rgba(138, 180, 255, 0.24);
   --accent-soft-bd: rgba(138, 180, 255, 0.36);
-  /* PlacesRail.vue (P6a-T5) selected-city row, three spots -- an exact port of Vue2
-     photos-places.scss:153-156/:163-167's rgba(var(--accent-rgb), 0.10/0.30/0.18) (that
-     view only ever had a dark design; the numeric precision required calls for a
-     dedicated token instead of settling for one of --accent-soft's three tiers, following
-     the existing precedent set by --drop-bg/--spark-fill/--orb-glow). */
-  --place-row-bg: rgba(138, 180, 255, 0.10);
-  --place-row-border: rgba(138, 180, 255, 0.30);
-  --place-thumb-active: rgba(138, 180, 255, 0.18);
+  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
+     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
+     removed --place-thumb-active itself for the same reason (re-verified zero consumers
+     repo-wide, both theme blocks) -- the comment this replaces described it as PlacesRail.vue's
+     selected-city row token, but that rule (`.rail-place.is-active:hover`, PlacesRail.vue's own
+     `<style scoped>`) actually blends `rgba(var(--accent-rgb), 0.10)` directly rather than
+     reading a dedicated token; --place-thumb-active was never wired to anything. */
   /* Review I3 (Plan E final-fix): the seven --pin-* geo-pin tokens that used to live here have
      moved to `src/photos/styles/vue2-parity/photos.scss`'s `.photos-root { }`/
      `.photos-root.is-light { }` blocks — see that file for the values and rationale. They were
@@ -161,20 +160,11 @@
      --popup-bg (a gradient, ~0.9-0.95), and --tool-bg (0.16, an opaque flat color) all miss
      this flat 0.85 magnitude, hence a new token rather than an approximation. */
   --float-bg: rgba(20, 20, 28, 0.85);
-  /* Same component -- Vue2 uses rgba(var(--ink), 0.08/0.12) for .zb-btn:hover's background
-     and .zb-track's base color, an "alpha ramp that follows the text color"; this repo has
-     no --ink RGB-triple token. The alpha is an exact port of Vue2's 0.08/0.12, but the RGB
-     is swapped for this repo's --fg's actual decomposed value (dark theme #ffffff ->
-     255,255,255) -- not copied from Vue2's light-theme --ink value of (35,37,43) (that
-     value is, per Vue2's own comment, only an approximation of "AI --text-primary", not a
-     precise design value), following the same base-hue-swap precedent as
-     --pin-cluster-stroke. */
-  --zb-hover-bg: rgba(255, 255, 255, 0.08);
-  --zb-track-bg: rgba(255, 255, 255, 0.12);
-  /* .zb-thumb handle's second shadow layer -- Vue2 photos-places.scss:281's box-shadow
-     `0 1px 4px rgba(0,0,0,0.4)` never varied across Vue2's own dark/light themes,
-     theme-invariant, same value in both theme blocks (precedent: --place-current-trip). */
-  --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
+  /* Plan H Task 15 (2026-08-17): --zb-hover-bg/--zb-track-bg/--zb-thumb-shadow that used to be
+     defined here (PlacesZoomBar.vue's now-deleted local `<style scoped>` block; see that
+     file's own history comment) were removed as confirmed zero consumers repo-wide —
+     PlacesZoomBar.vue's `.map-zoombar` family is fully governed by
+     photos-places.scss:234-284 and its local `--ink`-based tokens instead. */
   --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
   --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
   --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
@@ -237,7 +227,7 @@
   --photos-seg-ai: #ff9f0a;
   /* The other segment's Vue2 original value is rgba(var(--ink),0.25) (an "alpha ramp that
      follows the text color"), and this repo has no --ink RGB-triple token -- following the
-     same established base-hue-swap precedent as --zb-hover-bg/--zb-track-bg: alpha is an
+     same established base-hue-swap technique used elsewhere in this file: alpha is an
      exact port of 0.25, RGB is swapped for this repo's --fg's actual decomposed value
      (dark theme #ffffff -> 255,255,255). */
   --photos-seg-other: rgba(255, 255, 255, 0.25);
@@ -538,13 +528,10 @@
   --accent-soft: rgba(59, 91, 219, 0.11);
   --accent-soft-2: rgba(59, 91, 219, 0.2);
   --accent-soft-bd: rgba(59, 91, 219, 0.3);
-  /* Vue2 only ever designed a dark version of this view, so there's no original to copy
-     for the light value -- derived using the accent family's dark->light convergence
-     convention (.14->.11, .24->.20, .36->.30, roughly x0.83): .10->.08, .30->.25,
-     .18->.15. */
-  --place-row-bg: rgba(59, 91, 219, 0.08);
-  --place-row-border: rgba(59, 91, 219, 0.25);
-  --place-thumb-active: rgba(59, 91, 219, 0.15);
+  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
+     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
+     removed --place-thumb-active itself -- see the dark `:root` block's own comment for why
+     (it was never actually consumed; re-verified zero consumers repo-wide in both blocks). */
   /* Fix-5: the seven --pin-* geo-pin tokens that used to be redefined here (blue-family
      light-mode values) are removed — see the dark `.photos-root` block's own Fix-5 comment
      above for the full rationale. */
@@ -564,13 +551,9 @@
   /* PlacesZoomBar.vue (P6a-T8) -- see the :root token of the same name's comment. An
      exact port of Vue2 photos.scss:84's light-theme floating-bar-background literal. */
   --float-bg: rgba(255, 255, 255, 0.85);
-  /* See the :root token of the same name's comment: alpha is identical to :root's
-     (0.08/0.12), RGB is swapped for this repo's light theme --fg's actual decomposed
-     value (#1c1b19 -> 28,27,25). */
-  --zb-hover-bg: rgba(28, 27, 25, 0.08);
-  --zb-track-bg: rgba(28, 27, 25, 0.12);
-  /* Same value in both themes, see the :root token of the same name's comment. */
-  --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
+  /* Plan H Task 15 (2026-08-17): see the :root token's own comment -- the light-theme
+     --zb-hover-bg/--zb-track-bg/--zb-thumb-shadow tier that used to be defined here was
+     removed alongside it, confirmed zero consumers repo-wide. */
   --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
   --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
   --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;
@@ -625,7 +608,7 @@
   /* alpha matches :root's 0.25 (an exact port of Vue2's other segment's
      rgba(var(--ink),0.25)), RGB is swapped for this repo's light theme --fg's actual
      decomposed value (#1c1b19 -> 28,27,25) -- the same established base-hue-swap formula
-     as --zb-hover-bg/--zb-track-bg's light tier. */
+     used elsewhere in this file. */
   --photos-seg-other: rgba(28, 27, 25, 0.25);
 
   /* P6 terminal/log console (terminal semantics are pinned dark, don't flip with the

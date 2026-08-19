@@ -49,6 +49,8 @@ import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosIcon from '../photos/components/PhotosIcon.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSmartViews, type SmartView } from '../photos/stores/smartViews'
@@ -385,7 +387,9 @@ onUnmounted(() => {
           :title="topbarTitle"
           :sub="topbarSub"
           :show-search="false"
+          show-ask-nimo
           @toggle-collapse="onToggleCollapse"
+          @ask-nimo="useAskNimo().openDrawer()"
         />
        <div class="photos-main">
         <div class="albums-banner">
@@ -754,6 +758,10 @@ onUnmounted(() => {
       @update:open="pickerOpen = $event"
       @confirm="onPickerConfirm"
     />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+         shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+         mount this once at. -->
+    <AskNimoHost />
   </div>
 </template>
 

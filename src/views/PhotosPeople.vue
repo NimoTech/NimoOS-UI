@@ -76,6 +76,8 @@ import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
 import MergeReviewDialog, { type MergeSuggestion } from '../photos/components/MergeReviewDialog.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { usePhotosPeople } from '../photos/stores/people'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
@@ -542,7 +544,9 @@ onUnmounted(() => {
           :title="t('photosPeople')"
           :sub="topbarSub"
           :show-search="false"
+          show-ask-nimo
           @toggle-collapse="onToggleCollapse"
+          @ask-nimo="useAskNimo().openDrawer()"
         />
        <div class="photos-main">
         <!-- ── Banner (Vue2 :3-42) ── -->
@@ -781,21 +785,20 @@ onUnmounted(() => {
                section never appears, rather than showing a user who does have hidden people a
                bare "(0)" or a half-finished loading count (mirroring Vue2's own :220-223 comment). -->
           <template v-if="people.hiddenPeopleSupported && people.hiddenPeople.length > 0">
-            <div class="section-head" data-test="section-hidden" style="cursor:pointer" @click="toggleHidden">
-              <h2 style="display:flex;align-items:center;gap:8px">
+            <div class="section-head people-hidden-head" data-test="section-hidden" @click="toggleHidden">
+              <h2 class="people-hidden-title">
                 <svg v-if="hiddenExpanded" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
                 <svg v-else viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
                 {{ t('photosPeopleHiddenSection') }}
-                <span style="color:var(--text-3);font-weight:400;font-size:13px">({{ people.hiddenPeople.length }})</span>
+                <span class="people-hidden-count">({{ people.hiddenPeople.length }})</span>
               </h2>
             </div>
             <div v-if="hiddenExpanded" class="face-grid-md" data-test="hidden-grid">
               <div
                 v-for="p in people.hiddenPeople" :key="p.id"
-                class="face-card"
+                class="face-card people-hidden-static"
                 data-test="hidden-card"
                 :data-id="p.id"
-                style="cursor:default"
               >
                 <PersonAvatar :person-id="p.id" :name="p.name" :ver="p.coverFaceId" :size="84" />
                 <div class="name-row">
@@ -808,7 +811,7 @@ onUnmounted(() => {
                      descendant, so it renders with plain browser-default button chrome in Vue2
                      too). Not a bug introduced here; see photos-people.scss's own `.more`
                      rules for the same scoping. -->
-                <button type="button" class="more" data-test="unhide-btn" style="margin-top:2px" @click="onUnhide(p)">
+                <button type="button" class="more people-unhide-btn" data-test="unhide-btn" @click="onUnhide(p)">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
                   {{ t('photosPeopleUnhide') }}
                 </button>
@@ -899,6 +902,10 @@ onUnmounted(() => {
       @accept="onReviewAccept"
       @reject="onReviewReject"
     />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+         shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+         mount this once at. -->
+    <AskNimoHost />
   </div>
 </template>
 
@@ -1004,4 +1011,20 @@ onUnmounted(() => {
    page background this ring needs to blend into. */
 .merge-banner .stack .stack-dot { border-radius: 50%; border: 2px solid var(--surface-1); margin-left: -10px; line-height: 0; }
 .merge-banner .stack .stack-dot:first-child { margin-left: 0; }
+
+/* Hidden-people section: these five were previously inline `style="..."` attributes on the
+   template (repo convention is class over inline style; no visual change, values transcribed
+   verbatim from what was there before). */
+.people-hidden-head { cursor: pointer; }
+.people-hidden-title { display: flex; align-items: center; gap: 8px; }
+.people-hidden-count { color: var(--text-3); font-weight: 400; font-size: 13px; }
+/* Fix wave (post-final-review): hardened to a compound selector -- `.people-hidden-static`
+   alone is a single-class rule, the same specificity as parity's own `.face-card { cursor:
+   pointer; }` (photos-people.scss:109), so the two only avoided flip-flopping by import/injection
+   order rather than by an actual specificity win. `.face-card.people-hidden-static` (both
+   classes always co-occur on this element per the template above) ties the specificity in this
+   file's favor unconditionally, following the same defensive convention as PlacesRail.vue's own
+   hover-cascade-lock rules. */
+.face-card.people-hidden-static { cursor: default; }
+.people-unhide-btn { margin-top: 2px; }
 </style>

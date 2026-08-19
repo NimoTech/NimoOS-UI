@@ -181,6 +181,7 @@ import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useLightbox } from '../photos/lightbox/useLightbox'
@@ -942,6 +943,10 @@ async function doDelete(): Promise<void> {
       @toggle-fav="() => {}"
       @add-to-album="(id) => openAlbumPicker([id])"
     />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+         shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+         mount this once at. -->
+    <AskNimoHost />
   </div>
 </template>
 

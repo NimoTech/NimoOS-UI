@@ -16,6 +16,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../../i18n/zh_cn'
+import en from '../../i18n/en_us'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -29,6 +30,16 @@ const svc = vi.hoisted(() => ({
     updateConfig: vi.fn().mockResolvedValue(undefined),
     getTimeline: vi.fn().mockResolvedValue([]),
     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
+    // Task 9: tile-click now opens the lightbox against the bucketed flat list, so the mock
+    // needs to cover everything useLightbox().openAt() and the mounted PhotoLightbox touch —
+    // recordView/reconcileFav's listFavoriteIds (both fire on every openAt), hydrateDetail's
+    // getAsset/getAssetOcr, and the lightbox's own image/live URL builders.
+    recordView: vi.fn().mockResolvedValue(undefined),
+    listFavoriteIds: vi.fn().mockResolvedValue([]),
+    getAsset: vi.fn().mockRejectedValue(new Error('no hydrate in test')),
+    getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
+    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
+    liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -37,8 +48,16 @@ import PhotosTrash from '../PhotosTrash.vue'
 import AppToast from '../../components/AppToast.vue'
 import { usePhotosTrash } from '../../photos/stores/trash'
 import { useToast } from '../../stores/toast'
+import { useLightbox } from '../../photos/lightbox/useLightbox'
+
+const lb = useLightbox()
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+// Owner-acceptance Fix-5: a couple of the regressions this fix covers (the sort-label copy,
+// the bucket subtitle's singular/plural word) render identical text in zh (photosItemSingular
+// and photosItemsCount share the same zh value, Chinese has no plural form) -- an English-locale
+// mount is needed to actually distinguish "1 item" from "N items" in an assertion.
+const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { en_us: en } })
 
 function makeRouter() {
   return createRouter({
@@ -55,6 +74,20 @@ async function mountView() {
   const w = mount(
     { components: { PhotosTrash, AppToast }, template: '<div><PhotosTrash /><AppToast /></div>' },
     { global: { plugins: [i18n, router] } },
+  )
+  await flushPromises()
+  await w.vm.$nextTick()
+  return w
+}
+
+// Owner-acceptance Fix-5: English-locale variant of mountView(), see the i18nEn comment above.
+async function mountViewEn() {
+  const router = makeRouter()
+  router.push('/photos/trash')
+  await router.isReady()
+  const w = mount(
+    { components: { PhotosTrash, AppToast }, template: '<div><PhotosTrash /><AppToast /></div>' },
+    { global: { plugins: [i18nEn, router] } },
   )
   await flushPromises()
   await w.vm.$nextTick()
@@ -87,13 +120,48 @@ beforeEach(() => {
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
   svc.photos.getConfig.mockClear().mockResolvedValue({ watchDirs: ['/DATA/Gallery'], retentionDays: 30 })
   svc.photos.getTimeline.mockClear().mockResolvedValue([])
+  svc.photos.recordView.mockClear().mockResolvedValue(undefined)
+  svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
+  svc.photos.getAsset.mockClear().mockRejectedValue(new Error('no hydrate in test'))
+  svc.photos.getAssetOcr.mockClear().mockResolvedValue({ lines: [] })
+  lb.__resetForTest()
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  lb.__resetForTest()
 })
 
 describe('PhotosTrash.vue', () => {
+  // Task 8 (Plan H re-shell): mounts the shared `.app` grid shell + the real PhotosTopbar,
+  // wired to the real Ask Nimo drawer entry (F-5/X-2, same as PhotosFavorites.vue).
+  it('mounts the .app shell with PhotosTopbar (Trash title, search hidden) and wires Ask Nimo + AskNimoHost', async () => {
+    const w = await mountView()
+    expect(w.find('.photos-root .app').exists()).toBe(true)
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.exists()).toBe(true)
+    expect(topbar.props('showSearch')).toBe(false)
+    expect(topbar.props('showAskNimo')).toBe(true)
+    expect(w.findComponent({ name: 'AskNimoHost' }).exists()).toBe(true)
+  })
+
+  // Fix wave (post-final-review): the topbar's `sub` used to be left unbound entirely, which
+  // falls back to PhotosTopbar's own default -- the library-wide photo/video count summary
+  // (photosCountSummary), not this view's trash item count. Asserts the real trash.items.length
+  // + trash.retentionDays render here instead (Vue2 PhotosTimeline.vue:231 navMap.trash shape).
+  it('topbar sub renders the trash item count + retention days, not the library-wide photo/video summary', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z'), asset('b', '2026-07-26T00:00:00Z')])
+    const w = await mountView()
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.props('sub')).toBe('2 项 · 30 天后自动删除')
+    const subEl = w.find('.topbar-sub')
+    expect(subEl.exists()).toBe(true)
+    expect(subEl.text()).toContain('2')
+    expect(subEl.text()).toContain('30')
+    // Must NOT be the library-wide "{photos} photos · {videos} videos" fallback shape.
+    expect(subEl.text()).not.toMatch(/张照片.*视频|photos.*videos/)
+  })
+
   it('loaded and empty -> renders the empty state, hero buttons disabled', async () => {
     const w = await mountView()
     const trash = usePhotosTrash()
@@ -110,7 +178,9 @@ describe('PhotosTrash.vue', () => {
     const w = await mountView()
 
     expect(w.find('[data-test="trash-empty"]').exists()).toBe(false)
-    const buckets = w.findAll('.trash-bucket')
+    // Owner-acceptance Fix-5: bucket wrapper renamed .trash-bucket -> .arc-section (Vue2 :63
+    // reuses the archive view's shared `.arc-section` class, not a page-local reinvention).
+    const buckets = w.findAll('.arc-section')
     expect(buckets).toHaveLength(2) // urgent(daysLeft=3) + fresh(daysLeft=29)
 
     const tiles = w.findAll('.trash-tile')
@@ -118,9 +188,58 @@ describe('PhotosTrash.vue', () => {
     const imgs = w.findAll('.trash-tile img')
     expect(imgs.map((i) => i.attributes('src')).sort()).toEqual(['mock://thumb/a/small', 'mock://thumb/b/small'])
 
-    const countdowns = w.findAll('.trash-tile-countdown').map((c) => c.text())
+    const countdowns = w.findAll('.trash-countdown').map((c) => c.text())
     expect(countdowns.some((t) => t.includes('3'))).toBe(true)
     expect(countdowns.some((t) => t.includes('29'))).toBe(true)
+  })
+
+  // Owner-acceptance Fix-5 (screenshot review vs Vue2 PhotosTrashView.vue): Vue2 :55 renders a
+  // leading `Sort` label span before the two sort buttons -- it was missing from this view
+  // entirely (parity's own `.lib-sort-label` rule sat unused).
+  it('the sort control has a leading "Sort" label, matching Vue2 :55', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    const w = await mountViewEn()
+    expect(w.find('.lib-sort-label').text()).toBe('Sort')
+  })
+
+  // Owner-acceptance Fix-5 (screenshot review): the bucket header used to read "1 items ·
+  // Recently deleted items" for a single freshly-deleted photo -- wrong pluralization (Vue2 :68
+  // singularizes) and wrong subtitle copy (Vue2's 'fresh' bucket desc is "Auto-deletes after the
+  // retention period", :136, not "Recently deleted items"). Also asserts the bucket header now
+  // uses the shared `.arc-section-head` anchor (carries parity's own separator rule), not the
+  // page's former bespoke `.trash-bucket-head`.
+  it('bucket subtitle: singular "item" wording + Vue2\'s actual "fresh" bucket copy + shared .arc-section-head anchor', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('b', '2026-07-26T00:00:00Z')]) // daysLeft=29 -> 'fresh' bucket, 1 item
+    const w = await mountViewEn()
+
+    expect(w.find('.arc-section-head').exists()).toBe(true)
+    const sub = w.find('.arc-section-sub').text()
+    expect(sub).toBe('1 item · Auto-deletes after the retention period')
+  })
+
+  it('bucket subtitle: plural "items" wording for more than one item in the same bucket', async () => {
+    svc.photos.listTrash.mockResolvedValue([
+      asset('b', '2026-07-26T00:00:00Z'),
+      asset('c', '2026-07-25T00:00:00Z'),
+    ]) // both land in the 'fresh' bucket (daysLeft 29/28)
+    const w = await mountViewEn()
+
+    const sub = w.find('.arc-section-sub').text()
+    expect(sub).toBe('2 items · Auto-deletes after the retention period')
+  })
+
+  // Owner-acceptance Fix-5 (REAL BUG, delete-chain diagnosis follow-up): the hero used to show
+  // "0.0 MB can be freed" for an item whose real fileSize is 0/absent. Root cause: this isn't a
+  // field-name or bytes-vs-MB mismatch in trashAssetToPhoto (verified correct, see that file's
+  // own tests) -- it's that Vue2 PhotosTrashView.vue:180 sums `Number(p.sizeMb) || 4.2` per item
+  // (a literal placeholder fallback), not `|| 0`. This pins the aggregate at the Vue2-matching
+  // non-zero value instead of the honest-but-diverging 0.0.
+  it('hero total MB: falls back to Vue2\'s 4.2-per-item placeholder when the real size is zero (not 0.0)', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z', { fileSize: 0 })])
+    const w = await mountViewEn()
+    const sub = w.find('.lib-hero-sub').text()
+    expect(sub).toContain('4.2 MB')
+    expect(sub).not.toContain('0.0 MB')
   })
 
   it('clicking the select circle -> the item enters selected, bulk bar appears', async () => {
@@ -128,7 +247,7 @@ describe('PhotosTrash.vue', () => {
     const w = await mountView()
 
     expect(w.find('.trash-bulk-bar').exists()).toBe(false)
-    await w.find('.trash-tile-select').trigger('click')
+    await w.find('.trash-tile-check').trigger('click')
     await w.vm.$nextTick()
 
     const bar = w.find('.trash-bulk-bar')
@@ -144,7 +263,7 @@ describe('PhotosTrash.vue', () => {
     const restoreSpy = vi.spyOn(trash, 'restore')
     const undoSpy = vi.spyOn(trash, 'undoRestore')
 
-    await w.find('.trash-tile-select').trigger('click')
+    await w.find('.trash-tile-check').trigger('click')
     await w.vm.$nextTick()
 
     await w.find('[data-test="trash-bulk-restore"]').trigger('click')
@@ -201,7 +320,7 @@ describe('PhotosTrash.vue', () => {
     const trash = usePhotosTrash()
     const purgeSpy = vi.spyOn(trash, 'purge')
 
-    await w.find('.trash-tile-select').trigger('click')
+    await w.find('.trash-tile-check').trigger('click')
     await w.vm.$nextTick()
     await w.find('[data-test="trash-bulk-delete"]').trigger('click')
     await w.vm.$nextTick()
@@ -214,11 +333,88 @@ describe('PhotosTrash.vue', () => {
     expect(purgeSpy).toHaveBeenCalledWith(['a'])
   })
 
+  // Owner-acceptance Fix-3 (delete-chain diagnosis): the toast used to unconditionally quote
+  // the click-time selection size, regardless of how many purgeTrash() calls actually
+  // succeeded -- trash.purge() now reports the real count and this view must show a distinct
+  // "N of M failed" toast for the partial case, not the exact-count success wording.
+  it('permanently deleting a selection with a partial backend failure shows the honest "N of M failed" toast, not the full-count success one', async () => {
+    svc.photos.listTrash.mockResolvedValue([
+      asset('a', '2026-06-30T00:00:00Z'),
+      asset('b', '2026-06-30T00:00:00Z'),
+    ])
+    svc.photos.purgeTrash
+      .mockImplementationOnce(() => Promise.resolve()) // 'a' succeeds
+      .mockImplementationOnce(() => Promise.reject(new Error('boom'))) // 'b' fails
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const w = await mountView()
+
+    const checks = w.findAll('.trash-tile-check')
+    await checks[0]!.trigger('click')
+    await checks[1]!.trigger('click')
+    await w.vm.$nextTick()
+
+    await w.find('[data-test="trash-bulk-delete"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const toastEl = w.find('.toast')
+    expect(toastEl.exists()).toBe(true)
+    expect(toastEl.text()).toBe('已永久删除 1 项，1 项失败')
+    spy.mockRestore()
+  })
+
+  it('permanently deleting a selection where every backend purge fails shows an error toast, not a fabricated success one', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    svc.photos.purgeTrash.mockRejectedValue(new Error('boom'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const w = await mountView()
+
+    await w.find('.trash-tile-check').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="trash-bulk-delete"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const toastEl = w.find('.toast')
+    expect(toastEl.exists()).toBe(true)
+    expect(toastEl.text()).toBe('删除失败')
+    spy.mockRestore()
+  })
+
+  // Owner-acceptance Fix-3: the lightbox's "delete" is remapped to permanent purge for
+  // already-trashed assets (onLightboxDelete) -- it used to show the success toast
+  // unconditionally, ignoring whether the backend purge actually succeeded.
+  it('lightbox permanent-delete shows an error toast (not the purged-success toast) when the backend purge actually fails', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    svc.photos.purgeTrash.mockRejectedValue(new Error('boom'))
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const w = await mountView()
+
+    await w.find('.trash-tile').trigger('click') // nothing selected yet -> opens the lightbox
+    await w.vm.$nextTick()
+    expect(lb.open.value).toBe(true)
+
+    await w.find('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.trash-btn-cta-danger').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const toastEl = w.find('.toast')
+    expect(toastEl.exists()).toBe(true)
+    expect(toastEl.text()).toBe('删除失败')
+    spy.mockRestore()
+  })
+
   it('canceling selection (bulk bar "Cancel") -> selected is cleared, bulk bar disappears', async () => {
     svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
     const w = await mountView()
 
-    await w.find('.trash-tile-select').trigger('click')
+    await w.find('.trash-tile-check').trigger('click')
     await w.vm.$nextTick()
     expect(w.find('.trash-bulk-bar').exists()).toBe(true)
 
@@ -227,14 +423,34 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-bulk-bar').exists()).toBe(false)
   })
 
-  it('clicking a tile (not the select circle) also toggles selection, without triggering any lightbox/navigation', async () => {
-    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+  // Task 9 (F-6): flips Task 8's bare-click-selects placeholder to Vue2 PhotosTrashView.vue's real
+  // onTileClick semantics (:211-216) -- with nothing selected, a plain tile click opens the
+  // lightbox against the bucketed flat list; once anything is selected, every further click
+  // (including on a different tile) toggles selection instead.
+  it('clicking a tile with nothing selected opens the lightbox against the bucketed flat list; clicking with a selection active toggles selection instead', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z'), asset('b', '2026-07-26T00:00:00Z')])
     const w = await mountView()
 
     await w.find('.trash-tile').trigger('click')
-    await w.vm.$nextTick()
-    expect(w.find('.trash-bulk-bar').exists()).toBe(true)
-    expect(w.find('.trash-tile').attributes('data-selected')).toBe('true')
+    expect(lb.open.value).toBe(true)
+
+    lb.close()
+    await w.find('.trash-tile-check').trigger('click') // manually check one first
+    expect(w.find('.trash-tile[data-selected="true"]').exists()).toBe(true)
+    await w.findAll('.trash-tile')[1]!.trigger('click') // with selection active, clicking a second tile = toggle selection, not open lightbox
+    expect(lb.open.value).toBe(false)
+  })
+
+  // Task 9 (coordinator review fix): Vue2 PhotosTrashView.vue onTileClick(:211-212, template :72
+  // passes $event) guards `e.shiftKey || selected.size > 0` -- shift-clicking an unselected tile
+  // starts multi-select from zero, it must never open the lightbox.
+  it('shift-clicking a tile with nothing selected toggles selection instead of opening the lightbox', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    const w = await mountView()
+
+    await w.find('.trash-tile').trigger('click', { shiftKey: true })
+    expect(w.find('.trash-tile[data-selected="true"]').exists()).toBe(true)
+    expect(lb.open.value).toBe(false)
   })
 
   // Task 12 (SP15-P3): while pages remain, the freeable-size figure is only a sum over the
