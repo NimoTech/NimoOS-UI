@@ -548,8 +548,9 @@ describe('PhotosGrid bucket-mode skeletons', () => {
     expect(w.find('[data-test="empty-state"]').exists()).toBe(false)
     expect(w.find('#m-2026-08').exists()).toBe(true)
     expect(w.find('.month-title').text()).toBe('August 2026')
-    // No OCR counter exists, so no count is printed at all — "0 items" would be a
-    // guess dressed up as a fact.
+    // ocrCount does exist on the directory now (tabCountOf reads it), but this
+    // tab deliberately does not surface it as a head count yet — "0 items" for
+    // an unloaded month would be a guess dressed up as a fact.
     expect(w.find('.month-count').exists()).toBe(false)
     const sk = w.find('[data-test="month-skeleton"]')
     expect(sk.exists()).toBe(true)
@@ -593,23 +594,30 @@ describe('PhotosGrid bucket-mode skeletons', () => {
     expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
   })
 
-  // SP15-P3-T8: the tick's disabled state must come from the SAME array the
-  // template renders month containers from (filteredMonths), not the raw
-  // props.months — otherwise a month hidden by the current tab still gets a
-  // clickable tick that jumps nowhere.
+  // Ticks must come from the SAME array the template renders month containers
+  // from (filteredMonths), not the raw props.months — otherwise a month hidden
+  // by the current tab would still get a tick.
   //
-  // Two months are needed: the hidden one contributes no container, so with only
-  // that one the scrubber's own v-if would remove the whole block and there would
-  // be no ticks to assert on. matchesTab requires `hasOcr: true` for the literal
-  // 'ocr' tab, so the "has content on this tab" month must carry it — a plain
-  // photo would NOT match under 'ocr', leaving both months contentless and the
-  // scrubber unmounted.
+  // This test used to assert the opposite: a hidden month got a grayed-out,
+  // non-interactive "disabled" tick. That was a deliberate earlier design, but
+  // it has been explicitly overruled — the time scrubber must be derived purely
+  // from months that actually have visible content, with no empty-axis rows. A
+  // month the current tab hides now produces no tick at all, and a year whose
+  // every month is hidden produces no year tick either.
   //
-  // The hidden month has to be a LOADED one whose assets simply do not match the
-  // tab. An *unloaded* month is no longer hidden on the ocr tab (whole-branch
+  // Three months are needed: the visible one (2026-09) proves the scrubber still
+  // renders at all; the hidden month in the SAME year (2026-08) proves a single
+  // hidden month is simply omitted, not disabled; the hidden month in its OWN
+  // year (2025-12) proves a year tick is only pushed once, for that year's first
+  // CONTENT month — a year with zero content months never appears. matchesTab
+  // requires `hasOcr: true` for the literal 'ocr' tab, so the "has content on
+  // this tab" month must carry it — a plain photo would NOT match under 'ocr'.
+  //
+  // The hidden months have to be LOADED ones whose assets simply do not match
+  // the tab. An *unloaded* month is no longer hidden on the ocr tab (whole-branch
   // review, Important 6: its container is what drives the load), so it would no
   // longer be a hidden month at all and this test would be asserting nothing.
-  it('disables the tick of a month the current tab hides', async () => {
+  it('omits the tick (and, if applicable, the year tick) of months the current tab hides', async () => {
     const ocrMonth: Month = {
       key: '2026-09', title: 'September 2026', loc: '',
       photos: [photo('d1', { hasOcr: true })], loaded: true, count: 1, videoCount: 0,
@@ -618,12 +626,19 @@ describe('PhotosGrid bucket-mode skeletons', () => {
       key: '2026-08', title: 'August 2026', loc: '',
       photos: [photo('a1')], loaded: true, count: 1, videoCount: 0,
     }
+    const hiddenYearMonth: Month = {
+      key: '2025-12', title: 'December 2025', loc: '',
+      photos: [photo('b1')], loaded: true, count: 1, videoCount: 0,
+    }
     const w = mount(PhotosGrid, {
-      props: { months: [ocrMonth, hiddenMonth], tab: 'ocr' },
+      props: { months: [ocrMonth, hiddenMonth, hiddenYearMonth], tab: 'ocr' },
     })
     await nextTick()
-    const tick = w.findAll('.scrubber-tick').find((t) => t.attributes('data-major') !== 'true' && t.text() === 'Aug')
-    expect(tick?.attributes('data-disabled')).toBe('true')
+    const ticks = w.findAll('.scrubber-tick')
+    const yearTicks = ticks.filter((t) => t.attributes('data-major') === 'true')
+    const monthTicks = ticks.filter((t) => t.attributes('data-major') !== 'true')
+    expect(yearTicks.map((t) => t.text())).toEqual(['2026'])
+    expect(monthTicks.map((t) => t.text())).toEqual(['Sep'])
   })
 })
 

@@ -294,22 +294,27 @@ function placeholderHeight(m: Month & { filtered: Photo[] }): number | null {
 const selecting = computed(() => props.selected.length > 0)
 
 const scrubberTicks = computed(() => {
-  const ticks: Array<{ label: string; major: boolean; key: string; disabled: boolean }> = []
+  const ticks: Array<{ label: string; major: boolean; key: string }> = []
   const seenYears = new Set<string>()
-  // Read the same array the template's v-if reads, so a tick's disabled state can
-  // never disagree with whether that month actually renders.
+  // Read the same array the template's v-if reads, so a tick can never appear
+  // for a month that does not actually render. The time scrubber is derived
+  // purely from months that have visible content: a month the current tab
+  // hides contributes no tick, and a year whose every month is hidden gets no
+  // year tick either — there is no such thing as an empty-axis row.
   for (const m of filteredMonths.value) {
     // Skip groups without a YYYY-MM key (synthetic single groups), which have
     // no month tick and must not crash the split below.
     if (!m.key || m.key === 'unknown' || m.key === 'search' || !m.key.includes('-')) continue
+    if (!hasContent(m)) continue
     const [year, mo] = m.key.split('-')
     if (!seenYears.has(year)) {
       seenYears.add(year)
-      // Year ticks are never disabled — they are not click targets to begin with.
-      ticks.push({ label: year, major: true, key: `y-${year}`, disabled: false })
+      // Pushed only when this year's first CONTENT month is encountered, so a
+      // year with zero content months never appears at all.
+      ticks.push({ label: year, major: true, key: `y-${year}` })
     }
     const abbr = new Date(+year, +mo - 1).toLocaleString('en', { month: 'short' })
-    ticks.push({ label: abbr, major: false, key: m.key, disabled: !hasContent(m) })
+    ticks.push({ label: abbr, major: false, key: m.key })
   }
   return ticks
 })
@@ -484,7 +489,8 @@ function onVideoLeave() {
 //
 // Whole-branch review fix (Critical 1): this used to watch every month key, but
 // which containers exist is decided by `hasContent`, which is tab-dependent
-// (skeletonItemCount reads the tab) while the month list is not. So a tab round
+// (skeletonCountOf routes bucket-backed months' estimate through tabCountOf,
+// keyed on the current tab) while the month list is not. So a tab round
 // trip — Photos -> Videos, which unmounts every month with videoCount 0, and back
 // again, which mounts brand-new elements — never changed the watched string,
 // nobody re-registered the new elements, and those months could never emit
@@ -626,9 +632,9 @@ onBeforeUnmount(() => {
         <div
           v-for="(tk, i) in scrubberTicks" :key="tk.key"
           class="scrubber-tick" :ref="(el) => setTickRef(el as Element | null, i)"
-          :data-major="tk.major" :data-active="tk.key === activeMonth" :data-disabled="tk.disabled"
-          :style="{ top: tickTop(i), cursor: (tk.major || tk.disabled) ? 'default' : 'pointer' }"
-          @click="!tk.major && !tk.disabled && jumpTo(tk.key)"
+          :data-major="tk.major" :data-active="tk.key === activeMonth"
+          :style="{ top: tickTop(i), cursor: tk.major ? 'default' : 'pointer' }"
+          @click="!tk.major && jumpTo(tk.key)"
         >{{ tk.label }}</div>
         <div v-if="activeIdx >= 0" class="scrubber-thumb" :style="{ top: tickTop(activeIdx) }">
           {{ scrubberTicks[activeIdx].label.slice(0, 3) }}
