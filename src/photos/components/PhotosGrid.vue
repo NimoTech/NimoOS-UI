@@ -40,8 +40,9 @@ import { service } from '@nimotech/nimoos-service'
 import type { Month, Photo } from '../util/assetToPhoto'
 import { computeFrameFromX } from '../util/hoverScrub'
 import { matchesTab } from '../util/tabFilter'
+import { tabCountOf } from '../util/timelineBuckets'
 import {
-  columnsFor, estimateSectionBodyHeight, skeletonItemCount, tabHasDirectoryEstimate,
+  columnsFor, estimateSectionBodyHeight, tabHasDirectoryEstimate,
 } from '../util/gridMetrics'
 import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
@@ -122,14 +123,20 @@ const filteredMonths = computed(() => (props.months || []).map(m => ({
 const wrapWidth = ref(0)
 function measureWrap() { wrapWidth.value = wrapRef.value?.clientWidth ?? 0 }
 
+// Bucket-backed months carry real directory counts (count/videoCount/ocrCount)
+// — tabCountOf derives the current tab's expected size from them, matching
+// matchesTab()'s photo/video/ocr split exactly (tabFilter.ts). This is what
+// fixes the "ghost month" bug: a month whose assets are all documents used to
+// estimate `count - videoCount` on the photo tab (a lie once OCR is factored
+// in) and render a section that always showed 0 real items.
 function skeletonCountOf(m: Month & { filtered: Photo[] }): number {
-  return skeletonItemCount({
-    tab: props.tab,
-    count: m.count,
-    videoCount: m.videoCount,
-    loaded: m.loaded,
-    loadedLength: m.filtered.length,
-  })
+  if (m.count != null) {
+    return tabCountOf({ count: m.count, videoCount: m.videoCount ?? 0, ocrCount: m.ocrCount ?? 0 }, props.tab)
+  }
+  // Synthetic groups (favorites, place assets) and legacy timeline groups carry
+  // no directory counts and are always already in hand — their real length is
+  // the honest estimate, and using 0 would collapse their placeholder.
+  return m.loaded === false ? 0 : Math.max(0, m.filtered.length)
 }
 // Is the directory's count meaningful for the current tab? On a tab it cannot
 // size (OCR) an unloaded month's count would print as 0 items, which is a guess

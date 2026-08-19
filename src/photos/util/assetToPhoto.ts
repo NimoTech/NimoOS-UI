@@ -416,6 +416,11 @@ export interface Month {
   loaded?: boolean
   count?: number
   videoCount?: number
+  // OCR/document count for this month (bucket mode only — see BucketMeta in
+  // timelineBuckets.ts). Legacy groupToMonth below defaults it to 0 rather
+  // than leaving it absent like count/videoCount, since consumers (tabCountOf)
+  // require a number whenever they read it.
+  ocrCount?: number
 }
 
 export function groupToMonth(g: { year: number; month: number; assets?: unknown[] }): Month {
@@ -426,5 +431,6 @@ export function groupToMonth(g: { year: number; month: number; assets?: unknown[
     title,
     loc: '',
     photos: (g.assets || []).map(a => assetToPhoto(a as Record<string, unknown>)),
+    ocrCount: 0,
   }
 }

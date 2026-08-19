@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { bucketKey, parseBucketKey, normalizeBuckets, bucketToMonth, staleBucketKeys } from '../timelineBuckets'
+import { bucketKey, parseBucketKey, normalizeBuckets, bucketToMonth, staleBucketKeys, tabCountOf } from '../timelineBuckets'
 import { groupToMonth, assetToPhoto } from '../assetToPhoto'
 
-const B = (year: number, month: number, count = 1, videoCount = 0) => ({ year, month, count, videoCount })
+const B = (year: number, month: number, count = 1, videoCount = 0, ocrCount = 0) =>
+  ({ year, month, count, videoCount, ocrCount })
 
 describe('bucketKey / parseBucketKey', () => {
   it('matches groupToMonth byte for byte, including the unknown bucket', () => {
@@ -37,12 +38,52 @@ describe('normalizeBuckets', () => {
   it('drops entries with no usable year/month', () => {
     expect(normalizeBuckets([{ count: 5 }, { year: 'x', month: 2, count: 1 }])).toEqual([])
   })
+  // Deployment-order decoupling: the backend counterpart that adds `ocrCount`
+  // may land after this frontend change ships, so a row from an un-upgraded
+  // backend (field absent) or a malformed row (non-numeric) must default to 0
+  // rather than throw, produce NaN, or leak `undefined` into BucketMeta.
+  it('defaults ocrCount to 0 when the field is missing or non-numeric (backend not yet upgraded)', () => {
+    expect(normalizeBuckets([{ year: 2026, month: 8, count: 5, videoCount: 0 }]))
+      .toEqual([B(2026, 8, 5, 0, 0)])
+    expect(normalizeBuckets([{ year: 2026, month: 8, count: 5, videoCount: 0, ocrCount: 'nope' }]))
+      .toEqual([B(2026, 8, 5, 0, 0)])
+  })
+  it('keeps a real ocrCount from an upgraded backend', () => {
+    expect(normalizeBuckets([{ year: 2026, month: 8, count: 5, videoCount: 0, ocrCount: 5 }]))
+      .toEqual([B(2026, 8, 5, 0, 5)])
+  })
+})
+
+describe('tabCountOf', () => {
+  // The core regression case (2026-08 ghost month, real production data shape):
+  // a month whose 5 assets are all documents. matchesTab's default photo tab
+  // excludes both video AND OCR assets, so the honest expectation is 0 — before
+  // this fix the estimate was `count - videoCount` = 5, which rendered a month
+  // section that always showed 0 real items once loaded.
+  it('estimates 0 for the default photo tab when every asset is OCR/document (ghost month)', () => {
+    expect(tabCountOf({ count: 5, videoCount: 0, ocrCount: 5 }, 'photo')).toBe(0)
+  })
+  it('subtracts both video and ocr from count for the default photo tab', () => {
+    expect(tabCountOf({ count: 10, videoCount: 2, ocrCount: 3 }, 'photo')).toBe(5)
+  })
+  it('never returns a negative estimate when video+ocr exceed count', () => {
+    expect(tabCountOf({ count: 3, videoCount: 2, ocrCount: 3 }, 'photo')).toBe(0)
+  })
+  it('reads straight off the matching counter for all/video/ocr', () => {
+    const m = { count: 10, videoCount: 2, ocrCount: 3 }
+    expect(tabCountOf(m, 'all')).toBe(10)
+    expect(tabCountOf(m, 'video')).toBe(2)
+    expect(tabCountOf(m, 'ocr')).toBe(3)
+  })
 })
 
 describe('bucketToMonth', () => {
   it('marks a bucket with no photos as not loaded and carries the counts', () => {
-    const m = bucketToMonth(B(2026, 8, 12, 3), null)
-    expect(m).toMatchObject({ key: '2026-08', title: 'August 2026', loc: '', photos: [], loaded: false, count: 12, videoCount: 3 })
+    const m = bucketToMonth(B(2026, 8, 12, 3, 5), null)
+    expect(m).toMatchObject({
+      key: '2026-08', title: 'August 2026', loc: '', photos: [], loaded: false,
+      count: 12, videoCount: 3, ocrCount: 5,
+    })
   })
   it('marks an empty-but-fetched bucket as loaded', () => {
     // A bucket whose assets came back as [] is loaded, not pending — otherwise

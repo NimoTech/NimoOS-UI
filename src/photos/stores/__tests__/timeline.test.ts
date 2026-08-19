@@ -316,8 +316,8 @@ describe('photos-timeline store', () => {
 })
 
 const BUCKETS = [
-  { year: 2026, month: 8, count: 12, videoCount: 3 },
-  { year: 2026, month: 7, count: 5, videoCount: 0 },
+  { year: 2026, month: 8, count: 12, videoCount: 3, ocrCount: 0 },
+  { year: 2026, month: 7, count: 5, videoCount: 0, ocrCount: 0 },
 ]
 
 describe('photos-timeline bucket mode', () => {
@@ -601,7 +601,7 @@ describe('photos-timeline fetchBucket', () => {
 
   it('sends the unknown bucket as a zero pair, never a half-zero key', async () => {
     const s = useTimelineStore()
-    await enterBucketMode(s, [{ year: 0, month: 0, count: 1, videoCount: 0 }])
+    await enterBucketMode(s, [{ year: 0, month: 0, count: 1, videoCount: 0, ocrCount: 0 }])
     svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('u1')])
     await s.fetchBucket('unknown')
     expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(0, 0, 500, 0)
@@ -609,7 +609,7 @@ describe('photos-timeline fetchBucket', () => {
 
   it('pages until the directory count is covered', async () => {
     const s = useTimelineStore()
-    await enterBucketMode(s, [{ year: 2026, month: 8, count: 501, videoCount: 0 }])
+    await enterBucketMode(s, [{ year: 2026, month: 8, count: 501, videoCount: 0, ocrCount: 0 }])
     svc.photos.getTimelineBucket
       .mockResolvedValueOnce(Array.from({ length: 500 }, (_, i) => asset(`p${i}`)))
       .mockResolvedValueOnce([asset('p500')])
@@ -620,7 +620,7 @@ describe('photos-timeline fetchBucket', () => {
 
   it('stops paging early when a page comes back short', async () => {
     const s = useTimelineStore()
-    await enterBucketMode(s, [{ year: 2026, month: 8, count: 900, videoCount: 0 }])
+    await enterBucketMode(s, [{ year: 2026, month: 8, count: 900, videoCount: 0, ocrCount: 0 }])
     svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('p0')])
     await s.fetchBucket('2026-08')
     expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)

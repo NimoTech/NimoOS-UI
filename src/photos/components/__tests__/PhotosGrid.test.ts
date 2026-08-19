@@ -478,8 +478,8 @@ describe('PhotosGrid', () => {
   })
 })
 
-function bucketMonth(key: string, title: string, count: number, videoCount = 0): Month {
-  return { key, title, loc: '', photos: [], loaded: false, count, videoCount }
+function bucketMonth(key: string, title: string, count: number, videoCount = 0, ocrCount = 0): Month {
+  return { key, title, loc: '', photos: [], loaded: false, count, videoCount, ocrCount }
 }
 
 describe('PhotosGrid bucket-mode skeletons', () => {
@@ -498,6 +498,26 @@ describe('PhotosGrid bucket-mode skeletons', () => {
     expect(w.find('.month-title').text()).toBe('August 2026')
     // photo tab estimate = count - videoCount = 9
     expect(w.find('.month-count').text()).toContain('9')
+  })
+
+  // Real production data shape (2026-08 ghost month): a month whose 5 assets are
+  // all documents used to estimate `count - videoCount` = 5 on the photo tab —
+  // matchesTab excludes OCR assets too, so the real match count is 0. The old
+  // math rendered a permanently-empty month section (skeleton fills the space,
+  // then loading reveals 0 real tiles). tabCountOf fixes the estimate itself, so
+  // no container should ever be created for this month on the photo tab.
+  it('renders no container for an all-documents month on the default photo tab (ghost month)', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 5, 0, 5)], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('#m-2026-08').exists()).toBe(false)
+    expect(w.find('[data-test="empty-state"]').exists()).toBe(true)
+  })
+
+  it('subtracts both video and ocr counts from the photo tab estimate', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 10, 2, 3)], tab: 'photo' } })
+    await nextTick()
+    // photo tab estimate = count - videoCount - ocrCount = 5
+    expect(w.find('.month-count').text()).toContain('5')
   })
 
   it('renders the month container so jump anchors exist before anything loads', async () => {

@@ -9,6 +9,11 @@ export interface BucketMeta {
   month: number
   count: number
   videoCount: number
+  // Number of assets in this month matching the OCR/document criterion
+  // (backend field `ocrCount`). Added alongside `count`/`videoCount` so the
+  // photo/video/ocr tab split can be sized entirely from directory metadata —
+  // see `tabCountOf` below.
+  ocrCount: number
 }
 
 // Key and title are delegated to groupToMonth on purpose. The legacy /timeline
@@ -51,9 +56,24 @@ export function normalizeBuckets(raw: unknown): BucketMeta[] {
       month: Math.trunc(r.month),
       count: intOr(r.count, 0),
       videoCount: intOr(r.videoCount, 0),
+      // Deployment-order decoupling: the backend counterpart for `ocrCount` may
+      // not be deployed yet, so a missing/non-numeric field must default to 0
+      // rather than throw or produce NaN (see timelineBuckets.test.ts).
+      ocrCount: intOr(r.ocrCount, 0),
     })
   }
   return out
+}
+
+// Per-tab expected item count derived from bucket directory metadata.
+// Must agree with matchesTab() in tabFilter.ts: 'all' shows everything,
+// 'video' shows videos, 'ocr' shows OCR/document assets, and the default
+// photo tab shows what is neither video nor OCR.
+export function tabCountOf(m: { count: number; videoCount: number; ocrCount: number }, tab: string): number {
+  return tab === 'all' ? m.count
+    : tab === 'video' ? m.videoCount
+      : tab === 'ocr' ? m.ocrCount
+        : Math.max(0, m.count - m.videoCount - m.ocrCount)
 }
 
 // `photos === null` means "not fetched yet" and `[]` means "fetched, and this
@@ -67,6 +87,7 @@ export function bucketToMonth(b: BucketMeta, photos: Photo[] | null): Month {
     loaded: photos !== null,
     count: b.count,
     videoCount: b.videoCount,
+    ocrCount: b.ocrCount,
   }
 }
 
