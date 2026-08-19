@@ -4,27 +4,11 @@
   >
     <div class="dock-main">
       <div class="dock-zone" data-zone="fav">
-        <template v-for="k in favVisible" :key="k">
-          <span v-if="showPh('fav', k)" class="dock-app dock-ph" aria-hidden="true">
-            <span class="dock-ic" /><span class="dock-label">&#8203;</span>
-          </span>
-          <DockApp :app-key="k" />
-        </template>
-        <span v-if="showPh('fav', null)" class="dock-app dock-ph" aria-hidden="true">
-          <span class="dock-ic" /><span class="dock-label">&#8203;</span>
-        </span>
+        <DockApp v-for="k in favVisible" :key="k" :app-key="k" :style="shiftStyle('fav', k)" />
       </div>
       <span v-if="!isMobile" class="dock-sep" />
       <div v-if="!isMobile" class="dock-zone dock-more" data-zone="more" :inert="!dock.expanded.value || undefined">
-        <template v-for="k in dock.moreKeys.value" :key="k">
-          <span v-if="showPh('more', k)" class="dock-app dock-ph" aria-hidden="true">
-            <span class="dock-ic" /><span class="dock-label">&#8203;</span>
-          </span>
-          <DockApp :app-key="k" />
-        </template>
-        <span v-if="showPh('more', null)" class="dock-app dock-ph" aria-hidden="true">
-          <span class="dock-ic" /><span class="dock-label">&#8203;</span>
-        </span>
+        <DockApp v-for="k in dock.moreKeys.value" :key="k" :app-key="k" :style="shiftStyle('more', k)" />
       </div>
       <button class="dock-app dock-toggle" :aria-expanded="isMobile ? sheetOpen : dock.expanded.value" @click="onToggle">
         <span class="dock-ic ic-all"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></span><span class="dock-label">{{ (isMobile ? sheetOpen : dock.expanded.value) ? t('dockDone') : t('dockAllApps') }}</span>
@@ -55,7 +39,7 @@ import DockApp from './DockApp.vue'
 import { useDock } from '../composables/useDock'
 import { useAppsStore } from '../stores/apps'
 import { useIsMobile } from '../composables/useIsMobile'
-import { dropTargetIn, type DockSlot, type DockGeometry, type DropDecision } from '../grid/dockMath'
+import { dropTargetIn, slotShifts, type DockSlot, type DockGeometry, type DropDecision } from '../grid/dockMath'
 // The dock's fisheye magnification, switched off at the owner's request and kept
 // rather than deleted so it can be restored. theme.css still carries the rule that
 // consumes --mag; with nothing writing it the fallback of 1 is identity, so the
@@ -104,6 +88,8 @@ interface DragState {
   ghostGlyph: string
   toZone: 'fav' | 'more' | null
   beforeKey: string | null
+  fromZone: 'fav' | 'more' | null
+  holeIndex: number
 }
 
 const drag = reactive<DragState>({
@@ -120,6 +106,8 @@ const drag = reactive<DragState>({
   ghostGlyph: '',
   toZone: null,
   beforeKey: null,
+  fromZone: null,
+  holeIndex: 0,
 })
 
 // Slot geometry, measured once when the drag activates. Deliberately not part of
@@ -140,6 +128,10 @@ function onDragStart(e: PointerEvent) {
   const icRect = ic?.getBoundingClientRect() ?? btn.getBoundingClientRect()
 
   drag.key = key
+  // The icon's own slot is the hole its zone reflows around; the other zone gets an
+  // appended spare, which slotShifts models as a hole at the end.
+  drag.fromZone = dock.favKeys.value.includes(key) ? 'fav' : 'more'
+  drag.holeIndex = (drag.fromZone === 'fav' ? dock.favKeys.value : dock.moreKeys.value).indexOf(key)
   drag.startX = e.clientX
   drag.startY = e.clientY
   drag.offX = e.clientX - icRect.left
@@ -172,8 +164,8 @@ function onDragMove(e: PointerEvent) {
     // hide the source element while dragging
     const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
     if (src) src.style.opacity = '0'
-    // Measure now, while no placeholder is in the DOM yet, and never again for the
-    // rest of this drag (see measureGeometry / dropTargetIn).
+    // Measure now, before any icon offset has been applied yet, and never again
+    // for the rest of this drag (see measureGeometry / dropTargetIn).
     geom = measureGeometry()
   }
 
@@ -207,7 +199,7 @@ function onDragEnd(e: PointerEvent) {
   if (src) src.style.opacity = ''
 
   // Determine drop target: which zone and which beforeKey. Same snapshot the last
-  // preview used, so the icon lands where the placeholder was standing.
+  // preview used, so the icon lands exactly where its offset preview showed it going.
   const { toZone, beforeKey } = resolveDrop(e.clientX)
 
   dock.reorder(drag.key, toZone, beforeKey)
@@ -241,16 +233,19 @@ function resetDragState() {
   drag.ghostStyle = {}
   drag.toZone = null
   drag.beforeKey = null
+  drag.fromZone = null
+  drag.holeIndex = 0
   geom = null
 }
 
 /**
  * Reads every slot midpoint out of the DOM, dragged icon excluded.
  *
- * Call this only when no `.dock-ph` is rendered. The placeholder is an in-flow
- * `.dock-app`, and `.dock` is centred with a shrink-to-fit width, so its presence
- * moves the midpoints this function reports — measuring with it in place is the
- * feedback loop the snapshot exists to break.
+ * Call this only when the icons are not currently offset (`drag.toZone === null`).
+ * A CSS transform leaves layout flow untouched, but `getBoundingClientRect` still
+ * reports the transformed box, so a live `shiftStyle` offset moves the midpoints
+ * this function reports exactly as the old in-flow placeholder did — measuring
+ * with an offset in place is the feedback loop the snapshot exists to break.
  *
  * The dragged item is excluded but still occupies its own slot (it is hidden with
  * opacity, not display), so the remaining midpoints are the ones the user sees.
@@ -283,8 +278,8 @@ function resolveDrop(clientX: number): DropDecision {
 
 /**
  * A viewport resize is the one thing that can invalidate the snapshot mid-drag.
- * Drop the preview first so the placeholder leaves the DOM, and only re-measure
- * once Vue has flushed that removal.
+ * Clear the preview first so every icon offset drops back to zero, and only
+ * re-measure once Vue has flushed that reset.
  */
 function onResize() {
   if (!drag.active) return
@@ -293,13 +288,45 @@ function onResize() {
   void nextTick(() => { if (drag.active) geom = measureGeometry() })
 }
 
+/** The icons still on the ground in a zone: everything but the one being dragged. */
+function zoneKeys(zone: 'fav' | 'more'): string[] {
+  const all = zone === 'fav' ? favVisible.value : dock.moreKeys.value
+  return all.filter((k) => k !== drag.key)
+}
+
 /**
- * True when the insertion placeholder belongs at this position: in the zone the
- * drop is currently targeting, immediately before `key` (or at the end when
- * `key` is null).
+ * The hole this zone reflows around. In the zone the icon came from it is the
+ * icon's own former index; in the other zone it is the appended spare at the end.
  */
-function showPh(zone: 'fav' | 'more', key: string | null): boolean {
-  return drag.active && drag.toZone === zone && drag.beforeKey === key
+function holeFor(zone: 'fav' | 'more'): number {
+  return zone === drag.fromZone ? drag.holeIndex : zoneKeys(zone).length
+}
+
+/**
+ * Slot pitch in pixels, read from the snapshot rather than recomputed from
+ * --app-size: the <= 720px media query overrides the zone's gap to 8px, so the
+ * app-size * 1.3 that holds on a wide window is wrong on a narrow one.
+ */
+function pitchFor(zone: 'fav' | 'more'): number {
+  const slots = zone === 'fav' ? geom?.favSlots : geom?.moreSlots
+  if (slots && slots.length >= 2) return slots[1].midX - slots[0].midX
+  const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
+  return (src?.getBoundingClientRect().width ?? 0) * 1.3
+}
+
+/**
+ * The transform that moves one icon aside. Returns undefined when no drag is live
+ * so the element carries no inline style at rest.
+ */
+function shiftStyle(zone: 'fav' | 'more', key: string): Record<string, string> | undefined {
+  if (!drag.active) return undefined
+  const keys = zoneKeys(zone)
+  const insertAt = drag.toZone !== zone
+    ? null
+    : drag.beforeKey == null ? keys.length : Math.max(0, keys.indexOf(drag.beforeKey))
+  const shift = slotShifts(keys, holeFor(zone), insertAt).find((s) => s.key === key)
+  if (!shift) return undefined
+  return { transform: `translateX(${shift.slots * pitchFor(zone)}px)` }
 }
 
 defineExpose({ root })
@@ -341,14 +368,12 @@ defineExpose({ root })
 .dock-ghost .dock-ic.has-img { background: none; }
 .dock-ghost .dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .dock-ghost .dock-ic :deep(svg) { width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 1.6; }
-/* Insertion preview, mirroring the desktop grid's drop ghost (GridGhost.vue) so
-   the two surfaces read the same. Reuses --accent and --drop-bg; theme.css is
-   off-limits for this batch. */
-.dock-ph { pointer-events: none; }
-.dock-ph .dock-ic {
-  border: 2px dashed var(--accent);
-  background: var(--drop-bg);
-  box-shadow: none;
+/* The reflow's animation. The transform is written inline per icon by shiftStyle;
+   this only supplies the easing. Icons keep their DOM order and slide — reordering
+   the DOM mid-gesture would make Vue rebuild the nodes and lose the animation. */
+.dock-zone :deep(.dock-app) { transition: transform .18s var(--ease, ease); }
+@media (prefers-reduced-motion: reduce) {
+  .dock-zone :deep(.dock-app) { transition: none; }
 }
 /* ── Responsive ≤720px ── */
 @media (max-width: 720px) {

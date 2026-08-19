@@ -113,34 +113,55 @@ describe('HomeDock', () => {
     for (const img of imgs) expect(img.attributes('draggable')).toBe('false')
   })
 
-  it('shows an insertion placeholder while dragging and clears it afterwards', async () => {
+  // jsdom reports every rect as zero, so the pitch is 0 here and the transforms all
+  // read "translateX(0px)". What these tests can prove is that the reflow is driven
+  // at all, that it is cleared afterwards, and that the placeholder element is gone.
+  it('offsets icons while dragging and clears the offsets afterwards', async () => {
     useAppsStore()
     const w = mount(HomeDock)
     await w.get('.dock-toggle').trigger('click') // drag needs the expanded dock
     const nav = w.get('nav').element as HTMLElement
     nav.setPointerCapture = (() => {}) as never
-    expect(w.find('.dock-ph').exists()).toBe(false)
+
+    expect(w.find('.dock-ph').exists()).toBe(false) // the placeholder is gone for good
 
     await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 3, clientX: 100, clientY: 100 })
     const move = new Event('pointermove') as PointerEvent
     Object.assign(move, { pointerId: 3, clientX: 140, clientY: 100 }) // crosses the 5px threshold
     window.dispatchEvent(move)
     await w.vm.$nextTick()
-    expect(w.find('.dock-ph').exists()).toBe(true)
+    const offset = w.findAll('.dock-app[data-app]').filter((b) => (b.element as HTMLElement).style.transform !== '')
+    expect(offset.length).toBeGreaterThan(0)
 
     const up = new Event('pointerup') as PointerEvent
     Object.assign(up, { pointerId: 3, clientX: 140, clientY: 100 })
     window.dispatchEvent(up)
     await w.vm.$nextTick()
-    expect(w.find('.dock-ph').exists()).toBe(false)
+    const after = w.findAll('.dock-app[data-app]').filter((b) => (b.element as HTMLElement).style.transform !== '')
+    expect(after.length).toBe(0)
   })
 
-  // ── The placeholder must not feed back into the geometry the drag measures ──
-  // .dock is centred with a shrink-to-fit width and .dock-ph is an in-flow
-  // .dock-app, so showing it moves every slot midpoint. jsdom does no layout, so
-  // the shift is injected by hand: the rects change the moment the drag activates,
-  // exactly as the browser's would. Both the preview and the drop must keep using
-  // the geometry measured before the placeholder existed.
+  it('offsets nothing for a plain click', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 4, clientX: 100, clientY: 100 })
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 4, clientX: 102, clientY: 100 }) // under the threshold
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    const offset = w.findAll('.dock-app[data-app]').filter((b) => (b.element as HTMLElement).style.transform !== '')
+    expect(offset.length).toBe(0)
+  })
+
+  // ── The reflow must not feed back into the geometry the drag measures ──
+  // .dock is centred with a shrink-to-fit width, and a CSS transform still moves
+  // the rect getBoundingClientRect() reports even though it leaves layout flow
+  // untouched -- so live icon offsets shift every slot midpoint exactly like the
+  // old in-flow placeholder did. jsdom does no layout, so the shift is injected by
+  // hand: the rects change the moment the drag activates, exactly as the
+  // browser's would. Both the preview and the drop must keep using the geometry
+  // measured before any offset existed.
   const stubMids = (w: ReturnType<typeof mount>, mids: Record<string, () => number>) => {
     for (const [sel, mid] of Object.entries(mids)) {
       const el = w.get(sel).element
@@ -152,7 +173,7 @@ describe('HomeDock', () => {
   }
 
   // Base mids put the pointer at 190 just left of "knowledge" (200), so the
-  // placeholder previews before it. The shift then moves both more-zone slots
+  // insertion previews before it. The shift then moves both more-zone slots
   // right by half a pitch, which would flip a re-measuring drop to "append".
   const startShiftedDrag = async (w: ReturnType<typeof mount>, shift: { v: number }) => {
     const nav = w.get('nav').element as HTMLElement
@@ -169,7 +190,14 @@ describe('HomeDock', () => {
     await w.vm.$nextTick()
   }
 
-  it('drops where the placeholder was previewed even after the placeholder shifts the dock', async () => {
+  // Reads the pixel shift out of an icon's inline transform, or 0 when it carries none.
+  const shiftPx = (el: Element): number => {
+    const tr = (el as HTMLElement).style.transform
+    const m = tr.match(/translateX\((-?[\d.]+)px\)/)
+    return m ? Number(m[1]) : 0
+  }
+
+  it('drops where the reflow was previewed even after the reflow itself shifts the dock', async () => {
     useAppsStore()
     const dock = useDock()
     const w = mount(HomeDock)
@@ -177,11 +205,17 @@ describe('HomeDock', () => {
     const shift = { v: 0 }
     await startShiftedDrag(w, shift)
 
-    // Preview: placeholder immediately before "knowledge".
-    const ph = w.get('.dock-ph').element
-    expect(ph.nextElementSibling?.getAttribute('data-app')).toBe('knowledge')
+    // "settings" is dragged out of ['storage', 'knowledge', 'settings'], so its
+    // holeIndex is 2 (the end of the more-zone list), not the middle -- it does
+    // not sit between "storage" and "knowledge" before the drag. The preview
+    // targets insertAt=1 (before "knowledge"), one slot short of where the hole
+    // already is, so "knowledge" is the one that has to slide right by a pitch
+    // (100px, the stubbed storage/knowledge gap) to open the gap in front of it;
+    // "storage" is already on the correct side of the gap and does not move.
+    expect(shiftPx(w.get('.dock-app[data-app="storage"]').element)).toBe(0)
+    expect(shiftPx(w.get('.dock-app[data-app="knowledge"]').element)).toBe(100)
 
-    shift.v = 50 // the layout the placeholder itself produced
+    shift.v = 50 // the layout the icon offset itself produced
     const up = new Event('pointerup') as PointerEvent
     Object.assign(up, { pointerId: 9, clientX: 190, clientY: 0 })
     window.dispatchEvent(up)
@@ -194,46 +228,38 @@ describe('HomeDock', () => {
 
   // A resize is the one event that legitimately invalidates the snapshot, so it
   // must re-measure -- but only after dropping the preview, or it would measure
-  // the placeholder's own displacement.
-  it('re-measures on resize, and does so with no placeholder in the DOM', async () => {
+  // the icon offsets' own displacement.
+  it('re-measures on resize, and does so with no offset left over from the stale snapshot', async () => {
     useAppsStore()
     const w = mount(HomeDock)
     await w.get('.dock-toggle').trigger('click')
     const shift = { v: 0 }
     await startShiftedDrag(w, shift)
-    expect(w.get('.dock-ph').element.nextElementSibling?.getAttribute('data-app')).toBe('knowledge')
+    expect(shiftPx(w.get('.dock-app[data-app="knowledge"]').element)).toBe(100)
 
     shift.v = 50 // the viewport changed; slots really are somewhere else now
     window.dispatchEvent(new Event('resize'))
     await w.vm.$nextTick()
-    expect(w.find('.dock-ph').exists()).toBe(false) // preview dropped before measuring
+    // onResize clears drag.toZone immediately, before the re-measure lands, so
+    // every icon's shift collapses to 0 no matter which zone it is in.
+    for (const b of w.findAll('.dock-app[data-app]')) expect(shiftPx(b.element)).toBe(0)
     await w.vm.$nextTick()
 
     const move = new Event('pointermove') as PointerEvent
     Object.assign(move, { pointerId: 9, clientX: 190, clientY: 0 })
     window.dispatchEvent(move)
     await w.vm.$nextTick()
-    // Against the new geometry (storage 150, knowledge 250) x=190 is right of the
-    // nearest slot, so the preview belongs at the end of the zone.
-    const ph = w.get('.dock-ph').element
-    expect(ph.nextElementSibling).toBeNull()
+    // Against the new geometry (storage 150, knowledge 250) x=190 is nearest to
+    // "storage" and to its right, so the drop appends at the end of the zone --
+    // exactly where the hole already is (holeIndex=2, insertAt=2), so nothing
+    // needs to move. Had onResize kept using the stale pre-resize geometry
+    // instead, "knowledge" would show a 100px shift here.
+    expect(shiftPx(w.get('.dock-app[data-app="storage"]').element)).toBe(0)
+    expect(shiftPx(w.get('.dock-app[data-app="knowledge"]').element)).toBe(0)
 
     const up = new Event('pointerup') as PointerEvent
     Object.assign(up, { pointerId: 9, clientX: 190, clientY: 0 })
     window.dispatchEvent(up)
-  })
-
-  // A click that never crosses the threshold must not flash a placeholder.
-  it('shows no placeholder for a plain click', async () => {
-    useAppsStore()
-    const w = mount(HomeDock)
-    await w.get('.dock-toggle').trigger('click')
-    await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 4, clientX: 100, clientY: 100 })
-    const move = new Event('pointermove') as PointerEvent
-    Object.assign(move, { pointerId: 4, clientX: 102, clientY: 100 }) // under the threshold
-    window.dispatchEvent(move)
-    await w.vm.$nextTick()
-    expect(w.find('.dock-ph').exists()).toBe(false)
   })
 })
 
