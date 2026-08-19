@@ -3,11 +3,11 @@
     @pointerdown.capture="onDragStart"
   >
     <div class="dock-main">
-      <div class="dock-zone" data-zone="fav">
+      <div class="dock-zone" data-zone="fav" :style="reserveStyle('fav')">
         <DockApp v-for="k in favVisible" :key="k" :app-key="k" :style="shiftStyle('fav', k)" />
       </div>
       <span v-if="!isMobile" class="dock-sep" />
-      <div v-if="!isMobile" class="dock-zone dock-more" data-zone="more" :inert="!dock.expanded.value || undefined">
+      <div v-if="!isMobile" class="dock-zone dock-more" data-zone="more" :inert="!dock.expanded.value || undefined" :style="reserveStyle('more')">
         <DockApp v-for="k in dock.moreKeys.value" :key="k" :app-key="k" :style="shiftStyle('more', k)" />
       </div>
       <button class="dock-app dock-toggle" :aria-expanded="isMobile ? sheetOpen : dock.expanded.value" @click="onToggle">
@@ -90,6 +90,10 @@ interface DragState {
   beforeKey: string | null
   fromZone: 'fav' | 'more' | null
   holeIndex: number
+  // Pixels of padding-inline-end reserved on the non-source zone for the whole
+  // drag, so its flex box actually has room for the appended spare slot -- see
+  // reserveStyle.
+  sparePx: number
 }
 
 const drag = reactive<DragState>({
@@ -108,6 +112,7 @@ const drag = reactive<DragState>({
   beforeKey: null,
   fromZone: null,
   holeIndex: 0,
+  sparePx: 0,
 })
 
 // Slot geometry, measured once when the drag activates. Deliberately not part of
@@ -164,9 +169,24 @@ function onDragMove(e: PointerEvent) {
     // hide the source element while dragging
     const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
     if (src) src.style.opacity = '0'
-    // Measure now, before any icon offset has been applied yet, and never again
-    // for the rest of this drag (see measureGeometry / dropTargetIn).
-    geom = measureGeometry()
+
+    // Two-pass measurement, both at activation, so "one snapshot per drag" still
+    // holds. Pass 1 (this measureGeometry) reads the at-rest layout, purely to
+    // size the spare-slot reservation below -- the non-source zone's own flex
+    // box otherwise never grows to contain the icon(s) a transform slides
+    // toward its appended spare slot, so they visually escape the dock (or land
+    // on top of the separator). Pass 2 happens inside nextTick, once Vue has
+    // rendered that reservation, and *that* becomes the geometry resolveDrop
+    // uses for the rest of the gesture. Reserving unconditionally -- for the
+    // whole drag, not just while the pointer is over that zone -- keeps this a
+    // single deterministic layout change instead of one every time the pointer
+    // crosses the separator: a per-crossing reservation would be a mid-drag
+    // layout change measured against a frozen snapshot, the same oscillation
+    // hazard the snapshot exists to prevent, just one level up.
+    const preGeom = measureGeometry()
+    const spareZone: 'fav' | 'more' = drag.fromZone === 'fav' ? 'more' : 'fav'
+    drag.sparePx = pitchFor(spareZone, preGeom)
+    void nextTick(() => { if (drag.active) geom = measureGeometry() })
   }
 
   // Position ghost: fixed, offset relative to dock rect so it appears at correct position
@@ -177,11 +197,17 @@ function onDragMove(e: PointerEvent) {
     top: (e.clientY - drag.offY - dockRect.top) + 'px',
   }
 
-  // Resolved from the snapshot, which the drop reuses verbatim, so the preview
-  // cannot disagree with the outcome. (`target`, not `t` — `t` is the translator.)
-  const target = resolveDrop(e.clientX)
-  drag.toZone = target.toZone
-  drag.beforeKey = target.beforeKey
+  // No preview until the post-reservation snapshot lands (the nextTick above):
+  // resolveDrop's own null-geom fallback always guesses 'more', which would
+  // flash a wrong preview for the one frame between activation and the
+  // snapshot. Leaving toZone/beforeKey at their rest value (null) instead means
+  // no icon shows an offset for that one frame -- the ghost still tracks the
+  // pointer live via ghostStyle above.
+  if (geom) {
+    const target = resolveDrop(e.clientX)
+    drag.toZone = target.toZone
+    drag.beforeKey = target.beforeKey
+  }
 }
 
 function onDragEnd(e: PointerEvent) {
@@ -235,6 +261,7 @@ function resetDragState() {
   drag.beforeKey = null
   drag.fromZone = null
   drag.holeIndex = 0
+  drag.sparePx = 0
   geom = null
 }
 
@@ -303,15 +330,36 @@ function holeFor(zone: 'fav' | 'more'): number {
 }
 
 /**
- * Slot pitch in pixels, read from the snapshot rather than recomputed from
- * --app-size: the <= 720px media query overrides the zone's gap to 8px, so the
- * app-size * 1.3 that holds on a wide window is wrong on a narrow one.
+ * Slot pitch in pixels, read from a geometry snapshot rather than recomputed
+ * from --app-size: the <= 720px media query overrides the zone's gap to 8px,
+ * so the app-size * 1.3 that holds on a wide window is wrong on a narrow one.
+ *
+ * Defaults to the drag's own snapshot (`geom`), but takes an explicit one too:
+ * sizing the spare-slot reservation in onDragMove happens before that snapshot
+ * exists yet (it's what the reservation's own presence then gets measured
+ * into), so that call site passes the pre-reservation measurement instead.
  */
-function pitchFor(zone: 'fav' | 'more'): number {
-  const slots = zone === 'fav' ? geom?.favSlots : geom?.moreSlots
+function pitchFor(zone: 'fav' | 'more', g: DockGeometry | null = geom): number {
+  const slots = zone === 'fav' ? g?.favSlots : g?.moreSlots
   if (slots && slots.length >= 2) return slots[1].midX - slots[0].midX
   const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
   return (src?.getBoundingClientRect().width ?? 0) * 1.3
+}
+
+/**
+ * Reserves one pitch of extra room at the end of the zone the drag did NOT
+ * start in, for the whole drag -- unconditionally, regardless of which zone
+ * the pointer is currently over. Without it, a transform can slide an icon
+ * toward that zone's "keys.length + 1"th slot, but the zone's flex box never
+ * actually grows to contain it, so the icon visually escapes the dock (or
+ * lands on top of the separator and whatever sits just past it). Reserving via
+ * padding rather than an inserted node keeps the gap an absence of offset, not
+ * an element -- a spacer `.dock-app` would also land back inside
+ * `measureGeometry`'s `[data-zone] .dock-app[data-app]` query.
+ */
+function reserveStyle(zone: 'fav' | 'more'): Record<string, string> | undefined {
+  if (!drag.active || zone === drag.fromZone) return undefined
+  return { paddingInlineEnd: `${drag.sparePx}px` }
 }
 
 /**

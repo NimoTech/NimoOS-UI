@@ -188,6 +188,16 @@ describe('HomeDock', () => {
     Object.assign(move, { pointerId: 9, clientX: 190, clientY: 0 }) // crosses the 5px threshold
     window.dispatchEvent(move)
     await w.vm.$nextTick()
+    // Activation sizes and applies the spare-slot reservation, then re-measures
+    // the resulting geometry inside nextTick -- so the pointermove that crosses
+    // the threshold never resolves a preview itself, only positions the ghost.
+    // A second pointermove at the same spot, once that snapshot has landed, is
+    // what actually resolves toZone/beforeKey (same shape onResize already uses
+    // to get a fresh preview after it re-measures).
+    const move2 = new Event('pointermove') as PointerEvent
+    Object.assign(move2, { pointerId: 9, clientX: 190, clientY: 0 })
+    window.dispatchEvent(move2)
+    await w.vm.$nextTick()
   }
 
   // Reads the pixel shift out of an icon's inline transform, or 0 when it carries none.
