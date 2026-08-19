@@ -295,7 +295,7 @@ export const REPLACE = [
   // T11:AddPanel 去照片 tab(模板块 + tab 定义 + usePhotosStore 声明/import +
   // .lib-photo-* 样式四处一并删除;409 行附近 ic-photos 注释改泛化措辞)
   { path: 'src/home/components/AddPanel.vue', from: 'AddPanel.vue',
-    privateSha256: '7faf9cf8605b22bb37f811d616543e80016961551f53dc99379cce3d4b13f01f' },
+    privateSha256: '1591249f6a2f40e3f447faff708f585d48dab58b71ac20ca2d81fe5b37813d18' },
 
   // T12:README 重写(面向外部开发者,私有版讲的是与 Vue 2 并存/绞杀迁移/同级克隆
   // Service —— 受众不同且后两条在开源包里都是假的,没有可继承内容,整文件替换)
