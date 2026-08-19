@@ -40,16 +40,38 @@ import { useDock } from '../composables/useDock'
 import { useAppsStore } from '../stores/apps'
 import { useIsMobile } from '../composables/useIsMobile'
 import { dropTargetIn, slotShifts, type DockSlot, type DockGeometry, type DropDecision } from '../grid/dockMath'
+import { cellAtPointer } from '../grid/pointerMath'
+import { useAddPanel } from '../composables/useAddPanel'
+import { useHomeUiStore } from '../stores/homeUi'
 // The dock's fisheye magnification, switched off at the owner's request and kept
 // rather than deleted so it can be restored. theme.css still carries the rule that
 // consumes --mag; with nothing writing it the fallback of 1 is identity, so the
 // effect is off without that file being touched.
 // import { magScale } from '../grid/dockMath'
 
+// The grid's geometry, passed in exactly as Home.vue already passes it to
+// AddPanel: dragging an icon out of the dock and onto the desktop needs the same
+// pointer-to-cell answer the add panel computes.
+const props = defineProps<{ cell?: number; gap?: number; cols?: number; rows?: number; gridEl?: HTMLElement | null }>()
+
 const { t } = useI18n()
 const dock = useDock()
 const apps = useAppsStore()
 const root = ref<HTMLElement | null>(null)
+const homeUi = useHomeUiStore()
+const addPanel = useAddPanel({ cols: props.cols ?? 12, rows: props.rows ?? 8 })
+
+/** The cell a dock icon would land on, or null when the pointer is off the grid. */
+function gridCellAt(clientX: number, clientY: number): { tc: number; tr: number } | null {
+  const el = props.gridEl
+  if (!el) return null
+  return cellAtPointer(clientX, clientY, el.getBoundingClientRect(), { w: 1, h: 1 }, {
+    cell: props.cell ?? 60,
+    gap: props.gap ?? 16,
+    cols: props.cols ?? 12,
+    rows: props.rows ?? 8,
+  })
+}
 
 // ── Mobile: fixed 5 slots (4 favorites + all apps), all apps pops multi-row drawer ────────────────
 const isMobile = useIsMobile()
@@ -197,6 +219,20 @@ function onDragMove(e: PointerEvent) {
     top: (e.clientY - drag.offY - dockRect.top) + 'px',
   }
 
+  // Over the desktop: preview the cell instead of the dock's reflow, and drop the
+  // reflow preview so the two are never both on screen. Over the dock: the
+  // reverse. cellAtPointer only needs the grid's own (constant) rect and cell
+  // size, not the dock's per-drag geometry snapshot, so this check does not wait
+  // on `geom` the way the dock-reflow branch below still does.
+  const cell = gridCellAt(e.clientX, e.clientY)
+  if (cell) {
+    drag.toZone = null
+    drag.beforeKey = null
+    homeUi.spawnGhost = { c: cell.tc, r: cell.tr, w: 1, h: 1, ok: true }
+    return
+  }
+  homeUi.spawnGhost = null
+
   // No preview until the post-reservation snapshot lands (the nextTick above):
   // resolveDrop's own null-geom fallback always guesses 'more', which would
   // flash a wrong preview for the one frame between activation and the
@@ -224,6 +260,22 @@ function onDragEnd(e: PointerEvent) {
   const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
   if (src) src.style.opacity = ''
 
+  homeUi.spawnGhost = null
+
+  // Released over the desktop: add a copy there and leave the dock alone.
+  // spawnPlace displaces whatever it overlaps, refuses an app already on the
+  // desktop, and raises the toast for each outcome. Released anywhere that is
+  // neither the grid nor the dock, nothing happens at all -- falling through to a
+  // reorder or to pinToFree would act on a gesture the user aborted.
+  const cell = gridCellAt(e.clientX, e.clientY)
+  if (cell) {
+    addPanel.spawnPlace({ kind: 'app', key: drag.key, w: 1, h: 1 }, cell.tc, cell.tr)
+    dock.justDragged.value = true
+    setTimeout(() => { dock.justDragged.value = false }, 0)
+    resetDragState()
+    return
+  }
+
   // Determine drop target: which zone and which beforeKey. Same snapshot the last
   // preview used, so the icon lands exactly where its offset preview showed it going.
   const { toZone, beforeKey } = resolveDrop(e.clientX)
@@ -242,6 +294,7 @@ function onDragCancel(e: PointerEvent) {
   cleanupDragListeners()
   const src = root.value?.querySelector<HTMLElement>(`.dock-app[data-app="${drag.key}"]`)
   if (src) src.style.opacity = ''
+  homeUi.spawnGhost = null
   resetDragState()
 }
 
@@ -263,6 +316,7 @@ function resetDragState() {
   drag.holeIndex = 0
   drag.sparePx = 0
   geom = null
+  homeUi.spawnGhost = null
 }
 
 /**

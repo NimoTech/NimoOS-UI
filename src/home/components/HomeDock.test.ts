@@ -9,6 +9,15 @@ import HomeDock from './HomeDock.vue'
 vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
 import { router } from '../../router'
 
+// vi.hoisted, not a bare const: vi.mock is hoisted above top-level declarations, so
+// a plain const would be read before initialisation.
+const { spawnPlace } = vi.hoisted(() => ({ spawnPlace: vi.fn((_desc: unknown, _tc: number, _tr: number) => true) }))
+// A narrow mock on purpose. Calling the real useAddPanel inside the factory would
+// run at module-eval time, before any pinia is active, and it reaches for
+// useLayoutStore()/useHomeUiStore() immediately. HomeDock only ever calls
+// spawnPlace, so that is all the mock needs to provide.
+vi.mock('../composables/useAddPanel', () => ({ useAddPanel: () => ({ spawnPlace }) }))
+
 beforeEach(() => {
   setActivePinia(createPinia()); localStorage.clear(); __resetDockForTest()
   Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(_v: string) {}, get href() { return '' } } })
@@ -270,6 +279,55 @@ describe('HomeDock', () => {
     const up = new Event('pointerup') as PointerEvent
     Object.assign(up, { pointerId: 9, clientX: 190, clientY: 0 })
     window.dispatchEvent(up)
+  })
+
+  // Dragging a dock icon onto the desktop adds a copy there. The placement itself
+  // (displacement, duplicate refusal, toasts) belongs to spawnPlace and is covered
+  // by the add-panel's own tests; what matters here is that the dock calls it with
+  // the cell under the pointer, and only when the release is over the grid.
+  const gridStub = () => {
+    const el = document.createElement('div')
+    el.getBoundingClientRect = () => ({ left: 200, top: 100, right: 200 + 12 * 76, bottom: 100 + 8 * 76, width: 12 * 76, height: 8 * 76, x: 200, y: 100, toJSON: () => ({}) })
+    return el
+  }
+
+  const dragOnto = async (clientX: number, clientY: number) => {
+    useAppsStore()
+    const w = mount(HomeDock, { props: { cell: 60, gap: 16, cols: 12, rows: 8, gridEl: gridStub() } })
+    await w.get('.dock-toggle').trigger('click')
+    ;(w.get('nav').element as HTMLElement).setPointerCapture = (() => {}) as never
+    await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 9, clientX: 100, clientY: 500 })
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 9, clientX, clientY })
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    const up = new Event('pointerup') as PointerEvent
+    Object.assign(up, { pointerId: 9, clientX, clientY })
+    window.dispatchEvent(up)
+    await w.vm.$nextTick()
+    return w
+  }
+
+  it('adds a copy to the desktop when released over the grid', async () => {
+    spawnPlace.mockClear()
+    await dragOnto(230, 130)
+    expect(spawnPlace).toHaveBeenCalledTimes(1)
+    expect(spawnPlace.mock.calls[0][0]).toMatchObject({ kind: 'app', key: 'settings', w: 1, h: 1 })
+    expect(spawnPlace.mock.calls[0].slice(1)).toEqual([1, 1])
+  })
+
+  it('does nothing when released outside the grid', async () => {
+    spawnPlace.mockClear()
+    await dragOnto(100, 560) // still down by the dock, nowhere near the grid
+    expect(spawnPlace).not.toHaveBeenCalled()
+  })
+
+  it('leaves the dock untouched — this is a copy, not a move', async () => {
+    spawnPlace.mockClear()
+    const w = await dragOnto(230, 130)
+    expect(w.findAll('.dock-app[data-app]').some((b) => b.attributes('data-app') === 'settings')).toBe(true)
+    const offset = w.findAll('.dock-app[data-app]').filter((b) => (b.element as HTMLElement).style.transform !== '')
+    expect(offset.length).toBe(0)
   })
 })
 
