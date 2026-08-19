@@ -8,14 +8,12 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import {
-  toPerson, namedOf, unnamedOf, visibleUnnamedOf, hiddenSingletonCountOf,
+  toPerson, namedOf, unnamedOf, splitUnnamedByDistribution,
   type Person, type PeopleFilter,
 } from '../util/peopleView'
 import { isNotFound } from '../util/httpErrors'
 
-const LS_CONFIDENCE = 'nimo_people_confidence'
 const LS_SHOW_SINGLETONS = 'nimo_people_show_singletons'
-const CONFIDENCE_ALLOWED = [50, 60, 70, 80, 90, 95]
 const PURGE_DELAY_MS = 5000
 
 // Purge cancellation pending items. Timer and snapshot are not serializable, follow Vue2 to place at module scope (photos.js:230-231), not in state.
@@ -33,11 +31,12 @@ const _purgeTimers = new Map<string, PurgeEntry>()
 const _pendingHides = new Set<string>()
 
 function readFilter(): PeopleFilter {
-  // Follow Vue2 photos.js:283-291 IIFE: whitelist validation + strict '1' comparison + overall try fallback (private mode/SSR).
-  const def: PeopleFilter = { confidence: 80, showSingletons: false }
+  // Follow Vue2 photos.js:283-291 IIFE: strict '1' comparison + overall try fallback (private mode/SSR).
+  // Task 4 (2026-08-19 timeline/people-visibility fix): the confidence half of this filter
+  // (localStorage key nimo_people_confidence, whitelist validation) is gone — the confidence
+  // gate no longer exists at all, see peopleView.ts's file header for why.
+  const def: PeopleFilter = { showSingletons: false }
   try {
-    const c = parseInt(localStorage.getItem(LS_CONFIDENCE) ?? '', 10)
-    if (CONFIDENCE_ALLOWED.includes(c)) def.confidence = c
     def.showSingletons = localStorage.getItem(LS_SHOW_SINGLETONS) === '1'
   } catch {
     /* Keep default value when localStorage is unavailable */
@@ -64,11 +63,26 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
 
   const named = computed(() => namedOf(people.value))
   const unnamed = computed(() => unnamedOf(people.value))
-  const visibleUnnamed = computed(() => visibleUnnamedOf(unnamed.value, filter.value))
+  // Task 4 (2026-08-19 timeline/people-visibility fix): the confidence gate is gone —
+  // visibility now comes from splitUnnamedByDistribution's size-distribution cut instead of a
+  // fixed confidence threshold (see peopleView.ts's file header for the bug this replaces).
+  const unnamedSplit = computed(() => splitUnnamedByDistribution(unnamed.value))
+  // The default-visible head (multi-photo clusters within the 80%-coverage cut), plus
+  // singletons once that separate toggle is on -- preserves the pre-existing singleton toggle
+  // behavior unchanged even though the underlying visibility mechanism switched from a
+  // confidence gate to a size-distribution cut.
+  const visibleUnnamed = computed(() => {
+    const { visible, singletons } = unnamedSplit.value
+    return filter.value.showSingletons ? [...visible, ...singletons] : visible
+  })
   const namedCount = computed(() => named.value.length)
   // Sidebar/topbar count and grid must use the same calibration: unnamed count uses "visible" not all (Vue2 photos.js:344 comment emphasizes).
   const unnamedCount = computed(() => visibleUnnamed.value.length)
-  const hiddenSingletonCount = computed(() => hiddenSingletonCountOf(unnamed.value, filter.value))
+  // Task 4: no longer conditioned on the showSingletons toggle at all (previously returned 0
+  // when the toggle was on) -- behaviorally equivalent, since the view only ever reads this
+  // count in the toggle's *off* label ("Show N single-photo"); the *on* label ("Hide") never
+  // references it.
+  const hiddenSingletonCount = computed(() => unnamedSplit.value.singletons.length)
 
   const key = (id: string | number): string => String(id)
   function personById(id: string | number): Person | null {
@@ -136,10 +150,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   }
 
   // ── Filter preferences (write to localStorage, follow Vue2 mutation :350-361) ──
-  function setConfidence(v: number): void {
-    filter.value = { ...filter.value, confidence: v }
-    try { localStorage.setItem(LS_CONFIDENCE, String(v)) } catch { /* Ignore write failure */ }
-  }
+  // Task 4: setConfidence removed along with the confidence gate itself.
   function setShowSingletons(v: boolean): void {
     filter.value = { ...filter.value, showSingletons: !!v }
     try { localStorage.setItem(LS_SHOW_SINGLETONS, v ? '1' : '0') } catch { /* Ignore write failure */ }
@@ -428,7 +439,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
     named, unnamed, visibleUnnamed, namedCount, unnamedCount, hiddenSingletonCount,
     personById, patchPerson,
-    fetchPeople, fetchMergeSuggestions, setConfidence, setShowSingletons,
+    fetchPeople, fetchMergeSuggestions, setShowSingletons,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     acceptMergeSuggestion, rejectMergeSuggestion, dismissAllMerges,

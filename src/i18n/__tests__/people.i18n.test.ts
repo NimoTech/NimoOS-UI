@@ -4,7 +4,7 @@ import en from '../en_us'
 
 describe('SP7-P5 人物 i18n 键', () => {
   const sample = [
-    'photosPeople', 'photosPeopleUnnamedSection', 'photosPeopleConfidence',
+    'photosPeople', 'photosPeopleUnnamedSection', 'photosPeopleUnnamedHint',
     'photosPersonNameThis', 'photosPersonDeletedToast', 'photosPersonUndo',
     'photosPersonTabRelations', 'photosPersonInsightWith', 'photosPersonShowAll',
     'photosPeopleEmptyTitle', 'photosPersonNotFound',

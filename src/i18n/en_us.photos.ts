@@ -348,9 +348,10 @@ export default {
   photosPeopleNamed: '{n} named',
   photosPeopleUnnamedClusters: '{n} unnamed clusters',
   photosPeopleIndexedUpTo: 'Faces indexed up to {date}',
-  photosPeopleConfidence: 'Confidence ≥ {n}%',
-  photosPeopleConfidenceOption: '≥ {n}%',
-  photosPeopleClusters: '{n} clusters',
+  // Task 4 (2026-08-19 timeline/people-visibility fix): photosPeopleConfidence /
+  // photosPeopleConfidenceOption / photosPeopleClusters deleted here — the confidence dropdown
+  // they belonged to is gone (see peopleView.ts's file header; a fixed 80% confidence default
+  // silently hid a real 221-photo cluster). Verified zero remaining references before removal.
   photosPeopleFilterAll: 'All',
   photosPeopleFilterFamily: 'Family',
   photosPeopleFilterFriends: 'Friends',
@@ -529,10 +530,10 @@ export default {
   photosPersonInsightPlace1: 'Their photos cluster in <b>{place}</b>.',
   photosPersonInsightNone: 'Not enough photos of {name} yet for an insight.',
   photosPersonUnknownPlace: 'Unknown', // no bare "Unknown" entry in zh_CN.json, see report caveats
-  // SP7-P5 task-6 addition: two UI strings missed by T3; wording taken from Vue2
-  // zh_CN.json (:2072 / :2079) by the coordinator. Appended at the end of the
-  // photos block — existing keys are not reordered.
-  photosPeopleMinScore: 'Min face match score', // confidence dropdown header, Vue2 PhotosPeopleView.vue:24-26
+  // SP7-P5 task-6 addition: one UI string missed by T3; wording taken from Vue2
+  // zh_CN.json (:2079) by the coordinator. Appended at the end of the photos
+  // block — existing keys are not reordered. photosPeopleMinScore (the confidence dropdown
+  // header) was removed alongside Task 4's confidence dropdown, see peopleView.ts's file header.
   photosPeopleClusterHint: '+ Name / Merge / Delete', // unnamed cluster hover hint, Vue2 :204
   // T7 coordinator addition: <label> for ClusterActionDialog's name mode, wording
   // "Name" per zh_CN.json:49. Appended at the end of the block, existing keys not reordered.

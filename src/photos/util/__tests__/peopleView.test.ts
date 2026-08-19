@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   toPerson, personInitial, namedOf, unnamedOf, visibleUnnamedOf,
-  hiddenSingletonCountOf, unnamedCountAt, sortNamed, monthKeyLabel, mergeConfidencePct,
+  hiddenSingletonCountOf, sortNamed, monthKeyLabel, mergeConfidencePct,
   mergeReasonKey, nimoReadParts, findNamedDuplicate,
   PLACE_PALETTE, groupPlaces, colorPoints,
   topPersons, topPlaces, byYear, resolvePersonByName,
+  splitUnnamedByDistribution,
   type Person, type PersonPlace, type PlaceGroup,
 } from '../peopleView'
 import type { Photo } from '../assetToPhoto'
@@ -75,35 +76,103 @@ describe('findNamedDuplicate', () => {
   })
 })
 
+// Task 4 (2026-08-19 timeline/people-visibility fix): the confidence gate is gone (product
+// decision — a fixed confidence threshold silently hid a real 221-photo/0.796-confidence
+// cluster; see splitUnnamedByDistribution below for the replacement). What's left of
+// visibleUnnamedOf/hiddenSingletonCountOf is only the showSingletons half of their old
+// predicate.
 describe('visibleUnnamedOf', () => {
   const un = [
-    P({ id: 'a', confidence: 0.8, count: 5 }),   // exactly equal to the 80 threshold
-    P({ id: 'b', confidence: 0.79, count: 5 }),  // below threshold
+    P({ id: 'a', confidence: 0.8, count: 5 }),
+    P({ id: 'b', confidence: 0.1, count: 5 }),   // low confidence, no longer filtered out
     P({ id: 'c', confidence: 0.95, count: 1 }),  // single photo
   ]
-  it('threshold is a closed interval >= (0.8*100 === 80 must be kept)', () => {
-    expect(visibleUnnamedOf(un, { confidence: 80, showSingletons: false }).map((p) => p.id)).toEqual(['a'])
+  it('multi-photo clusters pass regardless of confidence', () => {
+    expect(visibleUnnamedOf(un, { showSingletons: false }).map((p) => p.id)).toEqual(['a', 'b'])
   })
-  it('showSingletons on lets single photos through', () => {
-    expect(visibleUnnamedOf(un, { confidence: 80, showSingletons: true }).map((p) => p.id)).toEqual(['a', 'c'])
+  it('showSingletons on lets single photos through too', () => {
+    expect(visibleUnnamedOf(un, { showSingletons: true }).map((p) => p.id)).toEqual(['a', 'b', 'c'])
   })
   it('is strictly complementary with hiddenSingletonCountOf', () => {
-    const f = { confidence: 80, showSingletons: false }
-    const atThreshold = un.filter((p) => p.confidence * 100 >= f.confidence).length
-    expect(visibleUnnamedOf(un, f).length + hiddenSingletonCountOf(un, f)).toBe(atThreshold)
+    const f = { showSingletons: false }
+    expect(visibleUnnamedOf(un, f).length + hiddenSingletonCountOf(un, f)).toBe(un.length)
   })
   it('hidden is always 0 when showSingletons is on', () => {
-    expect(hiddenSingletonCountOf(un, { confidence: 50, showSingletons: true })).toBe(0)
+    expect(hiddenSingletonCountOf(un, { showSingletons: true })).toBe(0)
   })
 })
 
-describe('unnamedCountAt', () => {
-  const un = [P({ id: 'a', confidence: 0.9, count: 4 }), P({ id: 'b', confidence: 0.6, count: 4 }), P({ id: 'c', confidence: 0.9, count: 1 })]
-  it('previews using the passed-in threshold, unaffected by the current threshold', () => {
-    expect(unnamedCountAt(un, 50, false)).toBe(2)
-    expect(unnamedCountAt(un, 90, false)).toBe(1)
+// Task 4: the size-distribution-based replacement for the confidence gate. Real production
+// bug this exists to fix: a 221-photo cluster at confidence 0.796 was silently hidden by the
+// old default 80% confidence threshold — see case 5 below, the literal regression fixture.
+describe('splitUnnamedByDistribution', () => {
+  // Case 1: a realistic 269-cluster distribution (head 361/231/221/184, a long decreasing
+  // run down to 21 at position 50, then 20/12/11×4/…/2×123). Verified by an independent
+  // simulation of the algorithm (see task report) before this test was written, so the
+  // expected numbers below are not guesses.
+  it('269 multi-photo clusters: shows the smallest head reaching 80% coverage (visible=50, cut lands at 21|20)', () => {
+    const head = [361, 231, 221, 184]
+    const midLen = 46
+    const midStart = 150
+    const mid: number[] = []
+    for (let i = 0; i < midLen; i++) {
+      mid.push(Math.round(midStart - (midStart - 21) * (i / (midLen - 1))))
+    }
+    mid[mid.length - 1] = 21
+    for (let i = 1; i < mid.length; i++) if (mid[i] > mid[i - 1]) mid[i] = mid[i - 1]
+    const afterCut = [20, 12, 11, 11, 11, 11]
+    const tens = new Array(90).fill(10)
+    const twos = new Array(123).fill(2)
+    const counts = [...head, ...mid, ...afterCut, ...tens, ...twos]
+    expect(counts).toHaveLength(269)
+
+    const unnamed = counts.map((count, i) => P({ id: `m${i}`, count }))
+    const { visible, folded } = splitUnnamedByDistribution(unnamed)
+    expect(visible).toHaveLength(50)
+    expect(visible[visible.length - 1].count).toBe(21)
+    expect(folded[0].count).toBe(20)
+    expect(visible.length + folded.length).toBe(269)
   })
-  it('showSingletons participates in the determination', () => { expect(unnamedCountAt(un, 90, true)).toBe(2) })
+
+  it('a small cluster set (n=8, all below MIN_SHOW) is entirely visible, nothing folded', () => {
+    const counts = [50, 40, 30, 20, 10, 8, 5, 3]
+    const unnamed = counts.map((count, i) => P({ id: `s${i}`, count }))
+    const { visible, folded } = splitUnnamedByDistribution(unnamed)
+    expect(visible.map((p) => p.count)).toEqual(counts)
+    expect(folded).toEqual([])
+  })
+
+  // Case 3: a tie straddling the 80%-coverage cut must never be split — both equal-count
+  // clusters land on the visible side together. Verified independently (see task report):
+  // without the tie-extension while-loop, this fixture cuts right between the two 21s.
+  it('a tie straddling the coverage cut keeps both equal-count clusters on the visible side', () => {
+    const counts = [...new Array(12).fill(22), 21, 21, 20, 10, 10]
+    const unnamed = counts.map((count, i) => P({ id: `t${i}`, count }))
+    const { visible, folded } = splitUnnamedByDistribution(unnamed)
+    expect(visible.map((p) => p.count)).toEqual([22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 21, 21])
+    expect(folded.map((p) => p.count)).toEqual([20, 10, 10])
+  })
+
+  it('all singletons (no multi-photo cluster at all) → visible and folded are both empty', () => {
+    const unnamed = [P({ id: 'x', count: 1 }), P({ id: 'y', count: 0 })]
+    const { visible, folded, singletons } = splitUnnamedByDistribution(unnamed)
+    expect(visible).toEqual([])
+    expect(folded).toEqual([])
+    expect(singletons.map((p) => p.id)).toEqual(['x', 'y'])
+  })
+
+  // Case 5 (the actual regression this task fixes): a 221-photo cluster at confidence 0.79
+  // (79%) — below the old fixed 80% gate, so it used to vanish from the grid entirely with
+  // zero indication to the user. The distribution split has no notion of confidence at all,
+  // so it must show up regardless of how low its confidence score is.
+  it('regression: a 221-photo/0.79-confidence cluster is visible (the bug this task fixes)', () => {
+    const bug = P({ id: 'bug', count: 221, confidence: 0.79 })
+    const unnamed = [bug, P({ id: 'b', count: 45 }), P({ id: 'c', count: 30 }), P({ id: 'd', count: 18 }),
+      P({ id: 'e', count: 12 }), P({ id: 'f', count: 9 }), P({ id: 'g', count: 6 }), P({ id: 'h', count: 4 })]
+    const { visible } = splitUnnamedByDistribution(unnamed)
+    expect(visible.map((p) => p.id)).toContain('bug')
+    expect(visible[0]).toBe(bug) // largest count sorts first
+  })
 })
 
 describe('sortNamed', () => {

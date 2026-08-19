@@ -20,7 +20,6 @@ vi.mock('@nimotech/nimoos-service', () => ({
 import { service } from '@nimotech/nimoos-service'
 import { usePhotosPeople } from '../people'
 
-const LS_CONFIDENCE = 'nimo_people_confidence'
 const LS_SHOW_SINGLETONS = 'nimo_people_show_singletons'
 
 function rawPerson(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -159,12 +158,16 @@ describe('photosPeople store', () => {
   })
 
   describe('computed: named/unnamed/visibleUnnamed/unnamedCount change with filter', () => {
+    // Task 4 (2026-08-19 timeline/people-visibility fix): confidence is gone from the
+    // filter/visibility pipeline entirely — person 3's low 0.6 confidence no longer plays any
+    // role; it's excluded from the default-visible set purely because it's a singleton
+    // (count===1), and the showSingletons toggle is what brings it back, not a confidence bump.
     it('recalculate with filter', async () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({
         persons: [
           rawPerson({ id: 1, name: 'Alice', confidence: 0.95, count: 5 }), // named
-          rawPerson({ id: 2, name: '', confidence: 0.9, count: 5 }),   // unnamed, visible at conf=80
-          rawPerson({ id: 3, name: '', confidence: 0.6, count: 1 }),   // unnamed, singleton + low conf
+          rawPerson({ id: 2, name: '', confidence: 0.9, count: 5 }),   // unnamed, multi-photo
+          rawPerson({ id: 3, name: '', confidence: 0.6, count: 1 }),   // unnamed, singleton
         ],
       })
       const s = usePhotosPeople()
@@ -174,7 +177,6 @@ describe('photosPeople store', () => {
       expect(s.visibleUnnamed.map((p) => p.id)).toEqual([2])
       expect(s.unnamedCount).toBe(1)
 
-      s.setConfidence(50)
       s.setShowSingletons(true)
       // numeric id with default .sort() is lexicographic (style cleanup: although [2,3] happens to work due to single digits,
       // unified numeric comparison avoids confusion).
@@ -184,12 +186,6 @@ describe('photosPeople store', () => {
   })
 
   describe('filter persistence', () => {
-    it('setConfidence(90) writes localStorage', () => {
-      const s = usePhotosPeople()
-      s.setConfidence(90)
-      expect(localStorage.getItem(LS_CONFIDENCE)).toBe('90')
-      expect(s.filter.confidence).toBe(90)
-    })
     it('setShowSingletons(true)/(false) writes "1"/"0"', () => {
       const s = usePhotosPeople()
       s.setShowSingletons(true)
@@ -200,21 +196,6 @@ describe('photosPeople store', () => {
   })
 
   describe('store initialization reads localStorage', () => {
-    it("invalid value '77' — fallback to default 80", () => {
-      localStorage.setItem(LS_CONFIDENCE, '77')
-      const s = usePhotosPeople()
-      expect(s.filter.confidence).toBe(80)
-    })
-    it("invalid value 'abc' — fallback to default 80", () => {
-      localStorage.setItem(LS_CONFIDENCE, 'abc')
-      const s = usePhotosPeople()
-      expect(s.filter.confidence).toBe(80)
-    })
-    it("valid value '95' — use 95", () => {
-      localStorage.setItem(LS_CONFIDENCE, '95')
-      const s = usePhotosPeople()
-      expect(s.filter.confidence).toBe(95)
-    })
     it("showSingletons==='1' — true", () => {
       localStorage.setItem(LS_SHOW_SINGLETONS, '1')
       const s = usePhotosPeople()
