@@ -5,24 +5,22 @@
 //     (filteredNamed sort/filter, hiddenSingletonCount, mergeReason)
 //   views/Photos/peopleUtils.js:5-8,14-20,44-47 (MONTH_NAMES, monthLabel, personInitial)
 //
-// Two deliberate deviations from a literal line-for-line port (both required by
-// the task brief, not bugs being introduced silently):
-//  1. sortNamed takes `now` as an injected parameter instead of reading
-//     `Date.now()` internally, so the 90-day "recent" filter is deterministic
-//     in tests. Callers in the view layer pass `Date.now()`.
-//  2. The two duplicated singleton predicates in Vue2 (peopleUnnamedVisible
-//     getter, hiddenSingletonCount computed) are unified here into
-//     visibleUnnamedOf / hiddenSingletonCountOf, sharing the same comparison
-//     logic instead of being copy-pasted twice.
+// A deliberate deviation from a literal line-for-line port (required by the task brief, not a
+// bug being introduced silently): sortNamed takes `now` as an injected parameter instead of
+// reading `Date.now()` internally, so the 90-day "recent" filter is deterministic in tests.
+// Callers in the view layer pass `Date.now()`.
 //
 // Task 4 (2026-08-19 timeline/people-visibility fix): the confidence dropdown/gate that used
-// to live here (a third predicate, unnamedCountAt, plus the confidence*100>=threshold clause
-// in the two functions above) has been removed entirely -- a product decision, not a bug fix
-// half-measure. A fixed 80%-confidence default silently hid a real 221-photo cluster at
-// confidence 0.796 with zero indication to the user. It is replaced by
+// to live here (Vue2's peopleUnnamedVisible getter / hiddenSingletonCount computed / a third
+// predicate unnamedCountAt, unified in an earlier pass into visibleUnnamedOf/
+// hiddenSingletonCountOf/unnamedCountAt) has been removed entirely -- a product decision, not
+// a bug fix half-measure. A fixed 80%-confidence default silently hid a real 221-photo cluster
+// at confidence 0.796 with zero indication to the user. It is replaced by
 // splitUnnamedByDistribution below, which decides visibility from the cluster-size
 // distribution instead of a confidence score. mergeConfidencePct (the per-cluster percentage
-// badge) is unrelated and stays.
+// badge) is unrelated and stays. Fix round 1: visibleUnnamedOf/hiddenSingletonCountOf
+// themselves are now deleted too (dead code once the store switched to
+// splitUnnamedByDistribution exclusively — see that function's own comment below).
 
 import { countryFromCoords, type Photo } from './assetToPhoto'
 
@@ -128,18 +126,12 @@ export function unnamedOf(people: Person[]): Person[] {
   return people.filter((p) => !p.name || p.name.trim() === '')
 }
 
-// store/modules/photos.js:337-340. Task 4: the `p.confidence*100 >= f.confidence` clause has
-// been removed (the confidence gate is gone entirely, see the file header) — this now only
-// gates on the singleton toggle.
-export function visibleUnnamedOf(unnamed: Person[], f: PeopleFilter): Person[] {
-  return unnamed.filter((p) => f.showSingletons || p.count >= 2)
-}
-
-// PhotosPeopleView.vue:510-516. Task 4: same confidence-clause removal as visibleUnnamedOf above.
-export function hiddenSingletonCountOf(unnamed: Person[], f: PeopleFilter): number {
-  if (f.showSingletons) return 0
-  return unnamed.filter((p) => p.count < 2).length
-}
+// Task 4 fix round 1 (2026-08-19): visibleUnnamedOf/hiddenSingletonCountOf (the
+// confidence-minus-the-confidence-clause helpers from the original Task 4 pass) were dead
+// production code — splitUnnamedByDistribution below is the store's only visibility source
+// now, and grep confirmed these two had no consumer left outside their own unit tests.
+// Deleted rather than kept around as unused exports. Their showSingletons-gating logic lives
+// on inline in the store's own `visibleUnnamed`/`hiddenSingletonCount` computeds instead.
 
 // Task 4 (2026-08-19 timeline/people-visibility fix): replaces the confidence gate with a
 // size-distribution-based split. Product decision, not a bug fix half-measure — a fixed
@@ -162,7 +154,25 @@ export function splitUnnamedByDistribution(unnamed: Person[]): UnnamedSplit {
     cum += multi[k].count
     k++
   }
-  while (k > 0 && k < multi.length && multi[k].count === multi[k - 1].count) k++
+  // Fix round 1: whole-group tie resolution, replacing a naive "extend while the next item
+  // ties" loop that was unbounded and silently defeated MAX_SHOW on near-uniform
+  // distributions (e.g. 100 clusters all count=5 used to show all 100, folding nothing).
+  // A run of equal counts must never be split across the visible/folded boundary, but MIN_SHOW/
+  // MAX_SHOW are hard bounds that take priority over that rule when they conflict.
+  if (k < multi.length) {
+    const c = multi[k - 1].count
+    // [hi, lo) = the contiguous run of clusters with count === c straddling the cut at k
+    // (multi is sorted descending, so equal-count runs are always contiguous).
+    let hi = k - 1
+    while (hi > 0 && multi[hi - 1].count === c) hi--
+    let lo = k
+    while (lo < multi.length && multi[lo].count === c) lo++
+    if (k !== lo) { // k === lo means the run already ends exactly at the cut -- nothing to resolve
+      if (lo <= MAX_SHOW) k = lo // extend: the whole tie group still fits under the cap
+      else if (hi >= MIN_SHOW) k = hi // retract: fold the whole tie group instead
+      else k = Math.min(MAX_SHOW, multi.length) // degenerate near-uniform case: bounds win, tie is split as a last resort
+    }
+  }
   return { visible: multi.slice(0, k), folded: multi.slice(k), singletons }
 }
 

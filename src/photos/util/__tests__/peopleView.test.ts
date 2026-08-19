@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  toPerson, personInitial, namedOf, unnamedOf, visibleUnnamedOf,
-  hiddenSingletonCountOf, sortNamed, monthKeyLabel, mergeConfidencePct,
+  toPerson, personInitial, namedOf, unnamedOf,
+  sortNamed, monthKeyLabel, mergeConfidencePct,
   mergeReasonKey, nimoReadParts, findNamedDuplicate,
   PLACE_PALETTE, groupPlaces, colorPoints,
   topPersons, topPlaces, byYear, resolvePersonByName,
@@ -76,32 +76,6 @@ describe('findNamedDuplicate', () => {
   })
 })
 
-// Task 4 (2026-08-19 timeline/people-visibility fix): the confidence gate is gone (product
-// decision — a fixed confidence threshold silently hid a real 221-photo/0.796-confidence
-// cluster; see splitUnnamedByDistribution below for the replacement). What's left of
-// visibleUnnamedOf/hiddenSingletonCountOf is only the showSingletons half of their old
-// predicate.
-describe('visibleUnnamedOf', () => {
-  const un = [
-    P({ id: 'a', confidence: 0.8, count: 5 }),
-    P({ id: 'b', confidence: 0.1, count: 5 }),   // low confidence, no longer filtered out
-    P({ id: 'c', confidence: 0.95, count: 1 }),  // single photo
-  ]
-  it('multi-photo clusters pass regardless of confidence', () => {
-    expect(visibleUnnamedOf(un, { showSingletons: false }).map((p) => p.id)).toEqual(['a', 'b'])
-  })
-  it('showSingletons on lets single photos through too', () => {
-    expect(visibleUnnamedOf(un, { showSingletons: true }).map((p) => p.id)).toEqual(['a', 'b', 'c'])
-  })
-  it('is strictly complementary with hiddenSingletonCountOf', () => {
-    const f = { showSingletons: false }
-    expect(visibleUnnamedOf(un, f).length + hiddenSingletonCountOf(un, f)).toBe(un.length)
-  })
-  it('hidden is always 0 when showSingletons is on', () => {
-    expect(hiddenSingletonCountOf(un, { showSingletons: true })).toBe(0)
-  })
-})
-
 // Task 4: the size-distribution-based replacement for the confidence gate. Real production
 // bug this exists to fix: a 221-photo cluster at confidence 0.796 was silently hidden by the
 // old default 80% confidence threshold — see case 5 below, the literal regression fixture.
@@ -172,6 +146,36 @@ describe('splitUnnamedByDistribution', () => {
     const { visible } = splitUnnamedByDistribution(unnamed)
     expect(visible.map((p) => p.id)).toContain('bug')
     expect(visible[0]).toBe(bug) // largest count sorts first
+  })
+
+  // Fix round 1 (review finding 1): the tie-extension used to be a naive "keep extending while
+  // the next item ties" loop, which is unbounded and silently defeats MAX_SHOW on a
+  // near-uniform distribution -- verified before the fix: 100 clusters all count=5 used to
+  // produce visible.length===100, folded===0, folding nothing at all. This is the degenerate
+  // last-resort branch: the whole array is one giant tie group (hi=0, lo=100), it doesn't fit
+  // under MAX_SHOW (lo>60) and hi(0) is below MIN_SHOW, so the bounds win and the tie is split
+  // at exactly MAX_SHOW.
+  it('near-uniform distribution: MAX_SHOW wins over the tie rule as a last resort (100 clusters, all count=5)', () => {
+    const unnamed = new Array(100).fill(0).map((_, i) => P({ id: `u${i}`, count: 5 }))
+    const { visible, folded } = splitUnnamedByDistribution(unnamed)
+    expect(visible).toHaveLength(60)
+    expect(folded).toHaveLength(40)
+  })
+
+  // Fix round 1 (review finding 1), the "retract" branch: 20 head clusters (count=10, distinct
+  // from the tie value) followed by 100 count=2 clusters. The coverage loop's MAX_SHOW cap
+  // stops it at k=60, landing inside the count=2 run (hi=20, lo=120). The tie group doesn't
+  // fit under MAX_SHOW (lo=120>60) but hi=20>=MIN_SHOW(12), so the whole run retracts out of
+  // visible instead of being split -- visible ends at the last count>2 cluster, and the
+  // *entire* count=2 run is folded together, not just the part beyond MAX_SHOW.
+  it('a long tail of tied count=2 clusters past MAX_SHOW folds as one whole group (retract branch)', () => {
+    const head = new Array(20).fill(0).map((_, i) => P({ id: `h${i}`, count: 10 }))
+    const twos = new Array(100).fill(0).map((_, i) => P({ id: `d${i}`, count: 2 }))
+    const { visible, folded } = splitUnnamedByDistribution([...head, ...twos])
+    expect(visible).toHaveLength(20)
+    expect(visible.every((p) => p.count === 10)).toBe(true)
+    expect(folded).toHaveLength(100)
+    expect(folded.every((p) => p.count === 2)).toBe(true)
   })
 })
 
