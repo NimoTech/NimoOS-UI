@@ -10,17 +10,29 @@ vi.mock('@nimotech/nimoos-service', () => ({
 }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
-const ITEM = { time: '14:30', dayLabelText: '今天', label: '改版前', typeKind: 'manual' as const, typeLabelKey: 'snapTypeManual' }
+const ITEM = { label: '改版前', typeKind: 'manual' as const, typeLabelKey: 'snapTypeManual' }
 const mountIt = (props = {}) =>
-  mount(TimeMachineCard, { props: { item: ITEM, state: 'front' as const, depth: 0, ...props }, global: { plugins: [i18n] } })
+  mount(TimeMachineCard, {
+    props: { item: ITEM, state: 'front' as const, depth: 0, folderLabel: '/磁盘/Photos', subPath: '', ...props },
+    global: { plugins: [i18n] },
+  })
 
 describe('TimeMachineCard', () => {
-  it('show time, date, type badge, and label', () => {
-    const text = mountIt().text()
-    expect(text).toContain('14:30')
-    expect(text).toContain('今天')
-    expect(text).toContain('手动')
-    expect(text).toContain('改版前')
+  // The header's left slot holds the folder path; the snapshot's own moment is shown once, at the
+  // bottom of the screen (owner's call: one clock, not two).
+  it('show the folder path, type badge, and label -- and no clock', () => {
+    const w = mountIt()
+    expect(w.findAll('.tm-crumb').map((c) => c.text())).toEqual(['磁盘', 'Photos'])
+    expect(w.text()).toContain('手动')
+    expect(w.text()).toContain('改版前')
+    expect(w.text()).not.toMatch(/\d{1,2}:\d{2}/)
+  })
+  it('clicking a path level asks to move there, without reaching the card underneath', async () => {
+    const w = mountIt({ subPath: '2024' })
+    await w.findAll('button.tm-crumb').find((c) => c.text() === 'Photos')!.trigger('click')
+    expect(w.emitted('navigate')).toEqual([['']])
+    // The card's own click means "enter this snapshot" -- a crumb click must not bubble into it.
+    expect(w.emitted('click')).toBeUndefined()
   })
   it('do not render label row when label is empty', () => {
     expect(mountIt({ item: { ...ITEM, label: '' } }).find('.tm-card-label').exists()).toBe(false)
@@ -77,15 +89,49 @@ describe('file grid inside card', () => {
     expect(w.text()).toContain('此文件夹为空')
     expect(w.find('.tm-files').exists()).toBe(false)
   })
-  it('fetch failed → fall back to plain text card, do not show error', () => {
+  it('fetch failed → one quiet line, never a blank card', () => {
     const w = mountIt({ preview: { status: 'failed', entries: [], total: 0 } })
     expect(w.find('.tm-files').exists()).toBe(false)
-    expect(w.text()).toContain('14:30')
+    // The card used to fall back to "no error, just the card", which was fine while it carried a
+    // big clock; once that moved to the bottom of the screen the fallback was 540px of nothing.
+    expect(w.get('.tm-card-note').text()).toBe('暂时读不到这个文件夹的内容')
     expect(w.text()).not.toContain('失败')
   })
   it('no preview (not yet fetched) → plain text card', () => {
     expect(mountIt().find('.tm-files').exists()).toBe(false)
   })
+  it('a content change scrolls the card body back to the top (the same node is reused, so the new folder must not open mid-list)', async () => {
+    const w = mountIt({ preview })
+    const body = w.get('.tm-card-body').element as HTMLElement
+    body.scrollTop = 120
+    await w.setProps({ preview: { ...preview, entries: [...preview.entries] } })
+    await nextTick()
+    expect(body.scrollTop).toBe(0)
+  })
+
+  // ── Opening a folder from the card (user feedback: "folders can't be opened") ─────────
+  it('clicking a folder cell emits open-dir with that entry', async () => {
+    const w = mountIt({ preview })
+    await w.get('.tm-file.is-dir').trigger('click')
+    expect(w.emitted('open-dir')).toHaveLength(1)
+    expect((w.emitted('open-dir')![0][0] as { name: string }).name).toBe('sub')
+  })
+  it('a file cell is inert: it emits nothing and, being disabled, cannot bubble a click up to "enter this snapshot"', async () => {
+    const w = mountIt({ preview })
+    const fileCells = w.findAll('.tm-file:not(.tm-file-more)').filter((c) => !c.classes().includes('is-dir'))
+    expect(fileCells).toHaveLength(2)
+    for (const cell of fileCells) {
+      expect(cell.attributes('disabled')).toBeDefined() // a disabled control dispatches no click at all
+      await cell.trigger('click')
+    }
+    expect(w.emitted('open-dir')).toBeUndefined()
+  })
+  it('only folder cells carry is-dir (that class is what makes them look clickable)', () => {
+    const w = mountIt({ preview })
+    expect(w.findAll('.tm-file.is-dir')).toHaveLength(1)
+    expect(w.get('.tm-file.is-dir').attributes('disabled')).toBeUndefined()
+  })
+
   // The deck window holds 5 cards; one card of 36 cells = 180 <img>, each firing a real
   // thumbnail request. Rear cards are hidden except a top strip, so rendering the grid is
   // pure waste — this test guards that constraint.

@@ -870,12 +870,15 @@ export default {
   snapBrowseRestoringProgress: 'Restoring {done}/{total}',
 
   tmEntry: 'Time Machine',
-  tmViewingFolder: 'Browsing earlier versions of {path}',
   tmEnter: 'Enter this snapshot',
   tmSettings: 'Snapshot settings',
   tmNoFolderAtTime: 'This folder did not exist yet',
+  tmPreviewUnavailable: "Couldn't read this folder just now",
   tmItemCount: '{n} items',
   tmRailJumpTo: 'Jump to the snapshot from {time}',
+  tmStepNewer: 'Newer snapshot',
+  tmStepEarlier: 'Earlier snapshot',
+  tmOpenFolder: 'Open folder {name}',
 
   wpTitle: 'Change wallpaper',
   wpPresetBlue: 'Blue base',

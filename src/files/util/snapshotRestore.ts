@@ -2,6 +2,7 @@
 // so both can be unit-tested directly without mounting any components — same boundary as Vue2 snapshotBrowse.js.
 
 import { parseSnapshotBrowsePath, findVolumeUuidForMount, type SnapshotVolumeLike } from './snapshotPath'
+import { httpStatusOf, envelopeCodeOf } from './apiError'
 
 /**
  * Block a write operation in a read-only snapshot: if hit, emit a friendly message as toast and return true (caller must return).
@@ -22,11 +23,18 @@ export type RestoreResult =
   | { ok: true; restoredPath: string }
   | { ok: false; reason: 'invalid' | 'not-found' | 'error' }
 
-// Extract HTTP status from thrown errors. The shared package's unwrap() throws Error & {code} (the success field in the envelope);
-// network-layer 4xx thrown by axios has status on response.status — both need to be recognized.
+// 🔴 This used to be a local `code ?? response.status`, and on the path that actually happens here
+// it never worked: LocalStorage answers a real HTTP 404/400 (route/snapshot.go:202-204), so axios
+// throws an AxiosError whose `code` is the STRING 'ERR_BAD_REQUEST' (http.ts:43), and that string
+// shadowed the numeric status -- `status === 404` below was dead code, and a file genuinely absent
+// from the snapshot fell through to the generic "restore failed" instead of "that file is no longer
+// in this snapshot".
+// HTTP status first, because this endpoint's meaning lives there (it puts a generic INVALID_PARAMS
+// in the envelope for both 404 and 400); the envelope is the fallback slot for the same reason the
+// preview checks it -- the standard envelope's `success` can itself carry the status. Neither slot
+// can be dropped. See util/apiError.ts.
 function statusOf(e: unknown): number | undefined {
-  const withCode = e as { code?: number; response?: { status?: number } } | undefined
-  return withCode?.code ?? withCode?.response?.status
+  return httpStatusOf(e) ?? envelopeCodeOf(e)
 }
 
 // Response shape fallback: the shared package unwraps one envelope layer, but historically the backend has also double-wrapped with a data field, so both variants are extracted.

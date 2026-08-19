@@ -1,6 +1,7 @@
 import { ref, watch, onScopeDispose, type Ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { snapshotBrowsePath } from '../util/snapshotPath'
+import { envelopeCodeOf, httpStatusOf, FILE_DOES_NOT_EXIST } from '../util/apiError'
 import type { FileEntry } from '../stores/files'
 
 // When the card expands to 3/4 screen, the front card becomes a scrollable file grid.
@@ -35,24 +36,45 @@ function sortLikeFiles(entries: FileEntry[]): FileEntry[] {
   })
 }
 
-// Extracts HTTP status from thrown errors. Same logic as statusOf in files/util/snapshotRestore.ts:
-// the shared package's unwrap() throws Error & {code} (from envelope success field);
-// axios throws network 4xx with status in response.status — must handle both cases.
-function statusOf(e: unknown): number | undefined {
-  const withCode = e as { code?: number; response?: { status?: number } } | undefined
-  return withCode?.code ?? withCode?.response?.status
+// Whether the folder existed in that snapshot is the most useful thing this composable could
+// report -- the card would say so in plain language, and entering the snapshot would land at its
+// root instead of composing a path that is not there.
+//
+// 🔴 The listing endpoint cannot answer it. `service.folder.getList` calls GET /v1/folder, and
+// NimoOS core collapses every failure there into one response (route/v1/file.go:399):
+//   ctx.JSON(SERVICE_ERROR, Result{ Success: SERVICE_ERROR, Message: "Fail", Data: err.Error() })
+// Measured against the production device:
+//   GET /v1/folder?path=/DATA/.snapshots/<absent>/Photos
+//   -> 500 {"success":500,"message":"Fail","data":"open …: no such file or directory"}
+// An absent folder and an unreadable one are indistinguishable, short of pattern-matching a Go
+// error string, which this deliberately does not do.
+//
+// So 'missing' is reported only when a backend actually says so, and the two arms below are the
+// two ways that can arrive (a real 404, or FILE_DOES_NOT_EXIST -- which GET /v1/file does send,
+// so a sibling endpoint already has the convention). Everything else is 'failed', and the two are
+// kept apart rather than merged because their consequences differ: see enterSnapshot, which only
+// composes a sub-path for a listing it actually saw succeed.
+// Follow-up worth having: /v1/folder returning 60001 the way /v1/file already does would make the
+// plain-language card line work; that is a NimoOS core change, not a frontend one.
+function isMissing(e: unknown): boolean {
+  const envelope = envelopeCodeOf(e)
+  // 404 is accepted from either slot because the standard envelope's `success` carries the HTTP
+  // status (see util/apiError.ts).
+  return envelope === FILE_DOES_NOT_EXIST || envelope === 404 || httpStatusOf(e) === 404
 }
 
 // "What this folder looked like at that moment" on the card: snapshot content is a plain
 // read-only directory, so use the file grid's existing list API to read <snapshot root>/<current relative path>.
-// Only fetch for **currently visible** cards (the card deck window shows 5+2 cards);
-// results are cached by snapshot name — scrolling back and forth won't repeat requests;
-// when switching volumes or directories the cache is completely invalidated and re-fetched.
+// The caller decides which snapshots are worth a request; today that is just the front card
+// (see TimeMachineOverlay's previewNames -- fetching the whole deck window cost up to 7 listings
+// per flip for at most two rendered grids). Results are cached by snapshot name, so walking back
+// to an already-seen snapshot repeats no request; changing volume or directory invalidates the
+// whole cache and supersedes anything still in flight.
 export function useDeckPreview(opts: {
   mountPoint: () => string
   relPath: () => string
   visibleNames: () => string[]
-}): { previews: Ref<Record<string, DeckPreview>> } {
+}): { previews: Ref<Record<string, DeckPreview>>; ensure: (name: string) => Promise<DeckPreview> } {
   const previews = ref<Record<string, DeckPreview>>({})
   let cacheKey = ''
   // Stale response guard (T9 review Important): when switching directories/volumes, the
@@ -70,28 +92,59 @@ export function useDeckPreview(opts: {
   let disposed = false
   onScopeDispose(() => { disposed = true })
 
-  async function fetchOne(name: string, myEpoch: number) {
+  // Deduplicates concurrent asks for the same snapshot: the debounced watch below and an
+  // explicit ensure() (see the return value) must not put two listings of the same directory on
+  // the wire, and ensure() must be able to await one that is already running.
+  // ⚠️ Keyed by epoch AND name, not by name alone. The same snapshot name is requested again
+  // after the directory changes, and a bare name key handed that second ask the first ask's
+  // promise -- so the NEW directory was never listed, and the card kept showing (or waiting on)
+  // the old one. Caught by the "stale response from the old directory" test.
+  const inflight = new Map<string, Promise<DeckPreview>>()
+  const inflightKey = (name: string, ep: number) => `${ep}::${name}`
+
+  async function fetchOne(name: string, myEpoch: number): Promise<DeckPreview> {
     const dir = opts.relPath()
       ? `${snapshotBrowsePath(opts.mountPoint(), name)}/${opts.relPath()}`
       : snapshotBrowsePath(opts.mountPoint(), name)
     previews.value = { ...previews.value, [name]: { status: 'loading', entries: [], total: 0 } }
     try {
       const data = await service.folder.getList(dir)
-      if (disposed || myEpoch !== epoch) return // stale response/unmounted: discard entire result, don't write state
       const content = ((data as { content?: FileEntry[] })?.content ?? [])
         .filter((e) => !e.name.startsWith('.') && !HIDDEN.has(e.name))
       const entries = sortLikeFiles(content).slice(0, MAX_TILES)
-      previews.value = { ...previews.value, [name]: { status: 'ready', entries, total: content.length } }
+      const result: DeckPreview = { status: 'ready', entries, total: content.length }
+      // Stale response/unmounted: discard the entire result, don't write state. The value is
+      // still handed back to whoever awaited this particular call -- it is the truth about the
+      // directory that was asked for, and that caller does its own staleness check (see
+      // TimeMachineOverlay's enterSnapshot); what must not happen is it landing in the shared map.
+      if (!disposed && myEpoch === epoch) previews.value = { ...previews.value, [name]: result }
+      return result
     } catch (e) {
-      if (disposed || myEpoch !== epoch) return
-      // 404 = folder didn't exist at that time (card should speak plain English);
-      // everything else is failed, silently fall back to text-only card.
-      const status = statusOf(e)
-      previews.value = {
-        ...previews.value,
-        [name]: { status: status === 404 ? 'missing' : 'failed', entries: [], total: 0 },
-      }
+      // "did not exist at that time" gets its own plain-language card; everything else is a
+      // failure and gets the quieter "couldn't read it just now" line.
+      const result: DeckPreview = { status: isMissing(e) ? 'missing' : 'failed', entries: [], total: 0 }
+      if (!disposed && myEpoch === epoch) previews.value = { ...previews.value, [name]: result }
+      return result
     }
+  }
+
+  function start(name: string): Promise<DeckPreview> {
+    const key = inflightKey(name, epoch)
+    const running = inflight.get(key)
+    if (running) return running
+    const p = fetchOne(name, epoch)
+    inflight.set(key, p)
+    void p.finally(() => { if (inflight.get(key) === p) inflight.delete(key) })
+    return p
+  }
+
+  // Await a settled answer for one snapshot, reusing the cache or an in-flight request. Exists
+  // for decisions that cannot be made on "not known yet" -- entering a snapshot has to know
+  // whether the folder existed at that moment, and the listing behind that answer is debounced.
+  function ensure(name: string): Promise<DeckPreview> {
+    const cached = previews.value[name]
+    if (cached && (cached.status === 'ready' || cached.status === 'missing')) return Promise.resolve(cached)
+    return start(name)
   }
 
   watch(
@@ -100,19 +153,21 @@ export function useDeckPreview(opts: {
       const key = `${opts.mountPoint()}::${opts.relPath()}`
       // Switching volumes or directories invalidates all cached directory content and
       // supersedes any in-flight old requests
-      if (key !== cacheKey) { cacheKey = key; previews.value = {}; epoch += 1 }
+      // Superseded requests are dropped from the dedupe table too: they can no longer be
+      // reused (their key carries the old epoch) and keeping them would just leak.
+      if (key !== cacheKey) { cacheKey = key; previews.value = {}; epoch += 1; inflight.clear() }
       if (!opts.mountPoint()) return
       for (const name of opts.visibleNames()) {
         const cached = previews.value[name]
         // A `failed` entry means the request blew up -- usually a blip. It used to
         // count as "already fetched" and the card stayed a text card for as long as
-        // it remained visible, even after the network came back. `missing` (404) is
+        // it remained visible, even after the network came back. `missing` is
         // a stable fact about that snapshot and is never retried.
-        if (!cached || cached.status === 'failed') fetchOne(name, epoch)
+        if (!cached || cached.status === 'failed') void start(name)
       }
     },
     { immediate: true },
   )
 
-  return { previews }
+  return { previews, ensure }
 }

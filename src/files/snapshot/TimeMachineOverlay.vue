@@ -4,8 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { useSnapshotStore } from '../../storage/stores/snapshot'
 import { groupSnapshotsByDay } from '../../storage/util/snapshotView'
 import { snapshotBrowsePath } from '../util/snapshotPath'
-import { buildVisibleStack, stepSelectedIndex, DECK_WINDOW } from '../util/timeMachineMath'
+import { stepSelectedIndex } from '../util/timeMachineMath'
 import { useDeckPreview } from '../composables/useDeckPreview'
+import type { FileEntry } from '../stores/files'
 import TimeMachineBar from './TimeMachineBar.vue'
 import TimeMachineDeck from './TimeMachineDeck.vue'
 import TimeMachineRail from './TimeMachineRail.vue'
@@ -22,7 +23,83 @@ const emit = defineEmits<{ (e: 'close'): void; (e: 'select', path: string): void
 
 const { t } = useI18n()
 const store = useSnapshotStore()
+// Two indices, deliberately. selectedIndex is the card actually at the front right now;
+// targetIndex is where the user asked to go. Clicking a tick eight snapshots away used to
+// assign the index in one go, so the deck cut straight there and the seven cards in between
+// were never seen (user feedback: "flipping several pages just jumps, there is no page-flip
+// animation -- I want to really see 10 pages go past"). The stepper below walks selectedIndex
+// toward targetIndex one snapshot per tick, so every card in between takes its turn at the
+// front and flies out, and the rail highlight travels through the ticks with it.
 const selectedIndex = ref(0)
+const targetIndex = ref(0)
+// Pace: one step per interval, where the interval is the remaining travel budget spread over
+// the snapshots still to pass. Remaining shrinks as we go, so the interval grows -- the run
+// decelerates into its destination instead of stopping dead. Clamped at both ends: STEP_MAX
+// keeps a two-card hop from feeling sluggish, STEP_MIN keeps a hundred-card hop from taking
+// ten seconds (at that distance the cards blur past, which is the honest depiction of the
+// distance travelled).
+// Pace, and why it landed back where it started: 110ms was first reported as too fast in the
+// newest-to-earliest direction, so it was slowed to 220ms -- but that judgement was made on a build
+// where the flip never animated at all (the cards teleported; see TimeMachineDeck's note on stable
+// render order). With the transition actually running, 220ms reads as sluggish and 110ms is right,
+// which is where the owner put it back. Don't "fix" this by slowing it again without checking that
+// the transition is really interpolating first.
+const STEP_BUDGET_MS = 900
+const STEP_MIN_MS = 24
+const STEP_MAX_MS = 110
+let stepTimer: ReturnType<typeof setTimeout> | null = null
+function clearStepTimer() {
+  if (stepTimer !== null) { clearTimeout(stepTimer); stepTimer = null }
+}
+function stepInterval(remaining: number): number {
+  return Math.min(STEP_MAX_MS, Math.max(STEP_MIN_MS, STEP_BUDGET_MS / Math.max(remaining, 1)))
+}
+// Walks one snapshot and schedules the next while there is still ground to cover. targetIndex
+// is re-read every tick, so a click (or key repeat) landing mid-run redirects the walk --
+// including reversing it -- without stacking a second timer.
+function stepOnce() {
+  stepTimer = null
+  const from = selectedIndex.value
+  const to = targetIndex.value
+  if (from === to) return
+  selectedIndex.value = from + Math.sign(to - from)
+  const remaining = Math.abs(targetIndex.value - selectedIndex.value)
+  if (remaining > 0) stepTimer = setTimeout(stepOnce, stepInterval(remaining))
+}
+// Every path that moves the selection goes through here: rail clicks, rail step buttons, arrow
+// keys. The first step is taken synchronously so a single-snapshot move stays instant.
+function goToIndex(index: number) {
+  targetIndex.value = stepSelectedIndex(index, 0, flatItems.value.length)
+  clearStepTimer()
+  stepOnce()
+}
+// Used when the walk must not be left half-finished: entering a snapshot has to act on the one
+// the user asked for, not on whichever card the animation happens to be passing through.
+function flushSteps() {
+  clearStepTimer()
+  selectedIndex.value = targetIndex.value
+}
+// Folder the deck has been drilled into, relative to props.relPath (empty = the folder the
+// files area is standing in). Clicking a folder on a card walks down here instead of leaving
+// the time machine, which is what "folders in the snapshot can't be opened" meant: a folder
+// click bubbled up to the card, and a click on the front card means "enter this snapshot".
+const subPath = ref('')
+// How long after the last selection change the incoming front card may lay out its file grid.
+// Mounting up to 200 cells (each an <img> with its own IntersectionObserver) in the same frame
+// the transform starts is what made the flip stutter, so the grid waits for the deck to settle.
+// Holding an arrow key therefore flips through text-only cards and paints the grid once, after
+// the user stops -- the trade the owner explicitly accepted ("when going to the previous one,
+// don't load the next one yet").
+// ⚠️ Must stay >= TimeMachineCard's .tm-card transform duration (0.45s). A shorter value only
+// looks like it works: measured in a real browser at 260ms against the old 450ms transition,
+// the grid mounted 190ms before the transform finished, i.e. still inside the animation this is
+// meant to keep clear. The flip transition is 0.32s now, so this came down with it.
+const PREVIEW_SETTLE_MS = 360
+const settledIndex = ref(0)
+let settleTimer: ReturnType<typeof setTimeout> | null = null
+function clearSettleTimer() {
+  if (settleTimer !== null) { clearTimeout(settleTimer); settleTimer = null }
+}
 
 // Grouping reuses the SP6-P5 accepted groupSnapshotsByDay (not rewritten), then flattens into
 // a list with flatIndex: the deck, keyboard stepping, and rail all work on this cross-day flat
@@ -41,43 +118,135 @@ const groups = computed(() => {
 })
 const flatItems = computed(() => groups.value.flatMap((g) => g.items.map((it) => ({ ...it, dayLabelText: g.labelText }))))
 const selectedItem = computed(() => flatItems.value[selectedIndex.value] ?? null)
+// Which way the deck can still be walked. The list is newest-first, so the newest snapshot is at
+// index 0 (the top of the rail) and "earlier" means a larger index. Read off targetIndex, not
+// selectedIndex: while a walk is in flight the buttons must reflect where it is heading, or the
+// one you are holding greys out under the cursor before the deck gets there.
+const canNewer = computed(() => targetIndex.value > 0)
+const canEarlier = computed(() => targetIndex.value < flatItems.value.length - 1)
 const momentText = computed(() => (selectedItem.value ? `${selectedItem.value.dayLabelText} ${selectedItem.value.time}` : ''))
+// The directory every card previews: the files area's folder plus however far the user has
+// drilled down inside the cards.
+const effRelPath = computed(() => {
+  if (!subPath.value) return props.relPath
+  return props.relPath ? `${props.relPath}/${subPath.value}` : subPath.value
+})
 
-// Fetch previews only for the cards in the deck window (cards show "what this folder looked
-// like at that moment") — this uses the same buildVisibleStack as TimeMachineDeck's internal
-// visible-window rendering, and the window sizes must match — both read DECK_WINDOW from
-// timeMachineMath.ts instead of separate literals (review fix, Important).
-const visibleNames = computed(() =>
-  buildVisibleStack(flatItems.value, selectedIndex.value, DECK_WINDOW.depth, DECK_WINDOW.past).map((e) => e.item.name))
-const { previews } = useDeckPreview({
+// Only the front card's folder listing is fetched. It used to be the whole deck window
+// (front + 4 behind + 2 past), i.e. up to 7 directory listings per selection change, of which
+// at most two were ever rendered -- rear cards deliberately draw no grid. The rest was
+// bandwidth and main-thread work spent during the very animation the user reported as not
+// smooth. Stepping back to an already-seen snapshot is still instant: useDeckPreview caches by
+// snapshot name and only drops the cache when the directory itself changes.
+//
+// It follows targetIndex, not selectedIndex: a ten-snapshot walk passes nine cards the user
+// never asked to look at, and listing each of them would put ten requests on the wire during
+// the animation. A short debounce collapses a burst of clicks/key-repeats into one request for
+// wherever the user actually ended up. It is deliberately much shorter than the grid's settle
+// delay, so the listing is usually already in hand by the time the deck stops walking --
+// including for enterSnapshot's "does this folder exist in that snapshot" check, which reads
+// this same map. (Hammering "enter" within PREVIEW_FETCH_DEBOUNCE_MS of a flip still finds no
+// entry and falls back to composing the sub-path, exactly as it did before this whole change.)
+const PREVIEW_FETCH_DEBOUNCE_MS = 120
+const fetchIndex = ref(0)
+let fetchTimer: ReturnType<typeof setTimeout> | null = null
+function clearFetchTimer() {
+  if (fetchTimer !== null) { clearTimeout(fetchTimer); fetchTimer = null }
+}
+watch(targetIndex, (index) => {
+  clearFetchTimer()
+  fetchTimer = setTimeout(() => { fetchTimer = null; fetchIndex.value = index }, PREVIEW_FETCH_DEBOUNCE_MS)
+})
+const previewNames = computed(() => {
+  const item = flatItems.value[fetchIndex.value]
+  return item ? [item.name] : []
+})
+const { previews, ensure } = useDeckPreview({
   mountPoint: () => props.mountPoint,
-  relPath: () => props.relPath,
-  visibleNames: () => visibleNames.value,
+  relPath: () => effRelPath.value,
+  visibleNames: () => previewNames.value,
+})
+// What the deck is allowed to render. While a flip is still settling, the incoming front card's
+// preview is withheld so it stays a text-only card for the duration of the transform; the card
+// flying out keeps its own grid (continuity), and the grid appears once the deck stops.
+const deckPreviews = computed(() => {
+  const name = selectedItem.value?.name
+  if (!name || settledIndex.value === selectedIndex.value) return previews.value
+  const out = { ...previews.value }
+  delete out[name]
+  return out
 })
 
 async function load() {
   if (!props.volumeUuid) return
   await store.loadSnapshots(props.volumeUuid)
   // Every (re)load returns to the newest snapshot — the old index may not point to the same snapshot in the new list
+  clearSettleTimer()
+  clearStepTimer()
+  clearFetchTimer()
   selectedIndex.value = 0
+  targetIndex.value = 0
+  settledIndex.value = 0
+  fetchIndex.value = 0
 }
 defineExpose({ reload: load })
 
-function enterSnapshot() {
-  if (!props.mountPoint || !selectedItem.value) return
-  const root = snapshotBrowsePath(props.mountPoint, selectedItem.value.name)
+let entering = false
+async function enterSnapshot() {
+  // Finish any walk still in flight first, so "enter" acts on the snapshot the user aimed at
+  // rather than the one the deck is currently passing through.
+  flushSteps()
+  if (!props.mountPoint || !selectedItem.value || entering) return
+  const item = selectedItem.value
+  const rel = effRelPath.value
+  const root = snapshotBrowsePath(props.mountPoint, item.name)
   // ⚠️ Deliberate correction over Vue2 (spec §4 item 1): Vue2's enterSnapshot only jumps to
-  // the snapshot root — a user opening Time Machine at /Photos/2024 got dumped back at the
+  // the snapshot root -- a user opening Time Machine at /Photos/2024 got dumped back at the
   // volume root and had to click back down level by level. The card shows the current folder
   // at that moment, so entering should naturally land on the same relative path.
-  // Review fix (Important, spec §2.3): when the snapshot simply doesn't contain this directory
-  // (useDeckPreview's directory fetch 404s → status:'missing', and the card is already showing
-  // "this folder didn't exist yet"), entering is still allowed but lands at the snapshot
-  // root — otherwise we'd compose a nonexistent subpath, files.load's catch would silently
-  // degrade it to an "empty folder", and the user would wrongly conclude this snapshot backed
-  // up nothing.
-  const missing = previews.value[selectedItem.value.name]?.status === 'missing'
-  emit('select', !missing && props.relPath ? `${root}/${props.relPath}` : root)
+  if (!rel) { emit('select', root); return }
+  // Only compose the sub-path for a listing that actually came back. If the folder is not in this
+  // snapshot, composing it anyway makes files.load fall into its catch and degrade the result to
+  // "empty folder" -- the user then concludes this snapshot backed nothing up, which is a lie.
+  // Landing at the snapshot root is honest in every unconfirmed case, and it is the only safe
+  // default available: the listing endpoint cannot tell "was not there" from "could not be read"
+  // (see useDeckPreview). The previous version redirected only on an explicit 'missing', which on
+  // this backend never happened.
+  //
+  // The answer has to be awaited rather than read optimistically: listings are debounced and only
+  // the target snapshot is ever listed, so "flip one card, immediately hit enter" genuinely arrives
+  // here with nothing known yet. ensure() reuses the cache or an already-running request, so the
+  // common case (the listing landed while the deck was still walking) does not wait at all.
+  let status = previews.value[item.name]?.status
+  if (status !== 'ready' && status !== 'missing') {
+    entering = true
+    try { status = (await ensure(item.name)).status } finally { entering = false }
+    // The selection or the drilled path may have moved while we waited; navigating to what the
+    // user has since aimed away from would be worse than not navigating at all.
+    if (selectedItem.value?.name !== item.name || effRelPath.value !== rel) return
+  }
+  emit('select', status === 'ready' ? `${root}/${rel}` : root)
+}
+
+// Walking the deck. stepSelection is shared by the rail's two step buttons and the arrow keys,
+// so both clamp at the ends the same way. It steps from the TARGET, not from the card on
+// screen: holding an arrow key must queue up ten snapshots of travel, not keep re-aiming one
+// step ahead of a deck that is still catching up.
+function stepSelection(delta: number) {
+  goToIndex(stepSelectedIndex(targetIndex.value, delta, flatItems.value.length))
+}
+function openDir(entry: FileEntry) {
+  if (!entry?.name) return
+  subPath.value = subPath.value ? `${subPath.value}/${entry.name}` : entry.name
+}
+function goUp() {
+  if (!subPath.value) return
+  const cut = subPath.value.lastIndexOf('/')
+  subPath.value = cut === -1 ? '' : subPath.value.slice(0, cut)
+}
+// The breadcrumb hands back the sub-path to stand at ('' = the folder the files area is on).
+function goToSubPath(sub: string) {
+  subPath.value = sub
 }
 
 // Review fix (Critical, round 1): this handler is attached to document (arrow keys/Esc/Enter
@@ -128,9 +297,17 @@ function onKeydown(e: KeyboardEvent) {
   }
   const code = e.code || e.key
   if (code === 'Escape') { emit('close'); return }
-  // Same as real Time Machine: ↑ goes toward the past (larger index, list is newest-first), ↓ back toward now
-  if (code === 'ArrowUp') { selectedIndex.value = stepSelectedIndex(selectedIndex.value, 1, flatItems.value.length); return }
-  if (code === 'ArrowDown') { selectedIndex.value = stepSelectedIndex(selectedIndex.value, -1, flatItems.value.length); return }
+  // ↑/↓ move the highlight the way the rail runs: up the rail is a newer snapshot (smaller
+  // index, the list is newest-first), down is an earlier one. This deliberately drops the
+  // "real Time Machine's ↑ rewinds into the past" convention that was followed here before --
+  // with the rail visible on screen and its two step buttons pointing the same way, an arrow
+  // key that moved the highlight against its own direction was simply wrong (owner's call).
+  if (code === 'ArrowUp') { stepSelection(-1); return }
+  if (code === 'ArrowDown') { stepSelection(1); return }
+  // Backspace mirrors the bottom bar's "back to parent folder"; a no-op when the deck has not
+  // been drilled into anything. The INPUT/TEXTAREA guard above already keeps it from stealing
+  // backspace from a text field.
+  if (code === 'Backspace') { goUp(); return }
   if (code === 'Enter') {
     if (target instanceof Element && target.tagName === 'BUTTON') return // focused button: native click already does the right thing; don't trigger twice
     enterSnapshot()
@@ -151,9 +328,21 @@ onMounted(() => {
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
+  clearSettleTimer()
+  clearStepTimer()
+  clearFetchTimer()
   previouslyFocused?.focus?.()
 })
-watch(() => props.volumeUuid, () => { load() })
+// Restart the settle countdown on every selection change: holding an arrow key keeps pushing it
+// out, so the grid is laid out once, after the last flip, not once per snapshot passed.
+watch(selectedIndex, (index) => {
+  clearSettleTimer()
+  settleTimer = setTimeout(() => { settleTimer = null; settledIndex.value = index }, PREVIEW_SETTLE_MS)
+})
+watch(() => props.volumeUuid, () => { subPath.value = ''; load() })
+// The files area navigating under an open overlay would leave the drilled sub-path pointing at
+// a folder of the previous directory.
+watch(() => props.relPath, () => { subPath.value = '' })
 </script>
 
 <template>
@@ -173,16 +362,42 @@ watch(() => props.volumeUuid, () => { load() })
       <TimeMachineDeck
         :items="flatItems"
         :selected-index="selectedIndex"
-        :previews="previews"
-        @select="(i: number) => (selectedIndex = i)"
+        :previews="deckPreviews"
+        :folder-label="props.folderLabel"
+        :sub-path="subPath"
+        @select="goToIndex"
         @enter="enterSnapshot"
+        @open-dir="openDir"
+        @navigate="goToSubPath"
       />
-      <TimeMachineRail :groups="groups" :selected-index="selectedIndex" @select="(i: number) => (selectedIndex = i)" />
+      <!-- Step buttons, alongside the card rather than at the two ends of the tick rail (owner's
+           call: they belong to the deck they move, not to the far edge of the screen). Laid out as
+           a flex sibling of the deck so they stay glued to its right edge and vertically centred
+           at any window size; the negative right margin cancels their own width out of the flex
+           row so the deck itself stays exactly where it was centred before.
+           ∧ walks up the rail (newer), ∨ down it (earlier) -- the arrow points where the
+           highlight goes. Each disables at its own end of the list. -->
+      <div class="tm-deck-nav">
+        <button
+          type="button" class="tm-deck-step" :disabled="!canNewer"
+          :aria-label="t('tmStepNewer')" :title="t('tmStepNewer')"
+          @click="stepSelection(-1)"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6" /></svg>
+        </button>
+        <button
+          type="button" class="tm-deck-step" :disabled="!canEarlier"
+          :aria-label="t('tmStepEarlier')" :title="t('tmStepEarlier')"
+          @click="stepSelection(1)"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+        </button>
+      </div>
+      <TimeMachineRail :groups="groups" :selected-index="selectedIndex" @select="goToIndex" />
     </template>
 
     <TimeMachineBar
       :moment-text="momentText"
-      :folder-text="t('tmViewingFolder', { path: props.folderLabel })"
       :can-enter="!!selectedItem"
       @cancel="emit('close')"
       @enter="enterSnapshot"
@@ -204,27 +419,48 @@ watch(() => props.volumeUuid, () => { load() })
   /* With the deck grown to 3/4 screen it must center within the area left after subtracting
      the bottom bar and the rail, or it gets covered by them. Both are absolutely positioned
      and don't participate in flex layout, so padding of matching width/height stands in for
-     them here (right 96 = rail width, bottom 76 = bar height). 8px left at the top as
-     headroom for rear cards receding upward. */
-  padding: 8px 96px 76px 0;
+     them here (right 96 = rail width, bottom 104 = bar height). 8px at the top is headroom for
+     the rear cards, which recede upward past the deck's own edge. */
+  padding: 8px 96px 104px 0;
   background: var(--tm-bg); color: var(--tm-fg);
   outline: none; /* programmatic focus (tabindex="-1"); no focus ring needed — the overlay itself is not a clickable control */
 }
 .tm-gear {
-  position: absolute; top: 16px; right: 24px; z-index: 2;
-  border: none; background: none; color: var(--tm-fg-muted);
+  /* 40x40 box around a 20px glyph: as a bare glyph this was a ~20px target with no padding, in
+     the same "too small to hit" class as the rail ticks. The glyph stays optically where it was
+     (the box grew around it), and the rail below starts at top:56 to clear it. */
+  position: absolute; top: 8px; right: 16px; z-index: 2;
+  width: 40px; height: 40px; display: grid; place-items: center; padding: 0;
+  border: none; border-radius: 50%; background: none; color: var(--tm-fg-muted);
   font-size: 20px; line-height: 1; cursor: pointer;
-  transition: color 0.2s var(--ease);
+  transition: color 0.2s var(--ease), background 0.2s var(--ease);
 }
 /* Hover only brightens, no rotation (user feedback: a spinning gear is too jumpy). */
-.tm-gear:hover { color: var(--tm-fg); }
+.tm-gear:hover { color: var(--tm-fg); background: var(--nrm-bg); }
+/* Step buttons pinned to the deck's right edge. 34px is a real pointing target; the ticks on
+   the far right are deliberately narrow, these are not. */
+.tm-deck-nav {
+  flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; z-index: 2;
+  margin-left: 14px;
+  /* Cancels this column out of the flex row's width so the deck stays centred exactly where it
+     was before these buttons existed (34px wide + 14px gap). */
+  margin-right: -48px;
+}
+.tm-deck-step {
+  display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--tm-card-bd); border-radius: 50%;
+  background: var(--tm-card-bg); color: var(--tm-fg); cursor: pointer;
+  transition: opacity 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+.tm-deck-step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.tm-deck-step:disabled { opacity: 0.3; cursor: default; }
 .tm-empty { text-align: center; }
 .tm-empty-title { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
 .tm-empty-sub { font-size: 13px; color: var(--tm-fg-muted); margin: 0; }
 /* The skeleton's size must track TimeMachineDeck's .tm-deck (same set of min() calls): if
    they diverge, the moment the list finishes loading the deck "explodes" from a small square
    to 3/4 screen, like a flash. */
-.tm-skeleton { position: relative; width: min(75vw, calc(100vw - 260px)); height: min(75vh, calc(100vh - 190px)); }
+.tm-skeleton { position: relative; width: min(75vw, calc(100vw - 260px)); height: min(75vh, calc(100vh - 200px)); }
 .tm-skeleton-card {
   position: absolute; inset: 0; border-radius: 20px;
   background: var(--tm-card-bg); border: 1px solid var(--tm-card-bd); box-shadow: var(--tm-card-shadow);

@@ -190,6 +190,14 @@ describe('TimeMachineRail', () => {
     expect(spy).toHaveBeenCalled()
   })
 
+  // ── Step buttons (user feedback: "there is no page up/down") ─────────────────────────
+  // The two step buttons used to be pinned at this rail's ends; they now sit beside the card
+  // (they belong to the deck they move), so their cases live in TimeMachineOverlay.test.ts.
+  it('renders ticks only, with no step buttons of its own', () => {
+    const w = mountIt()
+    expect(w.find('.tm-rail-step').exists()).toBe(false)
+    expect(w.findAll('.tm-tick-main').length).toBeGreaterThan(0)
+  })
   it('does not scroll when the selection did not change', async () => {
     const spy = vi.fn()
     Element.prototype.scrollIntoView = spy

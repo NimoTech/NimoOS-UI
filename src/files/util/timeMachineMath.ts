@@ -28,11 +28,16 @@ export interface RailNode {
 
 interface FisheyeOptions { radius?: number; maxScale?: number; minScale?: number }
 
-// Visible window size of the card deck: TimeMachineOverlay (decides which snapshots to fetch previews for)
-// and TimeMachineDeck (decides which cards to render) must use the same window, or the frontmost card gets
-// no thumbnail — previously both spots had their own (5, 2) literal, and changing one while forgetting the
-// other raised no error and no red test. Hoisted into this one constant; both spots reference it.
-export const DECK_WINDOW = { depth: 5, past: 2 } as const
+// Visible window size of the card deck: how many cards TimeMachineDeck renders (the selected one, four
+// receding behind it, and two already flipped past). Directory previews are no longer fetched per window
+// card -- only the front card's folder is listed (see TimeMachineOverlay's previewNames) -- so this
+// constant now has exactly one consumer plus its tests.
+// past is 3, not 2: the outgoing card is opaque now, so it is visible for its whole trip off
+// screen (~320ms). At the walk's usual pace (~90-110ms per snapshot) two slots ran out while
+// the card was still in frame and it vanished mid-air; three covers the trip. At the fastest
+// pace cards still leave the window in flight, but at 24ms per step the whole deck is a blur
+// and there is nothing to see.
+export const DECK_WINDOW = { depth: 5, past: 3 } as const
 
 // macOS Time Machine's tick strip (and the Dock it borrows from) scales **continuously** with cursor
 // distance, not in hover/near/far steps — that can only be done by reading the cursor position and computing

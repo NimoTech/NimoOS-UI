@@ -872,12 +872,15 @@ export default {
   snapBrowseRestoringProgress: '正在恢复 {done}/{total}',
 
   tmEntry: '时间机器',
-  tmViewingFolder: '正在查看 {path} 的历史版本',
   tmEnter: '进入此快照',
   tmSettings: '快照设置',
   tmNoFolderAtTime: '此时还没有这个文件夹',
+  tmPreviewUnavailable: '暂时读不到这个文件夹的内容',
   tmItemCount: '{n} 项',
   tmRailJumpTo: '跳转到 {time} 的快照',
+  tmStepNewer: '更新的快照',
+  tmStepEarlier: '更早的快照',
+  tmOpenFolder: '打开文件夹 {name}',
 
   wpTitle: '更换壁纸',
   wpPresetBlue: '蓝色底板',

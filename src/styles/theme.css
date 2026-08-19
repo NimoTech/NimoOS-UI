@@ -636,6 +636,7 @@
   --tm-card-shadow: 0 18px 44px rgba(28, 27, 25, 0.18);
   --tm-rail: rgba(28, 27, 25, 0.45);
   --tm-rail-sub: rgba(28, 27, 25, 0.16);
+  /* Paper theme dims toward warm ink rather than deep space (see the dark block's note) */
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the

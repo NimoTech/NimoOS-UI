@@ -10,12 +10,17 @@ const mountIt = (props = {}) =>
 
 describe('TimeMachineBar', () => {
   it('Center display selected moment', () => { expect(mountIt().find('.tm-bar-moment').text()).toBe('今天 14:30') })
-  it('If path provided, place it above the moment', () => {
-    const w = mountIt({ folderText: '正在查看 /磁盘/Photos 的历史版本' })
-    expect(w.find('.tm-bar-folder').text()).toContain('/磁盘/Photos')
+  // Owner's order: the moment sits directly under the card, with the two verbs beneath it. Read off
+  // the DOM order because jsdom computes no layout -- what matters is which comes first.
+  it('the moment comes above the two buttons', () => {
+    const kids = [...mountIt().get('.tm-bar').element.children].map((el) => el.className)
+    expect(kids).toEqual(['tm-bar-moment', 'tm-bar-actions'])
   })
-  it('If no path provided, do not occupy space (leave room for callers who do not need this line)', () => {
+  // The folder path is no longer here: it moved to the overlay's own top bar (owner's call),
+  // so the bottom bar is back to just the moment plus the two verbs.
+  it('does not render a folder line any more', () => {
     expect(mountIt().find('.tm-bar-folder').exists()).toBe(false)
+    expect(mountIt().find('.tm-crumb').exists()).toBe(false)
   })
   it('Cancel emits cancel', async () => {
     const w = mountIt(); await w.find('.tm-bar-cancel').trigger('click')

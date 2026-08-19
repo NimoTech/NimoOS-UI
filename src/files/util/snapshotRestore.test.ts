@@ -65,6 +65,21 @@ describe('performSnapshotRestore', () => {
       listVolumes: async () => { throw new Error('boom') }, restore: async () => ({}),
     })).toEqual({ ok: false, reason: 'error' })
   })
+  // The shape axios really throws for LocalStorage's 404 (route/snapshot.go:202): a STRING code,
+  // with the number on response.status. The old local helper read `code ?? response.status`, so the
+  // string won and this branch never fired -- a file genuinely gone from the snapshot reported the
+  // generic "restore failed" instead.
+  it('a real HTTP 404 (axios string code, status on the response) → not-found', async () => {
+    const err = Object.assign(new Error('Request failed'), {
+      name: 'AxiosError',
+      code: 'ERR_BAD_REQUEST',
+      response: { status: 404, data: { success: 10002, message: 'restore source not found' } },
+    })
+    expect(await performSnapshotRestore({
+      item: { path: '/DATA/.snapshots/snap1/a.txt' }, info: INFO,
+      listVolumes: async () => VOLS, restore: async () => { throw err },
+    })).toEqual({ ok: false, reason: 'not-found' })
+  })
   it('backend 404 → not-found', async () => {
     const err = Object.assign(new Error('gone'), { code: 404 })
     expect(await performSnapshotRestore({
