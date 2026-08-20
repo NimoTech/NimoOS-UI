@@ -25,10 +25,26 @@ const EXPORT = path.join(OSS, 'export.mjs')
 // (this file itself is that change).
 const DEV = ['--skip-guard', '--allow-dirty-oss']
 
+// The --publish case below does a real `git init` + `git commit` in a brand-new tmp dir
+// (never a pre-existing, already-configured clone — that's the whole point of using a fresh
+// --out per test, so we never touch the real public repo). That commit step has no identity
+// injection of its own in export.mjs (by design: real --publish always targets the already-cloned
+// ../NimoOS-Web, which already carries its own local git config on every machine that's ever
+// published from it) -- so it falls through to ambient `git config --global`/`--system` user.name/
+// user.email. Environments with neither configured (a bare git install, a from-scratch container,
+// some CI images) fail this test with "Author identity unknown" -- not a defect in export.mjs's
+// real publish path, just this test's synthetic from-scratch repo having no identity to inherit.
+// Inject one via env so the test doesn't depend on the ambient environment's global git config at all.
+const GIT_IDENTITY_ENV = {
+  ...process.env,
+  GIT_AUTHOR_NAME: 'oss-export-test', GIT_AUTHOR_EMAIL: 'oss-export-test@localhost',
+  GIT_COMMITTER_NAME: 'oss-export-test', GIT_COMMITTER_EMAIL: 'oss-export-test@localhost',
+}
+
 /** Run export.mjs, return { code, stdout, stderr } — non-zero exit doesn't throw, left for test assertion. */
 const run = (args) => {
   try {
-    const stdout = execFileSync('node', [EXPORT, ...args], { stdio: 'pipe', encoding: 'utf8' })
+    const stdout = execFileSync('node', [EXPORT, ...args], { stdio: 'pipe', encoding: 'utf8', env: GIT_IDENTITY_ENV })
     return { code: 0, stdout, stderr: '' }
   } catch (e) {
     return { code: e.status, stdout: e.stdout || '', stderr: e.stderr || '' }
