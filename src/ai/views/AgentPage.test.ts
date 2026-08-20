@@ -811,15 +811,15 @@ describe('AgentPage', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  // Pins the `if (!id) return` branch: an empty ?session= must only forget the URL
-  // parameter, not close the conversation the user is reading. The stray `id: ''` session
-  // is deliberate — without it `found` is already undefined for id='' (no real session
-  // stringifies to ''), so the `found &&` guard alone would make this pass even with the
-  // early return deleted; the empty-id session makes `found` truthy so the early return
-  // is the only thing stopping a re-select.
+  // Pins the behavioral property, not a specific line: dropping ?session= from the URL
+  // must not close the conversation the user is reading (a defect where the empty branch
+  // also cleared activeSessionId would fail this). It does not isolate the watcher's
+  // `if (!id) return` — that early return is redundant with the `found &&` check below it
+  // for any realistic session list (no real session's id stringifies to ''), so this test
+  // would still pass with that one line deleted; it is kept for readability, not correctness.
   it('A-8: dropping ?session= from the URL does not close the open conversation', async () => {
     routeQuery.session = 's1'
-    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }, { id: '' }])
+    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }])
     const store = useAgentStore()
     vi.spyOn(store, 'selectSession').mockImplementation(async (id) => {
       store.activeSessionId = id
