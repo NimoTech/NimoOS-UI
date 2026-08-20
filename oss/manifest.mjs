@@ -3094,6 +3094,20 @@ export const SERVICE_PATCH = [
   { path: 'src/index.ts',
     find: "export type { WikiRoot, WikiCandidate, WikiTreeNode, WikiChildMapEntry, WikiRecentChange, WikiNode } from './wiki.js'\n",
     replace: '' },
+  // Missed wiring, added after the original 13-point count above: PR #14 ("MCP progressive
+  // disclosure") added McpToolRow/McpApprovalRow to ai.ts and re-exported their types from
+  // index.ts, but didn't add the matching SERVICE_PATCH entry -- so this line kept pointing
+  // at the deleted './ai.js' module, which the leak guard's soft-forbidden 'ai' word then
+  // (correctly) flagged (oss/tree.test.mjs's 泄漏守卫 test). ai.ts's own consumers
+  // (McpServerDetail.vue, McpToolList.vue/.test.ts, McpApprovalsSection.vue) all live under
+  // src/ai/**, which the top-level DELETE list already removes wholesale -- this domain was
+  // never a candidate for exporting, just a missed patch for a type export line added after
+  // this section was originally written. Removed the same way as every other ai.ts export
+  // above, not whitelisted (a surviving `from './ai.js'` would be a dangling import in the
+  // exported tree regardless of word-list concerns).
+  { path: 'src/index.ts',
+    find: "export type { McpToolRow, McpApprovalRow } from './ai.js'\n",
+    replace: '' },
   { path: 'src/index.ts',
     find: '  get ai(): ReturnType<typeof createAi> {\n    return createAi(getHttp() as AxiosInstance, () => getConfig().getToken())\n  },\n',
     replace: '' },
