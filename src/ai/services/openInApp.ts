@@ -7,6 +7,9 @@
 //     memory sp7-photos-migration-progress); this branch (sp8-ai) doesn't have the
 //     `/app/#/photos` route yet, so we temporarily use the old app's working landing point;
 //     after SP7 merges, these two should be replaced with New-UI's own Photos route.
+//   - Agent → New-UI's own Agent page (`/app/#/ai/agent?session=`, ticket A-8, 2026-08-19,
+//     see docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md), since AgentPage
+//     now reads and follows `?session=` itself.
 //
 // Helpers to open a search-result item in its dedicated app page, in a new tab.
 // Each click opens a fresh tab ('_blank'): the target is a hash-mode SPA route,
@@ -109,20 +112,18 @@ function pruneStalePhotoSets(): void {
   }
 }
 
-// 1:1 port from Vue2 openInApp.js:117-124 (`agentSessionUrl` / `openAgentSessionInNewTab`).
-// 🔴 Unlike the above functions, these two **verbatim copy the blueprint's landing point** —
-// point to the root-mounted old Vue2 app `/#/ai/agent?session=…`, **no** `/app` prefix. This
-// is intentional, not a missing prefix: New-UI itself has the `/ai/agent` route
-// (`router/index.ts`), but AgentPage.vue and agentStore read zero `?session=` throughout the
-// repo; pointing to `/app/#/ai/agent?session=X` opens New-UI's Agent page but doesn't select
-// that session (silently fails); Vue2's Agent.vue:129/164/212 actually reads
-// `$route.query.session`. Same pattern as photosAssetUrl handling above: when New-UI doesn't
-// have this capability yet, temporarily use the old app's working landing point; after
-// New-UI's `/ai/agent` adds `?session=` deep link support, should be replaced with
-// `/app/#/ai/agent?session=…`. Handoff ticket: "New-UI Agent page adds `?session=` deep
-// link support" (P5e/P5f, based on decision A-8).
+// Ported from Vue2 openInApp.js:117-124 (`agentSessionUrl` / `openAgentSessionInNewTab`),
+// no longer byte-identical: the landing URL below deliberately differs from Vue2's, per the
+// A-8 history explained next. Originally these deliberately landed on the root-mounted old
+// Vue2 app because New-UI's
+// /ai/agent read no `?session=` at all, so an /app-prefixed link would have opened the Agent
+// page without selecting the session (a silent failure). Ticket A-8 closed that gap on
+// 2026-08-19 — AgentPage now mirrors, reads and follows `?session=`
+// (docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md) — so the landing point
+// is New-UI's own route, and openInApp.test.ts's reverse assertions now guard against a
+// regression back to the old app.
 export function agentSessionUrl(sessionId: string | number): string {
-  return '/#/ai/agent?session=' + encodeURIComponent(String(sessionId))
+  return '/app/#/ai/agent?session=' + encodeURIComponent(String(sessionId))
 }
 
 export function openAgentSessionInNewTab(sessionId: string | number | null | undefined): void {

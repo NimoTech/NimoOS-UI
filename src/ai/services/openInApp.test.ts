@@ -193,36 +193,37 @@ describe('openPhotoSetInNewTab', () => {
   })
 })
 
-// SP8-P5d Task 5: agentSessionUrl / openAgentSessionInNewTab (governance §16 item 2,
-// decision A-8).
-// 🔴 Forward assertion: URL verbatim + reverse assertion "does not equal the /app-prefixed
-// one" — reverse assertion is key for discriminating: if someone later "standardizes the
-// prefix" and changes these functions to point to New-UI's own /app/#/ai/agent route, since
-// that route still reads zero `?session=`, this feature would silently fail while forward
-// assertion might still pass by string coincidence but reverse assertion would definitely
-// fail (and vice versa, mutually cross-verifying).
+// SP8-P5d Task 5 / A-8 closed 2026-08-19: New-UI's /ai/agent now honours ?session=
+// (see docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md), so these two
+// functions land inside New-UI at /app.
+// 🔴 Forward assertion: URL verbatim + reverse assertion "does not equal the root-mounted
+// old Vue2 URL" — the reverse assertion is what discriminates: if someone reverts the landing
+// point to /#/ai/agent, users leave New-UI on every "open source conversation" click, which
+// the forward assertion alone could miss by string coincidence. And vice versa: the reverse
+// assertion alone would pass vacuously on any other wrong URL, which only the forward
+// assertion's exact match catches.
 describe('agentSessionUrl / openAgentSessionInNewTab', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('builds a URL pointing at the OLD Vue2 app (root-mounted, no /app prefix)', () => {
-    expect(agentSessionUrl('sess 1')).toBe('/#/ai/agent?session=sess%201')
+  it('builds a URL pointing at New-UI (mounted at /app)', () => {
+    expect(agentSessionUrl('sess 1')).toBe('/app/#/ai/agent?session=sess%201')
   })
-  it('does NOT point at the New-UI-mounted equivalent (reverse assertion, guards against a silent regression)', () => {
-    expect(agentSessionUrl('sess 1')).not.toBe('/app/#/ai/agent?session=sess%201')
+  it('does NOT point at the root-mounted old Vue2 app (reverse assertion, guards against a silent regression)', () => {
+    expect(agentSessionUrl('sess 1')).not.toBe('/#/ai/agent?session=sess%201')
   })
   it('encodes special characters in the session id', () => {
-    expect(agentSessionUrl('a&b c')).toBe('/#/ai/agent?session=a%26b%20c')
+    expect(agentSessionUrl('a&b c')).toBe('/app/#/ai/agent?session=a%26b%20c')
   })
 
   it('opens the agent session url in a new tab', () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
     openAgentSessionInNewTab('sess-1')
-    expect(spy).toHaveBeenCalledWith('/#/ai/agent?session=sess-1', '_blank')
+    expect(spy).toHaveBeenCalledWith('/app/#/ai/agent?session=sess-1', '_blank')
   })
-  it('the opened url is NOT the /app-prefixed New-UI route (reverse assertion)', () => {
+  it('the opened url is NOT the root-mounted old Vue2 route (reverse assertion)', () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
     openAgentSessionInNewTab('sess-1')
-    expect(spy.mock.calls[0][0]).not.toBe('/app/#/ai/agent?session=sess-1')
+    expect(spy.mock.calls[0][0]).not.toBe('/#/ai/agent?session=sess-1')
   })
   it('does nothing when the session id is empty', () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)

@@ -56,6 +56,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import type { LocationQueryRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useAgentStore } from '../stores/agentStore'
@@ -208,6 +209,34 @@ async function refreshContextUsage() {
   }
 }
 
+// A-8 — `?session=` deep link (spec docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md).
+// This page keeps its own mirror of the URL query and every write goes through writeQuery().
+// Reason: router.replace resolves asynchronously, so a writer that rebuilt its query from
+// route.query could resurrect a key another writer had just deleted — concretely, the session
+// mirror firing after the ?search= strip would put search back, and the next refresh would
+// re-send the seed turn. One ref, no stale reads — for `session`, the only key the route
+// watcher below re-syncs; a different query key added by external navigation while this
+// page stays mounted would be dropped by the next session switch (spec puts that out of
+// scope, and no in-app path triggers it today). This generalises the local-copy discipline
+// SP8-P3a introduced for chaining the skill and search/message strips.
+const urlQuery = ref<LocationQueryRaw>({})
+function writeQuery() {
+  // `.catch(() => {})`: a redundant navigation rejecting here must not surface as an
+  // unhandled rejection. This matters more than it did pre-A-8 — this function is now
+  // awaited from `onMounted` (the skill/search/message strips below), and an unswallowed
+  // rejection there would abort the mount sequence and skip model loading and the seed send.
+  return router.replace({ path: '/ai/agent', query: { ...urlQuery.value } }).catch(() => {})
+}
+// Vue2 Agent.vue:211-220 — mirror the selected session into the URL. replace, not push:
+// switching sessions must not pile up history entries. The equality guard keeps a deep link
+// (and the route watcher that follows it) from bouncing a redundant navigation back.
+function syncSessionQuery(id: string | number | null) {
+  const next = id == null ? '' : String(id)
+  if ((urlQuery.value.session ?? '').toString() === next) return
+  if (next) urlQuery.value.session = next
+  else delete urlQuery.value.session
+  writeQuery()
+}
 // Agent.vue:120-126 session watcher — SP8-P1c2 Task 3 fills in loadSessionThinking/
 // updateThinkingForModel (1c-1 phase left these blank, ThinkingBar not yet wired,
 // pre-stuffing would be dead code; this task fills in the four store-side loader/setter,
@@ -223,6 +252,27 @@ watch(
       store.updateThinkingForModel()
     }
     refreshContextUsage()
+    syncSessionQuery(newId)
+  },
+)
+// A-8 — Vue2 Agent.vue:129-135: a query-only navigation on the same route does not re-run
+// onMounted in vue-router 4 (the lesson 47a6cc2f recorded for Photos deep links), so follow
+// ?session= here. Unknown ids are ignored rather than toasted: at mount a stale link deserves
+// an explanation, mid-session it usually means a half-typed address bar. An empty value only
+// forgets the parameter — it must not close the conversation the user is reading.
+watch(
+  () => route.query.session,
+  (v) => {
+    const id = (v ?? '').toString()
+    if (id) urlQuery.value.session = id
+    else delete urlQuery.value.session
+    if (!id) return
+    const found = store.sessions.find((s) => String(s.id) === id)
+    // The switch itself already happened by the time this promise settles; a failed
+    // message fetch must not surface as an unhandled rejection (no global handler here).
+    if (found && String(store.activeSessionId ?? '') !== id) {
+      store.selectSession(found.id).catch(() => {})
+    }
   },
 )
 // Agent.vue:127-132 — refresh only on busy true→false falling edge (after a round finishes);
@@ -242,6 +292,8 @@ onMounted(async () => {
   // comment in stores/aiTheme.ts.
   aiTheme.enterAiSurface()
   store.initTheme()
+  // Seed the URL mirror before anything reads or rewrites the query (see urlQuery above).
+  urlQuery.value = { ...route.query }
   // Vue2 Agent.vue:151 — loadThinkingDefaults called once before loadSessions/loadAvailableModels
   // (ThinkingBar needs a fallback default value, before session/model loading is ready).
   // The function already swallows internal request errors (agentStore.ts loadThinkingDefaults),
@@ -252,10 +304,41 @@ onMounted(async () => {
   } catch {
     /* ignore */
   }
+  // Final review Important 2: distinguish "the list loaded and doesn't contain this id"
+  // from "the list failed to load" — only the former means the id is actually gone.
+  let sessionsLoaded = true
   try {
     await store.loadSessions()
   } catch {
+    sessionsLoaded = false
     /* ignore — mirrors Vue2 Agent.vue's swallow-per-call mounted sequence */
+  }
+  // A-8 — Vue2 Agent.vue:164-175: resolve ?session= now that the list exists. selectSession
+  // gets the session's OWN id (ids are string | number and AgentSidebar compares with ===,
+  // so handing it the URL string would select a numeric session without highlighting its row).
+  const wantedSession = (urlQuery.value.session ?? '').toString()
+  if (wantedSession) {
+    const found = store.sessions.find((s) => String(s.id) === wantedSession)
+    if (found) {
+      try {
+        await store.selectSession(found.id)
+      } catch {
+        /* ignore — mirrors the swallow-per-call mounted sequence; the URL keeps the id
+           because the session does exist, only its messages failed to load */
+      }
+    } else if (sessionsLoaded) {
+      toast.show(t('aiSessionNotFound'), 4000, 'warning')
+      syncSessionQuery(store.activeSessionId)
+    }
+    // else: loadSessions() itself failed, so an unmatched id here doesn't mean the
+    // session is gone — leave the URL and toast alone so a refresh can retry the load.
+  } else {
+    // Final review Important 1: re-navigating into this page (settings gear, skill strip,
+    // homepage) never resets agentStore's activeSessionId — it's a plain Pinia store with
+    // no KeepAlive teardown. Mirror whatever the store already holds so the address bar
+    // always names the open session; syncSessionQuery's equality guard makes this a no-op
+    // when activeSessionId is null, so the zero/1/2-replace pinned counts are unaffected.
+    syncSessionQuery(store.activeSessionId)
   }
   try {
     // Before auto-send handoff (Task 11), nail down default model first,
@@ -292,19 +375,20 @@ onMounted(async () => {
   // Vue2 verbatim.
   //
   // Below search/message section also does another router.replace, two must chain together
-  // without eating each other: use only a local `query` copy (not direct read/write of
-  // route.query) to convey "already stripped skill" — mocked router.replace doesn't write
+  // without eating each other: use only the page-scoped `urlQuery` ref (not direct read/write
+  // of route.query) to convey "already stripped skill" — mocked router.replace doesn't write
   // back route.query, in real vue-router route.query update happens async after nav confirms,
   // both cases can't assume "after last replace takes effect route.query changed". So
-  // seedSearch/seedMessage reading and clean construction below are all based on this local
-  // copy — when stripping skill only delete skill, leave search/message as-is for below to
-  // read; after stripping, final state has none of the three params.
-  const query = { ...route.query }
-  const skill = query.skill
+  // seedSearch/seedMessage reading and clean construction below are all based on this same
+  // ref — when stripping skill only delete skill, leave search/message as-is for below to
+  // read; after stripping, final state has none of the three params. This ref is shared with
+  // the session mirror (see A-8 comment above the session watcher), so a session switch that
+  // lands mid-mount can't resurrect a key this sequence just deleted either.
+  const skill = urlQuery.value.skill
   if (skill) {
     store.pendingSkillId = String(skill)
-    delete query.skill
-    await router.replace({ path: '/ai/agent', query: { ...query } })
+    delete urlQuery.value.skill
+    await writeQuery()
   }
 
   // Handoff from the global search page / homepage AI widget
@@ -312,13 +396,12 @@ onMounted(async () => {
   // search wins over message when both are present (message is skipped
   // entirely). One-shot: router.replace strips both query keys BEFORE
   // sending so a page refresh doesn't re-send the seed turn.
-  const seedSearch = (query.search ?? '').toString().trim()
-  const seedMessage = (query.message ?? '').toString().trim()
+  const seedSearch = (urlQuery.value.search ?? '').toString().trim()
+  const seedMessage = (urlQuery.value.message ?? '').toString().trim()
   if (seedSearch || seedMessage) {
-    const clean = { ...query }
-    delete clean.search
-    delete clean.message
-    await router.replace({ path: '/ai/agent', query: clean })
+    delete urlQuery.value.search
+    delete urlQuery.value.message
+    await writeQuery()
     try {
       if (seedSearch) {
         await store.createSession() // always fresh
