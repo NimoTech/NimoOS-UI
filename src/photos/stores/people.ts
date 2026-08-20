@@ -15,6 +15,34 @@ import { isNotFound } from '../util/httpErrors'
 
 const PURGE_DELAY_MS = 5000
 
+// Plan C Task 1 (2026-08-20 people-suggestions-ui): per-face join/review suggestions grouped by
+// person. Backend contract (verified against the review): GET /photos/persons/suggestions →
+// {"groups":[{"person":<Person>,"suggestions":[{"id","faceId","assetId","kind","score",
+// "createdAt"}]}]}, open-only, hidden persons excluded, groups ordered like ListPersons,
+// suggestions score ASC. createdAt isn't surfaced here — Task 2 (the UI) only needs faceId (for
+// the thumbnail) and the fields below.
+export interface SuggestionItem {
+  id: string
+  faceId: string
+  assetId: string
+  kind: 'join' | 'review'
+  score: number
+}
+export interface SuggestionGroup {
+  person: Person
+  suggestions: SuggestionItem[]
+}
+
+function toSuggestionItem(raw: Record<string, unknown>): SuggestionItem {
+  return {
+    id: String(raw.id ?? ''),
+    faceId: String(raw.faceId ?? ''),
+    assetId: String(raw.assetId ?? ''),
+    kind: raw.kind === 'review' ? 'review' : 'join',
+    score: typeof raw.score === 'number' ? raw.score : Number(raw.score) || 0,
+  }
+}
+
 // Purge cancellation pending items. Timer and snapshot are not serializable, follow Vue2 to place at module scope (photos.js:230-231), not in state.
 // key always String(id) (iron rule: backend id may be numeric, route params are always strings).
 interface PurgeEntry { timer: ReturnType<typeof setTimeout>; snapshot: Person | null; idx: number; committed: boolean }
@@ -28,6 +56,13 @@ const _purgeTimers = new Map<string, PurgeEntry>()
 // has no such window and only needs to cover this one HTTP round trip, so a separate small Set is
 // clearer and won't interfere with purge's "reuse the first idx" branch.
 const _pendingHides = new Set<string>()
+
+// Plan C Task 1 (2026-08-20 people-suggestions-ui): pending-decision guard for suggestions,
+// same shape/role as _pendingHides above — prevents a racing fetchSuggestions from pulling a
+// suggestion back in while its accept/reject (or a batch decideGroup covering it) is still in
+// flight. Keyed by suggestion id (not person id): decideGroup fans out to every suggestion id
+// in the group, so a single Set covers both decideSuggestion and decideGroup uniformly.
+const _pendingSuggestionIds = new Set<string>()
 
 // Fix round 2 (2026-08-19, product decision): readFilter/PeopleFilter/the
 // nimo_people_show_singletons localStorage key are gone along with the singleton toggle they
@@ -52,6 +87,11 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // and "Hide person" menu item, without popping an error toast (mirroring Vue2 :396-399).
   const hiddenPeopleSupported = ref(true)
 
+  // Plan C Task 1: suggestion groups state. Same "assume supported until a real 404 disproves
+  // it" convention as hiddenPeopleSupported above.
+  const suggestionGroups = ref<SuggestionGroup[]>([])
+  const suggestionsSupported = ref(true)
+
   const named = computed(() => namedOf(people.value))
   const unnamed = computed(() => unnamedOf(people.value))
   // Fix round 2 (2026-08-19, product decision): the grid shows ONLY the distribution split's
@@ -65,6 +105,8 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   const namedCount = computed(() => named.value.length)
   // Sidebar/topbar count and grid must use the same calibration: unnamed count uses "visible" not all (Vue2 photos.js:344 comment emphasizes).
   const unnamedCount = computed(() => visibleUnnamed.value.length)
+  // Plan C Task 1: total open suggestion items across all groups (for a badge/count in the UI).
+  const suggestionCount = computed(() => suggestionGroups.value.reduce((sum, g) => sum + g.suggestions.length, 0))
 
   const key = (id: string | number): string => String(id)
   function personById(id: string | number): Person | null {
@@ -395,10 +437,98 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
+  // ── Person suggestions (Plan C Task 1, suggestion-confirmation UI). Called on People mount.
+  // Feature detection mirrors fetchHiddenPeople above (isNotFound → not an error, no console.error).
+
+  // Fetches the open suggestion groups. On a legacy backend without this endpoint, 404 flips
+  // suggestionsSupported to false and leaves the groups empty, letting the view hide the whole
+  // suggestions UI without popping an error toast (same convention as hiddenPeopleSupported).
+  async function fetchSuggestions(): Promise<void> {
+    try {
+      const raw = (await service.photos.listPersonSuggestions()) as { groups?: unknown } | undefined
+      const rawGroups = Array.isArray(raw?.groups) ? (raw.groups as Record<string, unknown>[]) : []
+      const mapped: SuggestionGroup[] = rawGroups.map((g) => ({
+        person: toPerson((g.person ?? {}) as Record<string, unknown>),
+        suggestions: Array.isArray(g.suggestions)
+          ? (g.suggestions as Record<string, unknown>[]).map(toSuggestionItem)
+          : [],
+      }))
+      // Pending-guard (see _pendingSuggestionIds' declaration comment): a decideSuggestion/
+      // decideGroup call still in flight must not have its optimistic removal undone by a
+      // racing fetch that still sees the old (undecided) backend state. Any group left with no
+      // suggestions after filtering is dropped too, matching decideGroup's "whole group
+      // disappears" semantics.
+      suggestionGroups.value = _pendingSuggestionIds.size
+        ? mapped
+          .map((g) => ({ ...g, suggestions: g.suggestions.filter((it) => !_pendingSuggestionIds.has(it.id)) }))
+          .filter((g) => g.suggestions.length > 0)
+        : mapped
+      suggestionsSupported.value = true
+    } catch (e) {
+      if (isNotFound(e)) {
+        suggestionsSupported.value = false
+        suggestionGroups.value = []
+      } else {
+        console.error('[photos-people] fetchSuggestions', e)
+      }
+    }
+  }
+
+  // Decides a single suggestion. Optimistic removal from its group (dropping the group too if
+  // it becomes empty); on accept, also refreshes the people list (a join/review confirmation can
+  // change a person's face count/cover); reject leaves the people list untouched (mirrors
+  // rejectMergeSuggestion's own "no people refresh" behavior above).
+  async function decideSuggestion(id: string, accept: boolean): Promise<void> {
+    const k = key(id)
+    const found = suggestionGroups.value.some((g) => g.suggestions.some((it) => it.id === k))
+    if (!found) return   // not found locally (already decided elsewhere/expired) — no request, mirrors acceptMergeSuggestion's guard
+    _pendingSuggestionIds.add(k)
+    suggestionGroups.value = suggestionGroups.value
+      .map((g) => ({ ...g, suggestions: g.suggestions.filter((it) => it.id !== k) }))
+      .filter((g) => g.suggestions.length > 0)
+    try {
+      if (accept) {
+        await service.photos.acceptPersonSuggestion(k)
+        void fetchPeople()
+      } else {
+        await service.photos.rejectPersonSuggestion(k)
+      }
+    } catch (e) {
+      console.error('[photos-people] decideSuggestion', e)
+      void fetchSuggestions()
+      throw e
+    } finally {
+      _pendingSuggestionIds.delete(k)
+    }
+  }
+
+  // Decides every suggestion in one person's group at once, via the batch endpoint. Same
+  // optimistic semantics as decideSuggestion: the whole group is removed immediately, restored
+  // (via a refetch) only on failure.
+  async function decideGroup(personId: string | number, accept: boolean): Promise<void> {
+    const pk = key(personId)
+    const group = suggestionGroups.value.find((g) => key(g.person.id) === pk)
+    if (!group || group.suggestions.length === 0) return
+    const ids = group.suggestions.map((it) => it.id)
+    for (const id of ids) _pendingSuggestionIds.add(id)
+    suggestionGroups.value = suggestionGroups.value.filter((g) => key(g.person.id) !== pk)
+    try {
+      await service.photos.batchPersonSuggestions(accept ? { accept: ids, reject: [] } : { accept: [], reject: ids })
+      if (accept) void fetchPeople()
+    } catch (e) {
+      console.error('[photos-people] decideGroup', e)
+      void fetchSuggestions()
+      throw e
+    } finally {
+      for (const id of ids) _pendingSuggestionIds.delete(id)
+    }
+  }
+
   function __resetForTest(): void {
     for (const entry of _purgeTimers.values()) clearTimeout(entry.timer)
     _purgeTimers.clear()
     _pendingHides.clear()
+    _pendingSuggestionIds.clear()
     people.value = []
     peopleLoaded.value = false
     facesIndexedUpTo.value = null
@@ -406,18 +536,22 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     hiddenPeople.value = []
     hiddenPeopleLoaded.value = false
     hiddenPeopleSupported.value = true
+    suggestionGroups.value = []
+    suggestionsSupported.value = true
   }
 
   return {
     people, peopleLoaded, facesIndexedUpTo, mergeSuggestions,
     hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
-    named, unnamed, visibleUnnamed, namedCount, unnamedCount,
+    suggestionGroups, suggestionsSupported,
+    named, unnamed, visibleUnnamed, namedCount, unnamedCount, suggestionCount,
     personById, patchPerson,
     fetchPeople, fetchMergeSuggestions,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     acceptMergeSuggestion, rejectMergeSuggestion, dismissAllMerges,
     fetchHiddenPeople, hidePerson, unhidePerson,
+    fetchSuggestions, decideSuggestion, decideGroup,
     __resetForTest,
   }
 })

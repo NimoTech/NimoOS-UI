@@ -266,6 +266,29 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get('/photos/persons/merge-suggestions')
       return body<unknown[]>(res.data)
     },
+    // ─── Person suggestions (Plan C Task 1) ───
+    // Distinct from mergeSuggestions above: these are per-face join/review suggestions grouped
+    // by person, not whole-cluster merge proposals. Response is an object-wrapped
+    // {groups:[{person,suggestions:[...]}]} — not a bare array — so this stays unwrapped for
+    // the store layer to normalize, matching the listPersons convention just above.
+    async listPersonSuggestions(): Promise<unknown> {
+      const res = await http.get('/photos/persons/suggestions')
+      return body<unknown>(res.data)
+    },
+    async acceptPersonSuggestion(id: string): Promise<unknown> {
+      const res = await http.post(`/photos/persons/suggestions/${id}/accept`, {})
+      return body<unknown>(res.data)
+    },
+    async rejectPersonSuggestion(id: string): Promise<unknown> {
+      const res = await http.post(`/photos/persons/suggestions/${id}/reject`, {})
+      return body<unknown>(res.data)
+    },
+    // Always answers 200 (per-id results, never a top-level failure) — the backend's per-item
+    // status/error is left in the response for the caller to inspect if it ever needs to.
+    async batchPersonSuggestions(payload: { accept: string[]; reject: string[] }): Promise<unknown> {
+      const res = await http.post('/photos/persons/suggestions/batch', payload)
+      return body<unknown>(res.data)
+    },
     async rejectMergeSuggestion(fromId: string | number, intoId: string | number): Promise<unknown> {
       const res = await http.post('/photos/persons/merge-suggestions/reject', { from_id: fromId, into_id: intoId })
       return body<unknown>(res.data)
