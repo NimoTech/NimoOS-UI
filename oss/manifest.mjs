@@ -140,6 +140,9 @@ export const DELETE = [
   // enumerated on principle, not because a glob would miss it.
   'src/views/__tests__/PhotosMomentDetail.selectionHighlight.test.ts',
   'src/views/__tests__/PhotosPeople.test.ts',
+  // Plan C Task 2 (2026-08-20 people-suggestions-ui): the suggestion-confirmation cards' own
+  // component test, kept in its own file rather than appended to PhotosPeople.test.ts above.
+  'src/views/__tests__/PhotosPeople.suggestions.test.ts',
   'src/views/__tests__/PhotosPersonDetail.test.ts',
   'src/views/__tests__/PhotosPlaceAssets.lightbox.test.ts',
   'src/views/__tests__/PhotosPlaceAssets.test.ts',

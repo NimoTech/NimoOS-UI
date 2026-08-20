@@ -94,6 +94,7 @@ import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
 import MergeReviewDialog, { type MergeSuggestion } from '../photos/components/MergeReviewDialog.vue'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { useAskNimo } from '../photos/composables/useAskNimo'
+import { service } from '@nimotech/nimoos-service'
 import { usePhotosPeople } from '../photos/stores/people'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
@@ -296,6 +297,74 @@ function onUnhide(p: Person): void {
 // Vue2 toggleHiddenSection :765-767 — doesn't re-fetch on expand (mounted already fetched once, see below).
 function toggleHidden(): void {
   hiddenExpanded.value = !hiddenExpanded.value
+}
+
+// ── Suggestion confirmation cards (Plan C Task 2, 2026-08-20 people-suggestions-ui) ──
+// The store's own pending-decision guard (`_pendingSuggestionIds` in people.ts) is module-
+// private, and only exists to stop a racing fetchSuggestions() from clobbering an in-flight
+// decision — it isn't exposed for the view to read. This component keeps its OWN local
+// in-flight set purely for UI disablement (greying out a face/group while its request is
+// outstanding). Wholesale-reassignment convention (not `reactive(new Set())` with in-place
+// add/delete), matching this repo's established pattern for ref<Set<…>> state elsewhere
+// (e.g. SearchView.vue's toggleSet, QueueView.vue's `selected`).
+const suggestionBusy = ref<Set<string>>(new Set())
+function markSuggestionBusy(ids: string[]): void {
+  const next = new Set(suggestionBusy.value)
+  for (const id of ids) next.add(id)
+  suggestionBusy.value = next
+}
+function unmarkSuggestionBusy(ids: string[]): void {
+  const next = new Set(suggestionBusy.value)
+  for (const id of ids) next.delete(id)
+  suggestionBusy.value = next
+}
+function isSuggestionBusy(id: string): boolean {
+  return suggestionBusy.value.has(id)
+}
+// A group counts as busy while ANY of its member suggestions is locally in-flight — covers
+// both the group-level Confirm/Reject-all path (which marks every id in the group busy up
+// front, mirroring the store's own decideGroup) and a single per-face decision fired from
+// inside a group that still has its own Confirm/Reject-all buttons visible.
+function isSuggestionGroupBusy(personId: string | number): boolean {
+  const g = people.suggestionGroups.find((x) => String(x.person.id) === String(personId))
+  return !!g && g.suggestions.some((s) => isSuggestionBusy(s.id))
+}
+// service.photos.faceThumbnailUrl internally includes the token (same convention as every
+// other media URL helper in the service package) — this component does not hand-build it.
+function suggestionFaceThumb(faceId: string): string {
+  return service.photos.faceThumbnailUrl(faceId)
+}
+
+async function onDecideSuggestionFace(id: string, accept: boolean): Promise<void> {
+  if (isSuggestionBusy(id)) return
+  markSuggestionBusy([id])
+  try {
+    await people.decideSuggestion(id, accept)
+  } catch {
+    // The store already console.error's the failure and issues its own corrective
+    // fetchSuggestions() (see decideSuggestion's header comment in people.ts) — nothing
+    // further to surface here. The brief only calls for a toast on the group batch path's
+    // partial-failure case (decideGroup below), not on this single-item path.
+  } finally {
+    unmarkSuggestionBusy([id])
+  }
+}
+
+async function onDecideSuggestionGroup(personId: string | number, accept: boolean): Promise<void> {
+  const g = people.suggestionGroups.find((x) => String(x.person.id) === String(personId))
+  if (!g || g.suggestions.length === 0 || isSuggestionGroupBusy(personId)) return
+  const ids = g.suggestions.map((s) => s.id)
+  markSuggestionBusy(ids)
+  try {
+    // decideGroup always resolves (never throws) with a per-id failure count — see decideGroup's
+    // header comment in people.ts. The store has already fired its own corrective
+    // fetchSuggestions() resync when failed > 0; this toast is purely user-facing feedback that
+    // not everything in the group actually went through.
+    const { failed } = await people.decideGroup(personId, accept)
+    if (failed > 0) toast.show(t('photosPeopleSuggestPartialFail', { n: failed }))
+  } finally {
+    unmarkSuggestionBusy(ids)
+  }
 }
 
 function openReview(): void {
@@ -518,6 +587,10 @@ onMounted(() => {
   // and then make it disappear. The section itself is still collapsed by default; only the count
   // is no longer lazy.
   void people.fetchHiddenPeople()
+  // Plan C Task 2: eager fetch (not lazy), same rationale as fetchHiddenPeople right above —
+  // this GET also doubles as the 404 feature-detection probe for suggestionsSupported, so a
+  // legacy backend without the endpoint never flashes the section before hiding it.
+  void people.fetchSuggestions()
   // P8a-T6: now reads from the shared photosSettings store (§7e-10). The sidebar
   // (PhotosSidebar, also mounted on this page) calls fetchAiFeatures() in the same frame too —
   // concurrent dedup is handled in settings.ts, so there's nothing to worry about here.
@@ -663,6 +736,87 @@ onUnmounted(() => {
               @click="people.dismissAllMerges()"
             >&#215;</button>
           </div>
+
+          <!-- ── Suggestion confirmation cards (Plan C Task 2, 2026-08-20
+               people-suggestions-ui): per-face join/review suggestions grouped by person,
+               sitting above the named-people area. Gated as a whole (title included) on
+               suggestionsSupported && suggestionCount>0 — a legacy backend without the
+               endpoint, or one with zero open suggestions, both render nothing here, not even
+               the header. Empty groups vanish on their own once the store drops them (their
+               last suggestion decided), and the whole section disappears the moment the last
+               group does — purely a consequence of this same v-if re-evaluating, no separate
+               "was that the last one" bookkeeping needed. -->
+          <section
+            v-if="people.suggestionsSupported && people.suggestionCount > 0"
+            class="people-suggestions"
+            data-test="people-suggestions"
+          >
+            <div class="section-head" data-test="section-suggestions">
+              <h2>{{ t('photosPeopleSuggestions') }}</h2>
+              <span class="sub">({{ people.suggestionCount }})</span>
+            </div>
+            <div class="suggestion-list">
+              <div
+                v-for="g in people.suggestionGroups" :key="g.person.id"
+                class="suggestion-card"
+                data-test="suggestion-card"
+                :data-person-id="g.person.id"
+              >
+                <div class="suggestion-card-head">
+                  <PersonAvatar :person-id="g.person.id" :name="g.person.name" :ver="g.person.coverFaceId" :size="40" />
+                  <div class="suggestion-card-title">
+                    {{ t('photosPeopleSuggestTitle', { name: g.person.name || t('photosPersonUnnamedTitle') }) }}
+                  </div>
+                  <div class="suggestion-card-actions">
+                    <button
+                      type="button"
+                      class="suggestion-action-btn"
+                      data-test="suggestion-confirm-all"
+                      :disabled="isSuggestionGroupBusy(g.person.id)"
+                      @click="onDecideSuggestionGroup(g.person.id, true)"
+                    >{{ t('photosPeopleAcceptAll') }}</button>
+                    <button
+                      type="button"
+                      class="suggestion-action-btn is-reject"
+                      data-test="suggestion-reject-all"
+                      :disabled="isSuggestionGroupBusy(g.person.id)"
+                      @click="onDecideSuggestionGroup(g.person.id, false)"
+                    >{{ t('photosPeopleRejectAll') }}</button>
+                  </div>
+                </div>
+                <div class="suggestion-face-grid">
+                  <div
+                    v-for="s in g.suggestions" :key="s.id"
+                    class="suggestion-face"
+                    data-test="suggestion-face"
+                    :data-id="s.id"
+                    :class="{ 'is-busy': isSuggestionBusy(s.id) }"
+                  >
+                    <img class="suggestion-face-img" :src="suggestionFaceThumb(s.faceId)" alt="">
+                    <span v-if="s.kind === 'review'" class="suggestion-review-badge" data-test="suggestion-review-badge">
+                      {{ t('photosPeopleReviewBadge') }}
+                    </span>
+                    <div class="suggestion-face-hover">
+                      <button
+                        type="button"
+                        class="suggestion-face-btn is-accept"
+                        data-test="suggestion-face-accept"
+                        :disabled="isSuggestionBusy(s.id)"
+                        @click="onDecideSuggestionFace(s.id, true)"
+                      >✓</button>
+                      <button
+                        type="button"
+                        class="suggestion-face-btn is-reject"
+                        data-test="suggestion-face-reject"
+                        :disabled="isSuggestionBusy(s.id)"
+                        @click="onDecideSuggestionFace(s.id, false)"
+                      >✕</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <!-- Task 6 (Plan D, PR 137 gap-close): the hint branches on whether face recognition
                is on (Vue2 PR 137 patch, PhotosPeopleView.vue — verbatim copy in both branches). -->
@@ -994,4 +1148,103 @@ onUnmounted(() => {
    hover-cascade-lock rules. */
 .face-card.people-hidden-static { cursor: default; }
 .people-unhide-btn { margin-top: 2px; }
+
+/* ── Suggestion confirmation cards (Plan C Task 2, 2026-08-20 people-suggestions-ui) ──
+   New-UI-only section, no Vue2 counterpart to transcribe (parity's photos-people.scss has
+   nothing for this — it's a brand-new feature), so it lives entirely in this component's own
+   local style block, following the same policy this file already applies to its other
+   New-UI-only additions above (.empty-state, .merge-banner.is-warn, etc.) rather than the
+   shared parity file. Reuses this page's existing token vocabulary and pill-button geometry
+   (.section-head, .people-btn-primary's accent-fill pattern) rather than inventing a new one.
+   Every color here goes through a theme token (var(--overlay-bg)/var(--blur) reuse the exact
+   "chrome sitting on top of an uncontrollable face photo" convention PersonAvatar.vue's own
+   .person-avatar-fav already established; var(--on-accent, #fff) is the stripVar-safe
+   fallback form the color guard explicitly allows) — no bare literal needed anywhere below. */
+.people-suggestions { margin-bottom: 4px; }
+.suggestion-list { display: flex; flex-direction: column; gap: 14px; }
+.suggestion-card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  padding: 14px 16px;
+}
+.suggestion-card-head { display: flex; align-items: center; gap: 10px; }
+.suggestion-card-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; color: var(--text-1); }
+.suggestion-card-actions { display: inline-flex; gap: 8px; flex: none; }
+.suggestion-action-btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--on-accent, #fff);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.suggestion-action-btn:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+.suggestion-action-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.suggestion-action-btn.is-reject { background: var(--surface-2); border-color: var(--line); color: var(--text-2); }
+.suggestion-action-btn.is-reject:hover { background: var(--surface-3); color: var(--text-1); }
+.suggestion-face-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.suggestion-face {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.suggestion-face-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.suggestion-face.is-busy { opacity: 0.55; }
+.suggestion-review-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 9.5px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--overlay-bg);
+  backdrop-filter: var(--blur);
+  color: var(--on-accent, #fff);
+  border: 1px solid var(--line);
+}
+.suggestion-face-hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--overlay-bg);
+  backdrop-filter: var(--blur);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.suggestion-face:hover .suggestion-face-hover,
+.suggestion-face:focus-within .suggestion-face-hover { opacity: 1; }
+.suggestion-face-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--on-accent, #fff);
+}
+.suggestion-face-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.suggestion-face-btn.is-accept { background: var(--accent); }
+.suggestion-face-btn.is-accept:hover { background: var(--accent-hi); }
+.suggestion-face-btn.is-reject { background: var(--surface-3); }
+.suggestion-face-btn.is-reject:hover { background: var(--line-strong); }
 </style>

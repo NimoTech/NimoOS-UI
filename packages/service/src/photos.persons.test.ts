@@ -91,4 +91,15 @@ describe('photos persons', () => {
     expect(p.personFaceThumbnailUrl('p1')).toBe('/v1/photos/persons/p1/face-thumbnail?token=T1')
     expect(p.personFaceThumbnailUrl('p1', '')).toBe('/v1/photos/persons/p1/face-thumbnail?token=T1')
   })
+  // Plan C Task 2 (2026-08-20 people-suggestions-ui): faceThumbnailUrl is keyed directly by
+  // faceId (distinct from personFaceThumbnailUrl's person-id+ver signature above), for
+  // rendering suggestion-face thumbnails that have no owning person's cover slot yet.
+  it('faceThumbnailUrl builds a token-suffixed URL keyed by faceId', () => {
+    const p = createPhotos({} as AxiosInstance, () => 'T1')
+    expect(p.faceThumbnailUrl('f1')).toBe('/v1/photos/faces/f1/thumbnail?token=T1')
+  })
+  it('faceThumbnailUrl with no token omits the query string entirely', () => {
+    const p = createPhotos({} as AxiosInstance, () => null)
+    expect(p.faceThumbnailUrl('f1')).toBe('/v1/photos/faces/f1/thumbnail')
+  })
 })

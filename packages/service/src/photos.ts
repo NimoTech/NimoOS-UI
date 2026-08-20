@@ -307,6 +307,15 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const v = ver != null && ver !== '' ? `?v=${encodeURIComponent(String(ver))}` : ''
       return `/v1/photos/persons/${id}/face-thumbnail${v}${tokenQ(v ? '&' : '?')}`
     },
+    // Plan C Task 2 (2026-08-20 people-suggestions-ui): per-face suggestion thumbnail. Distinct
+    // from personFaceThumbnailUrl above, which is keyed by person id (plus an optional
+    // cover-face `ver` for cache-busting) — a suggestion item only ever carries a bare faceId
+    // with no owning person slot yet (that's the whole point of a "join" suggestion: the face
+    // isn't attached to anyone's cover yet). Same tokenQ convention as every other media URL
+    // helper in this file; no ver param needed since each faceId is itself immutable.
+    faceThumbnailUrl(faceId: string | number): string {
+      return `/v1/photos/faces/${faceId}/thumbnail${tokenQ('?')}`
+    },
     // ─── Places ───
     // The backend returns an object-wrapped {regions, places, stats} (not a bare array; see service/places_types.go PlacesResponse).
     async listPlaces(params: Record<string, unknown> = {}): Promise<unknown> {
