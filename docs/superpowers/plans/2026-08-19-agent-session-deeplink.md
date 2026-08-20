@@ -339,7 +339,7 @@ In `src/ai/views/AgentPage.vue`, immediately after the `loadSessions()` try/catc
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `pnpm exec vitest run src/ai/views/AgentPage.test.ts src/i18n`
-Expected: PASS for `AgentPage.test.ts` and the i18n guards (`i18nKeys`, `parity`) that now see the new key. `src/i18n/__tests__/photosSlice.test.ts` stays red — pre-existing baseline failure, unrelated to this key.
+Expected: PASS for `AgentPage.test.ts` and the i18n guards (`i18nKeys`, `parity`) that now see the new key — the whole `src/i18n` directory included. (An earlier measurement recorded `photosSlice.test.ts` as red here; that was a concurrency artifact, corrected in Global Constraints. It passes.)
 
 - [ ] **Step 6: Commit**
 
