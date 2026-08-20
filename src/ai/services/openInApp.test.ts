@@ -199,7 +199,9 @@ describe('openPhotoSetInNewTab', () => {
 // 🔴 Forward assertion: URL verbatim + reverse assertion "does not equal the root-mounted
 // old Vue2 URL" — the reverse assertion is what discriminates: if someone reverts the landing
 // point to /#/ai/agent, users leave New-UI on every "open source conversation" click, which
-// the forward assertion alone could miss by string coincidence.
+// the forward assertion alone could miss by string coincidence. And vice versa: the reverse
+// assertion alone would pass vacuously on any other wrong URL, which only the forward
+// assertion's exact match catches.
 describe('agentSessionUrl / openAgentSessionInNewTab', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
