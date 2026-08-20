@@ -32,7 +32,7 @@
 // `/v1/v3/file` (`.sp8/NimoOS-Service/src/http.ts:6-10` the `/^\/v[1-9]/` pattern passes
 // through unchanged, `v3` matches).
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getHttp, service } from '@nimotech/nimoos-service'
 import KIcon from '../components/KIcon.vue'
@@ -44,6 +44,7 @@ import type { FileVM, SearchTextResponseRaw } from '../util/searchAggregate'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const store = useKnowledgeStore()
 
 // ─── Blueprint :186-219 script constants ───
@@ -123,6 +124,21 @@ const results = ref<FileVM[]>([])
 // N39: `clear()` also clears these two together (blueprint :264). Rendering belongs to T7,
 // state declared in this phase.
 const openFile = ref<FileVM | null>(null)
+
+/**
+ * Result-card click: a plain file opens the file detail drawer; an **album asset**
+ * (`file_id` = `photos:<asset_id>`, a caption vector from the semantic source) has neither a
+ * path nor a readable chunk file, so the drawer would be empty for it — deep-link to the album
+ * lightbox `#/photos?asset=<id>` instead (that query key is Photos' existing share semantics,
+ * see `src/photos/composables/usePhotosDeepLinks.ts`).
+ */
+function openResult(r: FileVM) {
+  if (r.photoAssetId) {
+    void router.push({ path: '/photos', query: { asset: r.photoAssetId } })
+    return
+  }
+  openFile.value = r
+}
 const viewerFile = ref<FileVM | null>(null)
 const ms = ref(0)
 const errorMsg = ref('')
@@ -537,9 +553,13 @@ watch(
             <span v-if="ms"> · {{ ms }} ms</span>
           </span>
         </div>
-        <div v-for="r in results" :key="r.id" class="k-rcard" @click="openFile = r">
+        <div v-for="r in results" :key="r.id" class="k-rcard" @click="openResult(r)">
+          <!-- An album-asset hit (`file_id` = `photos:<asset_id>`) has no file path to show,
+               so it gets a thumbnail instead; everything else keeps the paper chip + kind tag.
+               See the PHOTO_ID_PREFIX comment in searchAggregate.ts. -->
           <div class="k-rcard-icon">
-            <span class="k-rcard-tag" :data-kind="r.kind">{{ r.kind.toUpperCase() }}</span>
+            <img v-if="r.thumbnailUrl" class="k-rcard-thumb" :src="r.thumbnailUrl" :alt="r.name" loading="lazy" />
+            <span v-else class="k-rcard-tag" :data-kind="r.kind">{{ r.kind.toUpperCase() }}</span>
           </div>
           <div class="k-rcard-body">
             <div class="k-rcard-head">

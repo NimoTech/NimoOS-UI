@@ -1006,6 +1006,17 @@
       background: linear-gradient(225deg, transparent 50%, var(--line) 50%);
     }
   }
+  /* An album-asset hit (photos:<asset_id>) fills the whole paper chip with its thumbnail,
+     covering the paper texture and the dog-ear. Added 2026-08-15 (Plan B); no counterpart in
+     the blueprint. Zero color literals: existing tokens only. */
+  .k-rcard-thumb {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    border-radius: 3px;
+    background: var(--paper-surface); /* placeholder ground until the image loads, same color as the chip */
+    z-index: 1;                       /* covers the .k-rcard-icon::after dog-ear */
+  }
   .k-rcard-tag {
     position: absolute; bottom: 4px; left: 50%;
     transform: translateX(-50%);

@@ -179,7 +179,22 @@ export interface FileVM {
   mtimeMs: number
   score: number
   chunks: ChunkVM[]
+  /** Album-asset hits only: the asset id with the `photos:` prefix stripped. Undefined for plain files. */
+  photoAssetId?: string
+  /** Album-asset hits only: the thumbnail URL. */
+  thumbnailUrl?: string
 }
+
+/**
+ * Photo caption vectors live in the same `text_chunks` collection as document bodies, so the
+ * semantic source returns album assets alongside files (deliberate — see
+ * `NimoOS-Search/service/agent_tools.go:19`: "find a photo by describing it"). Their `file_id`
+ * looks like `photos:<asset_id>`, which Parser's `ExpandFiles` does not resolve ⇒ `paths` is
+ * always null ⇒ the basename comes out empty ⇒ the whole row used to render as `(Untitled)`
+ * with no path. The URL shape matches the images source
+ * (`NimoOS-Search/service/photos_client.go:84`).
+ */
+const PHOTO_ID_PREFIX = 'photos:'
 
 /**
  * Blueprint :38-49. When `name` comes out empty, fall back to `i18n.t('(Untitled)')` — the
@@ -189,6 +204,9 @@ export interface FileVM {
 function fileVM(group: FileGroupRaw): FileVM {
   const fullPath = (group.paths && group.paths[0] && group.paths[0].path) || ''
   const mtimeMs = (group.paths && group.paths[0] && group.paths[0].mtime_ms) || 0
+  const photoAssetId = group.file_id.startsWith(PHOTO_ID_PREFIX)
+    ? group.file_id.slice(PHOTO_ID_PREFIX.length)
+    : undefined
   return {
     id: group.file_id,
     name: basename(fullPath) || i18n.global.t('aiKbSrUntitled'),
@@ -199,6 +217,18 @@ function fileVM(group: FileGroupRaw): FileVM {
     mtimeMs,
     score: group.score || (group.chunks && group.chunks[0] && group.chunks[0].score) || 0,
     chunks: (group.chunks || []).map((c) => chunkVM(group.file_id, c)),
+    // 🔴 Must come after `name` — an album asset has no filename to use (`paths` is always
+    // null), so this overrides the `(Untitled)` fallback above with "Photo" / "Video". Split by
+    // mime, otherwise a video would be labelled a photo.
+    ...(photoAssetId
+      ? {
+          photoAssetId,
+          thumbnailUrl: `/v1/photos/assets/${photoAssetId}/thumbnail?size=small`,
+          name: i18n.global.t(
+            (group.mime || '').startsWith('video/') ? 'aiKbSrVideoAsset' : 'aiKbSrPhotoAsset',
+          ),
+        }
+      : {}),
   }
 }
 

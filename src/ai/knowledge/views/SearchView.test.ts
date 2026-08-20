@@ -1536,3 +1536,87 @@ describe('SearchView — debt I-1: runSearch topK / rerank two inputs must truly
     expect(call.rerank).toBe(true)
   })
 })
+
+// ══════════════════════════════════════════════════════════════════════════
+// Album-asset hits render as photo cards (2026-08-15, landed as Plan B after the user reported
+// from real hardware that "the third result shows Untitled with no path")
+//
+// Data source: the raw row the user pasted back from real hardware (`file_id: photos:b615bb4a-…`,
+// `mime: video/mp4`, `kind: caption`, `paths: null`, `preview.text` is a VLM-generated
+// description of the frame). Background and the three candidate fixes are recorded at the end of
+// `acceptance-handoff/09-clicksheet-p5e-search.md`.
+// ══════════════════════════════════════════════════════════════════════════
+describe('SearchView — album-asset hits render as photo cards', () => {
+  const PHOTO_RESPONSE = {
+    files: [
+      {
+        file_id: 'photos:b615bb4a-5397-4113-b524-0c574d0fa46e',
+        mime: 'video/mp4',
+        kind: 'caption',
+        score: 0.5724284648895264,
+        paths: null,
+        chunks: [
+          {
+            file_id: 'photos:b615bb4a-5397-4113-b524-0c574d0fa46e',
+            kind: 'caption',
+            score: 0.5724284648895264,
+            cite: { page: null, chunk_no: 0, offset_start: 0, offset_end: 418 },
+            preview: { text: 'This image is a slide from an educational presentation' },
+          },
+        ],
+      },
+    ],
+    hits: [],
+    stats: {},
+    warnings: [],
+  }
+
+  async function mountWithPhoto() {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(PHOTO_RESPONSE)
+    const { w, router } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('reinforcement learning')
+    await input.trigger('keydown.enter')
+    await flush()
+    return { w, store, router }
+  }
+
+  it('renders a thumbnail <img> whose src points at the Photos thumbnail endpoint', async () => {
+    const { w } = await mountWithPhoto()
+    const thumb = w.find('.k-rcard-thumb')
+    expect(thumb.exists()).toBe(true)
+    expect(thumb.attributes('src')).toBe(
+      '/v1/photos/assets/b615bb4a-5397-4113-b524-0c574d0fa46e/thumbnail?size=small',
+    )
+  })
+
+  it('no longer shows (Untitled): the title falls back to the album-asset copy', async () => {
+    const { w } = await mountWithPhoto()
+    const name = w.find('.k-rcard-name').text()
+    expect(name).not.toBe(i18n.global.t('aiKbSrUntitled'))
+  })
+
+  it('clicking a photo card deep-links to the album lightbox #/photos?asset=<id> and does not open the file drawer', async () => {
+    const { w, router } = await mountWithPhoto()
+    // The album route isn't in this test's route table; add a minimal one so the push lands.
+    router.addRoute({ path: '/photos', name: 'photos', component: { template: '<div />' } })
+    await w.find('.k-rcard').trigger('click')
+    await flush()
+    expect(router.currentRoute.value.path).toBe('/photos')
+    expect(router.currentRoute.value.query.asset).toBe('b615bb4a-5397-4113-b524-0c574d0fa46e')
+    // The file drawer is for hits that have a path; an album asset must not land in it.
+    expect(w.findComponent(FileDetailDrawer).exists()).toBe(false)
+  })
+
+  it('a plain file hit renders no thumbnail (existing cards untouched)', async () => {
+    const store = withPinia()
+    vi.spyOn(store, 'runSearch').mockResolvedValue(F5B_RESPONSE)
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('deprecation')
+    await input.trigger('keydown.enter')
+    await flush()
+    expect(w.find('.k-rcard-thumb').exists()).toBe(false)
+  })
+})
