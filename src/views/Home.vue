@@ -6,7 +6,7 @@
     <DesktopContextMenu v-else>
       <GridCanvas ref="canvas" :cell="cell" :gap="gap" :cols="cols" :rows="rows" />
     </DesktopContextMenu>
-    <HomeDock ref="dock" />
+    <HomeDock ref="dock" :cell="cell" :gap="gap" :cols="cols" :rows="rows" :grid-el="gridEl" />
     <AddPanel :open="addPanel.open.value" :cell="cell" :gap="gap" :cols="cols" :rows="rows" :grid-el="gridEl" @close="addPanel.close" />
     <SearchDialog />
     <StartAppDialog />

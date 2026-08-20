@@ -20,4 +20,17 @@ describe('StorageWidget', () => {
     const wp = mount(StorageWidget, { props: { item: item(4) } })
     expect(wp.text()).toContain('正常')
   })
+  // The ring used to fall back to a hardcoded 68%/84% three-colour gradient that
+  // ignored the disk entirely, so the arc and the number in the middle disagreed.
+  // The arc must now be driven by the same percentage as the text.
+  it('drives the ring arc from the real used percentage', () => {
+    const s = useLiveStatsStore()
+    s.ingest({ disk: { size: 1000, avail: 250, used: 750, health: true }, cpu: null, mem: null, gpu: null, net: null } as any)
+    const wp = mount(StorageWidget, { props: { item: item(4) } })
+    const ring = wp.get('.ring')
+    expect(ring.text()).toContain('75%')
+    expect(ring.attributes('style')).toContain('--p: 75')
+    // The dead three-colour fallback keyed off these hardcoded stops.
+    expect(ring.attributes('style')).not.toContain('68%')
+  })
 })

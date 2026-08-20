@@ -5,7 +5,6 @@ import { createI18n } from 'vue-i18n'
 import { defineComponent, ref } from 'vue'
 import TimeMachineOverlay from './TimeMachineOverlay.vue'
 import SnapshotSettingsDialog from './SnapshotSettingsDialog.vue'
-import { DECK_WINDOW } from '../util/timeMachineMath'
 import zh from '../../i18n/zh_cn'
 
 const listMock = vi.fn()
@@ -47,6 +46,15 @@ const mountIt = (props = {}) =>
 const flush = async (w: ReturnType<typeof mountIt>) => {
   await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
 }
+// The path is a breadcrumb in the card's own header. Scoped to the FRONT card on purpose: every
+// rendered card draws one, so an unscoped .tm-crumb query returns levels x cards and compares
+// false against any single path.
+const crumbs = (w: ReturnType<typeof mountIt>) =>
+  w.get('.tm-card.is-front').findAll('.tm-crumb').map((c) => c.text())
+// Longer than the walk pace (STEP_MAX_MS 110) plus PREVIEW_SETTLE_MS (360).
+const settleDeck = async (w: ReturnType<typeof mountIt>) => {
+  await new Promise((r) => setTimeout(r, 900)); await flush(w)
+}
 
 beforeEach(() => {
   setActivePinia(createPinia()); vi.clearAllMocks()
@@ -80,36 +88,48 @@ describe('TimeMachineOverlay three states', () => {
     expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
   })
   // Originally in the top-left; a long path would run across into the gear and cover the deck animation — moved above the bottom-bar time (user feedback)
-  it('show current folder above the bar timestamp', async () => {
+  it('name the folder on the card itself, not in a bar of its own', async () => {
     const w = mountIt(); await flush(w)
-    expect(w.find('.tm-bar-folder').text()).toContain('/磁盘/Photos')
-    expect(w.find('.tm-folder').exists()).toBe(false) // the top-left line should no longer exist
+    expect(crumbs(w)).toEqual(['磁盘', 'Photos'])
+    // Neither of the two places it used to live keeps a copy.
+    expect(w.find('.tm-topbar-folder').exists()).toBe(false)
+    expect(w.find('.tm-bar-folder').exists()).toBe(false)
   })
   it('after ready, render card stack with the newest snapshot at the front', async () => {
     const w = mountIt(); await flush(w)
     const front = w.findAll('.tm-card').find((c) => c.classes().includes('is-front'))!
-    expect(front.text()).toContain('14:30')
+    // The card identifies itself by its note and type, not by a clock of its own.
+    expect(front.text()).toContain('改版前')
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
   })
   it('after ready, render both card stack and ruler, tick count equals snapshot count', async () => {
     const w = mountIt(); await flush(w)
     expect(w.findAll('.tm-tick-main')).toHaveLength(3)
   })
-  it('click tick to change selection, bar timestamp updates accordingly', async () => {
+  it('clicking a tick two snapshots away walks through the one in between, it does not jump', async () => {
     const w = mountIt(); await flush(w)
     await w.findAll('.tm-tick-main')[2].trigger('click')
+    // The first step is synchronous (a single-snapshot move must stay instant), so right after
+    // the click the deck is showing the MIDDLE snapshot, not the destination.
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 09:00')
+    await settleDeck(w)
     expect(w.find('.tm-bar-moment').text()).toContain('昨天')
   })
 })
 
 describe('TimeMachineOverlay selection and enter', () => {
-  it('↑ goes earlier, ↓ goes later, clamped at both ends', async () => {
+  // ↑/↓ move the highlight the way the rail runs (owner's call): the newest snapshot is at the
+  // top of the rail, so ↓ walks toward earlier ones and ↑ back toward now. This replaced the
+  // "real Time Machine's ↑ rewinds into the past" mapping, which contradicted both the rail and
+  // its two step buttons.
+  it('↓ goes earlier, ↑ goes back toward now, clamped at both ends', async () => {
     const w = mountIt(); await flush(w)
     expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
-    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp' })); await w.vm.$nextTick()
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown' })); await w.vm.$nextTick()
     expect(w.find('.tm-bar-moment').text()).toBe('今天 09:00')
-    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown' })); await w.vm.$nextTick()
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp' })); await w.vm.$nextTick()
     expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
-    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown' })); await w.vm.$nextTick()
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowUp' })); await w.vm.$nextTick()
     expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30') // already at the newest, clamped
   })
   it('Esc emit close', async () => {
@@ -131,6 +151,20 @@ describe('TimeMachineOverlay selection and enter', () => {
     const w = mountIt(); await flush(w)
     document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter' }))
     expect(w.emitted('select')).toHaveLength(1)
+  })
+  // The shape the production device really sends for an absent folder: GET /v1/folder collapses
+  // every failure into 500 + "Fail" (NimoOS route/v1/file.go:399), so it is indistinguishable from
+  // an unreadable folder -- and 'failed' must land at the snapshot root just as 'missing' does.
+  // Composing the sub-path anyway made files.load degrade it into a silent "empty folder", i.e. the
+  // snapshot looked like it had backed nothing up.
+  it('a listing that failed (not just an explicit 404) also enters at the snapshot root', async () => {
+    getListMock.mockRejectedValue(Object.assign(new Error('Fail'), {
+      name: 'AxiosError', code: 'ERR_BAD_RESPONSE',
+      response: { status: 500, data: { success: 500, message: 'Fail', data: 'open …: no such file or directory' } },
+    }))
+    const w = mountIt(); await flush(w)
+    await w.find('.tm-bar-enter').trigger('click'); await flush(w)
+    expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x')
   })
   it('when the folder does not exist at this moment (preview 404 → missing), enter falls to snapshot root instead of patching a non-existent sub-path', async () => {
     getListMock.mockRejectedValue(Object.assign(new Error('nope'), { code: 404 }))
@@ -226,14 +260,18 @@ describe('TimeMachineOverlay selection and enter', () => {
   // always 0 (the newest), so the past direction is naturally empty (nothing newer than
   // "newest"), and the visible window then exactly equals DECK_WINDOW.depth — directly
   // verifying the overlay side really uses this constant rather than its own literal.
-  it('fetch preview only for snapshots in card stack window (depth count), not all snapshots', async () => {
+  it('list the folder of the front card only, not of every card in the deck window', async () => {
+    // Was DECK_WINDOW.depth listings per selection change (front + 4 behind), of which at most
+    // two are ever rendered -- rear cards deliberately draw no grid. That work landed squarely
+    // inside the flip animation the owner reported as not smooth.
     const many = Array.from({ length: 10 }, (_, i) => ({
       id: i, name: `202607${String(30 - i).padStart(2, '0')}T090000Z_manual_${i}`, label: '', type: 'manual',
       created_at: relDay(i, 9),
     }))
     listMock.mockResolvedValue(many)
     const w = mountIt(); await flush(w)
-    expect(getListMock).toHaveBeenCalledTimes(DECK_WINDOW.depth)
+    expect(getListMock).toHaveBeenCalledTimes(1)
+    expect(getListMock).toHaveBeenCalledWith('/DATA/.snapshots/20260730T090000Z_manual_0/Photos')
   })
 
   it('gear emits open-settings', async () => {
@@ -246,6 +284,191 @@ describe('TimeMachineOverlay selection and enter', () => {
     w.unmount()
     document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }))
     expect(w.emitted('close')).toBeUndefined()
+  })
+})
+
+describe('opening a folder from a card', () => {
+  // Before this, a folder cell had no handler of its own, so the click bubbled to the card, and
+  // a click on the front card means "enter this snapshot" -- clicking a folder threw the user
+  // out of the time machine instead of walking into the folder. That is what the owner's
+  // "folders in the snapshot can't be opened" was.
+  const DIR = { path: '/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024', name: '2024', is_dir: true, date: relDay(0, 9) }
+  beforeEach(() => { getListMock.mockResolvedValue({ content: [DIR] }) })
+
+  it('clicking a folder on the card re-lists that sub-folder inside the same snapshot', async () => {
+    const w = mountIt(); await flush(w)
+    expect(getListMock).toHaveBeenLastCalledWith('/DATA/.snapshots/20260730T143000Z_manual_x/Photos')
+    await w.get('.tm-file.is-dir').trigger('click'); await flush(w)
+    expect(getListMock).toHaveBeenLastCalledWith('/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024')
+  })
+  it('the deck stays open: opening a folder does not emit select/close', async () => {
+    const w = mountIt(); await flush(w)
+    await w.get('.tm-file.is-dir').trigger('click'); await flush(w)
+    expect(w.emitted('select')).toBeUndefined()
+    expect(w.emitted('close')).toBeUndefined()
+  })
+  it('entering the snapshot lands on the folder walked into, not on the folder the files area is standing in', async () => {
+    const w = mountIt(); await flush(w)
+    await w.get('.tm-file.is-dir').trigger('click'); await flush(w)
+    await w.find('.tm-bar-enter').trigger('click')
+    expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024')
+  })
+  it('the bottom bar names the folder walked into, and the breadcrumb is the way back out', async () => {
+    const w = mountIt(); await flush(w)
+    expect(crumbs(w)).toEqual(['磁盘', 'Photos']) // nothing below the starting folder yet
+    await w.get('.tm-file.is-dir').trigger('click'); await flush(w)
+    expect(crumbs(w)).toEqual(['磁盘', 'Photos', '2024'])
+    // 'Photos' is the folder the time machine was opened on: clicking it comes back out.
+    await w.findAll('button.tm-crumb').find((c) => c.text() === 'Photos')!.trigger('click'); await flush(w)
+    expect(crumbs(w)).toEqual(['磁盘', 'Photos'])
+  })
+  it('levels above the folder the time machine was opened on are shown but not clickable (entering is anchored to that folder)', async () => {
+    const w = mountIt(); await flush(w)
+    expect(crumbs(w)).toContain('磁盘')
+    expect(w.findAll('button.tm-crumb').map((c) => c.text())).not.toContain('磁盘')
+  })
+  it('Backspace goes back up one level too, and is a no-op at the starting folder', async () => {
+    const w = mountIt(); await flush(w)
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' })); await flush(w)
+    expect(crumbs(w)).toEqual(['磁盘', 'Photos'])
+    await w.get('.tm-file.is-dir').trigger('click'); await flush(w)
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Backspace' })); await flush(w)
+    expect(crumbs(w)).toEqual(['磁盘', 'Photos'])
+  })
+  it('switching to a snapshot that has no such sub-folder still enters, landing at the snapshot root', async () => {
+    const w = mountIt(); await flush(w)
+    await w.get('.tm-file.is-dir').trigger('click'); await flush(w)
+    // The older snapshot does not contain Photos/2024 at all.
+    getListMock.mockRejectedValue(Object.assign(new Error('nope'), { code: 404 }))
+    // No wait between flipping and entering, on purpose: listings are debounced and only the
+    // target snapshot is listed, so at this instant nothing is known about the older snapshot
+    // yet. enterSnapshot must await that answer instead of optimistically composing a sub-path
+    // that does not exist there (files.load would degrade that into a silent "empty folder" --
+    // the exact bug this fallback exists to prevent).
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowDown' }))
+    await w.find('.tm-bar-enter').trigger('click')
+    await flush(w)
+    expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T090000Z_auto')
+  })
+})
+
+describe('flip smoothness', () => {
+  // The front card lays out up to 200 cells, each an <img> with its own IntersectionObserver.
+  // Mounting that in the same frame the 450ms transform starts is what made the flip stutter.
+  // The listing request still goes out immediately (enterSnapshot's "does this folder exist in
+  // that snapshot" answer depends on it); only the grid waits for the deck to settle.
+  it('the incoming front card stays text-only during the flip, then lays out its grid once the deck settles', async () => {
+    getListMock.mockResolvedValue({ content: [
+      { path: '/x/a.jpg', name: 'a.jpg', is_dir: false, date: relDay(0, 9) },
+    ] })
+    // Assert on the FRONT card specifically: the card flying out keeps its own grid on purpose
+    // (so content does not vanish before the card does), so a bare find('.tm-files') would
+    // report that one and pass no matter what the front card does.
+    const w = mountIt()
+    const frontGrid = () => w.get('.tm-card.is-front').find('.tm-files').exists()
+    // > the walk pace (STEP_MAX_MS 110) + PREVIEW_SETTLE_MS (480ms, itself >= the card's 0.45s
+    // flip transition)
+    const settle = async () => { await new Promise((r) => setTimeout(r, 900)); await flush(w) }
+    await flush(w)
+    expect(frontGrid()).toBe(true) // settled at the newest snapshot on open
+
+    // Walk to the third snapshot and back, so BOTH previews are cached by name. Without this
+    // the assertion below would be hollow: a not-yet-fetched preview leaves the grid unmounted
+    // anyway, and the test would pass with the settle gate deleted.
+    await w.findAll('.tm-tick-main')[2].trigger('click'); await settle()
+    expect(frontGrid()).toBe(true)
+    await w.findAll('.tm-tick-main')[0].trigger('click'); await settle()
+    const callsBefore = getListMock.mock.calls.length
+
+    // Cache hit: the preview data for this snapshot is already in hand, so only the settle gate
+    // can keep the grid out of the flip.
+    await w.findAll('.tm-tick-main')[2].trigger('click'); await flush(w)
+    expect(getListMock.mock.calls.length).toBe(callsBefore) // proven cache hit, no new request
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 09:00') // first step of the walk, taken synchronously
+    expect(frontGrid()).toBe(false) // ... and no grid is mounted while the deck is moving
+
+    await settle()
+    expect(frontGrid()).toBe(true)
+  })
+  // User feedback: "flipping several pages just jumps, there is no page-flip animation -- I want
+  // to really see 10 pages go past". The deck now walks one snapshot per tick instead of
+  // assigning the destination index, so every snapshot in between takes its turn at the front.
+  it('a long jump walks through every snapshot in between, one at a time', async () => {
+    const many = Array.from({ length: 11 }, (_, i) => ({
+      id: i, name: `snap-${i}`, label: '', type: 'manual',
+      created_at: relDay(0, 23 - i, 0), // all on the same day, one hour apart, newest first
+    }))
+    listMock.mockResolvedValue(many)
+    const w = mountIt(); await flush(w)
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 23:00')
+
+    // Aim ten snapshots away, then sample which snapshot is at the front over time. The list is
+    // seeded with the pre-click value because the first step is taken synchronously, so the
+    // starting snapshot is already gone by the first sample.
+    const seen: string[] = [w.find('.tm-bar-moment').text()]
+    await w.findAll('.tm-tick-main')[10].trigger('click')
+    // 160 x 25ms is ample for ten steps at up to STEP_MAX_MS (110) each.
+    for (let i = 0; i < 160; i++) {
+      const now = w.find('.tm-bar-moment').text()
+      if (seen[seen.length - 1] !== now) seen.push(now)
+      if (now === '今天 13:00') break
+      await new Promise((r) => setTimeout(r, 25)); await w.vm.$nextTick()
+    }
+    // All eleven, in order, with nothing skipped -- a jump would have produced ['23:00','13:00'].
+    expect(seen).toEqual([
+      '今天 23:00', '今天 22:00', '今天 21:00', '今天 20:00', '今天 19:00', '今天 18:00',
+      '今天 17:00', '今天 16:00', '今天 15:00', '今天 14:00', '今天 13:00',
+    ])
+  })
+  it('entering mid-walk acts on the snapshot aimed at, not the one being passed through', async () => {
+    const many = Array.from({ length: 11 }, (_, i) => ({
+      id: i, name: `snap-${i}`, label: '', type: 'manual', created_at: relDay(0, 23 - i, 0),
+    }))
+    listMock.mockResolvedValue(many)
+    const w = mountIt({ relPath: '' }); await flush(w)
+    await w.findAll('.tm-tick-main')[10].trigger('click')
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 22:00') // still walking, nowhere near the target
+    await w.find('.tm-bar-enter').trigger('click'); await flush(w)
+    expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/snap-10')
+  })
+  it('a redirect mid-walk turns the deck around instead of stacking a second walk', async () => {
+    const many = Array.from({ length: 11 }, (_, i) => ({
+      id: i, name: `snap-${i}`, label: '', type: 'manual', created_at: relDay(0, 23 - i, 0),
+    }))
+    listMock.mockResolvedValue(many)
+    const w = mountIt(); await flush(w)
+    await w.findAll('.tm-tick-main')[10].trigger('click')
+    await new Promise((r) => setTimeout(r, 150)); await flush(w)
+    await w.findAll('.tm-tick-main')[0].trigger('click') // change of mind: back to the newest
+    await new Promise((r) => setTimeout(r, 1200)); await flush(w)
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 23:00')
+  })
+
+  // The two step buttons sit beside the card (owner's call: they belong to the deck they move, not
+  // to the far edge of the screen). The arrow points where the highlight goes: the list is
+  // newest-first, so up walks toward index 0 and down away from it.
+  it('the step buttons beside the deck move the selection the way they point', async () => {
+    const w = mountIt(); await flush(w)
+    const [up, down] = w.findAll('.tm-deck-step')
+    expect(w.find('.tm-rail-step').exists()).toBe(false) // not on the rail any more
+    await up.trigger('click') // already at the newest: clamped, no move
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
+    await down.trigger('click')
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 09:00')
+    await up.trigger('click')
+    expect(w.find('.tm-bar-moment').text()).toBe('今天 14:30')
+  })
+  it('each step button disables at its own end of the list', async () => {
+    const w = mountIt(); await flush(w)
+    const btns = () => w.findAll('.tm-deck-step')
+    expect(btns()[0].attributes('disabled')).toBeDefined()   // newest selected: nothing newer
+    expect(btns()[1].attributes('disabled')).toBeUndefined()
+    // Walk to the oldest and the pair swaps over.
+    await btns()[1].trigger('click'); await settleDeck(w)
+    await btns()[1].trigger('click'); await settleDeck(w)
+    expect(w.find('.tm-bar-moment').text()).toBe('昨天 09:00')
+    expect(btns()[0].attributes('disabled')).toBeUndefined()
+    expect(btns()[1].attributes('disabled')).toBeDefined()
   })
 })
 

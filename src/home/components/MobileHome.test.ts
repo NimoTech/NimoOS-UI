@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -29,6 +29,14 @@ function seed() {
 }
 
 describe('MobileHome', () => {
+  // This suite mounts the clock widget without calling initService(), so
+  // useHostTimezone's fetch rejects and its .catch() deliberately logs a
+  // warning (see useHostTimezone.ts). That warning is expected here, not a
+  // regression, so it is stubbed for the duration of this file only.
+  let warn: ReturnType<typeof vi.spyOn>
+  beforeAll(() => { warn = vi.spyOn(console, 'warn').mockImplementation(() => {}) })
+  afterAll(() => { warn.mockRestore() })
+
   beforeEach(() => { setActivePinia(createPinia()); openItem.mockClear() })
 
   it('splits widgets (full-width) from tiles (icon grid) in desktop visual order', () => {

@@ -20,3 +20,37 @@ describe('resizeSize', () => {
     expect(resizeSize(99999, 0, 5, 1, stride, DIMS)[0]).toBe(12 - 5 + 1) // clamped to cols-c+1=8
   })
 })
+
+import { cellAtPointer } from './pointerMath'
+
+// Extracted from AddPanel so the dock can use the same hit-test. A pointer outside
+// the grid must be null rather than a clamped edge cell: the caller distinguishes
+// "dropped on the desktop" from "dropped somewhere else", and a clamped answer
+// would place an item the user was trying not to place.
+describe('cellAtPointer', () => {
+  const rect = { left: 100, top: 50, right: 100 + 12 * 76, bottom: 50 + 8 * 76 }
+  const grid = { cell: 60, gap: 16, cols: 12, rows: 8 }
+  const one = { w: 1, h: 1 }
+
+  it('returns null when the pointer is outside the grid', () => {
+    expect(cellAtPointer(99, 60, rect, one, grid)).toBeNull()
+    expect(cellAtPointer(200, 49, rect, one, grid)).toBeNull()
+    expect(cellAtPointer(rect.right + 1, 60, rect, one, grid)).toBeNull()
+    expect(cellAtPointer(200, rect.bottom + 1, rect, one, grid)).toBeNull()
+  })
+
+  it('maps the grid origin to cell 1,1', () => {
+    expect(cellAtPointer(130, 80, rect, one, grid)).toEqual({ tc: 1, tr: 1 })
+  })
+
+  it('advances one column per step', () => {
+    expect(cellAtPointer(130 + 76, 80, rect, one, grid)).toEqual({ tc: 2, tr: 1 })
+    expect(cellAtPointer(130, 80 + 76, rect, one, grid)).toEqual({ tc: 1, tr: 2 })
+  })
+
+  // A wide item cannot start so far right that it would hang off the grid.
+  it('clamps so the item fits inside the grid', () => {
+    expect(cellAtPointer(rect.right - 1, rect.bottom - 1, rect, { w: 4, h: 2 }, grid))
+      .toEqual({ tc: 9, tr: 7 })
+  })
+})

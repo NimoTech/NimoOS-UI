@@ -17,3 +17,25 @@ export function resizeSize(localX: number, localY: number, c: number, r: number,
     clamp(Math.round(localY / stride) - (r - 1), 1, dims.rows - r + 1),
   ]
 }
+
+/**
+ * Pointer position to grid cell, or null when the pointer is not over the grid.
+ *
+ * Shared by the add-panel's spawn drag and the dock's drag-onto-the-desktop, which
+ * must agree: both use the answer to decide whether a release counts as a
+ * placement at all, and null is what "not over the grid" means. Clamping keeps a
+ * multi-cell item from starting where it would hang off the edge.
+ */
+export function cellAtPointer(
+  clientX: number, clientY: number,
+  rect: { left: number; top: number; right: number; bottom: number },
+  size: { w: number; h: number },
+  grid: { cell: number; gap: number; cols: number; rows: number },
+): { tc: number; tr: number } | null {
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null
+  const step = grid.cell + grid.gap
+  return {
+    tc: clamp(Math.round((clientX - rect.left - grid.cell / 2) / step) + 1, 1, grid.cols - size.w + 1),
+    tr: clamp(Math.round((clientY - rect.top - grid.cell / 2) / step) + 1, 1, grid.rows - size.h + 1),
+  }
+}

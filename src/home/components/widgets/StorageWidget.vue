@@ -1,6 +1,6 @@
 <template>
   <div class="ring-row" :class="{ solo: item.w <= 2 }">
-    <RingGauge :percent="pct" :label="t('widgetUsed')" :arc="false" />
+    <RingGauge :percent="pct" :label="t('widgetUsed')" />
     <div v-if="item.w > 2" class="stats">
       <div v-if="item.w >= 4" class="stat"><span>{{ t('widgetTotal') }}</span><b>{{ total }}</b></div>
       <div v-if="item.w >= 4" class="stat"><span>{{ t('widgetUsed') }}</span><b>{{ used }}</b></div>

@@ -76,6 +76,39 @@ describe('useDeckPreview', () => {
     visible.value = ['snap1']; await flush()
     expect(getListMock).toHaveBeenCalledTimes(2)
   })
+  // 🔴 The one the production device actually sends. NimoOS core's file API answers
+  // HTTP 500 with envelope code 60001 (FILE_DOES_NOT_EXIST) for an absent path, never 404 —
+  // measured: GET /v1/file?path=/DATA/.snapshots/<absent>/Photos
+  // -> 500 {"success":60001,"message":"File does not exist"}. While only 404 was recognised,
+  // every absent folder resolved to 'failed', so the card never said "this folder did not exist
+  // yet" and enterSnapshot happily composed the missing sub-path. The 404 case below stays: the
+  // shared package can surface a real network 404 through the same path.
+  it('directory does not exist in snapshot → missing, when the backend says so with code 60001', async () => {
+    getListMock.mockRejectedValue(Object.assign(new Error('File does not exist'), { code: 60001 }))
+    const api = useDeckPreview({ mountPoint: () => '/DATA', relPath: () => 'Photos', visibleNames: () => ['snap1'] })
+    await flush()
+    expect(api.previews.value.snap1.status).toBe('missing')
+  })
+  // The shape the production device really throws, captured with a CDP probe against the running
+  // device: HTTP 500, axios's own STRING code, and the envelope carried on response.data. The
+  // string code is the trap -- the helper this replaced returned it in place of the status, so
+  // every numeric comparison downstream was dead code.
+  it('the real AxiosError shape (HTTP 500 + string code + envelope 60001) resolves to missing', async () => {
+    getListMock.mockRejectedValue(Object.assign(new Error('Fail'), {
+      name: 'AxiosError',
+      code: 'ERR_BAD_RESPONSE',
+      response: { status: 500, data: { success: 60001, message: 'File does not exist', data: null } },
+    }))
+    const api = useDeckPreview({ mountPoint: () => '/DATA', relPath: () => 'Photos', visibleNames: () => ['snap1'] })
+    await flush()
+    expect(api.previews.value.snap1.status).toBe('missing')
+  })
+  it('a code that is neither 404 nor 60001 is a failure, not a missing folder', async () => {
+    getListMock.mockRejectedValue(Object.assign(new Error('boom'), { code: 60002 }))
+    const api = useDeckPreview({ mountPoint: () => '/DATA', relPath: () => 'Photos', visibleNames: () => ['snap1'] })
+    await flush()
+    expect(api.previews.value.snap1.status).toBe('failed')
+  })
   it('directory does not exist in snapshot → missing', async () => {
     getListMock.mockRejectedValue(Object.assign(new Error('no'), { code: 404 }))
     const { api } = setup(['snap1']); await flush()

@@ -112,10 +112,13 @@ describe('TimezoneRow', () => {
     expect((w.find('select').element as HTMLSelectElement).value).toBe('Europe/Paris')
   })
 
-  it('uses the default America/New_York when nothing is saved on the server (ports Vue2 L940)', async () => {
+  // Vue2 (L940) hardcoded America/New_York here, which is why a device could show
+  // a timezone unrelated to its own; SYSTEM_DEFAULTS.timezone now follows the
+  // browser instead (vitest pins TZ=UTC, so that's the value asserted here).
+  it('uses the browser timezone as the default when nothing is saved on the server', async () => {
     const w = mountRow(TimezoneRow)
     await flushPromises()
-    expect((w.find('select').element as HTMLSelectElement).value).toBe('America/New_York')
+    expect((w.find('select').element as HTMLSelectElement).value).toBe('UTC')
   })
 
   it('mounting **does not** write the config back (porting discipline #1: Vue2 wastes a write every time it opens)', async () => {

@@ -1,7 +1,7 @@
 <template>
   <button class="dock-app" :class="{ 'is-stopped': apps.isStopped(appKey) }" :data-app="appKey" @click="onClick">
     <span class="dock-ic" :class="meta?.icon ? 'has-img' : meta?.cls">
-      <img v-if="meta?.icon" :src="meta.icon" alt="" loading="lazy" />
+      <img v-if="meta?.icon" :src="meta.icon" alt="" loading="lazy" draggable="false" />
       <span v-else v-html="glyphSvg" />
     </span>
     <span class="dock-label">{{ displayName }}</span>
@@ -34,4 +34,18 @@ function onClick() {
 </script>
 <!-- .dock-app / .dock-ic / .dock-label styles live in global theme.css so the
      HomeDock all-apps toggle (outside this component's scope) is styled identically. -->
+<style scoped>
+/* The dock's own pointer-based drag has to win over the browser's native image
+   drag, which otherwise hijacks the gesture: no-drop cursor, and dropping on a
+   tab navigates to the icon URL. draggable="false" is not sufficient on its own
+   — a text selection re-enables the native drag — so selection is disabled too.
+   Same three-part remedy as PhotoImageViewer.vue:221 and ImageViewer.vue. */
+.dock-app {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dock-app img {
+  -webkit-user-drag: none;
+}
+</style>
 

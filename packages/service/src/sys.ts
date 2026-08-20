@@ -15,6 +15,16 @@ export function createSys(http: AxiosInstance) {
       const res = await http.get('/sys/utilization')
       return parseUtil(unwrap<Record<string, unknown>>(res.data))
     },
+
+    // Returns the host's IANA zone name, e.g. "Asia/Shanghai". Deliberately not
+    // the `timezone` field of the user's system config blob: that one is a
+    // display preference the old UI's settings page wrote, and nothing keeps it
+    // in step with the host. unwrap() throws on a non-200 envelope, which is what
+    // callers use to decide the reading is unavailable.
+    async getTimeZone(): Promise<string> {
+      const res = await http.get('/sys/timezone')
+      return unwrap<{ timezone: string }>(res.data)?.timezone ?? ''
+    },
     async hardwareInfo(): Promise<HardwareInfo> {
       const res = await http.get('/sys/hardware')
       return unwrap<HardwareInfo>(res.data)
