@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { useLiveStatsStore } from '../../stores/liveStats'
@@ -18,12 +19,13 @@ const IGPU = {
   memory_used: 0,
   temperature: 0,
   freq_mhz: 1000,
+  integrated: true,
 }
 
 const DISCRETE = {
   index: 0, name: 'NVIDIA GeForce RTX 4070', vendor: 'nvidia',
   utilization_gpu: 43.5, utilization_memory: 61, memory_total: 12884901888,
-  memory_used: 7858000000, temperature: 54, freq_mhz: 0,
+  memory_used: 7858000000, temperature: 54, freq_mhz: 0, integrated: false,
 }
 
 describe('GpuWidget', () => {
@@ -131,5 +133,203 @@ describe('GpuWidget', () => {
     const rows = w.findAll('.stat').map((r) => r.text())
     expect(rows.some((r) => r.includes('显存占用') && r.includes('0%'))).toBe(true)
     expect(rows.some((r) => r.includes('显存占用') && r.includes('—'))).toBe(false)
+  })
+
+  // ── iGPU + discrete card: one ring each ────────────────────────────────────
+  // The backend has always sent every GPU it finds; the widget only ever read
+  // gpu[0], so the second card was invisible. Selection is on the `integrated`
+  // flag, not on array position -- the backend sorts by "reports a temperature"
+  // and an integrated GPU that does report one would otherwise take the discrete
+  // card's ring.
+  const mountBoth = (w = 4) => {
+    const s = useLiveStatsStore()
+    s.ingest({ gpu: [DISCRETE, IGPU], cpu: null, mem: null, disk: null, net: null } as any)
+    return mount(GpuWidget, { props: { item: item(w) } })
+  }
+
+  it('gives the integrated and the discrete GPU a ring each on the wide card', () => {
+    const w = mountBoth(4)
+    const rings = w.findAll('.ring')
+    expect(rings.length).toBe(2)
+    expect(rings[0].text()).toContain('iGPU')
+    expect(rings[0].text()).toContain('0.7%')
+    expect(rings[1].text()).toContain('GPU')
+    expect(rings[1].text()).toContain('44%')
+  })
+
+  it('keeps a single ring at 2x2 and gives it to the discrete card', () => {
+    const w = mountBoth(2)
+    expect(w.findAll('.ring').length).toBe(1)
+    expect(w.get('.ring').text()).toContain('44%')
+    expect(w.get('.ring').text()).not.toContain('iGPU')
+  })
+
+  // The five-row table has no room next to two rings, so each ring gets one
+  // compact line -- and it lists only the fields that card actually reports,
+  // rather than a row of em dashes.
+  it('labels each ring with only the readings that card has', () => {
+    const w = mountBoth(4)
+    const subs = w.findAll('.num-sub').map((n) => n.text())
+    expect(subs.length).toBe(2)
+    expect(subs[0]).toContain('1000 MHz')   // iGPU: frequency is all it exposes
+    expect(subs[0]).not.toContain('—')
+    expect(subs[1]).toContain('54℃')        // discrete: temperature + VRAM
+    expect(subs[1]).toContain('12 GB')
+  })
+
+  it('names the single ring after the kind of GPU it is', () => {
+    expect(mountWith(IGPU, 2).get('.ring').text()).toContain('iGPU')
+    expect(mountWith(DISCRETE, 2).get('.ring').text()).toContain('GPU')
+    expect(mountWith(IGPU, 2).get('.ring').text()).not.toContain('使用率')
+  })
+
+  // A card without the flag (an older backend that has not been redeployed yet)
+  // must still render: unknown means "just call it GPU", never a blank ring.
+  it('falls back to GPU when the backend sends no integrated flag', () => {
+    const { integrated, ...noFlag } = IGPU as any
+    const w = mountWith(noFlag, 4)
+    expect(w.get('.ring').text()).toContain('GPU')
+    expect(w.findAll('.ring').length).toBe(1)
+  })
+
+  // Regression: .ring-row{flex:1} ate the whole card height, .stats was squeezed
+  // to nothing and .card-body{overflow:hidden} cut four of its five rows off --
+  // on the device only "Model" was visible. The wide single-card layout puts the
+  // ring and the table side by side so the rows have somewhere to go.
+  it('puts the ring beside the stats table on a wide single-GPU card', () => {
+    const w = mountWith(DISCRETE, 4)
+    expect(w.find('.ring-row.solo').exists()).toBe(false)
+    expect(w.find('.ring-row').exists()).toBe(true)
+    expect(w.findAll('.stat').length).toBeGreaterThanOrEqual(4)
+  })
+
+  // The card's max height went 2 -> 3 for exactly this: at three rows the two rings
+  // each get their own readings table, which the 4x2 pair layout has no room for.
+  it('gives each GPU a full readings table when the card is three rows tall', () => {
+    const s = useLiveStatsStore()
+    s.ingest({ gpu: [DISCRETE, IGPU], cpu: null, mem: null, disk: null, net: null } as any)
+    const w = mount(GpuWidget, { props: { item: { ...item(4), h: 3 } } })
+    expect(w.findAll('.ring').length).toBe(2)
+    expect(w.findAll('.stats').length).toBe(2)
+    const cells = w.findAll('.gpu-cell')
+    expect(cells[0].findAll('.stat').length).toBe(5)
+    expect(cells[0].text()).toContain('iGPU')
+    expect(cells[0].text()).toContain('1000 MHz')
+    expect(cells[1].text()).toContain('GPU')
+    expect(cells[1].text()).toContain('54℃')
+    expect(cells[1].text()).toContain('12 GB')
+    // freq_mhz 0 on the discrete card: no frequency row at all, so this column is one
+    // row shorter than the iGPU's. A fifth em dash would buy tidier alignment at the
+    // cost of implying the field exists and merely went unread this tick.
+    expect(cells[1].findAll('.stat').length).toBe(4)
+    expect(cells[1].text()).not.toContain('频率')
+  })
+
+  // At two rows tall there is no room for the tables -- that layout stays the
+  // ring-plus-one-line pair.
+  it('keeps the compact pair layout at two rows tall', () => {
+    const s = useLiveStatsStore()
+    s.ingest({ gpu: [DISCRETE, IGPU], cpu: null, mem: null, disk: null, net: null } as any)
+    const w = mount(GpuWidget, { props: { item: item(4) } })
+    expect(w.findAll('.gpu-cell').length).toBe(0)
+    expect(w.findAll('.num-sub').length).toBe(2)
+  })
+
+  // One GPU on a three-row card uses the same per-card layout, one column wide, with
+  // the ring back at full scale -- it is not sharing the width with anything.
+  it('stacks the ring over a full-width table for a single GPU at three rows', () => {
+    const w = mountWith(IGPU, 4)
+    const tall = mount(GpuWidget, { props: { item: { ...item(4), h: 3 } } })
+    expect(w.find('.gpu-grid').exists()).toBe(false) // 4x2 stays ring-beside-table
+    expect(tall.find('.gpu-grid.single').exists()).toBe(true)
+    expect(tall.findAll('.ring').length).toBe(1)
+    expect(tall.findAll('.gpu-cell').length).toBe(1)
+    expect(tall.findAll('.stat').length).toBe(5)
+    expect(tall.get('.ring').text()).toContain('iGPU')
+  })
+
+  // ── Row budget wiring ──────────────────────────────────────────────────────
+  // The pure fit logic is covered in util/statFit.test.ts; what these check is the
+  // wiring: that the component finds .card-in, measures a row off the hidden probe,
+  // and subtracts the ring only where the ring sits above the rows. Reproduces the
+  // device report: browser zoomed in, Chrome's minimum font size raised, and the
+  // bottom row sliced in half by .card-in's overflow:hidden.
+  const mountInCard = (gpu: unknown, h: number) => {
+    const s = useLiveStatsStore()
+    s.ingest({ gpu: [gpu], cpu: null, mem: null, disk: null, net: null } as any)
+    return mount(
+      {
+        components: { GpuWidget },
+        props: ['h'],
+        template: '<div class="card-in"><GpuWidget :item="{ id: \'i\', kind: \'widget\', key: \'gpu\', c: 1, r: 1, w: 4, h }" /></div>',
+      },
+      { props: { h }, attachTo: document.body },
+    )
+  }
+
+  // jsdom reports every box as 0px, so the heights are stubbed to the ones measured
+  // on the deployed build.
+  const stub = (w: ReturnType<typeof mountInCard>, availH: number, rowH: number, ringH: number) => {
+    Object.defineProperty(w.get('.card-in').element, 'clientHeight', { value: availH, configurable: true })
+    Object.defineProperty(w.get('.stat-probe').element, 'offsetHeight', { value: rowH, configurable: true })
+    const ring = w.find('.ring')
+    if (ring.exists()) Object.defineProperty(ring.element, 'offsetHeight', { value: ringH, configurable: true })
+  }
+
+  it('keeps all five rows when the card is tall enough', async () => {
+    const w = mountInCard(IGPU, 3)
+    stub(w, 288, 17, 124) // 2560x1440
+    await w.setProps({ h: 3 })
+    await nextTick()
+    expect(w.findAll('.stat').length).toBe(5)
+  })
+
+  it('drops the em-dash rows before the readable ones when the card is too short', async () => {
+    const w = mountInCard(IGPU, 3)
+    stub(w, 101, 17, 64) // 1280x800: (101 - 64) / 17 = two rows fit under the ring
+    await w.setProps({ h: 3 })
+    await nextTick()
+    const rows = w.findAll('.stat').map((r) => r.text())
+    expect(rows.length).toBe(2)
+    // The two survivors are the ones that say something: the model and the frequency.
+    // Temp / VRAM / VRAM usage are em dashes on integrated graphics, so they go first
+    // and nothing readable is lost.
+    expect(rows.join()).not.toContain('—')
+    expect(rows.join()).toContain('频率')
+  })
+
+  it('drops rows when a forced-larger minimum font size inflates them', async () => {
+    const w = mountInCard(IGPU, 3)
+    stub(w, 171, 21, 85) // 1600x1000 with minimumFontSize=16: (171 - 85) / 21 = 4
+    await w.setProps({ h: 3 })
+    await nextTick()
+    const rows = w.findAll('.stat').map((r) => r.text())
+    expect(rows.length).toBe(4)
+    // One row over budget, so exactly one goes -- the least useful blank one.
+    expect(rows.join()).not.toContain('显存占用')
+  })
+
+  // Side by side, the ring is not above the rows, so it must not be charged against
+  // their height -- otherwise the wide card drops rows it has room for.
+  it('does not charge the ring against the rows when they sit beside each other', async () => {
+    const w = mountInCard(IGPU, 2)
+    stub(w, 94, 17, 64) // 4x2 at 1600x1000
+    await w.setProps({ h: 2 })
+    await nextTick()
+    expect(w.find('.ring-row').exists()).toBe(true)
+    expect(w.findAll('.stat').length).toBe(5) // 94 / 17 = 5
+  })
+
+  // Everything the card cannot show is still reachable, so dropping rows never loses
+  // a reading outright.
+  it('keeps every reading in the hover title', async () => {
+    const w = mountInCard(IGPU, 3)
+    stub(w, 101, 17, 64)
+    await w.setProps({ h: 3 })
+    await nextTick()
+    const title = w.get('.gpu-cell').attributes('title') || ''
+    expect(title).toContain('Wildcat Lake')
+    expect(title).toContain('温度')
+    expect(title).toContain('1000 MHz')
   })
 })
