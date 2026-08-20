@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { reactive } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../i18n/zh_cn'
@@ -34,7 +35,9 @@ vi.mock('../../composables/useMessageBus', () => ({
 
 const push = vi.fn()
 const replace = vi.fn().mockResolvedValue(undefined)
-const routeQuery: Record<string, string> = {}
+// reactive so a watcher on route.query.session sees address-bar-style changes; existing
+// tests only read or assign keys, so this is transparent to them.
+const routeQuery: Record<string, string> = reactive({})
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push, replace }),
   useRoute: () => ({ query: routeQuery }),
@@ -775,5 +778,56 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenNthCalledWith(1, { path: '/ai/agent', query: { session: 's1' } })
     expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: { session: 'new-1' } })
     for (const [arg] of replace.mock.calls) expect(arg.query).not.toHaveProperty('search')
+  })
+
+  it('A-8: changing ?session= while mounted switches sessions (query-only nav does not re-mount)', async () => {
+    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }, { id: 's2' }])
+    const store = useAgentStore()
+    const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    routeQuery.session = 's2'
+    await flushPromises()
+    expect(spy).toHaveBeenCalledWith('s2')
+  })
+
+  // Pins two guard clauses in the watcher: dropping `found &&` would throw on the unknown
+  // id below instead of ignoring it, and dropping the `!== id` active-id comparison would
+  // re-enter selectSession when re-navigating to the session that's already open.
+  it('A-8: an unknown or already-active ?session= change is a no-op', async () => {
+    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }])
+    const store = useAgentStore()
+    const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    store.activeSessionId = 's1'
+    await flushPromises()
+    spy.mockClear()
+    routeQuery.session = 'nope'
+    await flushPromises()
+    expect(spy).not.toHaveBeenCalled()
+    routeQuery.session = 's1'
+    await flushPromises()
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  // Pins the `if (!id) return` branch: an empty ?session= must only forget the URL
+  // parameter, not close the conversation the user is reading. The stray `id: ''` session
+  // is deliberate — without it `found` is already undefined for id='' (no real session
+  // stringifies to ''), so the `found &&` guard alone would make this pass even with the
+  // early return deleted; the empty-id session makes `found` truthy so the early return
+  // is the only thing stopping a re-select.
+  it('A-8: dropping ?session= from the URL does not close the open conversation', async () => {
+    routeQuery.session = 's1'
+    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }, { id: '' }])
+    const store = useAgentStore()
+    vi.spyOn(store, 'selectSession').mockImplementation(async (id) => {
+      store.activeSessionId = id
+    })
+    mountPage()
+    await flushPromises()
+    delete routeQuery.session
+    await flushPromises()
+    expect(store.activeSessionId).toBe('s1')
   })
 })

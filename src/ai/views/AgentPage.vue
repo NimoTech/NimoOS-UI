@@ -248,6 +248,22 @@ watch(
     syncSessionQuery(newId)
   },
 )
+// A-8 — Vue2 Agent.vue:129-135: a query-only navigation on the same route does not re-run
+// onMounted in vue-router 4 (the lesson 47a6cc2f recorded for Photos deep links), so follow
+// ?session= here. Unknown ids are ignored rather than toasted: at mount a stale link deserves
+// an explanation, mid-session it usually means a half-typed address bar. An empty value only
+// forgets the parameter — it must not close the conversation the user is reading.
+watch(
+  () => route.query.session,
+  (v) => {
+    const id = (v ?? '').toString()
+    if (id) urlQuery.value.session = id
+    else delete urlQuery.value.session
+    if (!id) return
+    const found = store.sessions.find((s) => String(s.id) === id)
+    if (found && String(store.activeSessionId ?? '') !== id) store.selectSession(found.id)
+  },
+)
 // Agent.vue:127-132 — refresh only on busy true→false falling edge (after a round finishes);
 // no watcher for selectedModel, consistent with Vue2 (switching models doesn't auto-refetch quota).
 watch(
