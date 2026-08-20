@@ -870,16 +870,22 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
 `,
     replace: '' },
-  // --place-row-* 三色(PlacesRail)
+  // --place-row-* / --place-thumb-active retirement note (PR #13, Plan H Task 15 cleanup +
+  // post-final-review fix wave, 2026-08-17/18): the three token VALUES this rule used to strip
+  // are already gone -- deleted outright as confirmed zero-consumer orphans (not moved
+  // anywhere, unlike the --pin-* precedent below) -- but the retirement-note comment PR #13
+  // left in their place still names PlacesRail.vue and quotes its Vue2-parity CSS selector, so
+  // it needs stripping from the OSS export like every other Photos-only comment in this file.
+  // Re-anchored to that comment's current text (PR #13 rewrote it off the original P6a-T5
+  // wording this rule used to target).
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesRail.vue (P6a-T5) selected-city row, three spots -- an exact port of Vue2
-     photos-places.scss:153-156/:163-167's rgba(var(--accent-rgb), 0.10/0.30/0.18) (that
-     view only ever had a dark design; the numeric precision required calls for a
-     dedicated token instead of settling for one of --accent-soft's three tiers, following
-     the existing precedent set by --drop-bg/--spark-fill/--orb-glow). */
-  --place-row-bg: rgba(138, 180, 255, 0.10);
-  --place-row-border: rgba(138, 180, 255, 0.30);
-  --place-thumb-active: rgba(138, 180, 255, 0.18);
+    find: `  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
+     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
+     removed --place-thumb-active itself for the same reason (re-verified zero consumers
+     repo-wide, both theme blocks) -- the comment this replaces described it as PlacesRail.vue's
+     selected-city row token, but that rule (\`.rail-place.is-active:hover\`, PlacesRail.vue's own
+     \`<style scoped>\`) actually blends \`rgba(var(--accent-rgb), 0.10)\` directly rather than
+     reading a dedicated token; --place-thumb-active was never wired to anything. */
 `,
     replace: '' },
   // --pin-* retirement note (PlacesMap 图钉,Fix-5 P6a overturned)
@@ -975,26 +981,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --float-bg: rgba(20, 20, 28, 0.85);
 `,
     replace: '' },
-  // --zb-hover-bg / --zb-track-bg
+  // --zb-hover-bg / --zb-track-bg / --zb-thumb-shadow retirement note (PR #13, Plan H Task 15,
+  // 2026-08-17): same situation as the --place-row-* note above -- all three token VALUES
+  // (PlacesZoomBar's .zb-btn hover / .zb-track / .zb-thumb shadow) are already deleted outright
+  // as confirmed zero-consumer orphans, but the retirement-note comment left behind still names
+  // PlacesZoomBar.vue and photos-places.scss, so it needs stripping too. The two separate
+  // manifest rules that used to target the pre-deletion --zb-hover-bg/--zb-track-bg comment and
+  // the --zb-thumb-shadow comment are collapsed into this single rule, since PR #13 merged all
+  // three tokens' retirement into one combined comment.
   { path: 'src/styles/theme.css',
-    find: `  /* Same component -- Vue2 uses rgba(var(--ink), 0.08/0.12) for .zb-btn:hover's background
-     and .zb-track's base color, an "alpha ramp that follows the text color"; this repo has
-     no --ink RGB-triple token. The alpha is an exact port of Vue2's 0.08/0.12, but the RGB
-     is swapped for this repo's --fg's actual decomposed value (dark theme #ffffff ->
-     255,255,255) -- not copied from Vue2's light-theme --ink value of (35,37,43) (that
-     value is, per Vue2's own comment, only an approximation of "AI --text-primary", not a
-     precise design value), following the same base-hue-swap precedent as
-     --pin-cluster-stroke. */
-  --zb-hover-bg: rgba(255, 255, 255, 0.08);
-  --zb-track-bg: rgba(255, 255, 255, 0.12);
-`,
-    replace: '' },
-  // --zb-thumb-shadow
-  { path: 'src/styles/theme.css',
-    find: `  /* .zb-thumb handle's second shadow layer -- Vue2 photos-places.scss:281's box-shadow
-     \`0 1px 4px rgba(0,0,0,0.4)\` never varied across Vue2's own dark/light themes,
-     theme-invariant, same value in both theme blocks (precedent: --place-current-trip). */
-  --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
+    find: `  /* Plan H Task 15 (2026-08-17): --zb-hover-bg/--zb-track-bg/--zb-thumb-shadow that used to be
+     defined here (PlacesZoomBar.vue's now-deleted local \`<style scoped>\` block; see that
+     file's own history comment) were removed as confirmed zero consumers repo-wide —
+     PlacesZoomBar.vue's \`.map-zoombar\` family is fully governed by
+     photos-places.scss:234-284 and its local \`--ink\`-based tokens instead. */
 `,
     replace: '' },
   // --warn-*(人脸识别关闭 / Photos AI 离线两条横幅)
@@ -1025,6 +1025,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
   // --photos-seg-*(设置页容量条分段色)
+  // PR #13 (Plan H Task 15) reworded this comment's last line -- it used to cite
+  // --zb-hover-bg/--zb-track-bg as a same-technique precedent, but PR #13 deleted both of
+  // those tokens (see the retirement note above), so the citation was generalized to "used
+  // elsewhere in this file" instead of naming now-gone tokens. Token values themselves are
+  // untouched; re-anchored to the new wording.
   { path: 'src/styles/theme.css',
     find: `  /* SP7-P8a-T3: settings page storage card's capacity bar segment colors
      (PhotosStorageCard.vue, consumed by src/photos/util/storagePalette.ts's
@@ -1047,7 +1052,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --photos-seg-ai: #ff9f0a;
   /* The other segment's Vue2 original value is rgba(var(--ink),0.25) (an "alpha ramp that
      follows the text color"), and this repo has no --ink RGB-triple token -- following the
-     same established base-hue-swap precedent as --zb-hover-bg/--zb-track-bg: alpha is an
+     same established base-hue-swap technique used elsewhere in this file: alpha is an
      exact port of 0.25, RGB is swapped for this repo's --fg's actual decomposed value
      (dark theme #ffffff -> 255,255,255). */
   --photos-seg-other: rgba(255, 255, 255, 0.25);
@@ -1069,15 +1074,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000));
 `,
     replace: '' },
-  // light:--place-row-*
+  // light:--place-row-* / --place-thumb-active retirement note -- same PR #13 (Plan H Task 15)
+  // situation as the dark entry above: token VALUES already deleted outright, only the
+  // leftover comment (still naming the dark block's own note) needs stripping. Re-anchored.
   { path: 'src/styles/theme.css',
-    find: `  /* Vue2 only ever designed a dark version of this view, so there's no original to copy
-     for the light value -- derived using the accent family's dark->light convergence
-     convention (.14->.11, .24->.20, .36->.30, roughly x0.83): .10->.08, .30->.25,
-     .18->.15. */
-  --place-row-bg: rgba(59, 91, 219, 0.08);
-  --place-row-border: rgba(59, 91, 219, 0.25);
-  --place-thumb-active: rgba(59, 91, 219, 0.15);
+    find: `  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
+     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
+     removed --place-thumb-active itself -- see the dark \`:root\` block's own comment for why
+     (it was never actually consumed; re-verified zero consumers repo-wide in both blocks). */
 `,
     replace: '' },
   // light:--place-current-trip
@@ -1113,19 +1117,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --float-bg: rgba(255, 255, 255, 0.85);
 `,
     replace: '' },
-  // light:--zb-hover-bg / --zb-track-bg
+  // light:--zb-hover-bg / --zb-track-bg / --zb-thumb-shadow retirement note -- same PR #13
+  // (Plan H Task 15) situation as the dark entry above: the two separate manifest rules that
+  // used to target the pre-deletion light-theme comments are collapsed into this single rule,
+  // since PR #13 merged all three tokens' retirement into one combined comment here too.
   { path: 'src/styles/theme.css',
-    find: `  /* See the :root token of the same name's comment: alpha is identical to :root's
-     (0.08/0.12), RGB is swapped for this repo's light theme --fg's actual decomposed
-     value (#1c1b19 -> 28,27,25). */
-  --zb-hover-bg: rgba(28, 27, 25, 0.08);
-  --zb-track-bg: rgba(28, 27, 25, 0.12);
-`,
-    replace: '' },
-  // light:--zb-thumb-shadow
-  { path: 'src/styles/theme.css',
-    find: `  /* Same value in both themes, see the :root token of the same name's comment. */
-  --zb-thumb-shadow: rgba(0, 0, 0, 0.4);
+    find: `  /* Plan H Task 15 (2026-08-17): see the :root token's own comment -- the light-theme
+     --zb-hover-bg/--zb-track-bg/--zb-thumb-shadow tier that used to be defined here was
+     removed alongside it, confirmed zero consumers repo-wide. */
 `,
     replace: '' },
   // light:--warn-*
@@ -1149,6 +1148,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
   // light:--photos-seg-*
+  // PR #13 (Plan H Task 15) reworded this comment's last line the same way as the dark block's
+  // (see the note above) -- generalized off the now-deleted --zb-hover-bg/--zb-track-bg
+  // citation. Token values untouched; re-anchored to the new wording.
   { path: 'src/styles/theme.css',
     find: `  /* SP7-P8a-T3: same as the :root token of the same name's comment -- storage card
      capacity bar segment colors. The light theme tunes these for legibility (not a
@@ -1172,7 +1174,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   /* alpha matches :root's 0.25 (an exact port of Vue2's other segment's
      rgba(var(--ink),0.25)), RGB is swapped for this repo's light theme --fg's actual
      decomposed value (#1c1b19 -> 28,27,25) -- the same established base-hue-swap formula
-     as --zb-hover-bg/--zb-track-bg's light tier. */
+     used elsewhere in this file. */
   --photos-seg-other: rgba(28, 27, 25, 0.25);
 `,
     replace: '' },
