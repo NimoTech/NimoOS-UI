@@ -184,6 +184,7 @@ export default {
   aiGoToSettings: 'Go to Settings',
   aiModelFallback: 'Model {from} unavailable, switched to {to}',
   aiNoModelAvailable: 'no model available',
+  aiSessionNotFound: 'Session not found — it may have been deleted',
   aiRename: 'AI rename',
   // SP8-P1b Task 11 — localized wrapper text for ?search= auto-send (aligns with Vue2 Agent.vue:174).
   'ai.searchMyNas': 'Search my NAS for "{query}".',

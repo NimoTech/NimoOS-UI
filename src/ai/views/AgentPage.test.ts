@@ -248,9 +248,16 @@ describe('AgentPage', () => {
   // writes before the watcher ever re-fires, so the guard's early return would be unreached.
   it('A-8: watcher firing with a session already named in the URL issues no replace (equality guard)', async () => {
     routeQuery.session = 'sess-a'
+    // A-8 Task 2 landed a mount-time ?session= read that looks 'sess-a' up in the loaded
+    // list; give it a match (and stub selectSession, same as the Task 2 tests) so mount
+    // takes the found branch and leaves activeSessionId untouched — otherwise the id would
+    // be reported unknown, stripped from the URL, and the scenario below would no longer
+    // be "assigning the same id twice."
+    svc.listAgentSessions.mockResolvedValue([{ id: 'sess-a' }])
+    const store = useAgentStore()
+    vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
     mountPage()
     await flushPromises()
-    const store = useAgentStore()
     store.activeSessionId = 'sess-a' // genuine change from the initial null — watcher fires
     await flushPromises()
     expect(replace).not.toHaveBeenCalled()
@@ -690,5 +697,74 @@ describe('AgentPage', () => {
     expect(byPathSpy).toHaveBeenCalledWith('/DATA/streamed-dir')
     expect(byIdSpy).not.toHaveBeenCalled()
     w.unmount()
+  })
+
+  it('A-8: ?session= selects that session once the list has loaded', async () => {
+    routeQuery.session = 's2'
+    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }, { id: 's2' }])
+    const store = useAgentStore()
+    const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    expect(spy).toHaveBeenCalledWith('s2')
+  })
+
+  // The sidebar compares s.id === activeId strictly, so a numeric session fed the URL's
+  // string would be "selected" with an unhighlighted row. Select the session's own id.
+  it('A-8: a numeric session id is selected as a number, not as the URL string', async () => {
+    routeQuery.session = '42'
+    svc.listAgentSessions.mockResolvedValue([{ id: 42 }])
+    const store = useAgentStore()
+    const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    expect(spy).toHaveBeenCalledWith(42)
+  })
+
+  it('A-8: an unknown ?session= warns and strips the parameter', async () => {
+    routeQuery.session = 'gone'
+    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }])
+    const store = useAgentStore()
+    const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    mountPage()
+    await flushPromises()
+    expect(spy).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith('找不到该会话 — 可能已被删除', 4000, 'warning')
+    expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: {} })
+  })
+
+  it('A-8: a known ?session= needs no replace at all (already in the URL)', async () => {
+    routeQuery.session = 's2'
+    svc.listAgentSessions.mockResolvedValue([{ id: 's2' }])
+    const store = useAgentStore()
+    vi.spyOn(store, 'selectSession').mockImplementation(async (id) => {
+      store.activeSessionId = id
+    })
+    mountPage()
+    await flushPromises()
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  // The hazard the single query ref exists for: the seed strip must not be undone by the
+  // mirror writing the freshly created session.
+  it('A-8: ?session= + ?search= — search is stripped for good, final URL is the new session', async () => {
+    routeQuery.session = 's1'
+    routeQuery.search = 'cats'
+    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }])
+    const store = useAgentStore()
+    vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
+    const createSpy = vi.spyOn(store, 'createSession').mockImplementation(async () => {
+      store.activeSessionId = 'new-1'
+    })
+    const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
+    mountPage()
+    await flushPromises()
+    expect(createSpy).toHaveBeenCalledTimes(1)
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+    expect(replace).toHaveBeenNthCalledWith(1, { path: '/ai/agent', query: { session: 's1' } })
+    expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: { session: 'new-1' } })
+    for (const [arg] of replace.mock.calls) expect(arg.query).not.toHaveProperty('search')
   })
 })

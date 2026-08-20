@@ -201,6 +201,7 @@ export default {
   aiGoToSettings: '前往设置',
   aiModelFallback: '原模型 {from} 不可用，已切换到 {to}',
   aiNoModelAvailable: '无可用模型',
+  aiSessionNotFound: '找不到该会话 — 可能已被删除',
   aiRename: 'AI 重命名',
   // SP8-P1b Task 11 —— ?search= 自动发送的本地化包装文案(Vue2 Agent.vue:174 对齐)。
   'ai.searchMyNas': '在我的 NAS 中搜索"{query}"。',

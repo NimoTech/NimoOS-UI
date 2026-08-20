@@ -282,6 +282,24 @@ onMounted(async () => {
   } catch {
     /* ignore — mirrors Vue2 Agent.vue's swallow-per-call mounted sequence */
   }
+  // A-8 — Vue2 Agent.vue:164-175: resolve ?session= now that the list exists. selectSession
+  // gets the session's OWN id (ids are string | number and AgentSidebar compares with ===,
+  // so handing it the URL string would select a numeric session without highlighting its row).
+  const wantedSession = (urlQuery.value.session ?? '').toString()
+  if (wantedSession) {
+    const found = store.sessions.find((s) => String(s.id) === wantedSession)
+    if (found) {
+      try {
+        await store.selectSession(found.id)
+      } catch {
+        /* ignore — mirrors the swallow-per-call mounted sequence; the URL keeps the id
+           because the session does exist, only its messages failed to load */
+      }
+    } else {
+      toast.show(t('aiSessionNotFound'), 4000, 'warning')
+      syncSessionQuery(store.activeSessionId)
+    }
+  }
   try {
     // Before auto-send handoff (Task 11), nail down default model first,
     // else at that point selectedModel is still null and send() will first drop
