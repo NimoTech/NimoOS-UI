@@ -219,6 +219,23 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenNthCalledWith(2, { path: '/ai/agent', query: {} })
   })
 
+  // Spec Testing item 7 (docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md):
+  // skill is a one-shot handoff and gets stripped; session is a standing deep link and survives.
+  it('spec Testing #7: ?skill=abc&session=s1 → skill stripped, session preserved throughout', async () => {
+    routeQuery.skill = 'abc'
+    routeQuery.session = 's1'
+    svc.listAgentSessions.mockResolvedValue([{ id: 's1' }])
+    const store = useAgentStore()
+    const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
+    const w = mountPage()
+    await flushPromises()
+    expect(store.pendingSkillId).toBe('abc')
+    expect(spy).toHaveBeenCalledWith('s1')
+    expect(replace).toHaveBeenCalledTimes(1)
+    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { session: 's1' } })
+    w.unmount()
+  })
+
   it('does not call router.replace when no one-shot query params (cannot blindly replace every time)', async () => {
     mountPage()
     await flushPromises()
@@ -230,21 +247,23 @@ describe('AgentPage', () => {
   // A-8 (spec 2026-08-19-agent-session-deeplink): the selected session is mirrored into
   // ?session= so the address bar is always a shareable deep link.
   it('A-8: switching session mirrors it into ?session= (replace, so no history churn)', async () => {
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
     store.activeSessionId = 'sess-a'
     await flushPromises()
     expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: { session: 'sess-a' } })
+    w.unmount()
   })
 
   it('A-8: a numeric session id is stringified for the URL', async () => {
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
     store.activeSessionId = 42
     await flushPromises()
     expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: { session: '42' } })
+    w.unmount()
   })
 
   // Assigning the same id twice would not test this: Vue dedups identical primitive
@@ -259,15 +278,16 @@ describe('AgentPage', () => {
     svc.listAgentSessions.mockResolvedValue([{ id: 'sess-a' }])
     const store = useAgentStore()
     vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     store.activeSessionId = 'sess-a' // genuine change from the initial null — watcher fires
     await flushPromises()
     expect(replace).not.toHaveBeenCalled()
+    w.unmount()
   })
 
   it('A-8: clearing the active session strips ?session= from the URL', async () => {
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
     store.activeSessionId = 'sess-a'
@@ -275,6 +295,7 @@ describe('AgentPage', () => {
     store.activeSessionId = null
     await flushPromises()
     expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: {} })
+    w.unmount()
   })
 
   it('SP8-P2a Task 12: sidebar open-settings (settings gear) → router.push to /ai/settings, no placeholder toast (Vue2 Agent.vue:209, route exists)', async () => {
@@ -707,9 +728,10 @@ describe('AgentPage', () => {
     svc.listAgentSessions.mockResolvedValue([{ id: 's1' }, { id: 's2' }])
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     expect(spy).toHaveBeenCalledWith('s2')
+    w.unmount()
   })
 
   // The sidebar compares s.id === activeId strictly, so a numeric session fed the URL's
@@ -719,9 +741,10 @@ describe('AgentPage', () => {
     svc.listAgentSessions.mockResolvedValue([{ id: 42 }])
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     expect(spy).toHaveBeenCalledWith(42)
+    w.unmount()
   })
 
   it('A-8: an unknown ?session= warns and strips the parameter', async () => {
@@ -731,11 +754,12 @@ describe('AgentPage', () => {
     const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     expect(spy).not.toHaveBeenCalled()
     expect(showSpy).toHaveBeenCalledWith('找不到该会话 — 可能已被删除', 4000, 'warning')
     expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: {} })
+    w.unmount()
   })
 
   it('A-8: a known ?session= needs no replace at all (already in the URL)', async () => {
@@ -745,12 +769,13 @@ describe('AgentPage', () => {
     vi.spyOn(store, 'selectSession').mockImplementation(async (id) => {
       store.activeSessionId = id
     })
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     // Makes the found branch's participation observable: without the mount-time read
     // driving selectSession, activeSessionId would stay null instead of becoming 's2'.
     expect(store.activeSessionId).toBe('s2')
     expect(replace).not.toHaveBeenCalled()
+    w.unmount()
   })
 
   // This guards Task 1's shared-ref discipline, not Task 2's read: if syncSessionQuery
@@ -771,24 +796,26 @@ describe('AgentPage', () => {
       store.activeSessionId = 'new-1'
     })
     const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     expect(createSpy).toHaveBeenCalledTimes(1)
     expect(sendSpy).toHaveBeenCalledTimes(1)
     expect(replace).toHaveBeenNthCalledWith(1, { path: '/ai/agent', query: { session: 's1' } })
     expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: { session: 'new-1' } })
     for (const [arg] of replace.mock.calls) expect(arg.query).not.toHaveProperty('search')
+    w.unmount()
   })
 
   it('A-8: changing ?session= while mounted switches sessions (query-only nav does not re-mount)', async () => {
     svc.listAgentSessions.mockResolvedValue([{ id: 's1' }, { id: 's2' }])
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     routeQuery.session = 's2'
     await flushPromises()
     expect(spy).toHaveBeenCalledWith('s2')
+    w.unmount()
   })
 
   // Pins two guard clauses in the watcher: dropping `found &&` would throw on the unknown
@@ -798,7 +825,7 @@ describe('AgentPage', () => {
     svc.listAgentSessions.mockResolvedValue([{ id: 's1' }])
     const store = useAgentStore()
     const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     store.activeSessionId = 's1'
     await flushPromises()
@@ -809,6 +836,7 @@ describe('AgentPage', () => {
     routeQuery.session = 's1'
     await flushPromises()
     expect(spy).not.toHaveBeenCalled()
+    w.unmount()
   })
 
   // Pins the behavioral property, not a specific line: dropping ?session= from the URL
@@ -824,10 +852,44 @@ describe('AgentPage', () => {
     vi.spyOn(store, 'selectSession').mockImplementation(async (id) => {
       store.activeSessionId = id
     })
-    mountPage()
+    const w = mountPage()
     await flushPromises()
     delete routeQuery.session
     await flushPromises()
     expect(store.activeSessionId).toBe('s1')
+    w.unmount()
+  })
+
+  // Final review Important 1: re-entering the page (settings gear, skill strip, homepage)
+  // never clears agentStore's activeSessionId — this is a plain Pinia store, no KeepAlive
+  // resets it. Without an else branch mirroring what the store already holds, the deep-link
+  // block above (only entered when the URL itself names a session) is a no-op, and the
+  // address bar names no session even though one is open.
+  it('A-8: re-entering the page with a session already open writes it into ?session= (Important 1)', async () => {
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-reentry'
+    const w = mountPage()
+    await flushPromises()
+    expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { session: 'sess-reentry' } })
+    w.unmount()
+  })
+
+  // Final review Important 2: loadSessions() rejection must not be conflated with "the
+  // session list loaded and does not contain this id" — that would toast a false "deleted"
+  // warning and strip a perfectly valid id a refresh could otherwise retry.
+  it('A-8: a failed loadSessions() leaves a valid ?session= alone — no toast, no strip (Important 2)', async () => {
+    routeQuery.session = 's1'
+    svc.listAgentSessions.mockRejectedValue(new Error('offline'))
+    const store = useAgentStore()
+    const spy = vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const w = mountPage()
+    await flushPromises()
+    expect(spy).not.toHaveBeenCalled()
+    expect(showSpy).not.toHaveBeenCalled()
+    expect(replace).not.toHaveBeenCalled()
+    expect(routeQuery.session).toBe('s1')
+    w.unmount()
   })
 })
