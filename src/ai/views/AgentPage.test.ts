@@ -244,16 +244,16 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: { session: '42' } })
   })
 
-  it('A-8: re-selecting the same session issues no further replace (equality guard)', async () => {
+  // Assigning the same id twice would not test this: Vue dedups identical primitive
+  // writes before the watcher ever re-fires, so the guard's early return would be unreached.
+  it('A-8: watcher firing with a session already named in the URL issues no replace (equality guard)', async () => {
+    routeQuery.session = 'sess-a'
     mountPage()
     await flushPromises()
     const store = useAgentStore()
-    store.activeSessionId = 'sess-a'
+    store.activeSessionId = 'sess-a' // genuine change from the initial null — watcher fires
     await flushPromises()
-    const before = replace.mock.calls.length
-    store.activeSessionId = 'sess-a'
-    await flushPromises()
-    expect(replace.mock.calls.length).toBe(before)
+    expect(replace).not.toHaveBeenCalled()
   })
 
   it('A-8: clearing the active session strips ?session= from the URL', async () => {
