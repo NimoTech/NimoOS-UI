@@ -217,9 +217,12 @@ guard).
 - `selectSession` rejection: swallowed like the neighbouring mount steps; the
   URL keeps the parameter, matching the store's own state (the session exists,
   its messages failed to load).
-- `router.replace` rejection: `writeQuery()` swallows it (`.catch(() => {})`),
-  as the existing strips do — a redundant navigation must not surface as an
-  unhandled rejection.
+- `router.replace` rejection: `writeQuery()` swallows it (`.catch(() => {})`)
+  — a redundant navigation must not surface as an unhandled rejection. The
+  base (`4fe81f86`) did not swallow this; an unswallowed rejection there would
+  have rejected `onMounted` itself and skipped model loading and the seed
+  send, so this is an improvement introduced alongside `writeQuery()`, not a
+  continuation of prior behaviour.
 
 ## Testing
 

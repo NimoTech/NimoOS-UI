@@ -7,6 +7,9 @@
 //     memory sp7-photos-migration-progress); this branch (sp8-ai) doesn't have the
 //     `/app/#/photos` route yet, so we temporarily use the old app's working landing point;
 //     after SP7 merges, these two should be replaced with New-UI's own Photos route.
+//   - Agent → New-UI's own Agent page (`/app/#/ai/agent?session=`, ticket A-8, 2026-08-19,
+//     see docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md), since AgentPage
+//     now reads and follows `?session=` itself.
 //
 // Helpers to open a search-result item in its dedicated app page, in a new tab.
 // Each click opens a fresh tab ('_blank'): the target is a hash-mode SPA route,
@@ -109,8 +112,10 @@ function pruneStalePhotoSets(): void {
   }
 }
 
-// 1:1 port from Vue2 openInApp.js:117-124 (`agentSessionUrl` / `openAgentSessionInNewTab`).
-// Originally these deliberately landed on the root-mounted old Vue2 app because New-UI's
+// Ported from Vue2 openInApp.js:117-124 (`agentSessionUrl` / `openAgentSessionInNewTab`),
+// no longer byte-identical: the landing URL below deliberately differs from Vue2's, per the
+// A-8 history explained next. Originally these deliberately landed on the root-mounted old
+// Vue2 app because New-UI's
 // /ai/agent read no `?session=` at all, so an /app-prefixed link would have opened the Agent
 // page without selecting the session (a silent failure). Ticket A-8 closed that gap on
 // 2026-08-19 — AgentPage now mirrors, reads and follows `?session=`
