@@ -1609,6 +1609,28 @@ describe('SearchView — album-asset hits render as photo cards', () => {
     expect(w.findComponent(FileDetailDrawer).exists()).toBe(false)
   })
 
+  it('the meta row swaps the path + mtime items for one photo-library locator', async () => {
+    const { w } = await mountWithPhoto()
+    const meta = w.findAll('.k-rcard-meta-item')
+    // Two items, not three: an album asset has no path and no mtime, so rendering them would
+    // give a bare folder icon plus "Modified —".
+    expect(meta.length).toBe(2)
+    expect(meta[0].text()).toBe(i18n.global.t('aiKbSrPhotoLibrary'))
+    expect(meta[1].text()).toContain(i18n.global.t('aiKbStatusIndexed'))
+    expect(w.find('.k-rcard-meta').text()).not.toContain(i18n.global.t('aiKbSrModified'))
+  })
+
+  it('a thumbnail that fails to load leaves a bare paper chip, not a broken image', async () => {
+    const { w } = await mountWithPhoto()
+    await w.find('.k-rcard-thumb').trigger('error')
+    await flush()
+    expect(w.find('.k-rcard-thumb').exists()).toBe(false)
+    expect(w.find('.k-rcard-icon').exists()).toBe(true)
+    // Not the kind chip either: kindFromMime only knows document kinds, so `video/mp4` would
+    // read DOC. The card name already says Photo/Video.
+    expect(w.find('.k-rcard-tag').exists()).toBe(false)
+  })
+
   it('a plain file hit renders no thumbnail (existing cards untouched)', async () => {
     const store = withPinia()
     vi.spyOn(store, 'runSearch').mockResolvedValue(F5B_RESPONSE)

@@ -139,6 +139,16 @@ function openResult(r: FileVM) {
   }
   openFile.value = r
 }
+
+/**
+ * A thumbnail can 404 (Photos hasn't generated one yet for that asset, or it was pruned from the
+ * cache). Dropping `thumbnailUrl` leaves the bare paper chip instead of a broken image in the
+ * grid — see the template for why the kind tag is not the fallback here. One-way: we don't retry
+ * within this result set.
+ */
+function onThumbError(r: FileVM) {
+  r.thumbnailUrl = undefined
+}
 const viewerFile = ref<FileVM | null>(null)
 const ms = ref(0)
 const errorMsg = ref('')
@@ -558,8 +568,15 @@ watch(
                so it gets a thumbnail instead; everything else keeps the paper chip + kind tag.
                See the PHOTO_ID_PREFIX comment in searchAggregate.ts. -->
           <div class="k-rcard-icon">
-            <img v-if="r.thumbnailUrl" class="k-rcard-thumb" :src="r.thumbnailUrl" :alt="r.name" loading="lazy" />
-            <span v-else class="k-rcard-tag" :data-kind="r.kind">{{ r.kind.toUpperCase() }}</span>
+            <img
+              v-if="r.thumbnailUrl" class="k-rcard-thumb" :src="r.thumbnailUrl" :alt="r.name"
+              loading="lazy" @error="onThumbError(r)"
+            />
+            <!-- The kind chip is deliberately not a fallback for a failed album thumbnail:
+                 `kindFromMime` only knows the document kinds, so `video/mp4` would come out
+                 labelled DOC. The card name already reads Photo/Video, so an album asset whose
+                 thumbnail 404s keeps the bare paper chip. -->
+            <span v-else-if="!r.photoAssetId" class="k-rcard-tag" :data-kind="r.kind">{{ r.kind.toUpperCase() }}</span>
           </div>
           <div class="k-rcard-body">
             <div class="k-rcard-head">
@@ -585,9 +602,17 @@ watch(
               {{ t('aiKbSrMoreHint', { n: r.chunks.length - 1 }) }}
             </div>
             <div class="k-rcard-meta">
-              <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ r.path }}</span></span>
-              <span style="color: var(--text-quaternary)">·</span>
-              <span class="k-rcard-meta-item">{{ t('aiKbSrModified') }} {{ fmtMtime(r.mtimeMs) }}</span>
+              <!-- An album asset has no path and no mtime (`paths` is always null), so the two
+                   file-oriented items would render as a bare folder icon plus "Modified —".
+                   Replace both with one locator that says where the hit actually lives. -->
+              <template v-if="r.photoAssetId">
+                <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ t('aiKbSrPhotoLibrary') }}</span></span>
+              </template>
+              <template v-else>
+                <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ r.path }}</span></span>
+                <span style="color: var(--text-quaternary)">·</span>
+                <span class="k-rcard-meta-item">{{ t('aiKbSrModified') }} {{ fmtMtime(r.mtimeMs) }}</span>
+              </template>
               <span style="color: var(--text-quaternary)">·</span>
               <span class="k-rcard-meta-item"><KIcon name="check" :size="11" color="var(--success)" /> {{ t('aiKbStatusIndexed') }}</span>
             </div>

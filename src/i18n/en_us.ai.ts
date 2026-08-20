@@ -1431,6 +1431,7 @@ export default {
   aiKbSrUntitled: '(Untitled)',
   aiKbSrPhotoAsset: 'Photo',
   aiKbSrVideoAsset: 'Video',
+  aiKbSrPhotoLibrary: 'Photo library',
   // <<< SP8-P5e Task 1
   // >>> SP8-P5f Task 1 —— knowledge-base final three pages copy (Vue2 AllowlistView.vue /
   // RootsView.vue / WikiView.vue), 79 new keys, all with a Vue2-authoritative value (zero
