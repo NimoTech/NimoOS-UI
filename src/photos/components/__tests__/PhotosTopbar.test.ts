@@ -99,7 +99,7 @@ describe('副行:恒全库计数', () => {
     // bucketMode 分支下 photoCount/videoCount 来自 buckets 汇总(BucketMeta: year/month/
     // count/videoCount,timelineBuckets.ts:7-12)——直接铺 buckets 更贴近真实全库计数来源
     // (timeline.ts:131-145),比拼一堆 asset 更直接、也不依赖 legacy 分支细节。
-    store.buckets = [{ year: 2026, month: 7, count: 1234, videoCount: 234 }]
+    store.buckets = [{ year: 2026, month: 7, count: 1234, videoCount: 234, ocrCount: 0 }]
     store.bucketMode = true
     await Promise.resolve()
     expect(store.photoCount).toBe(1000)

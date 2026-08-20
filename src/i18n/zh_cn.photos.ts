@@ -340,9 +340,10 @@ export default {
   photosPeopleNamed: '{n} 个已命名',
   photosPeopleUnnamedClusters: '{n} 个未命名人物', // [聚类→人物],原文 "{n} 个未命名聚类"
   photosPeopleIndexedUpTo: '人脸索引更新至 {date}',
-  photosPeopleConfidence: '置信度 ≥ {n}%',
-  photosPeopleConfidenceOption: '≥ {n}%',
-  photosPeopleClusters: '{n} 个人物', // [聚类→人物],原文 "{n} 个聚类"
+  // Task 4 (2026-08-19 timeline/people-visibility fix): photosPeopleConfidence /
+  // photosPeopleConfidenceOption / photosPeopleClusters deleted here — the confidence dropdown
+  // they belonged to is gone (see peopleView.ts's file header; a fixed 80% confidence default
+  // silently hid a real 221-photo cluster). Verified zero remaining references before removal.
   photosPeopleFilterAll: '全部',
   photosPeopleFilterFamily: '家人',
   photosPeopleFilterFriends: '朋友',
@@ -376,8 +377,11 @@ export default {
   photosPeopleNamedHint: '{n} 个，按频率排序',
   photosPeopleUnnamedSection: '未命名人物', // 术语规则直给,不查表(表里是"未命名聚类")
   photosPeopleUnnamedHint: '{n} 个人物 · 点击命名、合并或删除', // [聚类→人物]
-  photosPeopleHideSingle: '隐藏单张照片',
-  photosPeopleShowSingle: '显示 {n} 张单照片',
+  // Fix round 2 (2026-08-19 timeline/people-visibility fix, product decision): the singleton
+  // toggle (photosPeopleHideSingle/photosPeopleShowSingle) and the fold expander
+  // (photosPeopleShowMoreClusters/photosPeopleCollapseClusters) are both deleted — the unnamed
+  // grid now shows ONLY the distribution split's `visible` head, with no way to reach singleton
+  // or folded clusters from this page. Verified zero remaining references before removal.
   photosPeopleHide: '隐藏',
   photosPeopleShow: '显示',
   photosPeoplePhotosCount: '{n} 张照片',
@@ -522,9 +526,9 @@ export default {
   photosPersonInsightPlace1: '他们的照片集中在 <b>{place}</b>。',
   photosPersonInsightNone: '{name} 的照片还不够多，暂无法生成洞察。',
   photosPersonUnknownPlace: '未知', // zh_CN.json 无裸 "Unknown" 条目,按同文件 "Unknown date"→"未知日期" 的既有惯例取"未知",见报告疑虑项
-  // SP7-P5 task-6 补:T3 漏掉的两条界面文案,协调者已从 zh_CN.json 查得原译文给定
-  // (:2072 / :2079)。追加在段末,不重排既有键。
-  photosPeopleMinScore: '最低人脸匹配分数', // 置信度下拉小标题,Vue2 PhotosPeopleView.vue:24-26
+  // SP7-P5 task-6 补:T3 漏掉的一条界面文案,协调者已从 zh_CN.json 查得原译文给定 (:2079)。
+  // 追加在段末,不重排既有键。photosPeopleMinScore(置信度下拉小标题)已随 Task 4 的
+  // 置信度下拉一并删除,见 peopleView.ts 文件头注释。
   photosPeopleClusterHint: '+ 命名 / 合并 / 删除', // 未命名卡片悬停提示,Vue2 :204
   // T7 协调者补:ClusterActionDialog 命名模式的 <label>,原文 zh_CN.json:49 "Name": "名称"。
   // 追加在段末,不重排既有键。

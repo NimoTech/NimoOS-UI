@@ -20,9 +20,6 @@ vi.mock('@nimotech/nimoos-service', () => ({
 import { service } from '@nimotech/nimoos-service'
 import { usePhotosPeople } from '../people'
 
-const LS_CONFIDENCE = 'nimo_people_confidence'
-const LS_SHOW_SINGLETONS = 'nimo_people_show_singletons'
-
 function rawPerson(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'p1',
@@ -158,72 +155,40 @@ describe('photosPeople store', () => {
     })
   })
 
-  describe('computed: named/unnamed/visibleUnnamed/unnamedCount change with filter', () => {
-    it('recalculate with filter', async () => {
+  // Fix round 2 (2026-08-19, product decision): visibleUnnamed is now exactly
+  // splitUnnamedByDistribution's `visible` head -- no singleton toggle, no fold expander, no
+  // way to reach either from this page at all. This supersedes both the original Task 4
+  // "confidence gone, showSingletons toggle unchanged" test and the fold-mechanism tests that
+  // briefly existed between fix rounds 1 and 2 (deleted along with showFoldedClusters/
+  // foldedCount/toggleFoldedClusters/setShowSingletons/PeopleFilter themselves).
+  describe('computed: named/unnamed/visibleUnnamed/unnamedCount', () => {
+    it('visibleUnnamed is exactly the distribution split\'s visible head — a singleton and a folded long tail are both permanently absent, with no toggle to reveal either', async () => {
+      // 15 multi-photo clusters, strictly descending -- splitUnnamedByDistribution's
+      // 80%-coverage cut (verified independently, see peopleView.test.ts's identical fixture)
+      // leaves the first 12 visible and folds the last 3 (counts 8/6/4).
+      const tail = [50, 45, 40, 35, 30, 25, 20, 18, 16, 14, 12, 10, 8, 6, 4]
       ;(service.photos.listPersons as any).mockResolvedValueOnce({
         persons: [
           rawPerson({ id: 1, name: 'Alice', confidence: 0.95, count: 5 }), // named
-          rawPerson({ id: 2, name: '', confidence: 0.9, count: 5 }),   // unnamed, visible at conf=80
-          rawPerson({ id: 3, name: '', confidence: 0.6, count: 1 }),   // unnamed, singleton + low conf
+          rawPerson({ id: 2, name: '', confidence: 0.9, count: 1 }), // unnamed singleton
+          ...tail.map((count, i) => rawPerson({ id: `t${i}`, count, name: '' })),
         ],
       })
       const s = usePhotosPeople()
       await s.fetchPeople()
       expect(s.named).toHaveLength(1)
-      expect(s.unnamed).toHaveLength(2)
-      expect(s.visibleUnnamed.map((p) => p.id)).toEqual([2])
-      expect(s.unnamedCount).toBe(1)
-
-      s.setConfidence(50)
-      s.setShowSingletons(true)
-      // numeric id with default .sort() is lexicographic (style cleanup: although [2,3] happens to work due to single digits,
-      // unified numeric comparison avoids confusion).
-      expect(s.visibleUnnamed.map((p) => p.id).sort((a, b) => Number(a) - Number(b))).toEqual([2, 3])
-      expect(s.unnamedCount).toBe(2)
-    })
-  })
-
-  describe('filter persistence', () => {
-    it('setConfidence(90) writes localStorage', () => {
-      const s = usePhotosPeople()
-      s.setConfidence(90)
-      expect(localStorage.getItem(LS_CONFIDENCE)).toBe('90')
-      expect(s.filter.confidence).toBe(90)
-    })
-    it('setShowSingletons(true)/(false) writes "1"/"0"', () => {
-      const s = usePhotosPeople()
-      s.setShowSingletons(true)
-      expect(localStorage.getItem(LS_SHOW_SINGLETONS)).toBe('1')
-      s.setShowSingletons(false)
-      expect(localStorage.getItem(LS_SHOW_SINGLETONS)).toBe('0')
-    })
-  })
-
-  describe('store initialization reads localStorage', () => {
-    it("invalid value '77' — fallback to default 80", () => {
-      localStorage.setItem(LS_CONFIDENCE, '77')
-      const s = usePhotosPeople()
-      expect(s.filter.confidence).toBe(80)
-    })
-    it("invalid value 'abc' — fallback to default 80", () => {
-      localStorage.setItem(LS_CONFIDENCE, 'abc')
-      const s = usePhotosPeople()
-      expect(s.filter.confidence).toBe(80)
-    })
-    it("valid value '95' — use 95", () => {
-      localStorage.setItem(LS_CONFIDENCE, '95')
-      const s = usePhotosPeople()
-      expect(s.filter.confidence).toBe(95)
-    })
-    it("showSingletons==='1' — true", () => {
-      localStorage.setItem(LS_SHOW_SINGLETONS, '1')
-      const s = usePhotosPeople()
-      expect(s.filter.showSingletons).toBe(true)
-    })
-    it("showSingletons==='true' (not strict '1') — false", () => {
-      localStorage.setItem(LS_SHOW_SINGLETONS, 'true')
-      const s = usePhotosPeople()
-      expect(s.filter.showSingletons).toBe(false)
+      expect(s.unnamed).toHaveLength(1 + tail.length)
+      const visibleIds = s.visibleUnnamed.map((p) => p.id)
+      expect(visibleIds).toEqual(['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 't11'])
+      expect(visibleIds).not.toContain(2) // the singleton never appears -- no toggle exists to reveal it
+      expect(visibleIds).not.toContain('t12') // folded (count=8) -- no expander exists to reveal it
+      expect(s.unnamedCount).toBe(12)
+      // No leftover API surface for either removed mechanism.
+      expect((s as unknown as Record<string, unknown>).setShowSingletons).toBeUndefined()
+      expect((s as unknown as Record<string, unknown>).toggleFoldedClusters).toBeUndefined()
+      expect((s as unknown as Record<string, unknown>).foldedCount).toBeUndefined()
+      expect((s as unknown as Record<string, unknown>).hiddenSingletonCount).toBeUndefined()
+      expect((s as unknown as Record<string, unknown>).filter).toBeUndefined()
     })
   })
 

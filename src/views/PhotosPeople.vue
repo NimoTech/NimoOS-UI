@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Task 6 (SP7-P5 People): people list view — banner + confidence dropdown + filter/sort row +
+// Task 6 (SP7-P5 People): people list view — banner + filter/sort row +
 // two warning banners + merge-suggestion banner + Pinned/Named/Unnamed three-section grid +
 // floating action menu + empty state.
 // Ported section-by-section against Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:2-235
@@ -61,10 +61,26 @@
 //     punctuation under the Chinese UI, and it can't be localized) — not reproduced here; see
 //     the inline comment at that spot for details.
 //
-// Two copy strings T3 missed were backfilled by the coordinator (zh_CN.json:2072 / :2079), added
-// to both locales, and rendered per Vue2: photosPeopleMinScore (confidence dropdown subheading,
-// :24-26), photosPeopleClusterHint (unnamed-card hover tooltip, :204, along with the
-// scss:242-243 .ct / .name-action hover swap, backfilled together).
+// One copy string T3 missed was backfilled by the coordinator (zh_CN.json:2079), added to both
+// locales, and rendered per Vue2: photosPeopleClusterHint (unnamed-card hover tooltip, :204,
+// along with the scss:242-243 .ct / .name-action hover swap, backfilled together).
+//
+// Task 4 (2026-08-19 timeline/people-visibility fix): the confidence dropdown (banner button +
+// menu, photosPeopleMinScore subheading, the per-tier preview count) is removed entirely — a
+// product decision, not a partial fix. It defaulted to an 80% confidence gate that silently
+// hid a real 221-photo cluster at confidence 0.796, with no way for the user to discover it.
+// Visibility now comes from the store's splitUnnamedByDistribution size-distribution cut
+// instead (see peopleView.ts's file header). The per-cluster confidence percentage badge
+// (mergeConfidencePct) is unrelated and stays.
+//
+// Fix round 2 (2026-08-19, product decision — supersedes the fold-expander part of Task 4):
+// the unnamed-clusters grid shows ONLY splitUnnamedByDistribution's `visible` head. Nothing
+// else on this page can reach the folded long tail or the singleton clusters — the "Show N
+// more clusters" expander and the "Show N single-photo" toggle (plus all the store state that
+// fed them: showFoldedClusters/foldedCount/toggleFoldedClusters, and
+// PeopleFilter.showSingletons/setShowSingletons once it lost every other consumer) are removed
+// entirely, not hidden behind a flag. splitUnnamedByDistribution itself is untouched — it
+// still computes folded/singletons, this page just no longer reads those two fields.
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -83,7 +99,7 @@ import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
 import {
-  mergeConfidencePct, mergeReasonKey, sortNamed, unnamedCountAt, type Person,
+  mergeConfidencePct, mergeReasonKey, sortNamed, type Person,
 } from '../photos/util/peopleView'
 
 type FilterId = 'all' | 'family' | 'friend' | 'work' | 'recent'
@@ -101,15 +117,12 @@ const timeline = useTimelineStore()
 const settings = usePhotosSettingsStore()
 const toast = useToast()
 
-// Vue2 :448
-const CONFIDENCE_OPTIONS = [50, 60, 70, 80, 90, 95]
-
-// Vue2 data() :461-472. sort is deliberately not persisted (matching Vue2); confidence/
-// showSingletons are persisted in the store.
+// Vue2 data() :461-472. sort is deliberately not persisted (matching Vue2). Fix round 2: the
+// showSingletons/showFoldedClusters store state this comment used to describe is gone —
+// the grid always shows exactly splitUnnamedByDistribution's `visible` head.
 const filter = ref<FilterId>('all')
 const sort = ref<SortId>('freq')
 const showUnnamed = ref(true)
-const confidenceOpen = ref(false)
 const sortOpen = ref(false)
 const clusterMenu = ref<{ person: Person; x: number; y: number } | null>(null)
 // T7 (Plan D): the "Hidden people" section, collapsed by default (mirroring Vue2 hiddenExpanded :559).
@@ -147,7 +160,6 @@ const mergingSubmitting = ref(false)
 // predicate) — this is just consuming it, not reimplementing it.
 const facesEnabled = computed(() => settings.aiFeatures.faces)
 
-const confMenuRef = ref<HTMLElement | null>(null)
 const sortMenuRef = ref<HTMLElement | null>(null)
 const clusterMenuRef = ref<HTMLElement | null>(null)
 
@@ -220,22 +232,9 @@ function formatIndexedDate(iso: string | null): string {
   return new Intl.DateTimeFormat(tag, { year: 'numeric', month: 'short', day: 'numeric' }).format(d)
 }
 
-// The preview count next to each tier in the dropdown (Vue2 :581-584) — computed off the
-// current toggle value alone; it does not simulate toggling it.
-function previewCount(v: number): number {
-  return unnamedCountAt(people.unnamed, v, people.filter.showSingletons)
-}
-
-function pickConfidence(v: number): void {
-  confidenceOpen.value = false
-  people.setConfidence(v)
-}
 function pickSort(id: SortId): void {
   sort.value = id
   sortOpen.value = false
-}
-function toggleSingletons(): void {
-  people.setShowSingletons(!people.filter.showSingletons)
 }
 function openPerson(p: Person): void {
   // Vue2 does an in-page switch via $emit('open', p.id); New-UI uses a real route (registered
@@ -500,14 +499,12 @@ function onSubmitDelete(): void {
 // ── Document-level overlay listeners (Vue2 mounted :525-540's _onDoc + Esc added by this repo) ──
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
-  if (confidenceOpen.value && confMenuRef.value && !confMenuRef.value.contains(target)) confidenceOpen.value = false
   if (sortOpen.value && sortMenuRef.value && !sortMenuRef.value.contains(target)) sortOpen.value = false
   if (clusterMenu.value && clusterMenuRef.value && !clusterMenuRef.value.contains(target)) clusterMenu.value = null
 }
 function onDocKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   if (clusterMenu.value) { clusterMenu.value = null; return }
-  if (confidenceOpen.value) { confidenceOpen.value = false; return }
   if (sortOpen.value) sortOpen.value = false
 }
 
@@ -566,31 +563,8 @@ onUnmounted(() => {
               </template>
             </div>
           </div>
-          <div class="people-banner-actions">
-            <div ref="confMenuRef" class="people-pop-wrap">
-              <button type="button" class="btn" data-test="conf-btn" @click.stop="confidenceOpen = !confidenceOpen">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
-                {{ t('photosPeopleConfidence', { n: people.filter.confidence }) }}
-                <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-              </button>
-              <div v-if="confidenceOpen" class="people-menu people-menu-conf" data-test="conf-menu">
-                <div class="people-menu-head" data-test="conf-head">{{ t('photosPeopleMinScore') }}</div>
-                <button
-                  v-for="v in CONFIDENCE_OPTIONS" :key="v"
-                  type="button"
-                  class="people-menu-item"
-                  data-test="conf-option"
-                  :data-value="v"
-                  :data-active="v === people.filter.confidence"
-                  @click="pickConfidence(v)"
-                >
-                  <span class="check">{{ v === people.filter.confidence ? '✓' : '' }}</span>
-                  <span class="lbl">{{ t('photosPeopleConfidenceOption', { n: v }) }}</span>
-                  <span class="tail" data-test="conf-count">{{ t('photosPeopleClusters', { n: previewCount(v) }) }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
+          <!-- Task 4: the confidence dropdown that used to live here is gone (see the
+               header comment) — the banner's action row has nothing left to show. -->
         </div>
 
         <!-- ── Filter row (Vue2 :44-84) ── -->
@@ -739,22 +713,15 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Unnamed (Vue2 :176-206) -->
+            <!-- Unnamed (Vue2 :176-206). Fix round 2 (product decision, 2026-08-19): the grid
+                 shows ONLY splitUnnamedByDistribution's `visible` head -- nothing else is
+                 reachable from this page. Both the "Show N more clusters" fold expander and the
+                 "Show N single-photo" singleton toggle (and the store state feeding them) are
+                 removed entirely; see the header comment above. -->
             <div class="section-head" data-test="section-unnamed">
               <h2>{{ t('photosPeopleUnnamedSection') }}</h2>
               <span class="sub">{{ t('photosPeopleUnnamedHint', { n: filteredUnnamed.length }) }}</span>
               <div class="section-actions">
-                <button
-                  v-if="showUnnamed && (people.hiddenSingletonCount > 0 || people.filter.showSingletons)"
-                  type="button"
-                  class="more"
-                  data-test="singleton-toggle"
-                  @click="toggleSingletons"
-                >
-                  {{ people.filter.showSingletons
-                    ? t('photosPeopleHideSingle')
-                    : t('photosPeopleShowSingle', { n: people.hiddenSingletonCount }) }}
-                </button>
                 <button type="button" class="more" data-test="unnamed-toggle" @click="showUnnamed = !showUnnamed">
                   {{ showUnnamed ? t('photosPeopleHide') : t('photosPeopleShow') }}
                 </button>

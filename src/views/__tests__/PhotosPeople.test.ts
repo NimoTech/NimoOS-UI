@@ -1,6 +1,6 @@
-// Task 6 (SP7-P5 People): PhotosPeople.vue —— the people list view (banner + confidence
-// dropdown + filter/sort + two warning banners + merge-suggestion banner + Pinned/Named/
-// Unnamed sections + floating action menu + empty state).
+// Task 6 (SP7-P5 People): PhotosPeople.vue —— the people list view (banner + filter/sort +
+// two warning banners + merge-suggestion banner + Pinned/Named/Unnamed sections + floating
+// action menu + empty state).
 // Mounts Pinia + i18n + a real router (spy on push, don't mock the whole vue-router — both
 // AreaShell and PhotosSidebar use useRouter(), following the existing mounting pattern from
 // PhotosAlbums.test.ts), mocks the shared package's photos methods.
@@ -78,9 +78,12 @@ async function mountView() {
 const ALICE = { id: 42, name: 'Alice', favorite: true, relation: 'family', count: 120, confidence: 0.99, lastSeen: '2026-07-20T00:00:00Z', firstSeen: '2020-01-01T00:00:00Z' }
 const CAROL = { id: 3, name: 'Carol', favorite: false, relation: 'family', count: 50, confidence: 0.98, lastSeen: '2026-07-10T00:00:00Z', firstSeen: '2021-01-01T00:00:00Z' }
 const BOB = { id: 'b7', name: 'Bob', favorite: false, relation: 'friend', count: 90, confidence: 0.97, lastSeen: '2026-06-01T00:00:00Z', firstSeen: '2019-01-01T00:00:00Z' }
-// Unnamed (empty-string name). Under the defaults confidence=80 / showSingletons=false:
-// u1+u2 are visible, u3 (0.95 but only 1 photo) is the one hidden by the singleton toggle,
-// u4 (0.72) is below the threshold.
+// Unnamed (empty-string name). Visibility is distribution-based now, not a confidence gate:
+// u1, u2, and u4 are all multi-photo clusters (count>1), so they render regardless of
+// confidence — with only 3 multi-photo clusters in this fixture, well under
+// splitUnnamedByDistribution's MIN_SHOW=12, none of them ever get folded either. u3
+// (0.95 but only 1 photo) is a singleton — fix round 2: singletons are permanently excluded
+// from the grid now, with no toggle anywhere on the page to reveal them.
 const U1 = { id: 'u1', name: '', favorite: false, relation: '', count: 9, confidence: 0.87 }
 const U2 = { id: 'u2', name: '', favorite: false, relation: '', count: 5, confidence: 0.93 }
 const U3 = { id: 'u3', name: '', favorite: false, relation: '', count: 1, confidence: 0.95 }
@@ -180,11 +183,14 @@ describe('PhotosPeople.vue — lifecycle and sections', () => {
     for (const rule of ringRules) expect(rule).not.toMatch(/box-shadow/)
   })
 
+  // Task 4 (2026-08-19 timeline/people-visibility fix): u4 (confidence=0.72) is now visible too
+  // — the confidence gate that used to exclude it is gone; see the dedicated "confidence no
+  // longer gates visibility" case in the "unnamed clusters" describe block below for the why.
   it('each of the three sections renders the correct members: favorites → Pinned, other named → Named, over-threshold unnamed → Unnamed', async () => {
     const { w } = await mountView()
     expect(ids(w, '[data-test="pinned-card"]')).toEqual(['42'])
     expect(ids(w, '[data-test="named-card"]')).toEqual(['3', 'b7'])
-    expect(ids(w, '[data-test="cluster-card"]')).toEqual(['u1', 'u2'])
+    expect(ids(w, '[data-test="cluster-card"]')).toEqual(['u1', 'u2', 'u4'])
   })
 
   it('banner subline: named count / visible unnamed count / facesIndexedUpTo date', async () => {
@@ -192,7 +198,7 @@ describe('PhotosPeople.vue — lifecycle and sections', () => {
     const { w } = await mountView()
     const sub = w.find('[data-test="people-sub"]').text()
     expect(sub).toContain('3 个已命名')
-    expect(sub).toContain('2 个未命名人物')
+    expect(sub).toContain('3 个未命名人物')
     expect(w.find('[data-test="people-indexed"]').exists()).toBe(true)
     expect(w.find('[data-test="people-indexed"]').text()).toContain('2026')
   })
@@ -255,7 +261,7 @@ describe('PhotosPeople.vue — re-shell (Plan D Task 2)', () => {
   })
 })
 
-describe('PhotosPeople.vue — confidence', () => {
+describe('PhotosPeople.vue — unnamed clusters', () => {
   it('unnamed cards render a confidence badge (0.87→87%), and the badge is not a child node of the avatar ring', async () => {
     const { w } = await mountView()
     const u1 = w.findAll('[data-test="cluster-card"]').find((c) => c.attributes('data-id') === 'u1')!
@@ -269,12 +275,6 @@ describe('PhotosPeople.vue — confidence', () => {
     expect(ring.contains(badge.element)).toBe(false)
   })
 
-  it('the top of the dropdown renders the subheading from Vue2 :24-26', async () => {
-    const { w } = await mountView()
-    await w.find('[data-test="conf-btn"]').trigger('click')
-    expect(w.find('[data-test="conf-head"]').text()).toBe('最低人脸匹配分数')
-  })
-
   it('unnamed cards render the hover action hint from Vue2 :204', async () => {
     const { w } = await mountView()
     const hint = w.findAll('[data-test="cluster-card"]')[0].find('[data-test="cluster-hint"]')
@@ -282,46 +282,15 @@ describe('PhotosPeople.vue — confidence', () => {
     expect(hint.text()).toBe('+ 命名 / 合并 / 删除')
   })
 
-  it('the preview count next to each tier in the dropdown is correct (with showSingletons=false)', async () => {
+  // Task 4 (2026-08-19 timeline/people-visibility fix): the confidence dropdown is gone.
+  // U4 (count=3, confidence=0.72) used to be hidden by the old default 80% confidence gate —
+  // it is now visible purely because it's a multi-photo cluster, regardless of confidence
+  // (this is the exact class of bug the task fixes, at fixture scale).
+  it('confidence no longer gates visibility: a low-confidence multi-photo cluster (u4, 0.72) is visible by default', async () => {
     const { w } = await mountView()
-    await w.find('[data-test="conf-btn"]').trigger('click')
-    const opts = w.findAll('[data-test="conf-option"]')
-    expect(opts).toHaveLength(6)
-    const countOf = (v: number) =>
-      opts.find((o) => o.attributes('data-value') === String(v))!.find('[data-test="conf-count"]').text()
-    expect(countOf(50)).toContain('3')   // u1 u2 u4 (u3 is a singleton, excluded)
-    expect(countOf(80)).toContain('2')   // u1 u2
-    expect(countOf(90)).toContain('1')   // u2
-    expect(countOf(95)).toContain('0')
-  })
-
-  it('selecting ≥90 → calls setConfidence(90) and unnamed people below 90 disappear from the grid', async () => {
-    const { w } = await mountView()
-    const people = usePhotosPeople()
-    const spy = vi.spyOn(people, 'setConfidence')
-    await w.find('[data-test="conf-btn"]').trigger('click')
-    const opt90 = w.findAll('[data-test="conf-option"]').find((o) => o.attributes('data-value') === '90')!
-    await opt90.trigger('click')
-    expect(spy).toHaveBeenCalledWith(90)
-    await w.vm.$nextTick()
+    expect(ids(w, '[data-test="cluster-card"]')).toEqual(['u1', 'u2', 'u4'])
+    expect(w.find('[data-test="conf-btn"]').exists()).toBe(false)
     expect(w.find('[data-test="conf-menu"]').exists()).toBe(false)
-    expect(ids(w, '[data-test="cluster-card"]')).toEqual(['u2'])
-  })
-
-  it('singleton toggle: when off, count===1 doesn\'t appear, button text shows the hidden count; clicking calls setShowSingletons(true)', async () => {
-    const { w } = await mountView()
-    const people = usePhotosPeople()
-    expect(ids(w, '[data-test="cluster-card"]')).not.toContain('u3')
-    const btn = w.find('[data-test="singleton-toggle"]')
-    expect(btn.exists()).toBe(true)
-    expect(btn.text()).toBe('显示 1 张单照片')
-
-    const spy = vi.spyOn(people, 'setShowSingletons')
-    await btn.trigger('click')
-    expect(spy).toHaveBeenCalledWith(true)
-    await w.vm.$nextTick()
-    expect(ids(w, '[data-test="cluster-card"]')).toContain('u3')
-    expect(w.find('[data-test="singleton-toggle"]').text()).toBe('隐藏单张照片')
   })
 
   it('master toggle: clicking "Hide" makes the whole unnamed grid disappear', async () => {
@@ -329,8 +298,34 @@ describe('PhotosPeople.vue — confidence', () => {
     expect(w.find('[data-test="cluster-grid"]').exists()).toBe(true)
     await w.find('[data-test="unnamed-toggle"]').trigger('click')
     expect(w.find('[data-test="cluster-grid"]').exists()).toBe(false)
-    // When the master toggle is off, the singleton toggle disappears too (per the Vue2 :180 showUnnamed && … condition)
+  })
+
+  // Fix round 2 (2026-08-19, product decision — supersedes the singleton toggle and the fold
+  // expander that briefly existed between fix rounds 1 and 2): the grid renders EXACTLY
+  // splitUnnamedByDistribution's `visible` head, and nothing on the page can reach the folded
+  // long tail or the singleton clusters, even when both are non-empty.
+  it('the unnamed grid renders exactly the distribution split\'s visible head — no singleton toggle, no fold expander, even with a large folded tail and a singleton both present', async () => {
+    // 15 multi-photo clusters (coverage cut leaves the first 12 visible, folds the last 3 —
+    // same fixture independently verified in peopleView.test.ts) plus one singleton, so both
+    // "reachable via some hidden toggle" possibilities are exercised in a single fixture.
+    const tail = [50, 45, 40, 35, 30, 25, 20, 18, 16, 14, 12, 10, 8, 6, 4]
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [
+        { id: 's1', name: '', favorite: false, relation: '', count: 1, confidence: 0.9 }, // singleton
+        ...tail.map((count, i) => ({ id: `f${i}`, name: '', favorite: false, relation: '', count, confidence: 0.9 })),
+      ],
+      facesIndexedUpTo: null,
+    })
+    const { w } = await mountView()
+    // Exactly the visible head (first 12 of the descending tail) — no singleton, no folded tail.
+    expect(ids(w, '[data-test="cluster-card"]')).toEqual(
+      ['f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11'],
+    )
+    // Neither control exists anywhere in the rendered page, under any circumstance.
     expect(w.find('[data-test="singleton-toggle"]').exists()).toBe(false)
+    expect(w.find('[data-test="fold-toggle"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('张单照片') // the old singleton-toggle copy fragment
+    expect(w.text()).not.toContain('人物簇') // the old fold-expander copy fragment ("N clusters")
   })
 })
 
@@ -340,7 +335,7 @@ describe('PhotosPeople.vue — filter and sort', () => {
     await w.find('[data-test="filter-chip"][data-filter="family"]').trigger('click')
     expect(ids(w, '[data-test="pinned-card"]')).toEqual(['42'])
     expect(ids(w, '[data-test="named-card"]')).toEqual(['3'])
-    expect(ids(w, '[data-test="cluster-card"]')).toEqual(['u1', 'u2'])
+    expect(ids(w, '[data-test="cluster-card"]')).toEqual(['u1', 'u2', 'u4'])
   })
 
   it('the first four chips carry a count badge, recent does not (negative assertion, per Vue2)', async () => {
@@ -536,14 +531,11 @@ describe('PhotosPeople.vue — navigation and floating menu', () => {
     expect(w.find('[data-test="cluster-menu"]').exists()).toBe(false)
   })
 
-  it('pressing Esc → both the confidence dropdown and the sort dropdown close', async () => {
+  // Task 4: was "pressing Esc → both the confidence dropdown and the sort dropdown close" —
+  // the confidence dropdown half is gone along with the dropdown itself; the sort-dropdown
+  // coverage is kept as-is (unaffected by this task).
+  it('pressing Esc → the sort dropdown closes', async () => {
     const { w } = await mountView()
-    await w.find('[data-test="conf-btn"]').trigger('click')
-    expect(w.find('[data-test="conf-menu"]').exists()).toBe(true)
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="conf-menu"]').exists()).toBe(false)
-
     await w.find('[data-test="sort-btn"]').trigger('click')
     expect(w.find('[data-test="sort-menu"]').exists()).toBe(true)
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -551,12 +543,15 @@ describe('PhotosPeople.vue — navigation and floating menu', () => {
     expect(w.find('[data-test="sort-menu"]').exists()).toBe(false)
   })
 
-  it('clicking elsewhere on document → confidence dropdown closes', async () => {
+  // Task 4: was "clicking elsewhere on document → confidence dropdown closes" — repurposed to
+  // cover the sort dropdown instead, since onDocMousedown's sort-menu branch (the same code
+  // path) had no other test exercising it once the confidence dropdown was deleted.
+  it('clicking elsewhere on document → sort dropdown closes', async () => {
     const { w } = await mountView()
-    await w.find('[data-test="conf-btn"]').trigger('click')
+    await w.find('[data-test="sort-btn"]').trigger('click')
     document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await w.vm.$nextTick()
-    expect(w.find('[data-test="conf-menu"]').exists()).toBe(false)
+    expect(w.find('[data-test="sort-menu"]').exists()).toBe(false)
   })
 
   // Review Minor fix: this case used to be a false green — `expect(typeof

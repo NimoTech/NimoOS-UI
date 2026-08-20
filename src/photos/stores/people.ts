@@ -8,14 +8,11 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import {
-  toPerson, namedOf, unnamedOf, visibleUnnamedOf, hiddenSingletonCountOf,
-  type Person, type PeopleFilter,
+  toPerson, namedOf, unnamedOf, splitUnnamedByDistribution,
+  type Person,
 } from '../util/peopleView'
 import { isNotFound } from '../util/httpErrors'
 
-const LS_CONFIDENCE = 'nimo_people_confidence'
-const LS_SHOW_SINGLETONS = 'nimo_people_show_singletons'
-const CONFIDENCE_ALLOWED = [50, 60, 70, 80, 90, 95]
 const PURGE_DELAY_MS = 5000
 
 // Purge cancellation pending items. Timer and snapshot are not serializable, follow Vue2 to place at module scope (photos.js:230-231), not in state.
@@ -32,18 +29,12 @@ const _purgeTimers = new Map<string, PurgeEntry>()
 // clearer and won't interfere with purge's "reuse the first idx" branch.
 const _pendingHides = new Set<string>()
 
-function readFilter(): PeopleFilter {
-  // Follow Vue2 photos.js:283-291 IIFE: whitelist validation + strict '1' comparison + overall try fallback (private mode/SSR).
-  const def: PeopleFilter = { confidence: 80, showSingletons: false }
-  try {
-    const c = parseInt(localStorage.getItem(LS_CONFIDENCE) ?? '', 10)
-    if (CONFIDENCE_ALLOWED.includes(c)) def.confidence = c
-    def.showSingletons = localStorage.getItem(LS_SHOW_SINGLETONS) === '1'
-  } catch {
-    /* Keep default value when localStorage is unavailable */
-  }
-  return def
-}
+// Fix round 2 (2026-08-19, product decision): readFilter/PeopleFilter/the
+// nimo_people_show_singletons localStorage key are gone along with the singleton toggle they
+// backed — once the toggle's confidence-gate sibling was removed in Task 4, showSingletons was
+// PeopleFilter's only remaining field and this filter object's only remaining consumer; deleted
+// as a unit rather than left around as a single-field type with no other use (verified
+// repo-wide via grep before deleting).
 
 export const usePhotosPeople = defineStore('photosPeople', () => {
   const people = ref<Person[]>([])
@@ -51,7 +42,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // (P3 hard lesson: unconditional setting makes transient failure indistinguishable from "confirmed zero people"). Vue2's peopleLoaded is a write-only dead field.
   const peopleLoaded = ref(false)
   const facesIndexedUpTo = ref<string | null>(null)
-  const filter = ref<PeopleFilter>(readFilter())
   const mergeSuggestions = ref<Array<Record<string, unknown>>>([])
 
   // Task 7 (Plan D): Hidden people section state (mirroring Vue2 photos.js:392-399).
@@ -64,11 +54,17 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
 
   const named = computed(() => namedOf(people.value))
   const unnamed = computed(() => unnamedOf(people.value))
-  const visibleUnnamed = computed(() => visibleUnnamedOf(unnamed.value, filter.value))
+  // Fix round 2 (2026-08-19, product decision): the grid shows ONLY the distribution split's
+  // `visible` head -- nothing else is reachable from this page. splitUnnamedByDistribution
+  // itself is untouched (still computes folded/singletons for whoever might need them later);
+  // this store just no longer reads those two fields at all. Superseded the earlier Task 4
+  // fold-expander mechanism (showFoldedClusters/foldedCount/toggleFoldedClusters) and the
+  // pre-existing singleton toggle (PeopleFilter.showSingletons/setShowSingletons/
+  // hiddenSingletonCount) — both deleted outright, not hidden behind a flag.
+  const visibleUnnamed = computed(() => splitUnnamedByDistribution(unnamed.value).visible)
   const namedCount = computed(() => named.value.length)
   // Sidebar/topbar count and grid must use the same calibration: unnamed count uses "visible" not all (Vue2 photos.js:344 comment emphasizes).
   const unnamedCount = computed(() => visibleUnnamed.value.length)
-  const hiddenSingletonCount = computed(() => hiddenSingletonCountOf(unnamed.value, filter.value))
 
   const key = (id: string | number): string => String(id)
   function personById(id: string | number): Person | null {
@@ -133,16 +129,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
       // Same as above: Vue2 :1095-1098 clears on failure, here keep previous data.
       console.error('[photos-people] fetchMergeSuggestions', e)
     }
-  }
-
-  // ── Filter preferences (write to localStorage, follow Vue2 mutation :350-361) ──
-  function setConfidence(v: number): void {
-    filter.value = { ...filter.value, confidence: v }
-    try { localStorage.setItem(LS_CONFIDENCE, String(v)) } catch { /* Ignore write failure */ }
-  }
-  function setShowSingletons(v: boolean): void {
-    filter.value = { ...filter.value, showSingletons: !!v }
-    try { localStorage.setItem(LS_SHOW_SINGLETONS, v ? '1' : '0') } catch { /* Ignore write failure */ }
   }
 
   // ── Write operations (optimistic strategy, verify each case separately, note each differs) ──
@@ -417,18 +403,17 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     peopleLoaded.value = false
     facesIndexedUpTo.value = null
     mergeSuggestions.value = []
-    filter.value = readFilter()
     hiddenPeople.value = []
     hiddenPeopleLoaded.value = false
     hiddenPeopleSupported.value = true
   }
 
   return {
-    people, peopleLoaded, facesIndexedUpTo, filter, mergeSuggestions,
+    people, peopleLoaded, facesIndexedUpTo, mergeSuggestions,
     hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
-    named, unnamed, visibleUnnamed, namedCount, unnamedCount, hiddenSingletonCount,
+    named, unnamed, visibleUnnamed, namedCount, unnamedCount,
     personById, patchPerson,
-    fetchPeople, fetchMergeSuggestions, setConfidence, setShowSingletons,
+    fetchPeople, fetchMergeSuggestions,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     acceptMergeSuggestion, rejectMergeSuggestion, dismissAllMerges,

@@ -1672,9 +1672,11 @@
    this). No Vue2 class name exists to anchor to, so — same policy as that
    earlier section — class names follow New-UI's already-established naming
    (src/views/PhotosPeople.vue scoped block, ~707-917) while every value
-   below has been re-checked against those two Vue2 inline-style blocks
-   (see the per-selector notes; the `.check` width split below is the one
-   place a value actually diverged and was fixed).
+   below has been re-checked against those two Vue2 inline-style blocks.
+   Final-review cleanup: the confidence dropdown itself (Vue2 ~:15-39,
+   `.people-menu-conf`) was removed from the New-UI template — its
+   now-orphaned CSS (`.people-menu-conf` and its `.check`-width override)
+   has been deleted below along with it; only the sort dropdown survives.
    `.people-icon-btn` / `.people-btn-primary` are a separate, third Vue2
    source: the merge-suggestion banner's dismiss / "Review" buttons, which
    reuse Vue2's own shared global `.icon-btn` / `.btn`+`.btn-primary` classes
@@ -1694,7 +1696,6 @@
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
-.people-menu-conf { min-width: 200px; padding: 8px; }
 .people-menu-head {
   font-size: 10.5px;
   color: var(--text-3);
@@ -1722,13 +1723,6 @@
 .people-menu-item:hover { background: var(--surface-3); }
 .people-menu-item[data-active="true"] { background: var(--accent-soft); }
 .people-menu-item .check { width: 12px; flex: none; color: var(--accent-hi); }
-/* Fix round 1 (Important 2): Vue2's confMenu check icon/placeholder is
-   11px (PhotosPeopleView.vue:32-33: `:size="11"` / `width:11px`), sortMenu's
-   is 12px (:75-76: `:size="12"` / `width:12px`). New-UI shares one `.check`
-   span class across both dropdowns (base rule above matches sortMenu);
-   narrow it back to 11px inside the confidence dropdown so both stay
-   byte-correct to their own Vue2 source. */
-.people-menu-conf .people-menu-item .check { width: 11px; }
 .people-menu-item .lbl { flex: 1; }
 .people-menu-item .tail { color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
 .people-menu-item .stack-text { flex: 1; display: flex; flex-direction: column; }
@@ -1756,12 +1750,6 @@
    never matches it — same values, standalone selector. */
 .people-sub { color: var(--text-3); font-size: 12.5px; margin-top: 4px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .people-sub .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--text-4); flex: none; }
-
-/* Plan D Task 2: same situation as `.people-sub` above — New-UI's actual markup wraps the
-   banner's action row in a single `.people-banner-actions` class (Vue2 nests an unclassed
-   `.actions` div instead, matched by `.people-banner .actions` above), so that descendant
-   selector never matches it either. Same values, standalone selector. */
-.people-banner-actions { margin-left: auto; display: inline-flex; gap: 8px; }
 
 /* New-UI addition: loading skeleton, no Vue2 source */
 .person-skeleton { display: flex; flex-direction: column; gap: 12px; padding: 4px; }

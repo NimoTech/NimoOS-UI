@@ -559,9 +559,6 @@
 .photos-root .scrubber-tick[data-major="true"]::before { width: 14px; background: var(--text-2); }
 .photos-root .scrubber-tick[data-active="true"] { color: var(--accent-hi); }
 .photos-root .scrubber-tick[data-active="true"]::before { background: var(--accent); width: 14px; }
-/* Task F2: months that don't render on the current tab (e.g. the OCR tab
-   hiding a month with no OCR'd photos) get a non-interactive tick. */
-.photos-root .scrubber-tick[data-disabled="true"] { opacity: 0.35; cursor: default; }
 .photos-root .scrubber-thumb {
   /* shift right by half of (tick ::before width 8 + gap 6) so it covers the
      tick text, not the leading line decoration */

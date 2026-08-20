@@ -54,6 +54,7 @@ vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: 
 import Photos from '../Photos.vue'
 import PhotosGrid from '../../photos/components/PhotosGrid.vue'
 import PhotosFilterBar from '../../photos/components/PhotosFilterBar.vue'
+import PhotosToolbar from '../../photos/components/PhotosToolbar.vue'
 import { useTimelineStore, __resetBucketProbeForTest } from '../../photos/stores/timeline'
 
 function makeRouter() {
@@ -91,7 +92,7 @@ beforeEach(() => {
 // store's `months`, not how bucketMode gets flipped (that is T2/T5's territory).
 function seedUnloadedBucket(store: ReturnType<typeof useTimelineStore>) {
   store.bucketMode = true
-  store.buckets = [{ year: 2026, month: 8, count: 10, videoCount: 2 }]
+  store.buckets = [{ year: 2026, month: 8, count: 10, videoCount: 2, ocrCount: 0 }]
 }
 
 describe('Photos.vue bucket-mode wiring (SP15-P3-T8)', () => {
@@ -139,6 +140,24 @@ describe('Photos.vue bucket-mode wiring (SP15-P3-T8)', () => {
       (w.findComponent(PhotosGrid).props('months') as Array<{ key: string }>)
         .some((m) => m.key === '2026-08'),
     ).toBe(false)
+  })
+
+  // Before this fix, filteredCount summed only `m.photos` — always [] for an
+  // unloaded bucket month — so the topbar undercounted (showed 0) while the
+  // directory already knows the honest per-tab estimate from count/videoCount/
+  // ocrCount. tabCountOf({count:10, videoCount:2, ocrCount:0}, 'photo') = 8.
+  it('estimates the topbar count from directory metadata while a bucket month is still unloaded', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    store.bucketMode = true
+    store.buckets = [{ year: 2026, month: 8, count: 10, videoCount: 2, ocrCount: 0 }]
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const unloaded = store.months.find((m) => m.key === '2026-08')
+    expect(unloaded?.loaded).toBe(false)
+
+    expect(w.findComponent(PhotosToolbar).props('count')).toBe(8)
   })
 
   it('forwards need-bucket to the store', async () => {

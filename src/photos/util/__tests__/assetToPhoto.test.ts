@@ -127,4 +127,11 @@ describe('groupToMonth', () => {
   it('loc is always the empty string', () => {
     expect(groupToMonth({ year: 2024, month: 5 }).loc).toBe('')
   })
+
+  // Legacy (non-bucket) timeline groups carry no directory metadata at all, but
+  // tabCountOf's callers read ocrCount unconditionally once a Month has any
+  // count fields — default it to 0 so a legacy Month never leaks `undefined`.
+  it('defaults ocrCount to 0 (legacy path carries no directory OCR counter)', () => {
+    expect(groupToMonth({ year: 2024, month: 5 }).ocrCount).toBe(0)
+  })
 })

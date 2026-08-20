@@ -76,6 +76,7 @@ import { useMessageBus } from '../composables/useMessageBus'
 import { unwrapTaskBusPayload, type TaskBusPayload } from '../photos/util/taskBus'
 import { createTaskDoneCoalescer } from '../photos/util/taskDoneCoalescer'
 import { matchesTab } from '../photos/util/tabFilter'
+import { tabCountOf } from '../photos/util/timelineBuckets'
 import { applyExifFilters } from '../photos/util/photosFilterUtils'
 import type { Photo } from '../photos/util/assetToPhoto'
 
@@ -203,8 +204,18 @@ const gridMonths = computed(() =>
 // D20(用户 2026-08-03 拍板):计数跟着 EXIF 筛选一起减,与用户所见一致。
 // (Vue2 传的是 allPhotos.length,既不跟标签页也不跟筛选;New-UI 在 P1 已把它改成跟标签页
 // 走的 sanctioned 偏离,这里把 EXIF 叠进同一个 computed,方向一致。)
+// A loaded month sums its real photos through the same matchesTab predicate
+// the grid uses. An unloaded month (bucket mode only, gridMonths keeps these
+// only while no EXIF filter narrows membership — see the `.filter` above)
+// has no photos in hand yet, so summing `m.photos` would undercount the
+// topbar while buckets are still streaming in; tabCountOf estimates it from
+// the same directory metadata the grid sizes its skeleton from instead.
 const filteredCount = computed(() =>
-  gridMonths.value.reduce((sum, m) => sum + m.photos.filter((p) => matchesTab(p, tab.value)).length, 0),
+  gridMonths.value.reduce((sum, m) => sum + (
+    m.loaded === false
+      ? tabCountOf({ count: m.count ?? 0, videoCount: m.videoCount ?? 0, ocrCount: m.ocrCount ?? 0 }, tab.value)
+      : m.photos.filter((p) => matchesTab(p, tab.value)).length
+  ), 0),
 )
 
 // T16 接线(结构规格 22):搜索框恒显示(对应 Vue2 `show-search = isLibraryView`,

@@ -388,12 +388,17 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
         // A counter would drop this write on ANY refresh, and while indexing the
         // directory refreshes every few seconds — a big month that takes longer
         // than that to page in would be re-requested and re-dropped forever. The
-        // condition below is the same one staleBucketKeys uses (count or
-        // videoCount moved, or the bucket is gone), so a month that did not change
+        // condition below is the same one staleBucketKeys uses (count, video, or
+        // ocr count moved, or the bucket is gone), so a month that did not change
         // keeps the pages it just paid for, and one that did change is refetched
         // by the grid's level-triggered request.
         const nowMeta = buckets.value.find((b) => bucketKey(b) === key)
-        if (!nowMeta || nowMeta.count !== meta.count || nowMeta.videoCount !== meta.videoCount) {
+        if (
+          !nowMeta
+          || nowMeta.count !== meta.count
+          || nowMeta.videoCount !== meta.videoCount
+          || nowMeta.ocrCount !== meta.ocrCount
+        ) {
           console.warn('[photos-timeline] bucket changed while loading, dropping the page', key)
           droppedByDirectoryChange = true
           return
@@ -478,31 +483,66 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     if (!bucketMode.value || ids.length === 0) return
     const doomed = new Set(ids.map(String))
     const map = new Map(bucketAssets.value)
-    const removedPerKey = new Map<string, { total: number; videos: number }>()
+    // Final-review finding 1: `ocrs` tracks OCR/document deletions alongside
+    // `videos`, so the surviving-bucket branch below can decrement ocrCount the
+    // same way it already decrements videoCount. Without it, deleting every
+    // document out of a mixed month left ocrCount claiming assets that no
+    // longer exist — tabCountOf/hasContent would keep seeing positive 'ocr'-tab
+    // content forever, reintroducing the ghost-month bug this file eliminates.
+    const removedPerKey = new Map<string, { total: number; videos: number; ocrs: number }>()
     for (const [key, photos] of map) {
       let total = 0
       let videos = 0
+      let ocrs = 0
       const kept = photos.filter((p) => {
         if (!doomed.has(String(p.id))) return true
         total++
         if (p.isVideo) videos++
+        if (p.hasOcr) ocrs++
         return false
       })
       if (total === 0) continue
       map.set(key, kept)
-      removedPerKey.set(key, { total, videos })
+      removedPerKey.set(key, { total, videos, ocrs })
     }
     if (removedPerKey.size === 0) return
-    bucketAssets.value = map
-    buckets.value = buckets.value.map((b) => {
-      const hit = removedPerKey.get(bucketKey(b))
-      if (!hit) return b
-      return {
-        ...b,
-        count: Math.max(0, b.count - hit.total),
-        videoCount: Math.max(0, b.videoCount - hit.videos),
+    // A bucket decremented all the way to 0 is dropped outright rather than
+    // kept as an empty row: `months` is derived straight from `buckets`, so a
+    // count:0 entry would render an empty-but-present month forever — there is
+    // nothing left to load and nothing that would ever bring it back.
+    //
+    // Fix round 1 (Important, reviewer-reproduced regression): dropping the
+    // bucket from `buckets` is not enough by itself — its `bucketAssets` entry
+    // (set to `[]` a few lines up) must be deleted too, not just left behind.
+    // If the month later reappears in the directory (a restore, or a fresh
+    // asset lands in it), two things independently rely on the key being gone:
+    //  - applyDirectory only re-checks staleness for keys still present in
+    //    bucketAssets (its `loadedKeys` param); a surviving `[]` entry looks
+    //    "loaded and, per staleBucketKeys, unchanged" once the reborn directory
+    //    entry is diffed against nothing (the bucket already left `buckets`, so
+    //    prevByKey has no entry to compare against — see staleBucketKeys);
+    //  - fetchBucket short-circuits on `bucketAssets.value.has(key)`, which
+    //    would stay true forever for that stale `[]`.
+    // Left unfixed, the month comes back as `{ loaded: true, count: 3, photos: []
+    // }` — a container claiming items with zero tiles, unrecoverable until a
+    // full page reload. Deleting the key makes bucketToMonth see `null` again,
+    // i.e. genuinely unloaded, exactly as if this month had never been fetched.
+    const nextBuckets: BucketMeta[] = []
+    for (const b of buckets.value) {
+      const key = bucketKey(b)
+      const hit = removedPerKey.get(key)
+      if (!hit) { nextBuckets.push(b); continue }
+      const count = Math.max(0, b.count - hit.total)
+      const videoCount = Math.max(0, b.videoCount - hit.videos)
+      const ocrCount = Math.max(0, b.ocrCount - hit.ocrs)
+      if (count > 0) {
+        nextBuckets.push({ ...b, count, videoCount, ocrCount })
+      } else {
+        map.delete(key)
       }
-    })
+    }
+    bucketAssets.value = map
+    buckets.value = nextBuckets
   }
 
   async function deleteAssets(ids: string[]): Promise<number> {
