@@ -250,9 +250,9 @@ describe('AgentPage', () => {
     routeQuery.session = 'sess-a'
     // A-8 Task 2 landed a mount-time ?session= read that looks 'sess-a' up in the loaded
     // list; give it a match (and stub selectSession, same as the Task 2 tests) so mount
-    // takes the found branch and leaves activeSessionId untouched — otherwise the id would
-    // be reported unknown, stripped from the URL, and the scenario below would no longer
-    // be "assigning the same id twice."
+    // takes the found branch and leaves activeSessionId at null — the single assignment
+    // below is then a genuine change that fires the watcher with the URL already naming
+    // this session.
     svc.listAgentSessions.mockResolvedValue([{ id: 'sess-a' }])
     const store = useAgentStore()
     vi.spyOn(store, 'selectSession').mockResolvedValue(undefined)
@@ -744,11 +744,20 @@ describe('AgentPage', () => {
     })
     mountPage()
     await flushPromises()
+    // Makes the found branch's participation observable: without the mount-time read
+    // driving selectSession, activeSessionId would stay null instead of becoming 's2'.
+    expect(store.activeSessionId).toBe('s2')
     expect(replace).not.toHaveBeenCalled()
   })
 
-  // The hazard the single query ref exists for: the seed strip must not be undone by the
-  // mirror writing the freshly created session.
+  // This guards Task 1's shared-ref discipline, not Task 2's read: if syncSessionQuery
+  // built its replace query from route.query instead of the urlQuery ref, the mocked
+  // replace() never writes back to routeQuery, so route.query would still hold
+  // search:'cats' when the mirror fires after createSession() — replace #2 would then
+  // resurrect search alongside the new session id, and the loop below would catch it.
+  // Note: this cannot distinguish Task 2's own read using route.query vs. the ref —
+  // route.query and the mock's routeQuery never diverge in this harness, so that
+  // narrower substitution is invisible here (verified by mutation).
   it('A-8: ?session= + ?search= — search is stripped for good, final URL is the new session', async () => {
     routeQuery.session = 's1'
     routeQuery.search = 'cats'
