@@ -533,7 +533,7 @@ Leave the two "does nothing when the session id is empty / null" tests exactly a
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm exec vitest run src/ai/services/openInApp.test.ts`
-Expected: 3 failures (the two forward assertions and the `window.open` argument); the reverse assertions now pass for the wrong reason and will be locked in by Step 3.
+Expected: 5 failures — the two forward assertions, the `window.open` argument, **and both reverse assertions**. This plan first predicted 3, reasoning that the reverse assertions would "pass for the wrong reason"; that was wrong, and the Task 4 implementer measured it. Once flipped, a reverse assertion reads `not.toBe('/#/ai/agent?session=…')` while the unflipped implementation still returns exactly that string, so it necessarily fails. All five go green together in Step 3.
 
 - [ ] **Step 3: Flip the implementation and rewrite its comment**
 
