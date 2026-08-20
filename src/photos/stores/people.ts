@@ -502,26 +502,55 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // Decides every suggestion in one person's group at once, via the batch endpoint. Same
-  // optimistic semantics as decideSuggestion: the whole group is removed immediately, restored
-  // (via a refetch) only on failure.
-  async function decideGroup(personId: string | number, accept: boolean): Promise<void> {
+  // Decides every suggestion in one person's group at once, via the batch endpoint. Optimistic
+  // removal of the whole group up front, same as before — but unlike a single decideSuggestion,
+  // the batch endpoint ALWAYS answers 200 with a per-id {results:{id:{status,error?}}} map, so a
+  // partial failure inside the group must not be silently reported as a full success.
+  //
+  // Fix round 1 (review Medium finding, 2026-08-20): the previous version only checked whether
+  // the HTTP call itself threw, ignoring the per-id results map entirely — a failed id stayed
+  // optimistically removed and was misrepresented as resolved. Now:
+  //   - the results map is parsed defensively: missing/malformed → every id counts as failed,
+  //     never as succeeded (a wrong guess in the safe direction);
+  //   - any id with status 'error', or absent from the map, counts as failed;
+  //   - failed ids are NOT hand-reinserted from a snapshot — they're still open server-side, so
+  //     the natural restore path is a plain fetchSuggestions() once the pending-guard clears
+  //     (must run after _pendingSuggestionIds is cleared for these ids, otherwise fetchSuggestions
+  //     would filter the just-restored items right back out);
+  //   - fetchPeople() on the accept side only fires if at least one id actually succeeded;
+  //   - the promise resolves with `{ failed }` (0 on full success) instead of throwing, so Task 2
+  //     can render a partial-failure toast from the count rather than a try/catch.
+  async function decideGroup(personId: string | number, accept: boolean): Promise<{ failed: number }> {
     const pk = key(personId)
     const group = suggestionGroups.value.find((g) => key(g.person.id) === pk)
-    if (!group || group.suggestions.length === 0) return
+    if (!group || group.suggestions.length === 0) return { failed: 0 }
     const ids = group.suggestions.map((it) => it.id)
     for (const id of ids) _pendingSuggestionIds.add(id)
     suggestionGroups.value = suggestionGroups.value.filter((g) => key(g.person.id) !== pk)
+
+    let failed = ids.length   // defensive default: a thrown request or a malformed response counts as all-failed, never all-succeeded
     try {
-      await service.photos.batchPersonSuggestions(accept ? { accept: ids, reject: [] } : { accept: [], reject: ids })
-      if (accept) void fetchPeople()
+      const res = (await service.photos.batchPersonSuggestions(
+        accept ? { accept: ids, reject: [] } : { accept: [], reject: ids },
+      )) as { results?: unknown } | undefined
+      const results = res?.results && typeof res.results === 'object' && !Array.isArray(res.results)
+        ? (res.results as Record<string, { status?: string } | undefined>)
+        : null
+      failed = results
+        ? ids.filter((id) => {
+          const r = results[id]
+          return !r || r.status === 'error'
+        }).length
+        : ids.length
     } catch (e) {
       console.error('[photos-people] decideGroup', e)
-      void fetchSuggestions()
-      throw e
     } finally {
       for (const id of ids) _pendingSuggestionIds.delete(id)
     }
+
+    if (accept && failed < ids.length) void fetchPeople()
+    if (failed > 0) void fetchSuggestions()
+    return { failed }
   }
 
   function __resetForTest(): void {

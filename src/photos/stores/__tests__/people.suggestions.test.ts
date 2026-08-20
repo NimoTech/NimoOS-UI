@@ -193,6 +193,10 @@ describe('photosPeople store — suggestions (Plan C Task 1)', () => {
     })
   })
 
+  // Fix round 1 (review Medium finding, 2026-08-20): the batch endpoint ALWAYS answers 200 with
+  // a per-id {results:{id:{status,error?}}} map, so decideGroup must parse it rather than treat
+  // "the request didn't throw" as "everything succeeded". Signature is now
+  // Promise<{ failed: number }> instead of Promise<void>, and it no longer throws.
   describe('decideGroup', () => {
     async function seededTwoGroups() {
       ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
@@ -206,43 +210,120 @@ describe('photosPeople store — suggestions (Plan C Task 1)', () => {
       return s
     }
 
-    it('④ accept — calls the batch endpoint with every id in the group\'s accept list, and the whole group disappears', async () => {
+    it('④ (a) accept, full success — calls the batch endpoint with every id in the group\'s accept list, the whole group disappears, and it resolves with failed=0', async () => {
       const s = await seededTwoGroups()
-      await s.decideGroup('p1', true)
+      ;(service.photos.batchPersonSuggestions as any).mockResolvedValueOnce({
+        results: { s1: { status: 'accepted' }, s2: { status: 'accepted' } },
+      })
+      const result = await s.decideGroup('p1', true)
       expect(service.photos.batchPersonSuggestions).toHaveBeenCalledWith({ accept: ['s1', 's2'], reject: [] })
       expect(s.suggestionGroups.map((g) => g.person.id)).toEqual(['p2']) // only p1's group is gone
       expect(s.suggestionCount).toBe(1)
+      expect(result).toEqual({ failed: 0 })
     })
 
-    it('④ accept — also triggers a people-list refresh', async () => {
+    it('(a) full success — no extra fetchSuggestions refetch beyond the initial setup fetch', async () => {
       const s = await seededTwoGroups()
+      ;(service.photos.batchPersonSuggestions as any).mockResolvedValueOnce({
+        results: { s1: { status: 'accepted' }, s2: { status: 'accepted' } },
+      })
+      await s.decideGroup('p1', true)
+      expect(service.photos.listPersonSuggestions).toHaveBeenCalledTimes(1) // only the setup fetch, no resync needed
+    })
+
+    it('④ accept, full success — also triggers a people-list refresh', async () => {
+      const s = await seededTwoGroups()
+      ;(service.photos.batchPersonSuggestions as any).mockResolvedValueOnce({
+        results: { s1: { status: 'accepted' }, s2: { status: 'accepted' } },
+      })
       await s.decideGroup('p1', true)
       expect(service.photos.listPersons).toHaveBeenCalledTimes(1)
     })
 
-    it('reject — calls the batch endpoint with the reject list, group disappears, and does NOT refresh people', async () => {
+    it('reject, full success — calls the batch endpoint with the reject list, group disappears, and does NOT refresh people', async () => {
       const s = await seededTwoGroups()
-      await s.decideGroup('p2', false)
+      ;(service.photos.batchPersonSuggestions as any).mockResolvedValueOnce({
+        results: { s3: { status: 'rejected' } },
+      })
+      const result = await s.decideGroup('p2', false)
       expect(service.photos.batchPersonSuggestions).toHaveBeenCalledWith({ accept: [], reject: ['s3'] })
       expect(s.suggestionGroups.map((g) => g.person.id)).toEqual(['p1'])
       expect(service.photos.listPersons).not.toHaveBeenCalled()
+      expect(result).toEqual({ failed: 0 })
     })
 
-    it('personId not found locally — no-op, no request sent', async () => {
+    it('personId not found locally — no-op, no request sent, resolves with failed=0', async () => {
       const s = await seededTwoGroups()
-      await s.decideGroup('does-not-exist', true)
+      const result = await s.decideGroup('does-not-exist', true)
       expect(service.photos.batchPersonSuggestions).not.toHaveBeenCalled()
+      expect(result).toEqual({ failed: 0 })
     })
 
-    it('failure — refetches suggestions to correct local state, and rethrows', async () => {
+    it('(b) partial failure — failed only counts the ids the backend marked as error, people still refresh (one id succeeded), and a resync restores just the failed one', async () => {
+      const s = await seededTwoGroups()
+      ;(service.photos.batchPersonSuggestions as any).mockResolvedValueOnce({
+        results: { s1: { status: 'accepted' }, s2: { status: 'error', error: 'no matching face' } },
+      })
+      // Resync sees the backend's post-batch truth: s1 is gone (accepted), s2 is still open.
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup({ id: 'p1', name: 'Alice' }, [rawSuggestion({ id: 's2' })])],
+      })
+      const result = await s.decideGroup('p1', true)
+      expect(result).toEqual({ failed: 1 })
+      expect(service.photos.listPersons).toHaveBeenCalledTimes(1) // s1 succeeded -> people refresh still fires
+      await vi.waitFor(() => {
+        expect(service.photos.listPersonSuggestions).toHaveBeenCalledTimes(2) // setup fetch + resync
+      })
+      expect(s.suggestionGroups).toHaveLength(1)
+      expect(s.suggestionGroups[0].person).toMatchObject({ id: 'p1' })
+      expect(s.suggestionGroups[0].suggestions.map((it) => it.id)).toEqual(['s2']) // failed item is back, succeeded item is gone
+    })
+
+    it('(c) malformed/missing results map — treated as all ids failed (not all succeeded), no crash, no people refresh', async () => {
+      const s = await seededTwoGroups()
+      ;(service.photos.batchPersonSuggestions as any).mockResolvedValueOnce({}) // no `results` key at all
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup({ id: 'p1', name: 'Alice' }, [rawSuggestion({ id: 's1' }), rawSuggestion({ id: 's2' })])],
+      })
+      const result = await s.decideGroup('p1', true)
+      expect(result).toEqual({ failed: 2 })
+      expect(service.photos.listPersons).not.toHaveBeenCalled()
+      await vi.waitFor(() => {
+        expect(service.photos.listPersonSuggestions).toHaveBeenCalledTimes(2)
+      })
+      expect(s.suggestionGroups[0].suggestions.map((it) => it.id)).toEqual(['s1', 's2']) // both restored by the resync
+    })
+
+    it('(d) all accept ids explicitly marked error — no people refresh, but a resync still fires', async () => {
+      const s = await seededTwoGroups()
+      ;(service.photos.batchPersonSuggestions as any).mockResolvedValueOnce({
+        results: { s1: { status: 'error' }, s2: { status: 'error' } },
+      })
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup({ id: 'p1', name: 'Alice' }, [rawSuggestion({ id: 's1' }), rawSuggestion({ id: 's2' })])],
+      })
+      const result = await s.decideGroup('p1', true)
+      expect(result).toEqual({ failed: 2 })
+      expect(service.photos.listPersons).not.toHaveBeenCalled()
+      await vi.waitFor(() => {
+        expect(service.photos.listPersonSuggestions).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    it('network-level failure (the request itself throws) — treated as all-failed, logs, resyncs, and resolves rather than throwing', async () => {
       const s = await seededTwoGroups()
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.batchPersonSuggestions as any).mockRejectedValueOnce(new Error('x'))
       ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
         groups: [rawGroup({ id: 'p1', name: 'Alice' }, [rawSuggestion({ id: 's1' }), rawSuggestion({ id: 's2' })])],
       })
-      await expect(s.decideGroup('p1', true)).rejects.toThrow('x')
-      expect(service.photos.listPersonSuggestions).toHaveBeenCalledTimes(2)
+      const result = await s.decideGroup('p1', true)
+      expect(result).toEqual({ failed: 2 })
+      expect(consoleSpy).toHaveBeenCalled()
+      expect(service.photos.listPersons).not.toHaveBeenCalled()
+      await vi.waitFor(() => {
+        expect(service.photos.listPersonSuggestions).toHaveBeenCalledTimes(2)
+      })
       consoleSpy.mockRestore()
     })
   })
