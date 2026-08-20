@@ -224,6 +224,49 @@ describe('AgentPage', () => {
     expect(store.pendingSkillId).toBeNull()
   })
 
+  // A-8 (spec 2026-08-19-agent-session-deeplink): the selected session is mirrored into
+  // ?session= so the address bar is always a shareable deep link.
+  it('A-8: switching session mirrors it into ?session= (replace, so no history churn)', async () => {
+    mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-a'
+    await flushPromises()
+    expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: { session: 'sess-a' } })
+  })
+
+  it('A-8: a numeric session id is stringified for the URL', async () => {
+    mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.activeSessionId = 42
+    await flushPromises()
+    expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: { session: '42' } })
+  })
+
+  it('A-8: re-selecting the same session issues no further replace (equality guard)', async () => {
+    mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-a'
+    await flushPromises()
+    const before = replace.mock.calls.length
+    store.activeSessionId = 'sess-a'
+    await flushPromises()
+    expect(replace.mock.calls.length).toBe(before)
+  })
+
+  it('A-8: clearing the active session strips ?session= from the URL', async () => {
+    mountPage()
+    await flushPromises()
+    const store = useAgentStore()
+    store.activeSessionId = 'sess-a'
+    await flushPromises()
+    store.activeSessionId = null
+    await flushPromises()
+    expect(replace).toHaveBeenLastCalledWith({ path: '/ai/agent', query: {} })
+  })
+
   it('SP8-P2a Task 12: sidebar open-settings (settings gear) → router.push to /ai/settings, no placeholder toast (Vue2 Agent.vue:209, route exists)', async () => {
     const w = mountPage()
     await flushPromises()
