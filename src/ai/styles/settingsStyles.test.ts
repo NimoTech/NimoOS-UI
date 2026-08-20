@@ -355,3 +355,95 @@ describe('skills-styles.scss — .empty-title/.empty-sub empty-state styles (cyc
     expect(subRule).toContain('margin: 0')
   })
 })
+
+// 2026-08-20 — the `+ Add header` / `+ Add variable` buttons in the MCP
+// add/edit modal (`McpServerModal.vue`, class `.mcp-kv-add`) rendered as plain
+// body text. Root cause is the same one the `.set-app .sk-add-btn` rule
+// upstream in skills-styles.scss already works around: `settings-styles.scss`
+// resets EVERY `<button>` inside `.set-app` (background/border/color/cursor/
+// font), and that compiled selector `.set-app button` at (0,1,1) outranks a
+// bare single-class rule at (0,1,0). The three declarations that decide
+// whether the element reads as a button at all -- its background, its accent
+// foreground, and its smaller/heavier font -- were being thrown away, and on a
+// newly-added server that button is the only interactive element in the
+// headers/env field (both lists start empty), so there was nothing else to
+// suggest it could be clicked.
+//
+// Guarded by comparing specificity computed from both real files rather than
+// by pinning the selector text: any future rule that reintroduces the problem
+// (or any change to the reset's own specificity) is caught, and a rewrite that
+// solves it a different way -- an id, an attribute selector, deeper nesting --
+// passes without edits here.
+describe('mcp-styles.scss — .mcp-kv-add outranks the .set-app button reset', () => {
+  const mcpCss = stripComments(read('./mcp-styles.scss'))
+  const settingsCss = stripComments(read('./settings-styles.scss'))
+
+  /** CSS specificity as [ids, classes+attributes+pseudo-classes, types], the
+   *  three components that decide the cascade for these two rules. */
+  function specificity(chain: string[]): [number, number, number] {
+    const joined = chain.join(' ')
+    const ids = (joined.match(/#[\w-]+/g) || []).length
+    const classes = (joined.match(/\.[a-zA-Z][\w-]*|\[[^\]]+\]|:[a-z-]+\(/g) || []).length
+    const types = (joined.match(/(^|[\s>+~])([a-zA-Z][\w-]*)/g) || []).length
+    return [ids, classes, types]
+  }
+
+  function beats(a: [number, number, number], b: [number, number, number]): boolean {
+    for (let i = 0; i < 3; i++) {
+      if (a[i] !== b[i]) return a[i] > b[i]
+    }
+    return false // equal specificity is decided by import order — not good enough
+  }
+
+  /** The ancestor chain of the nested rule whose body declares `decl`. When
+   *  `selector` is given, only a rule with exactly that own selector counts --
+   *  `background: transparent` appears in several unrelated rules, and the one
+   *  this guard is about is the bare `button` reset nested in `.set-app`. */
+  function chainDeclaring(text: string, decl: string, selector?: string): string[] {
+    const stack: string[] = []
+    let i = 0
+    while (i < text.length) {
+      const ch = text[i]
+      if (ch === '{') {
+        let j = i - 1
+        while (j >= 0 && /\s/.test(text[j])) j--
+        const end = j + 1
+        while (j >= 0 && text[j] !== '{' && text[j] !== '}') j--
+        stack.push(text.slice(j + 1, end).trim())
+        const close = text.indexOf('}', i)
+        const body = text.slice(i + 1, close === -1 ? undefined : close)
+        const own = stack[stack.length - 1]
+        if (body.includes(decl) && (!selector || own === selector)) return [...stack]
+        i++
+        continue
+      }
+      if (ch === '}') {
+        stack.pop()
+        i++
+        continue
+      }
+      i++
+    }
+    throw new Error(`no rule declaring "${decl}" found`)
+  }
+
+  it('the reset really is the (0,1,1) blanket rule this guard assumes', () => {
+    const chain = chainDeclaring(settingsCss, 'background: transparent', 'button')
+    expect(chain.join(' ')).toContain('.set-app')
+    expect(specificity(chain)).toEqual([0, 1, 1])
+  })
+
+  it('the accent background survives — without it the button has no shape', () => {
+    const kv = specificity(chainDeclaring(mcpCss, 'background: var(--accent-softer)'))
+    const reset = specificity(chainDeclaring(settingsCss, 'background: transparent', 'button'))
+    expect(beats(kv, reset), `.mcp-kv-add ${kv} must outrank .set-app button ${reset}`).toBe(true)
+  })
+
+  it('the accent foreground and the 12px/500 font survive too', () => {
+    const reset = specificity(chainDeclaring(settingsCss, 'background: transparent', 'button'))
+    for (const decl of ['color: var(--accent)', 'font-size: 12px', 'font-weight: 500']) {
+      const kv = specificity(chainDeclaring(mcpCss, decl))
+      expect(beats(kv, reset), `the rule declaring "${decl}" ${kv} must outrank ${reset}`).toBe(true)
+    }
+  })
+})

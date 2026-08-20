@@ -54,7 +54,15 @@
   background: var(--bg-chip); border: 0; cursor: pointer;
   &:hover { color: var(--danger); }
 }
-.mcp-kv-add {
+// Ancestor-qualified on purpose, exactly like `.set-app .sk-add-btn`
+// (skills-styles.scss): `settings-styles.scss` resets every `<button>` inside
+// `.set-app` (background/border/color/cursor/font), and that (0,1,1) selector
+// beats a bare `.mcp-kv-add` at (0,1,0) -- which flattened this button's
+// background, accent foreground and 12px/500 font into plain body text. The
+// element is a real button and the only interactive thing in an empty
+// headers/env field, so it has to look like one. Guarded by the specificity
+// comparison in styles/settingsStyles.test.ts.
+.set-app .mcp-kv-add {
   align-self: flex-start; font-size: 12px; font-weight: 500; color: var(--accent);
   background: var(--accent-softer); border: 0; padding: 5px 10px; border-radius: var(--r-sm); cursor: pointer;
 }
@@ -105,6 +113,13 @@
 // #141: the negotiated MCP protocol version line under a successful test.
 .mcp-test-proto { margin-top: 6px; font-size: 13px; color: var(--text-secondary); }
 .mcp-test-proto.is-legacy { color: var(--warning); }
+
+// The "this result describes the pre-edit config" notice inside a successful
+// test panel. Needs its own color declaration: `.mcp-test-result[data-ok="true"]`
+// sets the success foreground on the whole panel, and this line is a caveat,
+// not part of the good news (same reason `.mcp-test-proto.is-legacy` above
+// restates its color).
+.mcp-test-stale { margin-top: 6px; font-size: 12.5px; color: var(--warning); }
 
 // [New this phase; no Vue2 counterpart — deviation D8] "Technical details" collapsible section on test failure.
 // Uses native <details>/<summary>; no new dependencies, naturally accessible, no component state.
