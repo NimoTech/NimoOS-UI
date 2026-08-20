@@ -24,7 +24,9 @@ export const WIDGETS: Record<string, WidgetMeta> = {
   network: { title: 'widgetNetworkTitle', icon: ICON.network, desc: 'widgetNetworkDesc', min: [2, 2], max: [4, 4], default: [4, 3], live: true },
   ai:      { title: 'widgetAiTitle', icon: ICON.ai, desc: 'widgetAiDesc', min: [2, 2], max: [4, 4], default: [4, 4] },
   events:  { title: 'widgetEventsTitle', icon: ICON.events, desc: 'widgetEventsDesc', extra: 'events', min: [2, 2], max: [2, 4], default: [2, 4], live: true },
-  gpu:     { title: 'widgetGpuTitle', icon: ICON.gpu, desc: 'widgetGpuDesc', min: [2, 2], max: [4, 2], default: [2, 2], live: true },
+  // max height 3, not 2: with an integrated *and* a discrete GPU the card carries two
+  // rings, and only the third row gives each of them room for its own readings table.
+  gpu:     { title: 'widgetGpuTitle', icon: ICON.gpu, desc: 'widgetGpuDesc', min: [2, 2], max: [4, 3], default: [2, 2], live: true },
   cpu:     { title: 'widgetCpuTitle', icon: ICON.cpu, desc: 'widgetCpuDesc', extra: 'cpu', min: [2, 2], max: [4, 3], default: [4, 2], live: true },
 }
 
