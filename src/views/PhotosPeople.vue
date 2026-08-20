@@ -1158,7 +1158,7 @@ onUnmounted(() => {
    (.section-head, .people-btn-primary's accent-fill pattern) rather than inventing a new one.
    Every color here goes through a theme token (var(--overlay-bg)/var(--blur) reuse the exact
    "chrome sitting on top of an uncontrollable face photo" convention PersonAvatar.vue's own
-   .person-avatar-fav already established; var(--on-accent, #fff) is the stripVar-safe
+   .person-avatar-fav already established; var(--on-accent) is the stripVar-safe
    fallback form the color guard explicitly allows) — no bare literal needed anywhere below. */
 .people-suggestions { margin-bottom: 4px; }
 .suggestion-list { display: flex; flex-direction: column; gap: 14px; }
@@ -1177,7 +1177,7 @@ onUnmounted(() => {
   border-radius: 999px;
   background: var(--accent);
   border: 1px solid var(--accent);
-  color: var(--on-accent, #fff);
+  color: var(--on-accent);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -1212,7 +1212,7 @@ onUnmounted(() => {
   border-radius: 999px;
   background: var(--overlay-bg);
   backdrop-filter: var(--blur);
-  color: var(--on-accent, #fff);
+  color: var(--on-accent);
   border: 1px solid var(--line);
 }
 .suggestion-face-hover {
@@ -1240,7 +1240,7 @@ onUnmounted(() => {
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  color: var(--on-accent, #fff);
+  color: var(--on-accent);
 }
 .suggestion-face-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .suggestion-face-btn.is-accept { background: var(--accent); }
