@@ -141,10 +141,31 @@ const testView = ref<McpTestView | null>(null)
 // the one sent, else discard entirely (including not reset `testing`, since that's already new-round state,
 // the new round's own finally handles it).
 const reqSeq = ref(0)
+// The `reqSeq` guard above only stops a late answer from LANDING in the wrong
+// panel -- the request itself keeps running. That matters more since the
+// backend started waiting inside this call: it now waits (up to ~10s) for a
+// probe already in flight, and a stdio probe can hold the connection for
+// ~125s. Switching servers or closing the panel therefore aborts it, so the
+// browser is not holding a connection nobody will read, and the backend's
+// waiter is released. Aborting never cancels the probe itself: the backend
+// keeps it running and still persists its result (NimoOS-AI's `awaitProbe`).
+let testAbort: AbortController | null = null
+
+function abortInFlightTest() {
+  testAbort?.abort()
+  testAbort = null
+}
 
 // #141: the protocol-version line shown under the success panel, derived from
 // the current testView via the T8 pure function (see mcpProtocol.ts).
 const protoLine = computed(() => (testView.value ? protocolLine(testView.value) : null))
+
+// The backend's `config_changed`: this result came from a probe that was
+// already running when the server was edited, so it describes the config as
+// it was BEFORE that edit. The success panel has to say so -- otherwise it
+// reads as "the address and token now on screen work", which is precisely
+// what was never tested.
+const testConfigChanged = computed(() => testView.value?.ok === true && testView.value.configChanged)
 
 // Aligned with Vue2 `runTest()` (:158-171).
 async function runTest() {
@@ -153,20 +174,34 @@ async function runTest() {
   const id = props.server.id
   testing.value = true
   testView.value = null
+  const ac = new AbortController()
+  testAbort = ac
   try {
     // 【Deviation D1, public constraint §3 #1】single layer data extraction: shared package
     // `service.ai.testMCPServer` already `return res.data` (`NimoOS-Service/src/ai.ts:388-391`),
     // backend `mcp.go:355` is `c.JSONBlob` raw object. Vue2 :164's `resp.data` is always
     // `undefined` in this repo, would make "test connection" **always show failure**, even if backend returns
     // `ok:true` — verbatim copy would be a bug, here directly use `body` itself.
-    const body = await service.ai.testMCPServer(id)
+    const body = await service.ai.testMCPServer(id, ac.signal)
     if (seq !== reqSeq.value) return
     testView.value = toTestView(body)
   } catch (e) {
     if (seq !== reqSeq.value) return
     testView.value = toTestViewFromError(e)
   } finally {
-    if (seq === reqSeq.value) testing.value = false
+    if (testAbort === ac) testAbort = null
+    if (seq === reqSeq.value) {
+      testing.value = false
+      // A probe is the one moment the persisted tool list is guaranteed to
+      // have just been rewritten (the backend re-lists the server's tools and
+      // clears the `desc_changed` flags as part of persisting the probe), so
+      // it is exactly when this panel must re-read it. Without this the list
+      // below keeps showing the pre-test snapshot -- tools the server no
+      // longer offers, and change flags that were already acknowledged.
+      // Also on the failure path: a failed probe still moves the health state
+      // the rows render.
+      loadTools(id)
+    }
   }
 }
 
@@ -187,6 +222,7 @@ watch(menuOpen, (v) => {
 })
 onBeforeUnmount(() => {
   if (docListener) document.removeEventListener('mousedown', docListener)
+  abortInFlightTest()
 })
 
 // Aligned with Vue2 `watch: { 'server.id'() {...} }` (:151), same line also clears
@@ -199,6 +235,8 @@ watch(() => props.server?.id, () => {
   reqSeq.value += 1
   testing.value = false
   testView.value = null
+  // reqSeq above already invalidates the answer; this drops the request too.
+  abortInFlightTest()
 })
 
 // Task 20 (mcp-progressive-disclosure plan) -- the persisted tool list +
@@ -471,6 +509,15 @@ function doDelete() {
                        identical ticket number there is not flagged). -->
                   <div v-if="protoLine" class="mcp-test-proto" :class="{ 'is-legacy': protoLine.key === 'aiMcpSrvProtoLegacy' }">
                     {{ t(protoLine.key, protoLine.params) }}
+                  </div>
+                  <!-- The probe this result came from predates an edit made
+                       while it ran (backend `config_changed`), so the panel
+                       above describes the previous configuration. Rendered
+                       inside the success branch on purpose: the connection
+                       genuinely worked, just not necessarily with what is on
+                       screen now. -->
+                  <div v-if="testConfigChanged" class="mcp-test-stale">
+                    {{ t('aiMcpSrvTestConfigChanged') }}
                   </div>
                 </template>
                 <template v-else>

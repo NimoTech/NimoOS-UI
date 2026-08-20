@@ -870,6 +870,8 @@ export default {
   aiMcpSrvTestErrListFailed: 'Connected, but could not list tools',
   aiMcpSrvTestErrAgentDown: 'The AI agent service is not running, so the probe could not start',
   aiMcpSrvTestErrConnectTimeout: 'Connection timed out',
+  aiMcpSrvTestErrProbing: 'A probe of this server is already running and has not reported yet — test again in a moment',
+  aiMcpSrvTestConfigChanged: 'The configuration changed while this probe was running, so the result describes the previous configuration — test again',
   aiMcpSrvProtoOnly: 'Protocol {version}',
   aiMcpSrvProtoAlso: 'Protocol {version} · also supports {list}',
   aiMcpSrvProtoLegacy: 'Latest protocol not supported · negotiated {version}',

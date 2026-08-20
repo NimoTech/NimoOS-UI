@@ -83,11 +83,20 @@ export function toTestView(body: unknown): McpTestView {
   }
   const b = body as { ok?: unknown; tool_count?: unknown; tools?: unknown; error_key?: unknown }
   if (b.ok === true) {
-    const raw = body as { protocol_era?: unknown; protocol_version?: unknown; supported_versions?: unknown }
+    const raw = body as {
+      protocol_era?: unknown; protocol_version?: unknown; supported_versions?: unknown
+      config_changed?: unknown
+    }
     return {
       ok: true,
       toolCount: typeof b.tool_count === 'number' ? b.tool_count : 0,
       tools: Array.isArray(b.tools) ? b.tools : [],
+      // Only the backend's woken-waiter path sends this (`freshRowResult`):
+      // the result belongs to a probe that started before the server was
+      // edited, so it describes the previous config. A body without the field
+      // -- every directly-dialled probe, and any older backend -- means "this
+      // result is about the config on screen", i.e. false.
+      configChanged: raw.config_changed === true,
       // Older backends don't send these three fields — normalize to empty so the
       // view renders no line at all for them, never `undefined`.
       protocolEra: typeof raw.protocol_era === 'string' ? raw.protocol_era : '',
@@ -99,6 +108,12 @@ export function toTestView(body: unknown): McpTestView {
   }
   const detail = detailOf(body)
   switch (b.error_key) {
+    // Not a connection failure: a probe of this server was already in flight
+    // and did not publish within the backend's wait budget, so nobody knows
+    // yet whether the server is reachable. Its own message says exactly that
+    // (`probing: true` rides along in the body but needs no view field --
+    // the message key already carries the meaning).
+    case 'probe_in_progress': return { ok: false, msgKey: 'aiMcpSrvTestErrProbing', detail }
     case 'probe_timeout': return { ok: false, msgKey: 'aiMcpSrvTestErrTimeout', detail }
     case 'connect_failed': return { ok: false, msgKey: 'aiMcpSrvTestErrConnect', detail }
     case 'list_timeout': return { ok: false, msgKey: 'aiMcpSrvTestErrListTimeout', detail }

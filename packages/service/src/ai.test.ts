@@ -494,6 +494,18 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(calls[0].cfg).toEqual({ timeout: 135000 })
   })
 
+  // The settings panel drops an in-flight probe when the user switches
+  // servers or closes the panel (McpServerDetail's testAbort). axios only
+  // honours that through `signal`, so the parameter has to reach the config
+  // object -- swallowed here, the request would keep running and its answer
+  // would land in whatever panel is open by then.
+  it('testMCPServer forwards an AbortSignal alongside the 135s timeout', async () => {
+    const { http, calls } = recorder()
+    const ac = new AbortController()
+    await createAi(http, () => null).testMCPServer(1, ac.signal)
+    expect(calls[0].cfg).toEqual({ timeout: 135000, signal: ac.signal })
+  })
+
   it('parseMCPCommand body {command_line}', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).parseMCPCommand('npx foo --bar')

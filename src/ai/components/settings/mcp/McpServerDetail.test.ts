@@ -327,7 +327,10 @@ describe('Test Connection', () => {
     const w = mountDetail(srv({ id: 5 }))
     await w.find('.mcp-test-btn').trigger('click')
     await flushPromises()
-    expect(h.testMCPServer).toHaveBeenCalledWith(5)
+    // The second argument is the abort signal added with the freshness fix
+    // (see the 'Test connection freshness' block below); asserted loosely
+    // here because this case is about the single-layer response body.
+    expect(h.testMCPServer).toHaveBeenCalledWith(5, expect.any(AbortSignal))
     expect(w.find('.mcp-test-result').attributes('data-ok')).toBe('true')
     expect(w.find('.mcp-test-line').text()).toContain('已连接 · 2 个工具')
     expect(w.findAll('.mcp-tool-chip').map((c) => c.text())).toEqual(['search', 'fetch'])
@@ -626,5 +629,137 @@ describe('tool list loading (Task 20)', () => {
     const w = mountDetail(srv({ id: 1 }))
     await flushPromises()
     expect(w.find('[data-test=tool-row-kept-tool]').exists()).toBe(true)
+  })
+})
+
+// "Test connection" freshness (2026-08-20). Two independent defects, one
+// symptom: the panel showed data that was not what the server had just said.
+//   - The tool list below the test panel kept the pre-test snapshot, because
+//     `runTest` never re-ran `loadTools`. A probe is the one moment the
+//     persisted listing is guaranteed to have just changed, so it is exactly
+//     when this list must be re-read -- including a `desc_changed` flag the
+//     probe just cleared.
+//   - An in-flight probe (the backend's `probe_in_progress`) is not a
+//     connection failure, and a result produced with a config the user has
+//     since edited (`config_changed`) is not a result about what is on screen.
+describe('Test connection freshness', () => {
+  beforeEach(() => { h.testMCPServer.mockReset() })
+
+  it('re-reads the persisted tool list after a test succeeds', async () => {
+    h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 1, tools: ['a'] })
+    const w = mountDetail(srv({ id: 5 }))
+    await flushPromises()
+    h.listMCPTools.mockClear()
+
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+
+    expect(h.listMCPTools).toHaveBeenCalledWith(5)
+  })
+
+  it('re-reads the persisted tool list even when the test fails', async () => {
+    h.testMCPServer.mockRejectedValue(Object.assign(new Error('boom'), {
+      response: { status: 502, data: { ok: false, error: 'agent unreachable' } },
+    }))
+    const w = mountDetail(srv({ id: 5 }))
+    await flushPromises()
+    h.listMCPTools.mockClear()
+
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+
+    expect(h.listMCPTools).toHaveBeenCalledWith(5)
+  })
+
+  it('reflects the tool list as it stands after the probe, not before it', async () => {
+    h.listMCPTools.mockResolvedValueOnce({
+      tools: [{ name: 'before-probe', approved: false, last_seen_at: nowSec(), desc_changed: false }],
+      server_level_approved: false,
+    })
+    h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 1, tools: ['after-probe'] })
+    const w = mountDetail(srv({ id: 5 }))
+    await flushPromises()
+    expect(w.find('[data-test=tool-row-before-probe]').exists()).toBe(true)
+
+    // The probe renamed the server's tool; the settings page must not keep
+    // showing the tool that no longer exists.
+    h.listMCPTools.mockResolvedValueOnce({
+      tools: [{ name: 'after-probe', approved: false, last_seen_at: nowSec(), desc_changed: false }],
+      server_level_approved: false,
+    })
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+
+    expect(w.find('[data-test=tool-row-after-probe]').exists()).toBe(true)
+    expect(w.find('[data-test=tool-row-before-probe]').exists()).toBe(false)
+  })
+
+  // The backend waits for an in-flight probe (up to 10s) inside this request,
+  // and a stdio probe can hold the connection for ~125s. Switching servers or
+  // closing the panel must drop the request rather than leave it running: the
+  // `reqSeq` guard already stops a late answer from landing in the wrong
+  // panel, but only an abort stops the connection itself.
+  it('aborts an in-flight test when the selected server changes', async () => {
+    h.testMCPServer.mockReturnValue(new Promise(() => {}))
+    const w = mountDetail(srv({ id: 5 }))
+    await flushPromises()
+    await w.find('.mcp-test-btn').trigger('click')
+    await nextTick()
+
+    const signal = h.testMCPServer.mock.calls[0][1] as AbortSignal
+    expect(signal).toBeInstanceOf(AbortSignal)
+    expect(signal.aborted).toBe(false)
+
+    await w.setProps({ server: srv({ id: 6, name: 'other' }) })
+    expect(signal.aborted).toBe(true)
+  })
+
+  it('aborts an in-flight test when the panel unmounts', async () => {
+    h.testMCPServer.mockReturnValue(new Promise(() => {}))
+    const w = mountDetail(srv({ id: 5 }))
+    await flushPromises()
+    await w.find('.mcp-test-btn').trigger('click')
+    await nextTick()
+
+    const signal = h.testMCPServer.mock.calls[0][1] as AbortSignal
+    w.unmount()
+    expect(signal.aborted).toBe(true)
+  })
+
+  it('reports an in-flight probe as its own state, not as a failed connection', async () => {
+    h.testMCPServer.mockResolvedValue({
+      ok: false, probing: true, error_key: 'probe_in_progress',
+      error: 'a probe for this server is already running',
+    })
+    const w = mountDetail(srv({ id: 5 }))
+    await flushPromises()
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+
+    expect(w.find('.mcp-test-line').text()).toContain(zh.aiMcpSrvTestErrProbing)
+    expect(w.find('.mcp-test-line').text()).not.toContain(zh.aiMcpSrvTestFailed)
+  })
+
+  it('says so when the config was edited while the probe ran', async () => {
+    h.testMCPServer.mockResolvedValue({
+      ok: true, tool_count: 1, tools: ['a'], config_changed: true,
+    })
+    const w = mountDetail(srv({ id: 5 }))
+    await flushPromises()
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+
+    expect(w.find('.mcp-test-result').attributes('data-ok')).toBe('true')
+    expect(w.find('.mcp-test-stale').text()).toContain(zh.aiMcpSrvTestConfigChanged)
+  })
+
+  it('control: a result about the current config carries no such warning', async () => {
+    h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 1, tools: ['a'] })
+    const w = mountDetail(srv({ id: 5 }))
+    await flushPromises()
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+
+    expect(w.find('.mcp-test-stale').exists()).toBe(false)
   })
 })

@@ -4,7 +4,7 @@ import type { McpTestView } from '../types/mcpServer'
 
 function ok(over: Partial<Extract<McpTestView, { ok: true }>> = {}): McpTestView {
   return {
-    ok: true, toolCount: 1, tools: ['a'],
+    ok: true, toolCount: 1, tools: ['a'], configChanged: false,
     protocolEra: 'modern', protocolVersion: '2025-06-18', supportedVersions: ['2025-06-18'],
     ...over,
   }

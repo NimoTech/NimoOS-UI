@@ -432,8 +432,12 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
     // contract: Go proxy 25s (http) / 100s (stdio) (route/v2/mcp.go:344,346);
     // Python TEST_TIMEOUT=20s / STDIO_TEST_TIMEOUT=90s
     // (agent/mcp_client/client.py:738-739). 135000 > 100s > 90s holds.
-    async testMCPServer(id: string | number): Promise<unknown> {
-      const res = await http.post(`${PREFIX}/mcp/servers/${id}/test`, {}, { timeout: 135000 })
+    /** `signal` lets the caller drop a probe it no longer has a use for --
+     *  the settings panel aborts on server switch / unmount. Aborting only
+     *  ends this request's wait: the backend probe it triggered keeps running
+     *  and still persists its result (see NimoOS-AI's awaitProbe). */
+    async testMCPServer(id: string | number, signal?: AbortSignal): Promise<unknown> {
+      const res = await http.post(`${PREFIX}/mcp/servers/${id}/test`, {}, { timeout: 135000, signal })
       return res.data
     },
 

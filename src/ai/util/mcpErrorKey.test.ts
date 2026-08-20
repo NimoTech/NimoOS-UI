@@ -116,13 +116,13 @@ describe('toTestView — 200 response body → view', () => {
   it('success', () => {
     expect(toTestView({ ok: true, tool_count: 3, tools: ['a', 'b', 'c'] }))
       .toEqual({
-        ok: true, toolCount: 3, tools: ['a', 'b', 'c'],
+        ok: true, toolCount: 3, tools: ['a', 'b', 'c'], configChanged: false,
         protocolEra: '', protocolVersion: '', supportedVersions: [],
       })
   })
   it('success but tools missing → empty array, tool_count missing → 0', () => {
     expect(toTestView({ ok: true })).toEqual({
-      ok: true, toolCount: 0, tools: [],
+      ok: true, toolCount: 0, tools: [], configChanged: false,
       protocolEra: '', protocolVersion: '', supportedVersions: [],
     })
   })
@@ -175,13 +175,43 @@ describe('toTestView — 200 response body → view', () => {
     expect(JSON.stringify(v)).not.toContain('null')
   })
 
+  // Backend `probe_in_progress` (NimoOS-AI's probeInProgressResult): another
+  // probe of this server was already running and did not publish a result
+  // within the wait budget. Rendering that as the generic "connection failed"
+  // blames the server for something it was never asked -- and the state is
+  // common, not exotic: the agent's TTL self-check re-probes every server
+  // whose 60s listing has expired.
+  it('probe_in_progress gets its own message instead of the generic failure', () => {
+    expect(toTestView({
+      ok: false, probing: true, error_key: 'probe_in_progress',
+      error: 'a probe for this server is already running',
+    })).toEqual({ ok: false, msgKey: 'aiMcpSrvTestErrProbing', detail: '' })
+  })
+
+  // `config_changed` (NimoOS-AI's freshRowResult): the probe whose result
+  // this is had already started when the server was edited, so it describes
+  // the pre-edit config. The success panel has to say so rather than imply
+  // the address/token on screen is the one that worked.
+  it('carries config_changed into the success view, defaulting to false', () => {
+    const changed = toTestView({ ok: true, tool_count: 1, tools: ['a'], config_changed: true })
+    expect(changed).toEqual({
+      ok: true, toolCount: 1, tools: ['a'], configChanged: true,
+      protocolEra: '', protocolVersion: '', supportedVersions: [],
+    })
+    const absent = toTestView({ ok: true, tool_count: 1, tools: ['a'] })
+    expect(absent).toEqual({
+      ok: true, toolCount: 1, tools: ['a'], configChanged: false,
+      protocolEra: '', protocolVersion: '', supportedVersions: [],
+    })
+  })
+
   it('toTestView carries the three protocol fields through', () => {
     expect(toTestView({
       ok: true, tool_count: 2, tools: ['a', 'b'],
       protocol_era: 'modern', protocol_version: '2025-06-18',
       supported_versions: ['2025-06-18', '2024-11-05'],
     })).toEqual({
-      ok: true, toolCount: 2, tools: ['a', 'b'],
+      ok: true, toolCount: 2, tools: ['a', 'b'], configChanged: false,
       protocolEra: 'modern', protocolVersion: '2025-06-18',
       supportedVersions: ['2025-06-18', '2024-11-05'],
     })
@@ -189,7 +219,7 @@ describe('toTestView — 200 response body → view', () => {
 
   it('toTestView: older backend omitting the protocol fields normalizes to empty, not undefined', () => {
     expect(toTestView({ ok: true, tool_count: 0, tools: [] })).toEqual({
-      ok: true, toolCount: 0, tools: [],
+      ok: true, toolCount: 0, tools: [], configChanged: false,
       protocolEra: '', protocolVersion: '', supportedVersions: [],
     })
   })

@@ -106,5 +106,10 @@ export type McpTestView =
       // #141: the protocol negotiation result from the backend's 200 body. Older
       // backends omit these three fields entirely — normalized to '' / [].
       protocolEra: string; protocolVersion: string; supportedVersions: string[]
+      /** The probe this result came from was already running when the server
+       *  was edited, so it describes the pre-edit config (backend
+       *  `config_changed`, only sent on its woken-waiter path). Normalized to
+       *  false when absent. */
+      configChanged: boolean
     }
   | { ok: false; msgKey: string; detail: string }

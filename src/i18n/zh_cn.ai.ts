@@ -892,6 +892,11 @@ export default {
   aiMcpSrvTestErrListFailed: '连上了,但读不到工具列表',
   aiMcpSrvTestErrAgentDown: 'AI 助手服务没在运行,无法发起探测',
   aiMcpSrvTestErrConnectTimeout: '连接超时',
+  // 后端 probe_in_progress:这台服务器已经有一次探测在跑(通常是 TTL 自检的后台刷新),
+  // 等待预算内没等到结果 —— 不是连接失败,措辞不能让用户以为服务器有问题。
+  aiMcpSrvTestErrProbing: '这台服务器正在探测中,还没有结果,稍后再测一次',
+  // 后端 config_changed:这次结果所属的探测在配置被改之前就开始了。
+  aiMcpSrvTestConfigChanged: '配置在探测期间被改过,这个结果对应的是改动前的配置,请重新测试',
   aiMcpSrvProtoOnly: '协议 {version}',
   aiMcpSrvProtoAlso: '协议 {version} · 另支持 {list}',
   aiMcpSrvProtoLegacy: '不支持最新协议 · 协商到 {version}',
