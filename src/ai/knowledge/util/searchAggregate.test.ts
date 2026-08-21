@@ -758,3 +758,51 @@ describe('highlight — debt M-2: term minimum-length gate (one case on each sid
     expect(highlight('所得税', '所得税')).toBe('<mark>所得税</mark>')
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Album-asset hits — caption vectors whose `file_id` starts with `photos:`
+//
+// Background (reported from real hardware, 2026-08-15): photo captions live in the same
+// `text_chunks` collection as document bodies, so the semantic source returns album assets
+// alongside files (`NimoOS-Search/service/agent_tools.go:19` states this is deliberate). But
+// such a hit has no file path (Parser's ExpandFiles does not resolve the `photos:` prefix), so
+// `basename('')` comes out empty → the whole row rendered as `(Untitled)` with no path.
+// Plan B was chosen: detect them and render a photo card (thumbnail + description + open in
+// the album). The thumbnail URL shape is taken from
+// `NimoOS-Search/service/photos_client.go:84`.
+// ═══════════════════════════════════════════════════════════════════════════
+describe('album-asset hits — the photos: prefix', () => {
+  const photoResp: SearchTextResponseRaw = {
+    hits: [
+      {
+        file_id: 'photos:b615bb4a-5397-4113-b524-0c574d0fa46e',
+        mime: 'video/mp4',
+        kind: 'caption',
+        score: 0.5724284648895264,
+        paths: null,
+        cite: { page: null, chunk_no: 0, offset_start: 0, offset_end: 418 },
+        preview: { text: 'This image is a slide from an educational presentation' },
+      },
+    ],
+  }
+
+  it('recognized as an album asset: photoAssetId is the uuid with the prefix stripped', () => {
+    const out = toFileResults(photoResp)
+    expect(out[0].photoAssetId).toBe('b615bb4a-5397-4113-b524-0c574d0fa46e')
+  })
+
+  it('exposes a thumbnail URL (same shape as the images source: /v1/photos/assets/<id>/thumbnail?size=small)', () => {
+    const out = toFileResults(photoResp)
+    expect(out[0].thumbnailUrl).toBe(
+      '/v1/photos/assets/b615bb4a-5397-4113-b524-0c574d0fa46e/thumbnail?size=small',
+    )
+  })
+
+  it('a plain file hit carries neither field (existing rendering untouched)', () => {
+    const out = toFileResults({
+      hits: [{ file_id: 'abc123', mime: 'application/pdf', paths: [{ path: '/DATA/a.pdf', mtime_ms: 1 }] }],
+    })
+    expect(out[0].photoAssetId).toBeUndefined()
+    expect(out[0].thumbnailUrl).toBeUndefined()
+  })
+})

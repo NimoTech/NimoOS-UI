@@ -216,6 +216,9 @@ const WHITELIST_425 = [
   'k-hero-suggest', 'k-match-pill', 'k-more-hint',
   'k-rcard', 'k-rcard-body', 'k-rcard-head', 'k-rcard-icon', 'k-rcard-meta', 'k-rcard-meta-item',
   'k-rcard-name', 'k-rcard-snippet', 'k-rcard-tag', 'k-rel', 'k-rel-dot', 'k-rerank-warn',
+  // Added 2026-08-15 (Plan B, no counterpart in the blueprint): the thumbnail for album-asset
+  // hits, laid over the .k-rcard-icon paper chip.
+  'k-rcard-thumb',
   'k-result-count', 'k-results', 'k-search-box', 'k-search-clear', 'k-search-sticky', 'k-search-sticky-inner',
   'k-skel-rcard',
   // ---- P5f-T2: 27 k-* classes from Appendix D §D.7.1 (blueprint :985-1141 + :1342-1396 + :1500-1503)----
@@ -263,15 +266,19 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
   // k-mobile-tab/k-empty. Changed to negative lookahead "right side can't be word character or hyphen", so
   // `.k-topbar` won't match `.k-topbar-title`, only truly independent `.k-topbar` selector
   // (followed by space/`{`/`,`/`[` etc) counts.
-  it('All 425 whitelist classes have corresponding rules (permanent version of Appendix D.4 check command①)', () => {
+  it('All 426 whitelist classes have corresponding rules (permanent version of Appendix D.4 check command①)', () => {
     const missing = WHITELIST_425.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(missing, `Missing classes: ${missing.join(', ')}`).toEqual([])
   })
 
   // Drift prevention: numbers in constant name must match array length (this file's convention, name itself is part of assertion).
-  it('Whitelist exactly 425 items (Appendix D §D.0: 102 + T2\'s 32 + T6\'s 53 + P5c-T2a\'s 39 + P5d-T2\'s 65+2 + P5e-T2\'s 55 + P5f-T2\'s 27+41+9)', () => {
-    expect(WHITELIST_425).toHaveLength(425)
-    expect(new Set(WHITELIST_425).size, 'Whitelist has duplicate items').toBe(425)
+  // 🔴 2026-08-15: 425 → 426. The only addition is `k-rcard-thumb` (the thumbnail for album-asset
+  // hits, Plan B, no counterpart in the blueprint). This count assertion exists to stop anyone from
+  // casually slipping a class into the whitelist — so changing it means reading the whitelist comment
+  // above too, not just levelling the number.
+  it('Whitelist exactly 426 items (Appendix D §D.0: 102 + T2\'s 32 + T6\'s 53 + P5c-T2a\'s 39 + P5d-T2\'s 65+2 + P5e-T2\'s 55 + P5f-T2\'s 27+41+9 + 1 from 2026-08-15)', () => {
+    expect(WHITELIST_425).toHaveLength(426)
+    expect(new Set(WHITELIST_425).size, 'Whitelist has duplicate items').toBe(426)
   })
 
   it('.k-toast / .k-toast-ico not ported (diverge from K3, use global useToast() instead)', () => {

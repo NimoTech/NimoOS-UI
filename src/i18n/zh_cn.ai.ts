@@ -1468,6 +1468,9 @@ export default {
   aiKbSrSimilarity: '相似度',
   aiKbSrTopK: '返回数量',
   aiKbSrUntitled: '(未命名)',
+  aiKbSrPhotoAsset: '相册照片',
+  aiKbSrVideoAsset: '相册视频',
+  aiKbSrPhotoLibrary: '相册',
   // <<< SP8-P5e Task 1
   // >>> SP8-P5f Task 1 —— 知识库最后三页文案(Vue2 AllowlistView.vue / RootsView.vue /
   // WikiView.vue),共 79 条新键,全部有 Vue2 权威 zh 值(本期新造 0、死键 0)。

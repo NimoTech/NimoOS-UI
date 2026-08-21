@@ -32,7 +32,7 @@
 // `/v1/v3/file` (`.sp8/NimoOS-Service/src/http.ts:6-10` the `/^\/v[1-9]/` pattern passes
 // through unchanged, `v3` matches).
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getHttp, service } from '@nimotech/nimoos-service'
 import KIcon from '../components/KIcon.vue'
@@ -44,6 +44,7 @@ import type { FileVM, SearchTextResponseRaw } from '../util/searchAggregate'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const store = useKnowledgeStore()
 
 // ─── Blueprint :186-219 script constants ───
@@ -123,6 +124,31 @@ const results = ref<FileVM[]>([])
 // N39: `clear()` also clears these two together (blueprint :264). Rendering belongs to T7,
 // state declared in this phase.
 const openFile = ref<FileVM | null>(null)
+
+/**
+ * Result-card click: a plain file opens the file detail drawer; an **album asset**
+ * (`file_id` = `photos:<asset_id>`, a caption vector from the semantic source) has neither a
+ * path nor a readable chunk file, so the drawer would be empty for it — deep-link to the album
+ * lightbox `#/photos?asset=<id>` instead (that query key is Photos' existing share semantics,
+ * see `src/photos/composables/usePhotosDeepLinks.ts`).
+ */
+function openResult(r: FileVM) {
+  if (r.photoAssetId) {
+    void router.push({ path: '/photos', query: { asset: r.photoAssetId } })
+    return
+  }
+  openFile.value = r
+}
+
+/**
+ * A thumbnail can 404 (Photos hasn't generated one yet for that asset, or it was pruned from the
+ * cache). Dropping `thumbnailUrl` leaves the bare paper chip instead of a broken image in the
+ * grid — see the template for why the kind tag is not the fallback here. One-way: we don't retry
+ * within this result set.
+ */
+function onThumbError(r: FileVM) {
+  r.thumbnailUrl = undefined
+}
 const viewerFile = ref<FileVM | null>(null)
 const ms = ref(0)
 const errorMsg = ref('')
@@ -537,9 +563,20 @@ watch(
             <span v-if="ms"> · {{ ms }} ms</span>
           </span>
         </div>
-        <div v-for="r in results" :key="r.id" class="k-rcard" @click="openFile = r">
+        <div v-for="r in results" :key="r.id" class="k-rcard" @click="openResult(r)">
+          <!-- An album-asset hit (`file_id` = `photos:<asset_id>`) has no file path to show,
+               so it gets a thumbnail instead; everything else keeps the paper chip + kind tag.
+               See the PHOTO_ID_PREFIX comment in searchAggregate.ts. -->
           <div class="k-rcard-icon">
-            <span class="k-rcard-tag" :data-kind="r.kind">{{ r.kind.toUpperCase() }}</span>
+            <img
+              v-if="r.thumbnailUrl" class="k-rcard-thumb" :src="r.thumbnailUrl" :alt="r.name"
+              loading="lazy" @error="onThumbError(r)"
+            />
+            <!-- The kind chip is deliberately not a fallback for a failed album thumbnail:
+                 `kindFromMime` only knows the document kinds, so `video/mp4` would come out
+                 labelled DOC. The card name already reads Photo/Video, so an album asset whose
+                 thumbnail 404s keeps the bare paper chip. -->
+            <span v-else-if="!r.photoAssetId" class="k-rcard-tag" :data-kind="r.kind">{{ r.kind.toUpperCase() }}</span>
           </div>
           <div class="k-rcard-body">
             <div class="k-rcard-head">
@@ -565,9 +602,17 @@ watch(
               {{ t('aiKbSrMoreHint', { n: r.chunks.length - 1 }) }}
             </div>
             <div class="k-rcard-meta">
-              <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ r.path }}</span></span>
-              <span style="color: var(--text-quaternary)">·</span>
-              <span class="k-rcard-meta-item">{{ t('aiKbSrModified') }} {{ fmtMtime(r.mtimeMs) }}</span>
+              <!-- An album asset has no path and no mtime (`paths` is always null), so the two
+                   file-oriented items would render as a bare folder icon plus "Modified —".
+                   Replace both with one locator that says where the hit actually lives. -->
+              <template v-if="r.photoAssetId">
+                <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ t('aiKbSrPhotoLibrary') }}</span></span>
+              </template>
+              <template v-else>
+                <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ r.path }}</span></span>
+                <span style="color: var(--text-quaternary)">·</span>
+                <span class="k-rcard-meta-item">{{ t('aiKbSrModified') }} {{ fmtMtime(r.mtimeMs) }}</span>
+              </template>
               <span style="color: var(--text-quaternary)">·</span>
               <span class="k-rcard-meta-item"><KIcon name="check" :size="11" color="var(--success)" /> {{ t('aiKbStatusIndexed') }}</span>
             </div>
