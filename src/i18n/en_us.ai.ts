@@ -588,6 +588,25 @@ export default {
   aiCfgPhoenixNotInstalled: 'Not installed',
   aiCfgPhoenixStopped: 'Stopped',
   // <<< SP8-P2b Task 8
+  // >>> agent web tools —— WebSection (web_search / web_fetch settings). Reused keys
+  // (not redefined here): aiCfgLoadFailed / aiCfgSaveFailed, the error-toast fallbacks.
+  aiCfgWebAccess: 'Web access',
+  aiCfgWebAccessDesc: 'Let the assistant search the web and read web pages. The first visit to a host always asks you to confirm.',
+  aiCfgWebSearch: 'Web search',
+  aiCfgWebSearchPrivacy: 'Search queries leave this NAS and go to the provider you pick below. Page reading does not use a provider.',
+  aiCfgWebSearchEnable: 'Enable web search',
+  aiCfgWebSearchEnableDesc: 'When off, the assistant has no web_search tool at all and will say so instead of guessing.',
+  aiCfgWebProvider: 'Search provider',
+  aiCfgWebNotConfigured: 'Not configured',
+  aiCfgWebSelfHosted: 'self-hosted',
+  aiCfgWebSearxngUrl: 'SearXNG address',
+  aiCfgWebSearxngUrlDesc: 'Your SearXNG instance, which must have the JSON output format enabled.',
+  aiCfgWebApiKey: 'API key',
+  aiCfgWebKeySaved: 'A key is saved. Leave blank to keep it.',
+  aiCfgWebPasteKey: 'Paste your key',
+  aiCfgWebFetchTitle: 'Reading web pages',
+  aiCfgWebFetchDesc: 'Reading a page by URL needs no provider and is always available. The first time the assistant visits a host, you are asked to allow it.',
+  // <<< agent web tools Task 9
   // >>> SP8-P2b Task 10 —— McpTokensSection (Expose as MCP server). English values are the
   // literal Vue2 source strings (brief already reconciled against the production
   // zh_CN.json). Reused keys (not redefined here): aiCfgMcpTokens (nav h1, built by P2a) /

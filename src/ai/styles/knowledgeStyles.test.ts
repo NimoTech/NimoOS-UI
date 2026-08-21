@@ -1946,6 +1946,7 @@ const COMPONENTS_VUE_FILES = [
   'settings/sections/SearchSection.vue',
   'settings/sections/SkillsSection.vue',
   'settings/sections/ThinkingDefaultsSection.vue',
+  'settings/sections/WebSection.vue',
   'settings/SetSwitch.vue',
   'settings/SettingsRail.vue',
   'settings/skills/AddSkillModal.vue',

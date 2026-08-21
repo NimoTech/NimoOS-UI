@@ -610,6 +610,25 @@ export default {
   aiCfgPhoenixNotInstalled: '未安装',
   aiCfgPhoenixStopped: '已停止',
   // <<< SP8-P2b Task 8
+  // >>> agent web tools —— WebSection(web_search / web_fetch 设置)。
+  // 复用键(未在此重复定义):aiCfgLoadFailed / aiCfgSaveFailed(错误 toast 兜底文案)。
+  aiCfgWebAccess: '联网',
+  aiCfgWebAccessDesc: '允许助手搜索网页、读取网址。每个域名首次访问都会先征求你的同意。',
+  aiCfgWebSearch: '网页搜索',
+  aiCfgWebSearchPrivacy: '搜索关键词会离开这台 NAS，发送给你在下方选择的服务商。读取网页不经过服务商。',
+  aiCfgWebSearchEnable: '启用网页搜索',
+  aiCfgWebSearchEnableDesc: '关闭后助手完全没有 web_search 工具，会直接说明而不是靠猜。',
+  aiCfgWebProvider: '搜索服务商',
+  aiCfgWebNotConfigured: '未配置',
+  aiCfgWebSelfHosted: '自托管',
+  aiCfgWebSearxngUrl: 'SearXNG 地址',
+  aiCfgWebSearxngUrlDesc: '你自己的 SearXNG 实例，需要开启 JSON 输出格式。',
+  aiCfgWebApiKey: 'API 密钥',
+  aiCfgWebKeySaved: '已保存密钥。留空即保持不变。',
+  aiCfgWebPasteKey: '粘贴你的密钥',
+  aiCfgWebFetchTitle: '读取网页',
+  aiCfgWebFetchDesc: '按网址读取网页不需要服务商，始终可用。助手首次访问某个域名时会请你放行。',
+  // <<< agent web tools Task 9
   // >>> SP8-P2b Task 10 —— McpTokensSection(对外 MCP 服务)。值逐字取自 brief 表(brief
   // 已回查 Vue2 生产 zh_CN.json)。复用键(未在此重复定义):aiCfgMcpTokens(导航 h1,
   // P2a 已建)/aiCopy/aiCopied/aiCfgCopyFailed/aiDone/aiCancel/aiCfgDelete/aiCfgDeleteFailed

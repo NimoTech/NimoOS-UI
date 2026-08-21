@@ -9,11 +9,12 @@ describe('sections navigation config', () => {
     expect(GROUPS.map((g) => g.id)).toEqual(['model', 'agent', 'plugin', 'channel'])
   })
 
-  // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals' — 13 became 14.
-  it('still covers all 14 sections', () => {
+  // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals' and agent web
+  // tools Task 9 added 'web' — 13 became 15.
+  it('still covers all 15 sections', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
       'blacklist', 'channels', 'execution', 'mcp', 'mcpapprovals', 'mcptokens', 'memory',
-      'models', 'observability', 'privacy', 'providers', 'search', 'skills', 'thinking',
+      'models', 'observability', 'privacy', 'providers', 'search', 'skills', 'thinking', 'web',
     ])
   })
 
@@ -28,17 +29,17 @@ describe('sections navigation config', () => {
     expect(GROUPS.find((g) => g.id === 'model')!.items.map((i) => i.id))
       .toEqual(['models', 'providers', 'privacy', 'thinking'])
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
-      .toEqual(['blacklist', 'execution', 'search', 'memory', 'observability'])
+      .toEqual(['blacklist', 'execution', 'search', 'memory', 'observability', 'web'])
     expect(GROUPS.find((g) => g.id === 'plugin')!.items.map((i) => i.id))
       .toEqual(['skills', 'mcp', 'mcpapprovals', 'mcptokens'])
     expect(GROUPS.find((g) => g.id === 'channel')!.items.map((i) => i.id))
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS is flat concatenation of four groups, length 14', () => {
-    expect(ALL_ITEMS).toHaveLength(14)
+  it('ALL_ITEMS is flat concatenation of four groups, length 15', () => {
+    expect(ALL_ITEMS).toHaveLength(15)
     expect(ALL_ITEMS[0].id).toBe('models')
-    expect(ALL_ITEMS[13].id).toBe('channels')
+    expect(ALL_ITEMS[14].id).toBe('channels')
   })
 
   it('groupOf finds the group a section belongs to', () => {
@@ -73,5 +74,11 @@ describe('sections navigation config', () => {
       expect(it.icon.length).toBeGreaterThan(0)
       expect(it.labelKey).toMatch(/^aiCfg/)
     }
+  })
+
+  // Task 9 (agent web tools) —— web_search/web_fetch 设置分区挂进 agent 组。
+  it('exposes the web section in the agent group', () => {
+    const agent = GROUPS.find((g) => g.id === 'agent')!
+    expect(agent.items.map((i) => i.id)).toContain('web')
   })
 })

@@ -65,6 +65,7 @@ import ExecutionSection from '../components/settings/sections/ExecutionSection.v
 import SearchSection from '../components/settings/sections/SearchSection.vue'
 import MemorySection from '../components/settings/sections/MemorySection.vue'
 import ObservabilitySection from '../components/settings/sections/ObservabilitySection.vue'
+import WebSection from '../components/settings/sections/WebSection.vue'
 import SkillsSection from '../components/settings/sections/SkillsSection.vue'
 import McpSection from '../components/settings/sections/McpSection.vue'
 import McpApprovalsSection from '../components/settings/sections/McpApprovalsSection.vue'
@@ -115,6 +116,7 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
   search: SearchSection, // SP8-P2b Task 7 — implemented, final wiring
   memory: MemorySection, // SP8-P2b Task 6 — implemented, final wiring
   observability: ObservabilitySection, // SP8-P2b Task 8 — implemented, final wiring
+  web: WebSection, // agent web tools Task 9 — implemented, final wiring
   skills: SkillsSection, // SP8-P3a Task 7 — implemented, final wiring
   mcp: McpSection, // SP8-P4 Task 9 — implemented, final wiring (DEFERRED_SECTIONS hereby empty)
   mcpapprovals: McpApprovalsSection, // Task 21 (mcp-progressive-disclosure) — implemented

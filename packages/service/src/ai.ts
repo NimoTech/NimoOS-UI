@@ -638,6 +638,28 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
+    // ---- Web tools (web_search / web_fetch) settings ----
+
+    /** 响应形状固定 `{backend, base_url, enabled, has_key}` —— 后端**从不**把密钥本身
+     *  发回来,只给一个 has_key 布尔位。 */
+    async getWebSettings(): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/web-settings`)
+      return res.data
+    },
+
+    /** `api_key` 是可选字段:不传 = 保留已存密钥,传 `''` = 清空密钥。调用方(WebSection.vue)
+     *  据此决定"密钥输入框留空"时干脆不带这个字段,而不是发空串——否则每次保存
+     *  (哪怕只是切换 enabled 开关)都会把已存密钥冲掉。 */
+    async putWebSettings(payload: {
+      backend: string
+      base_url: string
+      enabled: boolean
+      api_key?: string
+    }): Promise<unknown> {
+      const res = await http.put(`${PREFIX}/agent/web-settings`, payload)
+      return res.data
+    },
+
     // ---- Observability ----
 
     async getObservabilityCompose(): Promise<unknown> {
