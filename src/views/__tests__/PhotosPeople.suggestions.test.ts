@@ -37,6 +37,11 @@ const svc = vi.hoisted(() => ({
     acceptPersonSuggestion: vi.fn().mockResolvedValue({ id: 's1', status: 'accepted' }),
     rejectPersonSuggestion: vi.fn().mockResolvedValue({ id: 's1', status: 'rejected' }),
     batchPersonSuggestions: vi.fn().mockResolvedValue({ results: {} }),
+    // Merge-cards feature (2026-08-21): cluster-merge questions, the entry card's second
+    // review-queue source (see people.ts's reviewQueueCount).
+    listMergeQuestions: vi.fn().mockResolvedValue({ pairs: [] }),
+    acceptMergeQuestion: vi.fn().mockResolvedValue({ id: 'mq1', status: 'accepted' }),
+    rejectMergeQuestion: vi.fn().mockResolvedValue({ id: 'mq1', status: 'rejected' }),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -103,6 +108,9 @@ beforeEach(() => {
   svc.photos.acceptPersonSuggestion.mockClear().mockResolvedValue({ id: 's1', status: 'accepted' })
   svc.photos.rejectPersonSuggestion.mockClear().mockResolvedValue({ id: 's1', status: 'rejected' })
   svc.photos.batchPersonSuggestions.mockClear().mockResolvedValue({ results: {} })
+  svc.photos.listMergeQuestions.mockClear().mockResolvedValue({ pairs: [] })
+  svc.photos.acceptMergeQuestion.mockClear().mockResolvedValue({ id: 'mq1', status: 'accepted' })
+  svc.photos.rejectMergeQuestion.mockClear().mockResolvedValue({ id: 'mq1', status: 'rejected' })
 })
 // Same isolation lesson as PhotosPeople.test.ts's own afterEach: the store's module-scoped
 // `_pendingSuggestionIds` guard (people.ts) isn't reset by setActivePinia(createPinia()) alone.
@@ -149,6 +157,75 @@ describe('PhotosPeople.vue — "To confirm" entry card (people-confirm-polish re
 
   it('zero open suggestions (an empty groups array) → the section is absent', async () => {
     svc.photos.listPersonSuggestions.mockResolvedValue({ groups: [] })
+    const { w } = await mountView()
+    expect(w.find('[data-test="people-suggestions"]').exists()).toBe(false)
+  })
+})
+
+// Merge-cards feature (2026-08-21): the entry card's count/gate/preview must also account for
+// cluster-merge questions (people.reviewQueueCount = suggestionCount + mergeQuestionCount).
+function rawPersonForPair(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return { id: 'pX', name: '', coverFaceId: null, count: 3, confidence: 0.8, favorite: false, relation: '', ...over }
+}
+function rawPair(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'mq1',
+    dist: 0.3,
+    from: rawPersonForPair({ id: 'pA' }),
+    into: rawPersonForPair({ id: 'pB', name: 'Carol' }),
+    fromFaceIds: ['ff1'],
+    intoFaceIds: ['if1'],
+    ...over,
+  }
+}
+
+describe('PhotosPeople.vue — "To confirm" entry card includes merge questions (merge-cards feature)', () => {
+  it('the count includes merge questions even with zero face suggestions', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: [] })
+    svc.photos.listMergeQuestions.mockResolvedValue({ pairs: [rawPair({ id: 'mq1' }), rawPair({ id: 'mq2' })] })
+    const { w } = await mountView()
+    expect(w.find('[data-test="people-suggestions"]').exists()).toBe(true)
+    expect(w.find('[data-test="section-suggestions"]').text()).toContain('2')
+  })
+
+  it('the count sums both sources when both are present', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS }) // 3 face suggestions
+    svc.photos.listMergeQuestions.mockResolvedValue({ pairs: [rawPair()] }) // 1 merge question
+    const { w } = await mountView()
+    expect(w.find('[data-test="section-suggestions"]').text()).toContain('4')
+  })
+
+  it('face previews come first, merge-question previews fill any remaining slots up to 6', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS }) // 3 face suggestions
+    svc.photos.listMergeQuestions.mockResolvedValue({
+      pairs: [rawPair({ id: 'mq1', intoFaceIds: ['mqface1'] }), rawPair({ id: 'mq2', intoFaceIds: ['mqface2'] })],
+    })
+    const { w } = await mountView()
+    const thumbs = w.findAll('[data-test="suggestion-entry-thumb"]')
+    expect(thumbs).toHaveLength(5) // 3 face + 2 merge, well under the cap of 6
+    expect(thumbs[3].attributes('src')).toBe('mock://face/mqface1')
+    expect(thumbs[4].attributes('src')).toBe('mock://face/mqface2')
+  })
+
+  it('a backend 404 on merge questions alone does not hide the card when face suggestions remain', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
+    svc.photos.listMergeQuestions.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    const { w } = await mountView()
+    expect(w.find('[data-test="people-suggestions"]').exists()).toBe(true)
+    expect(w.find('[data-test="section-suggestions"]').text()).toContain('3')
+  })
+
+  it('a backend 404 on face suggestions alone does not hide the card when merge questions remain', async () => {
+    svc.photos.listPersonSuggestions.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    svc.photos.listMergeQuestions.mockResolvedValue({ pairs: [rawPair()] })
+    const { w } = await mountView()
+    expect(w.find('[data-test="people-suggestions"]').exists()).toBe(true)
+    expect(w.find('[data-test="section-suggestions"]').text()).toContain('1')
+  })
+
+  it('a 404 on both sources hides the card entirely', async () => {
+    svc.photos.listPersonSuggestions.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    svc.photos.listMergeQuestions.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
     const { w } = await mountView()
     expect(w.find('[data-test="people-suggestions"]').exists()).toBe(false)
   })

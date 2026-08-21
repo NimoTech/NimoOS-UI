@@ -19,6 +19,11 @@ const svc = vi.hoisted(() => ({
     listPersonSuggestions: vi.fn().mockResolvedValue({ groups: [] }),
     acceptPersonSuggestion: vi.fn().mockResolvedValue({ id: 's1', status: 'accepted' }),
     rejectPersonSuggestion: vi.fn().mockResolvedValue({ id: 's1', status: 'rejected' }),
+    // Merge-cards feature (2026-08-21): cluster-merge questions, joining the review queue after
+    // the face suggestions above.
+    listMergeQuestions: vi.fn().mockResolvedValue({ pairs: [] }),
+    acceptMergeQuestion: vi.fn().mockResolvedValue({ id: 'mq1', status: 'accepted' }),
+    rejectMergeQuestion: vi.fn().mockResolvedValue({ id: 'mq1', status: 'rejected' }),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -58,6 +63,9 @@ beforeEach(() => {
   svc.photos.listPersonSuggestions.mockClear().mockResolvedValue({ groups: [] })
   svc.photos.acceptPersonSuggestion.mockClear().mockResolvedValue({ id: 's1', status: 'accepted' })
   svc.photos.rejectPersonSuggestion.mockClear().mockResolvedValue({ id: 's1', status: 'rejected' })
+  svc.photos.listMergeQuestions.mockClear().mockResolvedValue({ pairs: [] })
+  svc.photos.acceptMergeQuestion.mockClear().mockResolvedValue({ id: 'mq1', status: 'accepted' })
+  svc.photos.rejectMergeQuestion.mockClear().mockResolvedValue({ id: 'mq1', status: 'rejected' })
 })
 afterEach(() => {
   for (const w of mounted.splice(0)) w.unmount()
@@ -68,6 +76,25 @@ async function seed(groups: Array<Record<string, unknown>>) {
   svc.photos.listPersonSuggestions.mockResolvedValueOnce({ groups })
   const store = usePhotosPeople()
   await store.fetchSuggestions()
+  return store
+}
+
+// Merge-cards feature (2026-08-21).
+function rawPair(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'mq1',
+    dist: 0.42,
+    from: rawPerson({ id: 'pA', name: '', coverFaceId: null }),
+    into: rawPerson({ id: 'pB', name: 'Bob', count: 20, coverFaceId: 'cf-b' }),
+    fromFaceIds: ['ff1', 'ff2'],
+    intoFaceIds: ['if1', 'if2'],
+    ...over,
+  }
+}
+async function seedMerge(pairs: Array<Record<string, unknown>>) {
+  svc.photos.listMergeQuestions.mockResolvedValueOnce({ pairs })
+  const store = usePhotosPeople()
+  await store.fetchMergeQuestions()
   return store
 }
 
@@ -354,5 +381,153 @@ describe('PeopleReviewWizard.vue — busy state', () => {
     await flushPromises()
 
     expect(w.find('[data-test="prw-yes"]').attributes('disabled')).toBeUndefined()
+  })
+})
+
+describe('PeopleReviewWizard.vue — merge cards (merge-cards feature, 2026-08-21)', () => {
+  it('renders both sides of the pair: collage faces, photo count, and name', async () => {
+    await seedMerge([rawPair()])
+    const w = mountWizard(true)
+
+    expect(w.find('[data-test="prw-merge-sides"]').exists()).toBe(true)
+    expect(w.find('[data-test="prw-merge-from-name"]').text()).toBe(zh.photosPersonUnnamedTitle)
+    expect(w.find('[data-test="prw-merge-into-name"]').text()).toBe('Bob')
+    expect(w.find('[data-test="prw-merge-from-count"]').text()).toBe(zh.photosPeoplePhotosCount.replace('{n}', '5'))
+    expect(w.find('[data-test="prw-merge-into-count"]').text()).toBe(zh.photosPeoplePhotosCount.replace('{n}', '20'))
+
+    const fromSrcs = w.find('[data-test="prw-merge-side-from"]').findAll('img').map((img) => img.attributes('src'))
+    expect(fromSrcs).toEqual(['mock://face/ff1', 'mock://face/ff2'])
+    const intoSrcs = w.find('[data-test="prw-merge-side-into"]').findAll('img').map((img) => img.attributes('src'))
+    expect(intoSrcs).toEqual(['mock://face/if1', 'mock://face/if2'])
+  })
+
+  it('caps each side\'s collage at 4 preview faces even when the backend sends more', async () => {
+    await seedMerge([rawPair({ fromFaceIds: ['a', 'b', 'c', 'd', 'e'], intoFaceIds: ['x', 'y', 'z', 'w', 'v'] })])
+    const w = mountWizard(true)
+    expect(w.find('[data-test="prw-merge-side-from"]').findAll('img')).toHaveLength(4)
+    expect(w.find('[data-test="prw-merge-side-into"]').findAll('img')).toHaveLength(4)
+  })
+
+  it('shows the merge question, the distance, and the merge/different/skip buttons', async () => {
+    await seedMerge([rawPair({ dist: 0.123 })])
+    const w = mountWizard(true)
+    expect(w.find('[data-test="prw-question"]').text()).toBe(zh.photosPeopleMergeQuestionTitle)
+    expect(w.find('[data-test="prw-merge-dist"]').text()).toBe(zh.photosPeopleMergeDistLabel.replace('{dist}', '0.123'))
+    expect(w.find('[data-test="prw-yes"]').text()).toBe(zh.photosPeopleMergeAccept)
+    expect(w.find('[data-test="prw-no"]').text()).toBe(zh.photosPeopleMergeReject)
+    expect(w.find('[data-test="prw-skip"]').text()).toBe(zh.photosPeopleReviewSkip) // shared with the face flow
+  })
+
+  it('does not render the face-suggestion header/toggle for a merge card', async () => {
+    await seedMerge([rawPair()])
+    const w = mountWizard(true)
+    expect(w.find('[data-test="prw-header"]').exists()).toBe(false)
+    expect(w.find('[data-test="prw-view-toggle"]').exists()).toBe(false)
+  })
+
+  it('Merge (accept) calls decideMergeQuestion(id, true)', async () => {
+    const s = await seedMerge([rawPair({ id: 'mq1' })])
+    const spy = vi.spyOn(s, 'decideMergeQuestion')
+    const w = mountWizard(true)
+
+    await w.find('[data-test="prw-yes"]').trigger('click')
+
+    expect(spy).toHaveBeenCalledWith('mq1', true)
+  })
+
+  it('Different (reject) calls decideMergeQuestion(id, false)', async () => {
+    const s = await seedMerge([rawPair({ id: 'mq1' })])
+    const spy = vi.spyOn(s, 'decideMergeQuestion')
+    const w = mountWizard(true)
+
+    await w.find('[data-test="prw-no"]').trigger('click')
+
+    expect(spy).toHaveBeenCalledWith('mq1', false)
+  })
+
+  it('accepting the only merge card advances straight to the done state', async () => {
+    const s = await seedMerge([rawPair({ id: 'mq1' })])
+    const spy = vi.spyOn(s, 'decideMergeQuestion')
+    const w = mountWizard(true)
+
+    await w.find('[data-test="prw-yes"]').trigger('click')
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledWith('mq1', true)
+    expect(w.find('[data-test="prw-done"]').exists()).toBe(true)
+  })
+
+  it('Skip advances to the next merge pair WITHOUT calling the store', async () => {
+    const s = await seedMerge([rawPair({ id: 'mq1' }), rawPair({ id: 'mq2', into: rawPerson({ id: 'pC', name: 'Carol', count: 9 }) })])
+    const spy = vi.spyOn(s, 'decideMergeQuestion')
+    const w = mountWizard(true)
+
+    await w.find('[data-test="prw-skip"]').trigger('click')
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(w.find('[data-test="prw-merge-into-name"]').text()).toBe('Carol')
+  })
+
+  it('the done state is reached once every merge card has been decided/skipped, closing the wizard from there', async () => {
+    await seedMerge([rawPair({ id: 'mq1' })])
+    const w = mountWizard(true)
+
+    await w.find('[data-test="prw-skip"]').trigger('click')
+
+    expect(w.find('[data-test="prw-done"]').exists()).toBe(true)
+    await w.find('[data-test="prw-done-close"]').trigger('click')
+    expect(w.emitted('update:open')).toEqual([[false]])
+  })
+})
+
+describe('PeopleReviewWizard.vue — mixed queue ordering (merge-cards feature)', () => {
+  it('face suggestions come first, merge questions after; progress/total count both', async () => {
+    await seed([rawGroup(rawPerson({ id: 'p1', name: 'Alice' }), [rawSuggestion({ id: 's1', faceId: 'f1' })])])
+    await seedMerge([rawPair({ id: 'mq1' })])
+    const w = mountWizard(true)
+
+    // Total is 2 (1 face + 1 merge); starts on the face item.
+    expect(w.find('[data-test="prw-progress"]').text()).toBe('0 / 2')
+    expect(w.find('[data-test="prw-body-original"]').exists()).toBe(true)
+    expect(w.find('[data-test="prw-person-name"]').text()).toBe('Alice')
+
+    // Deciding the face item advances to the merge card, not past it.
+    await w.find('[data-test="prw-yes"]').trigger('click')
+    await flushPromises()
+
+    expect(w.find('[data-test="prw-progress"]').text()).toBe('1 / 2')
+    expect(w.find('[data-test="prw-merge-sides"]').exists()).toBe(true)
+    expect(w.find('[data-test="prw-body-original"]').exists()).toBe(false)
+  })
+
+  it('skipping the face item still lands on the merge card next (order preserved across skip too)', async () => {
+    await seed([rawGroup(rawPerson({ id: 'p1', name: 'Alice' }), [rawSuggestion({ id: 's1', faceId: 'f1' })])])
+    await seedMerge([rawPair({ id: 'mq1' })])
+    const w = mountWizard(true)
+
+    await w.find('[data-test="prw-skip"]').trigger('click')
+
+    expect(w.find('[data-test="prw-merge-sides"]').exists()).toBe(true)
+  })
+
+  it('deciding both the face item and the merge question reaches the done state, count includes both', async () => {
+    await seed([rawGroup(rawPerson(), [rawSuggestion({ id: 's1' })])])
+    await seedMerge([rawPair({ id: 'mq1' })])
+    const w = mountWizard(true)
+    expect(w.find('[data-test="prw-progress"]').text()).toBe('0 / 2')
+
+    await w.find('[data-test="prw-yes"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="prw-yes"]').trigger('click')
+    await flushPromises()
+
+    expect(w.find('[data-test="prw-done"]').exists()).toBe(true)
+  })
+
+  it('opening with zero items of both kinds goes straight to the done state', async () => {
+    await seed([])
+    await seedMerge([])
+    const w = mountWizard(true)
+    expect(w.find('[data-test="prw-done"]').exists()).toBe(true)
   })
 })

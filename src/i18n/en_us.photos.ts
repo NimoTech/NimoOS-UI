@@ -1290,4 +1290,18 @@ export default {
   // context photo images and the hover title for "click to view full photo" -- shared by the
   // wizard's default view, compare view, and zoom lightbox.
   photosPeopleSuggestPeekAlt: 'View full photo',
+  // ── Merge cards (2026-08-21): HAC gray-band cluster-merge review questions -- depends on the
+  // backend's DEV-NimoOS-Photos feat/cluster-merge-questions branch (PR #6), 404-self-hides
+  // until that ships; shares the same review wizard as the other photosPeopleReview* keys
+  // above, just queued after the per-face suggestions. ──
+  photosPeopleMergeQuestionTitle: 'Are these the same person?',
+  // Merge / Different / Skip -- Skip reuses photosPeopleReviewSkip above (purely client-side
+  // advance, same semantics in both flows).
+  photosPeopleMergeAccept: 'Merge',
+  photosPeopleMergeReject: 'Different',
+  // Label for the card's "into" side (the person that survives the merge).
+  photosPeopleMergeIntoLabel: 'Merge into',
+  // Distance shown subtly under the question (lower = more similar -- a raw distance, not a
+  // percentage, deliberately not reusing mergeConfidencePct's formatting).
+  photosPeopleMergeDistLabel: 'Distance {dist}',
 }

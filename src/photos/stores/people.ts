@@ -51,6 +51,41 @@ export interface SuggestionGroup {
   exemplarFaceIds?: string[]
 }
 
+// Merge-cards feature (2026-08-21): cluster-merge questions from the HAC gray band, served by
+// NimoOS-Photos' feat/cluster-merge-questions branch (PR #6, unmerged at the time of writing —
+// see .superpowers/sdd/cluster-merge-questions-report.md in that repo for the full contract).
+// A whole pair of already-clustered persons, not a single face — the review queue's "is this the
+// same person as that OTHER cluster" question, joining the review wizard AFTER the per-face
+// suggestions above. Backend contract: GET /photos/persons/merge-suggestions/v2 ->
+// {pairs:[{id,dist,from,into,fromFaceIds,intoFaceIds}]}, open only, hidden excluded, dist ASC.
+// fromFaceIds/intoFaceIds are up to 4 preview face ids per side (for the merge card's mini
+// collage) -- NOT the same shape as SuggestionGroup.exemplarFaceIds above (that one is a single
+// person's own reference faces; these are per-SIDE preview faces for a pair).
+export interface MergeQuestionPair {
+  id: string
+  dist: number
+  from: Person
+  into: Person
+  fromFaceIds: string[]
+  intoFaceIds: string[]
+}
+
+function toFaceIdArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map((x) => String(x))
+}
+
+function toMergeQuestion(raw: Record<string, unknown>): MergeQuestionPair {
+  return {
+    id: String(raw.id ?? ''),
+    dist: typeof raw.dist === 'number' ? raw.dist : Number(raw.dist) || 0,
+    from: toPerson((raw.from ?? {}) as Record<string, unknown>),
+    into: toPerson((raw.into ?? {}) as Record<string, unknown>),
+    fromFaceIds: toFaceIdArray(raw.fromFaceIds),
+    intoFaceIds: toFaceIdArray(raw.intoFaceIds),
+  }
+}
+
 function toSuggestionItem(raw: Record<string, unknown>): SuggestionItem {
   return {
     id: String(raw.id ?? ''),
@@ -91,6 +126,12 @@ const _pendingHides = new Set<string>()
 // in the group, so a single Set covers both decideSuggestion and decideGroup uniformly.
 const _pendingSuggestionIds = new Set<string>()
 
+// Merge-cards feature: same pending-decision-guard role as _pendingSuggestionIds above, but
+// keyed by merge-question id (a disjoint id namespace from suggestion ids — kept in its own Set
+// rather than sharing one, so a merge-question decide in flight can never accidentally mask a
+// face-suggestion id or vice versa).
+const _pendingMergeQuestionIds = new Set<string>()
+
 // Fix round 2 (2026-08-19, product decision): readFilter/PeopleFilter/the
 // nimo_people_show_singletons localStorage key are gone along with the singleton toggle they
 // backed — once the toggle's confidence-gate sibling was removed in Task 4, showSingletons was
@@ -118,6 +159,11 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   const suggestionGroups = ref<SuggestionGroup[]>([])
   const suggestionsSupported = ref(true)
 
+  // Merge-cards feature: cluster-merge questions state. Same "assume supported until a real 404
+  // disproves it" convention as suggestionsSupported/hiddenPeopleSupported above.
+  const mergeQuestions = ref<MergeQuestionPair[]>([])
+  const mergeQuestionsSupported = ref(true)
+
   const named = computed(() => namedOf(people.value))
   const unnamed = computed(() => unnamedOf(people.value))
   // Fix round 2 (2026-08-19, product decision): the grid shows ONLY the distribution split's
@@ -133,6 +179,12 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   const unnamedCount = computed(() => visibleUnnamed.value.length)
   // Plan C Task 1: total open suggestion items across all groups (for a badge/count in the UI).
   const suggestionCount = computed(() => suggestionGroups.value.reduce((sum, g) => sum + g.suggestions.length, 0))
+  // Merge-cards feature: total open merge questions.
+  const mergeQuestionCount = computed(() => mergeQuestions.value.length)
+  // Merge-cards feature: the People page's entry card count must include BOTH review-queue
+  // sources (face suggestions + cluster-merge questions) — this is the single source of truth
+  // both the entry card and the wizard's own totalAtOpen should agree with.
+  const reviewQueueCount = computed(() => suggestionCount.value + mergeQuestionCount.value)
 
   const key = (id: string | number): string => String(id)
   function personById(id: string | number): Person | null {
@@ -539,11 +591,68 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     return { failed }
   }
 
+  // ── Cluster-merge questions (merge-cards feature). Called on People mount, same as
+  // fetchSuggestions above. Feature detection mirrors fetchSuggestions/fetchHiddenPeople
+  // (isNotFound -> not an error, no console.error) -- an old backend without the
+  // feat/cluster-merge-questions branch 404s and the whole merge-cards UI hides silently.
+
+  // Fetches the open merge-question pairs (already dist-ASC from the backend -- no local
+  // resort needed). On a legacy backend without this endpoint, 404 flips
+  // mergeQuestionsSupported to false and leaves the list empty.
+  async function fetchMergeQuestions(): Promise<void> {
+    try {
+      const raw = (await service.photos.listMergeQuestions()) as { pairs?: unknown } | undefined
+      const list = Array.isArray(raw?.pairs) ? (raw.pairs as Record<string, unknown>[]) : []
+      const mapped = list.map(toMergeQuestion)
+      // Pending-guard (see _pendingMergeQuestionIds' declaration comment): a decide call still
+      // in flight must not have its optimistic removal undone by a racing fetch that still sees
+      // the old (open) backend state -- same rationale as fetchSuggestions' own guard above.
+      mergeQuestions.value = _pendingMergeQuestionIds.size
+        ? mapped.filter((p) => !_pendingMergeQuestionIds.has(p.id))
+        : mapped
+      mergeQuestionsSupported.value = true
+    } catch (e) {
+      if (isNotFound(e)) {
+        mergeQuestionsSupported.value = false
+        mergeQuestions.value = []
+      } else {
+        console.error('[photos-people] fetchMergeQuestions', e)
+      }
+    }
+  }
+
+  // Decides a single merge question. Optimistic removal up front; on accept, also refreshes the
+  // people list (a merge changes both clusters' member/photo counts -- the `from` person is
+  // gone, `into`'s count grows); reject leaves the people list untouched (mirrors
+  // decideSuggestion's own accept/reject asymmetry above).
+  async function decideMergeQuestion(id: string, accept: boolean): Promise<void> {
+    const k = key(id)
+    const found = mergeQuestions.value.some((p) => key(p.id) === k)
+    if (!found) return   // not found locally (already decided elsewhere/expired) -- no request
+    _pendingMergeQuestionIds.add(k)
+    mergeQuestions.value = mergeQuestions.value.filter((p) => key(p.id) !== k)
+    try {
+      if (accept) {
+        await service.photos.acceptMergeQuestion(k)
+        void fetchPeople()
+      } else {
+        await service.photos.rejectMergeQuestion(k)
+      }
+    } catch (e) {
+      console.error('[photos-people] decideMergeQuestion', e)
+      void fetchMergeQuestions()
+      throw e
+    } finally {
+      _pendingMergeQuestionIds.delete(k)
+    }
+  }
+
   function __resetForTest(): void {
     for (const entry of _purgeTimers.values()) clearTimeout(entry.timer)
     _purgeTimers.clear()
     _pendingHides.clear()
     _pendingSuggestionIds.clear()
+    _pendingMergeQuestionIds.clear()
     people.value = []
     peopleLoaded.value = false
     facesIndexedUpTo.value = null
@@ -552,19 +661,24 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     hiddenPeopleSupported.value = true
     suggestionGroups.value = []
     suggestionsSupported.value = true
+    mergeQuestions.value = []
+    mergeQuestionsSupported.value = true
   }
 
   return {
     people, peopleLoaded, facesIndexedUpTo,
     hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
     suggestionGroups, suggestionsSupported,
+    mergeQuestions, mergeQuestionsSupported,
     named, unnamed, visibleUnnamed, namedCount, unnamedCount, suggestionCount,
+    mergeQuestionCount, reviewQueueCount,
     personById, patchPerson,
     fetchPeople,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     fetchHiddenPeople, hidePerson, unhidePerson,
     fetchSuggestions, decideSuggestion, decideGroup,
+    fetchMergeQuestions, decideMergeQuestion,
     __resetForTest,
   }
 })

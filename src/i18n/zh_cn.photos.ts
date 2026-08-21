@@ -1306,4 +1306,16 @@ export default {
   // 2026-08-20(people-confirm-polish item 2 遗留):人脸/情境照片的 alt 文案、放大图的 alt
   // 文案，以及点击缩略图放大查看的 hover title——向导的默认视图/对比视图/zoom 灯箱共用。
   photosPeopleSuggestPeekAlt: '查看完整照片',
+  // ── 合并卡片(merge-cards,2026-08-21):HAC 灰区聚簇对话式复核问题——依赖后端
+  // DEV-NimoOS-Photos feat/cluster-merge-questions 分支(PR #6,合并前始终 404 自我隐藏，
+  // 与其他 photosPeopleReview* 键共用同一个向导，只是排在人脸建议之后。──
+  photosPeopleMergeQuestionTitle: '这两组是同一个人吗？',
+  // 合并/不同/跳过三个决策按钮——"跳过"复用上面 photosPeopleReviewSkip（纯前端推进，
+  // 两个流程语义相同）。
+  photosPeopleMergeAccept: '合并',
+  photosPeopleMergeReject: '不同',
+  // 卡片一侧的"入向"标签（into 一侧，即合并后保留的那个人）。
+  photosPeopleMergeIntoLabel: '合并入',
+  // 距离数值低调展示在问句下方（值越小越相似，不是百分比，不与 mergeConfidencePct 混用）。
+  photosPeopleMergeDistLabel: '相似距离 {dist}',
 }
