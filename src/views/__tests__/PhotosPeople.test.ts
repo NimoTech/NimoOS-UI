@@ -33,6 +33,12 @@ const svc = vi.hoisted(() => ({
     listHiddenPersons: vi.fn().mockResolvedValue([]),
     hidePerson: vi.fn().mockResolvedValue(undefined),
     restorePerson: vi.fn().mockResolvedValue(undefined),
+    // Merge-cards feature (2026-08-21): onMounted also probes this endpoint now (same
+    // eager-fetch/404-feature-detection convention as listPersonSuggestions, which this file
+    // already tolerates unmocked) — mocked here to keep this file's own console output quiet;
+    // no test in this file asserts on merge-question behavior, that lives in
+    // PhotosPeople.suggestions.test.ts and PeopleReviewWizard.test.ts.
+    listMergeQuestions: vi.fn().mockResolvedValue({ pairs: [] }),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))

@@ -20,11 +20,18 @@
 // the decided item, `flat` recomputes on its own and `current` naturally becomes the next item.
 // Skip is the one path that needs an explicit local marker (skippedIds) — the store never removes
 // a skipped item, only this component's own session state does.
+//
+// Merge-cards feature (2026-08-21): cluster-merge questions (whole-cluster-pair review, not a
+// single face) now join this same queue, AFTER every per-face suggestion — `flat` below is a
+// discriminated union so one sequential wizard can walk both kinds in order without a second
+// component. `skippedIds`/`current`/`totalAtOpen`/progress all operate on the union uniformly
+// (keyed by `flatKey`, a `"face:<id>" | "merge:<id>"` composite — the two id namespaces are
+// otherwise unrelated backend ids that could theoretically collide).
 import { computed, ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import PersonAvatar from './PersonAvatar.vue'
-import { usePhotosPeople, type SuggestionGroup, type SuggestionItem } from '../stores/people'
+import { usePhotosPeople, type SuggestionGroup, type SuggestionItem, type MergeQuestionPair } from '../stores/people'
 import { mergeConfidencePct, type Person } from '../util/peopleView'
 
 const props = defineProps<{ open: boolean }>()
@@ -33,11 +40,20 @@ const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
 const { t } = useI18n()
 const people = usePhotosPeople()
 
-interface FlatItem { item: SuggestionItem; group: SuggestionGroup }
+type FlatItem =
+  | { kind: 'face'; item: SuggestionItem; group: SuggestionGroup }
+  | { kind: 'merge'; pair: MergeQuestionPair }
 
-const flat = computed<FlatItem[]>(() =>
-  people.suggestionGroups.flatMap((g) => g.suggestions.map((item) => ({ item, group: g }))),
-)
+// Face items first, merge questions after — per the brief ("merge questions join the review
+// queue AFTER the face suggestions").
+const flat = computed<FlatItem[]>(() => [
+  ...people.suggestionGroups.flatMap((g) => g.suggestions.map((item) => ({ kind: 'face' as const, item, group: g }))),
+  ...people.mergeQuestions.map((pair) => ({ kind: 'merge' as const, pair })),
+])
+
+function flatKey(f: FlatItem): string {
+  return f.kind === 'face' ? `face:${f.item.id}` : `merge:${f.pair.id}`
+}
 
 // Session-local skip set (brief: "Skip = purely client-side advance", never touches the store).
 // Wholesale-reassignment convention for ref<Set<…>> (this repo's established pattern for this
@@ -50,17 +66,18 @@ const busy = ref(false)
 const viewMode = ref<'original' | 'compare'>('original')
 const lightboxOpen = ref(false)
 
-const current = computed<FlatItem | null>(() => flat.value.find((f) => !skippedIds.value.has(f.item.id)) ?? null)
+const current = computed<FlatItem | null>(() => flat.value.find((f) => !skippedIds.value.has(flatKey(f))) ?? null)
 const done = computed(() => current.value === null)
-const remaining = computed(() => flat.value.filter((f) => !skippedIds.value.has(f.item.id)).length)
+const remaining = computed(() => flat.value.filter((f) => !skippedIds.value.has(flatKey(f))).length)
 // Reviewed = however much of the original batch is no longer "current" — either decided (which
 // shrinks `flat` itself) or skipped (tracked via skippedIds without shrinking `flat`). Clamped at
-// 0 defensively: a fresh fetchSuggestions() racing in mid-session could in principle grow `flat`
-// past totalAtOpen (new suggestions appearing while the wizard is open), which would otherwise
-// make this go negative.
+// 0 defensively: a fresh fetchSuggestions()/fetchMergeQuestions() racing in mid-session could in
+// principle grow `flat` past totalAtOpen (new items appearing while the wizard is open), which
+// would otherwise make this go negative.
 const reviewedCount = computed(() => Math.max(0, totalAtOpen.value - remaining.value))
 
-const currentPerson = computed<Person | null>(() => current.value?.group.person ?? null)
+// ── Face-suggestion-only view state (pattern ① / ② body) ──
+const currentPerson = computed<Person | null>(() => (current.value?.kind === 'face' ? current.value.group.person : null))
 const currentName = computed(() => currentPerson.value?.name || t('photosPersonUnnamedTitle'))
 // Up to 5 reference faces (brief: "4-5"). NEW optional backend field — absent on older backends,
 // feature-detected purely by presence (no separate capability flag needed: the field IS the
@@ -69,7 +86,7 @@ const currentName = computed(() => currentPerson.value?.name || t('photosPersonU
 // but the header already renders that face via PersonAvatar right next to it — filter it out
 // here too so a future backend regression can't make it show up twice.
 const exemplarFaces = computed(() => (
-  (current.value?.group.exemplarFaceIds ?? [])
+  (current.value?.kind === 'face' ? current.value.group.exemplarFaceIds ?? [] : [])
     .filter((id) => id !== String(currentPerson.value?.coverFaceId ?? ''))
     .slice(0, 5)
 ))
@@ -84,7 +101,7 @@ function faceThumb(faceId: string): string {
 // for those, unrenderable by an <img>; thumbnailUrl's pregenerated large.jpg exists for every
 // asset type, video included.
 const contextUrl = computed(() => (
-  current.value ? service.photos.thumbnailUrl(current.value.item.assetId, 'large') : ''
+  current.value?.kind === 'face' ? service.photos.thumbnailUrl(current.value.item.assetId, 'large') : ''
 ))
 // The compare view's left side needs a plain square <img>, not the full PersonAvatar component
 // (no fallback chrome, no initial/icon placeholder — the whole point of a face-to-face compare is
@@ -94,7 +111,31 @@ const coverFaceUrl = computed(() => {
   const p = currentPerson.value
   return p ? service.photos.personFaceThumbnailUrl(p.id, p.coverFaceId) : ''
 })
-const scorePct = computed(() => mergeConfidencePct(current.value?.item.score))
+const scorePct = computed(() => (current.value?.kind === 'face' ? mergeConfidencePct(current.value.item.score) : 0))
+
+// ── Merge-card-only view state (merge-cards feature) ──
+const currentPair = computed<MergeQuestionPair | null>(() => (current.value?.kind === 'merge' ? current.value.pair : null))
+function sideName(p: Person | undefined): string {
+  return p?.name || t('photosPersonUnnamedTitle')
+}
+// Up to 4 preview faces per side (brief: "≤4"), rendered via the same bare faceThumbnailUrl
+// helper the face-suggestion body already uses above — a merge card's collage faces have no
+// owning person's cover slot any more meaningfully than a suggestion's candidate face does.
+function sideFaceIds(ids: string[] | undefined): string[] {
+  return (ids ?? []).slice(0, 4)
+}
+// Distance is shown subtly (brief), not run through mergeConfidencePct — it's a raw
+// complete-linkage distance (lower = closer), not the same "confidence" semantics that
+// percentage formatter was built for elsewhere in this file.
+const distLabel = computed(() => (
+  currentPair.value ? t('photosPeopleMergeDistLabel', { dist: currentPair.value.dist.toFixed(3) }) : ''
+))
+
+const questionText = computed(() => (
+  current.value?.kind === 'merge' ? t('photosPeopleMergeQuestionTitle') : t('photosPeopleSuggestTitle', { name: currentName.value })
+))
+const yesLabel = computed(() => (current.value?.kind === 'merge' ? t('photosPeopleMergeAccept') : t('photosPeopleReviewYes')))
+const noLabel = computed(() => (current.value?.kind === 'merge' ? t('photosPeopleMergeReject') : t('photosPeopleReviewNo')))
 
 function close(): void {
   emit('update:open', false)
@@ -102,14 +143,19 @@ function close(): void {
 
 async function decide(accept: boolean): Promise<void> {
   if (busy.value || !current.value) return
-  const id = current.value.item.id
+  const cur = current.value
   busy.value = true
   try {
-    await people.decideSuggestion(id, accept)
+    if (cur.kind === 'face') {
+      await people.decideSuggestion(cur.item.id, accept)
+    } else {
+      await people.decideMergeQuestion(cur.pair.id, accept)
+    }
   } catch {
-    // The store already console.error's the failure and issues its own corrective
-    // fetchSuggestions() (see decideSuggestion's header comment in people.ts) — nothing further
-    // to surface here, same rationale the pre-rework onDecideSuggestionFace documented.
+    // The store already console.error's the failure and issues its own corrective refetch
+    // (fetchSuggestions/fetchMergeQuestions — see each decide*'s header comment in people.ts) —
+    // nothing further to surface here, same rationale the pre-rework onDecideSuggestionFace
+    // documented.
   } finally {
     busy.value = false
   }
@@ -123,7 +169,7 @@ function onNo(): void {
 function onSkip(): void {
   if (busy.value || !current.value) return
   const next = new Set(skippedIds.value)
-  next.add(current.value.item.id)
+  next.add(flatKey(current.value))
   skippedIds.value = next
 }
 
@@ -154,8 +200,9 @@ watch(
   { immediate: true },
 )
 // Each new suggestion starts back in the default pattern-① view — the compare toggle/lightbox
-// state from the previous suggestion must not bleed into the next one.
-watch(() => current.value?.item.id, () => {
+// state from the previous suggestion must not bleed into the next one. Keyed by flatKey (not
+// just item.id) so this also fires correctly across the face->merge kind boundary.
+watch(() => (current.value ? flatKey(current.value) : null), () => {
   viewMode.value = 'original'
   lightboxOpen.value = false
 })
@@ -170,64 +217,91 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
       <template v-if="!done && current">
         <div class="prw-progress" data-test="prw-progress">{{ t('photosPeopleReviewProgress', { k: reviewedCount, n: totalAtOpen }) }}</div>
 
-        <div class="prw-header" data-test="prw-header">
-          <PersonAvatar :person-id="currentPerson?.id ?? null" :name="currentPerson?.name" :ver="currentPerson?.coverFaceId ?? null" :size="56" />
-          <div class="prw-header-text">
-            <div class="prw-name" data-test="prw-person-name">{{ currentName }}</div>
-            <div v-if="exemplarFaces.length" class="prw-reference" data-test="prw-reference">
-              <span class="prw-reference-label">{{ t('photosPeopleReviewReferenceLabel') }}</span>
-              <span class="prw-reference-thumbs">
-                <img v-for="fid in exemplarFaces" :key="fid" class="prw-reference-thumb" :src="faceThumb(fid)" alt="">
-              </span>
+        <!-- ── Face-suggestion body (pattern ① / ②, unchanged) ── -->
+        <template v-if="current.kind === 'face'">
+          <div class="prw-header" data-test="prw-header">
+            <PersonAvatar :person-id="currentPerson?.id ?? null" :name="currentPerson?.name" :ver="currentPerson?.coverFaceId ?? null" :size="56" />
+            <div class="prw-header-text">
+              <div class="prw-name" data-test="prw-person-name">{{ currentName }}</div>
+              <div v-if="exemplarFaces.length" class="prw-reference" data-test="prw-reference">
+                <span class="prw-reference-label">{{ t('photosPeopleReviewReferenceLabel') }}</span>
+                <span class="prw-reference-thumbs">
+                  <img v-for="fid in exemplarFaces" :key="fid" class="prw-reference-thumb" :src="faceThumb(fid)" alt="">
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="prw-toggle" data-test="prw-view-toggle">
-          <button
-            type="button"
-            class="prw-toggle-btn"
-            data-test="prw-view-original"
-            :data-active="viewMode === 'original'"
-            @click="viewMode = 'original'"
-          >{{ t('photosPeopleReviewViewOriginal') }}</button>
-          <button
-            type="button"
-            class="prw-toggle-btn"
-            data-test="prw-view-compare"
-            :data-active="viewMode === 'compare'"
-            @click="viewMode = 'compare'"
-          >{{ t('photosPeopleReviewViewCompare') }}</button>
-        </div>
+          <div class="prw-toggle" data-test="prw-view-toggle">
+            <button
+              type="button"
+              class="prw-toggle-btn"
+              data-test="prw-view-original"
+              :data-active="viewMode === 'original'"
+              @click="viewMode = 'original'"
+            >{{ t('photosPeopleReviewViewOriginal') }}</button>
+            <button
+              type="button"
+              class="prw-toggle-btn"
+              data-test="prw-view-compare"
+              :data-active="viewMode === 'compare'"
+              @click="viewMode = 'compare'"
+            >{{ t('photosPeopleReviewViewCompare') }}</button>
+          </div>
 
-        <div v-if="viewMode === 'original'" class="prw-body-original" data-test="prw-body-original">
-          <div class="prw-context-wrap" data-test="prw-context-photo" @click="lightboxOpen = true">
-            <img class="prw-context-img" :src="contextUrl" :alt="t('photosPeopleSuggestPeekAlt')">
-            <img class="prw-inset-img" data-test="prw-inset-face" :src="faceThumb(current.item.faceId)" alt="">
-          </div>
-        </div>
-        <div v-else class="prw-body-compare" data-test="prw-body-compare">
-          <div class="prw-compare-side">
-            <img class="prw-compare-img" :src="coverFaceUrl" alt="">
-            <div class="prw-compare-label" data-test="prw-compare-name">{{ currentName }}</div>
-          </div>
-          <div class="prw-compare-side">
-            <img class="prw-compare-img" data-test="prw-compare-candidate-img" :src="faceThumb(current.item.faceId)" alt="">
-            <div class="prw-compare-label">
-              <span>{{ t('photosPeopleReviewCandidateLabel') }}</span>
-              <span class="prw-kind-badge" data-test="prw-kind-badge">
-                {{ current.item.kind === 'review' ? t('photosPeopleReviewBadge') : t('photosPeopleJoinBadge') }}
-              </span>
-              <span class="prw-score" data-test="prw-score">{{ scorePct }}%</span>
+          <div v-if="viewMode === 'original'" class="prw-body-original" data-test="prw-body-original">
+            <div class="prw-context-wrap" data-test="prw-context-photo" @click="lightboxOpen = true">
+              <img class="prw-context-img" :src="contextUrl" :alt="t('photosPeopleSuggestPeekAlt')">
+              <img class="prw-inset-img" data-test="prw-inset-face" :src="faceThumb(current.item.faceId)" alt="">
             </div>
           </div>
-        </div>
+          <div v-else class="prw-body-compare" data-test="prw-body-compare">
+            <div class="prw-compare-side">
+              <img class="prw-compare-img" :src="coverFaceUrl" alt="">
+              <div class="prw-compare-label" data-test="prw-compare-name">{{ currentName }}</div>
+            </div>
+            <div class="prw-compare-side">
+              <img class="prw-compare-img" data-test="prw-compare-candidate-img" :src="faceThumb(current.item.faceId)" alt="">
+              <div class="prw-compare-label">
+                <span>{{ t('photosPeopleReviewCandidateLabel') }}</span>
+                <span class="prw-kind-badge" data-test="prw-kind-badge">
+                  {{ current.item.kind === 'review' ? t('photosPeopleReviewBadge') : t('photosPeopleJoinBadge') }}
+                </span>
+                <span class="prw-score" data-test="prw-score">{{ scorePct }}%</span>
+              </div>
+            </div>
+          </div>
+        </template>
 
-        <div class="prw-question" data-test="prw-question">{{ t('photosPeopleSuggestTitle', { name: currentName }) }}</div>
+        <!-- ── Merge-card body (merge-cards feature, 2026-08-21): a whole cluster-pair, two
+             sides side-by-side, each side a mini collage of up to 4 preview faces + photo count
+             + name. ── -->
+        <template v-else>
+          <div class="prw-merge-sides" data-test="prw-merge-sides">
+            <div class="prw-merge-side" data-test="prw-merge-side-from">
+              <div class="prw-merge-collage">
+                <img v-for="fid in sideFaceIds(current.pair.fromFaceIds)" :key="fid" class="prw-merge-collage-face" :src="faceThumb(fid)" alt="">
+              </div>
+              <div class="prw-merge-count" data-test="prw-merge-from-count">{{ t('photosPeoplePhotosCount', { n: current.pair.from.count.toLocaleString() }) }}</div>
+              <div class="prw-merge-name" data-test="prw-merge-from-name">{{ sideName(current.pair.from) }}</div>
+            </div>
+            <div class="prw-merge-side" data-test="prw-merge-side-into">
+              <div class="prw-merge-collage">
+                <img v-for="fid in sideFaceIds(current.pair.intoFaceIds)" :key="fid" class="prw-merge-collage-face" :src="faceThumb(fid)" alt="">
+              </div>
+              <div class="prw-merge-count" data-test="prw-merge-into-count">{{ t('photosPeoplePhotosCount', { n: current.pair.into.count.toLocaleString() }) }}</div>
+              <div class="prw-merge-name" data-test="prw-merge-into-name">{{ sideName(current.pair.into) }}</div>
+              <div class="prw-merge-into-badge">{{ t('photosPeopleMergeIntoLabel') }}</div>
+            </div>
+          </div>
+          <div class="prw-merge-dist" data-test="prw-merge-dist">{{ distLabel }}</div>
+        </template>
+
+        <div class="prw-question" data-test="prw-question">{{ questionText }}</div>
 
         <div class="prw-actions">
-          <button type="button" class="prw-btn prw-btn-yes" data-test="prw-yes" :disabled="busy" @click="onYes">{{ t('photosPeopleReviewYes') }}</button>
-          <button type="button" class="prw-btn prw-btn-no" data-test="prw-no" :disabled="busy" @click="onNo">{{ t('photosPeopleReviewNo') }}</button>
+          <button type="button" class="prw-btn prw-btn-yes" data-test="prw-yes" :disabled="busy" @click="onYes">{{ yesLabel }}</button>
+          <button type="button" class="prw-btn prw-btn-no" data-test="prw-no" :disabled="busy" @click="onNo">{{ noLabel }}</button>
           <button type="button" class="prw-btn prw-btn-skip" data-test="prw-skip" :disabled="busy" @click="onSkip">{{ t('photosPeopleReviewSkip') }}</button>
         </div>
       </template>
@@ -399,6 +473,50 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   border: 1px solid var(--line);
 }
 .prw-score { color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* ── Merge-card body (merge-cards feature, 2026-08-21): two sides side-by-side, each a mini
+   collage of up to 4 preview faces + photo count + name. Reuses .prw-compare-side's flex/gap
+   rhythm (same "two equal columns" shape as the face-suggestion compare view above) rather than
+   inventing a new layout primitive. New-UI-only feature, no Vue2 counterpart. */
+.prw-merge-sides { display: flex; gap: 12px; }
+.prw-merge-side {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.prw-merge-collage {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.prw-merge-collage-face { width: 100%; height: 100%; object-fit: cover; background: var(--surface-3); }
+.prw-merge-count { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.prw-merge-name { font-size: 13.5px; font-weight: 600; color: var(--text-1); text-align: center; }
+.prw-merge-into-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 500;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+/* Distance shown subtly (brief) — small, muted, no visual competition with the question line. */
+.prw-merge-dist { align-self: center; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
 .prw-question { text-align: center; font-size: 14px; font-weight: 500; color: var(--text-1); }
 

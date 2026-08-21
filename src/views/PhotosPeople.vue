@@ -302,11 +302,27 @@ function toggleHidden(): void {
 function suggestionFaceThumb(faceId: string): string {
   return service.photos.faceThumbnailUrl(faceId)
 }
-// Up to 6 pending face thumbs across ALL groups, flattened in the store's own order — purely a
-// preview strip, not tied to any one group.
-const suggestionPreviewFaces = computed(() => (
-  people.suggestionGroups.flatMap((g) => g.suggestions).slice(0, 6)
-))
+// Merge-cards feature (2026-08-21): the entry card's count now covers BOTH review-queue sources
+// (face suggestions + cluster-merge questions — people.reviewQueueCount, the store's own single
+// source of truth for this total, kept in lockstep with the wizard's own totalAtOpen). The
+// preview row stays simple per the brief ("keep simple: total count, face previews first"): up
+// to 6 thumbs, face-suggestion previews first, then merge-question previews filling any
+// remaining slots (a merge pair previews via its "into" side's first face, falling back to
+// "from" — whichever side actually has a preview face).
+interface ReviewPreviewThumb { key: string; url: string }
+const reviewPreviewThumbs = computed<ReviewPreviewThumb[]>(() => {
+  const faceThumbs: ReviewPreviewThumb[] = people.suggestionGroups
+    .flatMap((g) => g.suggestions)
+    .map((s) => ({ key: `face:${s.id}`, url: suggestionFaceThumb(s.faceId) }))
+  const remaining = Math.max(0, 6 - faceThumbs.length)
+  const mergeThumbs: ReviewPreviewThumb[] = remaining > 0
+    ? people.mergeQuestions.slice(0, remaining).map((p) => {
+      const faceId = p.intoFaceIds[0] ?? p.fromFaceIds[0] ?? ''
+      return { key: `merge:${p.id}`, url: suggestionFaceThumb(faceId) }
+    })
+    : []
+  return [...faceThumbs, ...mergeThumbs].slice(0, 6)
+})
 const reviewOpen = ref(false)
 
 // ClusterActionDialog only emits and never touches the store/toast (see the division of labor
@@ -423,6 +439,11 @@ onMounted(() => {
   // this GET also doubles as the 404 feature-detection probe for suggestionsSupported, so a
   // legacy backend without the endpoint never flashes the section before hiding it.
   void people.fetchSuggestions()
+  // Merge-cards feature: eager fetch (not lazy), same rationale as fetchSuggestions right
+  // above — this GET also doubles as the 404 feature-detection probe for
+  // mergeQuestionsSupported, so a backend without the feat/cluster-merge-questions branch
+  // never flashes the entry card before hiding it.
+  void people.fetchMergeQuestions()
   // P8a-T6: now reads from the shared photosSettings store (§7e-10). The sidebar
   // (PhotosSidebar, also mounted on this page) calls fetchAiFeatures() in the same frame too —
   // concurrent dedup is handled in settings.ts, so there's nothing to worry about here.
@@ -551,27 +572,30 @@ onUnmounted(() => {
                Replaces the old per-group card grid (inline ✓/✕ buttons, group-level
                Confirm-all/Reject-all, and its click-to-enlarge peek overlay) with a single
                compact entry: a preview strip of pending face thumbs + a "Start review" button
-               that opens PeopleReviewWizard.vue full-screen. Gated exactly like before (title
-               included) on suggestionsSupported && suggestionCount>0 — a legacy backend without
-               the endpoint, or one with zero open suggestions, both render nothing here. The
-               section disappears the moment the store's suggestionCount hits zero (all decided
-               via the wizard), purely a consequence of this same v-if re-evaluating. -->
+               that opens PeopleReviewWizard.vue full-screen. Gated on
+               people.reviewQueueCount>0 — a computed summing suggestionCount AND
+               mergeQuestionCount (merge-cards feature, 2026-08-21): a legacy backend missing
+               either endpoint contributes 0 from that source (both fetchers already no-op to
+               an empty list on 404), so no separate supported-flag check is needed here — a
+               backend with only ONE of the two features still shows the card correctly. The
+               section disappears the moment reviewQueueCount hits zero (everything decided via
+               the wizard), purely a consequence of this same v-if re-evaluating. -->
           <section
-            v-if="people.suggestionsSupported && people.suggestionCount > 0"
+            v-if="people.reviewQueueCount > 0"
             class="people-suggestions"
             data-test="people-suggestions"
           >
             <div class="section-head" data-test="section-suggestions">
               <h2>{{ t('photosPeopleSuggestions') }}</h2>
-              <span class="sub">({{ people.suggestionCount }})</span>
+              <span class="sub">({{ people.reviewQueueCount }})</span>
             </div>
             <div class="suggestion-entry-card" data-test="suggestion-entry-card">
               <div class="suggestion-entry-preview" data-test="suggestion-entry-preview">
                 <img
-                  v-for="s in suggestionPreviewFaces" :key="s.id"
+                  v-for="thumb in reviewPreviewThumbs" :key="thumb.key"
                   class="suggestion-entry-thumb"
                   data-test="suggestion-entry-thumb"
-                  :src="suggestionFaceThumb(s.faceId)"
+                  :src="thumb.url"
                   alt=""
                 >
               </div>

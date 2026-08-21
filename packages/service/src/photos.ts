@@ -293,6 +293,26 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/persons/merge-suggestions/reject', { from_id: fromId, into_id: intoId })
       return body<unknown>(res.data)
     },
+    // ─── Cluster-merge questions v2 (merge-cards feature) ───
+    // Distinct from mergeSuggestions/rejectMergeSuggestion above (the legacy centroid-based,
+    // computed-on-the-fly endpoint backed by the `merge_rejections` table): these are the HAC
+    // gray-band cluster-pair review questions surfaced by NimoOS-Photos' feat/cluster-merge-
+    // questions branch (PR #6) — a whole new backend feature with its own `merge_suggestions`
+    // table and its own open/accepted/rejected lifecycle, sharing no code path with the legacy
+    // endpoint. Response is object-wrapped ({pairs:[...]}, not a bare array), matching the
+    // listPersonSuggestions convention just above — normalization stays in the store layer.
+    async listMergeQuestions(): Promise<unknown> {
+      const res = await http.get('/photos/persons/merge-suggestions/v2')
+      return body<unknown>(res.data)
+    },
+    async acceptMergeQuestion(id: string): Promise<unknown> {
+      const res = await http.post(`/photos/persons/merge-suggestions/v2/${id}/accept`, {})
+      return body<unknown>(res.data)
+    },
+    async rejectMergeQuestion(id: string): Promise<unknown> {
+      const res = await http.post(`/photos/persons/merge-suggestions/v2/${id}/reject`, {})
+      return body<unknown>(res.data)
+    },
     async reclusterFaces(): Promise<unknown> {
       const res = await http.post('/photos/persons/recluster', {})
       return body<unknown>(res.data)

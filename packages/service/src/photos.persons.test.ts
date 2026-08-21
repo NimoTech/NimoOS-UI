@@ -74,6 +74,19 @@ describe('photos persons', () => {
     expect(calls[3]).toMatchObject({ method: 'post', url: '/photos/persons/recluster' })
     expect(calls[4]).toMatchObject({ method: 'post', url: '/photos/persons/p1/detach', body: { assetIds: ['a1'] } })
   })
+  // Merge-cards feature: cluster-merge questions v2 (HAC gray-band review queue), distinct from
+  // the legacy mergeSuggestions/rejectMergeSuggestion pair above (no shared code path — see
+  // photos.ts's own header comment on these three methods).
+  it('merge questions v2: list / accept / reject', async () => {
+    const { http, calls } = capture()
+    const p = createPhotos(http, noToken)
+    await p.listMergeQuestions()
+    await p.acceptMergeQuestion('mq1')
+    await p.rejectMergeQuestion('mq2')
+    expect(calls[0]).toMatchObject({ method: 'get', url: '/photos/persons/merge-suggestions/v2' })
+    expect(calls[1]).toMatchObject({ method: 'post', url: '/photos/persons/merge-suggestions/v2/mq1/accept', body: {} })
+    expect(calls[2]).toMatchObject({ method: 'post', url: '/photos/persons/merge-suggestions/v2/mq2/reject', body: {} })
+  })
   it('personFaceThumbnailUrl includes token', () => {
     const p = createPhotos({} as AxiosInstance, () => 'T1')
     expect(p.personFaceThumbnailUrl('p1')).toBe('/v1/photos/persons/p1/face-thumbnail?token=T1')
