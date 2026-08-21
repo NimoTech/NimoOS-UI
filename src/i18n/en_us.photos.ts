@@ -372,14 +372,13 @@ export default {
   photosPeopleFacesOffLink: 'Settings · AI behavior',
   photosPeopleMlOfflineTitle: 'Photos AI backend is offline',
   photosPeopleMlOfflineBody: 'Face recognition and smart search are paused while the Photos AI service starts up or is unavailable. Existing people stay visible.',
-  photosPeopleMergeFound: 'Nimo found {n} possible merges',
+  // 2026-08-20 (people-confirm-polish item 1): the old whole-cluster merge-suggestion banner
+  // (photosPeopleMergeFound/photosPeopleMergeReview/photosPeopleMergeDismissAll) was removed
+  // along with MergeReviewDialog. The two reason keys below stay — mergeReasonKey (peopleView.ts)
+  // itself wasn't deleted (a pure, already-tested helper a future merge-cards feature would
+  // likely reuse), just its only current caller.
   photosPeopleMergeReasonNamed: 'Two clusters look {pct}% alike — likely both {name}.',
   photosPeopleMergeReasonUnnamed: 'Two clusters look {pct}% alike — likely the same person.',
-  photosPeopleMergeReview: 'Review',
-  // ★ New-UI addition (fix-1): Vue2 dismiss-all icon button has no title/aria (a11y gap in
-  // Vue2 itself, verified no title=/aria-label= anywhere in PhotosPeopleView.vue); New-UI
-  // must have an aria-label regardless, wording given directly by coordinator
-  photosPeopleMergeDismissAll: 'Dismiss all merge suggestions',
   photosPeoplePinned: 'Pinned',
   photosPeoplePinnedHint: "People you've favorited",
   photosPeopleNamedSection: 'Named',
@@ -415,25 +414,15 @@ export default {
   photosPersonConfirmDelete: 'Confirm delete',
   photosPersonDeletedToast: '{label} deleted',
   photosPersonUndo: 'Undo',
-  photosPersonMergeSuggestTitle: 'Possible merge {idx} / {total}',
+  // 2026-08-20 (people-confirm-polish item 1): MergeReviewDialog.vue is deleted; the keys that
+  // existed solely for it (photosPersonMergeSuggestTitle/photosPersonNotAMatch/
+  // photosPersonMergeAs/photosPersonMergeGroupA/B/photosPersonMergeNimoLead/
+  // photosPersonMergeDismissedToast) are removed with it (checked: no remaining references).
+  // photosPersonMergeSuggestConfidence stays — still used by ClusterActionDialog.vue.
+  // photosPersonMergeAsSame stays — still reused by PhotosPeople.vue/PhotosPersonDetail.vue's
+  // merge-success toasts.
   photosPersonMergeSuggestConfidence: 'Confidence {n}%',
-  photosPersonNotAMatch: 'Not a match',
-  // Vue2 is $t('Merge as') + inline name; New-UI composes a single key
-  photosPersonMergeAs: 'Merge as {name}',
   photosPersonMergeAsSame: 'same person',
-  // T8 addition (not in the brief's enumerated key list; confirmed missing, added per the
-  // "确实缺了报上来" instruction — flagged in the task report). Vue2's review dialog fixed
-  // labels under the two comparison columns: $t('Cluster A')/$t('Cluster B') (:400,418).
-  photosPersonMergeGroupA: 'Cluster A',
-  photosPersonMergeGroupB: 'Cluster B',
-  // T8 addition: brand prefix on the reason bar, $t('Nimo:') (:423) — literal in both locales.
-  photosPersonMergeNimoLead: 'Nimo:',
-  // T8 addition: onRejectReview's toast text, $t('Suggestion dismissed') (:613). The accept
-  // path deliberately reuses the existing photosPersonMergedToast instead of adding a second
-  // "Merged as …" key — same consolidation pattern already used for mergeReason/PersonAvatar
-  // (Vue2 has two literally-different but semantically-identical toasts here); flagged in the
-  // task report as an intentional consolidation, not an oversight.
-  photosPersonMergeDismissedToast: 'Suggestion dismissed',
   // Plan D Task 3: photosPersonSubtitle ('Person details · faces & relationships') is back.
   // Final-review Minor 8 (earlier P5) deleted this because the detail page's topbar was still
   // AreaShell (title-only, hidden on desktop) — Vue2 PhotosPeopleTopbar.vue:36's detail-state

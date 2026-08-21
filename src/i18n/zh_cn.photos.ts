@@ -364,13 +364,13 @@ export default {
   photosPeopleFacesOffLink: '设置 · AI 行为',
   photosPeopleMlOfflineTitle: 'Photos AI 后端离线',
   photosPeopleMlOfflineBody: '人脸识别与智能搜索暂时暂停，直到 Photos AI 服务启动完成或恢复可用。现有人物仍会显示。',
-  photosPeopleMergeFound: 'Nimo 发现了 {n} 个可能的合并',
   // 术语红线:"集群"同"簇/聚类"一类工程词,面向用户文案不用,改"两组人脸/已合并到"(fix-1)
+  // 2026-08-20(people-confirm-polish item 1):旧的整簇合并建议横幅(photosPeopleMergeFound/
+  // photosPeopleMergeReview/photosPeopleMergeDismissAll)与 MergeReviewDialog 一起已删除;
+  // 这两条 reason 键仍留着——mergeReasonKey(peopleView.ts)本身没删(纯函数、有自己的单测,
+  // 未来的合并卡片功能大概率还要用它),但当前视图层已无调用点。
   photosPeopleMergeReasonNamed: '两组人脸高度相似（{pct}%），可能都是 {name}。',
   photosPeopleMergeReasonUnnamed: '两组人脸高度相似（{pct}%），可能是同一个人。',
-  photosPeopleMergeReview: '查看',
-  // ★ New-UI 补齐:Vue2 该关闭按钮无 title/aria(a11y 缺口),New-UI 必须补 aria-label,协调者已给定文案(fix-1)
-  photosPeopleMergeDismissAll: '忽略全部合并建议',
   photosPeoplePinned: '置顶',
   photosPeoplePinnedHint: '你收藏的人物',
   photosPeopleNamedSection: '已命名',
@@ -407,25 +407,14 @@ export default {
   photosPersonConfirmDelete: '确认删除',
   photosPersonDeletedToast: '{label} 已删除',
   photosPersonUndo: '撤销',
-  photosPersonMergeSuggestTitle: '可能的合并 {idx} / {total}',
+  // 2026-08-20(people-confirm-polish item 1):MergeReviewDialog.vue 已删除,专供它使用的
+  // photosPersonMergeSuggestTitle/photosPersonNotAMatch/photosPersonMergeAs/
+  // photosPersonMergeGroupA/B/photosPersonMergeNimoLead/photosPersonMergeDismissedToast
+  // 一并移除(逐一核实过在其余代码里已无引用)。photosPersonMergeSuggestConfidence 仍被
+  // ClusterActionDialog.vue 使用,photosPersonMergeAsSame 仍被 PhotosPeople.vue/
+  // PhotosPersonDetail.vue 的合并成功提示复用,两者都保留。
   photosPersonMergeSuggestConfidence: '置信度 {n}%',
-  photosPersonNotAMatch: '不是同一个人',
-  // Vue2 是 $t('Merge as') + 内嵌名字,New-UI 合成单键
-  photosPersonMergeAs: '合并为 {name}',
   photosPersonMergeAsSame: '同一个人',
-  // T8 新增(brief 列举的键里没有,确认缺失后补的):Vue2 审阅弹窗两列对比下方的固定标签
-  // $t('Cluster A')/$t('Cluster B')(:400,418),旧仓 zh_CN.json:1993-1994 原译"集群 A/B"——
-  // "集群"触犯本期术语红线(同 :803 fix-1 的先例),改用"组 A/B"。
-  photosPersonMergeGroupA: '组 A',
-  photosPersonMergeGroupB: '组 B',
-  // T8 新增:Vue2 审阅弹窗理由条的品牌前缀 $t('Nimo:')(:423),旧仓 zh_CN.json:2091 原译
-  // 就是字面 "Nimo:"(品牌名,中英一致,不翻译)。
-  photosPersonMergeNimoLead: 'Nimo:',
-  // T8 新增:Vue2 onRejectReview 拒绝后的 toast 文案 $t('Suggestion dismissed')(:613)。
-  // accept 路径复用既有 photosPersonMergedToast(:812)而不是另建一个"Merged as…"键——
-  // 两句在 Vue2 里字面不同,但语义都是"已合并到 X",同 mergeReason/PersonAvatar 的既有
-  // 统一惯例(把 Vue2 里重复的同义文案收成一份),已在任务报告里登记这条不是疏漏。
-  photosPersonMergeDismissedToast: '已忽略该合并建议',
   // Plan D Task 3: photosPersonSubtitle ("Person detail · faces & relations") is revived. Final
   // review Minor 8 (back in the earlier P5 phase) deleted it, on the grounds that the detail
   // page's topbar was AreaShell at the time (title only, hidden entirely on desktop), so Vue2

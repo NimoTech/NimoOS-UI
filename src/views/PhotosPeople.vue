@@ -11,9 +11,8 @@
 // Plan D Task 2 (re-shell): the transitional AreaShell/.photos-layout shell has been swapped for
 // PhotosAlbums.vue's own Plan C Task 2 `.photos-root > .app[data-collapsed] > PhotosSidebar +
 // main.main > PhotosTopbar + .photos-main` structure (useSidebarCollapse shared singleton). The
-// three overlays (cluster-menu/ClusterActionDialog/MergeReviewDialog) moved back inside
-// `.photos-root` (a sibling of `.app`) along with it — see their own comments above for why. Full
-// detail in task-2-report.md.
+// overlays (cluster-menu/ClusterActionDialog) moved back inside `.photos-root` (a sibling of
+// `.app`) along with it — see their own comments above for why. Full detail in task-2-report.md.
 //
 // T7 (added this round): wires up ClusterActionDialog (the name/merge/delete three-mode dialog);
 // `dialog` state moves from T6's hidden placeholder node to a real dialog. The store calls,
@@ -22,12 +21,20 @@
 // the header comment in ClusterActionDialog.vue). Route registration and the sidebar entry
 // belong to T16.
 //
-// T8 (added this round): wires up MergeReviewDialog (the merge-suggestion review dialog);
-// `reviewOpen`/`reviewIdx` move from T7's leftover hidden placeholder node to a real dialog. The
-// store calls, independent in-flight guards, toasts, and index clamping for both the accept/
-// reject submit paths all live here (same division of labor as above — the dialog itself only
-// emits). Why the clamping logic lives in the host rather than the dialog: the host is the one
-// holding both the suggestions array and the index state (the brief explicitly requires this).
+// 2026-08-20 (people-confirm-polish item 1, post-acceptance product decision): T8's
+// merge-suggestion review flow (the "Nimo found N possible merges" banner + MergeReviewDialog,
+// `reviewOpen`/`reviewIdx`/`openReview`/`clampReviewIndex`/`onReviewAccept`/`onReviewReject`, plus
+// the `firstSuggestion`/`mergeReasonText`/`suggestionId`/`verOf`/`reviewSuggestions` computeds
+// that fed the banner) has been removed entirely — at the backend's current thresholds it
+// surfaced 6266 noisy pairs, and it's superseded in spirit by the newer per-face "To confirm"
+// suggestion cards section below (suggestionGroups/decideSuggestion/decideGroup — a separate
+// backend feature, unaffected by this removal). MergeReviewDialog.vue had no other importer
+// repo-wide and was deleted along with its test file. The store's mergeSuggestions state and
+// fetchMergeSuggestions/acceptMergeSuggestion/rejectMergeSuggestion/dismissAllMerges were also
+// removed from people.ts — nothing else in the app consumed them (see people.ts's own header
+// note); mergePersonInto (T7's merge path, kept) no longer refetches that now-gone list. The
+// duplicate-name merge prompt on PhotosPersonDetail.vue is a wholly separate flow (renamePerson's
+// own dup-name detection, not this suggestion machinery) and is untouched.
 //
 // Two Vue2 bug fixes for T7 (explicitly required by the brief, not copied as-is):
 //  8) Vue2 confirmMergeTo :654-660 doesn't await the potentially-rejecting mergeClusterInto, and
@@ -91,7 +98,6 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
-import MergeReviewDialog, { type MergeSuggestion } from '../photos/components/MergeReviewDialog.vue'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { useAskNimo } from '../photos/composables/useAskNimo'
 import { service } from '@nimotech/nimoos-service'
@@ -100,7 +106,7 @@ import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
 import {
-  mergeConfidencePct, mergeReasonKey, sortNamed, type Person,
+  mergeConfidencePct, sortNamed, type Person,
 } from '../photos/util/peopleView'
 
 type FilterId = 'all' | 'family' | 'friend' | 'work' | 'recent'
@@ -128,11 +134,8 @@ const sortOpen = ref(false)
 const clusterMenu = ref<{ person: Person; x: number; y: number } | null>(null)
 // T7 (Plan D): the "Hidden people" section, collapsed by default (mirroring Vue2 hiddenExpanded :559).
 const hiddenExpanded = ref(false)
-// T7 three-mode dialog state (wired to a real dialog this round) / T8 review dialog state
-// (still a placeholder node).
+// T7 three-mode dialog state.
 const dialog = ref<{ mode: DialogMode; person: Person } | null>(null)
-const reviewOpen = ref(false)
-const reviewIdx = ref(0)
 // Independent in-flight guards for naming/merging (hard constraint from the brief: this class
 // of bug was caught three times during the P4 phase). The two refs are kept separate and not
 // shared — same rationale as the AlbumPickerDialog.vue:35-42 precedent: both paths can be
@@ -204,23 +207,6 @@ const topbarSub = computed(() => t('photosPeopleTopbarSub', {
   named: people.named.length,
   unnamed: filteredUnnamed.value.length,
 }))
-
-const firstSuggestion = computed(() => people.mergeSuggestions[0] ?? null)
-const mergeReasonText = computed(() => {
-  const r = mergeReasonKey(firstSuggestion.value as { confidence?: unknown; intoName?: unknown } | null)
-  return t(r.key, r.params)
-})
-function suggestionId(k: 'fromId' | 'intoId'): string | number | null {
-  const s = firstSuggestion.value
-  const v = s ? (s[k] as string | number | undefined) : undefined
-  return v ?? null
-}
-// Avatar cache-busting version = that person's coverFaceId (same semantics as Vue2 :560-563's
-// avatarUrl, but here we only take the ver — the URL is generated internally by PersonAvatar via
-// the service). Pass null if the person can't be found.
-function verOf(id: string | number | null): string | number | null {
-  return id == null ? null : (people.personById(id)?.coverFaceId ?? null)
-}
 
 // Deviation logged (plan item 9): Vue2 :575-580 hardcodes the locale to 'en', which shows
 // English month names under a Chinese UI. Here it follows the current i18n locale instead
@@ -367,119 +353,6 @@ async function onDecideSuggestionGroup(personId: string | number, accept: boolea
   }
 }
 
-function openReview(): void {
-  reviewIdx.value = 0
-  reviewOpen.value = true
-}
-
-// T8: the store's mergeSuggestions is a loose type passed straight through from backend JSON
-// (Array<Record<string, unknown>>), while MergeReviewDialog's contract requires the narrower
-// MergeSuggestion[] shape — the runtime fields on both actually match (id/fromId/intoId/
-// intoName/confidence), so this is just narrowing the type for the dialog's benefit, not a data
-// transform.
-const reviewSuggestions = computed<MergeSuggestion[]>(
-  () => people.mergeSuggestions as unknown as MergeSuggestion[],
-)
-
-// Per the brief: the index-clamping logic lives in the host (which holds both suggestions and
-// index); the dialog only emits.
-// The store's acceptMergeSuggestion/rejectMergeSuggestion already **synchronously** strip this
-// suggestion out of mergeSuggestions right at the top of the function (see the header comment
-// in people.ts), so the suggestions.length seen here after the await completes already reflects
-// the post-removal result — there's no need to decrement it again ourselves.
-function clampReviewIndex(): void {
-  const len = people.mergeSuggestions.length
-  if (len === 0) { reviewOpen.value = false; return }
-  if (reviewIdx.value >= len) reviewIdx.value = Math.max(0, len - 1)
-}
-
-// Per Vue2 onAcceptReview :595-604, changed to await (the Vue2 original doesn't await —
-// fire-and-forget). Reuses the existing photosPersonMergedToast for the toast (the brief didn't
-// give a separate key for "Merged as…"; it shares the same "merged into X" semantics as T7's
-// onSubmitMerge success toast, and has already been logged in the report as an intentional
-// unification, not an oversight). intoName must be captured **before** calling the store — the
-// store synchronously strips this suggestion out of the array first, so it can no longer be
-// found by that name after the call.
-//
-// Review-mandated fix (second round, same precedent as T7 §11): the brief requires "both paths
-// need independent in-flight guard refs", and the draft did in fact add one each
-// (reviewAccepting/reviewRejecting). Delete-and-verify pass: temporarily changed both
-// `if (guard) return` sites to `if (false) return` (neutralizing the guard check entirely,
-// leaving everything else unchanged), then reran the entire "T8 merge-suggestion review dialog
-// wiring" describe block — both "double-click fires only once" regression tests stayed fully
-// green, and the full T7/T8 test suite (50/50) stayed green too. What actually blocks a second
-// call is two pre-existing mechanisms, not these two refs:
-//   1) This component's MergeReviewDialog.onAccept/onReject each start with
-//      `if (!current.value) return` (in MergeReviewDialog.vue) — the store's
-//      acceptMergeSuggestion/rejectMergeSuggestion **synchronously** strips this suggestion out
-//      of the mergeSuggestions array right at the top of the function body (see the header
-//      comment in people.ts), and that removal happens before any await, without waiting on the
-//      network. Once the first click's entire synchronous chain (dispatch → emit → this
-//      function's body up to the first await) finishes running, `current.value` is already
-//      `undefined` — no matter how far apart the second click is (even with zero delay between
-//      the two clicks, the browser still dispatches two separate click events sequentially; it
-//      never interleaves two event handlers within the same synchronous call stack), so the
-//      dialog's own button will never emit a second time in the first place.
-//   2) Even if some hypothetical path bypassed the dialog and called this twice directly (a
-//      hypothetical scenario that doesn't currently exist), the store-side `if (s) { ... }`
-//      check is itself idempotent — when the suggestion can't be found (already removed by the
-//      first call), the entire try/catch/finally block simply doesn't run, so a second call is
-//      a safe no-op.
-// Both layers of protection already exist, so the independent ref is just decorative "standard
-// shape" with no real protective value — same as the `deletingSubmitting` ref on T7's delete
-// path — removed. Reverting `if (false) return` to nothing (i.e. removing that whole check along
-// with the ref) and rerunning still leaves the tests green.
-//
-// ⚠ Dependency caveat (the coordinator specifically asked for this to be called out on its own,
-// not buried in the paragraph above): the conclusion above that "an independent guard ref isn't
-// needed" **depends on the current implementation order in people.ts's
-// acceptMergeSuggestion/rejectMergeSuggestion — synchronously filtering out the suggestion
-// first, then awaiting the backend** (a T2 implementation detail). If someone later reverses
-// that order (e.g. changing it to await confirmation first and only remove on success, aiming
-// for "don't touch local state on failure" semantics), `current.value` would no longer become
-// undefined immediately after the first click, this section's "naturally reentrancy-safe"
-// argument would no longer hold, and it would need to be reassessed whether an independent
-// guard ref should be added back.
-async function onReviewAccept(id: string | number): Promise<void> {
-  const s = people.mergeSuggestions.find((m) => String(m.id) === String(id))
-  const intoName = (s?.intoName as string | undefined) ?? ''
-  try {
-    await people.acceptMergeSuggestion(id)
-    toast.show(t('photosPersonMergedToast', { name: intoName || t('photosPersonMergeAsSame') }))
-  } catch {
-    // Failure: the store fires a void fetchMergeSuggestions() corrective refetch (per the
-    // header comment in people.ts: "optimistically remove the suggestion first, then refetch
-    // the suggestion list on failure to correct it"). Which lands first — the clampReviewIndex()
-    // in the finally block below, or that corrective refetch — is a natural timing race. Under
-    // real network latency, clamp almost always runs first (the suggestion is still gone at that
-    // point, so if it was the last one the dialog closes); under the fully-synchronous mocks
-    // used in unit tests, the order flips (the refetch lands first, the suggestion is restored,
-    // and the dialog doesn't close). This is a race inherent to the design, not a bug being
-    // fixed here — task-8-report.md §8 has a fuller explanation. The test
-    // (PhotosPeople.test.ts "failure: ...") deliberately doesn't assert the dialog's open/closed
-    // state, only the call arguments and the failure toast.
-    toast.show(t('photosPersonMergeFailed'))
-  } finally {
-    clampReviewIndex()
-  }
-}
-
-// Per Vue2 onRejectReview :605-614, changed to await. Reuses photosPersonMergeFailed for the
-// failure toast rather than opening a separate key for "dismiss failed" (already logged in the
-// report). Same delete-and-verify conclusion as the paragraph above — no independent guard ref
-// added; the same current.value dependency caveat (see the ⚠ caveat at the top of
-// onReviewAccept) and the failure-path race note apply here too and aren't repeated.
-async function onReviewReject(id: string | number): Promise<void> {
-  try {
-    await people.rejectMergeSuggestion(id)
-    toast.show(t('photosPersonMergeDismissedToast'))
-  } catch {
-    toast.show(t('photosPersonMergeFailed'))
-  } finally {
-    clampReviewIndex()
-  }
-}
-
 // ClusterActionDialog only emits and never touches the store/toast (see the division of labor
 // in that component's header comment) — the actual calls, reentrancy guards, and toasts for all
 // three submit paths all live here. `update:open(false)` always routes through closeDialog
@@ -581,7 +454,6 @@ onMounted(() => {
   // Vue2 :526-527 refetches every time the page is entered, with no loaded-flag dedup; carried
   // over as-is.
   void people.fetchPeople()
-  void people.fetchMergeSuggestions()
   // T7: eager fetch (not lazy) — per Vue2 mounted :622's own comment: this is a cheap GET that
   // also doubles as the 404 feature-detection probe, so a legacy backend won't flash the section
   // and then make it disappear. The section itself is still collapsed by default; only the count
@@ -709,33 +581,9 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Merge-suggestion banner: an independent v-if, can appear alongside the warning banner (per Vue2 :115) -->
-          <div v-if="people.mergeSuggestions.length > 0" class="merge-banner" data-test="merge-banner">
-            <div class="icon-wrap">
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
-            </div>
-            <div class="body">
-              <div class="title">{{ t('photosPeopleMergeFound', { n: people.mergeSuggestions.length }) }}</div>
-              <div class="desc">{{ mergeReasonText }}</div>
-            </div>
-            <div class="stack">
-              <!-- Vue2 scss:266-268's .stack .dot is 28px **including** the 2px border (border-box),
-                   so the inner avatar is 24px and the total outer diameter is 28px. Review Minor fix:
-                   passing 28 plus a 2px border would have produced a 32px outer diameter. -->
-              <div class="stack-dot"><PersonAvatar :person-id="suggestionId('fromId')" :ver="verOf(suggestionId('fromId'))" :size="24" /></div>
-              <div class="stack-dot"><PersonAvatar :person-id="suggestionId('intoId')" :ver="verOf(suggestionId('intoId'))" :size="24" /></div>
-            </div>
-            <button type="button" class="btn people-btn-primary" data-test="merge-review" @click="openReview">
-              {{ t('photosPeopleMergeReview') }}
-            </button>
-            <button
-              type="button"
-              class="people-icon-btn"
-              data-test="merge-dismiss"
-              :aria-label="t('photosPeopleMergeDismissAll')"
-              @click="people.dismissAllMerges()"
-            >&#215;</button>
-          </div>
+          <!-- 2026-08-20 (people-confirm-polish item 1): the old whole-cluster merge-suggestion
+               banner ("Nimo found N possible merges…") that used to sit here has been removed —
+               see the file header note for why. -->
 
           <!-- ── Suggestion confirmation cards (Plan C Task 2, 2026-08-20
                people-suggestions-ui): per-face join/review suggestions grouped by person,
@@ -1008,21 +856,6 @@ onUnmounted(() => {
       @submit-delete="onSubmitDelete"
     />
 
-    <!-- T8: the merge-suggestion review dialog is wired up. update:index is declared but never
-         actually emitted (see the header comment in MergeReviewDialog — there's no separate
-         "jump to item N" navigation control); the wiring still covers it fully to keep the
-         contract consistent. The only path that currently changes reviewIdx on the host side is
-         clampReviewIndex after accept/reject. -->
-    <MergeReviewDialog
-      :open="reviewOpen"
-      :suggestions="reviewSuggestions"
-      :index="reviewIdx"
-      :people="people.people"
-      @update:open="(v) => { if (!v) reviewOpen = false }"
-      @update:index="(v) => { reviewIdx = v }"
-      @accept="onReviewAccept"
-      @reject="onReviewReject"
-    />
     <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
          shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
          mount this once at. -->
@@ -1119,19 +952,6 @@ onUnmounted(() => {
 .merge-banner.is-warn { background: var(--warn-bg); border-color: var(--warn-border); }
 .merge-banner.is-warn .icon-wrap { background: color-mix(in srgb, var(--warn-fg) 18%, transparent); color: var(--warn-fg); }
 .merge-banner.is-warn .title { color: var(--warn-fg); }
-
-/* The merge-suggestion banner's two-avatar stack. Selector name differs from parity's `.dot`
-   (this page's template uses `.stack-dot`) for a structural reason, not just naming: Vue2's own
-   `.dot` sizes itself explicitly (width/height, scss:267-268) because it wraps a plain `<img>`;
-   here PersonAvatar is handed `:size="24"` directly and sizes its own box, so `.stack-dot` only
-   needs to add the 2px border (making the true outer diameter 28px via border-box — see the
-   template's own comment by the `.stack` markup) — no separate width/height/overflow/background
-   declarations to duplicate. Border token corrected from a stray `--panel-bg` reference (a
-   translucent floating-glass token, wrong semantics for a cutout ring against this page's own
-   flat background) to parity's own `--surface-1` — the token that actually matches the
-   page background this ring needs to blend into. */
-.merge-banner .stack .stack-dot { border-radius: 50%; border: 2px solid var(--surface-1); margin-left: -10px; line-height: 0; }
-.merge-banner .stack .stack-dot:first-child { margin-left: 0; }
 
 /* Hidden-people section: these five were previously inline `style="..."` attributes on the
    template (repo convention is class over inline style; no visual change, values transcribed

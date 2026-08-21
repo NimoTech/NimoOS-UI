@@ -1,9 +1,19 @@
 // Ported from Vue2 NimoOS-UI src/store/modules/photos.js:
-//   state      :277-292   (people / peopleLoaded / facesIndexedUpTo / peopleFilter / mergeSuggestions)
+//   state      :277-292   (people / peopleLoaded / facesIndexedUpTo / peopleFilter)
 //   mutations  :350-361, :503-529
 //   actions    :1079-1099 (fetch/filter), :1100-1120 (rename/relation/fav),
-//              :1121-1132 (cover), :1143-1153 (merge), :1171-1211 (purge+undo), :1224-1248 (suggestions)
+//              :1121-1132 (cover), :1143-1153 (merge), :1171-1211 (purge+undo)
 // Photos v1 backend has no envelope: listPersons is a { persons, facesIndexedUpTo } object wrapper; not unwrapped inside, self-unwrapped here.
+// 2026-08-20 (people-confirm-polish item 1): the whole-cluster mergeSuggestions state and its
+// fetchMergeSuggestions/acceptMergeSuggestion/rejectMergeSuggestion/dismissAllMerges (ported from
+// Vue2 :1224-1248, backing the People page's old merge-suggestion banner + MergeReviewDialog)
+// were removed here — the banner/dialog were removed as noisy/superseded by the newer per-face
+// "To confirm" suggestion cards (suggestionGroups/decideSuggestion/decideGroup below, a separate
+// backend feature). Checked every consumer first: nothing outside the banner + MergeReviewDialog.vue
+// read this state, so it was genuinely dead once those two were deleted. mergePersonInto (still
+// used by ClusterActionDialog's merge flow) no longer refetches this list either. The backend
+// endpoints (service.photos.mergeSuggestions()/rejectMergeSuggestion()) are untouched in case a
+// future merge-cards feature wants to reuse them.
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
@@ -77,7 +87,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // (P3 hard lesson: unconditional setting makes transient failure indistinguishable from "confirmed zero people"). Vue2's peopleLoaded is a write-only dead field.
   const peopleLoaded = ref(false)
   const facesIndexedUpTo = ref<string | null>(null)
-  const mergeSuggestions = ref<Array<Record<string, unknown>>>([])
 
   // Task 7 (Plan D): Hidden people section state (mirroring Vue2 photos.js:392-399).
   const hiddenPeople = ref<Person[]>([])
@@ -160,16 +169,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
       // Divergence record: Vue2 (photos.js:1086-1089) clears list to [] here, a single network blip erases loaded data.
       // Here only log, keep previous data; peopleLoaded not set (first failure leaves false for retry).
       console.error('[photos-people] fetchPeople', e)
-    }
-  }
-
-  async function fetchMergeSuggestions(): Promise<void> {
-    try {
-      const list = (await service.photos.mergeSuggestions()) as Array<Record<string, unknown>> | undefined
-      mergeSuggestions.value = Array.isArray(list) ? list : []
-    } catch (e) {
-      // Same as above: Vue2 :1095-1098 clears on failure, here keep previous data.
-      console.error('[photos-people] fetchMergeSuggestions', e)
     }
   }
 
@@ -262,7 +261,12 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // Follow Vue2 mergeClusterInto :1143-1153: throw to call site, and finally unconditionally refetch both data (both success and failure).
+  // Follow Vue2 mergeClusterInto :1143-1153: throw to call site, and finally unconditionally refetch
+  // the person list (both success and failure). Used to also refresh the old whole-cluster
+  // mergeSuggestions list here (People-page merge-suggestion banner removed — see the item-1
+  // header note above the old mergeSuggestions state, now deleted along with fetchMergeSuggestions/
+  // acceptMergeSuggestion/rejectMergeSuggestion/dismissAllMerges — none of them had any remaining
+  // consumer once the banner and MergeReviewDialog were removed).
   async function mergePersonInto(fromId: string | number, intoId: string | number): Promise<void> {
     try {
       await service.photos.mergePersons(fromId, intoId)
@@ -271,7 +275,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
       throw e
     } finally {
       void fetchPeople()
-      void fetchMergeSuggestions()
     }
   }
 
@@ -337,43 +340,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     _purgeTimers.set(k, entry)
     return undo
   }
-
-  // Merge suggestion: optimistically remove suggestion first, on failure refetch suggestion list to correct (follow Vue2 :1224-1246).
-  // accept's finally unconditionally fetchPeople (merge changes person list); reject doesn't touch person list.
-  async function acceptMergeSuggestion(suggestionId: string | number): Promise<void> {
-    const s = mergeSuggestions.value.find((m) => key(m.id as string | number) === key(suggestionId))
-    mergeSuggestions.value = mergeSuggestions.value.filter((m) => key(m.id as string | number) !== key(suggestionId))
-    // Fix (review required): brief snapshot puts `finally { fetchPeople() }` outside `if (s)`,
-    // when suggestionId not found locally (already consumed elsewhere/expired) will also waste one listPersons call—Vue2
-    // :1227-1234 try/catch/finally entire block is inside `if (s)`, not found does nothing. Here
-    // move inside if(s) to align with Vue2: if merge didn't actually happen, no reason to refetch person list, reduce one pointless request.
-    if (s) {
-      try {
-        await service.photos.mergePersons(s.fromId as string | number, s.intoId as string | number)
-      } catch (e) {
-        console.error('[photos-people] acceptMergeSuggestion', e)
-        void fetchMergeSuggestions()
-        throw e
-      } finally {
-        void fetchPeople()
-      }
-    }
-  }
-
-  async function rejectMergeSuggestion(suggestionId: string | number): Promise<void> {
-    const s = mergeSuggestions.value.find((m) => key(m.id as string | number) === key(suggestionId))
-    mergeSuggestions.value = mergeSuggestions.value.filter((m) => key(m.id as string | number) !== key(suggestionId))
-    try {
-      if (s) await service.photos.rejectMergeSuggestion(s.fromId as string | number, s.intoId as string | number)
-    } catch (e) {
-      console.error('[photos-people] rejectMergeSuggestion', e)
-      void fetchMergeSuggestions()
-      throw e
-    }
-  }
-
-  // Purely local clear: backend has no "dismiss all" endpoint, next fetchMergeSuggestions suggestions will reappear (follow Vue2 :1248 comment).
-  function dismissAllMerges(): void { mergeSuggestions.value = [] }
 
   // ── Hide person (Task 7, Plan D). Mirrors Vue2's hidePersonAction/fetchHiddenPeople/
   // unhidePerson (photos.js:1585-1633) — the three actions map to Vue2's own one-for-one, not
@@ -476,12 +442,11 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
 
   // Decides a single suggestion. Optimistic removal from its group (dropping the group too if
   // it becomes empty); on accept, also refreshes the people list (a join/review confirmation can
-  // change a person's face count/cover); reject leaves the people list untouched (mirrors
-  // rejectMergeSuggestion's own "no people refresh" behavior above).
+  // change a person's face count/cover); reject leaves the people list untouched.
   async function decideSuggestion(id: string, accept: boolean): Promise<void> {
     const k = key(id)
     const found = suggestionGroups.value.some((g) => g.suggestions.some((it) => it.id === k))
-    if (!found) return   // not found locally (already decided elsewhere/expired) — no request, mirrors acceptMergeSuggestion's guard
+    if (!found) return   // not found locally (already decided elsewhere/expired) — no request
     _pendingSuggestionIds.add(k)
     suggestionGroups.value = suggestionGroups.value
       .map((g) => ({ ...g, suggestions: g.suggestions.filter((it) => it.id !== k) }))
@@ -561,7 +526,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     people.value = []
     peopleLoaded.value = false
     facesIndexedUpTo.value = null
-    mergeSuggestions.value = []
     hiddenPeople.value = []
     hiddenPeopleLoaded.value = false
     hiddenPeopleSupported.value = true
@@ -570,15 +534,14 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   }
 
   return {
-    people, peopleLoaded, facesIndexedUpTo, mergeSuggestions,
+    people, peopleLoaded, facesIndexedUpTo,
     hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
     suggestionGroups, suggestionsSupported,
     named, unnamed, visibleUnnamed, namedCount, unnamedCount, suggestionCount,
     personById, patchPerson,
-    fetchPeople, fetchMergeSuggestions,
+    fetchPeople,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
-    acceptMergeSuggestion, rejectMergeSuggestion, dismissAllMerges,
     fetchHiddenPeople, hidePerson, unhidePerson,
     fetchSuggestions, decideSuggestion, decideGroup,
     __resetForTest,
