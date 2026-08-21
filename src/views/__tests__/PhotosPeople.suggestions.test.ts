@@ -21,6 +21,8 @@ const svc = vi.hoisted(() => ({
     // owning person's cover slot involved (see the header comment on faceThumbnailUrl in
     // packages/service/src/photos.ts).
     faceThumbnailUrl: vi.fn((faceId: string) => `mock://face/${faceId}`),
+    // Item 2 (2026-08-20 people-confirm-polish): the peek overlay's full-asset image URL.
+    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
     listHiddenPersons: vi.fn().mockResolvedValue([]),
     listPersonSuggestions: vi.fn().mockResolvedValue({ groups: [] }),
     acceptPersonSuggestion: vi.fn().mockResolvedValue({ id: 's1', status: 'accepted' }),
@@ -81,6 +83,7 @@ beforeEach(() => {
   svc.photos.getConfig.mockClear().mockResolvedValue({})
   svc.photos.personFaceThumbnailUrl.mockClear()
   svc.photos.faceThumbnailUrl.mockClear()
+  svc.photos.originalUrl.mockClear()
   svc.photos.listHiddenPersons.mockClear().mockResolvedValue([])
   svc.photos.listPersonSuggestions.mockClear().mockResolvedValue({ groups: [] })
   svc.photos.acceptPersonSuggestion.mockClear().mockResolvedValue({ id: 's1', status: 'accepted' })
@@ -216,5 +219,91 @@ describe('PhotosPeople.vue — suggestion confirmation cards (Plan C Task 2)', (
     await flushPromises()
 
     expect(toast.toasts).toHaveLength(0)
+  })
+})
+
+// ── Click-to-enlarge peek (item 2, 2026-08-20 people-confirm-polish) ──
+// Thumbnails are too small to judge identity from; clicking one opens an overlay showing the
+// full asset photo (via service.photos.originalUrl(assetId), not the cropped face) for context.
+// No existing photo-viewer wiring on this page to reuse (see the comment above
+// openSuggestionPeek in PhotosPeople.vue for why PhotoLightbox/useLightbox is the wrong tool
+// here) — this is a minimal self-contained overlay.
+describe('PhotosPeople.vue — suggestion peek overlay (Plan C Task 2 follow-up, click to enlarge)', () => {
+  it('clicking a suggestion face thumbnail opens the peek overlay showing that suggestion\'s asset (originalUrl(assetId), not the face crop)', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({
+      groups: [rawGroup(ALICE, [rawSuggestion({ id: 's1', faceId: 'f1', assetId: 'asset-42' })])],
+    })
+    const { w } = await mountView()
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
+
+    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
+
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
+    expect(w.find('[data-test="suggestion-peek-img"]').attributes('src')).toBe('mock://original/asset-42')
+    expect(svc.photos.originalUrl).toHaveBeenCalledWith('asset-42')
+  })
+
+  it('Escape closes the peek overlay', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
+    const { w } = await mountView()
+    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
+  })
+
+  it('clicking the backdrop (not the image) closes the peek overlay', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
+    const { w } = await mountView()
+    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
+
+    await w.find('[data-test="suggestion-peek-overlay"]').trigger('click')
+
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
+  })
+
+  it('the close button closes the peek overlay', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
+    const { w } = await mountView()
+    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
+
+    await w.find('[data-test="suggestion-peek-close"]').trigger('click')
+
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
+  })
+
+  it('clicking the ✓/✕ hover buttons decides the suggestion and does NOT also open the peek (click.stop)', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
+    const { w } = await mountView()
+    const people = usePhotosPeople()
+    const spy = vi.spyOn(people, 'decideSuggestion')
+
+    await w.find('[data-test="suggestion-face"][data-id="s1"] [data-test="suggestion-face-accept"]').trigger('click')
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledWith('s1', true)
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
+  })
+
+  it('deciding a suggestion from the card still works after opening and closing its peek', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
+    const { w } = await mountView()
+    const people = usePhotosPeople()
+    const spy = vi.spyOn(people, 'decideSuggestion')
+
+    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
+    await w.find('[data-test="suggestion-peek-close"]').trigger('click')
+    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
+
+    await w.find('[data-test="suggestion-face"][data-id="s1"] [data-test="suggestion-face-accept"]').trigger('click')
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledWith('s1', true)
+    expect(w.find('[data-test="suggestion-face"][data-id="s1"]').exists()).toBe(false)
   })
 })

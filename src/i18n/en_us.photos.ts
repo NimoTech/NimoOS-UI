@@ -1265,4 +1265,8 @@ export default {
   // through — the store has already resynced the failed ones back into view by the time this
   // shows.
   photosPeopleSuggestPartialFail: '{n} item(s) could not be processed and were restored',
+  // 2026-08-20 (people-confirm-polish item 2): the face thumbnails are too small to judge
+  // identity from — clicking one opens an enlarged view of the full photo for context. Doubles
+  // as the thumbnail's alt text, the enlarged image's alt text, and the thumbnail's hover title.
+  photosPeopleSuggestPeekAlt: 'View full photo',
 }

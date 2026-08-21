@@ -1287,4 +1287,7 @@ export default {
   // through — the store has already resynced the failed ones back into view by the time this
   // shows.
   photosPeopleSuggestPartialFail: '有 {n} 项未处理成功,已恢复显示',
+  // 2026-08-20(people-confirm-polish item 2):人脸缩略图太小看不清,点击后放大展示这张照片的
+  // 完整原图以便判断——同时充当缩略图的 alt 文案、放大图的 alt 文案,以及缩略图的 hover title。
+  photosPeopleSuggestPeekAlt: '查看完整照片',
 }

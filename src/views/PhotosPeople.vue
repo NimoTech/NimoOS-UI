@@ -321,6 +321,32 @@ function suggestionFaceThumb(faceId: string): string {
   return service.photos.faceThumbnailUrl(faceId)
 }
 
+// 2026-08-20 (people-confirm-polish item 2, post-acceptance feedback): the face thumbnails in the
+// "To confirm" cards are too small to judge identity from — clicking one opens an enlarged view of
+// the FULL asset photo (not just the cropped face) for context, using the suggestion's own
+// assetId. This page has no existing photo-viewer wiring to reuse: PhotoLightbox/useLightbox
+// (used elsewhere in Photos) is a module-level singleton built around navigating a full Photo[]
+// list (assetToPhoto shape: width/height/isVideo/…) and drives browser-history pushState +
+// favorites side effects (recordView, reconcileFav) that make no sense for "peek at one asset from
+// a suggestion, no next/prev, no history entry" — pulling it in here would be the wrong tool, not
+// a shortcut. So this is a minimal self-contained overlay instead: just the asset's original image
+// via service.photos.originalUrl(assetId) (the existing full-resolution URL helper — same one
+// PhotoLightbox itself would eventually resolve to for a still image), Esc (folded into
+// onDocKeydown below, highest priority since it's the topmost overlay) / backdrop-click to close.
+// The ✓/✕ decision buttons are NOT duplicated inside the peek — closing it (Esc/backdrop/×) drops
+// straight back to the card, where they're immediately clickable again; this keeps the peek purely
+// a "look closer" viewer instead of a second decision surface to keep in sync with the first.
+const suggestionPeekAssetId = ref<string | null>(null)
+const suggestionPeekUrl = computed(() => (
+  suggestionPeekAssetId.value ? service.photos.originalUrl(suggestionPeekAssetId.value) : ''
+))
+function openSuggestionPeek(assetId: string): void {
+  suggestionPeekAssetId.value = assetId
+}
+function closeSuggestionPeek(): void {
+  suggestionPeekAssetId.value = null
+}
+
 async function onDecideSuggestionFace(id: string, accept: boolean): Promise<void> {
   if (isSuggestionBusy(id)) return
   markSuggestionBusy([id])
@@ -446,6 +472,9 @@ function onDocMousedown(e: MouseEvent): void {
 }
 function onDocKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
+  // The suggestion-peek overlay is the topmost thing this page can show — checked first so Esc
+  // always closes it before falling through to the cluster menu / sort menu underneath.
+  if (suggestionPeekAssetId.value) { closeSuggestionPeek(); return }
   if (clusterMenu.value) { clusterMenu.value = null; return }
   if (sortOpen.value) sortOpen.value = false
 }
@@ -639,25 +668,33 @@ onUnmounted(() => {
                     data-test="suggestion-face"
                     :data-id="s.id"
                     :class="{ 'is-busy': isSuggestionBusy(s.id) }"
+                    :title="t('photosPeopleSuggestPeekAlt')"
+                    @click="openSuggestionPeek(s.assetId)"
                   >
                     <img class="suggestion-face-img" :src="suggestionFaceThumb(s.faceId)" alt="">
                     <span v-if="s.kind === 'review'" class="suggestion-review-badge" data-test="suggestion-review-badge">
                       {{ t('photosPeopleReviewBadge') }}
                     </span>
                     <div class="suggestion-face-hover">
+                      <!-- @click.stop on both decision buttons: the peek-open handler now lives on
+                           the `.suggestion-face` card itself (so clicking anywhere on the
+                           thumbnail — including the parts of this hover layer not covered by a
+                           button — opens the peek), and a decide click would otherwise bubble up
+                           into that same handler and pop the peek open right on top of the
+                           decision it just made. -->
                       <button
                         type="button"
                         class="suggestion-face-btn is-accept"
                         data-test="suggestion-face-accept"
                         :disabled="isSuggestionBusy(s.id)"
-                        @click="onDecideSuggestionFace(s.id, true)"
+                        @click.stop="onDecideSuggestionFace(s.id, true)"
                       >✓</button>
                       <button
                         type="button"
                         class="suggestion-face-btn is-reject"
                         data-test="suggestion-face-reject"
                         :disabled="isSuggestionBusy(s.id)"
-                        @click="onDecideSuggestionFace(s.id, false)"
+                        @click.stop="onDecideSuggestionFace(s.id, false)"
                       >✕</button>
                     </div>
                   </div>
@@ -856,6 +893,34 @@ onUnmounted(() => {
       @submit-delete="onSubmitDelete"
     />
 
+    <!-- 2026-08-20 (people-confirm-polish item 2): the suggestion-face peek overlay. Rendered as
+         a `.photos-root` sibling of `.app` (same convention as the cluster-menu/ClusterActionDialog
+         above, and for the same reason — `.app` carries `position:relative; overflow:hidden`, and
+         a `position:fixed` overlay nested inside it risks being clipped). Esc is handled up in
+         onDocKeydown (highest priority there); backdrop click closes via @click.self, same pattern
+         as ClusterActionDialog's own overlay. No decision buttons live in here on purpose — see
+         the comment above openSuggestionPeek in the script block. -->
+    <div
+      v-if="suggestionPeekAssetId"
+      class="suggestion-peek-overlay"
+      data-test="suggestion-peek-overlay"
+      @click.self="closeSuggestionPeek"
+    >
+      <img
+        class="suggestion-peek-img"
+        data-test="suggestion-peek-img"
+        :src="suggestionPeekUrl"
+        :alt="t('photosPeopleSuggestPeekAlt')"
+      >
+      <button
+        type="button"
+        class="suggestion-peek-close"
+        data-test="suggestion-peek-close"
+        :aria-label="t('photosClose')"
+        @click="closeSuggestionPeek"
+      >&#215;</button>
+    </div>
+
     <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
          shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
          mount this once at. -->
@@ -1019,6 +1084,7 @@ onUnmounted(() => {
   overflow: hidden;
   background: var(--surface-2);
   border: 1px solid var(--line);
+  cursor: pointer; /* item 2: clicking the thumbnail opens the full-asset peek overlay */
 }
 .suggestion-face-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .suggestion-face.is-busy { opacity: 0.55; }
@@ -1067,4 +1133,50 @@ onUnmounted(() => {
 .suggestion-face-btn.is-accept:hover { background: var(--accent-hi); }
 .suggestion-face-btn.is-reject { background: var(--surface-3); }
 .suggestion-face-btn.is-reject:hover { background: var(--line-strong); }
+
+/* ── Suggestion-face peek overlay (item 2, 2026-08-20 people-confirm-polish) ──
+   New-UI-only addition, no Vue2/parity counterpart. Follows this app's established generic
+   full-screen-dialog scrim pairing (--overlay-bg/--overlay-blur — the same tokens AlertDialog.vue/
+   Dialog.vue/PromptDialog.vue/PowerOverlay.vue already use for exactly this "backdrop behind a
+   fixed-position modal" case), not the Photos-section parity dialogs' own solid-black-at-roughly-
+   two-thirds-opacity scrim value (that's a literal Vue2 transcription, grandfathered only inside
+   photos/styles/vue2-parity/ — this overlay has no Vue2 source to transcribe, so it goes through
+   tokens like every other New-UI-authored rule in this file). z-index chosen above this page's
+   other overlays (.cluster-menu at 260, .cad-overlay at 200, both in the parity stylesheet) since
+   the peek can in principle be triggered while either is technically still in the DOM (both
+   close on backdrop/menu-item click well before this overlay could open in practice, but there is
+   no code path that actively forbids overlap, so this stays on top defensively). */
+.suggestion-peek-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background: var(--overlay-bg);
+  backdrop-filter: var(--overlay-blur);
+}
+.suggestion-peek-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--r-md);
+  box-shadow: var(--card-shadow-hi);
+}
+.suggestion-peek-close {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.suggestion-peek-close:hover { background: var(--surface-3); }
 </style>
