@@ -1,0 +1,10 @@
+# Approves postinstall scripts that pnpm 11 blocks by default. Tracked in git
+# (policy change 2026-08-21): every checkout/worktree needs it, and its untracked
+# status kept tripping the oss export dirty-tree guard.
+allowBuilds:
+  '@parcel/watcher': true
+  '@vue-office/docx': true
+  '@vue-office/excel': true
+  core-js: true
+  esbuild: true
+  vue-demi: true
