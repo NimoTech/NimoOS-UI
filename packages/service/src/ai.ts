@@ -594,6 +594,18 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
+    // Permission policy — box-wide confirmation-gate switches (admin only).
+    // The PUT echoes the backend-normalized document; render from that echo.
+    async getPermissionSettings(): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/permission-settings`)
+      return res.data
+    },
+
+    async putPermissionSettings(doc: Record<string, unknown>): Promise<unknown> {
+      const res = await http.put(`${PREFIX}/agent/permission-settings`, doc)
+      return res.data
+    },
+
     async getTracingSetting(): Promise<unknown> {
       const res = await http.get(`${PREFIX}/agent/user-settings/tracing`)
       return res.data

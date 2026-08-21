@@ -49,7 +49,7 @@ describe('SettingsRail', () => {
     // global [0] gets 'models' from model group, not 'blacklist' from agent group.
     const agentBody = w.findAll('.set-nav-groupbody')[1]   // agent group
     await agentBody.findAll('.set-nav-item')[0].trigger('click')
-    expect(w.emitted('select')![0]).toEqual(['blacklist'])
+    expect(w.emitted('select')![0]).toEqual(['permissions'])
   })
 
   it('skills / mcp also only emit select (don\'t jump routes themselves)', async () => {
@@ -118,10 +118,10 @@ describe('SettingsRail', () => {
 
   it('collapsed groups still keep their navigation items in DOM (narrow screen CSS uses display:flex!important to flatten, v-if would break it)', () => {
     const w = mountRail({ activeId: 'models' })
-    // model group expanded, other three groups collapsed; all 15 items should
-    // be rendered (13 before Task 21 added 'mcpapprovals' and agent web tools
-    // Task 9 added 'web')
-    expect(w.findAll('.set-nav-item')).toHaveLength(15)
+    // model group expanded, other three groups collapsed; all 16 items should
+    // be rendered (13 before Task 21 added 'mcpapprovals', agent web tools
+    // Task 9 added 'web', permission policy added 'permissions')
+    expect(w.findAll('.set-nav-item')).toHaveLength(16)
     const bodies = w.findAll('.set-nav-groupbody')
     expect(bodies).toHaveLength(4)
   })
