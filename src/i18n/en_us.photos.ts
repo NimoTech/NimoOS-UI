@@ -1301,6 +1301,11 @@ export default {
   photosPeopleMergeReject: 'Different',
   // Label for the card's "into" side (the person that survives the merge).
   photosPeopleMergeIntoLabel: 'Merge into',
+  // Merge-card legibility fix (2026-08-21): each side's photo count under the large face-tile
+  // grid. Deliberately its own key rather than reusing photosPeoplePhotosCount (which many other
+  // call sites pass only {n} to) -- {s} is the English plural suffix from pluralWord()
+  // (src/photos/util/peopleView.ts), fixing the old literal "1 photos" this card used to render.
+  photosPeopleMergePhotosCount: '{n} photo{s}',
   // Distance shown subtly under the question (lower = more similar -- a raw distance, not a
   // percentage, deliberately not reusing mergeConfidencePct's formatting).
   photosPeopleMergeDistLabel: 'Distance {dist}',

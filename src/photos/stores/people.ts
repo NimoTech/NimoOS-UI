@@ -61,6 +61,18 @@ export interface SuggestionGroup {
 // fromFaceIds/intoFaceIds are up to 4 preview face ids per side (for the merge card's mini
 // collage) -- NOT the same shape as SuggestionGroup.exemplarFaceIds above (that one is a single
 // person's own reference faces; these are per-SIDE preview faces for a pair).
+//
+// Merge-card legibility fix (2026-08-21): fromFaces/intoFaces are a NEW additive pair of fields
+// on the same v2 endpoint (built in parallel on the backend side -- coded against the contract,
+// not yet verified against a live response), each `[{faceId, assetId}]` -- the assetId is what
+// lets the review wizard's zoom lightbox open the FULL original photo for a tile instead of just
+// the cropped face. Purely additive: an older backend that hasn't shipped this yet omits the
+// fields entirely, and the wizard feature-detects by presence, falling back to the bare
+// fromFaceIds/intoFaceIds (face-crop-only zoom) below.
+export interface MergeFacePreview {
+  faceId: string
+  assetId: string
+}
 export interface MergeQuestionPair {
   id: string
   dist: number
@@ -68,11 +80,33 @@ export interface MergeQuestionPair {
   into: Person
   fromFaceIds: string[]
   intoFaceIds: string[]
+  fromFaces?: MergeFacePreview[]
+  intoFaces?: MergeFacePreview[]
 }
 
 function toFaceIdArray(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   return raw.map((x) => String(x))
+}
+
+// Defensive parse for fromFaces/intoFaces (see MergeQuestionPair's own comment): a non-array
+// input (including entirely absent) -> undefined, so the wizard can feature-detect by presence.
+// Each entry needs both a faceId and an assetId to be usable (the whole point of this field is
+// the assetId) -- an entry missing either, or not an object at all, is skipped rather than
+// letting a partially-malformed entry through and crashing the zoom lightbox later.
+function toMergeFacePreviews(raw: unknown): MergeFacePreview[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: MergeFacePreview[] = []
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue
+    const rec = entry as Record<string, unknown>
+    const { faceId, assetId } = rec
+    if (faceId == null || assetId == null) continue
+    if (typeof faceId !== 'string' && typeof faceId !== 'number') continue
+    if (typeof assetId !== 'string' && typeof assetId !== 'number') continue
+    out.push({ faceId: String(faceId), assetId: String(assetId) })
+  }
+  return out
 }
 
 function toMergeQuestion(raw: Record<string, unknown>): MergeQuestionPair {
@@ -83,6 +117,8 @@ function toMergeQuestion(raw: Record<string, unknown>): MergeQuestionPair {
     into: toPerson((raw.into ?? {}) as Record<string, unknown>),
     fromFaceIds: toFaceIdArray(raw.fromFaceIds),
     intoFaceIds: toFaceIdArray(raw.intoFaceIds),
+    fromFaces: toMergeFacePreviews(raw.fromFaces),
+    intoFaces: toMergeFacePreviews(raw.intoFaces),
   }
 }
 
