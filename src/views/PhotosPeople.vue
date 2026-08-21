@@ -329,16 +329,24 @@ function suggestionFaceThumb(faceId: string): string {
 // list (assetToPhoto shape: width/height/isVideo/…) and drives browser-history pushState +
 // favorites side effects (recordView, reconcileFav) that make no sense for "peek at one asset from
 // a suggestion, no next/prev, no history entry" — pulling it in here would be the wrong tool, not
-// a shortcut. So this is a minimal self-contained overlay instead: just the asset's original image
-// via service.photos.originalUrl(assetId) (the existing full-resolution URL helper — same one
-// PhotoLightbox itself would eventually resolve to for a still image), Esc (folded into
-// onDocKeydown below, highest priority since it's the topmost overlay) / backdrop-click to close.
+// a shortcut. So this is a minimal self-contained overlay instead.
+//
+// Fix round 1 (backend-confirmed reachable): deliberately NOT service.photos.originalUrl(assetId)
+// here. Face detection runs on video keyframes too, and person_suggestions carries no
+// video-exclusion filter, so a suggestion's assetId can legitimately point at a video asset; the
+// backend's Original handler streams back the raw video file for those, which an <img> tag can't
+// render (broken image). The frontend SuggestionItem type carries no isVideo flag either, so a
+// conditional <video> branch isn't possible without a backend contract change — out of scope for
+// this fix. service.photos.thumbnailUrl(assetId, 'large') is the type-safe choice instead: the
+// backend pregenerates a large.jpg for every asset type, video keyframe included, so this never
+// 404s or serves an unrenderable video payload, and 'large' is still big enough for an identity
+// judgment (the whole point of this overlay).
 // The ✓/✕ decision buttons are NOT duplicated inside the peek — closing it (Esc/backdrop/×) drops
 // straight back to the card, where they're immediately clickable again; this keeps the peek purely
 // a "look closer" viewer instead of a second decision surface to keep in sync with the first.
 const suggestionPeekAssetId = ref<string | null>(null)
 const suggestionPeekUrl = computed(() => (
-  suggestionPeekAssetId.value ? service.photos.originalUrl(suggestionPeekAssetId.value) : ''
+  suggestionPeekAssetId.value ? service.photos.thumbnailUrl(suggestionPeekAssetId.value, 'large') : ''
 ))
 function openSuggestionPeek(assetId: string): void {
   suggestionPeekAssetId.value = assetId

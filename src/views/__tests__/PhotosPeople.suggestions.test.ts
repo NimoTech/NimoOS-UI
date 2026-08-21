@@ -21,8 +21,13 @@ const svc = vi.hoisted(() => ({
     // owning person's cover slot involved (see the header comment on faceThumbnailUrl in
     // packages/service/src/photos.ts).
     faceThumbnailUrl: vi.fn((faceId: string) => `mock://face/${faceId}`),
-    // Item 2 (2026-08-20 people-confirm-polish): the peek overlay's full-asset image URL.
-    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
+    // Item 2 (2026-08-20 people-confirm-polish), fix round 1: the peek overlay's full-asset image
+    // URL. Signature matches packages/service/src/photos.ts's real thumbnailUrl(id, size='small')
+    // verbatim — NOT originalUrl, because a suggestion's assetId can point at a video (face
+    // detection runs on video keyframes too) and Original would stream back the raw video file,
+    // which an <img> can't render; thumbnailUrl's pregenerated large.jpg exists for every asset
+    // type, video included, so it's type-safe here.
+    thumbnailUrl: vi.fn((id: string | number, size = 'small') => `mock://thumb/${id}/${size}`),
     listHiddenPersons: vi.fn().mockResolvedValue([]),
     listPersonSuggestions: vi.fn().mockResolvedValue({ groups: [] }),
     acceptPersonSuggestion: vi.fn().mockResolvedValue({ id: 's1', status: 'accepted' }),
@@ -83,7 +88,7 @@ beforeEach(() => {
   svc.photos.getConfig.mockClear().mockResolvedValue({})
   svc.photos.personFaceThumbnailUrl.mockClear()
   svc.photos.faceThumbnailUrl.mockClear()
-  svc.photos.originalUrl.mockClear()
+  svc.photos.thumbnailUrl.mockClear()
   svc.photos.listHiddenPersons.mockClear().mockResolvedValue([])
   svc.photos.listPersonSuggestions.mockClear().mockResolvedValue({ groups: [] })
   svc.photos.acceptPersonSuggestion.mockClear().mockResolvedValue({ id: 's1', status: 'accepted' })
@@ -224,12 +229,16 @@ describe('PhotosPeople.vue — suggestion confirmation cards (Plan C Task 2)', (
 
 // ── Click-to-enlarge peek (item 2, 2026-08-20 people-confirm-polish) ──
 // Thumbnails are too small to judge identity from; clicking one opens an overlay showing the
-// full asset photo (via service.photos.originalUrl(assetId), not the cropped face) for context.
-// No existing photo-viewer wiring on this page to reuse (see the comment above
-// openSuggestionPeek in PhotosPeople.vue for why PhotoLightbox/useLightbox is the wrong tool
-// here) — this is a minimal self-contained overlay.
+// full asset photo (via service.photos.thumbnailUrl(assetId, 'large'), not the cropped face) for
+// context. Fix round 1: NOT originalUrl — a suggestion's assetId can point at a video (face
+// detection runs on keyframes too, person_suggestions has no video-exclusion filter), and
+// Original streams back the raw video file for those, unrenderable by an <img>; thumbnailUrl's
+// pregenerated large.jpg exists for every asset type, video included, so it's type-safe here. No
+// existing photo-viewer wiring on this page to reuse (see the comment above openSuggestionPeek in
+// PhotosPeople.vue for why PhotoLightbox/useLightbox is the wrong tool here) — this is a minimal
+// self-contained overlay.
 describe('PhotosPeople.vue — suggestion peek overlay (Plan C Task 2 follow-up, click to enlarge)', () => {
-  it('clicking a suggestion face thumbnail opens the peek overlay showing that suggestion\'s asset (originalUrl(assetId), not the face crop)', async () => {
+  it('clicking a suggestion face thumbnail opens the peek overlay showing that suggestion\'s asset (thumbnailUrl(assetId, \'large\'), not the face crop, and not the video-unsafe original)', async () => {
     svc.photos.listPersonSuggestions.mockResolvedValue({
       groups: [rawGroup(ALICE, [rawSuggestion({ id: 's1', faceId: 'f1', assetId: 'asset-42' })])],
     })
@@ -239,8 +248,8 @@ describe('PhotosPeople.vue — suggestion peek overlay (Plan C Task 2 follow-up,
     await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
 
     expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
-    expect(w.find('[data-test="suggestion-peek-img"]').attributes('src')).toBe('mock://original/asset-42')
-    expect(svc.photos.originalUrl).toHaveBeenCalledWith('asset-42')
+    expect(w.find('[data-test="suggestion-peek-img"]').attributes('src')).toBe('mock://thumb/asset-42/large')
+    expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('asset-42', 'large')
   })
 
   it('Escape closes the peek overlay', async () => {
