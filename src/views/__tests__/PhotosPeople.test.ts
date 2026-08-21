@@ -23,14 +23,12 @@ import zh from '../../i18n/zh_cn'
 const svc = vi.hoisted(() => ({
   photos: {
     listPersons: vi.fn().mockResolvedValue({ persons: [], facesIndexedUpTo: null }),
-    mergeSuggestions: vi.fn().mockResolvedValue([]),
     getConfig: vi.fn().mockResolvedValue({}),
     personFaceThumbnailUrl: vi.fn((id: string | number, ver?: string | number | null) => `mock://face/${id}/${ver ?? ''}`),
     getTimeline: vi.fn().mockResolvedValue([]),
     updatePerson: vi.fn().mockResolvedValue(undefined),
     mergePersons: vi.fn().mockResolvedValue(undefined),
     purgePerson: vi.fn().mockResolvedValue(undefined),
-    rejectMergeSuggestion: vi.fn().mockResolvedValue(undefined),
     // T7 (Plan D): the Hidden people section + hide/unhide actions.
     listHiddenPersons: vi.fn().mockResolvedValue([]),
     hidePerson: vi.fn().mockResolvedValue(undefined),
@@ -99,13 +97,11 @@ beforeEach(() => {
   localStorage.clear()
   setActivePinia(createPinia())
   svc.photos.listPersons.mockClear().mockResolvedValue({ persons: ALL, facesIndexedUpTo: null })
-  svc.photos.mergeSuggestions.mockClear().mockResolvedValue([])
   svc.photos.getConfig.mockClear().mockResolvedValue({})
   svc.photos.personFaceThumbnailUrl.mockClear()
   svc.photos.updatePerson.mockClear().mockResolvedValue(undefined)
   svc.photos.mergePersons.mockClear().mockResolvedValue(undefined)
   svc.photos.purgePerson.mockClear().mockResolvedValue(undefined)
-  svc.photos.rejectMergeSuggestion.mockClear().mockResolvedValue(undefined)
   svc.photos.listHiddenPersons.mockClear().mockResolvedValue([])
   svc.photos.hidePerson.mockClear().mockResolvedValue(undefined)
   svc.photos.restorePerson.mockClear().mockResolvedValue(undefined)
@@ -122,10 +118,13 @@ afterEach(() => {
 })
 
 describe('PhotosPeople.vue — lifecycle and sections', () => {
-  it('onMounted fetches people + fetches merge suggestions + reads getConfig once', async () => {
+  // (2026-08-20 people-confirm-polish item 1: this used to also assert
+  // `svc.photos.mergeSuggestions` was called once on mount — the page no longer calls
+  // fetchMergeSuggestions at all, that whole-cluster merge-suggestion flow having been removed;
+  // see this file's header comment.)
+  it('onMounted fetches people + reads getConfig once', async () => {
     await mountView()
     expect(svc.photos.listPersons).toHaveBeenCalledTimes(1)
-    expect(svc.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
     // getConfig is now called indirectly via the photosSettings store's fetchAiFeatures()
     // (folded in under §7e-10 — see the next case), but it's still "read exactly once per page
     // load" — this page and the PhotosSidebar it mounts each call fetchAiFeatures() once in the
@@ -241,23 +240,20 @@ describe('PhotosPeople.vue — re-shell (Plan D Task 2)', () => {
   })
 
   // Final review incidental item 3: the cluster menu's own assertion above only covers `.cluster-menu`;
-  // this adds the same DOM-descendant check for the two dialogs it opens onto — both must render
-  // as descendants of `.photos-root` (not template-root siblings) for the exact reason documented
-  // by this file's Task 2 header comment above and by ClusterActionDialog/MergeReviewDialog's own
-  // re-homing comments in the template: parity's `.photos-root .cad-overlay` /
-  // `.photos-root .mrd-overlay` selectors are descendant selectors that can't reach a sibling node.
-  it('renders ClusterActionDialog and MergeReviewDialog inside .photos-root when open', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([
-      { id: 'm1', fromId: 'u1', intoId: 42, intoName: 'Alice', confidence: 0.91 },
-    ])
+  // this adds the same DOM-descendant check for the dialog it opens onto — it must render as a
+  // descendant of `.photos-root` (not a template-root sibling) for the exact reason documented by
+  // this file's Task 2 header comment above and by ClusterActionDialog's own re-homing comment in
+  // the template: parity's `.photos-root .cad-overlay` selector is a descendant selector that
+  // can't reach a sibling node.
+  // (2026-08-20 people-confirm-polish item 1: this case used to also open MergeReviewDialog via a
+  // "merge-review" button and check its `.mrd-overlay` — that banner/dialog has been removed; see
+  // this file's own header comment. The ClusterActionDialog half of the assertion is unaffected.)
+  it('renders ClusterActionDialog inside .photos-root when open', async () => {
     const { w } = await mountView()
 
     await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
     await w.find('[data-test="menu-name"]').trigger('click')
     expect(w.find('.photos-root [data-test="cad-overlay"]').exists()).toBe(true)
-
-    await w.find('[data-test="merge-review"]').trigger('click')
-    expect(w.find('.photos-root [data-test="mrd-overlay"]').exists()).toBe(true)
   })
 })
 
@@ -397,48 +393,11 @@ describe('PhotosPeople.vue — two warning banners', () => {
   })
 })
 
-describe('PhotosPeople.vue — merge-suggestion banner', () => {
-  const SUGGESTION = { id: 'm1', fromId: 'u1', intoId: 42, intoName: 'Alice', confidence: 0.91 }
-
-  it('mergeSuggestions non-empty → banner appears, subtext carries the percentage, two avatars stacked', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([SUGGESTION])
-    const { w } = await mountView()
-    const banner = w.find('[data-test="merge-banner"]')
-    expect(banner.exists()).toBe(true)
-    expect(banner.text()).toContain('Nimo 发现了 1 个可能的合并')
-    expect(banner.text()).toContain('91%')
-    expect(banner.text()).toContain('Alice')
-    expect(banner.findAll('.person-avatar')).toHaveLength(2)
-  })
-
-  it('clicking close → dismissAllMerges is called, banner disappears', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([SUGGESTION])
-    const { w } = await mountView()
-    const people = usePhotosPeople()
-    const spy = vi.spyOn(people, 'dismissAllMerges')
-    await w.find('[data-test="merge-dismiss"]').trigger('click')
-    expect(spy).toHaveBeenCalledTimes(1)
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="merge-banner"]').exists()).toBe(false)
-  })
-
-  it('clicking Review → opens the real MergeReviewDialog, positioned at item 1', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([SUGGESTION])
-    const { w } = await mountView()
-    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
-    await w.find('[data-test="merge-review"]').trigger('click')
-    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(true)
-    expect(w.find('[data-test="mrd-title"]').text()).toBe('可能的合并 1 / 1')
-  })
-
-  it('the warning banner and the merge banner can appear at the same time (per Vue2: two independent v-ifs)', async () => {
-    svc.photos.getConfig.mockResolvedValue({ aiFeatures: { faces: false } })
-    svc.photos.mergeSuggestions.mockResolvedValue([SUGGESTION])
-    const { w } = await mountView()
-    expect(w.find('[data-test="warn-faces-off"]').exists()).toBe(true)
-    expect(w.find('[data-test="merge-banner"]').exists()).toBe(true)
-  })
-})
+// (2026-08-20 people-confirm-polish item 1: the old `describe('PhotosPeople.vue — merge-suggestion
+// banner', ...)` block that lived here — banner render/percentage/avatars, dismissAllMerges wiring,
+// opening MergeReviewDialog, and the "warning banner + merge banner coexist" case — has been
+// deleted along with the banner and MergeReviewDialog.vue themselves; see this file's header
+// comment and PhotosPeople.vue's own header note for why.)
 
 describe('PhotosPeople.vue — navigation and floating menu', () => {
   it('clicking a named card → router.push("/photos/people/<id>") (verifies URL concatenation with a numeric id)', async () => {
@@ -810,26 +769,12 @@ describe('PhotosPeople.vue — T7 three-state dialog wiring: delete', () => {
   })
 })
 
-// ── T8: merge-suggestion review dialog wiring (accept/reject submission paths + re-entrancy regressions + index clamping) ──
-// Note on re-entrancy (review mandatory, same precedent as T7 §11's delete path): while
-// drafting onReviewAccept/onReviewReject, each got its own independent in-flight guard ref.
-// A mutation-testing check (changing `if (guard) return` to `if (false) return`) showed the
-// two "clicking twice in a row … only called once" regression tests below still stayed
-// fully green — what actually blocks the second call is MergeReviewDialog's own
-// `if (!current.value) return` (the store's accept/rejectMergeSuggestion synchronously
-// splices this suggestion out of the array at the very top of the function body, so
-// current.value has already become undefined before any await) plus the store's own
-// `if (s) {...}` idempotency check — both layers were already there, so the independent ref
-// had no real protective value and has been removed (see the comment at the top of
-// onReviewAccept in PhotosPeople.vue for details). The test titles now reflect the real
-// mechanism and no longer say "re-entrancy guard".
-const S1 = { id: 'm1', fromId: 'u1', intoId: 42, intoName: 'Alice', confidence: 0.91 }
-const S2 = { id: 'm2', fromId: 'u2', intoId: 3, intoName: '', confidence: 0.6 }
-const S3 = { id: 'm3', fromId: 'b7', intoId: 3, intoName: 'Carol', confidence: 0.55 }
-
-async function openReview(w: Awaited<ReturnType<typeof mountView>>['w']) {
-  await w.find('[data-test="merge-review"]').trigger('click')
-}
+// (2026-08-20 people-confirm-polish item 1: the T8 merge-suggestion review dialog wiring test
+// support that used to live here — the re-entrancy note, the S1/S2/S3 suggestion fixtures, and
+// the openReview() helper — has been deleted along with the two `describe('PhotosPeople.vue —
+// T8 merge-suggestion review dialog wiring: accept/reject', ...)` blocks that used them (they
+// used to sit after the T7 Hidden-people/Hide-person-menu blocks below); see this file's header
+// comment for why.)
 
 // T7 (Plan D): the Hidden people section + the "Hide person" menu item + unhide wiring.
 // hiddenPeopleSupported's feature detection goes through listHiddenPersons: 404 → false, any
@@ -945,186 +890,10 @@ describe('PhotosPeople.vue — T7 Hide-person menu item: gating + immediate hide
   })
 })
 
-describe('PhotosPeople.vue — T8 merge-suggestion review dialog wiring: accept', () => {
-  it('success: calls mergePersons(fromId, intoId) → success toast carries intoName → dialog closes once this is the last one left', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([S1])
-    const { w } = await mountView()
-    const toast = useToast()
-    await openReview(w)
-    await w.get('[data-test="mrd-accept"]').trigger('click')
-    await flushPromises()
-
-    expect(svc.photos.mergePersons).toHaveBeenCalledWith('u1', 42)
-    expect(toast.toasts[0]!.text).toContain('Alice')
-    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
-  })
-
-  // Review Important (independently reproduced): the "dialog closes once this is the last
-  // one left" assertion above only checks whether mrd-overlay exists, but
-  // MergeReviewDialog's root node is `v-if="open && current"` — when suggestions is an
-  // empty array, `current` (= suggestions[index]) is naturally undefined already, so this
-  // v-if is naturally false regardless of reviewOpen's actual value. Review ran a
-  // mutation-testing experiment: deleting the `reviewOpen.value = false` assignment inside
-  // clampReviewIndex and leaving only the return, and the test above still stayed fully
-  // green — no case had ever falsified whether that `reviewOpen.value = false` line really
-  // executes.
-  //
-  // The scenario where this actually breaks: mergeSuggestions has another path that
-  // refills it — T7's mergePersonInto calls fetchMergeSuggestions() in its finally block
-  // (people.ts:211-212). If reviewOpen gets stuck at true (the assignment deleted/missed),
-  // then after the user "closes" the review dialog because the list went empty, as soon as
-  // some other unrelated merge operation pulls mergeSuggestions back in, `current` becomes
-  // non-undefined again, and the dialog will pop back open on its own even though the user
-  // never clicked Review. This test directly reproduces that scenario: accept down to the
-  // last one → dialog closes → simulate fetchMergeSuggestions being refilled (same call as
-  // T7's finally block) → assert the dialog does **not** pop open on its own.
-  it('regression: after reviewing down to the last item the dialog closes; a later refill of mergeSuggestions (e.g. the fetchMergeSuggestions triggered by T7\'s merge flow) should not auto-open it', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([S1])
-    const { w } = await mountView()
-    await openReview(w)
-    await w.get('[data-test="mrd-accept"]').trigger('click')
-    await flushPromises()
-    // Precondition: at this point it should already be closed (same assertion as the previous test).
-    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
-
-    // Simulate the same fetchMergeSuggestions that T7's mergePersonInto finally block would
-    // trigger, refilling suggestions — this has nothing to do with the user clicking
-    // Review, so it shouldn't make the review dialog pop open on its own.
-    svc.photos.mergeSuggestions.mockResolvedValue([S2])
-    await usePhotosPeople().fetchMergeSuggestions()
-    await w.vm.$nextTick()
-
-    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
-  })
-
-  // Doesn't assert on the dialog opening/closing: the store's acceptMergeSuggestion failure
-  // path does a corrective `void fetchMergeSuggestions()` refetch (per the comment at the
-  // top of people.ts: "optimistically remove the suggestion first, refetch the suggestion
-  // list to correct on failure"), and which one wins between this refetch and this
-  // component's clampReviewIndex in its finally block depends on how many await hops each
-  // one has left; under real network latency it's almost always clamp that runs first (the
-  // suggestions are still empty → dialog closes), but under the fully synchronous mocks used
-  // in this test the order flips (the refetch lands first, suggestions are already restored
-  // → doesn't close). This is a race that inherently exists in the design, not a bug we're
-  // fixing here, so this test only asserts the deterministic facts unrelated to the race
-  // (call arguments + failure toast).
-  it('failure: mergePersons rejects → failure toast', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([S1])
-    svc.photos.mergePersons.mockRejectedValueOnce(new Error('boom'))
-    const { w } = await mountView()
-    const toast = useToast()
-    await openReview(w)
-    await w.get('[data-test="mrd-accept"]').trigger('click')
-    await flushPromises()
-
-    expect(svc.photos.mergePersons).toHaveBeenCalledWith('u1', 42)
-    expect(toast.toasts[0]!.text).toBe(zh.photosPersonMergeFailed)
-  })
-
-  it('when the main button text is missing intoName, it falls back to photosPersonMergeAsSame; the toast after accept lands on the same string too', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([S2])
-    const { w } = await mountView()
-    const toast = useToast()
-    await openReview(w)
-    expect(w.get('[data-test="mrd-accept"]').text()).toContain(zh.photosPersonMergeAsSame)
-    await w.get('[data-test="mrd-accept"]').trigger('click')
-    await flushPromises()
-    expect(toast.toasts[0]!.text).toContain(zh.photosPersonMergeAsSame)
-  })
-
-  // Index clamping (brief explicitly required it to live in the host): 3 suggestions,
-  // position at the last one (index=2) and accept it → 2 remain, index(2) is now out of
-  // bounds → clamp to max(0,2-1)=1, so the dialog switches to showing "item 2 of the
-  // remaining two" instead of crashing or getting stuck at the out-of-bounds position.
-  it('index clamping: after accepting the last suggestion, index is pulled back to max(0, new length-1)', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([S1, S2, S3])
-    const { w } = await mountView()
-    await openReview(w)
-    // Manually push reviewIdx to the last item (the Review button only ever sets it to 0;
-    // here we simulate the scenario where the user has already navigated to item 3 — there's
-    // no navigation UI beyond calling the store directly, so we reach into the vm's internal
-    // ref to reproduce the precondition of "currently stopped at the last item").
-    ;(w.vm as unknown as { reviewIdx: number }).reviewIdx = 2
-    await w.vm.$nextTick()
-    expect(w.get('[data-test="mrd-title"]').text()).toBe('可能的合并 3 / 3')
-
-    await w.get('[data-test="mrd-accept"]').trigger('click')
-    await flushPromises()
-
-    expect(svc.photos.mergePersons).toHaveBeenCalledWith('b7', 3)
-    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(true)
-    // S1 and S2 remain, index clamps to 1 → shows "2 / 2", and it's S2 (intoName is empty, falls back through AsSame)
-    expect(w.get('[data-test="mrd-title"]').text()).toBe('可能的合并 2 / 2')
-    expect(w.get('[data-test="mrd-accept"]').text()).toContain(zh.photosPersonMergeAsSame)
-  })
-
-  // Re-entrancy regression (see the mutation-testing note at the top of this describe
-  // block): click accept twice in a row, the second one firing before the first request
-  // resolves — blocked naturally by MergeReviewDialog's current.value being nulled out, not
-  // by an independent guard ref.
-  it('clicking accept twice in a row (the second fires before the first resolves) → mergePersons is only called once (current.value is a natural re-entrancy guard)', async () => {
-    let resolveMerge: (() => void) | undefined
-    svc.photos.mergeSuggestions.mockResolvedValue([S1])
-    svc.photos.mergePersons.mockImplementation(() => new Promise((resolve) => { resolveMerge = () => resolve(undefined) }))
-    const { w } = await mountView()
-    await openReview(w)
-    const btn = w.get('[data-test="mrd-accept"]')
-    const p1 = btn.trigger('click')
-    const p2 = btn.trigger('click') // the second click fires before the first resolves (the dialog is still open at this point)
-    await Promise.all([p1, p2])
-    await flushPromises()
-
-    expect(svc.photos.mergePersons).toHaveBeenCalledTimes(1)
-    resolveMerge?.()
-    await flushPromises()
-  })
-})
-
-describe('PhotosPeople.vue — T8 merge-suggestion review dialog wiring: reject', () => {
-  it('success: calls rejectMergeSuggestion(fromId, intoId) → dismissed toast → dialog closes once this is the last one left', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([S1])
-    const { w } = await mountView()
-    const toast = useToast()
-    await openReview(w)
-    await w.get('[data-test="mrd-reject"]').trigger('click')
-    await flushPromises()
-
-    expect(svc.photos.rejectMergeSuggestion).toHaveBeenCalledWith('u1', 42)
-    expect(toast.toasts[0]!.text).toBe(zh.photosPersonMergeDismissedToast)
-    expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
-  })
-
-  // Same race note as the previous case: rejectMergeSuggestion's failure path also does a
-  // corrective void fetchMergeSuggestions(), and whether the dialog opens/closes depends on
-  // which of the two await chains lands first — not asserted here.
-  it('failure: rejectMergeSuggestion rejects → failure toast', async () => {
-    svc.photos.mergeSuggestions.mockResolvedValue([S1])
-    svc.photos.rejectMergeSuggestion.mockRejectedValueOnce(new Error('boom'))
-    const { w } = await mountView()
-    const toast = useToast()
-    await openReview(w)
-    await w.get('[data-test="mrd-reject"]').trigger('click')
-    await flushPromises()
-
-    expect(svc.photos.rejectMergeSuggestion).toHaveBeenCalledWith('u1', 42)
-    expect(toast.toasts[0]!.text).toBe(zh.photosPersonMergeFailed)
-  })
-
-  // Same mutation-testing conclusion as the accept case above, the same natural mechanism.
-  it('clicking reject twice in a row (the second fires before the first resolves) → rejectMergeSuggestion is only called once (current.value is a natural re-entrancy guard)', async () => {
-    let resolveReject: (() => void) | undefined
-    svc.photos.mergeSuggestions.mockResolvedValue([S1])
-    svc.photos.rejectMergeSuggestion.mockImplementation(() => new Promise((resolve) => { resolveReject = () => resolve(undefined) }))
-    const { w } = await mountView()
-    await openReview(w)
-    const btn = w.get('[data-test="mrd-reject"]')
-    const p1 = btn.trigger('click')
-    const p2 = btn.trigger('click')
-    await Promise.all([p1, p2])
-    await flushPromises()
-
-    expect(svc.photos.rejectMergeSuggestion).toHaveBeenCalledTimes(1)
-    resolveReject?.()
-    await flushPromises()
-  })
-})
+// (2026-08-20 people-confirm-polish item 1: the two
+// `describe('PhotosPeople.vue — T8 merge-suggestion review dialog wiring: accept/reject', ...)`
+// blocks that used to live here — success/failure toasts, index clamping, and the two
+// "double-click only fires once" re-entrancy regressions — have been deleted along with
+// MergeReviewDialog.vue and the store's acceptMergeSuggestion/rejectMergeSuggestion/
+// dismissAllMerges/fetchMergeSuggestions/mergeSuggestions themselves; see this file's header
+// comment and people.ts's own header note for the full rationale.)

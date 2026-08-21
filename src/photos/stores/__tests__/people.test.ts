@@ -5,12 +5,10 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     photos: {
       listPersons: vi.fn(() => Promise.resolve({ persons: [], facesIndexedUpTo: null })),
-      mergeSuggestions: vi.fn(() => Promise.resolve([])),
       updatePerson: vi.fn(() => Promise.resolve({})),
       setPersonCover: vi.fn(() => Promise.resolve({})),
       purgePerson: vi.fn(() => Promise.resolve({})),
       mergePersons: vi.fn(() => Promise.resolve({})),
-      rejectMergeSuggestion: vi.fn(() => Promise.resolve({})),
       hidePerson: vi.fn(() => Promise.resolve({})),
       listHiddenPersons: vi.fn(() => Promise.resolve([])),
       restorePerson: vi.fn(() => Promise.resolve({})),
@@ -124,34 +122,6 @@ describe('photosPeople store', () => {
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [] }) // no facesIndexedUpTo field
       await s.fetchPeople()
       expect(s.facesIndexedUpTo).toBe('2026-07-01') // not overwritten
-    })
-  })
-
-  // Review Issue 6 added one of two cheap coverage shortcuts: fetchMergeSuggestions had no direct tests before.
-  describe('fetchMergeSuggestions', () => {
-    it('success — mergeSuggestions populated with returned array', async () => {
-      ;(service.photos.mergeSuggestions as any).mockResolvedValueOnce([{ id: 's1', fromId: 1, intoId: 2 }])
-      const s = usePhotosPeople()
-      await s.fetchMergeSuggestions()
-      expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }])
-    })
-    it('returns non-array (e.g. null) — fallback to []', async () => {
-      ;(service.photos.mergeSuggestions as any).mockResolvedValueOnce(null)
-      const s = usePhotosPeople()
-      await s.fetchMergeSuggestions()
-      expect(s.mergeSuggestions).toEqual([])
-    })
-    // Deviation regression (same as fetchPeople): Vue2 :1095-1098 clears mergeSuggestions to [] on failure;
-    // here we preserve old data. Seeding old values (bypassing network) makes this assertion truly discriminating.
-    it('reject — preserve old data + console.error called (deviation regression)', async () => {
-      const s = usePhotosPeople()
-      s.mergeSuggestions.push({ id: 's1', fromId: 1, intoId: 2 })
-      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      ;(service.photos.mergeSuggestions as any).mockRejectedValueOnce(new Error('net'))
-      await s.fetchMergeSuggestions()
-      expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }])
-      expect(errSpy).toHaveBeenCalled()
-      errSpy.mockRestore()
     })
   })
 
@@ -336,20 +306,18 @@ describe('photosPeople store', () => {
   })
 
   describe('mergePersonInto', () => {
-    it('success — listPersons and mergeSuggestions both refreshed', async () => {
+    it('success — listPersons refreshed', async () => {
       const s = usePhotosPeople()
       await s.mergePersonInto(1, 2)
       expect(service.photos.mergePersons).toHaveBeenCalledWith(1, 2)
       expect(service.photos.listPersons).toHaveBeenCalledTimes(1)
-      expect(service.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
     })
-    it('failure — still refresh both datasets + throws', async () => {
+    it('failure — still refreshes listPersons + throws', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.mergePersons as any).mockRejectedValueOnce(new Error('x'))
       const s = usePhotosPeople()
       await expect(s.mergePersonInto(1, 2)).rejects.toThrow('x')
       expect(service.photos.listPersons).toHaveBeenCalledTimes(1)
-      expect(service.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
       errSpy.mockRestore()
     })
   })
@@ -514,53 +482,6 @@ describe('photosPeople store', () => {
     })
   })
 
-  describe('merge suggestions', () => {
-    it('acceptMergeSuggestion: optimistic remove suggestion + call mergePersons(fromId,intoId) + finally refresh people', async () => {
-      const s = usePhotosPeople()
-      s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
-      const p = s.acceptMergeSuggestion('s1')
-      expect(s.mergeSuggestions).toEqual([]) // optimistic immediate removal
-      await p
-      expect(service.photos.mergePersons).toHaveBeenCalledWith(1, 2)
-      expect(service.photos.listPersons).toHaveBeenCalledTimes(1)
-    })
-    it('acceptMergeSuggestion fails — refresh suggestions + throws', async () => {
-      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      const s = usePhotosPeople()
-      s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
-      ;(service.photos.mergePersons as any).mockRejectedValueOnce(new Error('x'))
-      await expect(s.acceptMergeSuggestion('s1')).rejects.toThrow('x')
-      expect(service.photos.mergeSuggestions).toHaveBeenCalledTimes(1)
-      errSpy.mockRestore()
-    })
-    // Regression (review requirement 3): when suggestionId not found locally, acceptMergeSuggestion must not make
-    // any backend request — the brief snapshot has finally outside if(s) causing an extra listPersons here; Vue2 :1227-1234
-    // has the entire try/finally inside if(s), doing nothing if not found.
-    it('acceptMergeSuggestion: suggestionId not found locally — do not call mergePersons, do not call listPersons', async () => {
-      const s = usePhotosPeople()
-      s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
-      await s.acceptMergeSuggestion('does-not-exist')
-      expect(s.mergeSuggestions).toEqual([{ id: 's1', fromId: 1, intoId: 2 }]) // filter on absent id is no-op
-      expect(service.photos.mergePersons).not.toHaveBeenCalled()
-      expect(service.photos.listPersons).not.toHaveBeenCalled()
-    })
-    it('rejectMergeSuggestion: do not refresh people list', async () => {
-      const s = usePhotosPeople()
-      s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
-      await s.rejectMergeSuggestion('s1')
-      expect(service.photos.rejectMergeSuggestion).toHaveBeenCalledWith(1, 2)
-      expect(service.photos.listPersons).not.toHaveBeenCalled()
-    })
-    it('dismissAllMerges: pure local clear, no requests', () => {
-      const s = usePhotosPeople()
-      s.mergeSuggestions = [{ id: 's1', fromId: 1, intoId: 2 }]
-      s.dismissAllMerges()
-      expect(s.mergeSuggestions).toEqual([])
-      expect(service.photos.rejectMergeSuggestion).not.toHaveBeenCalled()
-      expect(service.photos.mergePersons).not.toHaveBeenCalled()
-    })
-  })
-
   // Task 7 (Plan D, SP7-P5 People): the Hidden people section + hide/unhide actions, mirroring
   // Vue2 hidePersonAction/fetchHiddenPeople/unhidePerson (photos.js:1585-1633).
   describe('hiddenPeople / hidePerson / unhidePerson', () => {
@@ -677,7 +598,6 @@ describe('photosPeople store', () => {
       expect(s.people).toEqual([])
       expect(s.peopleLoaded).toBe(false)
       expect(s.facesIndexedUpTo).toBeNull()
-      expect(s.mergeSuggestions).toEqual([])
       await vi.advanceTimersByTimeAsync(5000)
       expect(service.photos.purgePerson).not.toHaveBeenCalled() // timer was cleared
     })

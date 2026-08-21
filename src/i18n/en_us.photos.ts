@@ -372,14 +372,13 @@ export default {
   photosPeopleFacesOffLink: 'Settings · AI behavior',
   photosPeopleMlOfflineTitle: 'Photos AI backend is offline',
   photosPeopleMlOfflineBody: 'Face recognition and smart search are paused while the Photos AI service starts up or is unavailable. Existing people stay visible.',
-  photosPeopleMergeFound: 'Nimo found {n} possible merges',
+  // 2026-08-20 (people-confirm-polish item 1): the old whole-cluster merge-suggestion banner
+  // (photosPeopleMergeFound/photosPeopleMergeReview/photosPeopleMergeDismissAll) was removed
+  // along with MergeReviewDialog. The two reason keys below stay — mergeReasonKey (peopleView.ts)
+  // itself wasn't deleted (a pure, already-tested helper a future merge-cards feature would
+  // likely reuse), just its only current caller.
   photosPeopleMergeReasonNamed: 'Two clusters look {pct}% alike — likely both {name}.',
   photosPeopleMergeReasonUnnamed: 'Two clusters look {pct}% alike — likely the same person.',
-  photosPeopleMergeReview: 'Review',
-  // ★ New-UI addition (fix-1): Vue2 dismiss-all icon button has no title/aria (a11y gap in
-  // Vue2 itself, verified no title=/aria-label= anywhere in PhotosPeopleView.vue); New-UI
-  // must have an aria-label regardless, wording given directly by coordinator
-  photosPeopleMergeDismissAll: 'Dismiss all merge suggestions',
   photosPeoplePinned: 'Pinned',
   photosPeoplePinnedHint: "People you've favorited",
   photosPeopleNamedSection: 'Named',
@@ -415,25 +414,15 @@ export default {
   photosPersonConfirmDelete: 'Confirm delete',
   photosPersonDeletedToast: '{label} deleted',
   photosPersonUndo: 'Undo',
-  photosPersonMergeSuggestTitle: 'Possible merge {idx} / {total}',
+  // 2026-08-20 (people-confirm-polish item 1): MergeReviewDialog.vue is deleted; the keys that
+  // existed solely for it (photosPersonMergeSuggestTitle/photosPersonNotAMatch/
+  // photosPersonMergeAs/photosPersonMergeGroupA/B/photosPersonMergeNimoLead/
+  // photosPersonMergeDismissedToast) are removed with it (checked: no remaining references).
+  // photosPersonMergeSuggestConfidence stays — still used by ClusterActionDialog.vue.
+  // photosPersonMergeAsSame stays — still reused by PhotosPeople.vue/PhotosPersonDetail.vue's
+  // merge-success toasts.
   photosPersonMergeSuggestConfidence: 'Confidence {n}%',
-  photosPersonNotAMatch: 'Not a match',
-  // Vue2 is $t('Merge as') + inline name; New-UI composes a single key
-  photosPersonMergeAs: 'Merge as {name}',
   photosPersonMergeAsSame: 'same person',
-  // T8 addition (not in the brief's enumerated key list; confirmed missing, added per the
-  // "确实缺了报上来" instruction — flagged in the task report). Vue2's review dialog fixed
-  // labels under the two comparison columns: $t('Cluster A')/$t('Cluster B') (:400,418).
-  photosPersonMergeGroupA: 'Cluster A',
-  photosPersonMergeGroupB: 'Cluster B',
-  // T8 addition: brand prefix on the reason bar, $t('Nimo:') (:423) — literal in both locales.
-  photosPersonMergeNimoLead: 'Nimo:',
-  // T8 addition: onRejectReview's toast text, $t('Suggestion dismissed') (:613). The accept
-  // path deliberately reuses the existing photosPersonMergedToast instead of adding a second
-  // "Merged as …" key — same consolidation pattern already used for mergeReason/PersonAvatar
-  // (Vue2 has two literally-different but semantically-identical toasts here); flagged in the
-  // task report as an intentional consolidation, not an oversight.
-  photosPersonMergeDismissedToast: 'Suggestion dismissed',
   // Plan D Task 3: photosPersonSubtitle ('Person details · faces & relationships') is back.
   // Final-review Minor 8 (earlier P5) deleted this because the detail page's topbar was still
   // AreaShell (title-only, hidden on desktop) — Vue2 PhotosPeopleTopbar.vue:36's detail-state
@@ -1262,18 +1251,43 @@ export default {
   photosGridAskNimoRecap: 'Build a recap album from these {count} photos.',
   photosSearchFindPhotosPrefix: 'Find photos: ',
   // ── Plan C Task 2 (2026-08-20 people-suggestions-ui): the "To confirm" suggestion-
-  // confirmation cards on the People page — per-face join/review suggestions grouped by
+  // confirmation section on the People page — per-face join/review suggestions grouped by
   // person, sitting above the named-people area. New-UI-only feature, no Vue2 counterpart. ──
   photosPeopleSuggestions: 'To confirm',
+  // 2026-08-21 (people-confirm-polish, Apple-style review wizard): this question used to live
+  // on every card's group title in the old grid; the wizard's question line reuses the same key
+  // (the wording is unchanged, only where it appears changed).
   photosPeopleSuggestTitle: 'Is this {name}?',
-  photosPeopleAcceptAll: 'Confirm all',
-  photosPeopleRejectAll: 'Reject all',
   // kind='review' badge: semantically "previously attributed to this person, now in doubt" —
-  // visually distinct from a plain new-join ('kind' === 'join') suggestion face.
+  // visually distinct from a plain new-join ('kind' === 'join') candidate face. The wizard's
+  // compare view reuses this same key (the old grid's per-face badge).
   photosPeopleReviewBadge: 'Review',
-  // decideGroup's batch endpoint always resolves (never throws) with a per-id failure count;
-  // this is the user-facing notice for when some (but not all) of a group's items didn't go
-  // through — the store has already resynced the failed ones back into view by the time this
-  // shows.
-  photosPeopleSuggestPartialFail: '{n} item(s) could not be processed and were restored',
+  // 2026-08-21 (people-confirm-polish): the entry card's "Start review" button — opens the
+  // full-screen review wizard, one suggestion at a time, across all groups in order.
+  photosPeopleStartReview: 'Start review',
+  // Wizard header: label above the reference-faces row under the person's name, paired with
+  // exemplarFaceIds (a new optional backend field — an older backend without it makes the
+  // wizard fall back to cover-only, and this row never renders).
+  photosPeopleReviewReferenceLabel: 'Reference faces',
+  // Original/Compare segmented view-toggle option labels.
+  photosPeopleReviewViewOriginal: 'Original',
+  photosPeopleReviewViewCompare: 'Compare',
+  // Compare view's right-hand candidate-face label.
+  photosPeopleReviewCandidateLabel: 'Candidate',
+  // Compare view's kind='join' candidate badge (the counterpart of the Review badge above).
+  photosPeopleJoinBadge: 'New',
+  // The three decision buttons: Yes / No / Skip. Skip is purely client-side advance -- it never
+  // calls the backend.
+  photosPeopleReviewYes: 'Yes',
+  photosPeopleReviewNo: 'No',
+  photosPeopleReviewSkip: 'Skip',
+  // Progress indicator: "k / N" -- N is pinned at the moment the wizard opens and does not
+  // shrink/grow as items get decided or skipped mid-session.
+  photosPeopleReviewProgress: '{k} / {n}',
+  // Done-state title once every suggestion has been decided or skipped.
+  photosPeopleReviewDoneTitle: 'All caught up',
+  // 2026-08-20 (people-confirm-polish item 2, carried into the wizard): alt text for the face/
+  // context photo images and the hover title for "click to view full photo" -- shared by the
+  // wizard's default view, compare view, and zoom lightbox.
+  photosPeopleSuggestPeekAlt: 'View full photo',
 }
