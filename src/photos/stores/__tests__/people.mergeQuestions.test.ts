@@ -92,6 +92,63 @@ describe('photosPeople store — merge questions (merge-cards feature)', () => {
       expect(s.mergeQuestions[0].intoFaceIds).toEqual([])
     })
 
+    // Merge-card legibility fix (2026-08-21): fromFaces/intoFaces additive contract.
+    describe('fromFaces / intoFaces (merge-card legibility fix, additive)', () => {
+      it('present — normalizes each {faceId, assetId} entry to strings', async () => {
+        ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
+          pairs: [rawPair({
+            fromFaces: [{ faceId: 'f1', assetId: 'a1' }, { faceId: 'f2', assetId: 'a2' }],
+            intoFaces: [{ faceId: 'f3', assetId: 3 }],
+          })],
+        })
+        const s = usePhotosPeople()
+        await s.fetchMergeQuestions()
+        expect(s.mergeQuestions[0].fromFaces).toEqual([
+          { faceId: 'f1', assetId: 'a1' },
+          { faceId: 'f2', assetId: 'a2' },
+        ])
+        expect(s.mergeQuestions[0].intoFaces).toEqual([{ faceId: 'f3', assetId: '3' }])
+      })
+
+      it('absent (older backend not yet shipping this field) — undefined, not an empty array', async () => {
+        ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({ pairs: [rawPair()] })
+        const s = usePhotosPeople()
+        await s.fetchMergeQuestions()
+        expect(s.mergeQuestions[0].fromFaces).toBeUndefined()
+        expect(s.mergeQuestions[0].intoFaces).toBeUndefined()
+      })
+
+      it('a non-array value (malformed payload) — undefined, same as absent', async () => {
+        ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
+          pairs: [rawPair({ fromFaces: 'not-an-array' })],
+        })
+        const s = usePhotosPeople()
+        await s.fetchMergeQuestions()
+        expect(s.mergeQuestions[0].fromFaces).toBeUndefined()
+      })
+
+      it('malformed entries (missing faceId/assetId, or not an object) are skipped, valid entries survive', async () => {
+        ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
+          pairs: [rawPair({
+            fromFaces: [
+              { faceId: 'f1', assetId: 'a1' },
+              { faceId: 'f2' }, // missing assetId
+              { assetId: 'a3' }, // missing faceId
+              null,
+              'not-an-object',
+              { faceId: 'f5', assetId: 'a5' },
+            ],
+          })],
+        })
+        const s = usePhotosPeople()
+        await s.fetchMergeQuestions()
+        expect(s.mergeQuestions[0].fromFaces).toEqual([
+          { faceId: 'f1', assetId: 'a1' },
+          { faceId: 'f5', assetId: 'a5' },
+        ])
+      })
+    })
+
     it('404 (old backend, endpoint missing) — mergeQuestionsSupported flips to false, list ends up empty, does not throw', async () => {
       const err = Object.assign(new Error('not found'), { response: { status: 404 } })
       ;(service.photos.listMergeQuestions as any).mockRejectedValueOnce(err)

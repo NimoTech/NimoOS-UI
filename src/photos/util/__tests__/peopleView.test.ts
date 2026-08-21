@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   toPerson, personInitial, namedOf, unnamedOf,
-  sortNamed, monthKeyLabel, mergeConfidencePct,
+  sortNamed, monthKeyLabel, mergeConfidencePct, pluralWord,
   mergeReasonKey, nimoReadParts, findNamedDuplicate,
   PLACE_PALETTE, groupPlaces, colorPoints,
   topPersons, topPlaces, byYear, resolvePersonByName,
@@ -222,6 +222,17 @@ describe('monthKeyLabel', () => {
 describe('mergeConfidencePct', () => {
   it('0~1 → integer percentage, missing counts as 0', () => {
     expect(mergeConfidencePct(0.876)).toBe(88); expect(mergeConfidencePct(undefined)).toBe(0)
+  })
+})
+
+describe('pluralWord (merge-card legibility fix)', () => {
+  it('n === 1 → empty string (singular)', () => {
+    expect(pluralWord(1)).toBe('')
+  })
+  it('n === 0 or n > 1 → "s" (plural)', () => {
+    expect(pluralWord(0)).toBe('s')
+    expect(pluralWord(2)).toBe('s')
+    expect(pluralWord(20)).toBe('s')
   })
 })
 

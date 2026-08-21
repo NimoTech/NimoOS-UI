@@ -1316,6 +1316,11 @@ export default {
   photosPeopleMergeReject: '不同',
   // 卡片一侧的"入向"标签（into 一侧，即合并后保留的那个人）。
   photosPeopleMergeIntoLabel: '合并入',
+  // 合并卡片可读性修复（2026-08-21）：大号人脸网格下方每一侧的照片数量。特意单独开一个 key，
+  // 不复用 photosPeoplePhotosCount（其它很多调用点只传 {n}）——{s} 是英文单复数后缀
+  // （pluralWord()，src/photos/util/peopleView.ts），中文不需要单复数标记，{s} 未被引用时
+  // vue-i18n 会静默替换为空字符串，对中文文案无影响。
+  photosPeopleMergePhotosCount: '{n} 张照片',
   // 距离数值低调展示在问句下方（值越小越相似，不是百分比，不与 mergeConfidencePct 混用）。
   photosPeopleMergeDistLabel: '相似距离 {dist}',
 }

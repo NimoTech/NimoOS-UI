@@ -218,6 +218,16 @@ export function mergeConfidencePct(confidence: unknown): number {
   return Math.round((Number(confidence) || 0) * 100)
 }
 
+// Merge-card legibility fix (2026-08-21): English singular/plural suffix helper for photo
+// counts ("1 photo" vs "N photos") -- same role and shape as src/ai/util/stagedGroups.ts's own
+// pluralWord (that one is AI-area-only and src/ai is a whole separate OSS-stripped tree, so this
+// is a sibling copy for the Photos area rather than a cross-domain import). Chinese copy never
+// takes a singular/plural marker before the number, so passing {s} to a zh_cn message that
+// doesn't reference it is harmless (vue-i18n substitutes the empty string for an unused param).
+export function pluralWord(n: number): '' | 's' {
+  return n === 1 ? '' : 's'
+}
+
 // PhotosPeopleView.vue:551-558 (mergeReason) — pure functions cannot depend on
 // i18n, so this returns a translation key + params instead of a finished
 // string; the view layer resolves it via $t(key, params).

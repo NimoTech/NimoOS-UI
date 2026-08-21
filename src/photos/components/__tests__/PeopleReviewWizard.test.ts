@@ -9,6 +9,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
+import en from '../../../i18n/en_us'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -31,7 +32,15 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 import PeopleReviewWizard from '../PeopleReviewWizard.vue'
 import { usePhotosPeople } from '../../stores/people'
 
-const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+// Merge-card legibility fix (2026-08-21): plural-string assertions need an en_us-locale mount
+// (zh copy has no singular/plural distinction), following PersonHero.test.ts's own makeI18n
+// convention for locale-parametrized mounts in this test suite. Both locales' messages are
+// always registered (only `locale` itself changes) so mountWizard's default-vs-explicit i18n
+// argument types line up -- a bare `createI18n({ messages: { zh_cn } })` infers a narrower type
+// that a later `makeI18n('en_us')` instance can't satisfy.
+function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
+  return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
+}
 
 function rawPerson(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -48,8 +57,8 @@ function rawGroup(person: Record<string, unknown>, suggestions: Array<Record<str
 }
 
 const mounted: VueWrapper[] = []
-function mountWizard(open = true) {
-  const w = mount(PeopleReviewWizard, { props: { open }, global: { plugins: [i18n] } })
+function mountWizard(open = true, i18nInstance = makeI18n()) {
+  const w = mount(PeopleReviewWizard, { props: { open }, global: { plugins: [i18nInstance] } })
   mounted.push(w)
   return w
 }
@@ -385,15 +394,17 @@ describe('PeopleReviewWizard.vue — busy state', () => {
 })
 
 describe('PeopleReviewWizard.vue — merge cards (merge-cards feature, 2026-08-21)', () => {
-  it('renders both sides of the pair: collage faces, photo count, and name', async () => {
+  it('renders both sides of the pair: large face tiles, photo count, and name', async () => {
     await seedMerge([rawPair()])
     const w = mountWizard(true)
 
     expect(w.find('[data-test="prw-merge-sides"]').exists()).toBe(true)
     expect(w.find('[data-test="prw-merge-from-name"]').text()).toBe(zh.photosPersonUnnamedTitle)
     expect(w.find('[data-test="prw-merge-into-name"]').text()).toBe('Bob')
-    expect(w.find('[data-test="prw-merge-from-count"]').text()).toBe(zh.photosPeoplePhotosCount.replace('{n}', '5'))
-    expect(w.find('[data-test="prw-merge-into-count"]').text()).toBe(zh.photosPeoplePhotosCount.replace('{n}', '20'))
+    // Merge-card legibility fix (2026-08-21): count now goes through the dedicated
+    // photosPeopleMergePhotosCount key (see the plural-strings describe block below for why).
+    expect(w.find('[data-test="prw-merge-from-count"]').text()).toBe(zh.photosPeopleMergePhotosCount.replace('{n}', '5'))
+    expect(w.find('[data-test="prw-merge-into-count"]').text()).toBe(zh.photosPeopleMergePhotosCount.replace('{n}', '20'))
 
     const fromSrcs = w.find('[data-test="prw-merge-side-from"]').findAll('img').map((img) => img.attributes('src'))
     expect(fromSrcs).toEqual(['mock://face/ff1', 'mock://face/ff2'])
@@ -401,11 +412,89 @@ describe('PeopleReviewWizard.vue — merge cards (merge-cards feature, 2026-08-2
     expect(intoSrcs).toEqual(['mock://face/if1', 'mock://face/if2'])
   })
 
-  it('caps each side\'s collage at 4 preview faces even when the backend sends more', async () => {
+  it('caps each side\'s tile grid at 4 preview faces even when the backend sends more (fallback id-only arrays)', async () => {
     await seedMerge([rawPair({ fromFaceIds: ['a', 'b', 'c', 'd', 'e'], intoFaceIds: ['x', 'y', 'z', 'w', 'v'] })])
     const w = mountWizard(true)
     expect(w.find('[data-test="prw-merge-side-from"]').findAll('img')).toHaveLength(4)
     expect(w.find('[data-test="prw-merge-side-into"]').findAll('img')).toHaveLength(4)
+  })
+
+  // Merge-card legibility fix (2026-08-21): fromFaces/intoFaces (NEW additive backend contract)
+  // and the zoom mechanism the large tiles are for.
+  describe('large-tile grid + zoom (fromFaces/intoFaces contract)', () => {
+    it('renders tiles from fromFaces/intoFaces when present, capped at 4, same as the id-only fallback', async () => {
+      await seedMerge([rawPair({
+        fromFaces: [
+          { faceId: 'ff1', assetId: 'a1' }, { faceId: 'ff2', assetId: 'a2' },
+          { faceId: 'ff3', assetId: 'a3' }, { faceId: 'ff4', assetId: 'a4' }, { faceId: 'ff5', assetId: 'a5' },
+        ],
+        intoFaces: [{ faceId: 'if1', assetId: 'b1' }],
+      })])
+      const w = mountWizard(true)
+
+      const fromSrcs = w.find('[data-test="prw-merge-side-from"]').findAll('img').map((img) => img.attributes('src'))
+      expect(fromSrcs).toEqual(['mock://face/ff1', 'mock://face/ff2', 'mock://face/ff3', 'mock://face/ff4']) // capped at 4
+      const intoSrcs = w.find('[data-test="prw-merge-side-into"]').findAll('img').map((img) => img.attributes('src'))
+      expect(intoSrcs).toEqual(['mock://face/if1'])
+    })
+
+    it('clicking a tile with an assetId (fromFaces/intoFaces present) opens the zoom lightbox on the FULL photo via thumbnailUrl(assetId, "large")', async () => {
+      await seedMerge([rawPair({ fromFaces: [{ faceId: 'ff1', assetId: 'a1' }] })])
+      const w = mountWizard(true)
+      expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(false)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+
+      expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(true)
+      expect(w.find('[data-test="prw-lightbox-img"]').attributes('src')).toBe('mock://thumb/a1/large')
+    })
+
+    it('fallback: when fromFaces/intoFaces are absent (older backend, id-only arrays), clicking a tile zooms to the enlarged face crop instead', async () => {
+      await seedMerge([rawPair({ fromFaceIds: ['ff1', 'ff2'] })]) // no fromFaces field at all
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+
+      expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(true)
+      expect(w.find('[data-test="prw-lightbox-img"]').attributes('src')).toBe('mock://face/ff1')
+    })
+
+    it('the merge-card zoom lightbox is the SAME mechanism as the face-suggestion one -- closes via Escape/close button/backdrop click', async () => {
+      await seedMerge([rawPair({ fromFaces: [{ faceId: 'ff1', assetId: 'a1' }] })])
+      const w = mountWizard(true)
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+      expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(true)
+
+      await w.find('[data-test="prw-lightbox-close"]').trigger('click')
+      expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(false)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await w.vm.$nextTick()
+      expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(false)
+      expect(w.emitted('update:open')).toBeUndefined() // Escape closed the lightbox, not the wizard
+    })
+  })
+
+  // Merge-card legibility fix (2026-08-21): "1 photos" was a literal, unpluralized string.
+  describe('photo-count pluralization (merge-card legibility fix)', () => {
+    it('en_us: count === 1 renders the singular "1 photo", not "1 photos"', async () => {
+      await seedMerge([rawPair({ from: rawPerson({ id: 'pA', name: '', count: 1 }) })])
+      const w = mountWizard(true, makeI18n('en_us'))
+      expect(w.find('[data-test="prw-merge-from-count"]').text()).toBe('1 photo')
+    })
+
+    it('en_us: count > 1 keeps the plural "N photos"', async () => {
+      await seedMerge([rawPair({ into: rawPerson({ id: 'pB', name: 'Bob', count: 20 }) })])
+      const w = mountWizard(true, makeI18n('en_us'))
+      expect(w.find('[data-test="prw-merge-into-count"]').text()).toBe('20 photos')
+    })
+
+    it('zh_cn: copy is count-invariant ("N 张照片") in both the singular and plural case', async () => {
+      await seedMerge([rawPair({ from: rawPerson({ id: 'pA', name: '', count: 1 }) })])
+      const w = mountWizard(true)
+      expect(w.find('[data-test="prw-merge-from-count"]').text()).toBe('1 张照片')
+    })
   })
 
   it('shows the merge question, the distance, and the merge/different/skip buttons', async () => {

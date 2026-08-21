@@ -32,7 +32,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import PersonAvatar from './PersonAvatar.vue'
 import { usePhotosPeople, type SuggestionGroup, type SuggestionItem, type MergeQuestionPair } from '../stores/people'
-import { mergeConfidencePct, type Person } from '../util/peopleView'
+import { mergeConfidencePct, pluralWord, type Person } from '../util/peopleView'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
@@ -64,7 +64,13 @@ const skippedIds = ref<Set<string>>(new Set())
 const totalAtOpen = ref(0)
 const busy = ref(false)
 const viewMode = ref<'original' | 'compare'>('original')
-const lightboxOpen = ref(false)
+// Merge-card legibility fix (2026-08-21): the zoom lightbox used to be single-purpose (always
+// the face-suggestion body's own contextUrl). It is now a generic "show this one URL, big" overlay
+// so the merge body's face tiles can reuse the exact same mechanism -- `null` = closed, any string
+// = open showing that URL. openLightbox()/closeLightbox() are the only mutators; nothing sets
+// lightboxUrl directly outside them, so every open path is traceable to one of the two callers
+// below (the face body's context-photo click, or a merge-card tile click).
+const lightboxUrl = ref<string | null>(null)
 
 const current = computed<FlatItem | null>(() => flat.value.find((f) => !skippedIds.value.has(flatKey(f))) ?? null)
 const done = computed(() => current.value === null)
@@ -113,16 +119,40 @@ const coverFaceUrl = computed(() => {
 })
 const scorePct = computed(() => (current.value?.kind === 'face' ? mergeConfidencePct(current.value.item.score) : 0))
 
-// ── Merge-card-only view state (merge-cards feature) ──
+// ── Merge-card-only view state (merge-cards feature; large-tile grid + zoom is the
+// merge-card-legibility fix, 2026-08-21) ──
 const currentPair = computed<MergeQuestionPair | null>(() => (current.value?.kind === 'merge' ? current.value.pair : null))
 function sideName(p: Person | undefined): string {
   return p?.name || t('photosPersonUnnamedTitle')
 }
-// Up to 4 preview faces per side (brief: "≤4"), rendered via the same bare faceThumbnailUrl
-// helper the face-suggestion body already uses above — a merge card's collage faces have no
-// owning person's cover slot any more meaningfully than a suggestion's candidate face does.
-function sideFaceIds(ids: string[] | undefined): string[] {
-  return (ids ?? []).slice(0, 4)
+function sidePhotosCount(p: Person | undefined): string {
+  const n = p?.count ?? 0
+  return t('photosPeopleMergePhotosCount', { n: n.toLocaleString(), s: pluralWord(n) })
+}
+// A merge-card face tile: always has a faceId (what the tile itself renders, via faceThumb --
+// a merge card's collage faces have no owning person's cover slot any more meaningfully than a
+// suggestion's candidate face does), and OPTIONALLY an assetId (present only when the backend's
+// new fromFaces/intoFaces field is there). assetId is what the click handler below needs to zoom
+// to the full original photo instead of just the face crop.
+interface MergeTile { faceId: string; assetId?: string }
+// Up to 4 preview faces per side (brief: "≤4"). Feature-detected by presence of the NEW
+// fromFaces/intoFaces field (an array, even if empty, means the backend has it) -- falls back to
+// the older bare fromFaceIds/intoFaceIds (id-only, no assetId) so a not-yet-upgraded backend still
+// renders a usable, just degraded, grid (see MergeTile's own comment).
+function sideTiles(pair: MergeQuestionPair, side: 'from' | 'into'): MergeTile[] {
+  const faces = side === 'from' ? pair.fromFaces : pair.intoFaces
+  if (faces) return faces.slice(0, 4).map((f) => ({ faceId: f.faceId, assetId: f.assetId }))
+  const ids = side === 'from' ? pair.fromFaceIds : pair.intoFaceIds
+  return ids.slice(0, 4).map((faceId) => ({ faceId }))
+}
+const fromTiles = computed<MergeTile[]>(() => (currentPair.value ? sideTiles(currentPair.value, 'from') : []))
+const intoTiles = computed<MergeTile[]>(() => (currentPair.value ? sideTiles(currentPair.value, 'into') : []))
+// 1-2 faces stack in a single full-width column so each tile gets the whole card's width (the
+// "grow bigger" half of the brief); 3-4 switch to a 2-column grid once a single column would make
+// the card awkwardly tall. Read by the template as a `data-cols` attribute (CSS keys off it),
+// following this file's existing `data-active`-attribute convention rather than inline styles.
+function gridCols(tiles: MergeTile[]): 1 | 2 {
+  return tiles.length >= 3 ? 2 : 1
 }
 // Distance is shown subtly (brief), not run through mergeConfidencePct — it's a raw
 // complete-linkage distance (lower = closer), not the same "confidence" semantics that
@@ -139,6 +169,23 @@ const noLabel = computed(() => (current.value?.kind === 'merge' ? t('photosPeopl
 
 function close(): void {
   emit('update:open', false)
+}
+
+// Merge-card legibility fix (2026-08-21): the shared zoom-lightbox mutators (see lightboxUrl's
+// own declaration comment above for why this is generic rather than face-body-specific now).
+function openLightbox(url: string): void {
+  lightboxUrl.value = url
+}
+function closeLightbox(): void {
+  lightboxUrl.value = null
+}
+// A merge tile's click target: the FULL original photo (service.photos.thumbnailUrl(assetId,
+// 'large') -- same precedent as contextUrl above re: thumbnailUrl over originalUrl, video-safe)
+// when the backend's new fromFaces/intoFaces gave this tile an assetId; degrades to the enlarged
+// face crop (faceThumb) when it didn't (old backend, id-only arrays) -- "degraded but usable" per
+// the brief, not a broken click.
+function onMergeTileClick(tile: MergeTile): void {
+  openLightbox(tile.assetId ? service.photos.thumbnailUrl(tile.assetId, 'large') : faceThumb(tile.faceId))
 }
 
 async function decide(accept: boolean): Promise<void> {
@@ -177,7 +224,7 @@ function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   // The zoom lightbox is the topmost thing this component can show — Esc closes it first, same
   // "topmost overlay wins" convention the old suggestion-peek overlay followed in PhotosPeople.vue.
-  if (lightboxOpen.value) { lightboxOpen.value = false; return }
+  if (lightboxUrl.value !== null) { closeLightbox(); return }
   close()
 }
 
@@ -191,7 +238,7 @@ watch(
       skippedIds.value = new Set()
       totalAtOpen.value = flat.value.length
       viewMode.value = 'original'
-      lightboxOpen.value = false
+      lightboxUrl.value = null
       document.addEventListener('keydown', onDocumentKeydown)
     } else {
       document.removeEventListener('keydown', onDocumentKeydown)
@@ -204,7 +251,7 @@ watch(
 // just item.id) so this also fires correctly across the face->merge kind boundary.
 watch(() => (current.value ? flatKey(current.value) : null), () => {
   viewMode.value = 'original'
-  lightboxOpen.value = false
+  lightboxUrl.value = null
 })
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 </script>
@@ -250,7 +297,7 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
           </div>
 
           <div v-if="viewMode === 'original'" class="prw-body-original" data-test="prw-body-original">
-            <div class="prw-context-wrap" data-test="prw-context-photo" @click="lightboxOpen = true">
+            <div class="prw-context-wrap" data-test="prw-context-photo" @click="openLightbox(contextUrl)">
               <img class="prw-context-img" :src="contextUrl" :alt="t('photosPeopleSuggestPeekAlt')">
               <img class="prw-inset-img" data-test="prw-inset-face" :src="faceThumb(current.item.faceId)" alt="">
             </div>
@@ -273,23 +320,40 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
           </div>
         </template>
 
-        <!-- ── Merge-card body (merge-cards feature, 2026-08-21): a whole cluster-pair, two
-             sides side-by-side, each side a mini collage of up to 4 preview faces + photo count
-             + name. ── -->
+        <!-- ── Merge-card body (merge-card legibility fix, 2026-08-21): a whole cluster-pair, two
+             sides side-by-side, each side a LARGE square face-tile grid (same body scale as the
+             face-suggestion compare view above -- .prw-body-compare's sizing is this body's
+             reference) + photo count + name. Any tile click opens the shared zoom lightbox. ── -->
         <template v-else>
           <div class="prw-merge-sides" data-test="prw-merge-sides">
             <div class="prw-merge-side" data-test="prw-merge-side-from">
-              <div class="prw-merge-collage">
-                <img v-for="fid in sideFaceIds(current.pair.fromFaceIds)" :key="fid" class="prw-merge-collage-face" :src="faceThumb(fid)" alt="">
+              <div class="prw-merge-grid" :data-cols="gridCols(fromTiles)">
+                <img
+                  v-for="tile in fromTiles"
+                  :key="tile.faceId"
+                  class="prw-merge-tile"
+                  data-test="prw-merge-tile"
+                  :src="faceThumb(tile.faceId)"
+                  :alt="t('photosPeopleSuggestPeekAlt')"
+                  @click="onMergeTileClick(tile)"
+                >
               </div>
-              <div class="prw-merge-count" data-test="prw-merge-from-count">{{ t('photosPeoplePhotosCount', { n: current.pair.from.count.toLocaleString() }) }}</div>
+              <div class="prw-merge-count" data-test="prw-merge-from-count">{{ sidePhotosCount(current.pair.from) }}</div>
               <div class="prw-merge-name" data-test="prw-merge-from-name">{{ sideName(current.pair.from) }}</div>
             </div>
             <div class="prw-merge-side" data-test="prw-merge-side-into">
-              <div class="prw-merge-collage">
-                <img v-for="fid in sideFaceIds(current.pair.intoFaceIds)" :key="fid" class="prw-merge-collage-face" :src="faceThumb(fid)" alt="">
+              <div class="prw-merge-grid" :data-cols="gridCols(intoTiles)">
+                <img
+                  v-for="tile in intoTiles"
+                  :key="tile.faceId"
+                  class="prw-merge-tile"
+                  data-test="prw-merge-tile"
+                  :src="faceThumb(tile.faceId)"
+                  :alt="t('photosPeopleSuggestPeekAlt')"
+                  @click="onMergeTileClick(tile)"
+                >
               </div>
-              <div class="prw-merge-count" data-test="prw-merge-into-count">{{ t('photosPeoplePhotosCount', { n: current.pair.into.count.toLocaleString() }) }}</div>
+              <div class="prw-merge-count" data-test="prw-merge-into-count">{{ sidePhotosCount(current.pair.into) }}</div>
               <div class="prw-merge-name" data-test="prw-merge-into-name">{{ sideName(current.pair.into) }}</div>
               <div class="prw-merge-into-badge">{{ t('photosPeopleMergeIntoLabel') }}</div>
             </div>
@@ -311,14 +375,14 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
         <button type="button" class="prw-btn prw-btn-yes" data-test="prw-done-close" @click="close">{{ t('photosClose') }}</button>
       </div>
 
-      <div v-if="lightboxOpen" class="prw-lightbox" data-test="prw-lightbox" @click.self="lightboxOpen = false">
-        <img class="prw-lightbox-img" data-test="prw-lightbox-img" :src="contextUrl" :alt="t('photosPeopleSuggestPeekAlt')">
+      <div v-if="lightboxUrl !== null" class="prw-lightbox" data-test="prw-lightbox" @click.self="closeLightbox">
+        <img class="prw-lightbox-img" data-test="prw-lightbox-img" :src="lightboxUrl" :alt="t('photosPeopleSuggestPeekAlt')">
         <button
           type="button"
           class="prw-lightbox-close"
           data-test="prw-lightbox-close"
           :aria-label="t('photosClose')"
-          @click="lightboxOpen = false"
+          @click="closeLightbox"
         >&#215;</button>
       </div>
     </div>
@@ -474,10 +538,11 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 }
 .prw-score { color: var(--text-3); font-variant-numeric: tabular-nums; }
 
-/* ── Merge-card body (merge-cards feature, 2026-08-21): two sides side-by-side, each a mini
-   collage of up to 4 preview faces + photo count + name. Reuses .prw-compare-side's flex/gap
-   rhythm (same "two equal columns" shape as the face-suggestion compare view above) rather than
-   inventing a new layout primitive. New-UI-only feature, no Vue2 counterpart. */
+/* ── Merge-card body (merge-card legibility fix, 2026-08-21): two sides side-by-side, each a
+   LARGE square face-tile grid + photo count + name -- matches .prw-body-compare's sizing above
+   (same "two equal columns, square images at the panel's own scale" body, not a shrunken stamp
+   like the pre-fix .prw-merge-collage this replaces). Reuses .prw-compare-side's overall
+   flex/gap rhythm. New-UI-only feature, no Vue2 counterpart. */
 .prw-merge-sides { display: flex; gap: 12px; }
 .prw-merge-side {
   position: relative;
@@ -485,25 +550,35 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 10px;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px 0;
   border-radius: var(--r-md);
   background: var(--surface-2);
   border: 1px solid var(--line);
-}
-.prw-merge-collage {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 3px;
-  width: 72px;
-  height: 72px;
-  border-radius: var(--r-sm);
   overflow: hidden;
 }
-.prw-merge-collage-face { width: 100%; height: 100%; object-fit: cover; background: var(--surface-3); }
-.prw-merge-count { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.prw-merge-name { font-size: 13.5px; font-weight: 600; color: var(--text-1); text-align: center; }
+/* No horizontal padding on the side itself (unlike the old collage's boxed-in 72px square) --
+   the grid spans the side's full width edge-to-edge so each tile gets as much room as this
+   panel's fixed width allows. 1-2 faces: a single column, each tile the full side width ("grow
+   bigger" -- a lone face lands close to .prw-compare-img's own ~230px). 3-4 faces: 2 columns,
+   each tile still comfortably above the ~120px floor the brief calls for. */
+.prw-merge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+.prw-merge-grid[data-cols="1"] { grid-template-columns: 1fr; }
+.prw-merge-tile {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  background: var(--surface-3);
+  cursor: zoom-in;
+}
+.prw-merge-count { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; padding: 0 10px; text-align: center; }
+.prw-merge-name { font-size: 13.5px; font-weight: 600; color: var(--text-1); text-align: center; padding: 0 10px; }
 .prw-merge-into-badge {
   position: absolute;
   top: 6px;
