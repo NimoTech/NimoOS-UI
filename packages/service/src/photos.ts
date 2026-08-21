@@ -266,6 +266,29 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get('/photos/persons/merge-suggestions')
       return body<unknown[]>(res.data)
     },
+    // ─── Person suggestions (Plan C Task 1) ───
+    // Distinct from mergeSuggestions above: these are per-face join/review suggestions grouped
+    // by person, not whole-cluster merge proposals. Response is an object-wrapped
+    // {groups:[{person,suggestions:[...]}]} — not a bare array — so this stays unwrapped for
+    // the store layer to normalize, matching the listPersons convention just above.
+    async listPersonSuggestions(): Promise<unknown> {
+      const res = await http.get('/photos/persons/suggestions')
+      return body<unknown>(res.data)
+    },
+    async acceptPersonSuggestion(id: string): Promise<unknown> {
+      const res = await http.post(`/photos/persons/suggestions/${id}/accept`, {})
+      return body<unknown>(res.data)
+    },
+    async rejectPersonSuggestion(id: string): Promise<unknown> {
+      const res = await http.post(`/photos/persons/suggestions/${id}/reject`, {})
+      return body<unknown>(res.data)
+    },
+    // Always answers 200 (per-id results, never a top-level failure) — the backend's per-item
+    // status/error is left in the response for the caller to inspect if it ever needs to.
+    async batchPersonSuggestions(payload: { accept: string[]; reject: string[] }): Promise<unknown> {
+      const res = await http.post('/photos/persons/suggestions/batch', payload)
+      return body<unknown>(res.data)
+    },
     async rejectMergeSuggestion(fromId: string | number, intoId: string | number): Promise<unknown> {
       const res = await http.post('/photos/persons/merge-suggestions/reject', { from_id: fromId, into_id: intoId })
       return body<unknown>(res.data)
@@ -283,6 +306,15 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       // Vue2's null check is `ver != null && ver !== ''` —— the number 0 is a valid ver, so a falsy check can't be used.
       const v = ver != null && ver !== '' ? `?v=${encodeURIComponent(String(ver))}` : ''
       return `/v1/photos/persons/${id}/face-thumbnail${v}${tokenQ(v ? '&' : '?')}`
+    },
+    // Plan C Task 2 (2026-08-20 people-suggestions-ui): per-face suggestion thumbnail. Distinct
+    // from personFaceThumbnailUrl above, which is keyed by person id (plus an optional
+    // cover-face `ver` for cache-busting) — a suggestion item only ever carries a bare faceId
+    // with no owning person slot yet (that's the whole point of a "join" suggestion: the face
+    // isn't attached to anyone's cover yet). Same tokenQ convention as every other media URL
+    // helper in this file; no ver param needed since each faceId is itself immutable.
+    faceThumbnailUrl(faceId: string | number): string {
+      return `/v1/photos/faces/${faceId}/thumbnail${tokenQ('?')}`
     },
     // ─── Places ───
     // The backend returns an object-wrapped {regions, places, stats} (not a bare array; see service/places_types.go PlacesResponse).

@@ -1283,4 +1283,19 @@ export default {
   photosSuggestFindPeople: '找人物',
   photosGridAskNimoRecap: '从这 {count} 张照片创建一个回顾相册。',
   photosSearchFindPhotosPrefix: '查找照片：',
+  // ── Plan C Task 2 (2026-08-20 people-suggestions-ui): the "待确认" suggestion-confirmation
+  // cards on the People page — per-face join/review suggestions grouped by person, sitting
+  // above the named-people area. New-UI-only feature, no Vue2 counterpart to transcribe. ──
+  photosPeopleSuggestions: '待确认',
+  photosPeopleSuggestTitle: '这是 {name} 吗?',
+  photosPeopleAcceptAll: '全部确认',
+  photosPeopleRejectAll: '全部拒绝',
+  // kind='review' badge: semantically "previously attributed to this person, now in doubt" —
+  // visually distinct from a plain new-join ('kind' === 'join') suggestion face.
+  photosPeopleReviewBadge: '复核',
+  // decideGroup's batch endpoint always resolves (never throws) with a per-id failure count;
+  // this is the user-facing notice for when some (but not all) of a group's items didn't go
+  // through — the store has already resynced the failed ones back into view by the time this
+  // shows.
+  photosPeopleSuggestPartialFail: '有 {n} 项未处理成功,已恢复显示',
 }
