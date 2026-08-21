@@ -355,7 +355,6 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
               </div>
               <div class="prw-merge-count" data-test="prw-merge-into-count">{{ sidePhotosCount(current.pair.into) }}</div>
               <div class="prw-merge-name" data-test="prw-merge-into-name">{{ sideName(current.pair.into) }}</div>
-              <div class="prw-merge-into-badge">{{ t('photosPeopleMergeIntoLabel') }}</div>
             </div>
           </div>
           <div class="prw-merge-dist" data-test="prw-merge-dist">{{ distLabel }}</div>
@@ -579,17 +578,6 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 }
 .prw-merge-count { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; padding: 0 10px; text-align: center; }
 .prw-merge-name { font-size: 13.5px; font-weight: 600; color: var(--text-1); text-align: center; padding: 0 10px; }
-.prw-merge-into-badge {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-size: 9.5px;
-  font-weight: 500;
-  background: var(--accent);
-  color: var(--on-accent);
-}
 /* Distance shown subtly (brief) — small, muted, no visual competition with the question line. */
 .prw-merge-dist { align-self: center; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 

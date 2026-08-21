@@ -1300,7 +1300,6 @@ export default {
   photosPeopleMergeAccept: 'Merge',
   photosPeopleMergeReject: 'Different',
   // Label for the card's "into" side (the person that survives the merge).
-  photosPeopleMergeIntoLabel: 'Merge into',
   // Merge-card legibility fix (2026-08-21): each side's photo count under the large face-tile
   // grid. Deliberately its own key rather than reusing photosPeoplePhotosCount (which many other
   // call sites pass only {n} to) -- {s} is the English plural suffix from pluralWord()
