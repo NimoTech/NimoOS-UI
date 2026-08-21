@@ -137,7 +137,10 @@ export const SOFT = [
       { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine('volume-uuid="u-data" mount-point="/DATA" rel-path="Photos" folder-label="/磁盘/Photos"') },
       // 2026-08-14:私有侧把这条注释译成了英文,原中文整行不再命中。同样是"举例用的
       // 普通文件夹名 /Photos/2024",不是相册 app。
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.vue$/, re: exactLine('// the snapshot root — a user opening Time Machine at /Photos/2024 got dumped back at the') },
+      // 2026-08-20:该行的破折号后来又从中文式 em dash(—)改成了 ASCII 双连字符(--),
+      // 原 em dash 版本的锚点因此永久失配、悄悄失效——本条只是把锚点更新为当前实际
+      // 文本,豁免范围与语义一字未变。
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.vue$/, re: exactLine('// the snapshot root -- a user opening Time Machine at /Photos/2024 got dumped back at the') },
       // ImageViewer.vue:平铺缩放时的白色接缝说明,"the photo"是被查看的图片本身
       // (图片预览器是保留面),与相册 app 无关。
       { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: exactLine('stretches stale tiles without repainting, and tile seams show as white hairline grids over the photo') },
@@ -242,6 +245,50 @@ export const SOFT = [
       // into "photos/videos". Same sense as the entries above -- the media the overlay
       // sits on top of (image/video preview is a kept surface), not the photos app.
       { file: /src\/styles\/theme\.css$/, re: exactLine("/* Shadow for overlays sitting above media (photos/videos): content color can't be") },
+      // 2026-08-20 (home-widgets/time-machine line, PR #16/#18 -- oss manifest fix wave 2,
+      // same shape as the ai.ts wiring line's fix wave 1): the deck-preview/time-machine
+      // feature is a real kept surface (Files area snapshot browsing), and 'Photos' in every
+      // line below is either an example folder name in a fixture/comment (same pattern as the
+      // snapshotPath.test.ts/snapshotRestore.test.ts/Files.test.ts entries above) or a
+      // filename reference to the deleted photos app's PhotoImageViewer.vue cited only as
+      // prior art for a CSS drag-suppression trick -- not a mention of the photos app's own
+      // functionality. All verified with oss/export.mjs; entered per-line, not per-file.
+      { file: /src\/files\/composables\/useDeckPreview\.ts$/, re: exactLine('//   GET /v1/folder?path=/DATA/.snapshots/<absent>/Photos') },
+      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine('// measured: GET /v1/file?path=/DATA/.snapshots/<absent>/Photos') },
+      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine("const api = useDeckPreview({ mountPoint: () => '/DATA', relPath: () => 'Photos', visibleNames: () => ['snap1'] })") },
+      { file: /src\/files\/snapshot\/TimeMachineCard\.test\.ts$/, re: exactLine("props: { item: ITEM, state: 'front' as const, depth: 0, folderLabel: '/磁盘/Photos', subPath: '', ...props },") },
+      { file: /src\/files\/snapshot\/TimeMachineCard\.test\.ts$/, re: exactLine("expect(w.findAll('.tm-crumb').map((c) => c.text())).toEqual(['磁盘', 'Photos'])") },
+      { file: /src\/files\/snapshot\/TimeMachineCard\.test\.ts$/, re: exactLine("await w.findAll('button.tm-crumb').find((c) => c.text() === 'Photos')!.trigger('click')") },
+      { file: /src\/files\/snapshot\/TimeMachineCrumbs\.vue$/, re: exactLine('/** Virtual path of the folder the time machine was opened on, e.g. "/My disk/Photos" */') },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(crumbs(w)).toEqual(['磁盘', 'Photos'])") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenCalledWith('/DATA/.snapshots/20260730T090000Z_manual_0/Photos')") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("const DIR = { path: '/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024', name: '2024', is_dir: true, date: relDay(0, 9) }") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenLastCalledWith('/DATA/.snapshots/20260730T143000Z_manual_x/Photos')") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenLastCalledWith('/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024')") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024')") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(crumbs(w)).toEqual(['磁盘', 'Photos']) // nothing below the starting folder yet") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(crumbs(w)).toEqual(['磁盘', 'Photos', '2024'])") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("// 'Photos' is the folder the time machine was opened on: clicking it comes back out.") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("await w.findAll('button.tm-crumb').find((c) => c.text() === 'Photos')!.trigger('click'); await flush(w)") },
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine('// The older snapshot does not contain Photos/2024 at all.') },
+      { file: /src\/files\/util\/apiError\.ts$/, re: exactLine('//   GET /v1/file?path=/DATA/.snapshots/<absent>/Photos') },
+      // PhotoImageViewer.vue:221 is cited as prior art for a three-part native-drag
+      // suppression fix (draggable="false" + -webkit-user-drag:none + user-select:none) --
+      // the same reasoning is reused for the dock icons here, not a mention of the photos
+      // app's own behaviour. src/photos/** (including PhotoImageViewer.vue itself) is
+      // wholly removed by the DELETE table; this is a filename reference to prior art only.
+      { file: /src\/home\/components\/DockApp\.vue$/, re: exactLine('   Same three-part remedy as PhotoImageViewer.vue:221 and ImageViewer.vue. */') },
+      { file: /src\/home\/components\/HomeDock\.test\.ts$/, re: exactLine('// PhotoImageViewer.vue:221 records that draggable="false" alone is not enough,') },
+      { file: /src\/home\/components\/style-guard\.test\.ts$/, re: exactLine('// once a text selection exists, which PhotoImageViewer.vue:221 records after') },
+      // ClockWidget.test.ts: 'photos' here is just one example domain name in a list
+      // describing the shared service package's getter shape (users/photos/... all throw
+      // unless initService() ran) -- not a mention of the photos app or its API.
+      { file: /src\/home\/components\/widgets\/ClockWidget\.test\.ts$/, re: exactLine("// Note: `service`'s other domains (users, photos, ...) are getters that call the") },
+      // dockMath.test.ts: pure unit test over (key, midX) tuples -- 'photos' here is an
+      // arbitrary fixture key, same role as 'files'/'settings'/'kvm' on the same lines, not
+      // tied to the real app registry (systemApps.ts, where the app itself is deleted).
+      { file: /src\/home\/grid\/dockMath\.test\.ts$/, re: exactLine("const fav = [{ key: 'files', midX: 100 }, { key: 'photos', midX: 200 }]") },
+      { file: /src\/home\/grid\/dockMath\.test\.ts$/, re: exactLine("expect(dropTarget(180, 300, fav, more).beforeKey).toBe('photos')") },
     ],
   },
   {

@@ -3042,6 +3042,201 @@ describe('ai shard prefix guard', () => {
   //      ⚠️ 锚点**只吃带 ai 的那一行**,不连上一行一起换:上一行含 "Vue2",而
   //      tree.test.mjs 那道守卫禁止 replace 内容出现该词(第一版连着换被逮到)。
   //      上一行属于"保留原文"、不经 replace 写入,不受该守卫管辖,也不在泄漏词表里。
+
+  // ═══════════════════ T-oss-fix-2: home-widgets/time-machine line (PR #16/#18) ══════
+  // 第二次出现"整条功能线上线,manifest 没跟着更新"(第一次是 ai.ts 接线那条,fix wave 1
+  // 已修)。泄漏守卫在 oss/tree.test.mjs 上命中 51 处,其中 47 处是注释/fixture 里的
+  // "Photos"/"knowledge" 文字性误报(已逐条精确白名单进 forbidden.mjs,见其 SOFT.photo
+  // allow 表 2026-08-20 那批),剩下这一块是唯一的真实结构性问题:
+
+  // ── HomeDock.test.ts:三条"more 区中间项拖拽"几何测试整块删除 ──────────────
+  //    这三条测试(连同它们独占的 stubMids/startShiftedDrag/shiftPx 三个 helper)在私有版
+  //    里靠 more 区天然有三项(storage/knowledge/settings)来练"拖拽项是 zone 中间项"这条
+  //    几何分支;knowledge 系统应用已在上面的 systemApps.ts PATCH 段摘掉,且开源版
+  //    DEFAULT_FAV 把 storage 也收进了收藏区(见 useDock.ts 那条 PATCH 的注释:开源版
+  //    favorites 从私有版 5 项变 4 项,补 storage 进去是为了补上失去的两块桌面入口),
+  //    两条变化叠加后开源产物树默认更多区只剩 settings 一项 —— 与 HomeDock.test.ts 上面
+  //    "全部应用抽屉的应用总数…more(≥1, includes settings)" 那条已有 PATCH 记录的现状
+  //    完全一致。这不是词表误报(不能白名单打发),是这三条测试依赖的前提(more 区≥3项)
+  //    在开源版里真实不成立 —— 实测过 pnpm exec vitest 跑产物树:不删的话这三条会真的跑
+  //    失败(Unable to get '.dock-app[data-app="knowledge"]',不是这条守卫能拦到的类别,
+  //    是产物树自己的运行时断裂)。pitchFor/measureGeometry 中间项分支的算法覆盖不会因此
+  //    丢失:dockMath.test.ts 是对同一算法的纯单元测试,用的是任意 (key, midX) fixture,
+  //    不依赖真实应用注册表,不受这次删除影响。
+  { path: 'src/home/components/HomeDock.test.ts',
+    find: `  // ── The reflow must not feed back into the geometry the drag measures ──
+  // .dock is centred with a shrink-to-fit width, and a CSS transform still moves
+  // the rect getBoundingClientRect() reports even though it leaves layout flow
+  // untouched -- so live icon offsets shift every slot midpoint exactly like the
+  // old in-flow placeholder did. jsdom does no layout, so the shift is injected by
+  // hand: the rects change the moment the drag activates, exactly as the
+  // browser's would. Both the preview and the drop must keep using the geometry
+  // measured before any offset existed.
+  const stubMids = (w: ReturnType<typeof mount>, mids: Record<string, () => number>) => {
+    for (const [sel, mid] of Object.entries(mids)) {
+      const el = w.get(sel).element
+      Object.defineProperty(el, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: mid() - 10, right: mid() + 10, width: 20, top: 0, bottom: 20, height: 20, x: mid() - 10, y: 0, toJSON: () => ({}) }),
+      })
+    }
+  }
+
+  // Base mids put the pointer at 190 just left of "knowledge" (200), so the
+  // insertion previews before it. The shift then moves both more-zone slots
+  // right by half a pitch, which would flip a re-measuring drop to "append".
+  const startShiftedDrag = async (w: ReturnType<typeof mount>, shift: { v: number }) => {
+    const nav = w.get('nav').element as HTMLElement
+    nav.setPointerCapture = (() => {}) as never
+    stubMids(w, {
+      '.dock-sep': () => 50,
+      '.dock-app[data-app="storage"]': () => 100 + shift.v,
+      '.dock-app[data-app="knowledge"]': () => 200 + shift.v,
+    })
+    await w.get('.dock-app[data-app="settings"]').trigger('pointerdown', { pointerId: 9, clientX: 180, clientY: 0 })
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 9, clientX: 190, clientY: 0 }) // crosses the 5px threshold
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    // Activation sizes and applies the spare-slot reservation, then re-measures
+    // the resulting geometry inside nextTick -- so the pointermove that crosses
+    // the threshold never resolves a preview itself, only positions the ghost.
+    // A second pointermove at the same spot, once that snapshot has landed, is
+    // what actually resolves toZone/beforeKey (same shape onResize already uses
+    // to get a fresh preview after it re-measures).
+    const move2 = new Event('pointermove') as PointerEvent
+    Object.assign(move2, { pointerId: 9, clientX: 190, clientY: 0 })
+    window.dispatchEvent(move2)
+    await w.vm.$nextTick()
+  }
+
+  // Reads the pixel shift out of an icon's inline transform, or 0 when it carries none.
+  const shiftPx = (el: Element): number => {
+    const tr = (el as HTMLElement).style.transform
+    const m = tr.match(/translateX\\((-?[\\d.]+)px\\)/)
+    return m ? Number(m[1]) : 0
+  }
+
+  // Regression: measureGeometry skips the dragged icon, but the icon still
+  // occupies its slot (hidden with opacity, not removed from flow) -- so when
+  // the dragged icon is the *middle* of its zone, the two remaining slots
+  // collected are not physical neighbours. pitchFor used to take
+  // \`slots[1].midX - slots[0].midX\` unconditionally, which read the full span
+  // across the hole as if it were a single pitch, doubling it -- so a
+  // one-slot shift rendered as a two-slot jump onto the neighbour.
+  it('shifts a neighbour by exactly one pitch when the dragged icon is the middle of its zone', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    const nav = w.get('nav').element as HTMLElement
+    nav.setPointerCapture = (() => {}) as never
+    stubMids(w, {
+      '.dock-sep': () => 50,
+      '.dock-app[data-app="storage"]': () => 100,
+      '.dock-app[data-app="settings"]': () => 300,
+    })
+
+    // Drag "knowledge" -- the middle of the three-item more-zone
+    // (storage, knowledge, settings) -- so its holeIndex is 1.
+    await w.get('.dock-app[data-app="knowledge"]').trigger('pointerdown', { pointerId: 11, clientX: 200, clientY: 0 })
+    const move = new Event('pointermove') as PointerEvent
+    Object.assign(move, { pointerId: 11, clientX: 90, clientY: 0 }) // crosses the 5px threshold
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    // Second pointermove at the same spot resolves the preview against the
+    // now-measured snapshot, same shape startShiftedDrag uses below.
+    const move2 = new Event('pointermove') as PointerEvent
+    Object.assign(move2, { pointerId: 11, clientX: 90, clientY: 0 })
+    window.dispatchEvent(move2)
+    await w.vm.$nextTick()
+
+    // clientX=90 is nearest "storage" (100) and to its left, so the preview
+    // targets insertAt=0 (before "storage") -- one slot short of the hole at
+    // index 1, so "storage" slides right by exactly one pitch (100px, the
+    // stubbed storage/settings gap spread over two physical slots). The old,
+    // doubled pitch would have shown 200px here.
+    expect(shiftPx(w.get('.dock-app[data-app="storage"]').element)).toBe(100)
+    expect(shiftPx(w.get('.dock-app[data-app="settings"]').element)).toBe(0)
+
+    const up = new Event('pointerup') as PointerEvent
+    Object.assign(up, { pointerId: 11, clientX: 90, clientY: 0 })
+    window.dispatchEvent(up)
+  })
+
+  it('drops where the reflow was previewed even after the reflow itself shifts the dock', async () => {
+    useAppsStore()
+    const dock = useDock()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    const shift = { v: 0 }
+    await startShiftedDrag(w, shift)
+
+    // "settings" is dragged out of ['storage', 'knowledge', 'settings'], so its
+    // holeIndex is 2 (the end of the more-zone list), not the middle -- it does
+    // not sit between "storage" and "knowledge" before the drag. The preview
+    // targets insertAt=1 (before "knowledge"), one slot short of where the hole
+    // already is, so "knowledge" is the one that has to slide right by a pitch
+    // (100px, the stubbed storage/knowledge gap) to open the gap in front of it;
+    // "storage" is already on the correct side of the gap and does not move.
+    expect(shiftPx(w.get('.dock-app[data-app="storage"]').element)).toBe(0)
+    expect(shiftPx(w.get('.dock-app[data-app="knowledge"]').element)).toBe(100)
+
+    shift.v = 50 // the layout the icon offset itself produced
+    const up = new Event('pointerup') as PointerEvent
+    Object.assign(up, { pointerId: 9, clientX: 190, clientY: 0 })
+    window.dispatchEvent(up)
+    await w.vm.$nextTick()
+
+    // Re-measuring here would nearest-match the shifted "storage" (150) and append
+    // instead: ['storage', 'knowledge', 'settings'].
+    expect(dock.moreKeys.value).toEqual(['storage', 'settings', 'knowledge'])
+  })
+
+  // A resize is the one event that legitimately invalidates the snapshot, so it
+  // must re-measure -- but only after dropping the preview, or it would measure
+  // the icon offsets' own displacement.
+  it('re-measures on resize, and does so with no offset left over from the stale snapshot', async () => {
+    useAppsStore()
+    const w = mount(HomeDock)
+    await w.get('.dock-toggle').trigger('click')
+    const shift = { v: 0 }
+    await startShiftedDrag(w, shift)
+    expect(shiftPx(w.get('.dock-app[data-app="knowledge"]').element)).toBe(100)
+
+    shift.v = 50 // the viewport changed; slots really are somewhere else now
+    window.dispatchEvent(new Event('resize'))
+    await w.vm.$nextTick()
+    // onResize clears drag.toZone immediately, before the re-measure lands, so
+    // every icon's shift collapses to 0 no matter which zone it is in.
+    for (const b of w.findAll('.dock-app[data-app]')) expect(shiftPx(b.element)).toBe(0)
+    await w.vm.$nextTick()
+
+    const move = new Event('pointermove') as PointerEvent
+    // 220, not the 190 this test used to probe with. Under "insert before the
+    // first slot the pointer has not passed", x=190 lands before "knowledge" on
+    // BOTH the stale mids (100/200) and the fresh ones (150/250), so it can no
+    // longer tell a re-measure from a missing one. 220 sits between the two
+    // geometries: past everything on the stale mids, still short of "knowledge"
+    // on the fresh ones.
+    Object.assign(move, { pointerId: 9, clientX: 220, clientY: 0 })
+    window.dispatchEvent(move)
+    await w.vm.$nextTick()
+    // Against the new geometry (storage 150, knowledge 250) x=220 is short of
+    // "knowledge", so the icon inserts before it: holeIndex=2, insertAt=1, which
+    // moves "knowledge" one 100px slot along. Had onResize kept the stale
+    // pre-resize geometry, 220 would be past both slots, the insertion point
+    // would be the end of the zone -- where the hole already is -- and nothing
+    // would move at all.
+    expect(shiftPx(w.get('.dock-app[data-app="storage"]').element)).toBe(0)
+    expect(shiftPx(w.get('.dock-app[data-app="knowledge"]').element)).toBe(100)
+
+    const up = new Event('pointerup') as PointerEvent
+    Object.assign(up, { pointerId: 9, clientX: 220, clientY: 0 })
+    window.dispatchEvent(up)
+  })
+
+`,
+    replace: '' },
   { path: 'vite.config.ts',
     find: 'then enter /app/#/ai/* for acceptance',
     replace: 'then enter /app/#/ for acceptance' },
