@@ -98,6 +98,7 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
+import PeopleReviewWizard from '../photos/components/PeopleReviewWizard.vue'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { useAskNimo } from '../photos/composables/useAskNimo'
 import { service } from '@nimotech/nimoos-service'
@@ -285,107 +286,28 @@ function toggleHidden(): void {
   hiddenExpanded.value = !hiddenExpanded.value
 }
 
-// ── Suggestion confirmation cards (Plan C Task 2, 2026-08-20 people-suggestions-ui) ──
-// The store's own pending-decision guard (`_pendingSuggestionIds` in people.ts) is module-
-// private, and only exists to stop a racing fetchSuggestions() from clobbering an in-flight
-// decision — it isn't exposed for the view to read. This component keeps its OWN local
-// in-flight set purely for UI disablement (greying out a face/group while its request is
-// outstanding). Wholesale-reassignment convention (not `reactive(new Set())` with in-place
-// add/delete), matching this repo's established pattern for ref<Set<…>> state elsewhere
-// (e.g. SearchView.vue's toggleSet, QueueView.vue's `selected`).
-const suggestionBusy = ref<Set<string>>(new Set())
-function markSuggestionBusy(ids: string[]): void {
-  const next = new Set(suggestionBusy.value)
-  for (const id of ids) next.add(id)
-  suggestionBusy.value = next
-}
-function unmarkSuggestionBusy(ids: string[]): void {
-  const next = new Set(suggestionBusy.value)
-  for (const id of ids) next.delete(id)
-  suggestionBusy.value = next
-}
-function isSuggestionBusy(id: string): boolean {
-  return suggestionBusy.value.has(id)
-}
-// A group counts as busy while ANY of its member suggestions is locally in-flight — covers
-// both the group-level Confirm/Reject-all path (which marks every id in the group busy up
-// front, mirroring the store's own decideGroup) and a single per-face decision fired from
-// inside a group that still has its own Confirm/Reject-all buttons visible.
-function isSuggestionGroupBusy(personId: string | number): boolean {
-  const g = people.suggestionGroups.find((x) => String(x.person.id) === String(personId))
-  return !!g && g.suggestions.some((s) => isSuggestionBusy(s.id))
-}
-// service.photos.faceThumbnailUrl internally includes the token (same convention as every
-// other media URL helper in the service package) — this component does not hand-build it.
+// ── Suggestion confirmation entry card (people-confirm-polish, 2026-08-21 rework) ──
+// The old per-group card grid (inline ✓/✕ buttons, group-level Confirm-all/Reject-all, and the
+// click-to-enlarge peek overlay) is gone entirely — this page now only renders a compact entry
+// card (count + a preview strip of pending face thumbs + a "Start review" button); the actual
+// per-suggestion decision flow lives in PeopleReviewWizard.vue, opened full-screen from that
+// button. That component owns its own store interaction end-to-end (see its header comment for
+// the division-of-labor rationale — unlike ClusterActionDialog, it is NOT emit-only), so this
+// page no longer needs any local busy-set/peek state, and no longer calls decideGroup at all
+// (decideGroup itself is untouched in the store — see people.ts — simply no longer invoked from
+// this view now that the group-level batch buttons are gone).
+//
+// service.photos.faceThumbnailUrl internally includes the token (same convention as every other
+// media URL helper in the service package) — this component does not hand-build it.
 function suggestionFaceThumb(faceId: string): string {
   return service.photos.faceThumbnailUrl(faceId)
 }
-
-// 2026-08-20 (people-confirm-polish item 2, post-acceptance feedback): the face thumbnails in the
-// "To confirm" cards are too small to judge identity from — clicking one opens an enlarged view of
-// the FULL asset photo (not just the cropped face) for context, using the suggestion's own
-// assetId. This page has no existing photo-viewer wiring to reuse: PhotoLightbox/useLightbox
-// (used elsewhere in Photos) is a module-level singleton built around navigating a full Photo[]
-// list (assetToPhoto shape: width/height/isVideo/…) and drives browser-history pushState +
-// favorites side effects (recordView, reconcileFav) that make no sense for "peek at one asset from
-// a suggestion, no next/prev, no history entry" — pulling it in here would be the wrong tool, not
-// a shortcut. So this is a minimal self-contained overlay instead.
-//
-// Fix round 1 (backend-confirmed reachable): deliberately NOT service.photos.originalUrl(assetId)
-// here. Face detection runs on video keyframes too, and person_suggestions carries no
-// video-exclusion filter, so a suggestion's assetId can legitimately point at a video asset; the
-// backend's Original handler streams back the raw video file for those, which an <img> tag can't
-// render (broken image). The frontend SuggestionItem type carries no isVideo flag either, so a
-// conditional <video> branch isn't possible without a backend contract change — out of scope for
-// this fix. service.photos.thumbnailUrl(assetId, 'large') is the type-safe choice instead: the
-// backend pregenerates a large.jpg for every asset type, video keyframe included, so this never
-// 404s or serves an unrenderable video payload, and 'large' is still big enough for an identity
-// judgment (the whole point of this overlay).
-// The ✓/✕ decision buttons are NOT duplicated inside the peek — closing it (Esc/backdrop/×) drops
-// straight back to the card, where they're immediately clickable again; this keeps the peek purely
-// a "look closer" viewer instead of a second decision surface to keep in sync with the first.
-const suggestionPeekAssetId = ref<string | null>(null)
-const suggestionPeekUrl = computed(() => (
-  suggestionPeekAssetId.value ? service.photos.thumbnailUrl(suggestionPeekAssetId.value, 'large') : ''
+// Up to 6 pending face thumbs across ALL groups, flattened in the store's own order — purely a
+// preview strip, not tied to any one group.
+const suggestionPreviewFaces = computed(() => (
+  people.suggestionGroups.flatMap((g) => g.suggestions).slice(0, 6)
 ))
-function openSuggestionPeek(assetId: string): void {
-  suggestionPeekAssetId.value = assetId
-}
-function closeSuggestionPeek(): void {
-  suggestionPeekAssetId.value = null
-}
-
-async function onDecideSuggestionFace(id: string, accept: boolean): Promise<void> {
-  if (isSuggestionBusy(id)) return
-  markSuggestionBusy([id])
-  try {
-    await people.decideSuggestion(id, accept)
-  } catch {
-    // The store already console.error's the failure and issues its own corrective
-    // fetchSuggestions() (see decideSuggestion's header comment in people.ts) — nothing
-    // further to surface here. The brief only calls for a toast on the group batch path's
-    // partial-failure case (decideGroup below), not on this single-item path.
-  } finally {
-    unmarkSuggestionBusy([id])
-  }
-}
-
-async function onDecideSuggestionGroup(personId: string | number, accept: boolean): Promise<void> {
-  const g = people.suggestionGroups.find((x) => String(x.person.id) === String(personId))
-  if (!g || g.suggestions.length === 0 || isSuggestionGroupBusy(personId)) return
-  const ids = g.suggestions.map((s) => s.id)
-  markSuggestionBusy(ids)
-  try {
-    // decideGroup always resolves (never throws) with a per-id failure count — see decideGroup's
-    // header comment in people.ts. The store has already fired its own corrective
-    // fetchSuggestions() resync when failed > 0; this toast is purely user-facing feedback that
-    // not everything in the group actually went through.
-    const { failed } = await people.decideGroup(personId, accept)
-    if (failed > 0) toast.show(t('photosPeopleSuggestPartialFail', { n: failed }))
-  } finally {
-    unmarkSuggestionBusy(ids)
-  }
-}
+const reviewOpen = ref(false)
 
 // ClusterActionDialog only emits and never touches the store/toast (see the division of labor
 // in that component's header comment) — the actual calls, reentrancy guards, and toasts for all
@@ -480,9 +402,10 @@ function onDocMousedown(e: MouseEvent): void {
 }
 function onDocKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
-  // The suggestion-peek overlay is the topmost thing this page can show — checked first so Esc
-  // always closes it before falling through to the cluster menu / sort menu underneath.
-  if (suggestionPeekAssetId.value) { closeSuggestionPeek(); return }
+  // people-confirm-polish rework: the review wizard (PeopleReviewWizard.vue) now handles its own
+  // Esc entirely internally (same pattern as ClusterActionDialog.vue) — it no longer needs a
+  // branch here the way the old suggestion-peek overlay did, since it isn't rendered as a bare
+  // sibling of this page's own overlays anymore.
   if (clusterMenu.value) { clusterMenu.value = null; return }
   if (sortOpen.value) sortOpen.value = false
 }
@@ -622,15 +545,17 @@ onUnmounted(() => {
                banner ("Nimo found N possible merges…") that used to sit here has been removed —
                see the file header note for why. -->
 
-          <!-- ── Suggestion confirmation cards (Plan C Task 2, 2026-08-20
-               people-suggestions-ui): per-face join/review suggestions grouped by person,
-               sitting above the named-people area. Gated as a whole (title included) on
-               suggestionsSupported && suggestionCount>0 — a legacy backend without the
-               endpoint, or one with zero open suggestions, both render nothing here, not even
-               the header. Empty groups vanish on their own once the store drops them (their
-               last suggestion decided), and the whole section disappears the moment the last
-               group does — purely a consequence of this same v-if re-evaluating, no separate
-               "was that the last one" bookkeeping needed. -->
+          <!-- ── Suggestion confirmation entry card (people-confirm-polish, 2026-08-21 rework,
+               Apple-style review wizard — pattern ① primary + pattern ② integrated, the design
+               the user picked after an interactive three-pattern demo) ──
+               Replaces the old per-group card grid (inline ✓/✕ buttons, group-level
+               Confirm-all/Reject-all, and its click-to-enlarge peek overlay) with a single
+               compact entry: a preview strip of pending face thumbs + a "Start review" button
+               that opens PeopleReviewWizard.vue full-screen. Gated exactly like before (title
+               included) on suggestionsSupported && suggestionCount>0 — a legacy backend without
+               the endpoint, or one with zero open suggestions, both render nothing here. The
+               section disappears the moment the store's suggestionCount hits zero (all decided
+               via the wizard), purely a consequence of this same v-if re-evaluating. -->
           <section
             v-if="people.suggestionsSupported && people.suggestionCount > 0"
             class="people-suggestions"
@@ -640,74 +565,22 @@ onUnmounted(() => {
               <h2>{{ t('photosPeopleSuggestions') }}</h2>
               <span class="sub">({{ people.suggestionCount }})</span>
             </div>
-            <div class="suggestion-list">
-              <div
-                v-for="g in people.suggestionGroups" :key="g.person.id"
-                class="suggestion-card"
-                data-test="suggestion-card"
-                :data-person-id="g.person.id"
-              >
-                <div class="suggestion-card-head">
-                  <PersonAvatar :person-id="g.person.id" :name="g.person.name" :ver="g.person.coverFaceId" :size="40" />
-                  <div class="suggestion-card-title">
-                    {{ t('photosPeopleSuggestTitle', { name: g.person.name || t('photosPersonUnnamedTitle') }) }}
-                  </div>
-                  <div class="suggestion-card-actions">
-                    <button
-                      type="button"
-                      class="suggestion-action-btn"
-                      data-test="suggestion-confirm-all"
-                      :disabled="isSuggestionGroupBusy(g.person.id)"
-                      @click="onDecideSuggestionGroup(g.person.id, true)"
-                    >{{ t('photosPeopleAcceptAll') }}</button>
-                    <button
-                      type="button"
-                      class="suggestion-action-btn is-reject"
-                      data-test="suggestion-reject-all"
-                      :disabled="isSuggestionGroupBusy(g.person.id)"
-                      @click="onDecideSuggestionGroup(g.person.id, false)"
-                    >{{ t('photosPeopleRejectAll') }}</button>
-                  </div>
-                </div>
-                <div class="suggestion-face-grid">
-                  <div
-                    v-for="s in g.suggestions" :key="s.id"
-                    class="suggestion-face"
-                    data-test="suggestion-face"
-                    :data-id="s.id"
-                    :class="{ 'is-busy': isSuggestionBusy(s.id) }"
-                    :title="t('photosPeopleSuggestPeekAlt')"
-                    @click="openSuggestionPeek(s.assetId)"
-                  >
-                    <img class="suggestion-face-img" :src="suggestionFaceThumb(s.faceId)" alt="">
-                    <span v-if="s.kind === 'review'" class="suggestion-review-badge" data-test="suggestion-review-badge">
-                      {{ t('photosPeopleReviewBadge') }}
-                    </span>
-                    <div class="suggestion-face-hover">
-                      <!-- @click.stop on both decision buttons: the peek-open handler now lives on
-                           the `.suggestion-face` card itself (so clicking anywhere on the
-                           thumbnail — including the parts of this hover layer not covered by a
-                           button — opens the peek), and a decide click would otherwise bubble up
-                           into that same handler and pop the peek open right on top of the
-                           decision it just made. -->
-                      <button
-                        type="button"
-                        class="suggestion-face-btn is-accept"
-                        data-test="suggestion-face-accept"
-                        :disabled="isSuggestionBusy(s.id)"
-                        @click.stop="onDecideSuggestionFace(s.id, true)"
-                      >✓</button>
-                      <button
-                        type="button"
-                        class="suggestion-face-btn is-reject"
-                        data-test="suggestion-face-reject"
-                        :disabled="isSuggestionBusy(s.id)"
-                        @click.stop="onDecideSuggestionFace(s.id, false)"
-                      >✕</button>
-                    </div>
-                  </div>
-                </div>
+            <div class="suggestion-entry-card" data-test="suggestion-entry-card">
+              <div class="suggestion-entry-preview" data-test="suggestion-entry-preview">
+                <img
+                  v-for="s in suggestionPreviewFaces" :key="s.id"
+                  class="suggestion-entry-thumb"
+                  data-test="suggestion-entry-thumb"
+                  :src="suggestionFaceThumb(s.faceId)"
+                  alt=""
+                >
               </div>
+              <button
+                type="button"
+                class="suggestion-entry-btn"
+                data-test="suggestion-start-review"
+                @click="reviewOpen = true"
+              >{{ t('photosPeopleStartReview') }}</button>
             </div>
           </section>
 
@@ -901,33 +774,14 @@ onUnmounted(() => {
       @submit-delete="onSubmitDelete"
     />
 
-    <!-- 2026-08-20 (people-confirm-polish item 2): the suggestion-face peek overlay. Rendered as
-         a `.photos-root` sibling of `.app` (same convention as the cluster-menu/ClusterActionDialog
-         above, and for the same reason — `.app` carries `position:relative; overflow:hidden`, and
-         a `position:fixed` overlay nested inside it risks being clipped). Esc is handled up in
-         onDocKeydown (highest priority there); backdrop click closes via @click.self, same pattern
-         as ClusterActionDialog's own overlay. No decision buttons live in here on purpose — see
-         the comment above openSuggestionPeek in the script block. -->
-    <div
-      v-if="suggestionPeekAssetId"
-      class="suggestion-peek-overlay"
-      data-test="suggestion-peek-overlay"
-      @click.self="closeSuggestionPeek"
-    >
-      <img
-        class="suggestion-peek-img"
-        data-test="suggestion-peek-img"
-        :src="suggestionPeekUrl"
-        :alt="t('photosPeopleSuggestPeekAlt')"
-      >
-      <button
-        type="button"
-        class="suggestion-peek-close"
-        data-test="suggestion-peek-close"
-        :aria-label="t('photosClose')"
-        @click="closeSuggestionPeek"
-      >&#215;</button>
-    </div>
+    <!-- people-confirm-polish (2026-08-21 rework): the full-screen sequential review wizard,
+         replacing the old suggestion-face peek overlay entirely. Rendered as a `.photos-root`
+         sibling of `.app` (same convention as the cluster-menu/ClusterActionDialog above, and for
+         the same reason — `.app` carries `position:relative; overflow:hidden`, and a
+         `position:fixed` overlay nested inside it risks being clipped). The wizard owns its own
+         store interaction and its own Esc handling internally (see its header comment) — this
+         page only wires open/close. -->
+    <PeopleReviewWizard :open="reviewOpen" @update:open="(v) => { reviewOpen = v }" />
 
     <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
          shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
@@ -1042,149 +896,48 @@ onUnmounted(() => {
 .face-card.people-hidden-static { cursor: default; }
 .people-unhide-btn { margin-top: 2px; }
 
-/* ── Suggestion confirmation cards (Plan C Task 2, 2026-08-20 people-suggestions-ui) ──
+/* ── Suggestion confirmation entry card (people-confirm-polish, 2026-08-21 rework) ──
    New-UI-only section, no Vue2 counterpart to transcribe (parity's photos-people.scss has
    nothing for this — it's a brand-new feature), so it lives entirely in this component's own
-   local style block, following the same policy this file already applies to its other
-   New-UI-only additions above (.empty-state, .merge-banner.is-warn, etc.) rather than the
-   shared parity file. Reuses this page's existing token vocabulary and pill-button geometry
-   (.section-head, .people-btn-primary's accent-fill pattern) rather than inventing a new one.
-   Every color here goes through a theme token (var(--overlay-bg)/var(--blur) reuse the exact
-   "chrome sitting on top of an uncontrollable face photo" convention PersonAvatar.vue's own
-   .person-avatar-fav already established; var(--on-accent) is the stripVar-safe
-   fallback form the color guard explicitly allows) — no bare literal needed anywhere below. */
+   local style block, same policy this file already applies to its other New-UI-only additions
+   above (.empty-state, .merge-banner.is-warn, etc.) rather than the shared parity file. The old
+   per-group card grid + peek overlay's local rules (.suggestion-card/-face/-face-btn/-peek-*)
+   were deleted along with the markup they styled — this is the compact replacement, reusing this
+   page's existing token vocabulary and pill-button geometry (.section-head, .people-btn-primary's
+   accent-fill pattern) rather than inventing a new one. The full-screen review wizard itself
+   (PeopleReviewWizard.vue) carries its own local styles. */
 .people-suggestions { margin-bottom: 4px; }
-.suggestion-list { display: flex; flex-direction: column; gap: 14px; }
-.suggestion-card {
+.suggestion-entry-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   border: 1px solid var(--line);
   border-radius: var(--r-md);
   background: var(--surface-1);
   padding: 14px 16px;
 }
-.suggestion-card-head { display: flex; align-items: center; gap: 10px; }
-.suggestion-card-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; color: var(--text-1); }
-.suggestion-card-actions { display: inline-flex; gap: 8px; flex: none; }
-.suggestion-action-btn {
-  height: 28px;
-  padding: 0 12px;
+.suggestion-entry-preview { display: flex; flex: 1; min-width: 0; }
+.suggestion-entry-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--surface-1);
+  background: var(--surface-2);
+  margin-left: -10px;
+}
+.suggestion-entry-thumb:first-child { margin-left: 0; }
+.suggestion-entry-btn {
+  flex: none;
+  height: 34px;
+  padding: 0 18px;
   border-radius: 999px;
   background: var(--accent);
   border: 1px solid var(--accent);
   color: var(--on-accent);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.suggestion-action-btn:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
-.suggestion-action-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.suggestion-action-btn.is-reject { background: var(--surface-2); border-color: var(--line); color: var(--text-2); }
-.suggestion-action-btn.is-reject:hover { background: var(--surface-3); color: var(--text-1); }
-.suggestion-face-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-  gap: 10px;
-  margin-top: 12px;
-}
-.suggestion-face {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: var(--r-sm);
-  overflow: hidden;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  cursor: pointer; /* item 2: clicking the thumbnail opens the full-asset peek overlay */
-}
-.suggestion-face-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.suggestion-face.is-busy { opacity: 0.55; }
-.suggestion-review-badge {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  font-size: 9.5px;
-  font-weight: 500;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--blur);
-  color: var(--on-accent);
-  border: 1px solid var(--line);
-}
-.suggestion-face-hover {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--blur);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.suggestion-face:hover .suggestion-face-hover,
-.suggestion-face:focus-within .suggestion-face-hover { opacity: 1; }
-.suggestion-face-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--on-accent);
-}
-.suggestion-face-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.suggestion-face-btn.is-accept { background: var(--accent); }
-.suggestion-face-btn.is-accept:hover { background: var(--accent-hi); }
-.suggestion-face-btn.is-reject { background: var(--surface-3); }
-.suggestion-face-btn.is-reject:hover { background: var(--line-strong); }
-
-/* ── Suggestion-face peek overlay (item 2, 2026-08-20 people-confirm-polish) ──
-   New-UI-only addition, no Vue2/parity counterpart. Follows this app's established generic
-   full-screen-dialog scrim pairing (--overlay-bg/--overlay-blur — the same tokens AlertDialog.vue/
-   Dialog.vue/PromptDialog.vue/PowerOverlay.vue already use for exactly this "backdrop behind a
-   fixed-position modal" case), not the Photos-section parity dialogs' own solid-black-at-roughly-
-   two-thirds-opacity scrim value (that's a literal Vue2 transcription, grandfathered only inside
-   photos/styles/vue2-parity/ — this overlay has no Vue2 source to transcribe, so it goes through
-   tokens like every other New-UI-authored rule in this file). z-index chosen above this page's
-   other overlays (.cluster-menu at 260, .cad-overlay at 200, both in the parity stylesheet) since
-   the peek can in principle be triggered while either is technically still in the DOM (both
-   close on backdrop/menu-item click well before this overlay could open in practice, but there is
-   no code path that actively forbids overlap, so this stays on top defensively). */
-.suggestion-peek-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-}
-.suggestion-peek-img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: var(--r-md);
-  box-shadow: var(--card-shadow-hi);
-}
-.suggestion-peek-close {
-  position: fixed;
-  top: 20px;
-  right: 24px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--text-1);
-  font-size: 20px;
-  line-height: 1;
+  font-weight: 500;
   cursor: pointer;
 }
-.suggestion-peek-close:hover { background: var(--surface-3); }
+.suggestion-entry-btn:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
 </style>

@@ -1251,22 +1251,43 @@ export default {
   photosGridAskNimoRecap: 'Build a recap album from these {count} photos.',
   photosSearchFindPhotosPrefix: 'Find photos: ',
   // ── Plan C Task 2 (2026-08-20 people-suggestions-ui): the "To confirm" suggestion-
-  // confirmation cards on the People page — per-face join/review suggestions grouped by
+  // confirmation section on the People page — per-face join/review suggestions grouped by
   // person, sitting above the named-people area. New-UI-only feature, no Vue2 counterpart. ──
   photosPeopleSuggestions: 'To confirm',
+  // 2026-08-21 (people-confirm-polish, Apple-style review wizard): this question used to live
+  // on every card's group title in the old grid; the wizard's question line reuses the same key
+  // (the wording is unchanged, only where it appears changed).
   photosPeopleSuggestTitle: 'Is this {name}?',
-  photosPeopleAcceptAll: 'Confirm all',
-  photosPeopleRejectAll: 'Reject all',
   // kind='review' badge: semantically "previously attributed to this person, now in doubt" —
-  // visually distinct from a plain new-join ('kind' === 'join') suggestion face.
+  // visually distinct from a plain new-join ('kind' === 'join') candidate face. The wizard's
+  // compare view reuses this same key (the old grid's per-face badge).
   photosPeopleReviewBadge: 'Review',
-  // decideGroup's batch endpoint always resolves (never throws) with a per-id failure count;
-  // this is the user-facing notice for when some (but not all) of a group's items didn't go
-  // through — the store has already resynced the failed ones back into view by the time this
-  // shows.
-  photosPeopleSuggestPartialFail: '{n} item(s) could not be processed and were restored',
-  // 2026-08-20 (people-confirm-polish item 2): the face thumbnails are too small to judge
-  // identity from — clicking one opens an enlarged view of the full photo for context. Doubles
-  // as the thumbnail's alt text, the enlarged image's alt text, and the thumbnail's hover title.
+  // 2026-08-21 (people-confirm-polish): the entry card's "Start review" button — opens the
+  // full-screen review wizard, one suggestion at a time, across all groups in order.
+  photosPeopleStartReview: 'Start review',
+  // Wizard header: label above the reference-faces row under the person's name, paired with
+  // exemplarFaceIds (a new optional backend field — an older backend without it makes the
+  // wizard fall back to cover-only, and this row never renders).
+  photosPeopleReviewReferenceLabel: 'Reference faces',
+  // Original/Compare segmented view-toggle option labels.
+  photosPeopleReviewViewOriginal: 'Original',
+  photosPeopleReviewViewCompare: 'Compare',
+  // Compare view's right-hand candidate-face label.
+  photosPeopleReviewCandidateLabel: 'Candidate',
+  // Compare view's kind='join' candidate badge (the counterpart of the Review badge above).
+  photosPeopleJoinBadge: 'New',
+  // The three decision buttons: Yes / No / Skip. Skip is purely client-side advance -- it never
+  // calls the backend.
+  photosPeopleReviewYes: 'Yes',
+  photosPeopleReviewNo: 'No',
+  photosPeopleReviewSkip: 'Skip',
+  // Progress indicator: "k / N" -- N is pinned at the moment the wizard opens and does not
+  // shrink/grow as items get decided or skipped mid-session.
+  photosPeopleReviewProgress: '{k} / {n}',
+  // Done-state title once every suggestion has been decided or skipped.
+  photosPeopleReviewDoneTitle: 'All caught up',
+  // 2026-08-20 (people-confirm-polish item 2, carried into the wizard): alt text for the face/
+  // context photo images and the hover title for "click to view full photo" -- shared by the
+  // wizard's default view, compare view, and zoom lightbox.
   photosPeopleSuggestPeekAlt: 'View full photo',
 }

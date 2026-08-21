@@ -62,6 +62,47 @@ describe('photosPeople store — suggestions (Plan C Task 1)', () => {
     usePhotosPeople().__resetForTest()
   })
 
+  // people-confirm-polish (review wizard): SuggestionGroup.exemplarFaceIds -- reference faces
+  // for the wizard header, sourced from the raw group's person object (a NEW optional backend
+  // field). Parsed defensively so an older backend without it never crashes the mapper.
+  describe('fetchSuggestions — exemplarFaceIds (people-confirm-polish)', () => {
+    it('present on the raw person — carried onto the group as a string array', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup({ id: 'p1', name: 'Alice', exemplarFaceIds: ['e1', 'e2', 'e3'] })],
+      })
+      const s = usePhotosPeople()
+      await s.fetchSuggestions()
+      expect(s.suggestionGroups[0].exemplarFaceIds).toEqual(['e1', 'e2', 'e3'])
+    })
+
+    it('absent on the raw person (older backend) — undefined, not a crash', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup({ id: 'p1', name: 'Alice' })],
+      })
+      const s = usePhotosPeople()
+      await expect(s.fetchSuggestions()).resolves.toBeUndefined()
+      expect(s.suggestionGroups[0].exemplarFaceIds).toBeUndefined()
+    })
+
+    it('malformed (not an array) — defensively dropped to undefined', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup({ id: 'p1', name: 'Alice', exemplarFaceIds: 'not-an-array' })],
+      })
+      const s = usePhotosPeople()
+      await s.fetchSuggestions()
+      expect(s.suggestionGroups[0].exemplarFaceIds).toBeUndefined()
+    })
+
+    it('an empty array on the raw person — stays an empty array (not coerced to undefined)', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup({ id: 'p1', name: 'Alice', exemplarFaceIds: [] })],
+      })
+      const s = usePhotosPeople()
+      await s.fetchSuggestions()
+      expect(s.suggestionGroups[0].exemplarFaceIds).toEqual([])
+    })
+  })
+
   describe('fetchSuggestions', () => {
     it('① success — loads groups and computes suggestionCount as the total open item count', async () => {
       ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({

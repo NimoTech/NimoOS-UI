@@ -1273,21 +1273,37 @@ export default {
   photosGridAskNimoRecap: '从这 {count} 张照片创建一个回顾相册。',
   photosSearchFindPhotosPrefix: '查找照片：',
   // ── Plan C Task 2 (2026-08-20 people-suggestions-ui): the "待确认" suggestion-confirmation
-  // cards on the People page — per-face join/review suggestions grouped by person, sitting
+  // section on the People page — per-face join/review suggestions grouped by person, sitting
   // above the named-people area. New-UI-only feature, no Vue2 counterpart to transcribe. ──
   photosPeopleSuggestions: '待确认',
+  // 2026-08-21 (people-confirm-polish, Apple 风格审阅向导): 该问句在旧版每张卡片的组标题里用
+  // 过("是 {name} 吗?"),现在向导的问句行复用同一个 key(视觉位置变了,文案含义不变)。
   photosPeopleSuggestTitle: '这是 {name} 吗?',
-  photosPeopleAcceptAll: '全部确认',
-  photosPeopleRejectAll: '全部拒绝',
-  // kind='review' badge: semantically "previously attributed to this person, now in doubt" —
-  // visually distinct from a plain new-join ('kind' === 'join') suggestion face.
+  // kind='review' 徽标: 语义是"曾归属于此人、现在存疑"——与普通新归入('join')的候选脸区分开。
+  // 向导的对比视图沿用了这个 key(旧版每张脸缩略图角标的同一枚徽标)。
   photosPeopleReviewBadge: '复核',
-  // decideGroup's batch endpoint always resolves (never throws) with a per-id failure count;
-  // this is the user-facing notice for when some (but not all) of a group's items didn't go
-  // through — the store has already resynced the failed ones back into view by the time this
-  // shows.
-  photosPeopleSuggestPartialFail: '有 {n} 项未处理成功,已恢复显示',
-  // 2026-08-20(people-confirm-polish item 2):人脸缩略图太小看不清,点击后放大展示这张照片的
-  // 完整原图以便判断——同时充当缩略图的 alt 文案、放大图的 alt 文案,以及缩略图的 hover title。
+  // 2026-08-21 (people-confirm-polish): 入口卡片"开始审阅"按钮——点击后打开全屏审阅向导,
+  // 一次只看一条建议,按顺序走完所有分组。
+  photosPeopleStartReview: '开始审阅',
+  // 向导头部:人物姓名下方的参考照片行标签，配合 exemplarFaceIds（新增可选后端字段，旧后端
+  // 缺失时向导会退化为只显示封面头像，不渲染这一行）。
+  photosPeopleReviewReferenceLabel: '参考照片',
+  // 原图 / 对比 分段切换控件的两个选项文案。
+  photosPeopleReviewViewOriginal: '原图',
+  photosPeopleReviewViewCompare: '对比',
+  // 对比视图右侧候选脸的标签。
+  photosPeopleReviewCandidateLabel: '候选',
+  // 对比视图里 kind='join' 候选脸的徽标（与上面 review 徽标相对）。
+  photosPeopleJoinBadge: '新归入',
+  // 三个决策按钮：是 / 不是 / 跳过。"跳过"纯前端推进，不调用后端。
+  photosPeopleReviewYes: '是',
+  photosPeopleReviewNo: '不是',
+  photosPeopleReviewSkip: '跳过',
+  // 进度指示："k / N"，N 在向导打开的那一刻定格，不随中途决定/跳过而变化。
+  photosPeopleReviewProgress: '{k} / {n}',
+  // 全部处理完（决定或跳过）后的完成态标题。
+  photosPeopleReviewDoneTitle: '全部已处理完成',
+  // 2026-08-20(people-confirm-polish item 2 遗留):人脸/情境照片的 alt 文案、放大图的 alt
+  // 文案，以及点击缩略图放大查看的 hover title——向导的默认视图/对比视图/zoom 灯箱共用。
   photosPeopleSuggestPeekAlt: '查看完整照片',
 }

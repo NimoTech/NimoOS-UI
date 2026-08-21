@@ -1,9 +1,17 @@
-// Plan C Task 2 (2026-08-20 people-suggestions-ui): the "待确认/To confirm" suggestion
-// confirmation cards on the People page — per-face join/review suggestions grouped by person,
-// sitting above the named-people area. Kept in its own file rather than folded into
-// PhotosPeople.test.ts (which the brief explicitly names as an existing test to never
-// overwrite) — same mounting conventions (mount Pinia + i18n + a real router, mock the shared
-// package's photos methods), scoped to only the suggestion-card behaviors.
+// Plan C Task 2 (2026-08-20 people-suggestions-ui) → people-confirm-polish (2026-08-21, Apple-
+// style review wizard, user-picked pattern ① primary + pattern ② integrated after a three-pattern
+// demo): the "待确认/To confirm" section on the People page.
+//
+// Rework note: this file used to cover the per-group card grid with inline ✓/✕ buttons, group-
+// level Confirm-all/Reject-all, and a standalone click-to-enlarge peek overlay — all of that UI
+// is now DELETED (replaced by a compact entry card + a full-screen sequential review wizard,
+// PeopleReviewWizard.vue). What's left here is scoped to the entry card itself (count, preview
+// thumbnails, the Start-review button, and the two feature-detection/empty gates, which are
+// unaffected by the rework). The wizard's own open/close/accept/reject/skip/exemplar-faces
+// behavior has its own component-level test file:
+// src/photos/components/__tests__/PeopleReviewWizard.test.ts (kept separate rather than folded
+// in here, same rationale this file's own original header comment gave for splitting out of
+// PhotosPeople.test.ts — one file per surface, not one giant file per view).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -17,16 +25,12 @@ const svc = vi.hoisted(() => ({
     mergeSuggestions: vi.fn().mockResolvedValue([]),
     getConfig: vi.fn().mockResolvedValue({}),
     personFaceThumbnailUrl: vi.fn((id: string | number, ver?: string | number | null) => `mock://person-face/${id}/${ver ?? ''}`),
-    // Plan C Task 2: distinct from personFaceThumbnailUrl above — keyed by bare faceId, no
-    // owning person's cover slot involved (see the header comment on faceThumbnailUrl in
-    // packages/service/src/photos.ts).
+    // Distinct from personFaceThumbnailUrl above — keyed by bare faceId, no owning person's cover
+    // slot involved (see the header comment on faceThumbnailUrl in packages/service/src/photos.ts).
     faceThumbnailUrl: vi.fn((faceId: string) => `mock://face/${faceId}`),
-    // Item 2 (2026-08-20 people-confirm-polish), fix round 1: the peek overlay's full-asset image
-    // URL. Signature matches packages/service/src/photos.ts's real thumbnailUrl(id, size='small')
-    // verbatim — NOT originalUrl, because a suggestion's assetId can point at a video (face
-    // detection runs on video keyframes too) and Original would stream back the raw video file,
-    // which an <img> can't render; thumbnailUrl's pregenerated large.jpg exists for every asset
-    // type, video included, so it's type-safe here.
+    // The wizard's context-photo/lightbox image URL (thumbnailUrl(assetId,'large'), not
+    // originalUrl — a suggestion's assetId can point at a video, see PeopleReviewWizard.vue's
+    // own header comment for why).
     thumbnailUrl: vi.fn((id: string | number, size = 'small') => `mock://thumb/${id}/${size}`),
     listHiddenPersons: vi.fn().mockResolvedValue([]),
     listPersonSuggestions: vi.fn().mockResolvedValue({ groups: [] }),
@@ -39,7 +43,6 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosPeople from '../PhotosPeople.vue'
 import { usePhotosPeople } from '../../photos/stores/people'
-import { useToast } from '../../stores/toast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -80,6 +83,12 @@ const TWO_GROUPS = [
   rawGroup(UNNAMED, [rawSuggestion({ id: 's3', faceId: 'f3' })]),
 ]
 
+// 8 suggestions across two groups — for the preview-row cap test (entry card shows at most 6).
+const EIGHT_SUGGESTIONS = [
+  rawGroup(ALICE, [1, 2, 3, 4, 5].map((n) => rawSuggestion({ id: `a${n}`, faceId: `fa${n}` }))),
+  rawGroup(UNNAMED, [1, 2, 3].map((n) => rawSuggestion({ id: `b${n}`, faceId: `fb${n}` }))),
+]
+
 beforeEach(() => {
   localStorage.clear()
   setActivePinia(createPinia())
@@ -101,218 +110,46 @@ afterEach(() => {
   usePhotosPeople().__resetForTest()
 })
 
-describe('PhotosPeople.vue — suggestion confirmation cards (Plan C Task 2)', () => {
-  it('① two groups render two cards, and the section header carries the correct total count', async () => {
+describe('PhotosPeople.vue — "To confirm" entry card (people-confirm-polish rework)', () => {
+  it('renders the section with the correct total count and the entry card', async () => {
     svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
     const { w } = await mountView()
     expect(w.find('[data-test="people-suggestions"]').exists()).toBe(true)
-    expect(w.findAll('[data-test="suggestion-card"]')).toHaveLength(2)
     expect(w.find('[data-test="section-suggestions"]').text()).toContain('3')
+    expect(w.find('[data-test="suggestion-entry-card"]').exists()).toBe(true)
   })
 
-  it('② clicking a single face\'s ✓ calls decideSuggestion(id, true), and that face disappears', async () => {
+  it('the preview row shows one thumbnail per open suggestion when there are 6 or fewer', async () => {
     svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
     const { w } = await mountView()
-    const people = usePhotosPeople()
-    const spy = vi.spyOn(people, 'decideSuggestion')
-    const face = w.find('[data-test="suggestion-face"][data-id="s1"]')
-    await face.find('[data-test="suggestion-face-accept"]').trigger('click')
-    await flushPromises()
-
-    expect(spy).toHaveBeenCalledWith('s1', true)
-    expect(w.find('[data-test="suggestion-face"][data-id="s1"]').exists()).toBe(false)
+    expect(w.findAll('[data-test="suggestion-entry-thumb"]')).toHaveLength(3)
   })
 
-  it('a single face\'s ✕ calls decideSuggestion(id, false)', async () => {
+  it('the preview row is capped at 6 thumbnails even when there are more open suggestions', async () => {
+    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: EIGHT_SUGGESTIONS })
+    const { w } = await mountView()
+    expect(w.find('[data-test="section-suggestions"]').text()).toContain('8')
+    expect(w.findAll('[data-test="suggestion-entry-thumb"]')).toHaveLength(6)
+  })
+
+  it('the Start-review button opens the full-screen review wizard', async () => {
     svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
     const { w } = await mountView()
-    const people = usePhotosPeople()
-    const spy = vi.spyOn(people, 'decideSuggestion')
-    const face = w.find('[data-test="suggestion-face"][data-id="s3"]')
-    await face.find('[data-test="suggestion-face-reject"]').trigger('click')
-    await flushPromises()
-
-    expect(spy).toHaveBeenCalledWith('s3', false)
-    expect(w.find('[data-test="suggestion-face"][data-id="s3"]').exists()).toBe(false)
+    expect(w.find('[data-test="prw-overlay"]').exists()).toBe(false)
+    await w.find('[data-test="suggestion-start-review"]').trigger('click')
+    expect(w.find('[data-test="prw-overlay"]').exists()).toBe(true)
   })
 
-  it('③ "Reject all" calls decideGroup(personId, false), and the whole group disappears', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    svc.photos.batchPersonSuggestions.mockResolvedValueOnce({ results: { s3: { status: 'rejected' } } })
-    const { w } = await mountView()
-    const people = usePhotosPeople()
-    const spy = vi.spyOn(people, 'decideGroup')
-    await w.find('[data-test="suggestion-card"][data-person-id="p2"] [data-test="suggestion-reject-all"]').trigger('click')
-    await flushPromises()
-
-    expect(spy).toHaveBeenCalledWith('p2', false)
-    expect(w.find('[data-test="suggestion-card"][data-person-id="p2"]').exists()).toBe(false)
-  })
-
-  it('"Confirm all" calls decideGroup(personId, true)', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    svc.photos.batchPersonSuggestions.mockResolvedValueOnce({
-      results: { s1: { status: 'accepted' }, s2: { status: 'accepted' } },
-    })
-    const { w } = await mountView()
-    const people = usePhotosPeople()
-    const spy = vi.spyOn(people, 'decideGroup')
-    await w.find('[data-test="suggestion-card"][data-person-id="p1"] [data-test="suggestion-confirm-all"]').trigger('click')
-    await flushPromises()
-
-    expect(spy).toHaveBeenCalledWith('p1', true)
-    expect(w.find('[data-test="suggestion-card"][data-person-id="p1"]').exists()).toBe(false)
-  })
-
-  it('④ a backend 404 (suggestionsSupported=false) → the whole section is absent, including the title', async () => {
+  it('a backend 404 (suggestionsSupported=false) → the whole section is absent, including the title', async () => {
     svc.photos.listPersonSuggestions.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
     const { w } = await mountView()
     expect(w.find('[data-test="people-suggestions"]').exists()).toBe(false)
     expect(w.text()).not.toContain(zh.photosPeopleSuggestions)
   })
 
-  it('④ zero open suggestions (an empty groups array) → the section is absent', async () => {
+  it('zero open suggestions (an empty groups array) → the section is absent', async () => {
     svc.photos.listPersonSuggestions.mockResolvedValue({ groups: [] })
     const { w } = await mountView()
     expect(w.find('[data-test="people-suggestions"]').exists()).toBe(false)
-  })
-
-  it('⑥ an unnamed person\'s card title falls back to the Unnamed-person copy', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({
-      groups: [rawGroup(UNNAMED, [rawSuggestion({ id: 's3', faceId: 'f3' })])],
-    })
-    const { w } = await mountView()
-    const card = w.find('[data-test="suggestion-card"][data-person-id="p2"]')
-    expect(card.find('.suggestion-card-title').text()).toBe(
-      zh.photosPeopleSuggestTitle.replace('{name}', zh.photosPersonUnnamedTitle),
-    )
-  })
-
-  it('a kind="review" suggestion renders the Review badge; a kind="join" one does not', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    const { w } = await mountView()
-    const joinFace = w.find('[data-test="suggestion-face"][data-id="s1"]')
-    const reviewFace = w.find('[data-test="suggestion-face"][data-id="s2"]')
-    expect(joinFace.find('[data-test="suggestion-review-badge"]').exists()).toBe(false)
-    expect(reviewFace.find('[data-test="suggestion-review-badge"]').exists()).toBe(true)
-    expect(reviewFace.find('[data-test="suggestion-review-badge"]').text()).toBe(zh.photosPeopleReviewBadge)
-  })
-
-  // decideGroup always resolves (never throws) with a per-id failure count (see its header
-  // comment in people.ts) — this is the partial-failure toast wired on top of that contract.
-  it('partial failure: decideGroup resolving {failed:2} shows a partial-failure notice carrying n=2', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({
-      groups: [rawGroup(ALICE, [rawSuggestion({ id: 's1', faceId: 'f1' }), rawSuggestion({ id: 's2', faceId: 'f2' })])],
-    })
-    svc.photos.batchPersonSuggestions.mockResolvedValueOnce({
-      results: { s1: { status: 'error' }, s2: { status: 'error' } },
-    })
-    const { w } = await mountView()
-    const toast = useToast()
-    await w.find('[data-test="suggestion-card"][data-person-id="p1"] [data-test="suggestion-confirm-all"]').trigger('click')
-    await flushPromises()
-
-    expect(toast.toasts.some((tt) => tt.text === zh.photosPeopleSuggestPartialFail.replace('{n}', '2'))).toBe(true)
-  })
-
-  it('a full-success group action does not show the partial-failure notice', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    svc.photos.batchPersonSuggestions.mockResolvedValueOnce({ results: { s3: { status: 'rejected' } } })
-    const { w } = await mountView()
-    const toast = useToast()
-    await w.find('[data-test="suggestion-card"][data-person-id="p2"] [data-test="suggestion-reject-all"]').trigger('click')
-    await flushPromises()
-
-    expect(toast.toasts).toHaveLength(0)
-  })
-})
-
-// ── Click-to-enlarge peek (item 2, 2026-08-20 people-confirm-polish) ──
-// Thumbnails are too small to judge identity from; clicking one opens an overlay showing the
-// full asset photo (via service.photos.thumbnailUrl(assetId, 'large'), not the cropped face) for
-// context. Fix round 1: NOT originalUrl — a suggestion's assetId can point at a video (face
-// detection runs on keyframes too, person_suggestions has no video-exclusion filter), and
-// Original streams back the raw video file for those, unrenderable by an <img>; thumbnailUrl's
-// pregenerated large.jpg exists for every asset type, video included, so it's type-safe here. No
-// existing photo-viewer wiring on this page to reuse (see the comment above openSuggestionPeek in
-// PhotosPeople.vue for why PhotoLightbox/useLightbox is the wrong tool here) — this is a minimal
-// self-contained overlay.
-describe('PhotosPeople.vue — suggestion peek overlay (Plan C Task 2 follow-up, click to enlarge)', () => {
-  it('clicking a suggestion face thumbnail opens the peek overlay showing that suggestion\'s asset (thumbnailUrl(assetId, \'large\'), not the face crop, and not the video-unsafe original)', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({
-      groups: [rawGroup(ALICE, [rawSuggestion({ id: 's1', faceId: 'f1', assetId: 'asset-42' })])],
-    })
-    const { w } = await mountView()
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
-
-    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
-
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
-    expect(w.find('[data-test="suggestion-peek-img"]').attributes('src')).toBe('mock://thumb/asset-42/large')
-    expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('asset-42', 'large')
-  })
-
-  it('Escape closes the peek overlay', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    const { w } = await mountView()
-    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
-
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-    await w.vm.$nextTick()
-
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
-  })
-
-  it('clicking the backdrop (not the image) closes the peek overlay', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    const { w } = await mountView()
-    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
-
-    await w.find('[data-test="suggestion-peek-overlay"]').trigger('click')
-
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
-  })
-
-  it('the close button closes the peek overlay', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    const { w } = await mountView()
-    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
-
-    await w.find('[data-test="suggestion-peek-close"]').trigger('click')
-
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
-  })
-
-  it('clicking the ✓/✕ hover buttons decides the suggestion and does NOT also open the peek (click.stop)', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    const { w } = await mountView()
-    const people = usePhotosPeople()
-    const spy = vi.spyOn(people, 'decideSuggestion')
-
-    await w.find('[data-test="suggestion-face"][data-id="s1"] [data-test="suggestion-face-accept"]').trigger('click')
-    await flushPromises()
-
-    expect(spy).toHaveBeenCalledWith('s1', true)
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
-  })
-
-  it('deciding a suggestion from the card still works after opening and closing its peek', async () => {
-    svc.photos.listPersonSuggestions.mockResolvedValue({ groups: TWO_GROUPS })
-    const { w } = await mountView()
-    const people = usePhotosPeople()
-    const spy = vi.spyOn(people, 'decideSuggestion')
-
-    await w.find('[data-test="suggestion-face"][data-id="s1"]').trigger('click')
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(true)
-    await w.find('[data-test="suggestion-peek-close"]').trigger('click')
-    expect(w.find('[data-test="suggestion-peek-overlay"]').exists()).toBe(false)
-
-    await w.find('[data-test="suggestion-face"][data-id="s1"] [data-test="suggestion-face-accept"]').trigger('click')
-    await flushPromises()
-
-    expect(spy).toHaveBeenCalledWith('s1', true)
-    expect(w.find('[data-test="suggestion-face"][data-id="s1"]').exists()).toBe(false)
   })
 })

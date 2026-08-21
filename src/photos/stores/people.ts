@@ -41,6 +41,14 @@ export interface SuggestionItem {
 export interface SuggestionGroup {
   person: Person
   suggestions: SuggestionItem[]
+  // people-confirm-polish (review wizard): up to a handful of the person's OWN reference faces,
+  // for the wizard header ("参考照片/Reference faces"). NEW backend field, sourced from the raw
+  // group's `person.exemplarFaceIds` -- kept as a sibling field on the group rather than folded
+  // into the shared `Person` type (toPerson/peopleView.ts), since Person is reused all over this
+  // store for the plain people list, and this field only ever exists inside a suggestion group.
+  // Absent/malformed on the raw payload (older backend, or any non-array value) -> undefined, so
+  // the wizard's header can feature-detect by presence and fall back to cover-only.
+  exemplarFaceIds?: string[]
 }
 
 function toSuggestionItem(raw: Record<string, unknown>): SuggestionItem {
@@ -51,6 +59,15 @@ function toSuggestionItem(raw: Record<string, unknown>): SuggestionItem {
     kind: raw.kind === 'review' ? 'review' : 'join',
     score: typeof raw.score === 'number' ? raw.score : Number(raw.score) || 0,
   }
+}
+
+// Defensive parse for SuggestionGroup.exemplarFaceIds (see its own declaration comment): only a
+// real array survives, each entry coerced to string; a non-array (including entirely absent)
+// input -> undefined. An empty array is a valid, distinct result (kept as `[]`, not coerced to
+// undefined) -- the group HAS the field, it's just currently empty.
+function toExemplarFaceIds(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  return raw.map((x) => String(x))
 }
 
 // Purge cancellation pending items. Timer and snapshot are not serializable, follow Vue2 to place at module scope (photos.js:230-231), not in state.
@@ -413,12 +430,16 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     try {
       const raw = (await service.photos.listPersonSuggestions()) as { groups?: unknown } | undefined
       const rawGroups = Array.isArray(raw?.groups) ? (raw.groups as Record<string, unknown>[]) : []
-      const mapped: SuggestionGroup[] = rawGroups.map((g) => ({
-        person: toPerson((g.person ?? {}) as Record<string, unknown>),
-        suggestions: Array.isArray(g.suggestions)
-          ? (g.suggestions as Record<string, unknown>[]).map(toSuggestionItem)
-          : [],
-      }))
+      const mapped: SuggestionGroup[] = rawGroups.map((g) => {
+        const personRaw = (g.person ?? {}) as Record<string, unknown>
+        return {
+          person: toPerson(personRaw),
+          exemplarFaceIds: toExemplarFaceIds(personRaw.exemplarFaceIds),
+          suggestions: Array.isArray(g.suggestions)
+            ? (g.suggestions as Record<string, unknown>[]).map(toSuggestionItem)
+            : [],
+        }
+      })
       // Pending-guard (see _pendingSuggestionIds' declaration comment): a decideSuggestion/
       // decideGroup call still in flight must not have its optimistic removal undone by a
       // racing fetch that still sees the old (undecided) backend state. Any group left with no
