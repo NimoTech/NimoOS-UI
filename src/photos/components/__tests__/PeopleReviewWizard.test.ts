@@ -144,6 +144,17 @@ describe('PeopleReviewWizard.vue — exemplarFaceIds (reference faces)', () => {
     expect(w.find('[data-test="prw-reference"]').exists()).toBe(false)
     expect(w.find('[data-test="prw-header"]').exists()).toBe(true) // cover avatar still renders fine
   })
+
+  // Fast-follow (review minor): the backend contract excludes coverFaceId from exemplarFaceIds,
+  // but the header already renders that face via PersonAvatar right next to this row — the
+  // component defensively dedupes it too, so a future backend regression can't double-render it.
+  it('a coverFaceId that leaks into exemplarFaceIds is deduped — renders once, not twice', async () => {
+    await seed([rawGroup(rawPerson({ coverFaceId: 'cf1', exemplarFaceIds: ['cf1', 'e2', 'e3'] }), [rawSuggestion()])])
+    const w = mountWizard(true)
+    const srcs = w.findAll('.prw-reference-thumb').map((img) => img.attributes('src'))
+    expect(srcs).toEqual(['mock://face/e2', 'mock://face/e3'])
+    expect(srcs.filter((s) => s === 'mock://face/cf1')).toHaveLength(0)
+  })
 })
 
 describe('PeopleReviewWizard.vue — pattern ② compare toggle', () => {
@@ -210,6 +221,40 @@ describe('PeopleReviewWizard.vue — Yes/No/Skip and auto-advance', () => {
 
     expect(spy).not.toHaveBeenCalled()
     expect(w.find('[data-test="prw-inset-face"]').attributes('src')).toBe('mock://face/f2')
+  })
+
+  // Fast-follow (review minor): `flat` is built by flattening ALL groups in order, so advancing
+  // past group A's last item must move the header on to group B's person, not just to the next
+  // face within the same group.
+  it('walking past the last suggestion in one group moves the header on to the next group\'s person', async () => {
+    await seed([
+      rawGroup(rawPerson({ id: 'p1', name: 'Alice', coverFaceId: 'cf1' }), [rawSuggestion({ id: 's1', faceId: 'f1' })]),
+      rawGroup(rawPerson({ id: 'p2', name: 'Bob', coverFaceId: 'cf2' }), [rawSuggestion({ id: 's2', faceId: 'f2' })]),
+    ])
+    const w = mountWizard(true)
+    expect(w.find('[data-test="prw-person-name"]').text()).toBe('Alice')
+
+    await w.find('[data-test="prw-skip"]').trigger('click')
+
+    expect(w.find('[data-test="prw-person-name"]').text()).toBe('Bob')
+    expect(w.find('[data-test="prw-inset-face"]').attributes('src')).toBe('mock://face/f2')
+    // The cover avatar (PersonAvatar's <img>) also switched to Bob's own cover slot.
+    expect(w.find('[data-test="avatar-img"]').attributes('src')).toBe('mock://person-face/p2/cf2')
+  })
+
+  // Fast-follow (review minor): deciding the LAST remaining suggestion must transition straight
+  // to the done state, with no error surfaced and decideSuggestion still called normally.
+  it('deciding (Yes) the last remaining suggestion goes straight to the done state', async () => {
+    const s = await seed([rawGroup(rawPerson(), [rawSuggestion({ id: 's1' })])])
+    const spy = vi.spyOn(s, 'decideSuggestion')
+    const w = mountWizard(true)
+
+    await w.find('[data-test="prw-yes"]').trigger('click')
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledWith('s1', true)
+    expect(w.find('[data-test="prw-done"]').exists()).toBe(true)
+    expect(w.find('[data-test="prw-question"]').exists()).toBe(false)
   })
 
   it('the progress indicator advances on both decide and skip', async () => {

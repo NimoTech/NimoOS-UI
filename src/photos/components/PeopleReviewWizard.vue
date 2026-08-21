@@ -65,7 +65,14 @@ const currentName = computed(() => currentPerson.value?.name || t('photosPersonU
 // Up to 5 reference faces (brief: "4-5"). NEW optional backend field — absent on older backends,
 // feature-detected purely by presence (no separate capability flag needed: the field IS the
 // detection). An empty array is treated the same as absent here (nothing to render either way).
-const exemplarFaces = computed(() => (current.value?.group.exemplarFaceIds ?? []).slice(0, 5))
+// Defensive dedupe: the backend contract excludes the person's own coverFaceId from this list,
+// but the header already renders that face via PersonAvatar right next to it — filter it out
+// here too so a future backend regression can't make it show up twice.
+const exemplarFaces = computed(() => (
+  (current.value?.group.exemplarFaceIds ?? [])
+    .filter((id) => id !== String(currentPerson.value?.coverFaceId ?? ''))
+    .slice(0, 5)
+))
 
 function faceThumb(faceId: string): string {
   return service.photos.faceThumbnailUrl(faceId)
@@ -122,7 +129,6 @@ function onSkip(): void {
 
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
-  e.stopPropagation()
   // The zoom lightbox is the topmost thing this component can show — Esc closes it first, same
   // "topmost overlay wins" convention the old suggestion-peek overlay followed in PhotosPeople.vue.
   if (lightboxOpen.value) { lightboxOpen.value = false; return }
