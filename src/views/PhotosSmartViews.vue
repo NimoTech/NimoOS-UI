@@ -336,7 +336,13 @@ onMounted(() => {
    inside `.photos-main` has to own the scroll instead, and this is the only content block.
    (`margin-bottom: 36px` used to be restated here too -- deleted, parity's own
    `.photos-root .mo-section` rule already sets it identically.) */
-.mo-section { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Owner report 2026-08-21: content hugged the right edge with zero gutter. Vue2 wrapped this
+   page's content in `.sv-page` (photos-smartview.scss:4 — padding: 32px 32px 60px), but the
+   re-skin made `.mo-section` the page's sole content block + scroll owner without inheriting
+   that gutter (parity's own `.photos-root .mo-section` only sets margin-bottom). Same class of
+   bug as PhotosAlbums' Fix-1 (2026-08-13, `.albums-scroll` vs `.albums-body`): the scroll
+   container must carry the page padding itself. sv-page's values applied verbatim. */
+.mo-section { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 32px 32px 60px; }
 /* `.mo-hero`/`.mo-hero p` deleted outright (Task 6): parity's own `.photos-root .mo-hero`/
    `.photos-root .mo-hero p` already match these shapes property-for-property (the only
    difference is parity's own token names, `--text-3` etc., vs this repo's `--fg-muted` --
