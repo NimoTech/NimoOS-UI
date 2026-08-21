@@ -699,6 +699,8 @@ describe('createAi — user-settings / memory / observability / search knowledge
     await ai.deleteUserMemory(1)
     await ai.getMemorySettings()
     await ai.putMemorySettings({ enabled: true, compaction_enabled: false, context_window: 8000 })
+    await ai.getWebSettings()
+    await ai.putWebSettings({ backend: 'tavily', base_url: '', enabled: true, api_key: 'tvly-x' })
     await ai.getObservabilityCompose()
     await ai.getSearchSettings()
     await ai.putSearchSettings({ foo: 'bar' })
@@ -735,6 +737,8 @@ describe('createAi — user-settings / memory / observability / search knowledge
       'delete /ai/agent/user-memory/1',
       'get /ai/agent/user-memory/settings',
       'put /ai/agent/user-memory/settings',
+      'get /ai/agent/web-settings',
+      'put /ai/agent/web-settings',
       'get /ai/agent/observability/compose',
       'get /ai/search/settings',
       'put /ai/search/settings',
@@ -795,6 +799,37 @@ describe('createAi — user-settings / memory / observability / search knowledge
       context_window: 16000,
     })
     expect(calls[0].body).toEqual({ enabled: true, compaction_enabled: false, context_window: 16000 })
+  })
+
+  // agent web tools Task 9 — putWebSettings passes the payload through
+  // verbatim, no reshaping; the key point: when api_key is omitted the
+  // request body truly LACKS the key (not `api_key: undefined`), otherwise
+  // the backend's "omitted = keep the old key" semantics would break.
+  it('putWebSettings passes payload through; omitting api_key really omits the field', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).putWebSettings({
+      backend: 'tavily',
+      base_url: '',
+      enabled: true,
+    })
+    expect(calls[0].body).toEqual({ backend: 'tavily', base_url: '', enabled: true })
+    expect('api_key' in (calls[0].body as object)).toBe(false)
+  })
+
+  it('putWebSettings with api_key passes it through verbatim', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).putWebSettings({
+      backend: 'searxng',
+      base_url: 'http://searx.lan:8080',
+      enabled: false,
+      api_key: 'tvly-abc',
+    })
+    expect(calls[0].body).toEqual({
+      backend: 'searxng',
+      base_url: 'http://searx.lan:8080',
+      enabled: false,
+      api_key: 'tvly-abc',
+    })
   })
 
   it('nimoosSearch body {name:"nimoos_search", arguments:{query, sources, top_k}}, topK defaults to 20', async () => {
