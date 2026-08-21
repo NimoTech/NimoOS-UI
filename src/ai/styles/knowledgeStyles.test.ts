@@ -1941,6 +1941,7 @@ const COMPONENTS_VUE_FILES = [
   'settings/sections/MemorySection.vue',
   'settings/sections/ModelsSection.vue',
   'settings/sections/ObservabilitySection.vue',
+  'settings/sections/PermissionsSection.vue',
   'settings/sections/PrivacySection.vue',
   'settings/sections/ProvidersSection.vue',
   'settings/sections/SearchSection.vue',

@@ -9,12 +9,13 @@ describe('sections navigation config', () => {
     expect(GROUPS.map((g) => g.id)).toEqual(['model', 'agent', 'plugin', 'channel'])
   })
 
-  // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals' and agent web
-  // tools Task 9 added 'web' — 13 became 15.
-  it('still covers all 15 sections', () => {
+  // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals', agent web
+  // tools Task 9 added 'web', permission policy added 'permissions' — now 16.
+  it('still covers all 16 sections', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
       'blacklist', 'channels', 'execution', 'mcp', 'mcpapprovals', 'mcptokens', 'memory',
-      'models', 'observability', 'privacy', 'providers', 'search', 'skills', 'thinking', 'web',
+      'models', 'observability', 'permissions', 'privacy', 'providers', 'search', 'skills',
+      'thinking', 'web',
     ])
   })
 
@@ -29,17 +30,17 @@ describe('sections navigation config', () => {
     expect(GROUPS.find((g) => g.id === 'model')!.items.map((i) => i.id))
       .toEqual(['models', 'providers', 'privacy', 'thinking'])
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
-      .toEqual(['blacklist', 'execution', 'search', 'memory', 'observability', 'web'])
+      .toEqual(['permissions', 'blacklist', 'execution', 'search', 'memory', 'observability', 'web'])
     expect(GROUPS.find((g) => g.id === 'plugin')!.items.map((i) => i.id))
       .toEqual(['skills', 'mcp', 'mcpapprovals', 'mcptokens'])
     expect(GROUPS.find((g) => g.id === 'channel')!.items.map((i) => i.id))
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS is flat concatenation of four groups, length 15', () => {
-    expect(ALL_ITEMS).toHaveLength(15)
+  it('ALL_ITEMS is flat concatenation of four groups, length 16', () => {
+    expect(ALL_ITEMS).toHaveLength(16)
     expect(ALL_ITEMS[0].id).toBe('models')
-    expect(ALL_ITEMS[14].id).toBe('channels')
+    expect(ALL_ITEMS[15].id).toBe('channels')
   })
 
   it('groupOf finds the group a section belongs to', () => {

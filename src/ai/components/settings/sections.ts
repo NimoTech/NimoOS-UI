@@ -15,7 +15,7 @@
 
 export type SectionId =
   | 'models' | 'providers' | 'privacy' | 'thinking'
-  | 'blacklist' | 'execution' | 'search' | 'memory' | 'observability'
+  | 'permissions' | 'blacklist' | 'execution' | 'search' | 'memory' | 'observability'
   | 'web'
   | 'skills' | 'mcp' | 'mcpapprovals' | 'mcptokens' | 'channels'
 
@@ -49,6 +49,7 @@ export const GROUPS: SectionGroup[] = [
     labelKey: 'aiCfgGroupAgent',
     stack: true,
     items: [
+      { id: 'permissions', icon: 'lock', labelKey: 'aiCfgPermissions' },
       { id: 'blacklist', icon: 'folder', labelKey: 'aiCfgFilesystem' },
       { id: 'execution', icon: 'steps', labelKey: 'aiCfgExecutionSteps' },
       { id: 'search', icon: 'search', labelKey: 'aiCfgSearch' },
