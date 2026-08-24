@@ -1660,4 +1660,41 @@ export default {
   aiCfgPermCtxAuto: '全部自动批准',
   aiCfgPermHardFloor: '永不可配置:硬黑名单、密钥/凭据上传拦截、系统路径、受保护 shell 命令,始终需要人工确认。',
   // <<< Agent permission policy
+  // ── Toolbox(设置区)— 自 Vue2 ToolboxSection 移植 ──
+  aiCfgToolbox: '工具箱',
+  aiCfgToolboxDesc:
+    'agent 沙箱的持久化 CLI 组件,重建容器后仍然保留。只有自包含的工具适合放进工具箱;依赖系统库的组件需要随镜像内置。',
+  aiCfgToolboxComponents: '组件',
+  aiCfgToolboxEmpty: '目录中暂无组件。',
+  aiCfgToolboxUnmanaged: '未托管的二进制',
+  aiCfgToolboxInstall: '安装',
+  aiCfgToolboxInstalling: '正在安装…',
+  aiCfgToolboxInstalled: '已安装',
+  aiCfgToolboxFailed: '失败',
+  aiCfgToolboxNotInstalled: '未安装',
+  aiCfgToolboxUninstall: '卸载',
+  aiCfgToolboxInstallFailed: '安装失败',
+  aiCfgToolboxUninstallFailed: '卸载失败',
+  aiCfgToolboxUpgradeTo: '升级到 v{version}',
+  aiCfgToolboxUpgradeFailed: '升级失败',
+  aiCfgToolboxVersionInstalled: '已安装 v{version}',
+  aiCfgToolboxVersionAvailable: '可安装 v{version}',
+  // <<< Toolbox
+
+  // ── 飞书账号绑定(设置区)──
+  aiCfgLark: '飞书账号',
+  aiCfgLarkDesc: '绑定你的飞书账号,让智能体可以代表你调用飞书相关工具。',
+  aiCfgLarkBind: '绑定飞书账号',
+  aiCfgLarkAwaitVerify: '等待你在飞书完成授权…',
+  aiCfgLarkVerifyOpen: '在新窗口打开',
+  aiCfgLarkUnbind: '解绑',
+  aiCfgLarkUnbindConfirm: '确定解绑该飞书账号?解绑后智能体将无法再使用飞书相关工具,直到重新绑定。',
+  aiCfgLarkUnbindFailed: '解绑失败',
+  aiCfgLarkBindStartFailed: '无法启动绑定流程',
+  aiCfgLarkBoundGeneric: '已绑定',
+  aiCfgLarkNotInstalledHint: '尚未安装 lark-cli。',
+  aiCfgLarkGoToToolbox: '前往工具箱安装',
+  aiCfgLarkLogLabel: '最近一次 CLI 输出',
+  aiCfgLarkRetry: '重试',
+  // <<< 飞书账号绑定
 }

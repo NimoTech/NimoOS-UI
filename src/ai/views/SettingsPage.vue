@@ -72,6 +72,8 @@ import McpSection from '../components/settings/sections/McpSection.vue'
 import McpApprovalsSection from '../components/settings/sections/McpApprovalsSection.vue'
 import McpTokensSection from '../components/settings/sections/McpTokensSection.vue'
 import ChannelsSection from '../components/settings/sections/ChannelsSection.vue'
+import ToolboxSection from '../components/settings/sections/ToolboxSection.vue'
+import LarkSection from '../components/settings/sections/LarkSection.vue'
 import AgentIcon from '../components/icons/AgentIcon.vue'
 import {
   ALL_ITEMS,
@@ -124,6 +126,8 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
   mcpapprovals: McpApprovalsSection, // Task 21 (mcp-progressive-disclosure) — implemented
   mcptokens: McpTokensSection, // SP8-P2b Task 10 — implemented, final wiring
   channels: ChannelsSection, // SP8-P2b Task 12 — implemented, final wiring
+  toolbox: ToolboxSection, // tasks-toolbox-lark port — implemented
+  lark: LarkSection, // tasks-toolbox-lark port — implemented
 }
 
 // Not from Vue2 blueprint — SectionPlaceholder needs { titleKey, bodyKey } two props,

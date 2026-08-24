@@ -11,11 +11,11 @@ describe('sections navigation config', () => {
 
   // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals', agent web
   // tools Task 9 added 'web', permission policy added 'permissions' — now 16.
-  it('still covers all 16 sections', () => {
+  it('still covers all 18 sections', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
-      'blacklist', 'channels', 'execution', 'mcp', 'mcpapprovals', 'mcptokens', 'memory',
-      'models', 'observability', 'permissions', 'privacy', 'providers', 'search', 'skills',
-      'thinking', 'web',
+      'blacklist', 'channels', 'execution', 'lark', 'mcp', 'mcpapprovals', 'mcptokens',
+      'memory', 'models', 'observability', 'permissions', 'privacy', 'providers', 'search',
+      'skills', 'thinking', 'toolbox', 'web',
     ])
   })
 
@@ -32,15 +32,15 @@ describe('sections navigation config', () => {
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
       .toEqual(['permissions', 'blacklist', 'execution', 'search', 'memory', 'observability', 'web'])
     expect(GROUPS.find((g) => g.id === 'plugin')!.items.map((i) => i.id))
-      .toEqual(['skills', 'mcp', 'mcpapprovals', 'mcptokens'])
+      .toEqual(['skills', 'mcp', 'mcpapprovals', 'mcptokens', 'toolbox', 'lark'])
     expect(GROUPS.find((g) => g.id === 'channel')!.items.map((i) => i.id))
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS is flat concatenation of four groups, length 16', () => {
-    expect(ALL_ITEMS).toHaveLength(16)
+  it('ALL_ITEMS is flat concatenation of four groups, length 18', () => {
+    expect(ALL_ITEMS).toHaveLength(18)
     expect(ALL_ITEMS[0].id).toBe('models')
-    expect(ALL_ITEMS[15].id).toBe('channels')
+    expect(ALL_ITEMS[17].id).toBe('channels')
   })
 
   it('groupOf finds the group a section belongs to', () => {

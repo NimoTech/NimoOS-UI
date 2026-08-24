@@ -1621,4 +1621,42 @@ export default {
   aiCfgPermCtxAuto: 'Auto-approve everything',
   aiCfgPermHardFloor: 'Never configurable: hard blacklists, key/credential upload blocks, system paths, and protected shell commands always require a human.',
   // <<< Agent permission policy
+  // ── Toolbox (settings section) — ported from Vue2 ToolboxSection ──
+  aiCfgToolbox: 'Toolbox',
+  aiCfgToolboxDesc:
+    'Persistent CLI components for the agent sandbox. Installed tools survive container rebuilds. Only self-contained tools belong here — components that depend on system libraries need to be built into the image instead.',
+  aiCfgToolboxComponents: 'Components',
+  aiCfgToolboxEmpty: 'No components in the catalog.',
+  aiCfgToolboxUnmanaged: 'Unmanaged binary',
+  aiCfgToolboxInstall: 'Install',
+  aiCfgToolboxInstalling: 'Installing…',
+  aiCfgToolboxInstalled: 'Installed',
+  aiCfgToolboxFailed: 'Failed',
+  aiCfgToolboxNotInstalled: 'Not installed',
+  aiCfgToolboxUninstall: 'Uninstall',
+  aiCfgToolboxInstallFailed: 'Install failed',
+  aiCfgToolboxUninstallFailed: 'Uninstall failed',
+  aiCfgToolboxUpgradeTo: 'Upgrade to v{version}',
+  aiCfgToolboxUpgradeFailed: 'Upgrade failed',
+  aiCfgToolboxVersionInstalled: 'v{version} installed',
+  aiCfgToolboxVersionAvailable: 'v{version} available',
+  // <<< Toolbox
+
+  // ── Feishu (Lark) account binding (settings section) ──
+  aiCfgLark: 'Feishu account',
+  aiCfgLarkDesc: 'Bind your Feishu (Lark) account so the agent can act as you across Feishu tools.',
+  aiCfgLarkBind: 'Bind Feishu account',
+  aiCfgLarkAwaitVerify: 'Waiting for you to finish authorization in Feishu…',
+  aiCfgLarkVerifyOpen: 'Open in a new window',
+  aiCfgLarkUnbind: 'Unlink',
+  aiCfgLarkUnbindConfirm:
+    'Unlink this Feishu account? The agent will lose access to Feishu tools until you bind again.',
+  aiCfgLarkUnbindFailed: 'Unlink failed',
+  aiCfgLarkBindStartFailed: 'Could not start the binding flow',
+  aiCfgLarkBoundGeneric: 'Bound',
+  aiCfgLarkNotInstalledHint: 'lark-cli is not installed.',
+  aiCfgLarkGoToToolbox: 'Go to Toolbox to install it',
+  aiCfgLarkLogLabel: 'Last CLI output',
+  aiCfgLarkRetry: 'Retry',
+  // <<< Feishu account binding
 }

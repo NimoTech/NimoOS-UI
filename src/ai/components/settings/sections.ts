@@ -17,7 +17,7 @@ export type SectionId =
   | 'models' | 'providers' | 'privacy' | 'thinking'
   | 'permissions' | 'blacklist' | 'execution' | 'search' | 'memory' | 'observability'
   | 'web'
-  | 'skills' | 'mcp' | 'mcpapprovals' | 'mcptokens' | 'channels'
+  | 'skills' | 'mcp' | 'mcpapprovals' | 'mcptokens' | 'toolbox' | 'lark' | 'channels'
 
 export interface SectionItem {
   id: SectionId
@@ -70,6 +70,10 @@ export const GROUPS: SectionGroup[] = [
       // resolved ambiguity #1.
       { id: 'mcpapprovals', icon: 'lock', labelKey: 'aiCfgMcpApprovals' },
       { id: 'mcptokens', icon: 'key', labelKey: 'aiCfgMcpTokens' },
+      // Vue2 sections.js:48-49 — toolbox & lark live in the plugin group,
+      // right after mcptokens, in this order.
+      { id: 'toolbox', icon: 'wrench', labelKey: 'aiCfgToolbox' },
+      { id: 'lark', icon: 'cloud', labelKey: 'aiCfgLark' },
     ],
   },
   {
