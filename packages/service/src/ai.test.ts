@@ -944,3 +944,72 @@ describe('createAi — user-settings / memory / observability / search knowledge
     expect(await createAi(http, () => null).getThinkingDefaults()).toEqual(envelope)
   })
 })
+
+describe('createAi — scheduled tasks / toolbox / lark group', () => {
+  it('URL+verb table driven assertions (all methods called once)', async () => {
+    const { http, calls } = recorder()
+    const ai = createAi(http, () => null)
+
+    await ai.listTasks()
+    await ai.createTask({ name: 't' })
+    await ai.getTask('t1')
+    await ai.updateTask('t1', { enabled: true })
+    await ai.deleteTask('t1')
+    await ai.runTaskNow('t1')
+    await ai.listTaskRuns('t1')
+    await ai.adoptDeniedAction('t1', 'r1', 0)
+    await ai.listTaskNotifyTargets()
+    await ai.resetTaskWebhookToken('t1')
+    await ai.cronPreview('0 9 * * *')
+    await ai.draftTaskFromSession('s1', 'm1', 'ollama')
+    await ai.listToolboxComponents()
+    await ai.installToolboxComponent('gh')
+    await ai.upgradeToolboxComponent('gh')
+    await ai.uninstallToolboxComponent('gh')
+    await ai.getLarkBinding()
+    await ai.startLarkBinding()
+    await ai.deleteLarkBinding()
+
+    expect(calls.map((c) => `${c.verb} ${c.url}`)).toEqual([
+      'get /ai/agent/tasks',
+      'post /ai/agent/tasks',
+      'get /ai/agent/tasks/t1',
+      'put /ai/agent/tasks/t1',
+      'delete /ai/agent/tasks/t1',
+      'post /ai/agent/tasks/t1/run',
+      'get /ai/agent/tasks/t1/runs',
+      'post /ai/agent/tasks/t1/preauth/from-denied',
+      'get /ai/agent/tasks/notify-targets',
+      'post /ai/agent/tasks/t1/webhook-token/reset',
+      'get /ai/agent/tasks/cron-preview',
+      'post /ai/agent/tasks/draft-from-session',
+      'get /ai/agent/toolbox',
+      'post /ai/agent/toolbox/install',
+      'post /ai/agent/toolbox/upgrade',
+      'post /ai/agent/toolbox/uninstall',
+      'get /ai/agent/lark/binding',
+      'post /ai/agent/lark/binding',
+      'delete /ai/agent/lark/binding',
+    ])
+  })
+
+  it('task ids are URI-encoded; params and headers ride the config', async () => {
+    const { http, calls } = recorder()
+    const ai = createAi(http, () => null)
+    await ai.getTask('a b/c')
+    expect(calls[0].url).toBe(`/ai/agent/tasks/${encodeURIComponent('a b/c')}`)
+    await ai.listTaskRuns('t1', 20)
+    expect(calls[1].cfg).toEqual({ params: { limit: 20 } })
+    await ai.cronPreview('*/5 * * * *')
+    expect(calls[2].cfg).toEqual({ params: { expr: '*/5 * * * *' } })
+    await ai.adoptDeniedAction('t1', 'r9', 3)
+    expect(calls[3].body).toEqual({ run_id: 'r9', index: 3 })
+    await ai.draftTaskFromSession('s1', 'm1', 'other', { 'X-Agent-Provider-Key': 'k' })
+    expect(calls[4].body).toEqual({ session_id: 's1', model: 'm1' })
+    expect(calls[4].cfg).toEqual({
+      headers: { 'X-Agent-Provider-Type': 'other', 'X-Agent-Provider-Key': 'k' },
+    })
+    await ai.installToolboxComponent('gh')
+    expect(calls[5].body).toEqual({ id: 'gh' })
+  })
+})

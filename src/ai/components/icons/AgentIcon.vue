@@ -55,6 +55,7 @@ const PATHS: Record<string, string> = {
   arrowLeft: '<path d="M16 10H4M9 5l-5 5 5 5"/>',
   arrowBack: '<path d="M16 10H4"/><path d="m9 5-5 5 5 5"/>',
   wrench: '<path d="M14.5 5.5a3.2 3.2 0 0 0-4.3 3.9L4 15.6 6.4 18l6.2-6.2a3.2 3.2 0 0 0 3.9-4.3l-2.1 2.1-1.9-1.9 2.1-2.1z"/>',
+  clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2"/>',
   speaker: '<path d="M4 8h3l4-3v10l-4-3H4V8z"/><path d="M14 7a4 4 0 0 1 0 6"/>',
   // SP8-P2a Task 1 — settings navigation/topbar icons, aligned with Vue2
   // src/views/AI/Skills/SkillIcon.vue:43-50.

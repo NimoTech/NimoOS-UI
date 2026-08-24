@@ -10,13 +10,14 @@ describe('sections navigation config', () => {
   })
 
   // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals', agent web
-  // tools Task 9 added 'web', permission policy added 'permissions', settings
-  // parity 2026-08-24 added 'background' — now 17.
-  it('still covers all 17 sections', () => {
+  // tools Task 9 added 'web', permission policy added 'permissions', Vue2
+  // parity added 'toolbox'/'lark', settings parity 2026-08-24 added
+  // 'background' — now 19.
+  it('still covers all 19 sections', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
-      'background', 'blacklist', 'channels', 'execution', 'mcp', 'mcpapprovals', 'mcptokens',
-      'memory', 'models', 'observability', 'permissions', 'privacy', 'providers', 'search',
-      'skills', 'thinking', 'web',
+      'background', 'blacklist', 'channels', 'execution', 'lark', 'mcp', 'mcpapprovals',
+      'mcptokens', 'memory', 'models', 'observability', 'permissions', 'privacy', 'providers',
+      'search', 'skills', 'thinking', 'toolbox', 'web',
     ])
   })
 
@@ -33,15 +34,15 @@ describe('sections navigation config', () => {
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
       .toEqual(['permissions', 'blacklist', 'execution', 'search', 'memory', 'observability', 'web'])
     expect(GROUPS.find((g) => g.id === 'plugin')!.items.map((i) => i.id))
-      .toEqual(['skills', 'mcp', 'mcpapprovals', 'mcptokens'])
+      .toEqual(['skills', 'mcp', 'mcpapprovals', 'mcptokens', 'toolbox', 'lark'])
     expect(GROUPS.find((g) => g.id === 'channel')!.items.map((i) => i.id))
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS is flat concatenation of four groups, length 17', () => {
-    expect(ALL_ITEMS).toHaveLength(17)
+  it('ALL_ITEMS is flat concatenation of four groups, length 19', () => {
+    expect(ALL_ITEMS).toHaveLength(19)
     expect(ALL_ITEMS[0].id).toBe('models')
-    expect(ALL_ITEMS[16].id).toBe('channels')
+    expect(ALL_ITEMS[18].id).toBe('channels')
   })
 
   it('groupOf finds the group a section belongs to', () => {

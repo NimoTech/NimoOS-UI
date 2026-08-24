@@ -101,7 +101,11 @@ describe('AgentSidebar', () => {
     const buttons = w.findAll('.icon-btn')
     await buttons[0].trigger('click')
     expect(w.emitted('new')).toBeTruthy()
+    // buttons[1] is the scheduled-tasks entry (Vue2 parity port); settings
+    // moved to buttons[2].
     await buttons[1].trigger('click')
+    expect(w.emitted('open-tasks')).toBeTruthy()
+    await buttons[2].trigger('click')
     expect(w.emitted('open-settings')).toBeTruthy()
   })
 

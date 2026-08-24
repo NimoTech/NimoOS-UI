@@ -381,3 +381,33 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
   .set-nav-groupbody { display: flex !important; }
   .set-status { display: none; }
 }
+
+/* ── Toolbox section (ported from Vue2 ToolboxSection <style scoped>) ── */
+.tok-row.unmanaged { opacity: 0.65; }
+/* `.set-app`-prefixed: it is a BUTTON and must outrank the `.set-app button`
+   reset above (0,1,1) — bare `.tok-noop` (0,1,0) would lose its chip look.
+   Guarded in settingsStyles.test.ts. */
+.set-app .tok-noop { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 500;
+  color: var(--text-tertiary); background: var(--bg-chip); border: 0; cursor: default; }
+.tox-err { font-size: 11.5px; color: var(--danger); margin-top: 2px; }
+.tox-spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--text-quaternary);
+  border-top-color: var(--text-secondary); display: inline-block; animation: tox-spin 0.7s linear infinite; }
+@keyframes tox-spin { to { transform: rotate(360deg); } }
+
+/* ── Lark (Feishu) binding section (ported from Vue2 LarkSection <style scoped>) ── */
+.lark-cta { padding: 22px 18px; }
+.lark-flow { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.lark-waiting { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.lark-spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--text-quaternary);
+  border-top-color: var(--text-secondary); display: inline-block; animation: lark-spin 0.7s linear infinite; flex-shrink: 0; }
+@keyframes lark-spin { to { transform: rotate(360deg); } }
+.lark-open { display: flex; }
+.lark-failed { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.lark-tb-link { color: var(--accent); margin-left: 4px; }
+.lark-log { margin: 0 18px 16px; font-size: 12px; color: var(--text-tertiary); }
+.lark-log summary { cursor: pointer; }
+.lark-log pre { white-space: pre-wrap; word-break: break-word; background: var(--bg-sunken);
+  border: 1px solid var(--line-faint); border-radius: var(--r-sm); padding: 10px 12px; margin-top: 8px; }
+.lark-status { font-size: 13px; color: var(--text-secondary); margin: 0; }
+.lark-status.err { color: var(--danger, #d33); }

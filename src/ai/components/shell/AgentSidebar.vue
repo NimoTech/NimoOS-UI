@@ -48,6 +48,7 @@ const emit = defineEmits<{
   (e: 'select', id: string | number): void
   (e: 'delete', id: string | number): void
   (e: 'open-settings'): void
+  (e: 'open-tasks'): void
 }>()
 
 const { t } = useI18n()
@@ -126,6 +127,10 @@ function onDeleteConfirm() {
     <template v-if="collapsed">
       <img class="brand-mark" :src="brandLogo" alt="Nimo AI" style="margin: 0 0 14px" />
       <button class="icon-btn" @click="emit('new')"><AgentIcon name="edit" :size="16" /></button>
+      <!-- Vue2 AgentSidebar.vue:6 — the collapsed rail's scheduled-tasks entry. -->
+      <button class="icon-btn" :title="t('aiTasksTitle')" data-test="open-tasks" @click="emit('open-tasks')">
+        <AgentIcon name="clock" :size="16" />
+      </button>
       <div style="flex: 1" />
       <button class="icon-btn" @click="emit('open-settings')" :title="t('aiSettings')"><AgentIcon name="settings" :size="16" /></button>
     </template>
@@ -147,6 +152,12 @@ function onDeleteConfirm() {
         <AgentIcon name="edit" :size="14" />
         <span>{{ t('aiNewConversation') }}</span>
         <span class="kbd">⌘N</span>
+      </button>
+
+      <!-- Vue2 AgentSidebar.vue:30-33 — the expanded rail's scheduled-tasks entry. -->
+      <button class="side-nav-btn" data-test="open-tasks" @click="emit('open-tasks')">
+        <AgentIcon name="clock" :size="14" />
+        <span>{{ t('aiTasksTitle') }}</span>
       </button>
 
       <div class="sidebar-section-label">Sessions</div>
