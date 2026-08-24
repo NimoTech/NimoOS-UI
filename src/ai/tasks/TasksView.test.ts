@@ -99,6 +99,9 @@ describe('TasksView', () => {
   it('lists tasks with name, trigger text and next run', async () => {
     const w = mountView()
     await flush()
+    // Token-scope regression guard: tokens.scss only defines var(--…) under
+    // .agent-app — a root without it renders every panel transparent.
+    expect(w.find('.agent-app.set-app').exists()).toBe(true)
     expect(w.text()).toContain('Daily digest')
     expect(w.text()).toContain('0 9 * * *')
     w.unmount()

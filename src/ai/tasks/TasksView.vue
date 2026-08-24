@@ -17,7 +17,11 @@
   precedent).
 -->
 <template>
-  <div class="set-app tsk-app" :data-theme="theme.theme">
+  <!-- Root bears BOTH `agent-app` (token scope — this repo's tokens.scss
+       defines every var(--…) only under .agent-app; without it the section
+       panels render transparent) and `set-app` (layout grid). Same trap
+       SettingsPage.vue documents in its header. -->
+  <div class="agent-app set-app tsk-app" :data-theme="theme.theme">
     <main class="set-main">
       <header class="set-topbar">
         <button class="set-ibtn" :title="t('aiTasksBack')" @click="goBack">
