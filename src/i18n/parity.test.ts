@@ -76,3 +76,25 @@ describe('photosPlaces keys (SP7-P6a)', () => {
     }
   })
 })
+
+// Domains the project does not own and that have never resolved. `nimoos.io` and
+// its subdomains are artefacts of the CasaOS rename: nobody registered them, so
+// copy naming one promised the user a fetch that could not happen — and the
+// Vue2 UI deleted the RSS feature outright for that reason (BrandBar.vue: the
+// request carried a base64 device fingerprint to a registrable domain). Copy is
+// the last place these survive, because nothing fails when a string is wrong.
+const DEAD_DOMAINS = /nimoos\.io|casaos\.io|zimaspace\.com|icewhale\.com/i
+
+describe('i18n copy names no domain the project does not own', () => {
+  it('en_us', () => {
+    for (const [k, v] of Object.entries(en)) {
+      expect(String(v), `key ${k}`).not.toMatch(DEAD_DOMAINS)
+    }
+  })
+
+  it('zh_cn', () => {
+    for (const [k, v] of Object.entries(zh)) {
+      expect(String(v), `key ${k}`).not.toMatch(DEAD_DOMAINS)
+    }
+  })
+})

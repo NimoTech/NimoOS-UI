@@ -42,7 +42,7 @@ export default {
   settingsRecommendApps: 'Show Recommended Apps',
   settingsNewsFeed: 'News Feed',
   settingsNewsFeedTitle: 'News Feed',
-  settingsNewsFeedConfirm: 'NimoOS dashboard will get the the latest news feed of https://blog.nimoos.io via Internet, which might leave your visit records to the site. Do you accept?',
+  settingsNewsFeedConfirm: 'Turning this on lets the dashboard fetch NimoOS news over the Internet. The request is made by your browser, so the news source can see your IP address. Do you accept?',
   settingsAccept: 'Accept',
   settingsCancel: 'Cancel',
   settingsConfirm: 'Confirm',
