@@ -1,0 +1,172 @@
+// Scheduled-tasks page styles — the <style scoped> blocks of the four Vue2
+// components (TasksView / TaskRunsPanel / TaskRunTranscript / TaskEditorModal)
+// ported as-is into one sheet, per this repo's zero-<style> convention.
+// Color literals inside are 1:1 carries from Vue2 (same precedent as
+// settings-styles.scss's .tok-del rgba) — the ai subtree rides its own
+// tokens.scss, not the app-wide theme.css.
+
+/* ── TasksView shell ── */
+/* Same shell as the settings page, minus the left rail: this page navigates
+   from the agent sidebar, so it is a single full-height column. */
+.tsk-app { grid-template-columns: 1fr; }
+.tsk-app .set-topbar { gap: 8px; }
+.tsk-item { border-top: 1px solid var(--line-faint); }
+.tsk-item:first-child { border-top: 0; }
+.tsk-item .tok-body { cursor: pointer; }
+.tsk-tz { color: var(--text-tertiary); }
+
+/* ── TaskRunsPanel ── */
+.tsk-runs .sk-section-head { gap: 8px; }
+.tsk-run { border-top: 1px solid var(--line-faint); }
+.tsk-run:first-child { border-top: 0; }
+.tsk-run-head { display: flex; align-items: center; gap: 10px; padding: 10px 4px;
+  cursor: pointer; font-size: 12.5px; color: var(--text-secondary); }
+.tsk-run-trig { color: var(--text-tertiary); }
+.tsk-run-time { font-variant-numeric: tabular-nums; }
+.tsk-run-dur { color: var(--text-tertiary); }
+.tsk-run-denied { color: var(--danger); }
+.tsk-run-live { display: inline-flex; align-items: center; gap: 7px; min-width: 0;
+  padding: 3px 9px 3px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 11.5px; font-weight: 500; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+.tsk-live-dots { display: inline-flex; gap: 2px; align-items: flex-end; height: 8px; flex-shrink: 0; }
+.tsk-live-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor;
+  display: block; animation: tsk-dot 1.2s infinite; }
+.tsk-live-dots i:nth-child(2) { animation-delay: 0.15s; }
+.tsk-live-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes tsk-dot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
+.tsk-run-chev { margin-left: auto; display: inline-flex; transition: transform 120ms ease; }
+.tsk-run-chev[data-open="true"] { transform: rotate(90deg); }
+.tsk-run-body { padding: 4px 4px 14px; display: flex; flex-direction: column; gap: 12px; }
+.tsk-run-block-tt { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+.tsk-pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.55;
+  background: var(--bg-sunken); border-radius: var(--r-sm); padding: 10px 12px; margin: 0; }
+.tsk-pre.err { color: var(--danger); }
+.tsk-denied-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.tsk-kind { font-size: 11px; font-weight: 600; text-transform: uppercase;
+  color: var(--text-tertiary); flex-shrink: 0; width: 74px; }
+.tsk-detail { flex: 1; min-width: 0; font-size: 12px; word-break: break-all; }
+.tsk-noadopt { flex-shrink: 0; font-size: 11.5px; color: var(--text-tertiary); }
+
+/* ── TaskRunTranscript ── */
+.rt { display: flex; flex-direction: column; gap: 8px; }
+
+.rt-note { display: flex; align-items: center; gap: 9px; padding: 10px 12px;
+  border-radius: var(--r-sm); background: var(--bg-sunken);
+  font-size: 12px; color: var(--text-tertiary); line-height: 1.6; }
+.rt-note.warn { color: var(--warning); }
+.rt-retry { margin-left: auto; padding: 5px 11px; border-radius: var(--r-sm);
+  font-size: 12.5px; border: 1px solid var(--line); background: var(--bg-elevated);
+  color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
+
+.rt-head { display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 7px 10px 7px 8px; border-radius: var(--r-sm);
+  background: var(--bg-sunken); border: 1px solid var(--line-faint); }
+.rt-chev { display: inline-flex; color: var(--text-tertiary); transition: transform 120ms ease; }
+.rt-chev[data-open="true"] { transform: rotate(90deg); }
+.rt-title { font-size: 12.5px; font-weight: 500; color: var(--text-primary); }
+.rt-counts { margin-left: auto; font-size: 11.5px; color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums; }
+.rt-badge { padding: 2px 8px; border-radius: 999px; background: var(--bg-chip);
+  color: var(--text-secondary); font-size: 10.5px; font-weight: 500; white-space: nowrap; }
+.rt-badge.live { display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; border: 1px solid var(--accent); color: var(--accent);
+  font-weight: 600; letter-spacing: 0.04em; }
+.rt-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+  animation: rt-ring 1.6s ease-out infinite; }
+@keyframes rt-ring {
+  0% { box-shadow: 0 0 0 0 rgba(59, 111, 212, 0.28); }
+  70% { box-shadow: 0 0 0 5px rgba(59, 111, 212, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 111, 212, 0); }
+}
+
+.rt-items { display: flex; flex-direction: column; gap: 8px; }
+.rt-rail { padding-left: 9px; border-left: 1.5px solid var(--line);
+  display: flex; flex-direction: column; gap: 2px; }
+.rt-step { border-radius: var(--r-sm); }
+.rt-step-line { display: flex; align-items: center; gap: 9px; min-width: 0;
+  padding: 6px 10px; border-radius: var(--r-sm); cursor: pointer;
+  transition: background 120ms ease; }
+.rt-step-line:hover { background: var(--bg-hover); }
+.rt-step-ic { width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0;
+  display: grid; place-items: center; color: var(--text-secondary);
+  background: var(--bg-sunken); }
+.rt-step-ic[data-kind="think"] { background: transparent; color: var(--accent); }
+.rt-step-ic[data-state="running"] { background: var(--accent-soft); color: var(--accent); }
+.rt-step-ic[data-state="error"] { background: rgba(215, 73, 59, 0.12); color: var(--danger); }
+.rt-step-name { font-size: 13px; color: var(--text-primary); font-weight: 450;
+  white-space: nowrap; flex-shrink: 0; }
+.rt-step-detail { font-size: 11.5px; color: var(--text-tertiary); min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-step-meta { margin-left: auto; font-size: 11.5px; color: var(--text-tertiary);
+  flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.rt-step-chev { display: inline-flex; color: var(--text-tertiary); flex-shrink: 0;
+  transition: transform 180ms ease; }
+.rt-step[data-open="true"] .rt-step-chev { transform: rotate(90deg); }
+.rt-step-body { padding: 4px 10px 12px 37px; display: flex; flex-direction: column; gap: 8px; }
+.rt-think { font-size: 12.5px; color: var(--text-secondary); line-height: 1.65;
+  font-style: italic; font-family: var(--font-serif);
+  white-space: pre-wrap; word-break: break-word; }
+.rt-sec-label { font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.rt-code { background: var(--bg-elevated); border: 1px solid var(--line-faint);
+  border-radius: var(--r-sm); padding: 8px 10px; max-height: 260px; overflow: auto;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-primary);
+  white-space: pre-wrap; word-break: break-all; line-height: 1.55; }
+
+.rt-gate { display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+  border-radius: var(--r-sm); background: var(--bg-sunken); min-width: 0; }
+.rt-gate-label { font-size: 12.5px; color: var(--text-primary); flex-shrink: 0; }
+.rt-gate-detail { flex: 1; min-width: 0; font-size: 11.5px; color: var(--text-tertiary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-gate-tag { flex-shrink: 0; padding: 2px 8px; border-radius: 999px;
+  background: var(--bg-chip); color: var(--text-secondary); font-size: 10.5px; font-weight: 500; }
+
+.rt-md { font-size: 12.5px; line-height: 1.65; background: var(--bg-sunken);
+  border-radius: var(--r-sm); padding: 10px 12px; color: var(--text-primary); }
+.rt-md p { margin: 0 0 8px; }
+.rt-md p:last-child { margin-bottom: 0; }
+.rt-md pre { background: var(--bg-elevated); border: 1px solid var(--line-faint);
+  border-radius: var(--r-sm); padding: 8px 10px; overflow: auto;
+  font-family: var(--font-mono); font-size: 12px; }
+.rt-md code { font-family: var(--font-mono); font-size: 12px; }
+.rt-md ul, .rt-md ol { margin: 0 0 8px; padding-left: 20px; }
+.rt-caret { display: inline-block; width: 7px; margin-left: 1px;
+  border-bottom: 1.5px solid var(--text-primary); animation: rt-caret 1s steps(1) infinite; }
+@keyframes rt-caret { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+.rt-dots { display: inline-flex; gap: 3px; align-items: center; flex-shrink: 0; }
+.rt-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor;
+  display: block; animation: rt-dot 1.2s infinite; }
+.rt-dots i:nth-child(2) { animation-delay: 0.15s; }
+.rt-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes rt-dot { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
+
+/* ── TaskEditorModal ── */
+.tsk-modal { width: min(680px, 100%); }
+.tsk-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tsk-check { display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  font-size: 13px; color: var(--text-primary); cursor: pointer; }
+.tsk-check input { margin: 0; }
+.tsk-preauth { display: flex; flex-direction: column; gap: 8px;
+  border-top: 1px solid var(--line-faint); padding-top: 14px; }
+.tsk-bucket { display: flex; flex-direction: column; gap: 6px;
+  background: var(--bg-canvas); border: 1px solid var(--line-faint);
+  border-radius: var(--r-md); padding: 10px 12px; }
+.tsk-bucket-tt { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.tsk-entry { display: flex; align-items: center; gap: 8px; }
+.tsk-entry-val { flex: 1; min-width: 0; font-size: 12px; word-break: break-all; }
+.tsk-rejected { margin: 6px 0 0; padding-left: 16px; font-size: 12px; }
+.sk-field-hint.err { color: var(--danger); }
+.tsk-draft-note { padding: 10px 20px; font-size: 12px; line-height: 1.5;
+  color: var(--text-secondary); background: var(--bg-sunken);
+  border-bottom: 1px solid var(--line-faint); }
+.tsk-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  margin-top: 2px; padding-top: 8px; border-top: 1px dashed var(--line-faint); }
+.tsk-suggest-title { flex: 1 0 100%; font-size: 12px; font-weight: 600;
+  color: var(--text-secondary); }
+.tsk-suggest-hint { flex: 1 0 100%; font-size: 11px; color: var(--text-tertiary); }
+.tsk-suggest-chip { font-size: 11.5px; }
+
+.mono { font-family: var(--font-mono); }

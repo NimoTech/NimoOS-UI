@@ -126,6 +126,11 @@ function onOpenSettings() {
   router.push('/ai/settings')
 }
 
+// Vue2 `Agent.vue:260` — the sidebar's scheduled-tasks entry.
+function onOpenTasks() {
+  router.push('/ai/tasks')
+}
+
 function onUpdateTitle(title: string) {
   if (store.activeSessionId) store.setSessionTitle(store.activeSessionId, title)
 }
@@ -438,6 +443,7 @@ onUnmounted(() => {
       @select="store.selectSession"
       @delete="store.deleteSession"
       @open-settings="onOpenSettings"
+      @open-tasks="onOpenTasks"
     />
     <main class="main">
       <AgentTopbar

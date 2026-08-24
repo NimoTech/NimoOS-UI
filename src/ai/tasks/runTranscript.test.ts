@@ -165,7 +165,7 @@ describe('transcriptItems — the render plan', () => {
       }),
     ])
     expect(items.map((i) => i.kind)).toEqual(['process', 'md', 'process'])
-    const rail = items[0] as { steps: Array<Record<string, unknown>> }
+    const rail = items[0] as unknown as { steps: Array<Record<string, unknown>> }
     expect(rail.steps).toHaveLength(2)
     expect(rail.steps[0]).toMatchObject({ kind: 'think', detail: 'plan' })
   })
@@ -194,7 +194,7 @@ describe('transcriptItems — the render plan', () => {
       }),
     ])
     expect(items).toHaveLength(1)
-    const rail = items[0] as { steps: Array<Record<string, any>> }
+    const rail = items[0] as unknown as { steps: Array<Record<string, any>> }
     expect(rail.steps.map((s) => s.name)).toEqual(['run_command', 'github::list_prs'])
     expect(rail.steps[0]).toMatchObject({ state: 'error', detail: 'ls /DATA' })
     expect(rail.steps[0].sections[0].code).toContain('no such file')
@@ -315,7 +315,7 @@ describe('withStepTimings — the per-step durations', () => {
       { type: 'tool_result', tool: 'b', content: 'B', call_id: 'c2' },
     ])
     const items = withStepTimings(transcriptItems(s.state.messages), s.state.steps)
-    const rail = items[0] as { steps: Array<Record<string, unknown>> }
+    const rail = items[0] as unknown as { steps: Array<Record<string, unknown>> }
     expect(rail.steps[0].kind).toBe('think')
     expect(rail.steps[0].durationMs).toBeUndefined()
     expect(rail.steps[1].durationMs).toBe(100)
@@ -329,7 +329,7 @@ describe('withStepTimings — the per-step durations', () => {
       transcriptItems([msg({ role: 'assistant', blocks: [{ type: 'tool', name: 'a', state: 'success' }] })]),
       [],
     )
-    expect((items[0] as { steps: Array<Record<string, unknown>> }).steps[0].durationMs).toBeUndefined()
+    expect((items[0] as unknown as { steps: Array<Record<string, unknown>> }).steps[0].durationMs).toBeUndefined()
   })
 
   // The replay case, verbatim from a live capture: /run-stream re-emits the
@@ -344,7 +344,7 @@ describe('withStepTimings — the per-step durations', () => {
     ])
     const items = withStepTimings(transcriptItems(inst.state.messages), inst.state.steps)
     expect(inst.state.steps[0].durationMs).toBe(0)
-    expect((items[0] as { steps: Array<Record<string, unknown>> }).steps[0].durationMs).toBeUndefined()
+    expect((items[0] as unknown as { steps: Array<Record<string, unknown>> }).steps[0].durationMs).toBeUndefined()
   })
 
   it('drops a zero duration the block carried itself', () => {
@@ -357,7 +357,7 @@ describe('withStepTimings — the per-step durations', () => {
       ]),
       [],
     )
-    expect((items[0] as { steps: Array<Record<string, unknown>> }).steps[0].durationMs).toBeUndefined()
+    expect((items[0] as unknown as { steps: Array<Record<string, unknown>> }).steps[0].durationMs).toBeUndefined()
   })
 
   it('keeps a duration the block already carried', () => {
@@ -370,7 +370,7 @@ describe('withStepTimings — the per-step durations', () => {
       ]),
       [{ id: 's1', name: 'x', state: 'success', startedAt: 0, durationMs: 1 }],
     )
-    expect((items[0] as { steps: Array<Record<string, unknown>> }).steps[0].durationMs).toBe(4200)
+    expect((items[0] as unknown as { steps: Array<Record<string, unknown>> }).steps[0].durationMs).toBe(4200)
   })
 })
 
