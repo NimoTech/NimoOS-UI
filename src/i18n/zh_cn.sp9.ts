@@ -44,7 +44,7 @@ export default {
   settingsRecommendApps: '显示推荐应用',
   settingsNewsFeed: '新闻流',
   settingsNewsFeedTitle: '新闻流',
-  settingsNewsFeedConfirm: 'NimoOS 仪表板将会通过 https://blog.nimoos.io 获取最新的新闻，这可能会将您的访问记录留到网站。您接受吗？',
+  settingsNewsFeedConfirm: '开启后，仪表板会通过互联网获取 NimoOS 资讯。请求由你的浏览器直接发出，新闻来源能看到你的 IP 地址。是否接受？',
   settingsAccept: '接受',
   settingsCancel: '取消',
   settingsConfirm: '确认',
