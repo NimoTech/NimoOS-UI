@@ -65,6 +65,9 @@ const props = withDefaults(
     availableModels?: AgentModel[]
     selectedModel?: string | null
     regeneratingTitleFor?: { id: string | number; background: boolean } | null
+    canConvert?: boolean
+    // A draft request is in flight.
+    converting?: boolean
   }>(),
   {
     sessionId: '',
@@ -92,6 +95,7 @@ const emit = defineEmits<{
   (e: 'thinking-level', value: string): void
   (e: 'select-model', key: string): void
   (e: 'open-settings'): void
+  (e: 'convert-to-task'): void
   (e: 'regenerate-title'): void
 }>()
 
@@ -236,6 +240,20 @@ function goHome() {
         @select="emit('select-model', $event)"
         @open-settings="emit('open-settings')"
       />
+      <!-- Vue2 AgentTopbar.vue:43-49 — convert this chat into a scheduled-task
+           draft. Disabling mirrors the AI-rename button next to it, so the
+           click that is being swallowed at least looks swallowed. -->
+      <button
+        v-if="canConvert"
+        class="icon-btn convert-task-btn"
+        :disabled="converting"
+        :data-busy="converting ? 'true' : 'false'"
+        :title="t('aiTasksConvertFromChat')"
+        data-test="convert-to-task"
+        @click="emit('convert-to-task')"
+      >
+        <AgentIcon name="clock" :size="16" />
+      </button>
       <button class="icon-btn" @click="emit('toggle-theme')">
         <AgentIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="16" />
       </button>

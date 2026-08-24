@@ -37,6 +37,7 @@ import PhotosSearch from '../views/PhotosSearch.vue'
 import PhotosSettings from '../views/PhotosSettings.vue'
 import AgentPage from '../ai/views/AgentPage.vue'
 import SettingsPage from '../ai/views/SettingsPage.vue'
+import TasksView from '../ai/tasks/TasksView.vue'
 import { knowledgeRoutes } from '../ai/knowledge/knowledgeRoutes'
 import { authGuard } from './guard'
 
@@ -84,6 +85,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/ai', redirect: '/ai/agent' },
   { path: '/ai/agent', name: 'ai-agent', component: AgentPage },
   { path: '/ai/settings', name: 'ai-settings', component: SettingsPage },
+  { path: '/ai/tasks', name: 'ai-tasks', component: TasksView },
   ...knowledgeRoutes,
   { path: '/login', name: 'login', component: Login, meta: { public: true } },
   { path: '/welcome', name: 'welcome', component: Welcome, meta: { public: true } },

@@ -572,6 +572,133 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
+    // ---- Scheduled tasks (spec §9) — ported 1:1 from Vue2 service/ai.js ----
+
+    async listTasks(): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/tasks`)
+      return res.data
+    },
+
+    async createTask(data: Record<string, unknown>): Promise<unknown> {
+      const res = await http.post(`${PREFIX}/agent/tasks`, data)
+      return res.data
+    },
+
+    async getTask(id: string): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/tasks/${encodeURIComponent(id)}`)
+      return res.data
+    },
+
+    // PUT REPLACES the preauth document wholesale — a partial `preauth`
+    // silently deletes every rule not included. Callers that only mean to
+    // flip another field must omit the key entirely.
+    async updateTask(id: string, data: Record<string, unknown>): Promise<unknown> {
+      const res = await http.put(`${PREFIX}/agent/tasks/${encodeURIComponent(id)}`, data)
+      return res.data
+    },
+
+    async deleteTask(id: string): Promise<unknown> {
+      const res = await http.delete(`${PREFIX}/agent/tasks/${encodeURIComponent(id)}`)
+      return res.data
+    },
+
+    // Queues one run immediately; deliberately ignores `enabled` and the
+    // overlap policy (that is how a user tests a task before switching it on).
+    async runTaskNow(id: string): Promise<unknown> {
+      const res = await http.post(`${PREFIX}/agent/tasks/${encodeURIComponent(id)}/run`, {})
+      return res.data
+    },
+
+    async listTaskRuns(id: string, limit = 50): Promise<unknown> {
+      const res = await http.get(
+        `${PREFIX}/agent/tasks/${encodeURIComponent(id)}/runs`, { params: { limit } })
+      return res.data
+    },
+
+    async adoptDeniedAction(id: string, runId: string, index: number): Promise<unknown> {
+      const res = await http.post(
+        `${PREFIX}/agent/tasks/${encodeURIComponent(id)}/preauth/from-denied`,
+        { run_id: runId, index })
+      return res.data
+    },
+
+    // Chats `notify_channel` can point at. Written the first time a paired
+    // account actually messages the bot, so a just-paired channel is
+    // legitimately absent from this list.
+    async listTaskNotifyTargets(): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/tasks/notify-targets`)
+      return res.data
+    },
+
+    // M3: issue a fresh webhook token, invalidating the old one immediately.
+    async resetTaskWebhookToken(id: string): Promise<unknown> {
+      const res = await http.post(
+        `${PREFIX}/agent/tasks/${encodeURIComponent(id)}/webhook-token/reset`, {})
+      return res.data
+    },
+
+    // Next fire times for a cron expression — the editor's live preview,
+    // computed by the SAME tasks.cron the scheduler uses.
+    async cronPreview(expr: string): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/tasks/cron-preview`, { params: { expr } })
+      return res.data
+    },
+
+    // M6: turn one chat session into a task draft. Read-only — it suggests,
+    // the user confirms in the editor, and only the normal createTask call
+    // writes anything.
+    async draftTaskFromSession(
+      sessionId: string | number,
+      model: string,
+      providerType: string,
+      extraHeaders: Record<string, string> = {},
+    ): Promise<unknown> {
+      const res = await http.post(
+        `${PREFIX}/agent/tasks/draft-from-session`,
+        { session_id: sessionId, model },
+        { headers: { 'X-Agent-Provider-Type': providerType, ...extraHeaders } })
+      return res.data
+    },
+
+    // ---- Toolbox — persistent CLI components for the agent sandbox ----
+
+    async listToolboxComponents(): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/toolbox`)
+      return res.data
+    },
+
+    async installToolboxComponent(id: string): Promise<unknown> {
+      const res = await http.post(`${PREFIX}/agent/toolbox/install`, { id })
+      return res.data
+    },
+
+    async upgradeToolboxComponent(id: string): Promise<unknown> {
+      const res = await http.post(`${PREFIX}/agent/toolbox/upgrade`, { id })
+      return res.data
+    },
+
+    async uninstallToolboxComponent(id: string): Promise<unknown> {
+      const res = await http.post(`${PREFIX}/agent/toolbox/uninstall`, { id })
+      return res.data
+    },
+
+    // ---- Feishu (Lark) account binding — device-flow via lark-cli ----
+
+    async getLarkBinding(): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/lark/binding`)
+      return res.data
+    },
+
+    async startLarkBinding(): Promise<unknown> {
+      const res = await http.post(`${PREFIX}/agent/lark/binding`, {})
+      return res.data
+    },
+
+    async deleteLarkBinding(): Promise<unknown> {
+      const res = await http.delete(`${PREFIX}/agent/lark/binding`)
+      return res.data
+    },
+
     // ---- User settings: thinking defaults / max-turns / tracing ----
 
     async getThinkingDefaults(): Promise<unknown> {

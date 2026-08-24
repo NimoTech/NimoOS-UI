@@ -863,6 +863,40 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
+     * agentStore.js:246-282 — M6: ask the backend for a task draft derived
+     * from this session. Returns the draft, or null on failure — the caller
+     * decides how to surface it. Deliberately tolerant of "no model
+     * selected": the endpoint falls back to the raw user messages, and a
+     * draft the user has to edit beats an error dialog.
+     */
+    async function draftTaskFromSession(
+      sessionId: string | number,
+    ): Promise<Record<string, unknown> | null> {
+      const key = selectedModel.value || ''
+      const { source, modelName } = key.indexOf(':') >= 0
+        ? parseModelKey(key)
+        : { source: '', modelName: '' }
+      const sel = availableModels.value.find((m) => m.key === key)
+      const providerType = sel?.provider_type || (source === 'local' ? 'ollama' : 'other')
+      // Cloud providers need the explicit id, or the backend silently falls
+      // back to the first enabled one and drafts with a different model.
+      const extraHeaders: Record<string, string> = {}
+      if (sel?.source === 'cloud' && sel?.providerId) {
+        extraHeaders['X-Agent-Provider-Id'] = String(sel.providerId)
+      }
+      try {
+        const body = await service.ai.draftTaskFromSession(
+          sessionId, modelName, providerType, extraHeaders,
+        )
+        return (body as Record<string, unknown>) || {}
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[agentStore] draftTaskFromSession failed', e)
+        return null
+      }
+    }
+
+    /**
      * agentStore.js:413-419 — auto-supplement title in background after send()'s first-turn success.
      * Phase 1b once carved out an independent implementation (no UI state like regeneratingTitleFor);
      * after 1c-2 completes full regenerateTitle, this becomes pure delegation, no repeated model key
@@ -1279,6 +1313,7 @@ export function useAgentStore(agentType?: string) {
       setThinkingEnabled,
       setThinkingLevel,
       regenerateTitle,
+      draftTaskFromSession,
       send,
       sendInit,
       stop,

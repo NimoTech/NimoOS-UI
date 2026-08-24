@@ -60,6 +60,8 @@ import type { LocationQueryRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useAgentStore } from '../stores/agentStore'
+import { useSessionStore } from '../../stores/session'
+import { setPendingTaskDraft } from '../tasks/pendingDraft'
 import { useAiTheme } from '../stores/aiTheme'
 import type { ThinkingLevel } from '../stores/agentStore'
 import { provideAgentStore } from '../composables/useProvidedAgentStore'
@@ -124,6 +126,46 @@ function onOpenSettings() {
   // same no-arg jump, lands on settings page default section "Local Models". Since SP8-P2a
   // route exists (T8 registered), placeholder toast is retired.
   router.push('/ai/settings')
+}
+
+// Vue2 `Agent.vue:260` — the sidebar's scheduled-tasks entry.
+function onOpenTasks() {
+  router.push('/ai/tasks')
+}
+
+// Vue2 `Agent.vue:138-142` — the draft endpoint lives under the admin-scoped
+// /agent/tasks subtree, but this chat page is not admin-only. Showing the
+// button to a non-admin buys them a generic failure toast on every click and
+// no explanation, so the admin check belongs in the visibility condition.
+const session = useSessionStore()
+const canConvertToTask = computed(
+  () => session.isAdmin && store.messages.length > 0 && !!store.activeSessionId,
+)
+const draftLoading = ref(false)
+
+// Vue2 `Agent.vue:284-308` — M6: convert this chat into a scheduled task. The
+// draft is a suggestion only — nothing is stored until the user saves it in
+// the editor. Vue2 opened its TaskEditorModal inline; here the tasks page owns
+// the editor, so the draft rides the read-once pendingDraft hand-off.
+async function onConvertToTask() {
+  const sessionId = store.activeSessionId
+  if (!sessionId || draftLoading.value) return
+  draftLoading.value = true
+  try {
+    const draft = await store.draftTaskFromSession(sessionId)
+    // The user can switch sessions while this is in flight. A draft belongs
+    // to the conversation it was derived from, so opening it against a
+    // different one would prefill a task from a chat no longer on screen.
+    if (store.activeSessionId !== sessionId) return
+    if (!draft) {
+      toast.show(t('aiTasksConvertFailed'), 3000, 'warning')
+      return
+    }
+    setPendingTaskDraft(draft)
+    router.push({ path: '/ai/tasks', query: { draft: '1' } })
+  } finally {
+    draftLoading.value = false
+  }
 }
 
 function onUpdateTitle(title: string) {
@@ -438,12 +480,15 @@ onUnmounted(() => {
       @select="store.selectSession"
       @delete="store.deleteSession"
       @open-settings="onOpenSettings"
+      @open-tasks="onOpenTasks"
     />
     <main class="main">
       <AgentTopbar
         :session-id="String(store.activeSessionId ?? '')"
         :stored-title="currentSessionTitle"
         :regenerating-title-for="store.regeneratingTitleFor"
+        :can-convert="canConvertToTask"
+        :converting="draftLoading"
         :theme="store.theme"
         :right-collapsed="store.rightCollapsed"
         :available-models="store.availableModels"
@@ -456,6 +501,7 @@ onUnmounted(() => {
         @select-model="(key) => store.selectModel(key)"
         @open-settings="onOpenSettings"
         @regenerate-title="onRegenerateTitle"
+        @convert-to-task="onConvertToTask"
         @thinking-enabled="(v) => store.setThinkingEnabled(v)"
         @thinking-level="(v) => store.setThinkingLevel(v)"
       />
