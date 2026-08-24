@@ -48,6 +48,7 @@ export default {
   aiCfgCloudProviders: 'Cloud providers',
   aiCfgPrivacyCloud: 'Privacy & cloud',
   aiCfgThinkingIntensity: 'Thinking intensity',
+  aiCfgBackgroundTasks: 'Background tasks',
   aiCfgFilesystem: 'Filesystem',
   aiCfgExecutionSteps: 'Execution steps',
   aiCfgSearch: 'Search',
@@ -692,6 +693,20 @@ export default {
   aiCfgChannelsCodeWarn: 'This code is valid for 10 minutes and can be used once.',
   aiCfgChannelsCreateCodeFailed: 'Could not generate a pairing code.',
   aiCfgChannelsPairInstructions: 'Open Telegram, message {\'@\'}{\'{\'}bot{\'}\'}, and send: /pair {\'{\'}code{\'}\'}',
+  // Settings parity (2026-08-24) — Feishu channel card, ported from Vue2
+  // channelsLark* (en_US.json:1857-1862, values verbatim).
+  aiCfgChannelsLarkTitle: 'Feishu',
+  aiCfgChannelsLarkEnable: 'Enable',
+  aiCfgChannelsLarkDisable: 'Disable',
+  aiCfgChannelsLarkDegraded: 'The click consumer is not connected: confirmation cards are unavailable, and notification delivery cannot be confirmed from here.',
+  aiCfgChannelsLarkConnecting: 'Connecting to Feishu…',
+  aiCfgChannelsLarkEnableFailed: 'Could not enable: the Feishu CLI is unavailable/not logged in, or this account only holds a bot identity and was never granted user authorization',
+  // Settings parity (2026-08-24) — Background tasks section, ported from Vue2
+  // BackgroundTasksSection.vue (notes M1); values verbatim from en_US.json.
+  aiCfgBackgroundDesc: 'Model used by background jobs such as document distillation. Pick a cheap or local model — these jobs run unattended.',
+  aiCfgBackgroundModel: 'Background model',
+  aiCfgBackgroundNotConfigured: 'Not configured (background jobs stay off)',
+  aiCfgBackgroundOffHint: 'Document distillation will not run until a model is selected.',
   // <<< SP8-P2b Task 12
   // >>> SP8-P3a — skills section
   aiSkSearchPlaceholder: 'Search skills…',

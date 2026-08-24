@@ -10,12 +10,13 @@ describe('sections navigation config', () => {
   })
 
   // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals', agent web
-  // tools Task 9 added 'web', permission policy added 'permissions' — now 16.
-  it('still covers all 16 sections', () => {
+  // tools Task 9 added 'web', permission policy added 'permissions', settings
+  // parity 2026-08-24 added 'background' — now 17.
+  it('still covers all 17 sections', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
-      'blacklist', 'channels', 'execution', 'mcp', 'mcpapprovals', 'mcptokens', 'memory',
-      'models', 'observability', 'permissions', 'privacy', 'providers', 'search', 'skills',
-      'thinking', 'web',
+      'background', 'blacklist', 'channels', 'execution', 'mcp', 'mcpapprovals', 'mcptokens',
+      'memory', 'models', 'observability', 'permissions', 'privacy', 'providers', 'search',
+      'skills', 'thinking', 'web',
     ])
   })
 
@@ -28,7 +29,7 @@ describe('sections navigation config', () => {
 
   it('each group\'s section order matches Vue2 exactly', () => {
     expect(GROUPS.find((g) => g.id === 'model')!.items.map((i) => i.id))
-      .toEqual(['models', 'providers', 'privacy', 'thinking'])
+      .toEqual(['models', 'providers', 'privacy', 'thinking', 'background'])
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
       .toEqual(['permissions', 'blacklist', 'execution', 'search', 'memory', 'observability', 'web'])
     expect(GROUPS.find((g) => g.id === 'plugin')!.items.map((i) => i.id))
@@ -37,10 +38,10 @@ describe('sections navigation config', () => {
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS is flat concatenation of four groups, length 16', () => {
-    expect(ALL_ITEMS).toHaveLength(16)
+  it('ALL_ITEMS is flat concatenation of four groups, length 17', () => {
+    expect(ALL_ITEMS).toHaveLength(17)
     expect(ALL_ITEMS[0].id).toBe('models')
-    expect(ALL_ITEMS[15].id).toBe('channels')
+    expect(ALL_ITEMS[16].id).toBe('channels')
   })
 
   it('groupOf finds the group a section belongs to', () => {
