@@ -170,3 +170,7 @@
 .tsk-suggest-chip { font-size: 11.5px; }
 
 .mono { font-family: var(--font-mono); }
+
+/* Run summary rendered as markdown (rides .rt-md); cap runaway digests the
+   same way the old <pre> block's container did visually. */
+.tsk-summary-md { max-height: 480px; overflow: auto; }

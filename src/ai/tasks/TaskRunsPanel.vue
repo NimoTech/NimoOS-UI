@@ -45,7 +45,14 @@
         <div v-if="expanded[r.id] || isActive(r)" v-show="expanded[r.id]" class="tsk-run-body">
           <div v-if="r.summary" class="tsk-run-block">
             <div class="tsk-run-block-tt">{{ t('aiTasksRunSummary') }}</div>
-            <pre class="tsk-pre">{{ r.summary }}</pre>
+            <!-- The summary is the agent's final reply — markdown, not plain
+                 text. Rendered like the transcript's md blocks (.rt-md), so
+                 lists/bold/code in a digest read as intended. The error block
+                 below stays <pre>: errors are raw strings, and markdown-
+                 rendering a traceback would mangle it. -->
+            <div class="rt-md tsk-summary-md" data-test="run-summary">
+              <MarkdownBlock :text="r.summary" />
+            </div>
           </div>
           <div v-if="r.error" class="tsk-run-block">
             <div class="tsk-run-block-tt">{{ t('aiTasksRunError') }}</div>
@@ -92,6 +99,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useToast } from '../../stores/toast'
 import AgentIcon from '../components/icons/AgentIcon.vue'
+import MarkdownBlock from '../components/blocks/MarkdownBlock.vue'
 import TaskRunTranscript from './TaskRunTranscript.vue'
 import {
   errorKey,
