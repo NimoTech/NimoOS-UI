@@ -32,6 +32,9 @@ const h = vi.hoisted(() => ({
   setChannelBindingModel: vi.fn(),
   setChannelBindingDownloadDir: vi.fn(),
   deleteChannelBinding: vi.fn(),
+  getLarkChannel: vi.fn(),
+  enableLarkChannel: vi.fn(),
+  disableLarkChannel: vi.fn(),
   copyText: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -49,6 +52,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
       setChannelBindingModel: h.setChannelBindingModel,
       setChannelBindingDownloadDir: h.setChannelBindingDownloadDir,
       deleteChannelBinding: h.deleteChannelBinding,
+      getLarkChannel: h.getLarkChannel,
+      enableLarkChannel: h.enableLarkChannel,
+      disableLarkChannel: h.disableLarkChannel,
     },
   },
 }))
@@ -94,6 +100,9 @@ beforeEach(() => {
   h.setChannelBindingModel.mockResolvedValue({})
   h.setChannelBindingDownloadDir.mockResolvedValue({})
   h.deleteChannelBinding.mockResolvedValue({})
+  h.getLarkChannel.mockResolvedValue({ enabled: false })
+  h.enableLarkChannel.mockResolvedValue({ enabled: true, name: 'x', open_id: 'ou_1', buttons_ready: false })
+  h.disableLarkChannel.mockResolvedValue(undefined)
   h.copyText.mockResolvedValue(undefined)
   // SkModal's default portal target is '.set-app' (see SkModal.vue header comment D1);
   // the target element must already exist in the DOM before the component mounts, same
@@ -369,7 +378,10 @@ describe('ChannelsSection', () => {
     clickAlertButton('取消')
     await flush()
     expect(h.deleteChannelInstance).not.toHaveBeenCalled()
-    expect(w.findAll('.tok-row')).toHaveLength(1)
+    // +1: the Feishu card renders as an ever-present .tok-row in the admin
+    // section (settings parity 2026-08-24) — bot rows come before it, so
+    // .tok-del above still targets the bot.
+    expect(w.findAll('.tok-row')).toHaveLength(2)
     // confirm path
     h.listPairableChannelInstances.mockClear()
     await w.find('.tok-del').trigger('click')
@@ -377,7 +389,7 @@ describe('ChannelsSection', () => {
     clickAlertButton('删除')
     await flush()
     expect(h.deleteChannelInstance).toHaveBeenCalledWith('a')
-    expect(w.findAll('.tok-row')).toHaveLength(0)
+    expect(w.findAll('.tok-row')).toHaveLength(1)
     expect(h.listPairableChannelInstances).toHaveBeenCalledTimes(1)
   })
 
@@ -655,5 +667,124 @@ describe('ChannelsSection', () => {
       key: 'cloud:6:deepseek-chat', source: 'cloud', displayName: 'deepseek-chat',
       providerName: 'DeepSeek', providerId: 6, supports_thinking: false, provider_type: 'deepseek',
     }])
+  })
+
+  // ---- Feishu channel card (settings parity 2026-08-24) — ported from Vue2
+  // ChannelsSection.lark.spec.js; method-style assertions rewritten as DOM +
+  // mock-call facts, same as everything above.
+
+  it('L1. admin loads the Feishu status; an enabled account shows its name and counts as a bot', async () => {
+    h.listChannelInstances.mockResolvedValue({
+      instances: [{ id: 'a', name: 'Fam bot', channel_type: 'telegram', enabled: true }],
+    })
+    h.getLarkChannel.mockResolvedValue({ enabled: true, open_id: 'ou_1', name: '雷浩文', buttons_ready: true })
+    asAdmin()
+    const w = mountSection()
+    await flush()
+    expect(w.text()).toContain('飞书')
+    expect(w.text()).toContain('雷浩文')
+    // botCount = 1 token bot + 1 enabled Feishu; an unenabled row is an offer, not a bot.
+    expect(w.find('.sk-section-hint').text()).toBe('2')
+    expect(w.find('[data-test="lark-disable"]').exists()).toBe(true)
+    // Healthy: neither status line renders.
+    expect(w.find('.chan-lark-degraded').exists()).toBe(false)
+    expect(w.find('.chan-lark-connecting').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('L2. non-admin never fetches the Feishu status (card lives in the admin-only section)', async () => {
+    asUser()
+    const w = mountSection()
+    await flush()
+    expect(h.getLarkChannel).not.toHaveBeenCalled()
+    expect(w.find('[data-test="lark-row"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('L3. enabled but the click consumer is down → degraded line, distinct from disabled', async () => {
+    h.getLarkChannel.mockResolvedValue({ enabled: true, open_id: 'ou_1', name: 'x', buttons_ready: false })
+    asAdmin()
+    const w = mountSection()
+    await flush()
+    expect(w.find('.chan-lark-degraded').text()).toContain('点击回调未连接')
+    // Still "on but impaired", not "off": the disable button renders, not enable.
+    expect(w.find('[data-test="lark-disable"]').exists()).toBe(true)
+    expect(w.find('[data-test="lark-enable"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('L4. a successful enable shows connecting (not degraded); the delayed re-check clears it once ready', async () => {
+    vi.useFakeTimers()
+    try {
+      asAdmin()
+      const w = mountSection()
+      await flush()
+      // buttons_ready is deterministically false in the POST response —
+      // painting degraded here would be a guaranteed false alarm.
+      await w.find('[data-test="lark-enable"]').trigger('click')
+      await flush()
+      expect(w.find('.chan-lark-connecting').text()).toContain('正在连接飞书')
+      expect(w.find('.chan-lark-degraded').exists()).toBe(false)
+      // By the re-check the consumer has come up.
+      h.getLarkChannel.mockResolvedValue({ enabled: true, open_id: 'ou_1', name: 'x', buttons_ready: true })
+      await vi.advanceTimersByTimeAsync(3000)
+      await flush()
+      expect(w.find('.chan-lark-connecting').exists()).toBe(false)
+      expect(w.find('.chan-lark-degraded').exists()).toBe(false)
+      w.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('L5. the delayed re-check surfaces a genuinely degraded consumer', async () => {
+    vi.useFakeTimers()
+    try {
+      asAdmin()
+      const w = mountSection()
+      await flush()
+      await w.find('[data-test="lark-enable"]').trigger('click')
+      await flush()
+      h.getLarkChannel.mockResolvedValue({ enabled: true, open_id: 'ou_1', name: 'x', buttons_ready: false })
+      await vi.advanceTimersByTimeAsync(3000)
+      await flush()
+      expect(w.find('.chan-lark-connecting').exists()).toBe(false)
+      expect(w.find('.chan-lark-degraded').exists()).toBe(true)
+      w.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('L6. a failed enable tells the user why (danger toast) and leaves the card off', async () => {
+    h.enableLarkChannel.mockRejectedValue({ response: { status: 409 } })
+    asAdmin()
+    const w = mountSection()
+    await flush()
+    const toast = useToast()
+    const show = vi.spyOn(toast, 'show')
+    await w.find('[data-test="lark-enable"]').trigger('click')
+    await flush()
+    expect(show).toHaveBeenCalledWith(
+      '启用失败：飞书 CLI 不可用/未登录，或该账号仅有机器人身份、从未完成用户授权', 3000, 'danger',
+    )
+    expect(w.find('[data-test="lark-enable"]').exists()).toBe(true)
+    expect(w.find('.chan-lark-connecting').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('L7. disabling refreshes from the server rather than guessing, and the enable button returns', async () => {
+    h.getLarkChannel.mockResolvedValue({ enabled: true, open_id: 'ou_1', name: 'x', buttons_ready: true })
+    asAdmin()
+    const w = mountSection()
+    await flush()
+    // The disable path re-reads status; by then the server reports it off.
+    h.getLarkChannel.mockResolvedValue({ enabled: false })
+    await w.find('[data-test="lark-disable"]').trigger('click')
+    await flush()
+    expect(h.disableLarkChannel).toHaveBeenCalledTimes(1)
+    expect(h.getLarkChannel).toHaveBeenCalledTimes(2)
+    expect(w.find('[data-test="lark-enable"]').exists()).toBe(true)
+    w.unmount()
   })
 })

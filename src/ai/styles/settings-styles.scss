@@ -230,6 +230,9 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 // field's .chan-field-hint; only color changed to --danger (has values in both themes).
 .chan-field-err { margin: 0 0 6px; font-size: 12px; color: var(--danger); line-height: 1.5; }
 .chan-invite { margin-left: 10px; font-size: 12.5px; color: var(--accent); }
+// Feishu channel card status lines (settings parity 2026-08-24, Vue2 :510-511).
+.chan-lark-degraded { color: var(--danger); }
+.chan-lark-connecting { color: var(--text-secondary); }
 
 /* ---------- Card with internal toolbar ---------- */
 .set-cardhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px 14px 18px; border-bottom: 1px solid var(--line-faint); }

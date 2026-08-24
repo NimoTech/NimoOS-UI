@@ -60,6 +60,7 @@ import ModelsSection from '../components/settings/sections/ModelsSection.vue'
 import ProvidersSection from '../components/settings/sections/ProvidersSection.vue'
 import PrivacySection from '../components/settings/sections/PrivacySection.vue'
 import ThinkingDefaultsSection from '../components/settings/sections/ThinkingDefaultsSection.vue'
+import BackgroundTasksSection from '../components/settings/sections/BackgroundTasksSection.vue'
 import BlacklistSection from '../components/settings/sections/BlacklistSection.vue'
 import ExecutionSection from '../components/settings/sections/ExecutionSection.vue'
 import PermissionsSection from '../components/settings/sections/PermissionsSection.vue'
@@ -114,6 +115,7 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
   providers: ProvidersSection, // Task 10 — wired
   privacy: PrivacySection, // Task 11 — wired
   thinking: ThinkingDefaultsSection, // Task 11 — wired
+  background: BackgroundTasksSection, // settings parity 2026-08-24 — wired
   permissions: PermissionsSection, // agent permission policy — implemented
   blacklist: BlacklistSection, // SP8-P2b Task 4 — implemented, final wiring
   execution: ExecutionSection, // SP8-P2b Task 5 — implemented, final wiring

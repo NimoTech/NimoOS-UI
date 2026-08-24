@@ -10,12 +10,14 @@ describe('sections navigation config', () => {
   })
 
   // Task 21 (mcp-progressive-disclosure) added 'mcpapprovals', agent web
-  // tools Task 9 added 'web', permission policy added 'permissions' — now 16.
-  it('still covers all 18 sections', () => {
+  // tools Task 9 added 'web', permission policy added 'permissions', Vue2
+  // parity added 'toolbox'/'lark', settings parity 2026-08-24 added
+  // 'background' — now 19.
+  it('still covers all 19 sections', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
-      'blacklist', 'channels', 'execution', 'lark', 'mcp', 'mcpapprovals', 'mcptokens',
-      'memory', 'models', 'observability', 'permissions', 'privacy', 'providers', 'search',
-      'skills', 'thinking', 'toolbox', 'web',
+      'background', 'blacklist', 'channels', 'execution', 'lark', 'mcp', 'mcpapprovals',
+      'mcptokens', 'memory', 'models', 'observability', 'permissions', 'privacy', 'providers',
+      'search', 'skills', 'thinking', 'toolbox', 'web',
     ])
   })
 
@@ -28,7 +30,7 @@ describe('sections navigation config', () => {
 
   it('each group\'s section order matches Vue2 exactly', () => {
     expect(GROUPS.find((g) => g.id === 'model')!.items.map((i) => i.id))
-      .toEqual(['models', 'providers', 'privacy', 'thinking'])
+      .toEqual(['models', 'providers', 'privacy', 'thinking', 'background'])
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
       .toEqual(['permissions', 'blacklist', 'execution', 'search', 'memory', 'observability', 'web'])
     expect(GROUPS.find((g) => g.id === 'plugin')!.items.map((i) => i.id))
@@ -37,10 +39,10 @@ describe('sections navigation config', () => {
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS is flat concatenation of four groups, length 18', () => {
-    expect(ALL_ITEMS).toHaveLength(18)
+  it('ALL_ITEMS is flat concatenation of four groups, length 19', () => {
+    expect(ALL_ITEMS).toHaveLength(19)
     expect(ALL_ITEMS[0].id).toBe('models')
-    expect(ALL_ITEMS[17].id).toBe('channels')
+    expect(ALL_ITEMS[18].id).toBe('channels')
   })
 
   it('groupOf finds the group a section belongs to', () => {

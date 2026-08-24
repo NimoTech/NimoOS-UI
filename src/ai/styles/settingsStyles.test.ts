@@ -148,6 +148,8 @@ describe('settings-styles.scss', () => {
       // User 2026-07-30 decision: newly added inline error for bot addition failure (replaces Vue2 danger toast)
       '.chan-field-err {',
       '.chan-type-opt[data-active="true"] {', '.chan-field-hint {', '.chan-invite {',
+      // Settings parity 2026-08-24: Feishu card status lines (Vue2 :510-511)
+      '.chan-lark-degraded {', '.chan-lark-connecting {',
     ]) {
       expect(css).toContain(sel)
     }

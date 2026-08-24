@@ -40,7 +40,7 @@
   (UI change, out of porting scope).
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useSessionStore } from '../../../../stores/session'
@@ -100,6 +100,40 @@ const confirmUnbindOpen = ref(false)
 const pendingBotId = ref<string | number | null>(null)
 const pendingBindingId = ref<string | number | null>(null)
 
+// ---- Feishu channel card (settings parity 2026-08-24, Vue2 :43-66/:194-354) ----
+// Feishu sits in the same list as the token bots, but it is not one: it
+// carries no token (lark-cli holds the credentials) and so has an
+// enable/disable pair instead of a token tail and a switch.
+interface LarkStatus {
+  enabled?: boolean
+  open_id?: string
+  name?: string
+  buttons_ready?: boolean
+}
+// How long to wait after a successful enable before re-reading the Feishu
+// status. The click consumer needs one WebSocket handshake to report ready;
+// this is a single delayed re-check, not a poll.
+const LARK_CONNECT_RECHECK_MS = 3000
+const lark = ref<LarkStatus>({ enabled: false, open_id: '', name: '', buttons_ready: false })
+const larkBusy = ref(false)
+// The POST response can never report buttons_ready: readiness only arrives
+// once lark-cli's event consumer has finished a real WebSocket round-trip,
+// which is strictly after the request returns. Without this flag every
+// successful enable painted the red degraded banner and then never cleared
+// it (nothing re-fetched).
+const larkConnecting = ref(false)
+let larkConnectTimer: ReturnType<typeof setTimeout> | null = null
+
+// Feishu is listed in this section but is only a configured channel once it
+// is enabled — an unenabled row is an offer, not a bot.
+const botCount = computed(() => instances.value.length + (lark.value.enabled ? 1 : 0))
+// Enabled but no click consumer. Suppressed while `larkConnecting`: straight
+// after an enable, buttons_ready is deterministically false and says nothing
+// about health, so reporting it as degraded is a guaranteed false alarm.
+const larkDegraded = computed(
+  () => !!lark.value.enabled && !lark.value.buttons_ready && !larkConnecting.value,
+)
+
 const pairInstructions = computed(() =>
   fillPairInstructions(t('aiCfgChannelsPairInstructions'), codeInstance.value?.bot_username || '', revealedCode.value),
 )
@@ -111,7 +145,14 @@ onMounted(() => {
   void loadPairable()
   void loadBindings()
   void loadModels()
-  if (isAdmin.value) void loadInstances()
+  if (isAdmin.value) {
+    void loadInstances()
+    void loadLark()
+  }
+})
+
+onBeforeUnmount(() => {
+  clearLarkConnectTimer()
 })
 
 async function loadPairable() {
@@ -175,6 +216,67 @@ async function loadInstances() {
   } finally {
     instLoading.value = false
   }
+}
+
+async function loadLark() {
+  try {
+    const res = (await service.ai.getLarkChannel()) as LarkStatus | null | undefined
+    lark.value = { ...lark.value, ...(res || {}) }
+  } catch {
+    lark.value = { enabled: false, open_id: '', name: '', buttons_ready: false }
+  }
+}
+
+async function enableLark() {
+  if (larkBusy.value) return
+  larkBusy.value = true
+  try {
+    const res = (await service.ai.enableLarkChannel()) as LarkStatus | null | undefined
+    lark.value = { ...lark.value, ...(res || {}) }
+    if (lark.value.enabled && !lark.value.buttons_ready) {
+      larkConnecting.value = true
+      clearLarkConnectTimer()
+      larkConnectTimer = setTimeout(() => void refreshLarkAfterConnect(), LARK_CONNECT_RECHECK_MS)
+    }
+  } catch {
+    // 409 is the DEFAULT state of a fresh box (lark-cli not installed / not
+    // logged in / bot-only identity) — the copy names the possibilities.
+    toast.show(t('aiCfgChannelsLarkEnableFailed'), 3000, 'danger')
+  } finally {
+    larkBusy.value = false
+  }
+}
+
+function clearLarkConnectTimer() {
+  if (larkConnectTimer) {
+    clearTimeout(larkConnectTimer)
+    larkConnectTimer = null
+  }
+}
+
+// One delayed re-read: by now the consumer has either come up (healthy) or it
+// has not (genuinely degraded). Either way, stop suppressing.
+async function refreshLarkAfterConnect() {
+  larkConnectTimer = null
+  try {
+    await loadLark()
+  } finally {
+    larkConnecting.value = false
+  }
+}
+
+async function disableLark() {
+  if (larkBusy.value) return
+  larkBusy.value = true
+  clearLarkConnectTimer()
+  larkConnecting.value = false
+  try {
+    await service.ai.disableLarkChannel()
+  } catch {
+    /* fall through to a refresh — the server decides */
+  }
+  await loadLark()
+  larkBusy.value = false
 }
 
 // Clear timing for inline errors: whenever user touches token or platform, remove old error
@@ -334,7 +436,7 @@ function handleCodeOpenChange(open: boolean) {
     <div v-if="isAdmin" class="sk-section">
       <div class="sk-section-head">
         <div class="sk-section-title">{{ t('aiCfgChannelsAdminTitle') }}</div>
-        <div class="sk-section-hint">{{ instances.length }}</div>
+        <div class="sk-section-hint">{{ botCount }}</div>
         <button class="sk-btn primary" style="margin-left:auto" @click="showAdd = true">
           <AgentIcon name="plus" :size="13" /> {{ t('aiCfgChannelsAddBot') }}
         </button>
@@ -366,6 +468,37 @@ function handleCodeOpenChange(open: boolean) {
           </label>
           <button class="tok-del" @click="confirmDeleteBot(inst)">
             <AgentIcon name="trash" :size="13" /> {{ t('aiCfgDelete') }}
+          </button>
+        </div>
+
+        <!-- Feishu sits in the same list as the token bots, but it is not one:
+             it carries no token (lark-cli holds the credentials) and so has an
+             enable/disable pair instead of a token tail and a switch. -->
+        <div class="tok-row" data-test="lark-row">
+          <span class="tok-ic"><AgentIcon name="cloud" :size="16" /></span>
+          <div class="tok-body">
+            <div class="tok-name">
+              {{ t('aiCfgChannelsLarkTitle') }}
+              <span v-if="lark.enabled && lark.name" class="chan-bot">{{ lark.name }}</span>
+            </div>
+            <div v-if="larkConnecting" class="tok-meta chan-lark-connecting">
+              {{ t('aiCfgChannelsLarkConnecting') }}
+            </div>
+            <div v-else-if="larkDegraded" class="tok-meta chan-lark-degraded">
+              {{ t('aiCfgChannelsLarkDegraded') }}
+            </div>
+          </div>
+          <button
+            v-if="!lark.enabled" class="sk-btn primary" :disabled="larkBusy"
+            data-test="lark-enable" @click="enableLark"
+          >
+            {{ t('aiCfgChannelsLarkEnable') }}
+          </button>
+          <button
+            v-else class="tok-del" :disabled="larkBusy"
+            data-test="lark-disable" @click="disableLark"
+          >
+            <AgentIcon name="trash" :size="13" /> {{ t('aiCfgChannelsLarkDisable') }}
           </button>
         </div>
       </div>

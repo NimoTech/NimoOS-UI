@@ -699,6 +699,24 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
+    // Feishu channel enable/disable — unlike the token bots above it carries
+    // no token (lark-cli holds the credentials), so the whole lifecycle is
+    // three verbs on one URL. Aligns verbatim with Vue2 src/service/ai.js:55-57.
+    async getLarkChannel(): Promise<unknown> {
+      const res = await http.get(`${PREFIX}/agent/channels/lark`)
+      return res.data
+    },
+
+    async enableLarkChannel(): Promise<unknown> {
+      const res = await http.post(`${PREFIX}/agent/channels/lark`, {})
+      return res.data
+    },
+
+    async disableLarkChannel(): Promise<unknown> {
+      const res = await http.delete(`${PREFIX}/agent/channels/lark`)
+      return res.data
+    },
+
     // ---- User settings: thinking defaults / max-turns / tracing ----
 
     async getThinkingDefaults(): Promise<unknown> {

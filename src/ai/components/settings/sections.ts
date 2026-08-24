@@ -14,7 +14,7 @@
 //     literals as key, e.g. `'Local models'`; this repo unified to i18n, see established policy after P1a).
 
 export type SectionId =
-  | 'models' | 'providers' | 'privacy' | 'thinking'
+  | 'models' | 'providers' | 'privacy' | 'thinking' | 'background'
   | 'permissions' | 'blacklist' | 'execution' | 'search' | 'memory' | 'observability'
   | 'web'
   | 'skills' | 'mcp' | 'mcpapprovals' | 'mcptokens' | 'toolbox' | 'lark' | 'channels'
@@ -42,6 +42,9 @@ export const GROUPS: SectionGroup[] = [
       { id: 'providers', icon: 'cloud', labelKey: 'aiCfgCloudProviders' },
       { id: 'privacy', icon: 'lock', labelKey: 'aiCfgPrivacyCloud' },
       { id: 'thinking', icon: 'gauge', labelKey: 'aiCfgThinkingIntensity' },
+      // Settings parity (2026-08-24) — Vue2 sections.js:23 (notes M1's
+      // background-model picker; was missed in the original port).
+      { id: 'background', icon: 'gauge', labelKey: 'aiCfgBackgroundTasks' },
     ],
   },
   {

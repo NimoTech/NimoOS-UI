@@ -118,11 +118,11 @@ describe('SettingsRail', () => {
 
   it('collapsed groups still keep their navigation items in DOM (narrow screen CSS uses display:flex!important to flatten, v-if would break it)', () => {
     const w = mountRail({ activeId: 'models' })
-    // model group expanded, other three groups collapsed; all 18 items should
+    // model group expanded, other three groups collapsed; all 19 items should
     // be rendered (13 before Task 21 added 'mcpapprovals', agent web tools
     // Task 9 added 'web', permission policy added 'permissions', Vue2-parity
-    // port added 'toolbox' and 'lark')
-    expect(w.findAll('.set-nav-item')).toHaveLength(18)
+    // port added 'toolbox' and 'lark', settings parity added 'background')
+    expect(w.findAll('.set-nav-item')).toHaveLength(19)
     const bodies = w.findAll('.set-nav-groupbody')
     expect(bodies).toHaveLength(4)
   })

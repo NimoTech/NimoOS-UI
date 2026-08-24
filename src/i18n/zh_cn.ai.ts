@@ -60,6 +60,7 @@ export default {
   aiCfgCloudProviders: '云端提供商',
   aiCfgPrivacyCloud: '隐私与云端',
   aiCfgThinkingIntensity: '思考强度',
+  aiCfgBackgroundTasks: '后台任务',
   aiCfgFilesystem: '文件系统',
   aiCfgExecutionSteps: '执行步数',
   aiCfgSearch: '搜索',
@@ -707,6 +708,20 @@ export default {
   aiCfgChannelsCodeWarn: '此配对码 10 分钟内有效，且仅可使用一次。',
   aiCfgChannelsCreateCodeFailed: '生成配对码失败。',
   aiCfgChannelsPairInstructions: '打开 Telegram，给 {\'@\'}{\'{\'}bot{\'}\'} 发送：/pair {\'{\'}code{\'}\'}',
+  // Settings parity（2026-08-24）—— 飞书渠道卡,移植自 Vue2 channelsLark*
+  // (zh_CN.json:1929-1934;标点按本仓全角惯例归一,语义逐字)。
+  aiCfgChannelsLarkTitle: '飞书',
+  aiCfgChannelsLarkEnable: '启用',
+  aiCfgChannelsLarkDisable: '停用',
+  aiCfgChannelsLarkDegraded: '点击回调未连接：确认卡不可用，通知能否送达也无法在此确认。',
+  aiCfgChannelsLarkConnecting: '正在连接飞书…',
+  aiCfgChannelsLarkEnableFailed: '启用失败：飞书 CLI 不可用/未登录，或该账号仅有机器人身份、从未完成用户授权',
+  // Settings parity（2026-08-24）—— 后台任务模型分区,移植自 Vue2
+  // BackgroundTasksSection.vue(notes M1);中文取 zh_CN.json 既有译文。
+  aiCfgBackgroundDesc: '供文档沉淀等后台任务使用的模型。建议选用本地或低成本模型——这些任务无人值守运行。',
+  aiCfgBackgroundModel: '后台任务模型',
+  aiCfgBackgroundNotConfigured: '未配置（后台任务将保持关闭）',
+  aiCfgBackgroundOffHint: '选定模型前，文档沉淀不会运行。',
   // <<< SP8-P2b Task 12
   // >>> SP8-P3a —— 技能分区
   aiSkSearchPlaceholder: '搜索技能…',

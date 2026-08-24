@@ -1265,6 +1265,11 @@ describe('i18n message syntax', () => {
       const divergent: Array<{ newKey: string; forbiddenKey: string; axis: 'en' | 'zh' }> = [
         // Direction 1 (§9.2): zh collides, en must stay distinct.
         { newKey: 'aiKbSrAdvOn', forbiddenKey: 'aiSkEnable', axis: 'en' }, //  启用: Enabled vs Enable
+        // Settings parity 2026-08-24 registered this pair (guard fired as designed): the Feishu
+        // card's enable button ('启用' / 'Enable', verbatim from Vue2 channelsLarkEnable) collides
+        // with aiKbSrAdvOn on zh while en stays distinct ('Enable' vs 'Enabled'). Additive per
+        // §9.10 — one more entry, count 6 → 7, no existing assertion relaxed.
+        { newKey: 'aiKbSrAdvOn', forbiddenKey: 'aiCfgChannelsLarkEnable', axis: 'en' }, // 启用: Enabled vs Enable
         { newKey: 'aiKbSrRelMid', forbiddenKey: 'appsSettingsCpuMedium', axis: 'en' }, // 中: Mid vs Medium
         { newKey: 'aiKbSrRelMid', forbiddenKey: 'aiThinkingMedium', axis: 'en' }, //      中: Mid vs Medium
         { newKey: 'aiKbSrFileType', forbiddenKey: 'aiKbAlFileTypes', axis: 'en' }, // 文件类型: File type vs File types (created by P5f-T1)
@@ -1273,8 +1278,8 @@ describe('i18n message syntax', () => {
         { newKey: 'aiKbSrAdvanced', forbiddenKey: 'appsSettingsSectionAdvanced', axis: 'zh' }, // Advanced: 高级筛选 vs 高级
       ]
 
-      it('covers exactly the 6 one-axis-divergent pairs currently found by this scan (5 from P5e + 1 registered by P5f-T1)', () => {
-        expect(divergent.length).toBe(6)
+      it('covers exactly the 7 one-axis-divergent pairs currently found by this scan (5 from P5e + 1 registered by P5f-T1 + 1 registered by settings parity 2026-08-24)', () => {
+        expect(divergent.length).toBe(7)
       })
 
       for (const { newKey, forbiddenKey, axis } of divergent) {
@@ -1300,7 +1305,7 @@ describe('i18n message syntax', () => {
       // the 5 above. Without this, a future key elsewhere in the app that collides with one of
       // this batch's values on a single axis would appear silently, and the "登记 per A-1/N21"
       // discipline would have nothing enforcing it.
-      it('the scan over the whole table finds exactly these 6 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
+      it('the scan over the whole table finds exactly these 7 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
         const zhAll = zh as Record<string, string>
         const enAll = en as Record<string, string>
         const found: string[] = []

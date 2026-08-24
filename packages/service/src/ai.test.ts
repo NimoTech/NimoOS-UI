@@ -551,6 +551,21 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
     expect(calls[1].body).toEqual({ download_dir: '/DATA/x' })
   })
 
+  // Settings parity 2026-08-24 — Feishu channel card (Vue2 ai.js:55-57).
+  it('Feishu channel: three verbs on one URL, empty POST body', async () => {
+    const { http, calls } = recorder()
+    const ai = createAi(http, () => null)
+    await ai.getLarkChannel()
+    await ai.enableLarkChannel()
+    await ai.disableLarkChannel()
+    expect(calls.map((c) => `${c.verb} ${c.url}`)).toEqual([
+      'get /ai/agent/channels/lark',
+      'post /ai/agent/channels/lark',
+      'delete /ai/agent/channels/lark',
+    ])
+    expect(calls[1].body).toEqual({})
+  })
+
   it('this group of methods also uniformly return res.data (envelope as-is, no unwrap)', async () => {
     const envelope = { success: 200, message: '', data: { foo: 'bar' } }
     const http = { get: async () => ({ data: envelope }) } as unknown as AxiosInstance

@@ -287,18 +287,20 @@ describe('SettingsPage — ② Top bar', () => {
 })
 
 describe('SettingsPage — ③ Content area: two render modes', () => {
-  it('10. stack group (model) renders 4 .set-stack-item inside, data-section-id in order: models/providers/privacy/thinking', async () => {
+  it('10. stack group (model) renders 5 .set-stack-item inside, data-section-id in order: models/providers/privacy/thinking/background', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
     const { w } = await mountPage()
     await flushPromises()
     const items = w.findAll('.set-stack-item')
-    expect(items).toHaveLength(4)
+    // 5th = 'background' (settings parity 2026-08-24, Vue2 sections.js:23).
+    expect(items).toHaveLength(5)
     expect(items.map((i) => i.attributes('data-section-id'))).toEqual([
       'models',
       'providers',
       'privacy',
       'thinking',
+      'background',
     ])
     w.unmount()
   })

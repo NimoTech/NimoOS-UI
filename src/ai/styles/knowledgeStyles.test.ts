@@ -1931,6 +1931,9 @@ const COMPONENTS_VUE_FILES = [
   'settings/mcp/McpServerGroup.vue',
   'settings/mcp/McpServerModal.vue',
   'settings/SectionPlaceholder.vue',
+  // settings parity 2026-08-24 — background-model picker (registered per this
+  // guard's anti-drift rule).
+  'settings/sections/BackgroundTasksSection.vue',
   'settings/sections/BlacklistSection.vue',
   'settings/sections/ChannelsSection.vue',
   'settings/sections/ExecutionSection.vue',
