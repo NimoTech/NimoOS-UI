@@ -1,10 +1,59 @@
-// DOM-free math for the time machine. fisheyeScale / computeFisheyeScales / stepSelectedIndex are ported
-// verbatim from Vue2 components/filebrowser/components/snapshotStackMath.js (curve parameters kept as-is);
-// buildVisibleStack **extends** the Vue2 version with the past state (in the new visual design, cards newer
-// than the selection fly off-screen toward the viewer; the Vue2 version only had the "recede backward"
-// direction); buildRailNodes is newly written.
+// DOM-free math backing the Vue2-parity Time Machine stage (see
+// docs/superpowers/plans/2026-08-25-files-time-machine-vue2-parity.md, Task 2).
 //
-// Vue2's generateStarfieldShadow is deliberately not ported: in the new design the star dots are done in CSS, and the light theme has no starfield.
+// This rewrite ports the "single camera-dolly slot model" from Vue2's
+// components/filebrowser/components/timeMachineMath.js (Fix Round 9/13,
+// see that file's own extensive header comment for the full history):
+// fisheyeScale (cursor-distance tick magnification), resolveDollySlots
+// (name-keyed depth-slot assignment) and resolveSlotPose (per-slot pose).
+// New-UI adds clampStepIndex, a small helper Vue2 never had as a standalone
+// function (Vue2 split "can I step" (resolveStepperBoundaries) and "do the
+// step" across the component itself); here they are fused into one call
+// that returns the next index or null when already at a boundary.
+//
+// Signature deviations from Vue2 (deliberate, see task-2-report.md):
+// - fisheyeScale/resolveDollySlots/resolveSlotPose drop Vue2's generic
+//   `options` bag in favor of fixed constants (FISHEYE_*, TM_DEPTH_STEP) --
+//   this module has exactly one production caller (the Time Machine stage),
+//   not a component library, so there is no reason to keep every knob
+//   pluggable. fisheyeScale keeps an OPTIONAL options param purely for
+//   backward compatibility with computeFisheyeScales below (kept-for-compat
+//   export, see that section) -- new call sites only ever pass one argument.
+// - resolveDollySlots takes `names: string[]` directly (not an array of
+//   `{ name }` objects) and drops Vue2's `pinNames` (multi-step-jump
+//   continuity) -- no consumer in this line's plan needs it; if a later
+//   task needs distant-jump continuity, pinNames can be re-added additively
+//   without breaking this signature.
+// - resolveSlotPose returns `{ x, y, scale, dim, z }` (GSAP-native property
+//   names -- `x`/`y`/`scale` map straight onto `gsap.set(el, pose)` in
+//   Task 3's choreography) instead of Vue2's `{ offsetY, scaleX, scaleY,
+//   opacity, brightness }`. `dim` is `1 - brightness` (the `__dim` overlay's
+//   own opacity, per the design spec) rather than a brightness multiplier.
+//   `z` is an explicit stacking value (nearer slot = higher z) so paint
+//   order no longer depends on DOM/v-for order the way Vue2's "farthest
+//   first, nearest last" array order did (resolveDollySlots still returns
+//   farthest-first for compatibility/readability, but callers may now
+//   render in any order and rely on `z` alone). There is no `opacity` field:
+//   Vue2's T(-1) opacity:0 existed only to hide a huge, off-screen offset
+//   before it starts a transition -- the stage's own `overflow: hidden`
+//   plus the exit pose's large fixed `y` (see EXIT_OFFSET_Y below) already
+//   keeps it out of view without needing a second signal.
+// - resolveSlotPose has no `stageHeight` option (Vue2 could derive the
+//   exit-pose offset from the real measured stage height): EXIT_OFFSET_Y is
+//   a fixed, generous constant instead, same as Vue2's own
+//   `exitOffsetFallback` (already "generous, viewport clearing" even
+//   unmeasured) -- a fixed value is simpler and Vue2's own fallback was
+//   already good enough at any real viewport size.
+
+// --- Kept for compat -------------------------------------------------------
+// The colleague's earlier card-deck mockup variant (M2-F6/F7, see that
+// version's own removed header comment) is still imported by
+// TimeMachineDeck.vue / TimeMachineRail.vue / TimeMachineOverlay.vue, all
+// slated for deletion later in this same plan (Ruling P2, progress.md) once
+// the stage/rail are rebuilt on the Vue2-parity model below. Until that
+// cleanup task lands, these exports must stay so `vue-tsc` stays green.
+// DO NOT extend or "fix" this section -- it is dead weight walking to the
+// grave, not a second product.
 
 export interface StackEntry<T> {
   item: T
@@ -26,40 +75,14 @@ export interface RailNode {
   anchorIndex?: number
 }
 
-interface FisheyeOptions { radius?: number; maxScale?: number; minScale?: number }
+interface LegacyFisheyeOptions { radius?: number; maxScale?: number; minScale?: number }
 
-// Visible window size of the card deck: how many cards TimeMachineDeck renders (the selected one, four
-// receding behind it, and two already flipped past). Directory previews are no longer fetched per window
-// card -- only the front card's folder is listed (see TimeMachineOverlay's previewNames) -- so this
-// constant now has exactly one consumer plus its tests.
-// past is 3, not 2: the outgoing card is opaque now, so it is visible for its whole trip off
-// screen (~320ms). At the walk's usual pace (~90-110ms per snapshot) two slots ran out while
-// the card was still in frame and it vanished mid-air; three covers the trip. At the fastest
-// pace cards still leave the window in flight, but at 24ms per step the whole deck is a blur
-// and there is nothing to see.
 export const DECK_WINDOW = { depth: 5, past: 3 } as const
 
-// macOS Time Machine's tick strip (and the Dock it borrows from) scales **continuously** with cursor
-// distance, not in hover/near/far steps — that can only be done by reading the cursor position and computing
-// a real distance function; no pure CSS :hover rule can express it. This is that function: maxScale at
-// distance 0, smoothly dropping to minScale at radius, staying at minScale beyond.
-export function fisheyeScale(distance: number, options: FisheyeOptions = {}): number {
-  const { radius = 70, maxScale = 2.2, minScale = 1 } = options
-  const d = Math.abs(distance)
-  if (!Number.isFinite(d) || d >= radius) return minScale
-  const t = 1 - d / radius // 0 at the radius edge, 1 directly under the cursor
-  // Raised-cosine easing: slope is 0 at both ends, so adjacent ticks "melt" into and out of the magnified zone with no corner kinks.
-  const eased = (1 - Math.cos(t * Math.PI)) / 2
-  return minScale + (maxScale - minScale) * eased
-}
-
-export function computeFisheyeScales(centers: number[], cursorY: number, options: FisheyeOptions = {}): number[] {
+export function computeFisheyeScales(centers: number[], cursorY: number, options: LegacyFisheyeOptions = {}): number[] {
   return (centers || []).map((c) => fisheyeScale(c - cursorY, options))
 }
 
-// items is newest-first. The selected item is frontmost (front); older snapshots (larger index) recede
-// backward in order (behind); snapshots newer than the selection (smaller index) have already been
-// "flipped past" and fly off-screen toward the viewer (past).
 export function buildVisibleStack<T>(
   items: T[],
   selectedIndex: number,
@@ -73,9 +96,6 @@ export function buildVisibleStack<T>(
   for (let depth = 0; depth < maxDepth && start + depth < list.length; depth++) {
     out.push({ item: list[start + depth], index: start + depth, depth, state: depth === 0 ? 'front' : 'behind' })
   }
-  // Then place past. ⚠️ front-first invariant: callers (the T2 boundary cases) rely on arr[0] always being the front card —
-  // this is exactly the bug fixed before (past was once inserted first, making arr[0] not front); front must be pushed first.
-  // CSS decides stacking via z-index, but array order is not "irrelevant" — don't move this back in front of front.
   for (let depth = 1; depth <= pastDepth && start - depth >= 0; depth++) {
     out.push({ item: list[start - depth], index: start - depth, depth, state: 'past' })
   }
@@ -88,10 +108,6 @@ export function stepSelectedIndex(currentIndex: number, delta: number, length: n
   return Math.min(Math.max(next, 0), length - 1)
 }
 
-// Flatten day-grouped snapshots into the node sequence the rail renders: one date heading before each
-// group, one main tick per snapshot, and subPerGap decorative sub-ticks between adjacent main ticks (the
-// reference design's sub tick). Sub-ticks are not independently selectable; clicking one snaps to the main
-// tick at anchorIndex.
 export function buildRailNodes(
   groups: { dayKey: string; labelText: string; items: { flatIndex: number }[] }[],
   subPerGap = 2,
@@ -106,7 +122,6 @@ export function buildRailNodes(
     }
   }
   if (subPerGap <= 0 || mains.length < 2) return nodes
-  // Insert back-to-front to avoid shifting the already-recorded indices while inserting
   const out = [...nodes]
   for (let i = mains.length - 2; i >= 0; i--) {
     const anchorNode = out[mains[i]]
@@ -117,4 +132,112 @@ export function buildRailNodes(
     out.splice(mains[i] + 1, 0, ...subs)
   }
   return out
+}
+
+// --- Vue2-parity math (this task's real deliverable) ------------------------
+
+/** Cursor-distance falloff radius for tick magnification, px. Vue2's `radius` default. */
+export const FISHEYE_RADIUS = 70
+/** Tick scale at/beyond FISHEYE_RADIUS. Vue2's `minScale` default. */
+export const FISHEYE_MIN_SCALE = 1
+/** Tick scale exactly at the cursor. Vue2's `maxScale` default. */
+export const FISHEYE_MAX_SCALE = 2.2
+/** `.tm-fwin--active` uniform scale (transform-origin 50% 58%). Vue2's `$tm-window-scale`. */
+export const TM_WINDOW_SCALE = 0.82
+/** `.tm-rail`'s own fixed width, px. Vue2's `$tm-rail-width`. */
+export const TM_RAIL_WIDTH = 220
+/** Reserved band between the scaled window and the rail, px. Vue2's `$tm-stepper-band`. */
+export const TM_STEPPER_BAND = 60
+/** Per-depth-slot vertical offset step (pre-window-scale px). Vue2's `resolveSlotPose` `offsetStep` default. */
+export const TM_DEPTH_STEP = 30
+
+export interface DollySlot { name: string; depth: number }
+export interface SlotPose { x: number; y: number; scale: number; dim: number; z: number }
+
+// Raised-cosine falloff of tick magnification around the cursor: eases from
+// `maxScale` at distance 0 down to `minScale` at `radius`, staying at
+// `minScale` beyond it. Slope is 0 at both t=0 and t=1 (no visible "kink"
+// where neighbouring ticks blend in/out) -- ported verbatim from Vue2.
+// `options` is accepted only so the kept-for-compat `computeFisheyeScales`
+// above can still pass one through; every new call site uses one argument.
+export function fisheyeScale(distancePx: number, options: LegacyFisheyeOptions = {}): number {
+  const { radius = FISHEYE_RADIUS, maxScale = FISHEYE_MAX_SCALE, minScale = FISHEYE_MIN_SCALE } = options
+  const d = Math.abs(distancePx)
+  if (!Number.isFinite(d) || d >= radius) return minScale
+  const t = 1 - d / radius // 0 at the radius edge, 1 directly under the cursor
+  const eased = (1 - Math.cos(t * Math.PI)) / 2
+  return minScale + (maxScale - minScale) * eased
+}
+
+const DEFAULT_MAX_SLOTS = 10
+
+// Which snapshots occupy the visible depth slots for currentIndex in a
+// newest-first `names` list. Ported from Vue2's resolveDollySlots (Fix
+// Round 9/13): depth 0 is the selection itself, depth -1 is the one
+// snapshot more recent than the selection (when one exists, unconditionally
+// included -- never capped by `maxSlots`), depths 1..maxSlots are the
+// receding older cascade. Returned farthest-first (depth descending) so a
+// plain v-for keyed by `name` paints the nearest slot last/on top, and so
+// the SAME name persists across a selection change (its depth simply
+// shifts), which is what lets a CSS/GSAP transition animate it rather than
+// tearing the node down and rebuilding one elsewhere.
+export function resolveDollySlots(names: string[], currentIndex: number, maxSlots: number = DEFAULT_MAX_SLOTS): DollySlot[] {
+  const hasSelection = Array.isArray(names) && Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < names.length
+  if (!hasSelection) return []
+  const slots: DollySlot[] = []
+  for (let i = 0; i < names.length; i++) {
+    const depth = i - currentIndex
+    if (depth >= -1 && depth <= maxSlots) slots.push({ name: names[i], depth })
+  }
+  slots.sort((a, b) => b.depth - a.depth)
+  return slots
+}
+
+// Per-depth-slot pose knobs, pre-window-scale coordinates. Values mirror
+// Vue2's resolveSlotPose defaults exactly (offsetStep/scaleStep/
+// brightnessStep/floors/exitScale) -- only the field shapes differ, see this
+// module's own header comment for why.
+const SLOT_SCALE_STEP = 0.02 // narrower per depth (Vue2's scaleStep)
+const SLOT_MIN_SCALE = 0.78 // Vue2's minScale floor
+const SLOT_DIM_STEP = 0.06 // dimmer per depth (Vue2's brightnessStep, inverted: dim = 1 - brightness)
+const SLOT_MAX_DIM = 0.55 // Vue2's minBrightness floor (0.45), inverted
+const EXIT_SCALE = 1.2 // T(-1): uniform grow, "coming toward the viewer" (Vue2's exitScale)
+const EXIT_OFFSET_Y = 1600 // px, viewport-clearing translate for T(-1) (Vue2's exitOffsetFallback)
+
+// Pose (translate/scale/dim/z) for a slot at a given depth. T(0) (the
+// selection itself) is the identity pose. T(<=-1) ("past the camera") grows
+// uniformly, translates well past any real stage height, and is never
+// dimmed (it is the exiting/incoming front layer, not a deep strip) -- every
+// depth <= -1 collapses to this SAME pose (there is only ever one
+// past-the-camera slot rendered at a time, ported from Vue2's own
+// invariant). Depths >= 1 recede: higher (more negative) y, narrower scale,
+// dimmer, all floored so nothing shrinks/darkens to nothing even far down
+// the cascade.
+export function resolveSlotPose(depth: number): SlotPose {
+  if (depth <= -1) {
+    return { x: 0, y: EXIT_OFFSET_Y, scale: EXIT_SCALE, dim: 0, z: 1 }
+  }
+  if (depth === 0) {
+    return { x: 0, y: 0, scale: 1, dim: 0, z: 0 }
+  }
+  return {
+    x: 0,
+    y: -(depth * TM_DEPTH_STEP),
+    scale: Math.max(SLOT_MIN_SCALE, 1 - depth * SLOT_SCALE_STEP),
+    dim: Math.min(SLOT_MAX_DIM, depth * SLOT_DIM_STEP),
+    z: -depth,
+  }
+}
+
+// Clamp a step target into [0, count-1]; returns null when already at the
+// boundary (or when there is no current selection / count is invalid) so
+// callers can disable the stepper button rather than silently no-op-ing.
+// Fuses Vue2's separate resolveStepperBoundaries (can-I-step booleans) and
+// the component-level "do the step" arithmetic into one call.
+export function clampStepIndex(current: number, delta: number, count: number): number | null {
+  if (!Number.isInteger(current) || !Number.isInteger(count) || count <= 0) return null
+  if (current < 0 || current >= count) return null
+  const next = current + delta
+  if (next < 0 || next >= count) return null
+  return next
 }

@@ -1,38 +1,29 @@
 import { describe, it, expect } from 'vitest'
-import { fisheyeScale, computeFisheyeScales, buildVisibleStack, stepSelectedIndex, buildRailNodes } from './timeMachineMath'
+import {
+  fisheyeScale,
+  computeFisheyeScales,
+  buildVisibleStack,
+  stepSelectedIndex,
+  buildRailNodes,
+  resolveDollySlots,
+  resolveSlotPose,
+  clampStepIndex,
+  FISHEYE_RADIUS,
+  FISHEYE_MIN_SCALE,
+  FISHEYE_MAX_SCALE,
+  TM_WINDOW_SCALE,
+  TM_RAIL_WIDTH,
+  TM_STEPPER_BAND,
+  TM_DEPTH_STEP,
+} from './timeMachineMath'
 
-describe('fisheyeScale', () => {
-  it('cursor at center reaches max scale', () => {
-    expect(fisheyeScale(0)).toBeCloseTo(2.2, 5)
-  })
-  it('beyond radius falls back to min scale', () => {
-    expect(fisheyeScale(70)).toBe(1)
-    expect(fisheyeScale(999)).toBe(1)
-  })
-  it('left-right symmetric (absolute distance only)', () => {
-    expect(fisheyeScale(-30)).toBeCloseTo(fisheyeScale(30), 10)
-  })
-  it('monotonically decreasing within radius', () => {
-    const xs = [0, 10, 20, 30, 40, 50, 60, 69]
-    const ys = xs.map((x) => fisheyeScale(x))
-    for (let i = 1; i < ys.length; i++) expect(ys[i]).toBeLessThan(ys[i - 1])
-  })
-  it('zero slope at ends (raised cosine easing, no corners)', () => {
-    // The delta between two adjacent points right next to the cursor should be far smaller than the same-spacing delta midway out
-    const nearCenter = fisheyeScale(0) - fisheyeScale(2)
-    const midway = fisheyeScale(34) - fisheyeScale(36)
-    expect(nearCenter).toBeLessThan(midway)
-  })
-  it('non-finite input falls back to min scale', () => {
-    expect(fisheyeScale(NaN)).toBe(1)
-  })
-  it('parameters can be overridden', () => {
-    expect(fisheyeScale(0, { maxScale: 3, minScale: 1.5 })).toBeCloseTo(3, 5)
-    expect(fisheyeScale(10, { radius: 10 })).toBe(1)
-  })
-})
+// --- Kept-for-compat exports (colleague's card-deck mockup, TimeMachineDeck/
+// Rail/Overlay.vue still import these -- see this module's own header
+// comment). Tests below are unchanged from before this rewrite; they exist
+// only to keep these exports honest until the components that use them are
+// deleted later in this plan (Ruling P2, progress.md).
 
-describe('computeFisheyeScales', () => {
+describe('computeFisheyeScales (kept for compat)', () => {
   it('batch compute by distance of each tick center to cursor', () => {
     const out = computeFisheyeScales([100, 140, 300], 100)
     expect(out).toHaveLength(3)
@@ -44,7 +35,7 @@ describe('computeFisheyeScales', () => {
   })
 })
 
-describe('buildVisibleStack', () => {
+describe('buildVisibleStack (kept for compat)', () => {
   const items = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
   it('selected item is front, older snapshots behind in order', () => {
     const st = buildVisibleStack(items, 2, 5, 2)
@@ -78,7 +69,7 @@ describe('buildVisibleStack', () => {
   })
 })
 
-describe('stepSelectedIndex', () => {
+describe('stepSelectedIndex (kept for compat)', () => {
   it('clamp at both ends', () => {
     expect(stepSelectedIndex(0, -1, 5)).toBe(0)
     expect(stepSelectedIndex(4, 1, 5)).toBe(4)
@@ -92,7 +83,7 @@ describe('stepSelectedIndex', () => {
   })
 })
 
-describe('buildRailNodes', () => {
+describe('buildRailNodes (kept for compat)', () => {
   const groups = [
     { dayKey: '2026-07-30', labelText: '今天', items: [{ flatIndex: 0 }, { flatIndex: 1 }] },
     { dayKey: '2026-07-29', labelText: '昨天', items: [{ flatIndex: 2 }] },
@@ -107,7 +98,7 @@ describe('buildRailNodes', () => {
   it('insert 2 sub ticks between adjacent main ticks, anchored to upper main tick', () => {
     const nodes = buildRailNodes(groups)
     const subs = nodes.filter((n) => n.type === 'sub')
-    expect(subs).toHaveLength(4) // 2 between 0-1, 2 between 1-2
+    expect(subs).toHaveLength(4)
     expect(subs.slice(0, 2).every((n) => n.anchorIndex === 0)).toBe(true)
   })
   it('no sub ticks after last main tick', () => {
@@ -123,5 +114,242 @@ describe('buildRailNodes', () => {
   })
   it('empty groups return empty', () => {
     expect(buildRailNodes([])).toEqual([])
+  })
+})
+
+// --- Vue2-parity math (this task's real deliverable) -------------------
+// Behavior assertions mined from Vue2's tests/timeMachineMath.test.js
+// (fisheyeScale / resolveDollySlots / resolveSlotPose describe blocks),
+// adapted to the new signatures (see timeMachineMath.ts's own header
+// comment for the exact deviations: no options bag, `names: string[]`,
+// `depth` instead of `slot`, `{x,y,scale,dim,z}` pose shape, no pinNames/
+// stageHeight). compensateMenuPosition/compensateFixedPosition and
+// resolveStepperBoundaries are intentionally not ported here -- see the
+// controller ruling in this task's brief (menu compensation deferred to a
+// later task, empirically) and clampStepIndex below (which fuses
+// resolveStepperBoundaries' boolean pair into one call).
+
+describe('constants', () => {
+  it('exposes the exact numeric contract downstream tasks rely on', () => {
+    expect(FISHEYE_RADIUS).toBe(70)
+    expect(FISHEYE_MIN_SCALE).toBe(1)
+    expect(FISHEYE_MAX_SCALE).toBe(2.2)
+    expect(TM_WINDOW_SCALE).toBe(0.82)
+    expect(TM_RAIL_WIDTH).toBe(220)
+    expect(TM_STEPPER_BAND).toBe(60)
+    expect(TM_DEPTH_STEP).toBe(30)
+  })
+})
+
+describe('fisheyeScale — cursor-distance -> continuous magnification curve', () => {
+  it('is maxScale exactly at the cursor (distance 0)', () => {
+    expect(fisheyeScale(0)).toBeCloseTo(2.2, 5)
+  })
+
+  it('is minScale at and beyond the radius', () => {
+    expect(fisheyeScale(70)).toBe(1)
+    expect(fisheyeScale(140)).toBe(1)
+  })
+
+  it('is symmetric -- same distance on either side of the cursor gives the same scale', () => {
+    expect(fisheyeScale(-30)).toBeCloseTo(fisheyeScale(30), 10)
+  })
+
+  it('is monotonically non-increasing as distance grows (a continuous falloff, not a step function)', () => {
+    const samples = Array.from({ length: 15 }, (_, i) => fisheyeScale(i * 5))
+    for (let i = 1; i < samples.length; i++) {
+      expect(samples[i]).toBeLessThanOrEqual(samples[i - 1] + 1e-9)
+    }
+  })
+
+  it('eases in/out (raised-cosine) -- the midpoint (distance = radius/2) is exactly halfway between min and max', () => {
+    expect(fisheyeScale(35)).toBeCloseTo((FISHEYE_MIN_SCALE + FISHEYE_MAX_SCALE) / 2, 5) // (1+2.2)/2
+  })
+
+  it('zero slope at both ends -- delta right next to the cursor is far smaller than the same-spacing delta midway out', () => {
+    const nearCenter = fisheyeScale(0) - fisheyeScale(2)
+    const midway = fisheyeScale(34) - fisheyeScale(36)
+    expect(nearCenter).toBeLessThan(midway)
+  })
+
+  it('treats non-finite distance defensively as "far" (minScale), never throws/NaNs', () => {
+    expect(fisheyeScale(NaN)).toBe(1)
+    expect(fisheyeScale(Infinity)).toBe(1)
+  })
+
+  it('accepts an options override for the kept-for-compat computeFisheyeScales caller', () => {
+    expect(fisheyeScale(0, { maxScale: 3, minScale: 1.5 })).toBeCloseTo(3, 5)
+    expect(fisheyeScale(10, { radius: 10 })).toBe(1)
+  })
+})
+
+describe('resolveDollySlots — name-keyed dolly-slot assignment for a newest-first list', () => {
+  it('includes ONLY the selection itself (depth 0) at the newest snapshot (index 0)', () => {
+    expect(resolveDollySlots(['a'], 0)).toEqual([{ name: 'a', depth: 0 }])
+  })
+
+  it('one slot per snapshot strictly older than the selection, plus the selection itself, plus depth -1 when a more-recent snapshot exists', () => {
+    expect(resolveDollySlots(['a', 'b', 'c', 'd'], 0)).toHaveLength(4) // 3 older + depth 0, nothing more recent
+    expect(resolveDollySlots(['a', 'b', 'c', 'd'], 2)).toHaveLength(3) // 1 older + depth 0 + depth -1 ('b')
+  })
+
+  it('includes depth -1 (the one snapshot more recent than the selection) whenever one exists', () => {
+    const slots = resolveDollySlots(['a', 'b', 'c'], 1) // 'b' selected, 'a' is more recent
+    expect(slots.find((s) => s.name === 'a')).toEqual({ name: 'a', depth: -1 })
+  })
+
+  it('never includes a depth -1 entry at the newest snapshot (nothing more recent to occupy it)', () => {
+    const slots = resolveDollySlots(['a', 'b', 'c'], 0)
+    expect(slots.some((s) => s.depth === -1)).toBe(false)
+  })
+
+  it('is the selection (depth 0) plus depth -1 at the oldest snapshot (nothing older, but a more-recent neighbor still exists)', () => {
+    expect(resolveDollySlots(['a', 'b', 'c', 'd'], 3)).toEqual([
+      { name: 'd', depth: 0 },
+      { name: 'c', depth: -1 },
+    ])
+  })
+
+  it('caps the OLDER cascade at 10 slots by default regardless of how many older snapshots exist (depth 0/-1 never counted against the cap)', () => {
+    const many = Array.from({ length: 11 }, (_, i) => 's' + i)
+    expect(resolveDollySlots(many, 0).filter((s) => s.depth >= 1)).toHaveLength(10)
+    const huge = Array.from({ length: 500 }, (_, i) => 's' + i)
+    expect(resolveDollySlots(huge, 0).filter((s) => s.depth >= 1)).toHaveLength(10)
+  })
+
+  it('is empty when there is no current selection yet (currentIndex -1, e.g. mid-fetch)', () => {
+    expect(resolveDollySlots(['a', 'b', 'c'], -1)).toEqual([])
+  })
+
+  it('is empty defensively for non-integer/missing/out-of-range inputs (no crash)', () => {
+    expect(resolveDollySlots(['a', 'b'], null as unknown as number)).toEqual([])
+    expect(resolveDollySlots(null as unknown as string[], 0)).toEqual([])
+    expect(resolveDollySlots(['a', 'b'], 1.5)).toEqual([])
+    expect(resolveDollySlots(['a', 'b'], 5)).toEqual([])
+  })
+
+  it('carries the ACTUAL snapshot name at each depth (not a synthetic position label)', () => {
+    expect(resolveDollySlots(['a', 'b', 'c', 'd'], 0)).toEqual([
+      { name: 'd', depth: 3 },
+      { name: 'c', depth: 2 },
+      { name: 'b', depth: 1 },
+      { name: 'a', depth: 0 },
+    ])
+  })
+
+  it('is returned FARTHEST-first -- the nearest slot (including -1, when present) is the last array element', () => {
+    const slots = resolveDollySlots(['a', 'b', 'c'], 1) // 'b' selected: 'a' at -1, 'b' at 0, 'c' at 1
+    expect(slots.map((s) => s.depth)).toEqual([1, 0, -1])
+  })
+
+  it('the SAME snapshot name lands at a DIFFERENT depth after the selection moves by one -- the persistence hook a keyed v-for relies on', () => {
+    const flat = ['a', 'b', 'c', 'd']
+    const before = resolveDollySlots(flat, 0).find((s) => s.name === 'c')
+    const after = resolveDollySlots(flat, 1).find((s) => s.name === 'c')
+    expect(before?.depth).toBe(2)
+    expect(after?.depth).toBe(1)
+  })
+
+  it('a snapshot that becomes the NEW selection re-slots to 0; the OLD selection re-slots to -1 or +1 depending on direction, never dropped mid-travel', () => {
+    const flat = ['a', 'b', 'c', 'd']
+    expect(resolveDollySlots(flat, 0).find((s) => s.name === 'b')?.depth).toBe(1)
+
+    const afterEarlier = resolveDollySlots(flat, 1) // switched to 'b' (earlier)
+    expect(afterEarlier.find((s) => s.name === 'b')?.depth).toBe(0)
+    expect(afterEarlier.find((s) => s.name === 'a')?.depth).toBe(-1)
+
+    const afterLater = resolveDollySlots(flat, 0) // switched back to 'a' (later)
+    expect(afterLater.find((s) => s.name === 'a')?.depth).toBe(0)
+    expect(afterLater.find((s) => s.name === 'b')?.depth).toBe(1)
+  })
+
+  it('maxSlots is overridable, still pure/deterministic (bounds only the older cascade, not depth 0/-1)', () => {
+    const many = Array.from({ length: 20 }, (_, i) => 's' + i)
+    expect(resolveDollySlots(many, 0, 4).map((s) => s.depth)).toEqual([4, 3, 2, 1, 0])
+  })
+})
+
+describe('resolveSlotPose — unified per-depth pose, T(-1) through T(cap)', () => {
+  it('depth 1 (nearest of the older cascade) is close to full scale/brightness with a small, non-zero offset', () => {
+    const p = resolveSlotPose(1)
+    expect(p.y).toBeLessThan(0)
+    expect(p.scale).toBeLessThan(1)
+    expect(p.scale).toBeGreaterThan(0.9)
+    expect(p.dim).toBeGreaterThan(0)
+    expect(p.dim).toBeLessThan(0.1)
+  })
+
+  it('is progressively higher (more negative y), narrower (smaller scale), and dimmer (higher dim) as depth grows, for the older cascade', () => {
+    for (let depth = 1; depth < 10; depth++) {
+      const near = resolveSlotPose(depth)
+      const far = resolveSlotPose(depth + 1)
+      expect(far.y).toBeLessThan(near.y) // more negative = higher
+      expect(far.scale).toBeLessThanOrEqual(near.scale)
+      expect(far.dim).toBeGreaterThanOrEqual(near.dim)
+    }
+  })
+
+  it('never lets scale go below its floor, nor dim exceed its ceiling, even at a deep depth', () => {
+    const p = resolveSlotPose(30)
+    expect(p.scale).toBeGreaterThanOrEqual(0.78)
+    expect(p.dim).toBeLessThanOrEqual(0.55)
+  })
+
+  it('the per-depth offset step is exactly TM_DEPTH_STEP', () => {
+    expect(resolveSlotPose(1).y).toBe(-TM_DEPTH_STEP)
+    expect(resolveSlotPose(3).y).toBe(-3 * TM_DEPTH_STEP)
+  })
+
+  it('T(0) is the identity pose -- no offset, uniform 1x scale, never dimmed', () => {
+    expect(resolveSlotPose(0)).toEqual({ x: 0, y: 0, scale: 1, dim: 0, z: 0 })
+  })
+
+  it('T(-1) grows past 1x, translates well past a typical viewport, and is never dimmed', () => {
+    const p = resolveSlotPose(-1)
+    expect(p.scale).toBeGreaterThan(1)
+    expect(p.y).toBeGreaterThan(900) // clears a typical viewport height
+    expect(p.dim).toBe(0)
+  })
+
+  it('every depth <= -1 collapses to the SAME T(-1) pose (there is only ever one "past the camera" slot rendered at a time)', () => {
+    expect(resolveSlotPose(-1)).toEqual(resolveSlotPose(-2))
+    expect(resolveSlotPose(-1)).toEqual(resolveSlotPose(-100))
+  })
+
+  it('nearer depths get a higher z than farther ones, so paint order does not depend on array/DOM order', () => {
+    expect(resolveSlotPose(-1).z).toBeGreaterThan(resolveSlotPose(0).z)
+    expect(resolveSlotPose(0).z).toBeGreaterThan(resolveSlotPose(1).z)
+    expect(resolveSlotPose(1).z).toBeGreaterThan(resolveSlotPose(2).z)
+  })
+})
+
+describe('clampStepIndex — step target clamped into [0, count-1], null at a boundary', () => {
+  it('steps normally from a middle position in either direction', () => {
+    expect(clampStepIndex(1, 1, 3)).toBe(2)
+    expect(clampStepIndex(1, -1, 3)).toBe(0)
+  })
+
+  it('returns null stepping "earlier" (delta +1) past the oldest snapshot (the last index)', () => {
+    expect(clampStepIndex(2, 1, 3)).toBeNull()
+  })
+
+  it('returns null stepping "later" (delta -1) past the newest snapshot (index 0)', () => {
+    expect(clampStepIndex(0, -1, 3)).toBeNull()
+  })
+
+  it('returns null in both directions when there is only a single snapshot (simultaneously oldest and newest)', () => {
+    expect(clampStepIndex(0, 1, 1)).toBeNull()
+    expect(clampStepIndex(0, -1, 1)).toBeNull()
+  })
+
+  it('returns null when there is no current selection yet (current -1, e.g. mid-fetch)', () => {
+    expect(clampStepIndex(-1, 1, 3)).toBeNull()
+    expect(clampStepIndex(-1, -1, 3)).toBeNull()
+  })
+
+  it('returns null defensively for a zero/missing/non-integer count or current (no crash)', () => {
+    expect(clampStepIndex(0, 1, 0)).toBeNull()
+    expect(clampStepIndex(0, 1, NaN)).toBeNull()
+    expect(clampStepIndex(1.5, 1, 3)).toBeNull()
   })
 })
