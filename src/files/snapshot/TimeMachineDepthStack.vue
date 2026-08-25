@@ -112,7 +112,7 @@ import gsap from 'gsap'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
 import { resolveDollySlots, resolveSlotPose, computeVisibleStripCap, TM_WINDOW_SCALE, type SlotPose } from '../util/timeMachineMath'
-import { playTravelTimeline, poseToGsapVars, dimGsapVars, travelDurationMs, type TravelTarget } from '../util/timeMachineChoreo'
+import { playTravelTimeline, poseToGsapVars, dimGsapVars, travelDurationMs, TRAVEL_SAFETY_EXTRA_MS, type TravelTarget } from '../util/timeMachineChoreo'
 import { getSnapshotPreview } from '../util/snapshotPreviewCache'
 import { injectTmStageRoot } from './tmStageRoot'
 import SnapshotPreviewWindow from './SnapshotPreviewWindow.vue'
@@ -292,7 +292,11 @@ function runTravel(steps: number, travel: { from: string, to: string }) {
 // --- Reveal-gate (Task 7 fix round, review finding 1 -- Vue2's own armReveal/reveal) ------------
 // Ported verbatim in mechanism (see this file's own header comment for the full model and the
 // one deliberate simplification vs Vue2's own poll-based cache lookup).
-const TRAVEL_SAFETY_EXTRA_MS = 800 // Vue2's own constant, same value
+// Final review (folded minor #7): TRAVEL_SAFETY_EXTRA_MS now lives in timeMachineChoreo.ts (single
+// shared source, same "so the two never drift apart" reasoning EXIT_FADE_MS's own comment there
+// already established) -- snapshotBrowse.ts's own switchTo() safety backstop for tmTravelActive
+// reuses the identical constant, rather than each maintaining its own copy of "Vue2's own literal,
+// same value".
 
 let travelToken = 0
 let travelTimer: ReturnType<typeof setTimeout> | null = null

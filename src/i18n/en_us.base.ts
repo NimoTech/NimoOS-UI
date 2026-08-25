@@ -862,7 +862,6 @@ export default {
   snapBrowseWriteBlocked: 'This is a read-only snapshot — changes are disabled here',
   snapBrowseRestoreToOriginal: 'Restore to original location',
   snapBrowseRestored: 'Restored to {path}',
-  snapBrowseRestoredN: 'Restored {n} items (copies are suffixed .restored)',
   snapBrowseRestoreNotFound: 'That file no longer exists in this snapshot',
   snapBrowseRestoreInvalid: 'Invalid path — cannot restore',
   snapBrowseRestoreFailed: 'Restore failed, please try again',

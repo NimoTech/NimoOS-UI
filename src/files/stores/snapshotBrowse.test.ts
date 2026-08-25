@@ -437,6 +437,94 @@ describe('time machine: enter / exit / switch', () => {
     })
   })
 
+  // Final review (Important 5, Ruling F-2): Vue2's own isTimeMachineChromeVisible held-chrome
+  // exit -- ported as tmChromeVisible (see that field's own header comment in snapshotBrowse.ts
+  // for the full token+timer mechanism this block exercises). Drives TimeMachineStage.vue's own
+  // `active` and Files.vue's own bannerInfo/bannerIsContainer -- NOT tmActive directly -- so the
+  // un-shrinking real window never flashes the OLD snapshot listing + banner mid-exit.
+  describe('tmChromeVisible (final review, Ruling F-2: held-chrome exit)', () => {
+    it('entering sets tmChromeVisible immediately, in lockstep with tmActive', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos'
+      await s.ensureVolumes()
+      expect(s.tmChromeVisible).toBe(false)
+
+      await s.enterTimeMachine()
+      expect(s.tmActive).toBe(true)
+      expect(s.tmChromeVisible).toBe(true)
+    })
+
+    it('exiting while the exit target has not landed HOLDS tmChromeVisible true (no banner flash) until it does', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      s.tmActive = true
+      expect(s.tmChromeVisible).toBe(true)
+
+      s.exitTimeMachine()
+      expect(s.tmActive).toBe(false) // drops synchronously, Vue2 parity, unchanged by this fix
+      expect(s.tmChromeVisible).toBe(true) // HELD -- nothing has navigated the read-only lock off yet
+      expect(s.isSnapshotView).toBe(true) // still inside guarded content: the exact flash this fix avoids
+
+      // Simulate the exit navigation actually landing (Files.vue's own route watcher -> files.load()
+      // in production, which flips currentPath/loading together in one synchronous burst -- see
+      // isExitTargetReady's own comment): files.currentPath moves off the snapshot path.
+      files.currentPath = '/DATA/Photos'
+      expect(s.tmChromeVisible).toBe(false) // released the instant isExitTargetReady flips true
+    })
+
+    it('does not hold when the exit target is already ready at exit time (e.g. a re-entrant no-op exit)', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos' // never actually inside a snapshot view
+      await s.ensureVolumes()
+      s.tmActive = true
+      expect(s.tmChromeVisible).toBe(true)
+
+      s.exitTimeMachine()
+      expect(s.tmChromeVisible).toBe(false) // isExitTargetReady already true -- drops immediately, no hold
+    })
+
+    it('safety cap fires if the navigation hangs, releasing the chrome regardless', async () => {
+      vi.useFakeTimers()
+      try {
+        const s = useSnapshotBrowseStore(); const files = useFilesStore()
+        files.currentPath = '/DATA/.snapshots/snap1/Photos'
+        await s.ensureVolumes()
+        s.tmActive = true
+        s.exitTimeMachine()
+        expect(s.tmChromeVisible).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(6000) // EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS
+        expect(s.tmChromeVisible).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('a re-enter during the hold is token-safe: the superseded hold\'s own safety timer cannot fire later and clobber the new one', async () => {
+      vi.useFakeTimers()
+      try {
+        const s = useSnapshotBrowseStore(); const files = useFilesStore()
+        files.currentPath = '/DATA/.snapshots/snap1/Photos'
+        await s.ensureVolumes()
+        s.tmActive = true
+        s.exitTimeMachine() // starts the hold (target not ready yet)
+        expect(s.tmChromeVisible).toBe(true)
+
+        await vi.advanceTimersByTimeAsync(1000) // well before the 6000ms safety cap
+        s.tmActive = true // re-enter while still held
+        expect(s.tmChromeVisible).toBe(true)
+
+        // Advance past when the FIRST hold's own safety timer would have fired -- it must not
+        // still be armed (the re-entry's own watcher run bumped the token and cleared it).
+        await vi.advanceTimersByTimeAsync(6000)
+        expect(s.tmChromeVisible).toBe(true) // still true: the re-entry wins, not a stale timer
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
   describe('switchTo', () => {
     it('navigates the same window to the same relative path in the target snapshot, via replace (one history entry per session)', async () => {
       const s = useSnapshotBrowseStore(); const files = useFilesStore()
@@ -505,6 +593,87 @@ describe('time machine: enter / exit / switch', () => {
         await s.ensureVolumes()
         await s.switchTo('snap1')
         expect(s.tmTravelActive).toBe(false)
+      })
+
+      // Folded minor #7 (final review, Ruling F-3): a STORE-side safety ceiling, independent of
+      // TimeMachineDepthStack.vue's own reveal-gate timer -- that component's own timer only runs
+      // while it is mounted; if it were ever torn down mid-travel before calling settleTravel(),
+      // tmTravelActive would stay stuck true forever (hard-hiding the real window permanently)
+      // with nothing left in the component tree to clear it. Reuses the same two constants
+      // (TRAVEL_MAX_DURATION_MS + TRAVEL_SAFETY_EXTRA_MS, timeMachineChoreo.ts) as a flat
+      // worst-case cap.
+      describe('store-side safety ceiling (folded minor #7)', () => {
+        it('clears tmTravelActive on its own after the safety ceiling elapses, even if settleTravel() is never called', async () => {
+          vi.useFakeTimers()
+          try {
+            const s = useSnapshotBrowseStore(); const files = useFilesStore()
+            files.currentPath = '/DATA/.snapshots/snap1/Photos'
+            await s.ensureVolumes()
+            await s.switchTo('snap2')
+            expect(s.tmTravelActive).toBe(true)
+
+            await vi.advanceTimersByTimeAsync(1699) // TRAVEL_MAX_DURATION_MS + TRAVEL_SAFETY_EXTRA_MS - 1
+            expect(s.tmTravelActive).toBe(true) // not yet -- exactly at the boundary
+
+            await vi.advanceTimersByTimeAsync(1)
+            expect(s.tmTravelActive).toBe(false) // ceiling reached -- released on its own
+          } finally {
+            vi.useRealTimers()
+          }
+        })
+
+        it('a legitimate settleTravel() clears the pending safety timer, so it cannot fire later and re-toggle a subsequent travel', async () => {
+          vi.useFakeTimers()
+          try {
+            const s = useSnapshotBrowseStore(); const files = useFilesStore()
+            files.currentPath = '/DATA/.snapshots/snap1/Photos'
+            await s.ensureVolumes()
+            await s.switchTo('snap2') // first travel, its own safety timer would fire 1700ms from now (t=1700)
+            s.settleTravel()
+            expect(s.tmTravelActive).toBe(false)
+
+            await vi.advanceTimersByTimeAsync(1000) // t=1000
+            // 'snap3', not 'snap1': router.replace is a bare mock here (no route watcher wired up
+            // to actually move files.currentPath, unlike production) -- currentSnapshotName is
+            // still derived from the UNCHANGED initial path and stays 'snap1' throughout this
+            // isolated store test, so switching back to 'snap1' would hit switchTo's own
+            // same-snapshot no-op guard (`from === name`) instead of starting a real second travel.
+            await s.switchTo('snap3') // second, unrelated travel -- its own safety timer targets t=2700
+            expect(s.tmTravelActive).toBe(true)
+
+            await vi.advanceTimersByTimeAsync(700) // t=1700 -- exactly when the FIRST travel's timer would have fired
+            // Still true: settleTravel() cleared that timer outright (not merely superseded it via
+            // the token guard) -- if it had leaked, this would have gone false right here, well
+            // before the second travel's own t=2700 deadline.
+            expect(s.tmTravelActive).toBe(true)
+          } finally {
+            vi.useRealTimers()
+          }
+        })
+
+        it('a later switchTo invalidates an earlier still-pending safety timer via the token guard', async () => {
+          vi.useFakeTimers()
+          try {
+            const s = useSnapshotBrowseStore(); const files = useFilesStore()
+            files.currentPath = '/DATA/.snapshots/snap1/Photos'
+            await s.ensureVolumes()
+            await s.switchTo('snap2') // first travel, safety timer armed for ~1700ms from now
+            await vi.advanceTimersByTimeAsync(1000)
+
+            // 'snap3', not 'snap1' -- see the previous case's own comment on why (currentSnapshotName
+            // never actually updates in this isolated store test, so 'snap1' would be a same-snapshot no-op).
+            await s.switchTo('snap3') // second travel supersedes it -- its own token bump clears the old timer
+            expect(s.tmTravelActive).toBe(true)
+
+            // The FIRST travel's own timer would have fired around now (1000 + 1700 = 2700ms from
+            // its own start) were it not invalidated -- advance past that point and confirm the
+            // SECOND travel's own (freshly armed) state survives untouched.
+            await vi.advanceTimersByTimeAsync(1000)
+            expect(s.tmTravelActive).toBe(true)
+          } finally {
+            vi.useRealTimers()
+          }
+        })
       })
     })
   })

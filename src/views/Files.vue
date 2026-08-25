@@ -148,8 +148,17 @@ const snapshotSelection = computed(() => selectedEntries.value)
 // so it must still show. Ported here (the call site), not into SnapshotBanner.vue itself, mirroring
 // Vue2's own split: the banner component stays a pure `v-if="info"` presentational leaf (see that
 // component's own props comment), the caller decides what "should be visible right now" means.
-const bannerInfo = computed(() => (browse.tmActive ? null : browse.browseInfo))
-const bannerIsContainer = computed(() => !browse.tmActive && browse.isSnapshotView && !browse.browseInfo)
+//
+// Final review (Important 5, Ruling F-2): gated on `browse.tmChromeVisible`, NOT `browse.tmActive`
+// -- exactly matching Vue2's own `isTimeMachineChromeVisible` source. tmActive drops synchronously
+// the instant exitTimeMachine() is called, one statement before its own async navigation away even
+// starts; gating the banner on tmActive directly would show the OLD snapshot's banner (browseInfo
+// is still non-null -- files.currentPath hasn't moved yet) for that whole gap, then hide it again
+// once the navigation lands -- a visible flash. tmChromeVisible instead stays true across that
+// entire gap (see snapshotBrowse.ts's own header comment on it), so the banner never re-appears at
+// all during a normal exit.
+const bannerInfo = computed(() => (browse.tmChromeVisible ? null : browse.browseInfo))
+const bannerIsContainer = computed(() => !browse.tmChromeVisible && browse.isSnapshotView && !browse.browseInfo)
 
 // ── Time Machine restore (Task 14 — full Vue2-parity orchestration) ──────────────────────────
 // RestoreDestinationModal (T13) is mounted ONCE here (like SnapshotSettingsModal), reused by

@@ -550,8 +550,15 @@ describe('snapshot read-only banner', () => {
     // parity for the fail-safe/non-stage state (tmActive false, isSnapshotView still locked) --
     // force it directly, the same technique the 'Time Machine stage bottom bar' case below uses
     // in the other direction, rather than re-plumbing a whole unconfirmed-volume scenario just
-    // to reach this state.
-    useSnapshotBrowseStore().tmActive = false
+    // to reach this state. Final review (Important 5): bannerInfo now reads tmChromeVisible, not
+    // tmActive directly (see that computed's own comment in Files.vue) -- a bare `tmActive = false`
+    // no longer reveals the banner by itself once nothing ever navigates isSnapshotView false (the
+    // held-chrome watcher would otherwise hold tmChromeVisible true forever, waiting on a
+    // navigation this synthetic setup never makes). Force both, simulating "the stage never
+    // acquired the chrome in the first place" rather than "an exit currently in flight".
+    const browseStore = useSnapshotBrowseStore()
+    browseStore.tmActive = false
+    browseStore.tmChromeVisible = false
     await w.vm.$nextTick()
     await w.get('.view-toggle-list').trigger('click')
     const row = w.findAll('.file-row')[0]
@@ -626,8 +633,10 @@ describe('snapshot read-only banner', () => {
     // Task 15 (banner dual-state): force out of the auto-entered stage state, same reasoning as
     // the "banner's restore button still appears" case above -- this test is about the banner's
     // OWN progress rendering, which only matters while the banner itself is the thing showing.
+    // Final review (Important 5): force tmChromeVisible too -- see that case's own comment.
     const browse = useSnapshotBrowseStore()
     browse.tmActive = false
+    browse.tmChromeVisible = false
     await w.vm.$nextTick()
     await w.get('.view-toggle-list').trigger('click')
     await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
@@ -709,8 +718,10 @@ describe('restore orchestration wiring (Task 14)', () => {
     // Task 15 (banner dual-state): the default confirmed-supported volume mock auto-enters the
     // Time Machine stage on mount, which now hides this banner -- force back to the fail-safe/
     // non-stage state so the banner (and its own restore button, under test here) is reachable.
+    // Final review (Important 5): force tmChromeVisible too -- see the earlier case's own comment.
     const browse = useSnapshotBrowseStore()
     browse.tmActive = false
+    browse.tmChromeVisible = false
     await w.vm.$nextTick()
     await w.get('.view-toggle-list').trigger('click')
     const files = useFilesStore()
@@ -737,9 +748,11 @@ describe('restore orchestration wiring (Task 14)', () => {
     router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
     await flushPromises()
-    // Task 15 (banner dual-state): same fail-safe/non-stage forcing as the case above.
+    // Task 15 (banner dual-state): same fail-safe/non-stage forcing as the case above. Final
+    // review (Important 5): force tmChromeVisible too -- see the earlier case's own comment.
     const browse = useSnapshotBrowseStore()
     browse.tmActive = false
+    browse.tmChromeVisible = false
     await w.vm.$nextTick()
 
     const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
@@ -771,9 +784,11 @@ describe('restore orchestration wiring (Task 14)', () => {
     router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
     await flushPromises()
-    // Task 15 (banner dual-state): same fail-safe/non-stage forcing as the two cases above.
+    // Task 15 (banner dual-state): same fail-safe/non-stage forcing as the two cases above. Final
+    // review (Important 5): force tmChromeVisible too -- see the earlier case's own comment.
     const browse = useSnapshotBrowseStore()
     browse.tmActive = false
+    browse.tmChromeVisible = false
     await w.vm.$nextTick()
 
     const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()

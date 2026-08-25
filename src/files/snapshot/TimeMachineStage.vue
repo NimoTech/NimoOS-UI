@@ -17,7 +17,7 @@
 // Task 7 addition: mounts TimeMachineDepthStack.vue at z-tier 3 (see that component's own header
 // comment) and extends `onKeydown` with ArrowUp/ArrowDown (ported from Vue2's own stepLater/
 // stepEarlier keyboard handler) alongside the existing Escape channel — preempting Task 9's own
-// "↑↓键盘" file-list item (task-9-brief.md); Task 9 should extend `stepLater`/`stepEarlier` below
+// "up/down arrow keys" file-list item (task-9-brief.md); Task 9 should extend `stepLater`/`stepEarlier` below
 // (wiring its own visible stepper buttons to them) rather than re-adding the keyboard listener.
 //
 // Task 9 addition: mounts TimeMachineStepper.vue (z-tier 10, its own self-positioned right-edge
@@ -82,7 +82,14 @@ const cloneMount = ref<HTMLElement | null>(null)
 // subtract themselves.
 provideTmStageRoot(stageRoot)
 
-const active = computed(() => browse.tmActive)
+// Final review (Important 5, Ruling F-2): reads `tmChromeVisible`, NOT `tmActive` -- Vue2's own
+// `<time-machine-stage :active="isTimeMachineChromeVisible">` (FilePanel.vue) drives this whole
+// component's chrome off the HELD flag, not the raw mode flag, so the decorative shell (and this
+// component's own keyboard/rail/stepper/bottom-bar interactivity, all gated on `active` below)
+// stays up through the exit gap until the exit navigation's target has actually landed -- the
+// un-shrinking real window never shows a frame of the OLD snapshot listing underneath. See
+// snapshotBrowse.ts's own header comment on tmChromeVisible for the full token+timer mechanism.
+const active = computed(() => browse.tmChromeVisible)
 // Task 7 fix round (review finding 1): reads tmTravelActive (TimeMachineDepthStack.vue's own
 // reveal-gate — armReveal/settle, ported from Vue2's own armReveal/reveal), NOT tmTravel
 // (which clears the instant the store's own router.replace resolves, ms before the depth-stack's
@@ -139,7 +146,7 @@ function destroyClone() {
   hasClone.value = false
 }
 
-// Task 7 addition (preempting Task 9's own "↑↓键盘" line item -- see this file's own header
+// Task 7 addition (preempting Task 9's own "up/down arrow keys" line item -- see this file's own header
 // comment/task-9-brief.md's file list; flagged for T9 in the Task 7 report so it extends this
 // rather than re-adding it): the SAME switchTo funnel a tick click / stepper click will use (Tasks
 // 8/9) -- Vue2's stepEarlier/stepLater, ported. `clampStepIndex` (Task 2) fuses "can I step" and
@@ -235,15 +242,24 @@ let fadeOutTimer: ReturnType<typeof setTimeout> | null = null
 // its capture-timing test). The genuine regression is deferring the capture call itself past the
 // render — e.g. `nextTick(() => captureClone())` instead of a bare `captureClone()` — which DOES
 // turn that test red (confirmed the same way). 'sync' is kept anyway as the more conservative,
-// scheduler-detail-independent choice (it runs inline with whatever set browse.tmActive, with no
+// scheduler-detail-independent choice (it runs inline with whatever set browse.tmChromeVisible, with no
 // dependency on 'pre'-queue-before-render-job being true in whatever Vue version/config this ever
 // runs under) — the actual correctness invariant this whole watcher exists to protect is
 // "captureClone() itself runs synchronously, not deferred", not the specific `flush` option.
 // Mirrors Vue2's own `watch: { active(val) {...} }` in spirit (Vue2 TimeMachineStage.vue's own
 // header comment cites the same watcher-before-render concern), even though Vue3's mechanism for
 // guaranteeing it differs from Vue2's id-ordered watcher queue.
+//
+// Final review (Important 5, Ruling F-2): watches `tmChromeVisible`, NOT `tmActive` -- Vue2's own
+// `active` prop IS `isTimeMachineChromeVisible`, so this component's own `active`-driven watcher
+// was always keyed to the held flag, never the raw mode flag. Keeping this watcher on tmActive
+// while the `active` computed above reads tmChromeVisible would desync the two: the keydown
+// listener/fadingOut crossfade would tear down the instant tmActive drops, mid-exit-hold, while
+// the template's own decorative shell (gated on `active || fadingOut`) is still trying to stay up
+// -- fadingOut would win the race and destroy the clone/hide the shell out from under a hold that
+// has not actually settled yet.
 watch(
-  () => browse.tmActive,
+  () => browse.tmChromeVisible,
   (isActive) => {
     if (isActive) {
       captureClone()
@@ -272,7 +288,7 @@ onMounted(() => {
   // Mirrors the `active` watcher's own setup for the (Task 10+) case of mounting already-active
   // (a watcher only fires on a change, never on the initial value) — Vue2's own `mounted()` hook
   // has the identical mirror for the same reason.
-  if (browse.tmActive) window.addEventListener('keydown', onKeydown)
+  if (browse.tmChromeVisible) window.addEventListener('keydown', onKeydown)
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { useFilesStore } from './files'
 import {
@@ -14,6 +14,7 @@ import { router } from '../../router'
 import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
 import { useFileConflictsStore } from './fileConflicts'
 import type { SnapshotRaw } from '../../storage/util/snapshotView'
+import { EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS, TRAVEL_MAX_DURATION_MS, TRAVEL_SAFETY_EXTRA_MS } from '../util/timeMachineChoreo'
 
 // Time Machine's own snapshot-list item — a straight alias of the /v2/snapshot list's raw shape
 // (not the storage area's mapped SnapshotItemView): keeping `created_at` (not `createdAt`) lets a
@@ -43,6 +44,16 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // between two snapshots (a pure "is a navigation in flight" signal — see switchTo's own
   // comment for why its lifecycle is deliberately narrower than tmTravelActive below).
   const tmActive = ref(false)
+  // Final review (Important 5, Ruling F-2): the "held chrome" flag -- Vue2's own
+  // isTimeMachineChromeVisible (FilePanel.vue). Entering flips it true in lockstep with tmActive
+  // (nothing to wait for), but EXITING does NOT drop it in lockstep -- it stays true until the
+  // exit navigation's target directory listing has actually landed (isExitTargetReady below),
+  // capped by a safety timer, so the un-shrinking real window never flashes the OLD snapshot
+  // listing + banner while the navigation is still in flight. This is what TimeMachineStage.vue's
+  // own `active` prop and Files.vue's own banner-hide gate (bannerInfo) are driven by -- NOT
+  // tmActive directly -- see the watchers below for the full token+timer mechanism, ported from
+  // FilePanel.vue's own isTimeMachineMode/isExitTargetReady watcher pair.
+  const tmChromeVisible = ref(false)
   const snapshotList = ref<SnapshotVM[]>([])
   const tmLoading = ref(false)
   const tmTravel = ref<{ from: string | null; to: string | null } | null>(null)
@@ -159,6 +170,70 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       && !!currentVolume.value
       && currentVolume.value.supported === true,
   )
+
+  // Final review (Important 5, Ruling F-2): Vue2's own isExitTargetReady computed (FilePanel.vue)
+  // -- true once it is actually safe to drop the Time Machine chrome: no longer inside guarded
+  // snapshot content (isSnapshotView) AND the newly-targeted directory's own listing has actually
+  // finished loading (files.loading false). Depending on isSnapshotView alone would release too
+  // early on a fresh network round trip (the OLD snapshot rows would still be on screen while the
+  // new ones are still in flight) -- files.load() flips currentPath/entries and loading together,
+  // in the same synchronous burst (see that store's own load(), the success/failure branches both
+  // set currentPath before the `finally` clears loading), so both conditions settle atomically.
+  const isExitTargetReady = computed(() => !isSnapshotView.value && !files.loading)
+
+  // The exit-hold token+timer pair -- ported from Vue2's own exitHoldToken/exitHoldSafetyTimer
+  // (FilePanel.vue). `token` guards against a stale timer (from an exit that has since been
+  // superseded by a re-entry, or by isExitTargetReady itself already settling the hold) still
+  // firing and clobbering a NEWER hold's own in-progress wait.
+  let exitHoldToken = 0
+  let exitHoldSafetyTimer: ReturnType<typeof setTimeout> | null = null
+  function clearExitHoldSafetyTimer() {
+    if (exitHoldSafetyTimer !== null) { clearTimeout(exitHoldSafetyTimer); exitHoldSafetyTimer = null }
+  }
+
+  // Ported verbatim from Vue2's own `isTimeMachineMode(val) { ... }` watcher (FilePanel.vue,
+  // "the exit-hold itself"). `flush: 'sync'` so tmChromeVisible updates in the SAME synchronous
+  // burst tmActive itself does -- TimeMachineStage.vue's own `active` computed and Files.vue's own
+  // bannerInfo/bannerIsContainer computeds read tmChromeVisible, not tmActive, and must never lag
+  // a render behind it (mirrors this same file's TimeMachineStage.vue precedent for its own
+  // `active` watcher).
+  watch(tmActive, (val) => {
+    exitHoldToken += 1
+    const token = exitHoldToken
+    clearExitHoldSafetyTimer()
+    if (val) {
+      // Entering: nothing to wait for -- release (raise) immediately, and drop any hold a just-
+      // superseded exit might still have had pending (a rapid exit-then-reenter).
+      tmChromeVisible.value = true
+      return
+    }
+    if (isExitTargetReady.value) {
+      // The common already-settled case -- nothing to hold for, drop immediately.
+      tmChromeVisible.value = false
+      return
+    }
+    // Hold tmChromeVisible at its current `true` value (do NOT flip it here) until the
+    // isExitTargetReady watcher below settles it, capped by this safety timer so a hung
+    // navigation can never wedge the chrome open forever.
+    exitHoldSafetyTimer = setTimeout(() => {
+      exitHoldSafetyTimer = null
+      if (token !== exitHoldToken) return
+      tmChromeVisible.value = false
+    }, EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS)
+  }, { flush: 'sync' })
+
+  // Ported verbatim from Vue2's own `isExitTargetReady(val) { ... }` watcher -- the OTHER half of
+  // the hold above, fires once the navigation genuinely lands. Guarded so it can only ever settle
+  // a hold that is actually pending (tmActive already false AND the chrome is still up) --
+  // otherwise this would also fire (harmlessly redundantly) on every ordinary navigation while
+  // STILL inside Time Machine mode, or while not in it at all.
+  watch(isExitTargetReady, (val) => {
+    if (val && !tmActive.value && tmChromeVisible.value) {
+      exitHoldToken += 1
+      clearExitHoldSafetyTimer()
+      tmChromeVisible.value = false
+    }
+  }, { flush: 'sync' })
 
   /** Which snapshot the window is currently standing in, or null when not in a snapshot view at
    *  all — derived straight from browseInfo (already gated by isSnapshotView), never independently
@@ -286,6 +361,22 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // (called by TimeMachineDepthStack.vue's own reveal-gate, once the travel has actually finished
   // animating AND the target's own preview is ready) clears it. See tmTravelActive's own comment
   // (above, in this store) for why the two flags' lifecycles are deliberately different.
+  // Folded minor #7 (final review, Ruling F-3): a store-side safety ceiling for tmTravelActive,
+  // independent of TimeMachineDepthStack.vue's own reveal-gate safety timer. That component's own
+  // timer only exists while the component itself is mounted (active/fadingOut) -- if it were ever
+  // torn down mid-travel some other way (before calling settleTravel()), tmTravelActive would stay
+  // stuck true forever, hard-hiding the real window (`.tm-fwin--traveling`) permanently. This
+  // backstop reuses the SAME two constants the depth-stack's own timer is built from
+  // (TRAVEL_MAX_DURATION_MS + TRAVEL_SAFETY_EXTRA_MS, timeMachineChoreo.ts) as a flat worst-case
+  // ceiling (switchTo has no step-count of its own to compute a tighter duration from), token-
+  // guarded the same way the exit-hold above is: a later switchTo, or a legitimate settleTravel(),
+  // invalidates any still-pending earlier timer.
+  let travelSafetyToken = 0
+  let travelSafetyTimer: ReturnType<typeof setTimeout> | null = null
+  function clearTravelSafetyTimer() {
+    if (travelSafetyTimer !== null) { clearTimeout(travelSafetyTimer); travelSafetyTimer = null }
+  }
+
   async function switchTo(name: string): Promise<void> {
     if (!name) return
     const vol = currentVolume.value
@@ -295,6 +386,14 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     const rel = browseInfo.value?.relPath ?? ''
     tmTravel.value = { from, to: name }
     tmTravelActive.value = true
+    travelSafetyToken += 1
+    const safetyToken = travelSafetyToken
+    clearTravelSafetyTimer()
+    travelSafetyTimer = setTimeout(() => {
+      travelSafetyTimer = null
+      if (safetyToken !== travelSafetyToken) return
+      tmTravelActive.value = false
+    }, TRAVEL_MAX_DURATION_MS + TRAVEL_SAFETY_EXTRA_MS)
     try {
       const root = snapshotBrowsePath(vol.mount, name)
       await navigateReal(rel ? `${root}/${rel}` : root, { replace: true })
@@ -307,8 +406,12 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // (Vue2's own reveal(token) — see that component's own header comment for the full
   // armReveal/reveal mechanism this store only exposes the on/off switch for). Idempotent/safe
   // to call after the gate's own superseded-travel check already no-oped — this store has no
-  // opinion on WHICH travel is being settled, only "the real window may reveal now".
+  // opinion on WHICH travel is being settled, only "the real window may reveal now". Also
+  // invalidates/clears this store's own safety backstop above -- the legitimate settle already
+  // happened, so that timer (if still pending) must not fire again later.
   function settleTravel(): void {
+    travelSafetyToken += 1
+    clearTravelSafetyTimer()
     tmTravelActive.value = false
   }
 
@@ -388,7 +491,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   return {
     status, volumes, restoring, restoreProgress,
     parsed, isSnapshotView, browseInfo, currentVolume, canShowEntry, shouldAutoEnter,
-    tmActive, snapshotList, currentSnapshotName, tmLoading, tmTravel, tmTravelActive,
+    tmActive, tmChromeVisible, snapshotList, currentSnapshotName, tmLoading, tmTravel, tmTravelActive,
     ensureVolumes, reset, restoreItems,
     enterTimeMachine, autoEnterTimeMachine, exitTimeMachine, switchTo, refreshSnapshotList, settleTravel,
   }

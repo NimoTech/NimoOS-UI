@@ -96,10 +96,25 @@ export const TRAVEL_GROWTH_STEPS = 10
 export const TRAVEL_STAGGER_STEP_MS = 6
 export const TRAVEL_STAGGER_CAP_MS = 40
 // Duration (ms) of the stage's own exit fade -- pure CSS in the stage
-// component (Vue2 parity: "退出淡出 220ms 纯 CSS"), exported here purely as
-// the single shared source of that number so the stage task and this module
-// never drift apart on it. Not used by any GSAP call in this file.
+// component (Vue2 parity: a 220ms pure-CSS exit fade), exported here purely
+// as the single shared source of that number so the stage task and this
+// module never drift apart on it. Not used by any GSAP call in this file.
 export const EXIT_FADE_MS = 220
+
+// Safety-ceiling margin (ms) beyond a travel's own GSAP duration, past which the reveal-gate
+// (TimeMachineDepthStack.vue's own armReveal/settle) reveals the real window unconditionally --
+// Vue2's own TRAVEL_SAFETY_EXTRA_MS literal, same value. Exported here (rather than left as a
+// local const in the depth-stack component) so the store's own tmTravelActive backstop
+// (snapshotBrowse.ts's own switchTo) can share the identical number instead of drifting from it --
+// see that store's own comment on why it needs a SECOND, independent safety cap.
+export const TRAVEL_SAFETY_EXTRA_MS = 800
+
+// Safety-ceiling timeout (ms) for the store's own exit-chrome hold (snapshotBrowse.ts's own
+// tmChromeVisible) -- Vue2's own EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS literal (FilePanel.vue),
+// same value: caps how long the Time Machine stage's decorative chrome can be held up waiting for
+// the exit navigation's target directory listing to land, so a hung network request can never
+// wedge it open forever.
+export const EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS = 6000
 
 /**
  * Travel distance (in snapshot-index steps, any sign, any magnitude) -> the
