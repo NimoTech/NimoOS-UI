@@ -957,6 +957,7 @@ describe('createAi — scheduled tasks / toolbox / lark group', () => {
     await ai.deleteTask('t1')
     await ai.runTaskNow('t1')
     await ai.listTaskRuns('t1')
+    await ai.listPromptRevisions('t1')
     await ai.continueTaskRun('t1', 'r1', 'more context')
     await ai.adoptDeniedAction('t1', 'r1', 0)
     await ai.listTaskNotifyTargets()
@@ -979,6 +980,7 @@ describe('createAi — scheduled tasks / toolbox / lark group', () => {
       'delete /ai/agent/tasks/t1',
       'post /ai/agent/tasks/t1/run',
       'get /ai/agent/tasks/t1/runs',
+      'get /ai/agent/tasks/t1/prompt-revisions',
       'post /ai/agent/tasks/t1/runs/r1/continue',
       'post /ai/agent/tasks/t1/preauth/from-denied',
       'get /ai/agent/tasks/notify-targets',

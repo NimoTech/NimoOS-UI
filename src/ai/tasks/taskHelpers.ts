@@ -37,6 +37,7 @@ export interface TaskRow {
   prev_prompt?: string
   prompt_revised_at?: number
   prompt_revised_by?: string
+  allow_prompt_revision?: boolean | number
   [k: string]: unknown
 }
 
