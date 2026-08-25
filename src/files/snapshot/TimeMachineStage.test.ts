@@ -66,6 +66,23 @@ describe('TimeMachineStage shell', () => {
   // M2-F8 (Vue2 parity): a live cloneNode(true) of the pre-Time-Machine DOM, captured before Vue
   // re-renders with Time-Machine styling — the clone still shows the SAME content, independent of
   // (and unaffected by) whatever the live .tm-fwin goes on to render afterwards.
+  //
+  // Review fix (Important, round 1): the original version of this test only compared `.probe`
+  // text, which is identical whether the clone was taken before OR after Vue applied
+  // tm-fwin--active — it could not tell a correct pre-render capture apart from a regression that
+  // captures too late. The real discriminator is the active-only class/style on the cloned
+  // `.tm-fwin` root itself: captured BEFORE Vue's render, it must still be the plain
+  // pre-activation node (no `tm-fwin--active`, no scale transform), while the LIVE `.tm-fwin`
+  // (same tick, same activation) already carries both.
+  //
+  // Deliberate-regression RED check (see task-6-fix-report.md for the full transcript): flipping
+  // TimeMachineStage.vue's own watcher to `{ flush: 'pre' }` did NOT turn this test red — Vue 3's
+  // scheduler already runs pre-flush watcher callbacks before any component's own render job in
+  // the same batch, so that particular flip isn't actually a regression here. Deferring the
+  // capture call itself past the render instead — `nextTick(() => captureClone())` in place of a
+  // bare `captureClone()` — DID turn it red (exactly the "clonedFwin classes to not contain
+  // tm-fwin--active" assertion below failing, clone showing tm-fwin--active). Both experiments
+  // were reverted after confirming.
   it('captures a clone of the real window before going active, mounted into .tm-stage__clone', async () => {
     const w = mountIt()
     useSnapshotBrowseStore().tmActive = true
@@ -77,6 +94,19 @@ describe('TimeMachineStage shell', () => {
     expect(clone.find('.probe').text()).toBe('hello real window')
     // The live window keeps rendering its own copy independently — two nodes, not a move.
     expect(w.findAll('.probe')).toHaveLength(2)
+
+    // Timing pin: the clone's own root (fwinEl.cloneNode(true), appended straight into
+    // .tm-stage__clone — see mountClone()) must be the PRE-activation node, not a copy taken
+    // after Vue already re-rendered with Time-Machine styling.
+    const clonedFwin = clone.find('.tm-fwin')
+    expect(clonedFwin.exists()).toBe(true)
+    expect(clonedFwin.classes()).not.toContain('tm-fwin--active')
+    expect(clonedFwin.attributes('style') ?? '').not.toContain('scale')
+    // The LIVE window, captured at the very same activation, already has both — proving the two
+    // really did diverge (this isn't just "the assertion never fires either way").
+    const liveFwin = w.find('.tm-stage__hold .tm-fwin')
+    expect(liveFwin.classes()).toContain('tm-fwin--active')
+    expect(liveFwin.attributes('style') ?? '').toContain('scale')
   })
 
   it('gear button emits open-settings', async () => {

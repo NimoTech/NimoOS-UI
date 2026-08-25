@@ -118,13 +118,23 @@ let fadeOutTimer: ReturnType<typeof setTimeout> | null = null
 
 // flush:'sync' is deliberate (not the Composition API's default 'pre'): captureClone() MUST run
 // before Vue's own render effect applies `tm-fwin--active`'s scale-down to fwinEl, or the clone
-// would capture the ALREADY-shrunk window instead of the real pre-Time-Machine page — see this
-// file's own header comment. A 'pre'-flush (or default) watcher is queued into the SAME
-// microtask-batched job queue the render effect uses, so by the time it ran the DOM could already
-// reflect the new state; 'sync' runs inline with whatever set browse.tmActive, guaranteeing the
-// capture happens first. This mirrors Vue2's own `watch: { active(val) {...} }`, whose watchers
-// already ran ahead of the render watcher for the same reason (see Vue2 TimeMachineStage.vue's
-// own header comment on why that watcher-vs-render ordering is load-bearing there too).
+// would capture the ALREADY-shrunk window instead of the real pre-Time-Machine page.
+//
+// Verified empirically (review round 1 follow-up), not just asserted: Vue 3's scheduler already
+// flushes pre-flush watcher callbacks before any component's own render job in the SAME batch
+// (that ordering is structural to 'pre', not a coincidence of effect-creation order) — so, for
+// this exact call site, flipping this option to the Composition API's default 'pre' does NOT
+// reproduce the bug (confirmed red/green both ways, see TimeMachineStage.test.ts's own comment on
+// its capture-timing test). The genuine regression is deferring the capture call itself past the
+// render — e.g. `nextTick(() => captureClone())` instead of a bare `captureClone()` — which DOES
+// turn that test red (confirmed the same way). 'sync' is kept anyway as the more conservative,
+// scheduler-detail-independent choice (it runs inline with whatever set browse.tmActive, with no
+// dependency on 'pre'-queue-before-render-job being true in whatever Vue version/config this ever
+// runs under) — the actual correctness invariant this whole watcher exists to protect is
+// "captureClone() itself runs synchronously, not deferred", not the specific `flush` option.
+// Mirrors Vue2's own `watch: { active(val) {...} }` in spirit (Vue2 TimeMachineStage.vue's own
+// header comment cites the same watcher-before-render concern), even though Vue3's mechanism for
+// guaranteeing it differs from Vue2's id-ordered watcher queue.
 watch(
   () => browse.tmActive,
   (isActive) => {
