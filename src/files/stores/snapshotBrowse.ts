@@ -4,11 +4,21 @@ import { service } from '@nimotech/nimoos-service'
 import { useFilesStore } from './files'
 import {
   parseSnapshotBrowsePath, shouldGuardSnapshotView, findVolumeForPath, parseSnapshotsContainerPath,
+  snapshotBrowsePath, relPathUnderMount, resolveExitTarget,
   type SnapshotVolumeLike, type VolumesState,
 } from '../util/snapshotPath'
 import { performSnapshotRestore } from '../util/snapshotRestore'
 import { useToast } from '../../stores/toast'
 import { i18n } from '../../i18n'
+import { router } from '../../router'
+import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
+import type { SnapshotRaw } from '../../storage/util/snapshotView'
+
+// Time Machine's own snapshot-list item — a straight alias of the /v2/snapshot list's raw shape
+// (not the storage area's mapped SnapshotItemView): keeping `created_at` (not `createdAt`) lets a
+// future consumer (Task 7's rail) hand this array straight to the already-accepted
+// storage/util/snapshotView.groupSnapshotsByDay without a second field-renaming map in between.
+export type SnapshotVM = SnapshotRaw
 
 // Shared state for snapshot browsing in the Files area: volume-list cache + read-only lock derived
 // from currentPath + time-machine toggle. Corresponds to the snapshotVolumesState / isSnapshotView /
@@ -19,8 +29,16 @@ import { i18n } from '../../i18n'
 export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   const status = ref<VolumesState['status']>('idle')
   const volumes = ref<SnapshotVolumeLike[]>([])
-  const wheelOpen = ref(false)
   const restoring = ref(false)
+  // Time Machine mode (Vue2-parity stage, Task 6+). tmActive drives TimeMachineStage.vue's own
+  // decorative shell (glass/clone/depth-stack/rail/bottom-bar); tmLoading covers the initial
+  // snapshot-list fetch on entry; tmTravel is non-null exactly while switchTo() is navigating
+  // between two snapshots, so the stage can hard-cut `.tm-fwin--traveling` for the duration —
+  // see TimeMachineStage.vue's own header comment.
+  const tmActive = ref(false)
+  const snapshotList = ref<SnapshotVM[]>([])
+  const tmLoading = ref(false)
+  const tmTravel = ref<{ from: string | null; to: string | null } | null>(null)
   // The backend takes one path per call, so the loop below stays serial. What
   // it cannot stay is silent: picking forty files meant a disabled button and
   // no sign of life until every one of them had come back.
@@ -95,8 +113,115 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       && !isSnapshotView.value,
   )
 
-  function openWheel() { wheelOpen.value = true }
-  function closeWheel() { wheelOpen.value = false }
+  /** Which snapshot the window is currently standing in, or null when not in a snapshot view at
+   *  all — derived straight from browseInfo (already gated by isSnapshotView), never independently
+   *  computed, so the two can never disagree about "are we in a snapshot right now". */
+  const currentSnapshotName = computed(() => browseInfo.value?.snapshotName || null)
+
+  // Push/replace the file browser to a REAL path, going through the same virtual-path route
+  // encoding Files.vue's own goVirtual() uses (toVirtualPath + virtualPathToRouteParam) — the
+  // route param is what the router (and Files.vue's route watcher) actually acts on; there is no
+  // direct "set currentPath" shortcut. `replace` is used for in-session snapshot-to-snapshot
+  // switching (switchTo) so a whole Time Machine session costs exactly one history entry no
+  // matter how many snapshots get flipped through, matching Vue2's handleTimeMachineSwitch
+  // push-vs-replace rule; entering/exiting Time Machine itself is a `push`, so the browser's
+  // physical Back still returns to the folder the user came from.
+  function navigateReal(realPath: string, opts: { replace?: boolean } = {}) {
+    const to = '/files/' + virtualPathToRouteParam(toVirtualPath(realPath, files.displayNames))
+    return opts.replace ? router.replace(to) : router.push(to)
+  }
+
+  // Fetches the flat, newest-first snapshot list for one volume (shared by enterTimeMachine and
+  // refreshSnapshotList — the settings dialog calling the latter after creating a manual snapshot
+  // is what makes the new tick appear without closing/reopening anything, Vue2 parity).
+  async function fetchSnapshotList(uuid: string): Promise<void> {
+    let raw: unknown
+    try {
+      raw = await service.snapshot.list(uuid)
+    } catch (e) {
+      console.warn('[snapshot-browse] load snapshot list failed', (e as Error)?.message)
+      snapshotList.value = []
+      return
+    }
+    const list = Array.isArray(raw) ? (raw as SnapshotVM[]) : []
+    snapshotList.value = [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }
+
+  /** Re-fetch the current volume's snapshot list without touching tmActive/navigation — for the
+   *  settings dialog's "a manual snapshot was just created" callback. */
+  async function refreshSnapshotList(): Promise<void> {
+    const uuid = currentVolume.value?.volume_uuid
+    if (!uuid) return
+    await fetchSnapshotList(uuid)
+  }
+
+  // Enter Time Machine: fetch this volume's snapshot list, then land the SAME window on the
+  // newest snapshot at the CURRENT relative path (deliberate correction over Vue2 — see
+  // TimeMachineOverlay.vue's own enterSnapshot comment for the same call: a user opening Time
+  // Machine at /Photos/2024 should not be dumped back at the volume root). tmActive flips true
+  // up front (not after the fetch) so the stage mounts immediately and shows its own loading
+  // state, matching Vue2's isTimeMachineMode-set-on-click-then-fetch ordering.
+  async function enterTimeMachine(): Promise<void> {
+    if (!canShowEntry.value) return
+    const vol = currentVolume.value
+    if (!vol?.volume_uuid || !vol.mount) return
+    tmActive.value = true
+    tmLoading.value = true
+    try {
+      await fetchSnapshotList(vol.volume_uuid)
+      const newest = snapshotList.value[0]
+      if (newest) {
+        const rel = relPathUnderMount(vol.mount, files.currentPath)
+        const root = snapshotBrowsePath(vol.mount, newest.name)
+        await navigateReal(rel ? `${root}/${rel}` : root)
+      }
+    } finally {
+      tmLoading.value = false
+    }
+  }
+
+  // Exit Time Machine: tmActive (and every live side effect gated on it, e.g. TimeMachineStage's
+  // own keydown listener) drops SYNCHRONOUSLY — never wait on the navigation below to do that,
+  // same "every live side effect stops immediately" posture as Vue2's isTimeMachineMode watcher.
+  // The landing spot itself is Vue2's resolveSnapshotExitTarget semantics (ported as
+  // resolveExitTarget in snapshotPath.ts): the same-named directory back on the live volume,
+  // falling back to the volume root if it no longer exists there. browseInfo is read BEFORE
+  // tmActive flips (isSnapshotView / browseInfo are only meaningful while still standing inside
+  // the snapshot path) — fire-and-forget is fine here (exitTimeMachine itself stays synchronous,
+  // per the store's own produced interface) since there is nothing left for the caller to await.
+  function exitTimeMachine(): void {
+    const info = browseInfo.value
+    tmActive.value = false
+    tmTravel.value = null
+    if (!info) return
+    resolveExitTarget(info, async (p) => {
+      try { await service.folder.getList(p); return true } catch { return false }
+    }).then((target) => {
+      if (target) navigateReal(target)
+    })
+  }
+
+  // Switch the SAME window to another snapshot, preserving the current relative path inside it
+  // (Vue2's handleTimeMachineSwitch/M2-F6 "tick switching preserves the current relative path").
+  // tmTravel is set BEFORE navigating and cleared once the navigation settles — TimeMachineStage.vue
+  // reads it to hard-cut `.tm-fwin--traveling` for the duration (Tasks 7-9 build the actual
+  // dolly-travel choreography on top of this same window; this store's job is only to say
+  // "a travel from X to Y is in flight", not how it looks).
+  async function switchTo(name: string): Promise<void> {
+    if (!name) return
+    const vol = currentVolume.value
+    if (!vol?.mount) return
+    const from = currentSnapshotName.value
+    if (from === name) return
+    const rel = browseInfo.value?.relPath ?? ''
+    tmTravel.value = { from, to: name }
+    try {
+      const root = snapshotBrowsePath(vol.mount, name)
+      await navigateReal(rel ? `${root}/${rel}` : root, { replace: true })
+    } finally {
+      tmTravel.value = null
+    }
+  }
 
   // Restore the selected entries. Multiple entries are submitted one by one (the backend accepts a
   // single path per call); restoring stays true throughout. The three entry points (banner / selection
@@ -157,14 +282,19 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   function reset() {
     status.value = 'idle'
     volumes.value = []
-    wheelOpen.value = false
     inflight = null
     epoch += 1 // supersede any still-in-flight old request so it can't land later and clobber newer results with stale data / a stale error
+    tmActive.value = false
+    snapshotList.value = []
+    tmLoading.value = false
+    tmTravel.value = null
   }
 
   return {
-    status, volumes, wheelOpen, restoring, restoreProgress,
+    status, volumes, restoring, restoreProgress,
     parsed, isSnapshotView, browseInfo, currentVolume, canShowEntry,
-    ensureVolumes, openWheel, closeWheel, reset, restore,
+    tmActive, snapshotList, currentSnapshotName, tmLoading, tmTravel,
+    ensureVolumes, reset, restore,
+    enterTimeMachine, exitTimeMachine, switchTo, refreshSnapshotList,
   }
 })

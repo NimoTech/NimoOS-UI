@@ -3,12 +3,26 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useSnapshotBrowseStore } from './snapshotBrowse'
 import { useFilesStore } from './files'
 import { useToast } from '../../stores/toast'
+import { router } from '../../router'
 
 const listVolumesMock = vi.fn()
 const restoreMock = vi.fn()
+const listSnapshotsMock = vi.fn()
+const getListMock = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
-  service: { snapshot: { listVolumes: () => listVolumesMock(), restore: (b: unknown) => restoreMock(b) } },
+  service: {
+    snapshot: {
+      listVolumes: () => listVolumesMock(),
+      restore: (b: unknown) => restoreMock(b),
+      list: (uuid: string) => listSnapshotsMock(uuid),
+    },
+    folder: { getList: (p: string) => getListMock(p) },
+  },
 }))
+// The store navigates through the real router singleton (see snapshotBrowse.ts's own comment on
+// navigateReal for why: it must go through the same virtual-path route encoding Files.vue's own
+// goVirtual() uses). Mocked the same way src/home/composables/useOpenAction.test.ts already does.
+vi.mock('../../router', () => ({ router: { push: vi.fn(), replace: vi.fn() } }))
 
 const VOLS = [
   { volume_uuid: 'u-data', mount: '/DATA', supported: true },
@@ -19,6 +33,10 @@ beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
   listVolumesMock.mockResolvedValue(VOLS)
+  listSnapshotsMock.mockResolvedValue([])
+  getListMock.mockResolvedValue({ content: [] })
+  vi.mocked(router.push).mockClear()
+  vi.mocked(router.replace).mockClear()
 })
 
 describe('ensureVolumes', () => {
@@ -203,17 +221,169 @@ describe('canShowEntry truth table', () => {
   })
 })
 
-describe('time machine wheel', () => {
-  it('open/close toggle, reset should reset to initial state', async () => {
-    const s = useSnapshotBrowseStore()
-    s.openWheel(); expect(s.wheelOpen).toBe(true)
-    s.closeWheel(); expect(s.wheelOpen).toBe(false)
-    await s.ensureVolumes()
-    s.openWheel()
-    s.reset()
-    expect(s.wheelOpen).toBe(false)
-    expect(s.status).toBe('idle')
-    expect(s.volumes).toEqual([])
+// Task 6: wheelOpen/openWheel/closeWheel are gone (Ruling P2 — the retired wheel component tree
+// that read them is deleted in this same task). tmActive/enterTimeMachine/exitTimeMachine/switchTo
+// replace that whole toggle, driving TimeMachineStage.vue instead.
+describe('time machine: enter / exit / switch', () => {
+  const SNAPS = [
+    { id: 1, name: '20260810T090000Z_auto', created_at: '2026-08-10T09:00:00Z' },
+    { id: 2, name: '20260812T090000Z_manual_x', created_at: '2026-08-12T09:00:00Z' },
+    { id: 3, name: '20260811T090000Z_auto', created_at: '2026-08-11T09:00:00Z' },
+  ]
+
+  describe('enterTimeMachine', () => {
+    it('fetches the snapshot list, navigates to the newest snapshot at the current relative path, and sets tmActive', async () => {
+      listSnapshotsMock.mockResolvedValue(SNAPS)
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos/2024'
+      await s.ensureVolumes()
+      expect(s.tmActive).toBe(false)
+
+      await s.enterTimeMachine()
+
+      expect(s.tmActive).toBe(true)
+      expect(listSnapshotsMock).toHaveBeenCalledWith('u-data')
+      // Newest-first by created_at, regardless of the backend's own return order.
+      expect(s.snapshotList.map((x) => x.name)).toEqual([
+        '20260812T090000Z_manual_x', '20260811T090000Z_auto', '20260810T090000Z_auto',
+      ])
+      expect(router.push).toHaveBeenCalledWith(
+        expect.stringContaining('.snapshots/20260812T090000Z_manual_x/Photos/2024'),
+      )
+    })
+    it('does nothing when the entry button would not show (e.g. already in a snapshot view)', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      expect(s.canShowEntry).toBe(false)
+      await s.enterTimeMachine()
+      expect(s.tmActive).toBe(false)
+      expect(listSnapshotsMock).not.toHaveBeenCalled()
+    })
+    it('with no snapshots yet, still activates the stage but does not navigate', async () => {
+      listSnapshotsMock.mockResolvedValue([])
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos'
+      await s.ensureVolumes()
+      await s.enterTimeMachine()
+      expect(s.tmActive).toBe(true)
+      expect(s.snapshotList).toEqual([])
+      expect(router.push).not.toHaveBeenCalled()
+    })
+    it('tmLoading is true while the list fetch is in flight, false once settled', async () => {
+      let release: (v: unknown) => void = () => {}
+      listSnapshotsMock.mockImplementation(() => new Promise((r) => { release = r }))
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos'
+      await s.ensureVolumes()
+      const p = s.enterTimeMachine()
+      await vi.waitFor(() => expect(s.tmLoading).toBe(true))
+      release(SNAPS)
+      await p
+      expect(s.tmLoading).toBe(false)
+    })
+  })
+
+  describe('currentSnapshotName', () => {
+    it('derives the snapshot name from the current path while in a snapshot view', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      expect(s.currentSnapshotName).toBe('snap1')
+    })
+    it('is null outside a snapshot view', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos'
+      await s.ensureVolumes()
+      expect(s.currentSnapshotName).toBeNull()
+    })
+  })
+
+  describe('exitTimeMachine', () => {
+    it('clears tmActive synchronously and navigates to the live directory of the current relative path', async () => {
+      getListMock.mockResolvedValue({ content: [] }) // directory exists on the live volume
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+
+      s.exitTimeMachine()
+      expect(s.tmActive).toBe(false) // synchronous, does not wait on the existence check below
+
+      await vi.waitFor(() => expect(router.push).toHaveBeenCalled())
+      expect(getListMock).toHaveBeenCalledWith('/DATA/Photos')
+      expect(router.push).toHaveBeenCalledWith(expect.stringContaining('Photos'))
+    })
+    it('falls back to the volume root when the live directory no longer exists', async () => {
+      getListMock.mockRejectedValue(new Error('404'))
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+
+      s.exitTimeMachine()
+      await vi.waitFor(() => expect(router.push).toHaveBeenCalled())
+      expect(router.push).not.toHaveBeenCalledWith(expect.stringContaining('Photos'))
+    })
+    it('is a no-op navigation when not actually in a snapshot view (still clears tmActive)', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos'
+      await s.ensureVolumes()
+      s.tmActive = true
+      s.exitTimeMachine()
+      expect(s.tmActive).toBe(false)
+      expect(router.push).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('switchTo', () => {
+    it('navigates the same window to the same relative path in the target snapshot, via replace (one history entry per session)', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos/2024'
+      await s.ensureVolumes()
+
+      await s.switchTo('snap2')
+
+      expect(router.replace).toHaveBeenCalledWith(
+        expect.stringContaining('.snapshots/snap2/Photos/2024'),
+      )
+      expect(router.push).not.toHaveBeenCalled()
+    })
+    it('sets tmTravel around the navigation, clears it once settled', async () => {
+      let release: () => void = () => {}
+      vi.mocked(router.replace).mockImplementation(() => new Promise((r) => { release = () => r(undefined) }))
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+
+      const p = s.switchTo('snap2')
+      await vi.waitFor(() => expect(s.tmTravel).toEqual({ from: 'snap1', to: 'snap2' }))
+      release()
+      await p
+      expect(s.tmTravel).toBeNull()
+    })
+    it('does nothing when switching to the snapshot already being viewed', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      await s.switchTo('snap1')
+      expect(router.replace).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('reset', () => {
+    it('clears every Time Machine field back to its initial state', async () => {
+      listSnapshotsMock.mockResolvedValue(SNAPS)
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos'
+      await s.ensureVolumes()
+      await s.enterTimeMachine()
+      expect(s.tmActive).toBe(true)
+
+      s.reset()
+      expect(s.tmActive).toBe(false)
+      expect(s.snapshotList).toEqual([])
+      expect(s.tmLoading).toBe(false)
+      expect(s.tmTravel).toBeNull()
+    })
   })
 })
 
