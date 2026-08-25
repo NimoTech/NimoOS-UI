@@ -85,6 +85,11 @@ const TOKENS = [
   '--tm-ghost-border-hover',
   '--tm-control-radius',
   '--tm-panel-blur',
+  // Task 8 fix round: restored per controller ruling (pixel 1:1 to Vue2's own `.tm-tick:hover`
+  // and `.tm-tick__badge` literal colors -- see theme.css's own comment on these two for the
+  // exact Vue2 CSS rules each one pins).
+  '--tm-rail-tick-hover',
+  '--tm-rail-tick-manual',
 ]
 
 describe('Time Machine --tm-* tokens (Task 1)', () => {
@@ -121,5 +126,7 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-ghost-border-hover')).toBe('rgba(0, 0, 0, 0.25)')
     expect(valueIn(dark, '--tm-control-radius')).toBe('10px')
     expect(valueIn(dark, '--tm-panel-blur')).toBe('blur(20px) saturate(1.2)')
+    expect(valueIn(dark, '--tm-rail-tick-hover')).toBe('#ffffff')
+    expect(valueIn(dark, '--tm-rail-tick-manual')).toBe('#f6c760')
   })
 })

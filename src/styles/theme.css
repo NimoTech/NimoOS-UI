@@ -299,6 +299,15 @@
   --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
   --tm-control-radius: 10px;
   --tm-panel-blur: blur(20px) saturate(1.2);
+  /* Task 8 fix round: two more tokens, same "identical in both themes" rule as the rest of this
+     block. Pixel-pinned to Vue2 TimeMachineStage.vue's own literal `.tm-tick:hover` colors:
+     `--tm-rail-tick-hover` is the exact value `.tm-tick:hover .tm-tick__label { color }` and
+     `.tm-tick:hover .tm-tick__line { background }` both share; `--tm-rail-tick-manual` is
+     `.tm-tick__badge`'s own literal `color` (shown only on manual-type ticks -- Vue2 has no
+     equivalent auto/preop tick coloring to pin: `tm-tick--auto`/`tm-tick--preop` carry no CSS
+     rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
+  --tm-rail-tick-hover: #ffffff;
+  --tm-rail-tick-manual: #f6c760;
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -691,6 +700,15 @@
   --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
   --tm-control-radius: 10px;
   --tm-panel-blur: blur(20px) saturate(1.2);
+  /* Task 8 fix round: two more tokens, same "identical in both themes" rule as the rest of this
+     block. Pixel-pinned to Vue2 TimeMachineStage.vue's own literal `.tm-tick:hover` colors:
+     `--tm-rail-tick-hover` is the exact value `.tm-tick:hover .tm-tick__label { color }` and
+     `.tm-tick:hover .tm-tick__line { background }` both share; `--tm-rail-tick-manual` is
+     `.tm-tick__badge`'s own literal `color` (shown only on manual-type ticks -- Vue2 has no
+     equivalent auto/preop tick coloring to pin: `tm-tick--auto`/`tm-tick--preop` carry no CSS
+     rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
+  --tm-rail-tick-hover: #ffffff;
+  --tm-rail-tick-manual: #f6c760;
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the

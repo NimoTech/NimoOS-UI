@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
@@ -110,6 +113,49 @@ describe('TimeMachineRail', () => {
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     await w.find('.tm-rail').trigger('mouseleave')
     expect(w.findAll('.tm-tick-main')[0].attributes('style') ?? '').not.toContain('scaleX(2')
+  })
+
+  // ── Fix round (controller ruling): per-type tick class hook + manual badge, restored ──
+  const TYPED_SNAPSHOTS: SnapshotVM[] = [
+    { name: 's-manual', created_at: now.toISOString(), type: 'manual', label: 'before upgrade' },
+    { name: 's-manual-no-label', created_at: oneHourAgo.toISOString(), type: 'manual' },
+    { name: 's-auto', created_at: new Date(now.getTime() - 2 * 3600_000).toISOString(), type: 'auto-hourly' },
+    { name: 's-preop', created_at: new Date(now.getTime() - 3 * 3600_000).toISOString(), type: 'preop' },
+  ]
+
+  it('every major tick carries a type-<kind> class hook (Vue2\'s own tm-tick--<kind> on every tick)', () => {
+    const w = mountIt({ snapshots: TYPED_SNAPSHOTS })
+    const byName = (name: string) => w.find(`[data-flat-index="${name}"]`)
+    expect(byName('s-manual').classes()).toContain('type-manual')
+    expect(byName('s-auto').classes()).toContain('type-auto') // auto-hourly collapses to 'auto'
+    expect(byName('s-preop').classes()).toContain('type-preop')
+  })
+
+  it('only manual-type ticks render the badge (Vue2 parity: auto/preop get no badge)', () => {
+    const w = mountIt({ snapshots: TYPED_SNAPSHOTS })
+    const byName = (name: string) => w.find(`[data-flat-index="${name}"]`)
+    expect(byName('s-manual').find('.tm-tick-badge').exists()).toBe(true)
+    expect(byName('s-manual').find('.tm-tick-badge').text()).toContain('before upgrade')
+    expect(byName('s-manual-no-label').find('.tm-tick-badge').exists()).toBe(true)
+    expect(byName('s-manual-no-label').find('.tm-tick-badge').text()).not.toContain('·')
+    expect(byName('s-auto').find('.tm-tick-badge').exists()).toBe(false)
+    expect(byName('s-preop').find('.tm-tick-badge').exists()).toBe(false)
+  })
+
+  // jsdom applies no CSS at all -- :hover cannot be exercised by dispatching a real hover state
+  // the way mousemove/scaleX assertions above are. This is a hook-presence check on the component's
+  // own source instead (same "assert the token/selector is actually wired up" shape color-guard.
+  // test.ts and tmTokens.test.ts already use elsewhere in this repo) -- it would fail if the hover
+  // rule or either restored token were ever silently removed from the <style> block again.
+  it('the hover-brightening and manual-badge tokens are actually wired into <style> (not just declared in theme.css)', () => {
+    const src = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineRail.vue'),
+      'utf8',
+    )
+    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    expect(styleBlock).toMatch(/:hover[\s\S]*?--tm-rail-tick-hover/)
+    expect(styleBlock).toContain('--tm-rail-tick-manual')
+    expect(styleBlock).toContain('.tm-tick-badge')
   })
 
   it('renders no ticks and no error with an empty snapshot list', () => {

@@ -35,6 +35,21 @@
 // (not queried for scale computation at all -- they simply read the same map entry their anchor
 // already wrote, via scaleStyle(), so they scale in visual lock-step with it without ever writing
 // to it themselves).
+//
+// Fix round (controller ruling): the initial version of this task dropped two literal Vue2 `.tm-
+// tick` visuals -- hover brightening and manual-type coloring -- reasoning that no approved token
+// covered them. Ruling: that's backwards; the token rule is to ADD a token when a Vue2 literal has
+// no match, never to drop the visual. Both are restored here, pixel-pinned via two new tokens
+// (`--tm-rail-tick-hover`/`--tm-rail-tick-manual`, theme.css). One correction made in the same
+// pass, verified by re-reading the whole Vue2 `.tm-tick` CSS block: Vue2 does NOT recolor the
+// tick's own LINE by type -- `tm-tick--auto`/`tm-tick--preop`/`tm-tick--manual` are all rendered
+// (every tick gets one), but only `.tm-tick--selected` and `.tm-tick__badge` (shown only for
+// typeKind === 'manual', a SEPARATE element next to the line, not the line itself) carry any CSS
+// rule at all -- auto and preop are visually identical to each other in Vue2 (plain --tm-rail
+// line, no badge). So "per-type tick coloring" here means: the `type-<kind>` class is still
+// applied to every main tick (matching Vue2's own `tm-tick--<kind>` on every tick), but only
+// `type-manual` has an associated CSS rule (the badge's own color) -- `type-auto`/`type-preop`
+// exist purely as hooks, unstyled, exactly as they are in Vue2's own source.
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { groupSnapshotsByDay, type SnapshotDayGroup, type SnapshotItemView } from '../../storage/util/snapshotView'
@@ -201,13 +216,22 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
           v-else-if="node.type === 'main'"
           type="button"
           class="tm-tick tm-tick-main"
-          :class="{ 'is-selected': node.item!.name === props.current }"
+          :class="[`type-${node.item!.typeKind}`, { 'is-selected': node.item!.name === props.current }]"
           :data-flat-index="node.item!.name"
           :style="scaleStyle(node.item!.name)"
           :aria-label="t('tmRailJumpTo', { time: node.item!.time })"
           @mouseenter="onTickHover($event, node.item!.name)"
           @click="emit('select', node.item!.name)"
-        ></button>
+        >
+          <!-- Manual-snapshot badge -- Vue2 parity (`.tm-tick__badge`, shown only for
+               typeKind === 'manual', with an optional user label appended). auto/preop render no
+               badge at all in Vue2, so none is rendered here either -- see this file's own header
+               comment (fix round) for the full account of what "per-type coloring" does and does
+               not mean in the real Vue2 source. -->
+          <span v-if="node.item!.typeKind === 'manual'" class="tm-tick-badge" aria-hidden="true">
+            ● {{ t('snapTypeManual') }}<template v-if="node.item!.label"> · {{ node.item!.label }}</template>
+          </span>
+        </button>
 
         <!-- Decorative sub-tick: not independently selectable (not a button; keyboard/screen
              readers skip it). Clicking it snaps to its owning main tick (anchorName). Must not
@@ -316,6 +340,32 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
 .tm-tick-main.is-selected { --tick-color: var(--tm-accent); }
 .tm-tick-main.is-selected::after { height: 3px; box-shadow: 0 0 8px var(--tm-accent-glow); }
 
+/* Hover brightening — Vue2 parity (`.tm-tick:hover .tm-tick__line`'s own literal background
+   color and width), restored per controller ruling; the exact literal value is pinned by
+   `--tm-rail-tick-hover` in theme.css (see that token's own comment there, not repeated here to
+   avoid writing a bare color literal in this style block). The +8px resting-width growth on
+   hover is Vue2's own literal delta for the main tick (26 -> 34); sub-ticks have no Vue2
+   counterpart to pin a delta from, so only their color brightens, not their width. Vue2 does the
+   same color brightening on the SELECTED tick too (its `:hover` rule has no exception for
+   `--selected`) -- unchanged here for the same reason. */
+.tm-tick-main:hover { width: 34px; }
+.tm-tick-main:hover::after,
+.tm-tick-sub:hover::after {
+  background: var(--tm-rail-tick-hover);
+}
+
+.tm-tick-badge {
+  position: absolute;
+  right: 100%;
+  margin-right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--tm-rail-tick-manual);
+  pointer-events: none;
+}
+
 .tm-tick-label {
   position: absolute;
   right: 34px;
@@ -323,7 +373,9 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
   font-size: 11.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--tm-rail-text);
+  /* Only ever rendered while a tick is being hovered (see the template's own `v-if="hoveredItem"`)
+     -- so it always shows Vue2's own hover-brightened label color, never the resting one. */
+  color: var(--tm-rail-tick-hover);
   transform: translateY(-50%);
   pointer-events: none;
 }
