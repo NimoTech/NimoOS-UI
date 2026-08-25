@@ -77,22 +77,27 @@ describe('getSnapshotPreview', () => {
     expect(getListMock).toHaveBeenCalledTimes(2)
   })
 
-  it('caches a failed result for the session -- no retry on a later call with the same key', async () => {
+  // Vue2 parity (controller ruling: Vue2 source is authority over the task brief's prose,
+  // which had this backwards). Verified against NimoOS-UI's snapshotPreviewCache.js: it never
+  // caches an error for the session -- setCachedSnapshotPreview's `promise.catch(() => { if
+  // (cache.get(key) === promise) cache.delete(key) })` evicts the entry on failure, so the next
+  // mount/call for the same key fires a fresh request. Reproduced here as: a call that resolves
+  // `{ entries: [], error: true }` gets its cache slot evicted immediately after settling, so a
+  // second call for the same key is a genuine second fetch, not a cache hit.
+  it('evicts a failed key so the next call for the same key triggers a second fetch (Vue2 semantics)', async () => {
     getListMock.mockRejectedValueOnce(new Error('boom'))
     const r1 = await getSnapshotPreview('/DATA', 'snap1', 'Photos')
     expect(r1).toEqual({ entries: [], error: true })
+    getListMock.mockResolvedValueOnce({ content: CONTENT })
     const r2 = await getSnapshotPreview('/DATA', 'snap1', 'Photos')
-    expect(r2).toEqual({ entries: [], error: true })
-    expect(getListMock).toHaveBeenCalledTimes(1)
+    expect(r2.error).toBe(false)
+    expect(getListMock).toHaveBeenCalledTimes(2)
   })
 
-  it('clear() makes the next call refetch, including for a previously-errored key', async () => {
-    getListMock.mockRejectedValueOnce(new Error('boom'))
+  it('clear() makes the next call refetch a previously-successful key too', async () => {
     await getSnapshotPreview('/DATA', 'snap1', 'Photos')
     clearSnapshotPreviewCache()
-    getListMock.mockResolvedValueOnce({ content: CONTENT })
-    const result = await getSnapshotPreview('/DATA', 'snap1', 'Photos')
-    expect(result.error).toBe(false)
+    await getSnapshotPreview('/DATA', 'snap1', 'Photos')
     expect(getListMock).toHaveBeenCalledTimes(2)
   })
 })
