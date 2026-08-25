@@ -28,12 +28,15 @@ import {
 // (fisheyeScale / resolveDollySlots / resolveSlotPose describe blocks),
 // adapted to the new signatures (see timeMachineMath.ts's own header
 // comment for the exact deviations: no options bag, `names: string[]`,
-// `depth` instead of `slot`, `{x,y,scale,dim,z}` pose shape, no pinNames/
-// stageHeight). compensateMenuPosition/compensateFixedPosition and
-// resolveStepperBoundaries are intentionally not ported here -- see the
-// controller ruling in this task's brief (menu compensation deferred to a
-// later task, empirically) and clampStepIndex below (which fuses
-// resolveStepperBoundaries' boolean pair into one call).
+// `depth` instead of `slot`, `{x,y,scaleX,scaleY,dim,z}` pose shape).
+// Review round 1 restored pinNames (resolveDollySlots' 4th param) and
+// stageHeight (resolveSlotPose's 2nd param) to Vue2's exact semantics --
+// both are exercised below, not omitted. compensateMenuPosition/
+// compensateFixedPosition and resolveStepperBoundaries are intentionally
+// not ported here -- see the controller ruling in this task's brief
+// (menu compensation deferred to a later task, empirically) and
+// clampStepIndex below (which fuses resolveStepperBoundaries' boolean
+// pair into one call).
 
 // Mirrors the module's private DEFAULT_MAX_SLOTS -- used only to pass the
 // default maxSlots through explicitly when a test needs to supply a 4th
@@ -88,7 +91,7 @@ describe('fisheyeScale — cursor-distance -> continuous magnification curve', (
     expect(fisheyeScale(Infinity)).toBe(1)
   })
 
-  it('accepts an options override for the kept-for-compat computeFisheyeScales caller', () => {
+  it('accepts an options override (kept as a parameterization escape hatch, no real caller uses it today)', () => {
     expect(fisheyeScale(0, { maxScale: 3, minScale: 1.5 })).toBeCloseTo(3, 5)
     expect(fisheyeScale(10, { radius: 10 })).toBe(1)
   })

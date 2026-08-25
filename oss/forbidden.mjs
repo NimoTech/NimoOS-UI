@@ -121,26 +121,13 @@ export const SOFT = [
       // (与 Documents/Media 同类),不是被删除的相册 app —— 相册 app 的字面量是小写
       // kind:'photo'(已被 T9/T11 的 PATCH 从 defaultLayout/AddPanel/GridItem 等处删净,
       // 见 tree.test.ts 对应断言)。全部整行精确匹配,不是给文件按子串开洞。
-      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine("const setup = (names: string[], relPath = 'Photos') => {") },
-      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenCalledWith('/DATA/.snapshots/snap1/Photos')") },
-      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine("const relPath = ref('Photos')") },
+      // T16:同一批曾覆盖 useDeckPreview.ts/.test.ts、TimeMachineBar.vue/.test.ts、
+      // TimeMachineOverlay.vue/.test.ts 的条目已随这些文件本身被 T16 删除而一并摘除
+      // (白名单条目指向不存在的文件不会再命中任何内容,留着只是死权重)。下面两条
+      // (useFileOps.test.ts/SnapshotBanner.test.ts)对应的文件仍在,继续保留。
       { file: /src\/files\/composables\/useFileOps\.test\.ts$/, re: exactLine("useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'") },
       { file: /src\/files\/composables\/useFileOps\.test\.ts$/, re: exactLine("useFilesStore().currentPath = '/DATA/Photos'") },
       { file: /src\/files\/snapshot\/SnapshotBanner\.test\.ts$/, re: exactLine("const INFO = { mount: '/DATA', snapshotName: '20260713T061900Z_manual_改版前', relPath: 'Photos' }") },
-      { file: /src\/files\/snapshot\/TimeMachineBar\.test\.ts$/, re: exactLine("const w = mountIt({ folderText: '正在查看 /磁盘/Photos 的历史版本' })") },
-      { file: /src\/files\/snapshot\/TimeMachineBar\.test\.ts$/, re: exactLine("expect(w.find('.tm-bar-folder').text()).toContain('/磁盘/Photos')") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos', ...props },") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(w.find('.tm-bar-folder').text()).toContain('/磁盘/Photos')") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x/Photos')") },
-      // 同一行文本重复出现 5 次(148/160/172/192/203),exactLine 天然覆盖每一处重复。
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine('volume-uuid="u-data" mount-point="/DATA" rel-path="Photos" folder-label="/磁盘/Photos"') },
-      // 2026-08-14:私有侧把这条注释译成了英文,原中文整行不再命中。同样是"举例用的
-      // 普通文件夹名 /Photos/2024",不是相册 app。
-      // 2026-08-20:该行的破折号后来又从中文式 em dash(—)改成了 ASCII 双连字符(--),
-      // 原 em dash 版本的锚点因此永久失配、悄悄失效——本条只是把锚点更新为当前实际
-      // 文本,豁免范围与语义一字未变。
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.vue$/, re: exactLine('// the snapshot root -- a user opening Time Machine at /Photos/2024 got dumped back at the') },
       // ImageViewer.vue:平铺缩放时的白色接缝说明,"the photo"是被查看的图片本身
       // (图片预览器是保留面),与相册 app 无关。
       { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: exactLine('stretches stale tiles without repainting, and tile seams show as white hairline grids over the photo') },
@@ -186,6 +173,10 @@ export const SOFT = [
       { file: /src\/views\/Files\.test\.ts$/, re: exactLine("router.push('/files/NimoOS-HD/Photos'); await router.isReady()") },
       { file: /src\/views\/Files\.test\.ts$/, re: exactLine("router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()") },
       { file: /src\/views\/Files\.test\.ts$/, re: exactLine("const w = await mountFiles('/DATA/Photos')") },
+      // T16: restore-folder confirmation flow this line added (Files Time Machine
+      // Vue2-parity), same example-folder-name convention as the entries above.
+      { file: /src\/views\/Files\.test\.ts$/, re: exactLine("expect(document.body.textContent).toContain('Photos') // the folder being confirmed, by name") },
+      { file: /src\/views\/Files\.test\.ts$/, re: exactLine("expect(items).toEqual([{ path: '/DATA/.snapshots/20260713T061900Z_manual/Photos', name: 'Photos', is_dir: true }])") },
       // 2026-08-07:SP11 壁纸功能新增文件里的 'photo' 全部是普通英文单词或 themePhoto
       // 这个 i18n 键名本身(键名字面含 "Photo" 子串,与相册 app 无关),不是 AI/相册
       // 语义。已用 oss/export.mjs 实测确认这批命中,逐条登记,不给整个文件开洞。
@@ -253,24 +244,10 @@ export const SOFT = [
       // filename reference to the deleted photos app's PhotoImageViewer.vue cited only as
       // prior art for a CSS drag-suppression trick -- not a mention of the photos app's own
       // functionality. All verified with oss/export.mjs; entered per-line, not per-file.
-      { file: /src\/files\/composables\/useDeckPreview\.ts$/, re: exactLine('//   GET /v1/folder?path=/DATA/.snapshots/<absent>/Photos') },
-      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine('// measured: GET /v1/file?path=/DATA/.snapshots/<absent>/Photos') },
-      { file: /src\/files\/composables\/useDeckPreview\.test\.ts$/, re: exactLine("const api = useDeckPreview({ mountPoint: () => '/DATA', relPath: () => 'Photos', visibleNames: () => ['snap1'] })") },
-      { file: /src\/files\/snapshot\/TimeMachineCard\.test\.ts$/, re: exactLine("props: { item: ITEM, state: 'front' as const, depth: 0, folderLabel: '/磁盘/Photos', subPath: '', ...props },") },
-      { file: /src\/files\/snapshot\/TimeMachineCard\.test\.ts$/, re: exactLine("expect(w.findAll('.tm-crumb').map((c) => c.text())).toEqual(['磁盘', 'Photos'])") },
-      { file: /src\/files\/snapshot\/TimeMachineCard\.test\.ts$/, re: exactLine("await w.findAll('button.tm-crumb').find((c) => c.text() === 'Photos')!.trigger('click')") },
-      { file: /src\/files\/snapshot\/TimeMachineCrumbs\.vue$/, re: exactLine('/** Virtual path of the folder the time machine was opened on, e.g. "/My disk/Photos" */') },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(crumbs(w)).toEqual(['磁盘', 'Photos'])") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenCalledWith('/DATA/.snapshots/20260730T090000Z_manual_0/Photos')") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("const DIR = { path: '/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024', name: '2024', is_dir: true, date: relDay(0, 9) }") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenLastCalledWith('/DATA/.snapshots/20260730T143000Z_manual_x/Photos')") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenLastCalledWith('/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024')") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(w.emitted('select')?.[0]?.[0]).toBe('/DATA/.snapshots/20260730T143000Z_manual_x/Photos/2024')") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(crumbs(w)).toEqual(['磁盘', 'Photos']) // nothing below the starting folder yet") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("expect(crumbs(w)).toEqual(['磁盘', 'Photos', '2024'])") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("// 'Photos' is the folder the time machine was opened on: clicking it comes back out.") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("await w.findAll('button.tm-crumb').find((c) => c.text() === 'Photos')!.trigger('click'); await flush(w)") },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine('// The older snapshot does not contain Photos/2024 at all.') },
+      // T16: the useDeckPreview.ts/.test.ts and TimeMachineCard.test.ts/TimeMachineCrumbs.vue/
+      // TimeMachineOverlay.test.ts entries that used to sit here were removed alongside those
+      // files (colleague card-deck mockup, superseded by the Vue2-parity stage). apiError.ts
+      // below is a permanent module and keeps its own entry.
       { file: /src\/files\/util\/apiError\.ts$/, re: exactLine('//   GET /v1/file?path=/DATA/.snapshots/<absent>/Photos') },
       // PhotoImageViewer.vue:221 is cited as prior art for a three-part native-drag
       // suppression fix (draggable="false" + -webkit-user-drag:none + user-select:none) --
@@ -289,6 +266,61 @@ export const SOFT = [
       // tied to the real app registry (systemApps.ts, where the app itself is deleted).
       { file: /src\/home\/grid\/dockMath\.test\.ts$/, re: exactLine("const fav = [{ key: 'files', midX: 100 }, { key: 'photos', midX: 200 }]") },
       { file: /src\/home\/grid\/dockMath\.test\.ts$/, re: exactLine("expect(dropTarget(180, 300, fav, more).beforeKey).toBe('photos')") },
+      // T16 (Files Time Machine Vue2-parity line, batch after the colleague card-deck
+      // components' removal): the Vue2-parity replacement stage's own new files. Same
+      // pattern as the earlier snapshot entries above -- 'Photos' is always an example
+      // folder name in a fixture/comment for the kept Time Machine surface, never the
+      // deleted photos app. All verified with oss/export.mjs; entered per-line, not per-file.
+      { file: /src\/files\/snapshot\/RestoreDestinationModal\.test\.ts$/, re: exactLine("const second = vmOf(w).open('/media/RAID_0', '/media/RAID_0/Photos')") },
+      { file: /src\/files\/snapshot\/RestoreDestinationModal\.test\.ts$/, re: exactLine("expect(document.querySelector('.rdm-current-dir')?.textContent).toBe('/media/RAID_0/Photos')") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("{ name: 'Photos', isDir: true, size: 0, mtime: 1720000000000 },") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("expect(cards[0].find('.tm-preview-window__title').text()).toBe('Photos')") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("expect(rows[0].find('.tm-preview-window__col--name').text()).toBe('Photos') // folders-first") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("const photosRow = rows.find((r) => r.text().includes('Photos'))!") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("expect(photosRow.find('.tm-preview-window__col--type').text()).toBe('')") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("expect(photosRow.find('.tm-preview-window__col--size').text()).toBe('')") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("expect(photosRow.classes()).toContain('is-dir')") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("{ name: 'Photos', isDir: true, size: 0, mtime: 0 },") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("const folderIcon = cards[0].find('.tm-preview-window__icon') // Photos, folders-first") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("expect(folderIcon.attributes('src')).toBe(iconUrl(iconNameFor({ name: 'Photos', is_dir: true })))") },
+      { file: /src\/files\/snapshot\/TimeMachineDepthStack\.test\.ts$/, re: exactLine("files.currentPath = '/media/RAID_0/Photos' // not a snapshot view at all -- currentSnapshotName is null") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/DATA/Photos/2024'") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect.stringContaining('.snapshots/20260812T090000Z_manual_x/Photos/2024'),") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/mnt/usb/.snapshots/snap1/Photos'") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenCalledWith('/DATA/Photos')") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(router.push).toHaveBeenCalledWith(expect.stringContaining('Photos'))") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(router.push).not.toHaveBeenCalledWith(expect.stringContaining('Photos'))") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/DATA/.snapshots/snap1/Photos/2024'") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect.stringContaining('.snapshots/snap2/Photos/2024'),") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("const picker = vi.fn(async () => ({ destDir: '/DATA/Photos', withMarker: true }))") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("await s.restoreItems([item('/DATA/.snapshots/snap1/Photos/a.jpg')], '/DATA/Photos', picker)") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("await s.restoreItems([item('/DATA/.snapshots/snap1/Photos/a.jpg')], '/DATA/Photos', picker, { singleItemFlow: true })") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(useToast().msg).toBe('已恢复到 /DATA/Photos/a.jpg.restored-1')") },
+      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(useToast().msg).toBe('已取回 1 项到 /DATA/Photos/a.jpg.restored-1')") },
+      { file: /src\/files\/stores\/snapshotBrowse\.ts$/, re: exactLine('// Machine at /Photos/2024 should not be dumped back at the volume root). tmActive flips true') },
+      { file: /src\/files\/util\/restoreDestination\.test\.ts$/, re: exactLine("content: [{ name: 'Photos', path: `${destDir}/Photos`, is_dir: true }],") },
+      { file: /src\/files\/util\/restoreDestination\.test\.ts$/, re: exactLine("const items = [{ name: 'Photos', is_dir: true }]") },
+      { file: /src\/files\/util\/restoreDestination\.test\.ts$/, re: exactLine("expect(conflicts).toEqual([{ name: 'Photos', isDir: true, groupKey: 'Photos' }])") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("await getSnapshotPreview('/DATA', 'snap1', 'Photos')") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("expect(getListMock).toHaveBeenCalledWith('/DATA/.snapshots/snap1/Photos')") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("const result = await getSnapshotPreview('/DATA', 'snap1', 'Photos')") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("const p1 = getSnapshotPreview('/DATA', 'snap1', 'Photos')") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("const p2 = getSnapshotPreview('/DATA', 'snap1', 'Photos')") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("getSnapshotPreview('/DATA', 'snap1', 'Photos'),") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("getSnapshotPreview('/DATA', 'snap2', 'Photos'),") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("getSnapshotPreview('/DATA2', 'snap1', 'Photos'),") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("const r1 = await getSnapshotPreview('/DATA', 'snap1', 'Photos')") },
+      { file: /src\/files\/util\/snapshotPreviewCache\.test\.ts$/, re: exactLine("const r2 = await getSnapshotPreview('/DATA', 'snap1', 'Photos')") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("const restore = vi.fn().mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg' })") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("item: { path: '/DATA/.snapshots/snap1/Photos/a.jpg' }, info: INFO,") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("volume_uuid: 'u-data', snapshot: 'snap1', path: 'Photos/a.jpg',") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(shouldRejectRootRestore('Photos')).toBe(false)") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(shouldRejectRootRestore('Photos/2024')).toBe(false)") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(wholeFolderRestoreItem('/DATA/.snapshots/snap1/Photos/2024', 'Photos/2024')).toEqual({") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("path: '/DATA/.snapshots/snap1/Photos/2024', name: '2024', is_dir: true,") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(wholeFolderRestoreItem('/DATA/.snapshots/snap1/Photos', 'Photos')).toEqual({") },
+      { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("path: '/DATA/.snapshots/snap1/Photos', name: 'Photos', is_dir: true,") },
+      { file: /src\/styles\/__tests__\/tmTokens\.test\.ts$/, re: exactLine("// header comments that themselves mention OTHER selectors' braces (e.g. \".photos-root { }\"),") },
     ],
   },
   {
@@ -406,6 +438,12 @@ export const SOFT = [
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('Search input debounced 250ms then replace route query (frontend filtering, deep link)', async () => {") },
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('Featured strip only shows when there is no search + all categories + all sources', async () => {") },
       { file: /src\/views\/Files\.vue$/, re: exactLine("// Don't steal the browser's default paste when focus is in an input (rename/search/etc.); silently ignore when the clipboard holds only text.") },
+      // T16: SnapshotPreviewWindow.vue/.test.ts header comments -- 'search' here is only the
+      // substring inside the plain English word "research" (a fix-round note about rebuilding
+      // this file off the Vue2 authority source instead of a research summary's paraphrase),
+      // not a mention of the deleted NimoOS-Search service.
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("// of an earlier version built off a research summary's inaccurate paraphrase. See") },
+      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.vue$/, re: exactLine('research summary\'s paraphrase ("window chrome, title bar with a snapshot time label, three-column') },
       // write-root-redirect.sh / writeRootRedirect.test.ts:这里的 'search' 是浏览器
       // Location 接口的 .search 属性(URL 查询串),根重定向页把它原样透传给 /app/
       // 目标应用(连同 .hash),与被剥离的 NimoOS-Search 服务/SearchDialog.vue 毫无关系。

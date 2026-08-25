@@ -871,23 +871,16 @@ export default {
 
   // Task 1 (Files Time Machine Vue2-parity line): tmEntry's copy changes from 'Time Machine'
   // to 'Snapshots' -- Vue2 authority (en_US.json's "Snapshots" key) renamed the nav entry
-  // itself; tmEnter/tmNoFolderAtTime/tmPreviewUnavailable/tmRailJumpTo/tmStepNewer/
-  // tmOpenFolder stay as-is (still consumed by the colleague-authored cards/rail components
-  // under src/files/snapshot/, cleared out in T16 alongside those components).
-  // Correction (Task 5 review, fix round 2): tmItemCount is NOT colleague-only anymore --
-  // Task 5's own SnapshotPreviewWindow.vue (a permanent component in this rebuild, not slated
-  // for deletion) also renders it for its Row 2 "N items" count. Do NOT delete tmItemCount in
-  // T16 just because the colleague components it originally served are gone by then.
+  // itself. tmEnter/tmNoFolderAtTime/tmPreviewUnavailable/tmStepNewer/tmOpenFolder were
+  // consumed only by the colleague-authored cards/rail components under src/files/snapshot/
+  // and were removed in T16 alongside those components (zero `t('key')` references left).
+  // tmItemCount and tmRailJumpTo are NOT colleague-only: SnapshotPreviewWindow.vue and
+  // TimeMachineRail.vue (both permanent components in this rebuild) still render them.
   tmEntry: 'Snapshots',
-  tmEnter: 'Enter this snapshot',
   tmSettings: 'Snapshot settings',
-  tmNoFolderAtTime: 'This folder did not exist yet',
-  tmPreviewUnavailable: "Couldn't read this folder just now",
   tmItemCount: '{n} items',
   tmRailJumpTo: 'Jump to the snapshot from {time}',
-  tmStepNewer: 'Newer snapshot',
   tmStepEarlier: 'Earlier snapshot',
-  tmOpenFolder: 'Open folder {name}',
   // Task 1 additions below: copied verbatim from Vue2 NimoOS-UI's src/assets/lang/en_US.json
   // (the Time Machine stage / snapshot settings modal / restore destination modal / file
   // conflict dialog strings for the Vue2-parity rebuild). Several of the brief's proposed

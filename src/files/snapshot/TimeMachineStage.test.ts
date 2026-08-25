@@ -82,7 +82,7 @@ describe('TimeMachineStage shell', () => {
   // pre-activation node (no `tm-fwin--active`, no scale transform), while the LIVE `.tm-fwin`
   // (same tick, same activation) already carries both.
   //
-  // Deliberate-regression RED check (see task-6-fix-report.md for the full transcript): flipping
+  // Deliberate-regression RED check (see task-6-fix-report.md for the full account): flipping
   // TimeMachineStage.vue's own watcher to `{ flush: 'pre' }` did NOT turn this test red — Vue 3's
   // scheduler already runs pre-flush watcher callbacks before any component's own render job in
   // the same batch, so that particular flip isn't actually a regression here. Deferring the
