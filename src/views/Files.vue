@@ -132,6 +132,22 @@ const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is
 // button, the selection toolbar, and right-click on a single item, each via its own entry point)
 const snapshotSelection = computed(() => selectedEntries.value)
 
+// Task 15 (Vue2 parity, banner dual-state semantics): Vue2's own FilePanel.vue passes
+// `:info="isTimeMachineChromeVisible ? null : snapshotBrowseInfo"` into SnapshotBanner -- while
+// the Time Machine stage's own chrome is up, the stage supplies its OWN read-only signal (the
+// shrunk window's snap chip + the bottom bar's Exit/Restore, TimeMachineStage.vue), so the plain
+// top banner is deliberately hidden to avoid two competing "you're read-only, here's Exit/Restore"
+// UIs stacked on screen at once. Outside the stage -- most concretely the fail-safe window where
+// `browse.isSnapshotView` is locked (shouldGuardSnapshotView's fail-safe direction: idle/loading/
+// error/unconfirmed-volume all stay locked) but `browse.tmActive` never flipped true because
+// `shouldAutoEnter` requires a POSITIVELY confirmed `supported: true` volume (snapshotBrowse.ts's
+// own header comment on shouldAutoEnter) -- the banner is the ONLY read-only signal the user gets,
+// so it must still show. Ported here (the call site), not into SnapshotBanner.vue itself, mirroring
+// Vue2's own split: the banner component stays a pure `v-if="info"` presentational leaf (see that
+// component's own props comment), the caller decides what "should be visible right now" means.
+const bannerInfo = computed(() => (browse.tmActive ? null : browse.browseInfo))
+const bannerIsContainer = computed(() => !browse.tmActive && browse.isSnapshotView && !browse.browseInfo)
+
 // ── Time Machine restore (Task 14 — full Vue2-parity orchestration) ──────────────────────────
 // RestoreDestinationModal (T13) is mounted ONCE here (like SnapshotSettingsModal), reused by
 // every restore entry point below — see that component's own header comment for why it exposes
@@ -894,10 +910,10 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
             </div>
           </div>
           <SnapshotBanner
-            :info="browse.browseInfo"
+            :info="bannerInfo"
             :restoring="browse.restoring"
             :can-restore="true"
-            :is-container="browse.isSnapshotView && !browse.browseInfo"
+            :is-container="bannerIsContainer"
             :restore-progress="browse.restoreProgress"
             @exit="browse.exitTimeMachine()"
             @restore="restoreSelectionFlow(snapshotSelection)"

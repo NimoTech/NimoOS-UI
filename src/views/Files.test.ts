@@ -326,14 +326,51 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.snap-banner').exists()).toBe(false)
   })
 
-  it('shows the banner after entering a snapshot path', async () => {
-    const folders = useFoldersStore()
-    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
-    const router = makeRouter()
-    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
-    const w = mount(Files, { global: { plugins: [router, i18n] } })
-    await flushPromises()
-    expect(w.find('.snap-banner').exists()).toBe(true)
+  // Task 15 (Vue2 parity, banner dual-state semantics): with the default listVolumes mock (top
+  // of file, `/DATA` reports `supported: true`), landing directly on a real `.snapshots/<name>/...`
+  // path auto-enters the Time Machine stage (Task 10) -- by the time flushPromises settles,
+  // browse.tmActive is already true (see the 'Time Machine entry point > deep-link auto-enter'
+  // describe block's own case ③ for the same assertion in isolation). Vue2's own FilePanel.vue
+  // hides this banner exactly in that state (`:info="isTimeMachineChromeVisible ? null : ..."`) --
+  // the stage supplies its own read-only chrome (snap chip + bottom bar) instead. This case pins
+  // BOTH halves of that dual state: hidden while the stage owns the chrome, and still shown in the
+  // fail-safe gap where the lock is on but the stage never got confirmation to auto-enter.
+  it('banner dual-state: hidden while the Time Machine stage is active, still shown in the fail-safe gap where the lock is on but the stage never auto-entered', async () => {
+    // Half 1: normal auto-enter (confirmed-supported volume) -- the stage takes over, banner hidden.
+    {
+      const folders = useFoldersStore()
+      folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+      const router = makeRouter()
+      router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+      const w = mount(Files, { global: { plugins: [router, i18n] } })
+      await flushPromises()
+      const browse = useSnapshotBrowseStore()
+      expect(browse.tmActive).toBe(true) // sanity: this scenario really did auto-enter
+      expect(w.find('.tm-stage--active').exists()).toBe(true)
+      expect(w.find('.snap-banner').exists()).toBe(false)
+    }
+
+    // Half 2: fail-safe gap -- shouldGuardSnapshotView's own fail-safe direction locks
+    // isSnapshotView while listVolumes has failed (status 'error'), but shouldAutoEnter requires
+    // a POSITIVELY confirmed `supported: true` volume (snapshotBrowse.ts's own header comment on
+    // shouldAutoEnter), so tmActive never flips true here -- the exact same setup the 'deep-link
+    // auto-enter' describe block's own case ② already exercises for tmActive, reused here for the
+    // banner's own visibility.
+    {
+      setActivePinia(createPinia())
+      vi.mocked(service.snapshot.listVolumes).mockRejectedValueOnce(new Error('network'))
+      const folders = useFoldersStore()
+      folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+      const router = makeRouter()
+      router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+      const w = mount(Files, { global: { plugins: [router, i18n] } })
+      await flushPromises()
+      const browse = useSnapshotBrowseStore()
+      expect(browse.tmActive).toBe(false) // never auto-entered: no confirmed volume
+      expect(browse.isSnapshotView).toBe(true) // but the read-only lock stays on (fail-safe)
+      expect(w.find('.tm-stage--active').exists()).toBe(false)
+      expect(w.find('.snap-banner').exists()).toBe(true) // the ONLY read-only signal left standing
+    }
   })
 
   // Review fix (Important): the drag-drop overlay suggests "drop it here to upload", but a
@@ -380,6 +417,41 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.snap-banner').text()).toContain('请选择一个快照')
   })
 
+  // Task 15 gap: the container-path case just above pins the write toolbar/entry-chip lock for
+  // the bare `.snapshots` directory, but nothing previously pinned the SAME lock for the much more
+  // common case -- actually standing inside a named snapshot's own content. Covers both halves of
+  // the dual-state split: the toolbar stays gone whether the Time Machine stage owns the chrome
+  // (tmActive true, the default here via auto-enter) or the fail-safe/non-stage state (tmActive
+  // forced false) -- `browse.isSnapshotView` is the toolbar's only gate (Files.vue's own
+  // `v-if="!browse.isSnapshotView"` on `.files-actions`), independent of tmActive either way.
+  it('a real (named) snapshot path: the write toolbar and Time Machine entry chip stay gone in both the stage-active and fail-safe states', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    const browse = useSnapshotBrowseStore()
+    expect(browse.tmActive).toBe(true) // sanity: auto-entered by default (confirmed-supported volume)
+    // Scoped to `.tm-stage__hold` (the LIVE real-window container), not a bare class query:
+    // TimeMachineStage.vue's own entry-transition clones `.tm-fwin`'s DOM into a purely decorative,
+    // `aria-hidden`/`pointer-events:none` background layer (`.tm-stage__clone`) the instant tmActive
+    // flips true -- captured (by design, flush:'sync', see that file's own header comment) from
+    // whatever this component had rendered up to that point in the SAME flush pass, which for an
+    // auto-entered deep link is a stale pre-navigation frame (`isSnapshotView` still false, before
+    // `files.currentPath` catches up) where `.files-actions`/`.tb-time-machine` were still showing.
+    // That stale ghost copy is harmless in production (never visible, never interactive) but a bare
+    // `w.find('.files-actions')` would match it instead of (or as well as) the real, correctly-hidden
+    // live one, and MUST NOT be mistaken for a real assertion of the toolbar being gone.
+    expect(w.find('.tm-stage__hold .files-actions').exists()).toBe(false)
+    expect(w.find('.tm-stage__hold .tb-time-machine').exists()).toBe(false)
+
+    browse.tmActive = false // fail-safe/non-stage half of the same lock
+    await w.vm.$nextTick()
+    expect(w.find('.tm-stage__hold .files-actions').exists()).toBe(false)
+    expect(w.find('.tm-stage__hold .tb-time-machine').exists()).toBe(false)
+  })
+
   // Review re-check (Minor, second round), UPDATED for Task 6 (Vue2-parity Time Machine line,
   // Ruling P2): SnapshotSelectionToolbar (the dedicated `.snap-sel`/`.snap-sel-restore` multi-
   // select restore bar) is retired outright -- it no longer exists in Files.vue's template at
@@ -404,6 +476,26 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
 
+  // Task 15 gap: same coverage as the container-path case just above, but for a real (named)
+  // snapshot path -- the far more common way a user actually lands with a selection while
+  // browsing snapshot content. `SelectionToolbar`'s own gate is `!browse.isSnapshotView`
+  // (independent of tmActive), so this holds in the stage-active state too (the default here).
+  it('an entry selected under a real (named) snapshot path: the write-capable selection toolbar does not appear', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    expect(useSnapshotBrowseStore().tmActive).toBe(true) // sanity: stage-active by default
+    await w.get('.view-toggle-list').trigger('click')
+    const row = w.findAll('.file-row')[0]
+    await row.trigger('click', { ctrlKey: true })
+    const files = useFilesStore()
+    expect(files.selectedCount).toBe(1)
+    expect(w.find('.selection-toolbar').exists()).toBe(false)
+  })
+
   // Control group (guards against blocking one of the main entry points to the restore
   // feature along with it): with an entry selected under an actual snapshot path (a specific
   // snapshot name, browseInfo non-null), the banner's own restore button -- now the only
@@ -416,6 +508,16 @@ describe('snapshot read-only banner', () => {
     router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] } })
     await flushPromises()
+    // Task 15 (banner dual-state): the default listVolumes mock reports /DATA as
+    // `supported: true`, so this real snapshot path auto-enters the Time Machine stage
+    // (browse.tmActive flips true), which now hides this banner (see the dual-state test
+    // above). This case is specifically about the banner's OWN restore button, which is Vue2
+    // parity for the fail-safe/non-stage state (tmActive false, isSnapshotView still locked) --
+    // force it directly, the same technique the 'Time Machine stage bottom bar' case below uses
+    // in the other direction, rather than re-plumbing a whole unconfirmed-volume scenario just
+    // to reach this state.
+    useSnapshotBrowseStore().tmActive = false
+    await w.vm.$nextTick()
     await w.get('.view-toggle-list').trigger('click')
     const row = w.findAll('.file-row')[0]
     await row.trigger('click', { ctrlKey: true })
@@ -436,12 +538,16 @@ describe('snapshot read-only banner', () => {
     router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] } })
     await flushPromises()
+    // Task 15 (banner dual-state): force out of the auto-entered stage state, same reasoning as
+    // the "banner's restore button still appears" case above -- this test is about the banner's
+    // OWN progress rendering, which only matters while the banner itself is the thing showing.
+    const browse = useSnapshotBrowseStore()
+    browse.tmActive = false
+    await w.vm.$nextTick()
     await w.get('.view-toggle-list').trigger('click')
     await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
     expect(w.find('.snap-banner-restore').exists()).toBe(true)
 
-    const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
-    const browse = useSnapshotBrowseStore()
     browse.restoring = true
     browse.restoreProgress = { done: 3, total: 40 }
     await w.vm.$nextTick()
@@ -515,13 +621,18 @@ describe('restore orchestration wiring (Task 14)', () => {
     router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] } })
     await flushPromises()
+    // Task 15 (banner dual-state): the default confirmed-supported volume mock auto-enters the
+    // Time Machine stage on mount, which now hides this banner -- force back to the fail-safe/
+    // non-stage state so the banner (and its own restore button, under test here) is reachable.
+    const browse = useSnapshotBrowseStore()
+    browse.tmActive = false
+    await w.vm.$nextTick()
     await w.get('.view-toggle-list').trigger('click')
     const files = useFilesStore()
     const target = files.entries[0]
     await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
     expect(files.selectedCount).toBe(1)
 
-    const browse = useSnapshotBrowseStore()
     const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
     await w.get('.snap-banner-restore').trigger('click')
 
@@ -541,8 +652,11 @@ describe('restore orchestration wiring (Task 14)', () => {
     router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
     await flushPromises()
-
+    // Task 15 (banner dual-state): same fail-safe/non-stage forcing as the case above.
     const browse = useSnapshotBrowseStore()
+    browse.tmActive = false
+    await w.vm.$nextTick()
+
     const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
     await w.get('.snap-banner-restore').trigger('click')
     await flushPromises()
@@ -572,8 +686,11 @@ describe('restore orchestration wiring (Task 14)', () => {
     router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
     await flushPromises()
-
+    // Task 15 (banner dual-state): same fail-safe/non-stage forcing as the two cases above.
     const browse = useSnapshotBrowseStore()
+    browse.tmActive = false
+    await w.vm.$nextTick()
+
     const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
     await w.get('.snap-banner-restore').trigger('click')
     await flushPromises()
