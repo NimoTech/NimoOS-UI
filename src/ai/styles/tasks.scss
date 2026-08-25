@@ -25,6 +25,22 @@
 .tsk-run-time { font-variant-numeric: tabular-nums; }
 .tsk-run-dur { color: var(--text-tertiary); }
 .tsk-run-denied { color: var(--danger); }
+.tsk-run-cont { padding: 2px 8px; border-radius: 999px; background: var(--bg-chip);
+  color: var(--text-secondary); font-size: 10.5px; font-weight: 500; white-space: nowrap; }
+.tsk-continue { display: flex; align-items: center; gap: 8px; }
+.tsk-continue-input { flex: 1; min-width: 0; padding: 7px 10px;
+  border-radius: var(--r-sm); border: 1px solid var(--line);
+  background: var(--bg-sunken); color: var(--text-primary); font-size: 12.5px; }
+.tsk-continue-input::placeholder { color: var(--text-tertiary); }
+.tsk-revised { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.tsk-revised-badge { padding: 2px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+.tsk-prev-prompt { white-space: pre-wrap; word-break: break-word; margin: 0 0 6px;
+  padding: 8px 10px; border-radius: var(--r-sm); background: var(--bg-sunken);
+  border: 1px solid var(--line-faint); font-size: 12px; line-height: 1.55;
+  color: var(--text-secondary); max-height: 200px; overflow: auto; }
+.tsk-revised-chip { color: var(--accent); font-weight: 500; }
 .tsk-run-live { display: inline-flex; align-items: center; gap: 7px; min-width: 0;
   padding: 3px 9px 3px 8px; border-radius: 999px;
   background: var(--accent-soft); color: var(--accent);

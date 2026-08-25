@@ -28,6 +28,25 @@
 
         <div class="sk-field">
           <label class="sk-field-label">{{ t('aiTasksFieldPrompt') }}</label>
+          <!-- The agent revised this prompt during a continuation run; the
+               previous version is kept until a human edit supersedes it. -->
+          <div v-if="revisedByAgent" class="tsk-revised" data-test="revised-banner">
+            <span class="tsk-revised-badge">{{ t('aiTasksPromptRevisedByAgent') }}</span>
+            <button class="sk-btn ghost" data-test="prev-toggle" @click="showPrevPrompt = !showPrevPrompt">
+              {{ t('aiTasksPromptPrevVersion') }}
+            </button>
+            <button
+              class="sk-btn ghost"
+              data-test="revert-prompt"
+              :title="t('aiTasksPromptRevertHint')"
+              @click="revertPrompt"
+            >
+              {{ t('aiTasksPromptRevert') }}
+            </button>
+          </div>
+          <pre v-if="revisedByAgent && showPrevPrompt" class="tsk-prev-prompt" data-test="prev-prompt">{{
+            task?.prev_prompt
+          }}</pre>
           <textarea
             v-model="form.prompt"
             rows="6"
@@ -356,6 +375,15 @@ const models = computed<AgentModel[]>(() => agentStore.availableModels)
 const tz = tzLabel()
 
 const truncatedFields = computed(() => Object.keys(truncated.value || {}))
+const showPrevPrompt = ref(false)
+const revisedByAgent = computed(
+  () => !!(props.task && props.task.prompt_revised_by === 'agent' && props.task.prev_prompt),
+)
+// Puts the pre-revision prompt back into the form; saving applies it (the
+// backend clears the revision markers on any human prompt change).
+function revertPrompt() {
+  form.prompt = props.task?.prev_prompt || ''
+}
 // A webhook can trigger ANY saved task, not just an unscheduled one — the
 // trigger type only says whether the task ALSO fires on its own. There is
 // no token to show while creating, because the server mints it on save.

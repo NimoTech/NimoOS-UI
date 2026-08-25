@@ -34,6 +34,9 @@ export interface TaskRow {
   next_run_at?: number
   last_run_at?: number
   enabled?: boolean | number
+  prev_prompt?: string
+  prompt_revised_at?: number
+  prompt_revised_by?: string
   [k: string]: unknown
 }
 
@@ -45,6 +48,7 @@ export interface TaskRun {
   started_at?: number
   finished_at?: number
   session_id?: string
+  resumed_from?: string
   summary?: string
   error?: string
   denied_actions?: Array<{ kind?: string; detail?: string }>

@@ -11,12 +11,14 @@ import zh from '../../i18n/zh_cn'
 const h = vi.hoisted(() => ({
   listTaskRuns: vi.fn(),
   adoptDeniedAction: vi.fn(),
+  continueTaskRun: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     ai: {
       listTaskRuns: h.listTaskRuns,
       adoptDeniedAction: h.adoptDeniedAction,
+      continueTaskRun: h.continueTaskRun,
     },
   },
 }))
@@ -119,6 +121,40 @@ describe('TaskRunsPanel', () => {
     const w = mountPanel()
     await flush()
     expect(w.text()).toContain('该任务尚未运行过') // aiTasksNoRuns
+    w.unmount()
+  })
+
+  it('a terminal run with a session offers Continue; the supplement is sent trimmed', async () => {
+    h.listTaskRuns.mockResolvedValue({ runs: [run({ status: 'failed', error: 'boom' })] })
+    h.continueTaskRun.mockResolvedValue({ run_id: 'r-new' })
+    const w = mountPanel()
+    await flush()
+    await w.find('[data-test="run-head"]').trigger('click')
+    await flush()
+    await w.find('[data-test="continue-input"]').setValue('  clean /tmp first  ')
+    await w.find('[data-test="continue-btn"]').trigger('click')
+    await flush()
+    expect(h.continueTaskRun).toHaveBeenCalledWith('t1', 'r1', 'clean /tmp first')
+    // The list refreshes so the queued continuation shows up.
+    expect(h.listTaskRuns.mock.calls.length).toBeGreaterThan(1)
+    w.unmount()
+  })
+
+  it('an active run offers no Continue control', async () => {
+    h.listTaskRuns.mockResolvedValue({ runs: [run({ status: 'running' })] })
+    const w = mountPanel()
+    await flush()
+    await w.find('[data-test="run-head"]').trigger('click')
+    await flush()
+    expect(w.find('[data-test="continue-btn"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('a continuation run wears the continued badge', async () => {
+    h.listTaskRuns.mockResolvedValue({ runs: [run({ resumed_from: 'r0' })] })
+    const w = mountPanel()
+    await flush()
+    expect(w.find('[data-test="continued-badge"]').text()).toContain('续跑')
     w.unmount()
   })
 })
