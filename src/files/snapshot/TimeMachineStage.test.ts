@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { defineComponent, nextTick } from 'vue'
+import gsap from 'gsap'
 import TimeMachineStage from './TimeMachineStage.vue'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
@@ -123,7 +124,12 @@ describe('TimeMachineStage shell', () => {
     expect(w.emitted('open-settings')).toHaveLength(1)
   })
 
-  it('.tm-fwin--traveling reflects the store\'s tmTravel state', async () => {
+  // Fix round (review finding 1): `.tm-fwin--traveling` reflects `tmTravelActive` (the
+  // reveal-gate flag TimeMachineDepthStack.vue's own armReveal/settle owns), NOT `tmTravel` (a
+  // pure "navigation in flight" signal that clears within milliseconds, long before a real dolly
+  // sweep finishes) -- see snapshotBrowse.ts's own header comment on tmTravelActive for why the
+  // two are deliberately separate. `tmTravel` toggling alone must NOT flip the class any more.
+  it('.tm-fwin--traveling reflects the store\'s tmTravelActive state, not tmTravel', async () => {
     const w = mountIt()
     const browse = useSnapshotBrowseStore()
     browse.tmActive = true
@@ -132,9 +138,18 @@ describe('TimeMachineStage shell', () => {
 
     browse.tmTravel = { from: 'a', to: 'b' }
     await nextTick()
+    expect(w.find('.tm-stage__hold .tm-fwin').classes()).not.toContain('tm-fwin--traveling')
+
+    browse.tmTravelActive = true
+    await nextTick()
     expect(w.find('.tm-stage__hold .tm-fwin').classes()).toContain('tm-fwin--traveling')
 
+    // tmTravel clearing (navigation settled) alone must NOT reveal the real window.
     browse.tmTravel = null
+    await nextTick()
+    expect(w.find('.tm-stage__hold .tm-fwin').classes()).toContain('tm-fwin--traveling')
+
+    browse.tmTravelActive = false
     await nextTick()
     expect(w.find('.tm-stage__hold .tm-fwin').classes()).not.toContain('tm-fwin--traveling')
   })
@@ -194,6 +209,54 @@ describe('TimeMachineStage shell', () => {
       useSnapshotBrowseStore().tmActive = true
       await nextTick()
       expect(w.find('.tm-depth-stack').exists()).toBe(true)
+    })
+
+    // Fix round (review finding 2): TimeMachineDepthStack.vue must measure the STAGE root
+    // (`.tm-stage`, provided by TimeMachineStage.vue via tmStageRoot.ts), NOT its own
+    // `.tm-depth-stack` wrapper -- the wrapper's own CSS already reserves the bottom 80px band,
+    // so measuring IT double-subtracts that band inside resolveSlotPose/computeVisibleStripCap.
+    // Regression guard: stub `clientHeight` to a DIFFERENT, identifiable value per element and
+    // assert the resulting T(-1) strip's own GSAP-applied `y` matches the STAGE element's height
+    // (`* 1.4`, resolveSlotPose's own EXIT_OFFSET_MULTIPLIER) -- if the component were still
+    // measuring the wrapper, this would instead reflect the wrapper's own (deliberately
+    // different) stubbed value.
+    it('measures the stage root\'s clientHeight, not the depth-stack wrapper\'s', async () => {
+      const originalDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight')
+      Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.classList.contains('tm-stage')) return 1000
+          if (this.classList.contains('tm-depth-stack')) return 1 // deliberately wrong if ever read
+          return 0
+        },
+      })
+      try {
+        const w = mountIt()
+        const browse = useSnapshotBrowseStore()
+        const files = useFilesStore()
+        listVolumesMock.mockResolvedValue([{ volume_uuid: 'u1', mount: '/media/RAID_0', supported: true }])
+        await browse.ensureVolumes()
+        browse.snapshotList = [
+          { name: 's0', created_at: '2026-01-02T00:00:00Z' }, // more recent -- lands at depth -1
+          { name: 's1', created_at: '2026-01-01T00:00:00Z' }, // selection -- depth 0
+        ]
+        files.currentPath = '/media/RAID_0/.snapshots/s1'
+        browse.tmActive = true
+        await nextTick()
+        await nextTick() // TimeMachineDepthStack's own onMounted -> nextTick(measureHeight)
+        await flushPromises()
+
+        const strip = w.get('[data-snapshot="s0"]') // depth -1
+        expect(strip.attributes('data-depth')).toBe('-1')
+        const y = gsap.getProperty(strip.element, 'y')
+        expect(y).toBeCloseTo(1000 * 1.4, 5) // stage's own 1000 * resolveSlotPose's EXIT_OFFSET_MULTIPLIER
+      } finally {
+        // clientHeight is normally inherited from Element.prototype (no own descriptor on
+        // HTMLElement.prototype) -- restore the own descriptor if one existed, else remove the
+        // stub entirely so it cannot leak into any other test in this file.
+        if (originalDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientHeight', originalDescriptor)
+        else Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight')
+      }
     })
   })
 

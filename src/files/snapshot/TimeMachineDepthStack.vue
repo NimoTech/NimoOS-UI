@@ -29,14 +29,54 @@
   Stage-height measurement (Task 7's own addition -- Vue2's own `measureStageHeight`/
   `onWindowResize`/`ResizeObserver`-equivalent, ported as a REAL `ResizeObserver` rather than a
   rAF-throttled `window resize` listener, since New-UI already has a same-shape precedent for this
-  exact pattern in FileGridView.vue: guard `typeof ResizeObserver !== 'undefined'`, observe this
-  component's own root -- which, like Vue2's `.tm-stage__depth-stack`, is deliberately transformed
-  to match `.tm-fwin`'s own scaled geometry, so its OWN `clientHeight` before that transform is
-  applied is the correct "real window box height" `resolveSlotPose`'s own `stageHeight` param and
-  `computeVisibleStripCap` both expect) feeds BOTH `resolveSlotPose`'s T(-1) exit-offset formula
-  and `computeVisibleStripCap`'s own strip-count ceiling -- see timeMachineMath.ts's own header
-  comments on each for why a stale/unmeasured height degrades safely (fixed fallback / uncapped
-  ceiling) rather than clipping everything to nothing.
+  exact pattern in FileGridView.vue: guard `typeof ResizeObserver !== 'undefined'`) feeds BOTH
+  `resolveSlotPose`'s T(-1) exit-offset formula and `computeVisibleStripCap`'s own strip-count
+  ceiling -- see timeMachineMath.ts's own header comments on each for why a stale/unmeasured
+  height degrades safely (fixed fallback / uncapped ceiling) rather than clipping everything to
+  nothing.
+
+  Fix round (review finding 2): the measured element is the STAGE ROOT (`.tm-stage`,
+  TimeMachineStage.vue's own element, injected via tmStageRoot.ts), NOT this component's own
+  `.tm-depth-stack` wrapper -- that wrapper's CSS already reserves the bottom 80px band
+  (`bottom: 80px`, matching computeVisibleStripCap's own bottomGap constant), so its OWN
+  clientHeight is already `stageHeight - 80`; feeding that into functions that subtract 80
+  internally themselves double-subtracts it. See tmStageRoot.ts's own header comment for the full
+  rationale and why provide/inject (not `offsetParent`) is the mechanism.
+
+  Reveal-gate (Task 7 fix round, review finding 1 -- Vue2's own armReveal/reveal, ported): the
+  REAL window's own `.tm-fwin--traveling` hard-hide (TimeMachineStage.vue) must not release just
+  because the store's own navigation settled (tmTravel clearing, milliseconds) -- it must wait for
+  the travel to actually finish. Deliberately NOT hooked to the GSAP timeline's own onComplete
+  (same posture Vue2 takes, see that file's own header comment on this exact point): a plain
+  `setTimeout(travelDurationMs(steps))` runs in parallel with the GSAP call, then checks the
+  target's own preview promise (`getSnapshotPreview`, Task 4) before calling `browse.settleTravel()`
+  -- which flips `tmTravelActive` back off, releasing the real window. A `travelSafetyTimer`
+  (Vue2's own TRAVEL_SAFETY_EXTRA_MS, 800ms beyond the travel duration) guarantees a reveal
+  regardless of a preview fetch that never appears, never settles, or rejects. A `travelToken`,
+  bumped every time a NEW travel is armed, guards `settle()` so a superseded travel's own
+  (eventually-firing) timers become safe no-ops rather than clobbering a NEWER travel's still
+  in-flight wait -- Vue2's own token guard, ported verbatim in spirit (object-identity-per-call
+  replaced with a plain incrementing counter, since JS closures already give each armed travel its
+  own captured `{from,to}`, unlike Vue2's single shared `this.travelPinNames`).
+
+  Simplification vs Vue2 (documented, not an oversight): Vue2's own armReveal polls
+  (TRAVEL_READY_POLL_MS) because its cache module (snapshotPreviewCache.js) only wraps a promise
+  the consumer already built -- there is nothing to look up until the target's own
+  `<snapshot-preview-window>` has mounted and registered one. New-UI's own
+  `getSnapshotPreview(mount, name, relPath)` (Task 4) both looks up AND fetches atomically, so
+  calling it here either returns the SAME in-flight/settled promise the target's own preview
+  component already triggered (the common case, since pinning already mounted it), or triggers
+  the fetch itself if nothing has yet -- either way, one direct call replaces Vue2's whole
+  poll-until-cached loop, no separate TRAVEL_READY_POLL_MS timer needed.
+
+  Vue2 also arms this SAME reveal-gate timer twice per switch (once at click time, in `switchTo`,
+  BEFORE the async navigation even starts; a second time, re-arming/restarting it, once the
+  `activeSnapshotName` watcher confirms navigation actually landed) -- belt-and-suspenders against
+  a SLOW navigation letting the click-time timer fire and reveal a real window that still shows
+  stale content. That double-arm is not needed here: this component's own reveal-gate is armed
+  ONLY once navigation has already landed (the SAME trigger `runTravel`'s own watcher already
+  uses, below) -- there is no click-time timer that could fire early, so there is nothing to
+  re-arm against.
 -->
 <template>
   <div ref="rootEl" class="tm-depth-stack" :style="stackStyle" aria-hidden="true">
@@ -72,7 +112,9 @@ import gsap from 'gsap'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
 import { resolveDollySlots, resolveSlotPose, computeVisibleStripCap, TM_WINDOW_SCALE, type SlotPose } from '../util/timeMachineMath'
-import { playTravelTimeline, poseToGsapVars, dimGsapVars, type TravelTarget } from '../util/timeMachineChoreo'
+import { playTravelTimeline, poseToGsapVars, dimGsapVars, travelDurationMs, type TravelTarget } from '../util/timeMachineChoreo'
+import { getSnapshotPreview } from '../util/snapshotPreviewCache'
+import { injectTmStageRoot } from './tmStageRoot'
 import SnapshotPreviewWindow from './SnapshotPreviewWindow.vue'
 
 defineOptions({ name: 'TimeMachineDepthStack' })
@@ -80,6 +122,11 @@ defineOptions({ name: 'TimeMachineDepthStack' })
 const browse = useSnapshotBrowseStore()
 const files = useFilesStore()
 
+// Fix round (review finding 2): the STAGE root (`.tm-stage`), not this component's own
+// `.tm-depth-stack` wrapper -- see tmStageRoot.ts's own header comment and this file's own
+// header comment for why. `rootEl` (this component's own root) stays -- it is still the correct
+// scale/transform-origin host for the cascade itself, just not the measurement source.
+const stageRootRef = injectTmStageRoot()
 const rootEl = ref<HTMLElement | null>(null)
 const stageHeight = ref(0)
 
@@ -101,8 +148,11 @@ const visibleStripCap = computed(() => computeVisibleStripCap(stageHeight.value)
 // Fix Round 11 (M2-F15, ported, see resolveDollySlots' own header comment): force-includes the
 // travel's two endpoints at their own real slot regardless of the normal window, so a distant
 // jump has a real "before" DOM node to animate from and a real "after" one to animate to, exactly
-// like a single-step switch already did. Set by the `browse.tmTravel` watcher below, cleared once
-// `runTravel`'s own GSAP timeline actually completes.
+// like a single-step switch already did. Set by the `browse.tmTravel` watcher below, cleared by
+// `settle()` (the reveal-gate below) once the travel actually lands OR is superseded -- NOT by
+// the GSAP timeline's own onComplete (fix round, review finding 3: a superseded travel's timeline
+// gets `.kill()`ed, which never fires onComplete, so a completion-driven clear would leak the
+// pin until this component remounts).
 const pinNames = ref<string[]>([])
 
 const dollySlots = computed(() =>
@@ -112,8 +162,32 @@ const dollySlots = computed(() =>
   })),
 )
 
+// A resize/late-measurement is NOT a travel -- the only dolly-slot pose that can actually depend
+// on `stageHeight` is T(-1)'s own exit offset (resolveSlotPose) -- so an already-rendered slot's
+// `gsap.set()`-applied inline style (from its own `v-tm-pose`/`v-tm-dim` `mounted` hook, possibly
+// captured back when `stageHeight` was still its unmeasured 0 default -- the FIRST render always
+// happens before `onMounted`'s own measurement, see `measureHeight` below) can otherwise go
+// quietly stale with no travel ever happening to correct it (a directive's `mounted` hook fires
+// exactly ONCE, unlike a bound `:style`, which would have re-applied on every render for free).
+// Re-applies (via `gsap.set`, no animation) every CURRENTLY rendered layer's own pose from the
+// freshly recomputed `dollySlots` -- a no-op `gsap.set` for any layer whose pose did not actually
+// change (Vue2's own syncDollyPosesInstant, ported verbatim).
+function syncDollyPosesInstant() {
+  dollySlots.value.forEach((slot) => {
+    const el = stripRefs.get(slot.name)
+    const dim = dimRefs.get(slot.name)
+    if (el) gsap.set(el, poseToGsapVars(slot.pose))
+    if (dim) gsap.set(dim, dimGsapVars(slot.pose))
+  })
+}
+
+// Fix round (review finding 2): measures `stageRootRef.value` (the injected `.tm-stage` element),
+// NOT `rootEl.value` (this component's own `.tm-depth-stack` wrapper) -- see this file's own
+// header comment for why the wrapper's own clientHeight is already reduced by the bottom-gap
+// band `resolveSlotPose`/`computeVisibleStripCap` subtract themselves.
 function measureHeight() {
-  stageHeight.value = rootEl.value ? rootEl.value.clientHeight : 0
+  stageHeight.value = stageRootRef.value ? stageRootRef.value.clientHeight : 0
+  syncDollyPosesInstant()
 }
 
 let resizeObserver: ResizeObserver | null = null
@@ -189,6 +263,7 @@ watch(
     // patch from the `currentIndex` change above must have landed -- before `stripRefs`/`dimRefs`
     // lookups below can find it.
     nextTick(() => runTravel(steps, travel))
+    armReveal(travel, steps)
   },
 )
 
@@ -206,27 +281,95 @@ function runTravel(steps: number, travel: { from: string, to: string }) {
     travelTimeline.kill()
     travelTimeline = null
   }
-  const build = () =>
-    playTravelTimeline(targets, {
-      steps,
-      onComplete: () => {
-        pinNames.value = pinNames.value.filter((n) => n !== travel.from && n !== travel.to)
-      },
-    })
+  // Fix round (review finding 1/3): no `onComplete` here any more -- the GSAP timeline's own
+  // completion no longer drives anything observable (not the real window's reveal, not pin
+  // clearing). See this file's own header comment for why that gate is a SEPARATE, plain-timer
+  // mechanism (`armReveal`/`settle` below) rather than hooked to this timeline.
+  const build = () => playTravelTimeline(targets, { steps })
   travelTimeline = gsapCtx.add(build)
+}
+
+// --- Reveal-gate (Task 7 fix round, review finding 1 -- Vue2's own armReveal/reveal) ------------
+// Ported verbatim in mechanism (see this file's own header comment for the full model and the
+// one deliberate simplification vs Vue2's own poll-based cache lookup).
+const TRAVEL_SAFETY_EXTRA_MS = 800 // Vue2's own constant, same value
+
+let travelToken = 0
+let travelTimer: ReturnType<typeof setTimeout> | null = null
+let travelSafetyTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearTravelTimers() {
+  if (travelTimer !== null) { clearTimeout(travelTimer); travelTimer = null }
+  if (travelSafetyTimer !== null) { clearTimeout(travelSafetyTimer); travelSafetyTimer = null }
+}
+
+// The ONE place the reveal actually happens. Guarded by `token`: a reveal armed for an EARLIER
+// travel (its preview promise settling late, or its own safety timer) can never clobber a LATER
+// travel's own still-in-progress wait, because a newer `armReveal` call already bumped
+// `travelToken` and cleared every timer this one could still be holding -- the only way a stale
+// callback can still run at all is an already-queued Promise microtask (a timer clear cannot
+// cancel that), and this guard is what makes that a safe no-op (Vue2's own `reveal(token)` --
+// see this file's own header comment).
+function settle(token: number, travel: { from: string, to: string }) {
+  if (token !== travelToken) return
+  clearTravelTimers()
+  // Fix round (review finding 3): pin-clearing now lives HERE (fires on a normal settle AND,
+  // via the token guard above, is skipped -- not leaked -- on a superseded one, since the newer
+  // travel's own eventual `settle()` clears the union of names it pinned, which still includes
+  // whatever the superseded travel added, see the `tmTravel` watcher above) rather than on the
+  // GSAP timeline's own onComplete, which never fires for a `.kill()`ed (superseded) timeline.
+  pinNames.value = pinNames.value.filter((n) => n !== travel.from && n !== travel.to)
+  browse.settleTravel()
+}
+
+// Arms the reveal for `travel`, bumping `travelToken` so any STILL-pending earlier reveal becomes
+// a no-op once its own timer/promise eventually fires. `durationMs` is the SAME
+// `travelDurationMs(steps)` the GSAP timeline itself uses (`runTravel`, above) -- deliberately NOT
+// collapsed under `prefers-reduced-motion` (Vue2's own explicit choice, ported: "the readiness
+// gate is unaffected... never whether the real window waits for the target's own preview to be
+// ready" -- only the depth-stack's own visual motion degrades under reduced motion, not this
+// timing floor).
+function armReveal(travel: { from: string, to: string }, steps: number) {
+  travelToken += 1
+  const token = travelToken
+  clearTravelTimers()
+  const durationMs = travelDurationMs(steps)
+  // Safety ceiling: reveals unconditionally once durationMs + TRAVEL_SAFETY_EXTRA_MS has passed,
+  // regardless of whether the target's own preview promise ever appears, settles, or rejects.
+  travelSafetyTimer = setTimeout(() => {
+    travelSafetyTimer = null
+    settle(token, travel)
+  }, durationMs + TRAVEL_SAFETY_EXTRA_MS)
+  travelTimer = setTimeout(() => {
+    travelTimer = null
+    // getSnapshotPreview both looks up AND fetches (see this file's own header comment) -- no
+    // separate "not cached yet, poll again shortly" loop needed, unlike Vue2's own armReveal.
+    getSnapshotPreview(mount.value, travel.to, relPath.value).then(
+      () => settle(token, travel),
+      // Deliberately a no-op, not `() => settle(token, travel)` too -- a REJECTED preview fetch
+      // does not reveal early on its own; the safety timer above still guarantees "reveal
+      // anyway" for it. This handler exists so a rejection never surfaces as an unhandled
+      // promise rejection (getSnapshotPreview's own contract never actually rejects, but this
+      // stays defensive against that contract changing).
+      () => {},
+    )
+  }, durationMs)
 }
 
 onMounted(() => {
   nextTick(() => measureHeight())
   if (typeof ResizeObserver !== 'undefined') {
+    // Fix round (review finding 2): observes `stageRootRef.value` (the injected `.tm-stage`
+    // element), not this component's own root -- see measureHeight's own comment.
     resizeObserver = new ResizeObserver(() => measureHeight())
-    if (rootEl.value) resizeObserver.observe(rootEl.value)
+    if (stageRootRef.value) resizeObserver.observe(stageRootRef.value)
   }
 })
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
+  clearTravelTimers()
   if (travelTimeline) {
     travelTimeline.kill()
     travelTimeline = null

@@ -29,6 +29,7 @@ import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useWallpaperStore, recordUrl } from '../../stores/wallpaper'
 import { TM_WINDOW_SCALE, clampStepIndex } from '../util/timeMachineMath'
 import { EXIT_FADE_MS } from '../util/timeMachineChoreo'
+import { provideTmStageRoot } from './tmStageRoot'
 import TimeMachineDepthStack from './TimeMachineDepthStack.vue'
 
 defineOptions({ name: 'TimeMachineStage' })
@@ -55,8 +56,21 @@ const stageRoot = ref<HTMLElement | null>(null)
 const fwinEl = ref<HTMLElement | null>(null)
 const cloneMount = ref<HTMLElement | null>(null)
 
+// Task 7 fix round (review finding 2): TimeMachineDepthStack.vue's own stage-height measurement
+// needs THIS element (`.tm-stage`, the same one Vue2 measures via its own `$refs.stage`), not its
+// own `.tm-depth-stack` wrapper — see tmStageRoot.ts's own header comment for why measuring the
+// wrapper double-subtracts the bottom-gap constant resolveSlotPose/computeVisibleStripCap already
+// subtract themselves.
+provideTmStageRoot(stageRoot)
+
 const active = computed(() => browse.tmActive)
-const traveling = computed(() => browse.tmTravel !== null)
+// Task 7 fix round (review finding 1): reads tmTravelActive (TimeMachineDepthStack.vue's own
+// reveal-gate — armReveal/settle, ported from Vue2's own armReveal/reveal), NOT tmTravel
+// (which clears the instant the store's own router.replace resolves, ms before the depth-stack's
+// 420-900ms dolly sweep or the target's own preview listing have actually finished — releasing
+// the hard-hide on THAT signal revealed the real window mid-animation on essentially every
+// switch). See snapshotBrowse.ts's own header comment on tmTravelActive for the full split.
+const traveling = computed(() => browse.tmTravelActive)
 const fadingOut = ref(false)
 
 // TM_WINDOW_SCALE (timeMachineMath.ts) is the single source of the 0.82 scale factor — bound via

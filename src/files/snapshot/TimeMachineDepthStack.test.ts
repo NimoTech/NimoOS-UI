@@ -14,6 +14,7 @@ import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
 import { resolveDollySlots } from '../util/timeMachineMath'
 import * as choreo from '../util/timeMachineChoreo'
+import { getSnapshotPreview, type SnapshotPreviewEntry } from '../util/snapshotPreviewCache'
 
 const listVolumesMock = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -22,8 +23,12 @@ vi.mock('@nimotech/nimoos-service', () => ({
 vi.mock('../../router', () => ({ router: { push: vi.fn(), replace: vi.fn() } }))
 // SnapshotPreviewWindow (mounted once per visible strip) fetches its own listing -- stub it so this
 // suite exercises slot wiring only, not that component's own already-tested fetch behavior (see
-// SnapshotPreviewWindow.test.ts for that contract).
+// SnapshotPreviewWindow.test.ts for that contract). The SAME mock backs the reveal-gate's own
+// `getSnapshotPreview` call (this component's own header comment: it reuses the identical cache
+// key), so per-test control over ITS resolution timing is what the reveal-gate describe block
+// below exercises.
 vi.mock('../util/snapshotPreviewCache', () => ({ getSnapshotPreview: vi.fn().mockResolvedValue({ entries: [], error: false }) }))
+const getSnapshotPreviewMock = vi.mocked(getSnapshotPreview)
 
 const MOUNT = '/media/RAID_0'
 
@@ -42,6 +47,11 @@ async function setup(names: string[], currentName: string, relPath = '') {
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
+  // `vi.clearAllMocks()` wipes call history but NOT a custom `mockImplementation`/`mockReturnValue`
+  // a test further down installs on `getSnapshotPreviewMock` to control the reveal-gate's own
+  // timing -- reset it back to the default resolved behavior every test starts with.
+  getSnapshotPreviewMock.mockReset()
+  getSnapshotPreviewMock.mockResolvedValue({ entries: [], error: false })
 })
 
 afterEach(() => {
@@ -166,30 +176,178 @@ describe('TimeMachineDepthStack — travel playback (mocked choreography, real g
     expect(targetNames).toEqual(expect.arrayContaining(['s1', 's4']))
   })
 
-  it('clears the pin on both endpoints once the timeline completes -- a name outside the new window disappears again', async () => {
-    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+})
+
+// Task 7 fix round (review finding 1 -- Vue2's own armReveal/reveal, ported): the reveal-gate is a
+// plain, independent `setTimeout` mechanism (deliberately NOT hooked to the GSAP timeline's own
+// onComplete -- see TimeMachineDepthStack.vue's own header comment), so it is exercised here with
+// fake timers rather than `tl.progress(1)` (the technique the OLD onComplete-driven design used,
+// and which timeMachineChoreo.test.ts still uses for the choreography module's own, unrelated
+// contract). `browse.settleTravel` is the ONE observable side effect the gate produces (it is
+// what TimeMachineStage.vue's own `.tm-fwin--traveling` ultimately reads via `tmTravelActive` --
+// see that component's own test for the DOM-level assertion; this suite spies on the store action
+// directly since it is this component's own, more precise contract boundary).
+describe('TimeMachineDepthStack — reveal-gate (review finding 1: does not settle before the travel finishes)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('does not settle before BOTH the travel duration elapses AND the target preview resolves', async () => {
+    let resolvePreview: (() => void) | undefined
+    getSnapshotPreviewMock.mockImplementation(
+      () => new Promise<SnapshotPreviewEntry>((resolve) => { resolvePreview = () => resolve({ entries: [], error: false }) }),
+    )
+    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's1')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    browse.tmTravel = { from: 's1', to: 's2' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s2`
+    browse.tmTravel = null
+    await nextTick() // the currentSnapshotName watcher fires here, arming the gate
+
+    // A 1-step switch's own travel duration is TRAVEL_BASE_DURATION_MS (420ms, timeMachineChoreo.ts)
+    // -- advance well past it while the preview promise is still pending.
+    await vi.advanceTimersByTimeAsync(500)
+    expect(settleSpy).not.toHaveBeenCalled()
+
+    resolvePreview?.()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('reveals regardless once the safety ceiling elapses, even if the preview promise never settles', async () => {
+    getSnapshotPreviewMock.mockReturnValue(new Promise(() => {})) // never settles
+    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's1')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    browse.tmTravel = { from: 's1', to: 's2' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s2`
+    browse.tmTravel = null
+    await nextTick()
+
+    await vi.advanceTimersByTimeAsync(500) // past the 420ms travel duration, promise still pending
+    expect(settleSpy).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(800) // TRAVEL_SAFETY_EXTRA_MS, ported from Vue2
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not settle early even when reduced motion collapses the GSAP timeline itself to zero duration (Vue2\'s own explicit choice: the readiness gate is unaffected)', async () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia
+    let resolvePreview: (() => void) | undefined
+    getSnapshotPreviewMock.mockImplementation(
+      () => new Promise<SnapshotPreviewEntry>((resolve) => { resolvePreview = () => resolve({ entries: [], error: false }) }),
+    )
+    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's1')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    browse.tmTravel = { from: 's1', to: 's2' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s2`
+    browse.tmTravel = null
+    await nextTick()
+
+    // The GSAP side is instant under reduced motion (see the separate "reduced motion" describe
+    // block below), but the reveal-gate's own timer is NOT reduced-motion-aware -- it still waits
+    // the full, un-reduced travelDurationMs before even CALLING getSnapshotPreview (so
+    // `resolvePreview` is not assigned, and calling it earlier would be a no-op on a promise that
+    // does not exist yet).
+    await vi.advanceTimersByTimeAsync(100)
+    expect(settleSpy).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(400) // crosses the 420ms floor -- getSnapshotPreview now called
+    expect(settleSpy).not.toHaveBeenCalled() // preview still pending
+    resolvePreview?.()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('a superseded switch re-arms the gate for the NEW target -- the earlier travel settles exactly once, not twice', async () => {
+    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's1')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    // First travel: s1 -> s2 (1 step, base duration).
+    browse.tmTravel = { from: 's1', to: 's2' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s2`
+    browse.tmTravel = null
+    await nextTick()
+
+    // Before it settles, a SECOND switch supersedes it: s2 -> s4 (2 steps, still base duration --
+    // both <= TRAVEL_FLAT_STEPS).
+    await vi.advanceTimersByTimeAsync(100)
+    browse.tmTravel = { from: 's2', to: 's4' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s4`
+    browse.tmTravel = null
+    await nextTick()
+
+    // Advance past where the FIRST travel's own gate would have fired (420ms from ITS OWN arm
+    // point, ~320ms from here) -- must not have settled from the stale one.
+    await vi.advanceTimersByTimeAsync(350)
+    expect(settleSpy).not.toHaveBeenCalled()
+
+    // Advance past the SECOND (surviving) travel's own full gate.
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(settleSpy).toHaveBeenCalledTimes(1) // exactly once -- no stale double-settle
+  })
+})
+
+describe('TimeMachineDepthStack — pin leak on superseded travel (review finding 3)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  // Fix round: pin-clearing moved OFF the GSAP timeline's own onComplete (which never fires for a
+  // `.kill()`ed, superseded timeline -- see TimeMachineDepthStack.vue's own header comment) and
+  // onto the reveal-gate's own `settle()`, which fires for every travel exactly once (including a
+  // superseded one, via the token-guard, as a safe no-op that still ran ITS OWN pin-cleanup path
+  // for whichever travel's callback actually wins) -- see the describe block above for the
+  // "settles exactly once" half of this same mechanism.
+  it('a rapid double-switch leaves no stale pinned strip once the surviving travel settles', async () => {
     const names = Array.from({ length: 20 }, (_, i) => `s${i}`)
     const { browse, files } = await setup(names, 's0')
     const w = mount(TimeMachineDepthStack)
     await flushPromises()
 
+    // First: a distant jump to s15 (pinned in at its own real, far-outside-the-window depth).
     browse.tmTravel = { from: 's0', to: 's15' }
     await nextTick()
+    expect(w.find('[data-snapshot="s15"]').exists()).toBe(true)
+
     files.currentPath = `${MOUNT}/.snapshots/s15`
     browse.tmTravel = null
-    await flushPromises()
-    expect(spy).toHaveBeenCalledTimes(1)
-
-    const tl = spy.mock.results[0].value
-    tl.progress(1) // force-complete (T3's own established technique -- see timeMachineChoreo.test.ts)
     await nextTick()
-    // s0's real depth from the NEW selection (s15) is -15 -- far outside the normal window, and no
-    // longer pinned once the travel's own onComplete fired.
-    expect(w.find('[data-snapshot="s0"]').exists()).toBe(false)
+
+    // Before that travel's own gate can ever fire, a SECOND rapid switch supersedes it -- back to s1.
+    await vi.advanceTimersByTimeAsync(50)
+    browse.tmTravel = { from: 's15', to: 's1' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s1`
+    browse.tmTravel = null
+    await nextTick()
+
+    // Let everything settle: both timers and both preview promises.
+    await vi.advanceTimersByTimeAsync(2000)
+    await flushPromises()
+
+    // s15 is 14 slots away from s1's own normal window -- its pin must have been cleared once the
+    // SURVIVING (second) travel's own gate settled, not left stuck rendered forever.
+    expect(w.find('[data-snapshot="s15"]').exists()).toBe(false)
   })
 })
 
-describe('TimeMachineDepthStack — reduced motion', () => {
+describe('TimeMachineDepthStack — reduced motion (GSAP timeline itself, separate from the reveal-gate above)', () => {
   it('collapses the travel timeline to zero duration under prefers-reduced-motion, still reaching the final pose', async () => {
     window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia
     const spy = vi.spyOn(choreo, 'playTravelTimeline')

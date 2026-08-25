@@ -35,8 +35,13 @@ beforeEach(() => {
   listVolumesMock.mockResolvedValue(VOLS)
   listSnapshotsMock.mockResolvedValue([])
   getListMock.mockResolvedValue({ content: [] })
-  vi.mocked(router.push).mockClear()
-  vi.mocked(router.replace).mockClear()
+  // Task 7 fix round: `mockReset()`, not `mockClear()` -- a test further down
+  // ("sets tmTravel around the navigation, clears it once settled") installs a custom
+  // `mockImplementation` on `router.replace` to control timing; `mockClear()` alone only wipes
+  // call history, leaving that implementation (a promise nothing else will ever resolve) to leak
+  // into every later test that calls switchTo, hanging them until the suite's own timeout.
+  vi.mocked(router.push).mockReset()
+  vi.mocked(router.replace).mockReset()
 })
 
 describe('ensureVolumes', () => {
@@ -313,6 +318,19 @@ describe('time machine: enter / exit / switch', () => {
       expect(getListMock).toHaveBeenCalledWith('/DATA/Photos')
       expect(router.push).toHaveBeenCalledWith(expect.stringContaining('Photos'))
     })
+    // Task 7 fix round: a stuck-true tmTravelActive (e.g. the depth-stack component was
+    // unmounted mid-travel, so nothing was ever going to call settleTravel()) must not survive
+    // past leaving Time Machine mode entirely.
+    it('clears a stuck tmTravelActive synchronously too', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      await s.switchTo('snap2')
+      expect(s.tmTravelActive).toBe(true)
+
+      s.exitTimeMachine()
+      expect(s.tmTravelActive).toBe(false)
+    })
     it('falls back to the volume root when the live directory no longer exists', async () => {
       getListMock.mockRejectedValue(new Error('404'))
       const s = useSnapshotBrowseStore(); const files = useFilesStore()
@@ -367,6 +385,43 @@ describe('time machine: enter / exit / switch', () => {
       await s.switchTo('snap1')
       expect(router.replace).not.toHaveBeenCalled()
     })
+
+    // Task 7 fix round (review finding 1): tmTravelActive is a SEPARATE flag from tmTravel,
+    // deliberately NOT cleared by switchTo itself -- it stays true past the navigation settling
+    // (tmTravel already null by then) until an external caller (TimeMachineDepthStack.vue's own
+    // reveal-gate, in real use) calls settleTravel(). See snapshotBrowse.ts's own header comment
+    // on tmTravelActive for why the two flags' lifecycles are deliberately different.
+    describe('tmTravelActive (Task 7 fix round, review finding 1)', () => {
+      it('goes true the instant switchTo is called, and stays true after the navigation itself settles', async () => {
+        const s = useSnapshotBrowseStore(); const files = useFilesStore()
+        files.currentPath = '/DATA/.snapshots/snap1/Photos'
+        await s.ensureVolumes()
+        expect(s.tmTravelActive).toBe(false)
+
+        await s.switchTo('snap2')
+        expect(s.tmTravel).toBeNull() // navigation settled
+        expect(s.tmTravelActive).toBe(true) // but the reveal gate has not fired yet
+      })
+
+      it('only clears once settleTravel() is called', async () => {
+        const s = useSnapshotBrowseStore(); const files = useFilesStore()
+        files.currentPath = '/DATA/.snapshots/snap1/Photos'
+        await s.ensureVolumes()
+        await s.switchTo('snap2')
+        expect(s.tmTravelActive).toBe(true)
+
+        s.settleTravel()
+        expect(s.tmTravelActive).toBe(false)
+      })
+
+      it('does not go true for a same-snapshot no-op switch', async () => {
+        const s = useSnapshotBrowseStore(); const files = useFilesStore()
+        files.currentPath = '/DATA/.snapshots/snap1/Photos'
+        await s.ensureVolumes()
+        await s.switchTo('snap1')
+        expect(s.tmTravelActive).toBe(false)
+      })
+    })
   })
 
   describe('reset', () => {
@@ -383,6 +438,7 @@ describe('time machine: enter / exit / switch', () => {
       expect(s.snapshotList).toEqual([])
       expect(s.tmLoading).toBe(false)
       expect(s.tmTravel).toBeNull()
+      expect(s.tmTravelActive).toBe(false)
     })
   })
 })

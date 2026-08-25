@@ -33,12 +33,27 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // Time Machine mode (Vue2-parity stage, Task 6+). tmActive drives TimeMachineStage.vue's own
   // decorative shell (glass/clone/depth-stack/rail/bottom-bar); tmLoading covers the initial
   // snapshot-list fetch on entry; tmTravel is non-null exactly while switchTo() is navigating
-  // between two snapshots, so the stage can hard-cut `.tm-fwin--traveling` for the duration —
-  // see TimeMachineStage.vue's own header comment.
+  // between two snapshots (a pure "is a navigation in flight" signal — see switchTo's own
+  // comment for why its lifecycle is deliberately narrower than tmTravelActive below).
   const tmActive = ref(false)
   const snapshotList = ref<SnapshotVM[]>([])
   const tmLoading = ref(false)
   const tmTravel = ref<{ from: string | null; to: string | null } | null>(null)
+  // Task 7 fix round (review finding 1, Vue2's own travelActive, ported): whether the real,
+  // interactive window should stay hard-hidden (`.tm-fwin--traveling`, TimeMachineStage.vue) for
+  // a switch currently in flight. Deliberately a SEPARATE flag from tmTravel, not a rename of it
+  // — tmTravel's own "clears once the navigation settles" lifecycle (unchanged, still exactly
+  // what switchTo's own router.replace await tracks) fires in single-digit milliseconds, long
+  // before the depth-stack's own GSAP dolly sweep (420-900ms) or the target snapshot's own
+  // preview listing have actually finished — releasing the hard-hide on THAT signal would reveal
+  // the real window mid-animation on essentially every switch (the exact defect this fix round
+  // addresses). tmTravelActive instead stays true until TimeMachineDepthStack.vue's own
+  // reveal-gate (armReveal/settle, ported from Vue2's own armReveal/reveal — see that
+  // component's own header comment) calls settleTravel() below, which happens only once BOTH the
+  // travel's own duration has elapsed AND the target's own preview promise has settled (or a
+  // safety ceiling elapses regardless) — see that component's own header comment for the full
+  // mechanism this store only exposes the on/off switch for.
+  const tmTravelActive = ref(false)
   // The backend takes one path per call, so the loop below stays serial. What
   // it cannot stay is silent: picking forty files meant a disabled button and
   // no sign of life until every one of them had come back.
@@ -193,6 +208,10 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     const info = browseInfo.value
     tmActive.value = false
     tmTravel.value = null
+    // Task 7 fix round: a stuck-true tmTravelActive (e.g. the depth-stack component was
+    // unmounted mid-travel, so nothing was ever going to call settleTravel()) must not survive
+    // past leaving Time Machine mode entirely — the next entry starts clean.
+    tmTravelActive.value = false
     if (!info) return
     resolveExitTarget(info, async (p) => {
       try { await service.folder.getList(p); return true } catch { return false }
@@ -203,10 +222,14 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
 
   // Switch the SAME window to another snapshot, preserving the current relative path inside it
   // (Vue2's handleTimeMachineSwitch/M2-F6 "tick switching preserves the current relative path").
-  // tmTravel is set BEFORE navigating and cleared once the navigation settles — TimeMachineStage.vue
-  // reads it to hard-cut `.tm-fwin--traveling` for the duration (Tasks 7-9 build the actual
-  // dolly-travel choreography on top of this same window; this store's job is only to say
-  // "a travel from X to Y is in flight", not how it looks).
+  // tmTravel is set BEFORE navigating and cleared once the navigation settles — a pure
+  // "navigation in flight" signal, unchanged since Task 6. tmTravelActive (Task 7 fix round) is
+  // set true at the SAME instant (mirroring Vue2's own beginTravel, called synchronously at
+  // click time, before the async navigation) but is NOT cleared here — TimeMachineStage.vue
+  // reads it (not tmTravel) to hard-cut `.tm-fwin--traveling`, and only settleTravel() below
+  // (called by TimeMachineDepthStack.vue's own reveal-gate, once the travel has actually finished
+  // animating AND the target's own preview is ready) clears it. See tmTravelActive's own comment
+  // (above, in this store) for why the two flags' lifecycles are deliberately different.
   async function switchTo(name: string): Promise<void> {
     if (!name) return
     const vol = currentVolume.value
@@ -215,12 +238,22 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     if (from === name) return
     const rel = browseInfo.value?.relPath ?? ''
     tmTravel.value = { from, to: name }
+    tmTravelActive.value = true
     try {
       const root = snapshotBrowsePath(vol.mount, name)
       await navigateReal(rel ? `${root}/${rel}` : root, { replace: true })
     } finally {
       tmTravel.value = null
     }
+  }
+
+  // Called by TimeMachineDepthStack.vue's own reveal-gate once a travel has actually settled
+  // (Vue2's own reveal(token) — see that component's own header comment for the full
+  // armReveal/reveal mechanism this store only exposes the on/off switch for). Idempotent/safe
+  // to call after the gate's own superseded-travel check already no-oped — this store has no
+  // opinion on WHICH travel is being settled, only "the real window may reveal now".
+  function settleTravel(): void {
+    tmTravelActive.value = false
   }
 
   // Restore the selected entries. Multiple entries are submitted one by one (the backend accepts a
@@ -288,13 +321,14 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     snapshotList.value = []
     tmLoading.value = false
     tmTravel.value = null
+    tmTravelActive.value = false
   }
 
   return {
     status, volumes, restoring, restoreProgress,
     parsed, isSnapshotView, browseInfo, currentVolume, canShowEntry,
-    tmActive, snapshotList, currentSnapshotName, tmLoading, tmTravel,
+    tmActive, snapshotList, currentSnapshotName, tmLoading, tmTravel, tmTravelActive,
     ensureVolumes, reset, restore,
-    enterTimeMachine, exitTimeMachine, switchTo, refreshSnapshotList,
+    enterTimeMachine, exitTimeMachine, switchTo, refreshSnapshotList, settleTravel,
   }
 })
