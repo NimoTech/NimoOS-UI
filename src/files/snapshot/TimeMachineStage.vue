@@ -7,12 +7,18 @@
 // once Time Machine mode is active) — see that file's own header comment, Fix Round 15 section,
 // for the full "why contents, not v-if" argument this file reproduces byte-for-byte.
 //
-// Scope (Task 6 only — Tasks 7-9 build on top of this same shell, do not duplicate their work
+// Scope (Task 6 built the shell — Tasks 7-9 build on top of it, do not duplicate their work
 // here): the clone/glass decorative backdrop, the scaled-down real window, the Escape exit
 // channel, and the z-index tiers every later task's own markup must slot into
-// (clone 0 < glass 1 < depth-stack 3 (Task 7) < bottom bar 7 (Task 9) < real window 8 <
-// rail 9 (Task 7) < stepper/gear 10 (Task 8, gear built here)). The bottom bar is Task 9's own
+// (clone 0 < glass 1 < depth-stack 3 (Task 7, built here) < bottom bar 7 (Task 9) < real window 8 <
+// rail 9 (Task 8) < stepper/gear 10 (Task 8/9, gear built here)). The bottom bar is Task 9's own
 // second exit channel — Escape is the only one this task wires up.
+//
+// Task 7 addition: mounts TimeMachineDepthStack.vue at z-tier 3 (see that component's own header
+// comment) and extends `onKeydown` with ArrowUp/ArrowDown (ported from Vue2's own stepLater/
+// stepEarlier keyboard handler) alongside the existing Escape channel — preempting Task 9's own
+// "↑↓键盘" file-list item (task-9-brief.md); Task 9 should extend `stepLater`/`stepEarlier` below
+// (wiring its own visible stepper buttons to them) rather than re-adding the keyboard listener.
 //
 // Unlike Vue2 (a plain `active` prop threaded down from FilePanel.vue's own isTimeMachineMode),
 // this component reads active/travel state straight off the snapshotBrowse store — Files.vue's
@@ -21,8 +27,9 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useWallpaperStore, recordUrl } from '../../stores/wallpaper'
-import { TM_WINDOW_SCALE } from '../util/timeMachineMath'
+import { TM_WINDOW_SCALE, clampStepIndex } from '../util/timeMachineMath'
 import { EXIT_FADE_MS } from '../util/timeMachineChoreo'
+import TimeMachineDepthStack from './TimeMachineDepthStack.vue'
 
 defineOptions({ name: 'TimeMachineStage' })
 
@@ -99,19 +106,48 @@ function destroyClone() {
   hasClone.value = false
 }
 
+// Task 7 addition (preempting Task 9's own "↑↓键盘" line item -- see this file's own header
+// comment/task-9-brief.md's file list; flagged for T9 in the Task 7 report so it extends this
+// rather than re-adding it): the SAME switchTo funnel a tick click / stepper click will use (Tasks
+// 8/9) -- Vue2's stepEarlier/stepLater, ported. `clampStepIndex` (Task 2) fuses "can I step" and
+// "what's the next index" into one call; `browse.snapshotList` is newest-first (T6), so a HIGHER
+// index is an OLDER snapshot -- delta +1 is Vue2's own "earlier", delta -1 is "later" (index 0).
+function currentSnapshotIndex(): number {
+  const name = browse.currentSnapshotName
+  if (!name) return -1
+  return browse.snapshotList.findIndex((s) => s.name === name)
+}
+function stepLater() {
+  const next = clampStepIndex(currentSnapshotIndex(), -1, browse.snapshotList.length)
+  if (next !== null) browse.switchTo(browse.snapshotList[next].name)
+}
+function stepEarlier() {
+  const next = clampStepIndex(currentSnapshotIndex(), 1, browse.snapshotList.length)
+  if (next !== null) browse.switchTo(browse.snapshotList[next].name)
+}
+
 // Escape is one of exactly two exit channels (the other, the bottom-bar Exit button, is Task 9's
 // own addition) — see this file's own header comment. Two guards, same posture as
 // TimeMachineOverlay.vue's own onKeydown: an explicit caller-supplied `dialogOpen` flag for the
 // one dialog Files.vue already knows about, PLUS a generic "the event's own target is not inside
 // this stage" check that also covers any OTHER Teleported dialog (rename/conflict/etc.) stacked
-// above it without needing a dedicated prop wired through for each one.
+// above it without needing a dedicated prop wired through for each one. ArrowUp/ArrowDown (Task 7
+// addition) share the SAME two guards -- a dialog stacked above the stage (e.g. a text input
+// inside it) must not have its own arrow-key navigation hijacked by snapshot stepping underneath.
+// Fix round (2026-07, Vue2 user report, ported): ArrowUp -> stepLater (next MORE RECENT), ArrowDown
+// -> stepEarlier (next OLDER) -- see stepLater/stepEarlier's own comment for the index direction.
 function onKeydown(e: KeyboardEvent) {
-  if (e.code !== 'Escape' && e.key !== 'Escape') return
+  const isEscape = e.code === 'Escape' || e.key === 'Escape'
+  const isArrowUp = e.code === 'ArrowUp'
+  const isArrowDown = e.code === 'ArrowDown'
+  if (!isEscape && !isArrowUp && !isArrowDown) return
   if (props.dialogOpen) return
   const target = e.target
   if (target instanceof Element && stageRoot.value && !stageRoot.value.contains(target)) return
   e.preventDefault()
-  browse.exitTimeMachine()
+  if (isEscape) { browse.exitTimeMachine(); return }
+  if (isArrowUp) stepLater()
+  else stepEarlier()
 }
 
 let fadeOutTimer: ReturnType<typeof setTimeout> | null = null
@@ -185,6 +221,11 @@ onUnmounted(() => {
         aria-hidden="true"
       ></div>
       <div class="tm-stage__glass" :class="{ 'tm-stage__fade-exit': fadingOut }" aria-hidden="true"></div>
+      <!-- z-tier 3 (Task 7): the Apple-style depth-stack cascade -- see TimeMachineDepthStack.vue's
+           own header comment for the full slot/travel model. `tm-stage__fade-exit` is a fallthrough
+           class (lands on the component's own root, same mechanism the clone/glass layers above
+           already rely on for their own scoped rule to apply across the component boundary). -->
+      <TimeMachineDepthStack :class="{ 'tm-stage__fade-exit': fadingOut }" />
     </template>
 
     <div class="tm-stage__hold" :class="{ 'tm-stage__hold--active': active }">

@@ -236,3 +236,41 @@ export function clampStepIndex(current: number, delta: number, count: number): n
   if (next < 0 || next >= count) return null
   return next
 }
+
+// Task 7 addition: ported from Vue2's own computeVisibleStripCap
+// (timeMachineMath.js) -- how many OLDER-cascade depth-stack strips actually
+// fit above `.tm-stage`'s own clip line, given the stage's real measured
+// height. Without this, `resolveDollySlots`' own `maxSlots` stays a flat 10
+// regardless of viewport height, and at ordinary window sizes most of that
+// cascade renders clipped off-canvas against the stage's `overflow: hidden`
+// (Vue2's own Fix Round 7b defect this fixed) -- see that fix round's header
+// comment in the Vue2 authority file for the full trace.
+//
+// Geometry (byte-identical formula to Vue2's own, deliberately NOT re-using
+// an options bag -- same "plain params over one bag" deviation this module's
+// own header comment already documents for fisheyeScale/resolveSlotPose):
+// the depth-stack wrapper shares `.tm-fwin`'s own scaled box (same
+// `transform: scale(TM_WINDOW_SCALE)`, same `transform-origin` Y fraction),
+// so the window's OWN rendered top edge -- the point every strip's
+// `translateY` climbs away from -- sits `transformOriginY * (1 -
+// TM_WINDOW_SCALE) * (stageHeight - bottomGap)` px down from the stage's own
+// top. `margin` keeps the nearest clipped strip from touching that line
+// exactly; `TM_DEPTH_STEP * TM_WINDOW_SCALE` is one strip's own on-screen
+// (post-scale) vertical step. A non-finite/non-positive stageHeight (not yet
+// measured, or this module's own test env) falls back to `maxSlots`
+// unclamped -- Vue2's own "assume the historical, viewport-uncapped ceiling"
+// choice, not "no headroom at all" (see resolveSlotPose's own stageHeight
+// comment for the same fallback posture).
+const VISIBLE_STRIP_BOTTOM_GAP = 80 // px, Vue2's $tm-bottom-gap
+const VISIBLE_STRIP_TRANSFORM_ORIGIN_Y = 0.58 // Vue2's $tm-transform-origin Y fraction (50% 58%)
+const VISIBLE_STRIP_MARGIN = 12 // px of clearance kept above the clip line
+
+export function computeVisibleStripCap(stageHeight: number, maxSlots: number = DEFAULT_MAX_SLOTS): number {
+  if (!Number.isFinite(stageHeight) || stageHeight <= 0) return maxSlots
+  const unscaledHeight = stageHeight - VISIBLE_STRIP_BOTTOM_GAP
+  if (unscaledHeight <= 0) return 0
+  const windowTopY = VISIBLE_STRIP_TRANSFORM_ORIGIN_Y * (1 - TM_WINDOW_SCALE) * unscaledHeight
+  const perSlotOnScreen = TM_DEPTH_STEP * TM_WINDOW_SCALE
+  const cap = Math.floor((windowTopY - VISIBLE_STRIP_MARGIN) / perSlotOnScreen)
+  return Math.max(0, Math.min(maxSlots, cap))
+}

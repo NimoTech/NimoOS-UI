@@ -44,12 +44,16 @@
     class hook with no effect on fetching, matching the earlier build's decision (confirmed on
     re-read: nothing in Vue2 gates on an "active"/visibility concept).
 
-  `volumeLabel`/`displayNames` (Vue2's breadcrumb's first segment, sourced from
-  `$store.state.displayNames`) has no New-UI equivalent wired up yet; this component uses the bare
-  mount-path basename fallback only -- the SAME fallback Vue2's own unit test suite exclusively
-  exercises (its header comment: "the only path exercised in this component's own unit tests, which
-  never inject displayNames"). Flagged in task-5-report.md for Task 7 if a display-name mapping is
-  wanted later; not adding an unauthorized extra prop for it here.
+  `volumeLabel` (Task 7 addition, flagged as an open note in task-5-report.md and the Task 7 brief):
+  Vue2's breadcrumb's first segment sources from `$store.state.displayNames` (the user-renamed
+  volume label shown everywhere else in the app), not the bare mount-path basename. New-UI's
+  equivalent (`useFilesStore().displayNames`, a `{ [mountPath]: label }` map -- see
+  `stores/files.ts`) lives in a Pinia store this component otherwise has no reason to depend on for
+  a single string, so the caller (TimeMachineDepthStack.vue, which already reads that store for
+  `viewMode`) resolves it and passes it down as this optional prop instead. Falls back to the bare
+  mount-path basename -- the SAME fallback Vue2's own unit test suite exclusively exercises (its
+  header comment: "the only path exercised in this component's own unit tests, which never inject
+  displayNames") -- when omitted or when the mount has no display-name override.
 
   Read-only/decorative contract (unchanged): aria-hidden, no click handlers of any kind.
   `pointer-events` is deliberately NOT set here (unlike Vue2's own inline `pointer-events: none`)
@@ -165,6 +169,9 @@ const props = withDefaults(
      *  this from New-UI's equivalent Files-area view-mode state so a mid-switch reveal looks
      *  like the SAME app, in whichever mode the front window is currently in. */
     viewMode?: 'grid' | 'list'
+    /** Task 7 addition: the volume's user-facing display name (see this file's own header
+     *  comment) -- when omitted, the breadcrumb falls back to the bare mount-path basename. */
+    volumeLabel?: string
     /** Presentational class hook only (e.g. for the parent's own opacity/scale styling of
      *  near-vs-far depth-stack layers) -- Vue2 has no such prop at all; this component makes no
      *  fetch/render decision based on it, matching the "always fetch every mounted layer"
@@ -248,16 +255,18 @@ const rows = computed(() => sortedRows.value.slice(0, MAX_ROWS))
 const totalCount = computed(() => sortedRows.value.length)
 
 // Vue2 parity ("Breadcrumb segments"): [volumeLabel, '.snapshots', snapshotName, ...relPath
-// segments], filtered of empty strings. `volumeLabel` here is always the mount-basename fallback
-// -- see this file's own header comment for why a displayNames prop was not added.
+// segments], filtered of empty strings. `props.volumeLabel` (Task 7) takes priority; the
+// mount-basename fallback below is what Vue2's own unit test suite exclusively exercises -- see
+// this file's own header comment.
 const mountBasename = computed(() => {
   if (!props.mount) return ''
   const parts = props.mount.split('/').filter(Boolean)
   return parts.length ? parts[parts.length - 1] : props.mount
 })
+const volumeSegment = computed(() => props.volumeLabel || mountBasename.value)
 const crumbSegments = computed(() => {
   const relSegs = props.relPath ? props.relPath.split('/').filter(Boolean) : []
-  return [mountBasename.value, SNAPSHOTS_DIR_NAME, props.snapshotName, ...relSegs].filter(Boolean)
+  return [volumeSegment.value, SNAPSHOTS_DIR_NAME, props.snapshotName, ...relSegs].filter(Boolean)
 })
 </script>
 

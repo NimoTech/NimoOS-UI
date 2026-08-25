@@ -6,6 +6,7 @@ import {
   resolveDollySlots,
   resolveSlotPose,
   clampStepIndex,
+  computeVisibleStripCap,
   FISHEYE_RADIUS,
   FISHEYE_MIN_SCALE,
   FISHEYE_MAX_SCALE,
@@ -386,5 +387,52 @@ describe('clampStepIndex — step target clamped into [0, count-1], null at a bo
     expect(clampStepIndex(0, 1, 0)).toBeNull()
     expect(clampStepIndex(0, 1, NaN)).toBeNull()
     expect(clampStepIndex(1.5, 1, 3)).toBeNull()
+  })
+})
+
+// Task 7 addition: ported from Vue2's own computeVisibleStripCap
+// (timeMachineMath.js) -- see timeMachineMath.ts's own header comment on
+// this function for the full geometry derivation and the Vue2 defect
+// (Fix Round 7b) it fixes.
+describe('computeVisibleStripCap — how many depth-stack strips fit above the stage\'s own clip line', () => {
+  it('assumes the historical, viewport-uncapped ceiling (maxSlots) when stageHeight is unmeasured/non-finite/non-positive', () => {
+    expect(computeVisibleStripCap(0)).toBe(10)
+    expect(computeVisibleStripCap(Number.NaN)).toBe(10)
+    expect(computeVisibleStripCap(-100)).toBe(10)
+    expect(computeVisibleStripCap(undefined as unknown as number)).toBe(10)
+  })
+
+  it('matches the exact Vue2 reference value for an 800px-tall stage (default geometry)', () => {
+    // unscaledHeight = 800-80 = 720; windowTopY = 0.58*(1-0.82)*720 = 75.168;
+    // perSlotOnScreen = 30*0.82 = 24.6; cap = floor((75.168-12)/24.6) = 2
+    expect(computeVisibleStripCap(800)).toBe(2)
+  })
+
+  it('grows monotonically with stage height', () => {
+    let prev = computeVisibleStripCap(400)
+    for (const h of [500, 700, 900, 1200, 1600, 2400]) {
+      const cap = computeVisibleStripCap(h)
+      expect(cap).toBeGreaterThanOrEqual(prev)
+      prev = cap
+    }
+  })
+
+  it('never exceeds the provided maxSlots, however tall the stage', () => {
+    expect(computeVisibleStripCap(100000)).toBe(10)
+    expect(computeVisibleStripCap(100000, 4)).toBe(4)
+  })
+
+  it('never goes below 0 (a very short stage clips the entire cascade, not a negative count)', () => {
+    expect(computeVisibleStripCap(50)).toBe(0)
+    expect(computeVisibleStripCap(1)).toBe(0)
+  })
+
+  it('is 0 once the stage is shorter than the bottom gap alone (no room left to derive a positive window top)', () => {
+    expect(computeVisibleStripCap(80)).toBe(0)
+    expect(computeVisibleStripCap(79)).toBe(0)
+  })
+
+  it('honors a custom maxSlots ceiling for a tall stage that would otherwise derive a larger cap', () => {
+    expect(computeVisibleStripCap(4000, 3)).toBe(3)
   })
 })
