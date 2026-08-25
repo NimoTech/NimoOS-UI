@@ -869,7 +869,12 @@ export default {
   snapBrowseRestoredPartial: 'Restored {ok} items, {fail} failed',
   snapBrowseRestoringProgress: 'Restoring {done}/{total}',
 
-  tmEntry: 'Time Machine',
+  // Task 1 (Files Time Machine Vue2-parity line): tmEntry's copy changes from 'Time Machine'
+  // to 'Snapshots' -- Vue2 authority (en_US.json's "Snapshots" key) renamed the nav entry
+  // itself; tmEnter/tmNoFolderAtTime/tmPreviewUnavailable/tmItemCount/tmRailJumpTo/
+  // tmStepNewer/tmOpenFolder stay as-is (still consumed by the colleague-authored cards/rail
+  // components under src/files/snapshot/, cleared out in T16 alongside those components).
+  tmEntry: 'Snapshots',
   tmEnter: 'Enter this snapshot',
   tmSettings: 'Snapshot settings',
   tmNoFolderAtTime: 'This folder did not exist yet',
@@ -879,6 +884,25 @@ export default {
   tmStepNewer: 'Newer snapshot',
   tmStepEarlier: 'Earlier snapshot',
   tmOpenFolder: 'Open folder {name}',
+  // Task 1 additions below: copied verbatim from Vue2 NimoOS-UI's src/assets/lang/en_US.json
+  // (the Time Machine stage / snapshot settings modal / restore destination modal / file
+  // conflict dialog strings for the Vue2-parity rebuild). Several of the brief's proposed
+  // names turned out to duplicate an EXISTING key's exact English text -- those are reused,
+  // not re-added; see task-1-report.md for the full brief-name -> actual-key mapping table.
+  tmExit: 'Exit Time Machine',
+  tmRestoreSelection: 'Restore selection',
+  tmStepLater: 'Later snapshot',
+  snapReadOnlyBanner: 'Snapshot · Read-only',
+  snapProtectionBlock: 'Protection & Schedule',
+  snapManualBlock: 'Manual Snapshot',
+  tmRestoreTo: 'Restore to',
+  tmRestoreHere: 'Restore here',
+  tmNoSubfolders: 'No subfolders here',
+  tmMarkerToggle: 'Append .restored marker to file name',
+  tmMarkerOffHint: "You'll be asked how to handle files with the same name",
+  tmRestoreFolderTitle: 'Restore folder',
+  tmSelectFirst: 'Select a file or folder to restore first',
+  tmRestoredCount: 'Restored {count} item(s) to {path}',
 
   wpTitle: 'Change wallpaper',
   wpPresetBlue: 'Blue base',

@@ -268,6 +268,38 @@
   --tm-rail: rgba(255, 255, 255, 0.5);
   --tm-rail-sub: rgba(255, 255, 255, 0.2);
 
+  /* Task 1 (Vue2-parity Time Machine rebuild): the full new token set, pixel-pinned to
+     Vue2's TimeMachineStage.vue scoped styles + the SnapshotSettingsModal/
+     RestoreDestinationModal/FileConflictDialog white-glass panel tokens (identical values
+     in all three files, confirmed by reading each). Owner ruling: Time Machine looks the
+     SAME in dark and light themes -- unlike --tm-bg/--tm-fg/... above, every token below
+     carries the identical literal value in both this block and the light block.
+     Guard: src/styles/__tests__/tmTokens.test.ts.
+     Note: the OLD --tm-* tokens above (--tm-bg through --tm-rail-sub) are still consumed by
+     the colleague-authored components under src/files/snapshot/ (TimeMachineOverlay.vue,
+     TimeMachineBar.vue, TimeMachineCrumbs.vue, TimeMachineCard.vue, TimeMachineRail.vue) --
+     kept in place deliberately rather than deleted, since those components are slated for
+     removal in a later task (T16), not this one. */
+  --tm-glass-bg: rgba(8, 10, 22, 0.35);
+  --tm-glass-blur: blur(24px) saturate(1.05);
+  --tm-rail-text: rgba(255, 255, 255, 0.62);
+  --tm-rail-text-dim: rgba(255, 255, 255, 0.55);
+  --tm-accent: #7c3aed;
+  --tm-accent-hover: #6d28d9;
+  --tm-accent-glow: rgba(124, 58, 237, 0.9);
+  --tm-bar-scrim: linear-gradient(to top, rgba(6, 9, 26, 0.75), rgba(6, 9, 26, 0.25), transparent);
+  --tm-panel-bg: rgba(255, 255, 255, 0.9);
+  --tm-panel-bg-solid: #ffffff;
+  --tm-panel-border: rgba(0, 0, 0, 0.06);
+  --tm-hairline: rgba(0, 0, 0, 0.06);
+  --tm-text: #1f2430;
+  --tm-text-dim: #6b7280;
+  --tm-ghost-border: rgba(0, 0, 0, 0.15);
+  --tm-ghost-hover-bg: rgba(0, 0, 0, 0.05);
+  --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
+  --tm-control-radius: 10px;
+  --tm-panel-blur: blur(20px) saturate(1.2);
+
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
 
@@ -637,6 +669,28 @@
   --tm-rail: rgba(28, 27, 25, 0.45);
   --tm-rail-sub: rgba(28, 27, 25, 0.16);
   /* Paper theme dims toward warm ink rather than deep space (see the dark block's note) */
+
+  /* Task 1: same values as the dark block above -- owner ruling: Time Machine looks the
+     same in both themes, so these are NOT re-derived for light/paper tone. */
+  --tm-glass-bg: rgba(8, 10, 22, 0.35);
+  --tm-glass-blur: blur(24px) saturate(1.05);
+  --tm-rail-text: rgba(255, 255, 255, 0.62);
+  --tm-rail-text-dim: rgba(255, 255, 255, 0.55);
+  --tm-accent: #7c3aed;
+  --tm-accent-hover: #6d28d9;
+  --tm-accent-glow: rgba(124, 58, 237, 0.9);
+  --tm-bar-scrim: linear-gradient(to top, rgba(6, 9, 26, 0.75), rgba(6, 9, 26, 0.25), transparent);
+  --tm-panel-bg: rgba(255, 255, 255, 0.9);
+  --tm-panel-bg-solid: #ffffff;
+  --tm-panel-border: rgba(0, 0, 0, 0.06);
+  --tm-hairline: rgba(0, 0, 0, 0.06);
+  --tm-text: #1f2430;
+  --tm-text-dim: #6b7280;
+  --tm-ghost-border: rgba(0, 0, 0, 0.15);
+  --tm-ghost-hover-bg: rgba(0, 0, 0, 0.05);
+  --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
+  --tm-control-radius: 10px;
+  --tm-panel-blur: blur(20px) saturate(1.2);
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the
