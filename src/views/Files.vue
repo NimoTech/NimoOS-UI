@@ -146,12 +146,21 @@ function openRestorePicker(mount: string, defaultDir: string) {
 
 // Entry point ① — context-menu "Restore to original location" (single item, FileContextMenu.vue's
 // own `showRestoreOriginal` already gates this to snapshot view + a single target).
+// `{ singleItemFlow: true }` (controller ruling, fix round 1): this is the ONE entry point that
+// shows Vue2's own `snapBrowseRestored` = "Restored to {path}" copy on success (Vue2's
+// restoreSnapshotItem) rather than the `tmRestoredCount` count-based copy every other entry point
+// uses (Vue2's executeSnapshotRestore) — see buildRestoreToasts' own comment for the full split.
 function restoreSingleItem(entry: FileEntry) {
   const info = browse.browseInfo
   if (!info) return
   const parsed = parseSnapshotBrowsePath(entry.path)
   const defaultDir = defaultDestDirForItem(info.mount, parsed?.relPath ?? '')
-  void browse.restoreItems([{ path: entry.path, name: entry.name, is_dir: entry.is_dir }], defaultDir, openRestorePicker)
+  void browse.restoreItems(
+    [{ path: entry.path, name: entry.name, is_dir: entry.is_dir }],
+    defaultDir,
+    openRestorePicker,
+    { singleItemFlow: true },
+  )
 }
 
 // Entry points ② and ③ — the Time Machine stage's own bottom-bar "Restore selection" button and

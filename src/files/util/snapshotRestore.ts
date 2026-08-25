@@ -169,16 +169,27 @@ export interface RestoreToastMsg {
  * its own UX bug Vue2 never had to deal with at that scale). Order: skipped, then restored/failed.
  * - `skippedCount` > 0 → `filesUploadSkipped` (T1's own re-used key for Vue2's "Skipped {count}
  *   item(s)" copy — see task-1-report.md's brief-name -> existing-key mapping table).
- * - Every entry restored (no failures) → `tmRestoredCount` (Vue2's `executeSnapshotRestore` copy,
- *   used for BOTH a single item and a batch — Vue2 itself uses this exact "{count} item(s)" phrasing
- *   even when count is 1, e.g. the whole-folder-confirm branch's synthetic one-item array).
+ * - Every entry restored (no failures) → the ENTRY POINT decides the copy, not the item count
+ *   (controller ruling, fix round 1: the task-1 key list was planning shorthand, not a copy
+ *   ruling — visible copy follows Vue2 exactly). Vue2 has two genuinely different call sites here:
+ *   `restoreSnapshotItem` (context-menu single item) always shows `snapBrowseRestored` = "Restored
+ *   to {path}" (no count, since there is only ever one item on that path); `executeSnapshotRestore`
+ *   (banner/bottom-bar selection AND the whole-folder-confirm branch) always shows `tmRestoredCount`
+ *   = "Restored {count} item(s) to {path}" — INCLUDING when the selection happens to be exactly one
+ *   item, or the whole-folder-confirm branch's synthetic one-item array. So `opts.singleItemFlow`
+ *   (set by the CALLER, based on which entry point it is — never inferred from `successes.length`)
+ *   is what picks the key, matching that split exactly.
  * - Some failed, some restored → `snapBrowseRestoredPartial` (existing key/colleague-fix ⑦: report
  *   both counts, never stack the specific per-item failure reason on top).
  * - All failed → the specific-reason key (existing `snapBrowseRestoreNotFound`/`Invalid`/`Failed`,
  *   keyed off the FIRST failure's reason — same "don't stack every reason" simplification ⑦ already
  *   made for the all-fail case).
  */
-export function buildRestoreToasts(outcomes: RestoreOutcome[], skippedCount: number): RestoreToastMsg[] {
+export function buildRestoreToasts(
+  outcomes: RestoreOutcome[],
+  skippedCount: number,
+  opts: { singleItemFlow?: boolean } = {},
+): RestoreToastMsg[] {
   const toasts: RestoreToastMsg[] = []
   if (skippedCount > 0) toasts.push({ key: 'filesUploadSkipped', params: { count: skippedCount } })
 
@@ -187,7 +198,11 @@ export function buildRestoreToasts(outcomes: RestoreOutcome[], skippedCount: num
 
   if (failures.length === 0) {
     if (successes.length > 0) {
-      toasts.push({ key: 'tmRestoredCount', params: { count: successes.length, path: successes[0].result.restoredPath } })
+      toasts.push(
+        opts.singleItemFlow
+          ? { key: 'snapBrowseRestored', params: { path: successes[0].result.restoredPath } }
+          : { key: 'tmRestoredCount', params: { count: successes.length, path: successes[0].result.restoredPath } },
+      )
     }
     return toasts
   }

@@ -500,8 +500,12 @@ describe('restore orchestration wiring (Task 14)', () => {
     await restoreBtn!.trigger('click')
 
     expect(spy).toHaveBeenCalledTimes(1)
-    const [items] = spy.mock.calls[0]!
+    const [items, , , opts] = spy.mock.calls[0]!
     expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
+    // Controller ruling, fix round 1: the context-menu entry point is the ONE caller that passes
+    // singleItemFlow -- it's what makes restoreItems show Vue2's snapBrowseRestored copy instead of
+    // the count-based tmRestoredCount copy every other entry point uses (see buildRestoreToasts).
+    expect(opts).toEqual({ singleItemFlow: true })
   })
 
   it('banner restore with a selection calls browse.restoreItems with the selected items', async () => {
@@ -522,8 +526,12 @@ describe('restore orchestration wiring (Task 14)', () => {
     await w.get('.snap-banner-restore').trigger('click')
 
     expect(spy).toHaveBeenCalledTimes(1)
-    const [items] = spy.mock.calls[0]!
+    const [items, , , opts] = spy.mock.calls[0]!
     expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
+    // Controller ruling, fix round 1: even a one-item selection keeps the banner's own
+    // count-based tmRestoredCount copy -- entry point decides, not item count (contrast with
+    // the context-menu case above, which DOES pass singleItemFlow for the exact same shape call).
+    expect(opts?.singleItemFlow).toBeFalsy()
   })
 
   it('banner restore with no selection, not at the snapshot root: opens the folder-confirm dialog; confirming calls browse.restoreItems with the whole browsed directory', async () => {
@@ -549,8 +557,12 @@ describe('restore orchestration wiring (Task 14)', () => {
     await flushPromises()
 
     expect(spy).toHaveBeenCalledTimes(1)
-    const [items] = spy.mock.calls[0]!
+    const [items, , , opts] = spy.mock.calls[0]!
     expect(items).toEqual([{ path: '/DATA/.snapshots/20260713T061900Z_manual/Photos', name: 'Photos', is_dir: true }])
+    // Vue2's own whole-folder-confirm branch routes through executeSnapshotRestore (the
+    // count-based copy), not restoreSnapshotItem -- so this synthetic one-item array must NOT
+    // set singleItemFlow either, same as the selection branch above.
+    expect(opts?.singleItemFlow).toBeFalsy()
   })
 
   it('banner restore with no selection AT the snapshot root: toasts tmSelectFirst, no dialog, no restoreItems call', async () => {
@@ -598,8 +610,9 @@ describe('restore orchestration wiring (Task 14)', () => {
     await w.find('.tm-stage__bar-btn--restore').trigger('click')
 
     expect(spy).toHaveBeenCalledTimes(1)
-    const [items] = spy.mock.calls[0]!
+    const [items, , , opts] = spy.mock.calls[0]!
     expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
+    expect(opts?.singleItemFlow).toBeFalsy()
   })
 })
 

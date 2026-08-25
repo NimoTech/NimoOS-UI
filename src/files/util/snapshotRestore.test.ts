@@ -218,8 +218,23 @@ describe('buildRestoreToasts', () => {
     ])
   })
 
-  it('a single restored item still uses tmRestoredCount (Vue2 parity: same copy for 1 or many)', () => {
+  it('default (no opts, e.g. a one-item selection): a single restored item still uses tmRestoredCount (Vue2 parity: executeSnapshotRestore uses the same copy for 1 or many)', () => {
     expect(buildRestoreToasts([ok('/a')], 0)).toEqual([
+      { key: 'tmRestoredCount', params: { count: 1, path: '/a' } },
+    ])
+  })
+
+  // Controller ruling, fix round 1: the task-1 key list was planning shorthand, not a copy ruling
+  // — visible copy follows Vue2 exactly. Vue2's restoreSnapshotItem (context-menu single item) uses
+  // a DIFFERENT copy than executeSnapshotRestore (every other entry point): "Restored to {path}",
+  // no count. `opts.singleItemFlow` is how the CALLER (not this function) picks that branch.
+  it('singleItemFlow: true → snapBrowseRestored ("Restored to {path}"), no count', () => {
+    expect(buildRestoreToasts([ok('/a')], 0, { singleItemFlow: true })).toEqual([
+      { key: 'snapBrowseRestored', params: { path: '/a' } },
+    ])
+  })
+  it('singleItemFlow: false is identical to omitting opts entirely (tmRestoredCount)', () => {
+    expect(buildRestoreToasts([ok('/a')], 0, { singleItemFlow: false })).toEqual([
       { key: 'tmRestoredCount', params: { count: 1, path: '/a' } },
     ])
   })

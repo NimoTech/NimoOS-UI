@@ -553,6 +553,24 @@ describe('restoreItems', () => {
     await s.restoreItems([item('/DATA/.snapshots/snap1/Photos/a.jpg')], '/DATA/Photos', picker)
     expect(useToast().msg).toContain('/DATA/Photos/a.jpg.restored-1')
   })
+  // Controller ruling, fix round 1: entry point decides the success-toast copy, not item count --
+  // opts.singleItemFlow (Files.vue's own restoreSingleItem, the context-menu entry point) switches
+  // to Vue2's `snapBrowseRestored` = "Restored to {path}" copy, which has NO count/"项" wording,
+  // distinguishing it from the default `tmRestoredCount` copy every other entry point uses even for
+  // a one-item selection (see the very next test below).
+  it('singleItemFlow: true → the context-menu-only copy (no item count), even though it is also a one-item restore', async () => {
+    restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })
+    const s = await inSnapshot()
+    await s.restoreItems([item('/DATA/.snapshots/snap1/Photos/a.jpg')], '/DATA/Photos', picker, { singleItemFlow: true })
+    expect(useToast().msg).toBe('已恢复到 /DATA/Photos/a.jpg.restored-1')
+    expect(useToast().msg).not.toContain('项') // not the count-based tmRestoredCount copy
+  })
+  it('a one-item SELECTION (no singleItemFlow opt) keeps the count-based copy — entry point, not item count, decides', async () => {
+    restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })
+    const s = await inSnapshot()
+    await s.restoreItems([item('/DATA/.snapshots/snap1/Photos/a.jpg')], '/DATA/Photos', picker)
+    expect(useToast().msg).toBe('已取回 1 项到 /DATA/Photos/a.jpg.restored-1')
+  })
   it('multiple restore success: toast should show count, not each item', async () => {
     restoreMock.mockResolvedValue({ restored_path: '/DATA/x.restored-1' })
     const s = await inSnapshot()

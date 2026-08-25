@@ -319,7 +319,18 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // held true for the WHOLE sequence (Vue2's own runRestoreWithConflictCheck: the picker/conflict-queue
   // phase must disable the other two entry points too, not just the network calls), and the three entry
   // points still share this one flag — any in-flight one disables the other two.
-  async function restoreItems(items: RestoreItem[], defaultDir: string, openPicker: OpenRestorePicker): Promise<void> {
+  //
+  // `opts.singleItemFlow` (controller ruling, fix round 1): purely a pass-through to
+  // buildRestoreToasts (see that function's own comment) so the CALLER (Files.vue's
+  // `restoreSingleItem`, the context-menu entry point) decides the success-toast copy, not this
+  // function inferring it from `items.length` — a selection of exactly one item (banner/bottom bar)
+  // must still show Vue2's `tmRestoredCount` copy, not the context-menu-only `snapBrowseRestored` one.
+  async function restoreItems(
+    items: RestoreItem[],
+    defaultDir: string,
+    openPicker: OpenRestorePicker,
+    opts: { singleItemFlow?: boolean } = {},
+  ): Promise<void> {
     if (restoring.value) return
     const info = browseInfo.value
     if (!info || !items.length) return
@@ -353,7 +364,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
         restore: (body) => service.snapshot.restore(body),
         onProgress: (done, total) => { restoreProgress.value = { done, total } },
       })
-      for (const msg of buildRestoreToasts(outcomes, skippedCount)) {
+      for (const msg of buildRestoreToasts(outcomes, skippedCount, { singleItemFlow: opts.singleItemFlow })) {
         toast.show(t(msg.key, msg.params ?? {}), undefined, msg.tier)
       }
     } finally {
