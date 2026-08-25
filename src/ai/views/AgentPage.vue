@@ -524,6 +524,7 @@ onUnmounted(() => {
         @send="(payload) => store.send(payload)"
         @stop="() => store.stop()"
         @send-init="(target) => store.sendInit(target)"
+        @ctx-window-saved="refreshContextUsage"
       />
     </main>
     <!--

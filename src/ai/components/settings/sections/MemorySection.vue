@@ -58,7 +58,9 @@ function payload() {
   return {
     enabled: enabled.value,
     compaction_enabled: compactionEnabled.value,
-    context_window: contextWindow.value !== '' ? Number(contextWindow.value) : null,
+    // 0 clears the override — the backend treats null as "don't touch",
+    // so sending null here silently kept stale overrides forever.
+    context_window: contextWindow.value !== '' ? Number(contextWindow.value) : 0,
   }
 }
 
@@ -177,8 +179,8 @@ function onCompactionChange(v: boolean) {
                 v-model="contextWindow"
                 class="set-input num"
                 type="number"
-                min="1"
-                :placeholder="t('aiCfgAutoPlaceholder')"
+                min="1024"
+                :placeholder="t('aiCtxDefaultHint')"
                 @change="saveContextWindow"
               >
             </div>

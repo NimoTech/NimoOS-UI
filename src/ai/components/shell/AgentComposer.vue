@@ -167,6 +167,9 @@ const emit = defineEmits<{
   send: [payload: { text: string; attachmentIds: string[]; attachmentRefs: AttachmentRef[] }]
   stop: []
   'send-init': [target: string]
+  // context-window override saved from the ContextUsageBar popover —
+  // AgentPage refreshes the usage indicator so the new window shows at once
+  'ctx-window-saved': []
 }>()
 
 const { t } = useI18n()
@@ -1193,6 +1196,7 @@ onBeforeUnmount(() => {
           :window="ctxUsage.window"
           :pct="ctxUsage.pct"
           class="composer-ctx-usage"
+          @saved="emit('ctx-window-saved')"
         />
         <button
           v-if="props.busy"
