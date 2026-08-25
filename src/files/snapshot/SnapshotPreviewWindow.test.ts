@@ -8,8 +8,11 @@
 // SnapshotPreviewWindow.vue's own header comment for the full structure trace this file asserts.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
 import SnapshotPreviewWindow from './SnapshotPreviewWindow.vue'
 import { dateFmt } from '../util/format'
+import { iconUrl, iconNameFor } from '../util/icons'
+import { useFilesStore } from '../stores/files'
 import type { SnapshotPreviewEntry } from '../util/snapshotPreviewCache'
 
 vi.mock('../util/snapshotPreviewCache', () => ({ getSnapshotPreview: vi.fn() }))
@@ -36,6 +39,8 @@ function mountPreview(props = {}) {
 
 beforeEach(() => {
   getSnapshotPreviewMock.mockReset()
+  setActivePinia(createPinia())
+  localStorage.clear() // useFilesStore's sort/order read localStorage on init -- keep default name/asc per test
 })
 
 describe('SnapshotPreviewWindow — fetch wiring (Task 4 contract, unchanged)', () => {
@@ -135,8 +140,11 @@ describe('SnapshotPreviewWindow — viewMode prop (Vue2 parity: grid default, li
     const w = mountPreview({ viewMode: 'list' })
     await flushPromises()
     expect(w.find('.tm-preview-window__card').exists()).toBe(false)
-    const heads = w.findAll('.tm-preview-window__th').map((h) => h.text())
-    expect(heads).toEqual(['名称', '类型', '修改日期', '大小']) // filesColName/Type/Date/Size, zh
+    // Vue2 parity: a leading empty spacer th (the checkbox column's header spot) comes first.
+    const heads = w.findAll('.tm-preview-window__th')
+    expect(heads[0].classes()).toContain('tm-preview-window__th--spacer')
+    expect(heads[0].text()).toBe('')
+    expect(heads.slice(1).map((h) => h.text())).toEqual(['名称', '类型', '修改日期', '大小']) // filesColName/Type/Date/Size, zh
     const rows = w.findAll('.tm-preview-window__row')
     expect(rows).toHaveLength(2)
     expect(rows[0].find('.tm-preview-window__col--name').text()).toBe('Photos') // folders-first
@@ -166,6 +174,71 @@ describe('SnapshotPreviewWindow — viewMode prop (Vue2 parity: grid default, li
     expect(w.findAll('.tm-preview-window__card')).toHaveLength(24)
     // Row 2's own count still reads the FULL, uncapped length.
     expect(w.find('.tm-preview-window__count').text()).toBe('40 项')
+  })
+})
+
+describe('SnapshotPreviewWindow — icons (review finding 2: real icon-name/URL lookup, not a color box)', () => {
+  it('grid mode: each card\'s icon <img> src comes from iconUrl(iconNameFor(...)), same util the real window\'s rows use', async () => {
+    const entries = [
+      { name: 'Report.pdf', isDir: false, size: 2048, mtime: 0 },
+      { name: 'Photos', isDir: true, size: 0, mtime: 0 },
+    ]
+    resolved({ entries, error: false })
+    const w = mountPreview()
+    await flushPromises()
+    const cards = w.findAll('.tm-preview-window__card')
+    const folderIcon = cards[0].find('.tm-preview-window__icon') // Photos, folders-first
+    const fileIcon = cards[1].find('.tm-preview-window__icon') // Report.pdf
+    expect(folderIcon.attributes('src')).toBe(iconUrl(iconNameFor({ name: 'Photos', is_dir: true })))
+    expect(fileIcon.attributes('src')).toBe(iconUrl(iconNameFor({ name: 'Report.pdf', is_dir: false })))
+    // Folder and file resolve to genuinely different icons (sanity: not a fallback/placeholder for both).
+    expect(folderIcon.attributes('src')).not.toBe(fileIcon.attributes('src'))
+  })
+
+  it('list mode: same icon lookup renders per row', async () => {
+    resolved({ entries: [{ name: 'a.jpg', isDir: false, size: 10, mtime: 0 }], error: false })
+    const w = mountPreview({ viewMode: 'list' })
+    await flushPromises()
+    const icon = w.find('.tm-preview-window__row .tm-preview-window__icon')
+    expect(icon.attributes('src')).toBe(iconUrl(iconNameFor({ name: 'a.jpg', is_dir: false })))
+  })
+})
+
+describe('SnapshotPreviewWindow — sort mirrors the live front window (review finding 1)', () => {
+  const entries = [
+    { name: 'b.txt', isDir: false, size: 20, mtime: new Date('2026-01-02').getTime() },
+    { name: 'Zeta', isDir: true, size: 0, mtime: 0 },
+    { name: 'a.txt', isDir: false, size: 10, mtime: new Date('2026-01-03').getTime() },
+    { name: 'Alpha', isDir: true, size: 0, mtime: 0 },
+  ]
+
+  it('defaults to the store\'s default sort (name/asc), folders first', async () => {
+    resolved({ entries, error: false })
+    const w = mountPreview({ viewMode: 'list' })
+    await flushPromises()
+    const names = w.findAll('.tm-preview-window__col--name').map((n) => n.text())
+    expect(names).toEqual(['Alpha', 'Zeta', 'a.txt', 'b.txt'])
+  })
+
+  it('follows the store when sort changes to date/desc (folders still first)', async () => {
+    const filesStore = useFilesStore()
+    filesStore.setSort('date', 'desc')
+    resolved({ entries, error: false })
+    const w = mountPreview({ viewMode: 'list' })
+    await flushPromises()
+    const names = w.findAll('.tm-preview-window__col--name').map((n) => n.text())
+    expect(names.slice(0, 2).sort()).toEqual(['Alpha', 'Zeta']) // folders first, order between them unspecified
+    expect(names.slice(2)).toEqual(['a.txt', 'b.txt']) // date desc: 2026-01-03 before 2026-01-02
+  })
+
+  it('follows the store when sort changes to size/asc', async () => {
+    const filesStore = useFilesStore()
+    filesStore.setSort('size', 'asc')
+    resolved({ entries, error: false })
+    const w = mountPreview({ viewMode: 'list' })
+    await flushPromises()
+    const names = w.findAll('.tm-preview-window__col--name').map((n) => n.text())
+    expect(names.slice(2)).toEqual(['a.txt', 'b.txt']) // size asc: 10 before 20
   })
 })
 

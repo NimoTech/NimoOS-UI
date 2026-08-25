@@ -871,9 +871,13 @@ export default {
 
   // Task 1 (Files Time Machine Vue2-parity line): tmEntry's copy changes from 'Time Machine'
   // to 'Snapshots' -- Vue2 authority (en_US.json's "Snapshots" key) renamed the nav entry
-  // itself; tmEnter/tmNoFolderAtTime/tmPreviewUnavailable/tmItemCount/tmRailJumpTo/
-  // tmStepNewer/tmOpenFolder stay as-is (still consumed by the colleague-authored cards/rail
-  // components under src/files/snapshot/, cleared out in T16 alongside those components).
+  // itself; tmEnter/tmNoFolderAtTime/tmPreviewUnavailable/tmRailJumpTo/tmStepNewer/
+  // tmOpenFolder stay as-is (still consumed by the colleague-authored cards/rail components
+  // under src/files/snapshot/, cleared out in T16 alongside those components).
+  // Correction (Task 5 review, fix round 2): tmItemCount is NOT colleague-only anymore --
+  // Task 5's own SnapshotPreviewWindow.vue (a permanent component in this rebuild, not slated
+  // for deletion) also renders it for its Row 2 "N items" count. Do NOT delete tmItemCount in
+  // T16 just because the colleague components it originally served are gone by then.
   tmEntry: 'Snapshots',
   tmEnter: 'Enter this snapshot',
   tmSettings: 'Snapshot settings',

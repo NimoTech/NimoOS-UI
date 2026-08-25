@@ -4,7 +4,7 @@ import { service } from '@nimotech/nimoos-service'
 import { useFoldersStore } from '../../home/stores/folders'
 import { useFolderSizesStore } from './folderSizes'
 import type { DisplayNames } from '../util/pathUtils'
-import { fileExt } from '../util/ext'
+import { sortEntries, type SortField, type SortOrder } from '../util/sortEntries'
 import { folderListErrorMsg } from '../util/folderListError'
 import { isHiddenEntry } from '../../util/hiddenEntries'
 
@@ -90,35 +90,20 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   const viewMode = ref<'list' | 'grid'>((localStorage.getItem('nimoos:file-view') as 'list' | 'grid') || 'grid')
-  const sort = ref<'name' | 'format' | 'date' | 'size'>((localStorage.getItem('nimoos:file-sort') as any) || 'name')
-  const order = ref<'asc' | 'desc'>((localStorage.getItem('nimoos:file-order') as any) || 'asc')
+  const sort = ref<SortField>((localStorage.getItem('nimoos:file-sort') as SortField) || 'name')
+  const order = ref<SortOrder>((localStorage.getItem('nimoos:file-order') as SortOrder) || 'asc')
 
-  const KEY_FN: Record<string, (e: FileEntry) => string | number> = {
-    name: (e) => e.name.toLowerCase(),
-    format: (e) => fileExt(e.name),
-    date: (e) => new Date(e.date || 0).getTime() || 0,
-    size: (e) => Number(e.size) || 0,
-  }
-
-  const sortedEntries = computed<FileEntry[]>(() => {
-    const keyFn = KEY_FN[sort.value] || KEY_FN.name
-    const dir = order.value === 'desc' ? -1 : 1
-    return [...entries.value].sort((a, b) => {
-      // folders first
-      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1
-      const ka = keyFn(a), kb = keyFn(b)
-      if (ka < kb) return -1 * dir
-      if (ka > kb) return 1 * dir
-      return 0
-    })
-  })
+  // Comparator itself lives in ../util/sortEntries.ts (extracted so SnapshotPreviewWindow.vue's
+  // depth-stack previews can mirror this SAME live sort/order rather than reimplementing it --
+  // see that util's own header comment).
+  const sortedEntries = computed<FileEntry[]>(() => sortEntries(entries.value, sort.value, order.value))
 
   function setView(v: 'list' | 'grid') {
     viewMode.value = v
     localStorage.setItem('nimoos:file-view', v)
   }
-  function setSort(s: string, o?: 'asc' | 'desc') {
-    const next = (o ?? (s === sort.value ? (order.value === 'asc' ? 'desc' : 'asc') : 'asc')) as 'asc' | 'desc'
+  function setSort(s: string, o?: SortOrder) {
+    const next = (o ?? (s === sort.value ? (order.value === 'asc' ? 'desc' : 'asc') : 'asc')) as SortOrder
     sort.value = s as typeof sort.value
     order.value = next
     localStorage.setItem('nimoos:file-sort', sort.value)

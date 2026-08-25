@@ -55,6 +55,29 @@
   `pointer-events` is deliberately NOT set here (unlike Vue2's own inline `pointer-events: none`)
   -- this task's own brief states that concern belongs to the parent (TimeMachineStage.vue /
   Task 7), which positions and layers up to ~10 of these instances as a group.
+
+  FIX ROUND 2 (review findings 1 & 2, controller rulings -- "the preview must look like a
+  miniature real window", same reasoning applied twice):
+
+  1. Sort order now mirrors the LIVE front window's own sort/order (`useFilesStore().sort/order`,
+     src/files/stores/files.ts) instead of a fixed folders-first-alphabetical policy -- exactly
+     what Vue2's own `sortedRows` computed does by reading `$store.state.sort/order` directly, so
+     every stacked depth-layer's row order matches what the real window is currently showing. The
+     comparator itself now lives in `../util/sortEntries.ts` (extracted out of `stores/files.ts`'s
+     own `sortedEntries` computed in this same fix round) so this component REUSES it rather than
+     reimplementing -- see that util's own header comment. `PreviewFile`'s field names differ from
+     `FileEntry`'s (`isDir`/`mtime` vs `is_dir`/`date`), so entries are adapted to the shared
+     `SortableEntry` shape before sorting, not literally identical objects.
+  2. Icons now use the SAME static icon-name/URL lookup the real window's own rows use --
+     `iconNameFor`/`iconUrl` from `../util/icons` (the exact util `FileThumb.vue`'s own
+     non-thumbnail fallback branch calls, which `FileTile.vue`/`FileRow.vue` render via) -- instead
+     of a hand-rolled color-coded folder/file box. Deliberately NOT reusing `FileThumb.vue`'s LIVE
+     image-thumbnail branch (`service.image.thumbUrl`, gated by `useInView`): `PreviewFile` carries
+     no `path` (only a name relative to the snapshot dir), and Vue2's own header comment explains
+     why per-row network thumbnail fetches are rejected for up to ~10 concurrently mounted
+     depth-stack layers -- this fix only replaces the STATIC glyph, which is a zero-cost bundled
+     asset either way, with the real one. Flagged in task-5-report.md as a scoping call for Task 7
+     to revisit if live image thumbnails are wanted in previews too.
 -->
 <template>
   <div class="tm-preview-window" :class="{ 'is-active': active }" aria-hidden="true">
@@ -84,6 +107,9 @@
     <!-- List mode: clones the real FileListView.vue's own sortable header + row shape. -->
     <div v-if="viewMode === 'list'" class="tm-preview-window__body tm-preview-window__list">
       <div class="tm-preview-window__thead">
+        <!-- Vue2 parity: the real ListView.vue/this window's own thead reserves a leading empty
+             `<div class="th">` (the checkbox column's header spacer) before "File name". -->
+        <span class="tm-preview-window__th tm-preview-window__th--spacer"></span>
         <span class="tm-preview-window__th tm-preview-window__th--name">{{ t('filesColName') }}</span>
         <span class="tm-preview-window__th tm-preview-window__th--type">{{ t('filesColType') }}</span>
         <span class="tm-preview-window__th tm-preview-window__th--date">{{ t('filesColDate') }}</span>
@@ -91,7 +117,7 @@
       </div>
       <div class="tm-preview-window__tbody">
         <div v-for="row in rows" :key="row.name" class="tm-preview-window__row" :class="{ 'is-dir': row.isDir }">
-          <span class="tm-preview-window__cover" :class="row.isDir ? 'is-folder' : 'is-file'"></span>
+          <img class="tm-preview-window__icon" :src="iconUrl(iconNameFor({ name: row.name, is_dir: row.isDir }))" alt="" />
           <span class="tm-preview-window__col tm-preview-window__col--name">{{ row.name }}</span>
           <span class="tm-preview-window__col tm-preview-window__col--type">{{ row.isDir ? '' : fileExt(row.name) }}</span>
           <span class="tm-preview-window__col tm-preview-window__col--date">{{ dateFmt(row.mtime) }}</span>
@@ -103,7 +129,7 @@
     <!-- Grid mode (default): clones the real FileTile.vue's own icon/name/date card shape. -->
     <div v-else class="tm-preview-window__body tm-preview-window__grid">
       <div v-for="row in rows" :key="row.name" class="tm-preview-window__card" :class="{ 'is-dir': row.isDir }">
-        <span class="tm-preview-window__cover" :class="row.isDir ? 'is-folder' : 'is-file'"></span>
+        <img class="tm-preview-window__icon" :src="iconUrl(iconNameFor({ name: row.name, is_dir: row.isDir }))" alt="" />
         <p class="tm-preview-window__title">{{ row.name }}</p>
         <p class="tm-preview-window__desc">{{ dateFmt(row.mtime) }}</p>
       </div>
@@ -121,6 +147,9 @@ import { getSnapshotPreview, type PreviewFile } from '../util/snapshotPreviewCac
 import { SNAPSHOTS_DIR_NAME } from '../util/snapshotPath'
 import { renderSize, dateFmt } from '../util/format'
 import { fileExt } from '../util/ext'
+import { iconNameFor, iconUrl } from '../util/icons'
+import { sortEntries } from '../util/sortEntries'
+import { useFilesStore } from '../stores/files'
 
 const props = withDefaults(
   defineProps<{
@@ -146,6 +175,7 @@ const props = withDefaults(
 )
 
 const { t } = useI18n()
+const filesStore = useFilesStore()
 
 // Vue2 parity: `maxRows` default is 24 (its own prop default) -- kept as a fixed internal
 // constant (not exposed as a prop) since this task's own brief fixes the prop list to
@@ -201,16 +231,16 @@ onMounted(fetchListing)
 onBeforeUnmount(() => { destroyed = true })
 watch(() => [props.mount, props.snapshotName, props.relPath], fetchListing)
 
-// Folders-first, then alphabetical -- a fixed, non-reactive presentation policy (no store
-// dependency, per this component's own "presentational only" contract). Mirrors the ONLY path
-// Vue2's own sort actually exercises without a live $store (its own defensive fallback to
-// name/asc, folders always first regardless of sort column).
-const sortedRows = computed(() =>
-  [...entries.value].sort((a, b) => {
-    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
-    return a.name.localeCompare(b.name)
-  }),
-)
+// Review fix (finding 1): mirrors the LIVE front window's own sort/order (useFilesStore) via the
+// SAME shared comparator stores/files.ts's own sortedEntries now delegates to (../util/
+// sortEntries.ts) -- see this file's own header comment, "FIX ROUND 2", point 1. PreviewFile's
+// field names (`isDir`/`mtime`) differ from the comparator's `SortableEntry` shape (`is_dir`/
+// `date`), so each entry is adapted (not duplicated -- `...e` keeps every PreviewFile field the
+// template still reads, `is_dir`/`date` are added purely for the comparator's own key functions).
+const sortedRows = computed(() => {
+  const adapted = entries.value.map((e) => ({ ...e, is_dir: e.isDir, date: new Date(e.mtime).toISOString() }))
+  return sortEntries(adapted, filesStore.sort, filesStore.order)
+})
 
 // Vue2 parity: `rows` is capped at maxRows for render weight; `totalCount` (Row 2's label AND
 // its own v-if gate) reads the FULL, uncapped length -- see this file's own header comment.
@@ -285,7 +315,7 @@ const crumbSegments = computed(() => {
   flex: 0 0 auto;
   padding: 3px 10px;
   border-radius: 980px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   background: color-mix(in srgb, var(--tm-accent) 10%, transparent);
@@ -331,6 +361,7 @@ const crumbSegments = computed(() => {
   color: var(--tm-text-dim);
 }
 
+.tm-preview-window__th--spacer { flex: 0 0 16px; }
 .tm-preview-window__th--name { flex: 1 1 auto; }
 .tm-preview-window__th--type,
 .tm-preview-window__th--date,
@@ -384,17 +415,13 @@ const crumbSegments = computed(() => {
   width: 64px;
 }
 
-.tm-preview-window__cover {
+/* Review fix (finding 2): the real icon-name/URL lookup the real window's own rows use
+   (../util/icons iconNameFor/iconUrl) -- a bundled static asset, not a hand-rolled color box. */
+.tm-preview-window__icon {
   width: 20px;
   height: 20px;
-  border-radius: 4px;
-  background: var(--tm-ghost-hover-bg);
-  border: 1px solid var(--tm-ghost-border);
-}
-
-.tm-preview-window__cover.is-folder {
-  background: color-mix(in srgb, var(--tm-accent) 16%, transparent);
-  border-color: var(--tm-accent);
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 .tm-preview-window__title {
