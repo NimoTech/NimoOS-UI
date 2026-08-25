@@ -31,6 +31,7 @@ import { TM_WINDOW_SCALE, clampStepIndex } from '../util/timeMachineMath'
 import { EXIT_FADE_MS } from '../util/timeMachineChoreo'
 import { provideTmStageRoot } from './tmStageRoot'
 import TimeMachineDepthStack from './TimeMachineDepthStack.vue'
+import TimeMachineRail from './TimeMachineRail.vue'
 
 defineOptions({ name: 'TimeMachineStage' })
 
@@ -249,7 +250,23 @@ onUnmounted(() => {
     </div>
 
     <template v-if="active || fadingOut">
-      <!-- Gear button (z-tier 10, same tier the vertical stepper — Task 8 — will occupy): the one
+      <!-- Right-edge fisheye tick rail (Task 8, z-tier 9) -- its own template gate, like the gear
+           button below, rather than folded into the clone/glass/depth-stack block above (that
+           block is background decoration, always pointer-events:none; the rail, like the gear, is
+           interactive). Wired straight to the store (same props-less-from-Files.vue convention
+           TimeMachineDepthStack.vue's own header comment already established), not threaded
+           through props: snapshots/current/loading come straight off `browse`, and `select` calls
+           `browse.switchTo` directly -- the SAME funnel the keyboard stepper (Task 7) and the
+           bottom-bar stepper (Task 9) also go through. -->
+      <TimeMachineRail
+        :class="{ 'tm-stage__fade-exit': fadingOut }"
+        :snapshots="browse.snapshotList"
+        :current="browse.currentSnapshotName"
+        :loading="browse.tmLoading"
+        @select="(name) => browse.switchTo(name)"
+      />
+
+      <!-- Gear button (z-tier 10, same tier the vertical stepper — Task 9 — will occupy): the one
            piece of the top-right/right-edge chrome group that belongs to no later task by name,
            so it is built here rather than left as a dead `open-settings` emit with no trigger. -->
       <button

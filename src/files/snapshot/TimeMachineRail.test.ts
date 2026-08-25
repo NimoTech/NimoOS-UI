@@ -3,30 +3,40 @@ import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import TimeMachineRail from './TimeMachineRail.vue'
+import { formatSnapshotClockTime } from '../../storage/util/snapshotView'
 import zh from '../../i18n/zh_cn'
+import type { SnapshotVM } from '../stores/snapshotBrowse'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
-const GROUPS = [
-  { dayKey: '2026-07-30', labelText: '今天', items: [
-    { flatIndex: 0, time: '14:30', typeKind: 'manual' as const },
-    { flatIndex: 1, time: '09:00', typeKind: 'auto' as const },
-  ] },
-  { dayKey: '2026-07-29', labelText: '昨天', items: [
-    { flatIndex: 2, time: '09:00', typeKind: 'preop' as const },
-  ] },
-]
-const mountIt = (props = {}) =>
-  mount(TimeMachineRail, { props: { groups: GROUPS, selectedIndex: 0, ...props }, global: { plugins: [i18n] } })
 
-// Enough snapshots to overflow the rail's own scroll container, so the
-// "scroll the selected tick into view" behavior actually has somewhere to scroll to.
-const manyGroups = () => [
-  { dayKey: '2026-07-30', labelText: '今天', items: Array.from({ length: 50 }, (_, i) => (
-    { flatIndex: i, time: `${String(i).padStart(2, '0')}:00`, typeKind: 'auto' as const }
-  )) },
+// Two real days ("today" and "yesterday" relative to whenever this suite runs) plus a controlled
+// intra-day ordering, so the day-grouping/selection assertions below don't depend on any fixed
+// calendar date.
+const now = new Date()
+const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+const yesterday = new Date(now)
+yesterday.setDate(yesterday.getDate() - 1)
+
+const SNAPSHOTS: SnapshotVM[] = [
+  { name: 's-today-newest', created_at: now.toISOString() },
+  { name: 's-today-older', created_at: oneHourAgo.toISOString() },
+  { name: 's-yesterday', created_at: yesterday.toISOString() },
 ]
 
-// Build a fake DOMRect filling only the top/height fields the component uses; the rest are 0 placeholders to satisfy the type.
+const mountIt = (props: Record<string, unknown> = {}) =>
+  mount(TimeMachineRail, {
+    props: { snapshots: SNAPSHOTS, current: null, loading: false, ...props },
+    global: { plugins: [i18n] },
+  })
+
+// Enough same-day snapshots to give the "scroll the selected tick into view" behavior somewhere
+// real to scroll to (jsdom itself never lays anything out, but this keeps the fixture honest).
+const manySnapshots = (): SnapshotVM[] => Array.from({ length: 50 }, (_, i) => (
+  { name: `s${i}`, created_at: new Date(now.getTime() - i * 3600_000).toISOString() }
+))
+
+// Build a fake DOMRect filling only the top/height fields the component uses; the rest are 0
+// placeholders to satisfy the type.
 const fakeRect = (top: number, height = 10): DOMRect =>
   ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
 
@@ -36,78 +46,84 @@ beforeEach(() => {
 })
 
 describe('TimeMachineRail', () => {
-  it('one major tick per snapshot, with readable aria-label', () => {
+  it('renders one major tick per snapshot, with a readable jump-to aria-label', () => {
     const mains = mountIt().findAll('.tm-tick-main')
     expect(mains).toHaveLength(3)
-    expect(mains[0].attributes('aria-label')).toContain('14:30')
+    expect(mains[0].attributes('aria-label')).toContain(formatClock(SNAPSHOTS[0]))
   })
-  it('insert decorative minor ticks between major ticks, minor ticks are not buttons', () => {
+
+  it('inserts decorative sub-ticks between major ticks; sub-ticks are not buttons', () => {
     const w = mountIt()
     expect(w.findAll('.tm-tick-sub').length).toBeGreaterThan(0)
     expect(w.find('.tm-tick-sub').element.tagName).not.toBe('BUTTON')
   })
-  it('one date header per day', () => {
-    expect(mountIt().findAll('.tm-rail-day').map((d) => d.text())).toEqual(['今天', '昨天'])
+
+  it('groups by day: two-day snapshot data renders two distinct day headers', () => {
+    const days = mountIt().findAll('.tm-rail-day')
+    expect(days).toHaveLength(2)
+    expect(days[0].text()).not.toBe(days[1].text())
   })
-  it('selected tick has is-selected class', () => {
-    const w = mountIt({ selectedIndex: 1 })
-    const sel = w.findAll('.tm-tick-main').filter((t) => t.classes().includes('is-selected'))
-    expect(sel).toHaveLength(1)
-    expect(sel[0].attributes('aria-label')).toContain('09:00')
+
+  it('the tick matching `current` carries the is-selected class', () => {
+    const w = mountIt({ current: 's-today-older' })
+    const selected = w.findAll('.tm-tick-main').filter((n) => n.classes().includes('is-selected'))
+    expect(selected).toHaveLength(1)
+    expect(selected[0].attributes('data-flat-index')).toBe('s-today-older')
   })
-  it('type coloring class', () => {
-    const mains = mountIt().findAll('.tm-tick-main')
-    expect(mains[0].classes()).toContain('type-manual')
-    expect(mains[2].classes()).toContain('type-preop')
-  })
-  it('clicking major tick emits select (only changes selection, does not enter)', async () => {
+
+  it('clicking a major tick emits select with that snapshot\'s name', async () => {
     const w = mountIt()
-    await w.findAll('.tm-tick-main')[2].trigger('click')
-    expect(w.emitted('select')?.[0]?.[0]).toBe(2)
+    const target = w.findAll('.tm-tick-main').find((n) => n.attributes('data-flat-index') === 's-yesterday')!
+    await target.trigger('click')
+    expect(w.emitted('select')?.[0]?.[0]).toBe('s-yesterday')
   })
-  it('clicking minor tick snaps to its parent major tick', async () => {
+
+  it('clicking a minor tick emits select with its anchor major tick\'s name', async () => {
     const w = mountIt()
-    await w.find('.tm-tick-sub').trigger('click')
-    expect(w.emitted('select')?.[0]?.[0]).toBe(0)
+    const sub = w.find('.tm-tick-sub')
+    const anchorName = sub.attributes('data-anchor-index')
+    expect(anchorName).toBeTruthy()
+    await sub.trigger('click')
+    expect(w.emitted('select')?.[0]?.[0]).toBe(anchorName)
   })
-  it('hovering major tick shows time label, moving away hides it', async () => {
+
+  it('hovering a major tick shows its time label; leaving the rail hides it', async () => {
     const w = mountIt()
-    await w.findAll('.tm-tick-main')[1].trigger('mouseenter')
-    expect(w.find('.tm-tick-label').text()).toBe('09:00')
+    const target = w.findAll('.tm-tick-main').find((n) => n.attributes('data-flat-index') === 's-today-newest')!
+    await target.trigger('mouseenter')
+    expect(w.find('.tm-tick-label').text()).toBe(formatClock(SNAPSHOTS[0]))
     await w.find('.tm-rail').trigger('mouseleave')
     expect(w.find('.tm-tick-label').exists()).toBe(false)
   })
-  it('on mouse move, compute scale for ticks (closer to cursor, larger)', async () => {
+
+  it('on mouse move, writes a scaleX transform onto ticks', async () => {
     const w = mountIt()
-    // In jsdom getBoundingClientRect is always 0; this only asserts a transform was written
+    // jsdom's getBoundingClientRect is always 0 here; this only asserts a transform was written
     // after mousemove. The curve itself is covered by timeMachineMath.test.ts (real numeric
-    // assertions there); the stronger "closer means larger" assertion is the test below
-    // (which mocks each tick's getBoundingClientRect to create real distance differences).
+    // assertions on fisheyeScale); "closer means larger" is covered by the strengthened case below.
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     expect(w.findAll('.tm-tick-main')[0].attributes('style')).toContain('scaleX')
   })
-  it('scale resets after mouse leaves', async () => {
+
+  it('scale resets once the mouse leaves the rail', async () => {
     const w = mountIt()
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     await w.find('.tm-rail').trigger('mouseleave')
     expect(w.findAll('.tm-tick-main')[0].attributes('style') ?? '').not.toContain('scaleX(2')
   })
-  it('empty groups render empty ruler, no error', () => {
-    expect(mountIt({ groups: [] }).findAll('.tm-tick-main')).toHaveLength(0)
+
+  it('renders no ticks and no error with an empty snapshot list', () => {
+    const w = mountIt({ snapshots: [] })
+    expect(w.findAll('.tm-tick-main')).toHaveLength(0)
+    expect(w.findAll('.tm-rail-day')).toHaveLength(0)
   })
 
-  // ↓ Addition: the brief's own "computes scale" case only asserts the style string contains
-  // scaleX, so a hollow implementation that always returns scaleX(1) would pass (scaleX(1)
-  // itself "contains scaleX"). Here we manually mock each main tick's own
-  // getBoundingClientRect to create real, differing cursor distances, and assert the tick
-  // closer to the cursor scales larger than the farther one — actually exercising the
-  // computeFisheyeScales numeric path.
-  // Note: back when main ticks and their sub-ticks shared data-flat-index, this test had to
-  // mock the sub-ticks' rects too to pass (otherwise the map got overwritten by the sub-ticks'
-  // default rect) — that shared key was itself the real bug review caught; the component now
-  // uses data-anchor-index for sub-ticks (no more key collision), so mocking the main ticks
-  // alone is enough, no need to accommodate that bug anymore.
-  it('(non-hollow strengthening) when real distances from ticks to cursor differ, scales should differ and closer should be larger', async () => {
+  // ↓ Non-hollow strengthening: the plain "contains scaleX" case above would pass even for a
+  // hollow implementation that always returns scaleX(1) (scaleX(1) itself "contains scaleX"). Here
+  // each main tick's own getBoundingClientRect is mocked to create real, differing cursor
+  // distances, and the tick closer to the cursor must scale larger than the farther one --
+  // actually exercising fisheyeScale's numeric path.
+  it('(non-hollow) real distance differences produce real scale differences, closer is larger', async () => {
     const w = mountIt()
     const mains = w.findAll('.tm-tick-main')
     ;(mains[0].element as HTMLElement).getBoundingClientRect = () => fakeRect(100)
@@ -124,17 +140,17 @@ describe('TimeMachineRail', () => {
     expect(nearScale).toBeGreaterThan(farScale)
   })
 
-  // ↓ Regression case pinned by review (T10 re-check): a main tick's scale must be computed
-  // from its own center, and must not be overwritten by the sub-ticks that follow it sharing
-  // the same logical flatIndex. Approach: place the main tick's own rect near the cursor
-  // (should get close to the maxScale=2.2 peak) while pushing all its sub-ticks' rects far
-  // away (well beyond radius=70, should get minScale=1). If updateScales() again writes
-  // sub-tick values into the same map key in DOM order ("later overwrites earlier"), this
-  // reads close to 1 instead of close to 2.2 and the assertion fails.
-  it('major tick scale is computed from major tick center, not overwritten by sub-ticks at same anchor', async () => {
+  // ↓ Regression case for the exact bug this component's own data-attribute split guards against
+  // (see TimeMachineRail.vue's own header comment): a main tick's scale must be computed from its
+  // own center, never overwritten by a sub-tick sharing its anchor. Places the main tick's own
+  // rect near the cursor (should land close to the maxScale=2.2 peak) while pushing every sub-tick
+  // far away (well beyond radius=70, should read minScale=1). If updateScales() ever again wrote
+  // sub-tick rects into the same map key in DOM order ("later overwrites earlier"), this would read
+  // close to 1 instead of close to 2.2 and the assertion fails.
+  it('a major tick\'s scale comes from its own center, not from a sub-tick sharing its anchor', async () => {
     const w = mountIt()
     const main0 = w.findAll('.tm-tick-main')[0].element as HTMLElement
-    main0.getBoundingClientRect = () => fakeRect(100) // cursor at 105, distance ~5px, should be near peak
+    main0.getBoundingClientRect = () => fakeRect(100) // cursor at 105, distance ~5px: should be near peak
     for (const sub of w.findAll('.tm-tick-sub')) {
       (sub.element as HTMLElement).getBoundingClientRect = () => fakeRect(2000) // far beyond radius
     }
@@ -147,11 +163,7 @@ describe('TimeMachineRail', () => {
     expect(scale).toBeGreaterThan(2) // peak maxScale=2.2; if overwritten by a sub-tick it drops to minScale=1
   })
 
-  // ↓ Addition: the brief never tested constraint #4 (rAF throttling + canceling the pending
-  // frame on unmount). The default beforeEach rAF stub runs the callback synchronously, which
-  // cannot detect "multiple mousemoves within one frame schedule only one recompute" — swap in
-  // a manually-controlled stub (no auto invoke) so the throttling itself is observable.
-  it('(added coverage for constraint #4) multiple mousemoves in one frame request rAF only once', async () => {
+  it('multiple mousemoves within one frame request rAF only once (throttling)', async () => {
     const raf = vi.fn(() => 1)
     vi.stubGlobal('requestAnimationFrame', raf)
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
@@ -161,7 +173,8 @@ describe('TimeMachineRail', () => {
     await w.find('.tm-rail').trigger('mousemove', { clientY: 30 })
     expect(raf).toHaveBeenCalledTimes(1)
   })
-  it('(added coverage for constraint #4) cancel pending rAF on component unmount', async () => {
+
+  it('cancels a pending rAF on unmount', async () => {
     const caf = vi.fn()
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 77))
     vi.stubGlobal('cancelAnimationFrame', caf)
@@ -171,40 +184,55 @@ describe('TimeMachineRail', () => {
     expect(caf).toHaveBeenCalledWith(77)
   })
 
-  // ↓ Task 10: with enough snapshots to overflow the rail's own scroll container,
-  // stepping the selection past the visible range must scroll the rail too -- the deck
-  // and the bottom bar already followed the selection, but the rail looked frozen.
-  // B4: these two tests replace the global no-op stub (vitest.setup.ts) with a
-  // per-test spy and never restored it, so any test that ran afterward in this
-  // file inherited a spy from a previous, already-finished test.
+  it('loading: renders exactly 5 pulsing skeleton ticks, no real ticks', () => {
+    const w = mountIt({ loading: true })
+    expect(w.findAll('.tm-tick-skeleton')).toHaveLength(5)
+    expect(w.findAll('.tm-tick-main')).toHaveLength(0)
+    expect(w.findAll('.tm-tick-sub')).toHaveLength(0)
+  })
+
+  // Main ticks own data-flat-index; sub-ticks own the DIFFERENT data-anchor-index — the two must
+  // never collide on the same attribute (the exact bug narrated in this file's own header
+  // comment). Also confirms only main ticks are queried for fisheye scale computation.
+  it('data-flat-index lives only on major ticks; sub-ticks carry a distinct data-anchor-index', () => {
+    const w = mountIt()
+    for (const sub of w.findAll('.tm-tick-sub')) {
+      expect(sub.attributes('data-flat-index')).toBeUndefined()
+      expect(sub.attributes('data-anchor-index')).toBeTruthy()
+    }
+    for (const main of w.findAll('.tm-tick-main')) {
+      expect(main.attributes('data-flat-index')).toBeTruthy()
+      expect(main.attributes('data-anchor-index')).toBeUndefined()
+    }
+  })
+
+  // ── Auto-scroll selected tick into view (Vue2 parity, ported from the colleague's own fix) ──
+  // B4 lesson (carried over from the colleague's own suite): these tests replace the global no-op
+  // stub (vitest.setup.ts) with a per-test spy and must restore it afterward, or any later test in
+  // this file would inherit a spy from an already-finished test.
   afterEach(() => { Element.prototype.scrollIntoView = () => {} })
 
-  it('scrolls the newly selected tick into view', async () => {
+  it('scrolls the newly selected tick into view when `current` changes', async () => {
     const spy = vi.fn()
-    // jsdom does not implement scrollIntoView
-    Element.prototype.scrollIntoView = spy
-    const w = mountIt({ groups: manyGroups(), selectedIndex: 0 })
+    Element.prototype.scrollIntoView = spy // jsdom does not implement scrollIntoView
+    const w = mountIt({ snapshots: manySnapshots(), current: 's0' })
     spy.mockClear()
-    await w.setProps({ selectedIndex: 40 })
+    await w.setProps({ current: 's40' })
     await nextTick()
     expect(spy).toHaveBeenCalled()
   })
 
-  // ── Step buttons (user feedback: "there is no page up/down") ─────────────────────────
-  // The two step buttons used to be pinned at this rail's ends; they now sit beside the card
-  // (they belong to the deck they move), so their cases live in TimeMachineOverlay.test.ts.
-  it('renders ticks only, with no step buttons of its own', () => {
-    const w = mountIt()
-    expect(w.find('.tm-rail-step').exists()).toBe(false)
-    expect(w.findAll('.tm-tick-main').length).toBeGreaterThan(0)
-  })
-  it('does not scroll when the selection did not change', async () => {
+  it('does not scroll when `current` did not change', async () => {
     const spy = vi.fn()
     Element.prototype.scrollIntoView = spy
-    const w = mountIt({ groups: manyGroups(), selectedIndex: 3 })
+    const w = mountIt({ snapshots: manySnapshots(), current: 's3' })
     spy.mockClear()
-    await w.setProps({ groups: manyGroups() })
+    await w.setProps({ snapshots: manySnapshots() })
     await nextTick()
     expect(spy).not.toHaveBeenCalled()
   })
 })
+
+function formatClock(snap: SnapshotVM): string {
+  return formatSnapshotClockTime(snap.created_at)
+}

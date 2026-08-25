@@ -43,61 +43,22 @@
 // opacity/brightness) and the "plain params instead of one options bag"
 // calling convention remain New-UI-specific.
 
-// --- Kept for compat -------------------------------------------------------
-// The colleague's earlier card-deck mockup variant (M2-F6/F7, see that
-// version's own removed header comment) was also imported by
-// TimeMachineDeck.vue / TimeMachineOverlay.vue -- both deleted in Task 6
-// (Ruling P2) alongside their own imports (DECK_WINDOW / buildVisibleStack /
-// StackEntry / stepSelectedIndex, removed here in the same commit since
-// nothing else referenced them post-deletion, grepped). TimeMachineRail.vue
-// is NOT deleted yet (outside Ruling P2's own file list -- Task 7 rebuilds
-// the rail and decides its fate then), and it still imports the two exports
-// below, so those -- and their own RailNode/LegacyFisheyeOptions types --
-// stay. DO NOT extend or "fix" this section -- it is dead weight walking to
-// the grave, not a second product.
-
-export interface RailNode {
-  type: 'day' | 'main' | 'sub'
-  key: string
-  /** Date label text when type === 'day' */
-  label?: string
-  /** The snapshot's flat index when type === 'main' */
-  flatIndex?: number
-  /** Index of the main tick this snaps to when type === 'sub' */
-  anchorIndex?: number
-}
+// --- Pruned kept-for-compat exports (history, for anyone grepping this area) -----------------
+// The colleague's earlier card-deck mockup variant (M2-F6/F7) exported RailNode/
+// LegacyFisheyeOptions/computeFisheyeScales/buildRailNodes, all consumed only by the colleague's
+// own TimeMachineRail.vue. Task 6 (Ruling P2) already removed this section's siblings
+// (DECK_WINDOW/buildVisibleStack/StackEntry/stepSelectedIndex) alongside TimeMachineDeck.vue/
+// TimeMachineOverlay.vue. Task 8 rewrote TimeMachineRail.vue wholesale (new props/emits contract,
+// day-grouping now owned by the component itself via storage/util/snapshotView's
+// groupSnapshotsByDay, and its own name-keyed node-building rather than this module's numeric
+// flatIndex-keyed one) -- confirmed by grep that nothing outside this module and its own test file
+// referenced RailNode/LegacyFisheyeOptions/computeFisheyeScales/buildRailNodes any longer, so all
+// four were deleted here in that same task. `LegacyFisheyeOptions` itself is NOT one of the four --
+// fisheyeScale below still takes an optional `options` param of that shape (kept, still directly
+// tested); only the type's "Legacy" name is a holdover from when it existed solely to serve
+// computeFisheyeScales.
 
 interface LegacyFisheyeOptions { radius?: number; maxScale?: number; minScale?: number }
-
-export function computeFisheyeScales(centers: number[], cursorY: number, options: LegacyFisheyeOptions = {}): number[] {
-  return (centers || []).map((c) => fisheyeScale(c - cursorY, options))
-}
-
-export function buildRailNodes(
-  groups: { dayKey: string; labelText: string; items: { flatIndex: number }[] }[],
-  subPerGap = 2,
-): RailNode[] {
-  const nodes: RailNode[] = []
-  const mains: number[] = []
-  for (const g of groups || []) {
-    nodes.push({ type: 'day', key: `day-${g.dayKey}`, label: g.labelText })
-    for (const item of g.items) {
-      nodes.push({ type: 'main', key: `main-${item.flatIndex}`, flatIndex: item.flatIndex })
-      mains.push(nodes.length - 1)
-    }
-  }
-  if (subPerGap <= 0 || mains.length < 2) return nodes
-  const out = [...nodes]
-  for (let i = mains.length - 2; i >= 0; i--) {
-    const anchorNode = out[mains[i]]
-    const subs: RailNode[] = []
-    for (let j = 0; j < subPerGap; j++) {
-      subs.push({ type: 'sub', key: `sub-${anchorNode.flatIndex}-${j}`, anchorIndex: anchorNode.flatIndex })
-    }
-    out.splice(mains[i] + 1, 0, ...subs)
-  }
-  return out
-}
 
 // --- Vue2-parity math (this task's real deliverable) ------------------------
 
@@ -123,8 +84,10 @@ export interface SlotPose { x: number; y: number; scaleX: number; scaleY: number
 // `maxScale` at distance 0 down to `minScale` at `radius`, staying at
 // `minScale` beyond it. Slope is 0 at both t=0 and t=1 (no visible "kink"
 // where neighbouring ticks blend in/out) -- ported verbatim from Vue2.
-// `options` is accepted only so the kept-for-compat `computeFisheyeScales`
-// above can still pass one through; every new call site uses one argument.
+// `options` is optional and unused by every real call site today (TimeMachineRail.vue's own
+// updateScales() -- Task 8 -- calls this with one argument); it survives Task 8's pruning of
+// computeFisheyeScales (its only former caller) purely because it is still directly tested and
+// costs nothing to keep as a parameterization escape hatch.
 export function fisheyeScale(distancePx: number, options: LegacyFisheyeOptions = {}): number {
   const { radius = FISHEYE_RADIUS, maxScale = FISHEYE_MAX_SCALE, minScale = FISHEYE_MIN_SCALE } = options
   const d = Math.abs(distancePx)

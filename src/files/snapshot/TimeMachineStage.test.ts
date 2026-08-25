@@ -260,6 +260,38 @@ describe('TimeMachineStage shell', () => {
     })
   })
 
+  describe('TimeMachineRail mounting (Task 8)', () => {
+    it('mounts the rail only while active/fading (never while fully inactive)', async () => {
+      const w = mountIt()
+      expect(w.find('.tm-rail').exists()).toBe(false)
+      useSnapshotBrowseStore().tmActive = true
+      await nextTick()
+      expect(w.find('.tm-rail').exists()).toBe(true)
+    })
+
+    it('feeds the rail the store\'s snapshot list/current/loading, and its select event calls store.switchTo', async () => {
+      const w = mountIt()
+      const browse = useSnapshotBrowseStore()
+      const files = useFilesStore()
+      listVolumesMock.mockResolvedValue([{ volume_uuid: 'u1', mount: '/media/RAID_0', supported: true }])
+      await browse.ensureVolumes()
+      browse.snapshotList = [
+        { name: 's0', created_at: '2026-01-02T00:00:00Z' },
+        { name: 's1', created_at: '2026-01-01T00:00:00Z' },
+      ]
+      files.currentPath = '/media/RAID_0/.snapshots/s1'
+      browse.tmActive = true
+      await nextTick()
+
+      expect(w.findAll('.tm-tick-main')).toHaveLength(2)
+      expect(w.find('[data-flat-index="s1"]').classes()).toContain('is-selected')
+
+      const spy = vi.spyOn(browse, 'switchTo').mockResolvedValue()
+      await w.find('[data-flat-index="s0"]').trigger('click')
+      expect(spy).toHaveBeenCalledWith('s0')
+    })
+  })
+
   describe('ArrowUp/ArrowDown stepping (Task 7, preempts Task 9\'s own keyboard line item)', () => {
     async function setupBrowsing() {
       const browse = useSnapshotBrowseStore()

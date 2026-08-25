@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   fisheyeScale,
-  computeFisheyeScales,
-  buildRailNodes,
   resolveDollySlots,
   resolveSlotPose,
   clampStepIndex,
@@ -16,58 +14,14 @@ import {
   TM_DEPTH_STEP,
 } from './timeMachineMath'
 
-// --- Kept-for-compat exports (colleague's card-deck mockup). DECK_WINDOW /
-// buildVisibleStack / StackEntry / stepSelectedIndex were removed from
-// timeMachineMath.ts (and their own tests below) in Task 6 (Ruling P2)
-// alongside TimeMachineDeck.vue/TimeMachineOverlay.vue, their only
-// consumers. computeFisheyeScales/buildRailNodes stay: TimeMachineRail.vue
-// (not deleted yet -- Task 7 rebuilds the rail) still imports them.
-
-describe('computeFisheyeScales (kept for compat)', () => {
-  it('batch compute by distance of each tick center to cursor', () => {
-    const out = computeFisheyeScales([100, 140, 300], 100)
-    expect(out).toHaveLength(3)
-    expect(out[0]).toBeCloseTo(2.2, 5)
-    expect(out[2]).toBe(1)
-  })
-  it('empty input returns empty array', () => {
-    expect(computeFisheyeScales([], 0)).toEqual([])
-  })
-})
-
-describe('buildRailNodes (kept for compat)', () => {
-  const groups = [
-    { dayKey: '2026-07-30', labelText: '今天', items: [{ flatIndex: 0 }, { flatIndex: 1 }] },
-    { dayKey: '2026-07-29', labelText: '昨天', items: [{ flatIndex: 2 }] },
-  ]
-  it('insert date header node before each group', () => {
-    const nodes = buildRailNodes(groups)
-    expect(nodes.filter((n) => n.type === 'day').map((n) => n.label)).toEqual(['今天', '昨天'])
-  })
-  it('main tick per snapshot, flatIndex passed through', () => {
-    expect(buildRailNodes(groups).filter((n) => n.type === 'main').map((n) => n.flatIndex)).toEqual([0, 1, 2])
-  })
-  it('insert 2 sub ticks between adjacent main ticks, anchored to upper main tick', () => {
-    const nodes = buildRailNodes(groups)
-    const subs = nodes.filter((n) => n.type === 'sub')
-    expect(subs).toHaveLength(4)
-    expect(subs.slice(0, 2).every((n) => n.anchorIndex === 0)).toBe(true)
-  })
-  it('no sub ticks after last main tick', () => {
-    const nodes = buildRailNodes(groups)
-    expect(nodes[nodes.length - 1].type).toBe('main')
-  })
-  it('key globally unique (v-for will not collide)', () => {
-    const keys = buildRailNodes(groups).map((n) => n.key)
-    expect(new Set(keys).size).toBe(keys.length)
-  })
-  it('subPerGap can be configured to 0', () => {
-    expect(buildRailNodes(groups, 0).filter((n) => n.type === 'sub')).toEqual([])
-  })
-  it('empty groups return empty', () => {
-    expect(buildRailNodes([])).toEqual([])
-  })
-})
+// --- Pruned kept-for-compat exports (history). DECK_WINDOW/buildVisibleStack/StackEntry/
+// stepSelectedIndex were removed from timeMachineMath.ts (and their own tests here) in Task 6
+// (Ruling P2) alongside TimeMachineDeck.vue/TimeMachineOverlay.vue, their only consumers.
+// computeFisheyeScales/buildRailNodes (and their own describe blocks that used to sit here) were
+// removed in Task 8: it rewrote TimeMachineRail.vue wholesale with a new props/emits contract and
+// its own name-keyed day-grouping/node-building, confirmed by grep that nothing outside this
+// module (and this now-updated test file) referenced either export any longer. See
+// timeMachineMath.ts's own header comment on this same pruning for the full account.
 
 // --- Vue2-parity math (this task's real deliverable) -------------------
 // Behavior assertions mined from Vue2's tests/timeMachineMath.test.js
