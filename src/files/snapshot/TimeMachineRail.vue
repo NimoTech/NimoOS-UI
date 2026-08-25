@@ -335,10 +335,15 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
 }
 .tm-tick-main { width: 26px; --tick-color: var(--tm-rail); }
 .tm-tick-sub { width: 18px; --tick-color: var(--tm-rail-sub); }
-/* Selected accent line — Vue2 parity (`.tm-tick--selected .tm-tick__line`'s own literal color +
-   glow, both sourced verbatim into --tm-accent/--tm-accent-glow, see task-1-report.md). */
-.tm-tick-main.is-selected { --tick-color: var(--tm-accent); }
-.tm-tick-main.is-selected::after { height: 3px; box-shadow: 0 0 8px var(--tm-accent-glow); }
+/* Selected accent line — Vue2 parity (`.tm-tick--selected .tm-tick__line`'s own literal width/
+   height/color/glow, sourced verbatim into --tm-accent/--tm-accent-glow, see task-1-report.md).
+   `width: 40px` is Vue2's own literal resting width for a selected tick (visibly wider than the
+   26px default); it still loses to `.tm-tick-main:hover`'s own 34px below on hover, because that
+   rule is declared LATER in this file and both selectors carry equal specificity (two classes)
+   -- same "hover wins the tie" outcome Vue2's own cascade produces. Glow blur is 10px, Vue2's own
+   literal (not 8px). */
+.tm-tick-main.is-selected { --tick-color: var(--tm-accent); width: 40px; }
+.tm-tick-main.is-selected::after { height: 3px; box-shadow: 0 0 10px var(--tm-accent-glow); }
 
 /* Hover brightening — Vue2 parity (`.tm-tick:hover .tm-tick__line`'s own literal background
    color and width), restored per controller ruling; the exact literal value is pinned by

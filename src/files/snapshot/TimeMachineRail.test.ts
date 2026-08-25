@@ -158,6 +158,26 @@ describe('TimeMachineRail', () => {
     expect(styleBlock).toContain('.tm-tick-badge')
   })
 
+  // Fix round (review): the selected tick's own resting width/glow-blur literals must match Vue2's
+  // `.tm-tick--selected .tm-tick__line` exactly (width: 40px, box-shadow blur: 10px) -- same
+  // source-text hook-presence technique as the hover-token test above, for the same reason (jsdom
+  // applies no CSS at all, so a `.is-selected` class assertion alone cannot tell "styled 40px wide"
+  // apart from "styled 26px wide", and there is no inline/computed style to read here since this is
+  // a real CSS rule, not a bound `:style`).
+  it('the selected tick\'s own CSS rule pins Vue2\'s literal 40px width and 10px glow blur', () => {
+    const src = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineRail.vue'),
+      'utf8',
+    )
+    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const selectedRule = /\.tm-tick-main\.is-selected\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(selectedRule, 'no .tm-tick-main.is-selected rule found').toBeTruthy()
+    expect(selectedRule![1]).toContain('width: 40px')
+    const selectedAfterRule = /\.tm-tick-main\.is-selected::after\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(selectedAfterRule, 'no .tm-tick-main.is-selected::after rule found').toBeTruthy()
+    expect(selectedAfterRule![1]).toContain('box-shadow: 0 0 10px var(--tm-accent-glow)')
+  })
+
   it('renders no ticks and no error with an empty snapshot list', () => {
     const w = mountIt({ snapshots: [] })
     expect(w.findAll('.tm-tick-main')).toHaveLength(0)
