@@ -19,9 +19,9 @@
 // Floating pill, not a member of the normal document flow (Vue2's own `.toolbar-container { position:
 // relative }` + `.operation-toolbar { position: absolute; bottom: 50px; left: 50%; transform:
 // translateX(-50%) }`, `_filebrowser.scss`): the containing block is whichever ancestor Files.vue
-// gives it (`.files-main`, already `position: relative` in that file's own <style>, for plain
+// gives it (`.files-main`, already `position: relative` in that file's own style block, for plain
 // snapshot browsing; `.tm-fwin--active` -- given `position: relative` for exactly this reason, see
-// TimeMachineStage.vue's own <style> comment on that rule -- while the Time Machine stage's chrome
+// TimeMachineStage.vue's own style-block comment on that rule -- while the Time Machine stage's chrome
 // is up). Vue2 renders it inside `<time-machine-stage>`'s own default slot too (FilePanel.vue,
 // right before that component's closing tag), alongside `operation-toolbar`/`snapshot-action-bar`
 // -- i.e. it is part of the "real window" content and stays mounted (and visible) regardless of
