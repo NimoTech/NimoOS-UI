@@ -45,22 +45,16 @@
 
 // --- Kept for compat -------------------------------------------------------
 // The colleague's earlier card-deck mockup variant (M2-F6/F7, see that
-// version's own removed header comment) is still imported by
-// TimeMachineDeck.vue / TimeMachineRail.vue / TimeMachineOverlay.vue, all
-// slated for deletion later in this same plan (Ruling P2, progress.md) once
-// the stage/rail are rebuilt on the Vue2-parity model below. Until that
-// cleanup task lands, these exports must stay so `vue-tsc` stays green.
-// DO NOT extend or "fix" this section -- it is dead weight walking to the
-// grave, not a second product.
-
-export interface StackEntry<T> {
-  item: T
-  /** Index in the flat list (newest-first), used to write the selection back when a card is clicked */
-  index: number
-  /** Layers away from the selected item: front is always 0; behind/past are 1, 2, 3... */
-  depth: number
-  state: 'front' | 'behind' | 'past'
-}
+// version's own removed header comment) was also imported by
+// TimeMachineDeck.vue / TimeMachineOverlay.vue -- both deleted in Task 6
+// (Ruling P2) alongside their own imports (DECK_WINDOW / buildVisibleStack /
+// StackEntry / stepSelectedIndex, removed here in the same commit since
+// nothing else referenced them post-deletion, grepped). TimeMachineRail.vue
+// is NOT deleted yet (outside Ruling P2's own file list -- Task 7 rebuilds
+// the rail and decides its fate then), and it still imports the two exports
+// below, so those -- and their own RailNode/LegacyFisheyeOptions types --
+// stay. DO NOT extend or "fix" this section -- it is dead weight walking to
+// the grave, not a second product.
 
 export interface RailNode {
   type: 'day' | 'main' | 'sub'
@@ -75,35 +69,8 @@ export interface RailNode {
 
 interface LegacyFisheyeOptions { radius?: number; maxScale?: number; minScale?: number }
 
-export const DECK_WINDOW = { depth: 5, past: 3 } as const
-
 export function computeFisheyeScales(centers: number[], cursorY: number, options: LegacyFisheyeOptions = {}): number[] {
   return (centers || []).map((c) => fisheyeScale(c - cursorY, options))
-}
-
-export function buildVisibleStack<T>(
-  items: T[],
-  selectedIndex: number,
-  maxDepth = 5,
-  pastDepth = 2,
-): StackEntry<T>[] {
-  const list = items || []
-  if (list.length === 0) return []
-  const start = Math.min(Math.max(selectedIndex, 0), list.length - 1)
-  const out: StackEntry<T>[] = []
-  for (let depth = 0; depth < maxDepth && start + depth < list.length; depth++) {
-    out.push({ item: list[start + depth], index: start + depth, depth, state: depth === 0 ? 'front' : 'behind' })
-  }
-  for (let depth = 1; depth <= pastDepth && start - depth >= 0; depth++) {
-    out.push({ item: list[start - depth], index: start - depth, depth, state: 'past' })
-  }
-  return out
-}
-
-export function stepSelectedIndex(currentIndex: number, delta: number, length: number): number {
-  if (!length || length <= 0) return 0
-  const next = currentIndex + delta
-  return Math.min(Math.max(next, 0), length - 1)
 }
 
 export function buildRailNodes(

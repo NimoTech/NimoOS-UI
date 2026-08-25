@@ -12,6 +12,15 @@ import { useFoldersStore } from '../home/stores/folders'
 import { useFavoritesStore } from '../files/stores/favorites'
 import { useClipboardStore } from '../files/stores/clipboard'
 
+// snapshotBrowse.ts navigates through the app's real router SINGLETON (see that file's own
+// navigateReal comment for why: production always has exactly one app.use(router) call, and the
+// store cannot rely on injection). This file mounts Files.vue against its own throw-away
+// makeRouter() instance instead (see below) — the two are unrelated objects, so without this
+// mock, a Time Machine action that actually navigates (a case none of the current fixtures below
+// trigger, since the shared snapshot.list mock returns []) would silently push onto the real
+// singleton rather than the router this file actually asserts against.
+vi.mock('../router', () => ({ router: { push: vi.fn(), replace: vi.fn() } }))
+
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     folder: {
@@ -363,28 +372,16 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.snap-banner').text()).toContain('请选择一个快照')
   })
 
-  // Review re-check (Minor, second round): under the `.snapshots` container directory
-  // (browseInfo is null, since there's no specific snapshot name to resolve) with an entry
-  // selected (one that happens to be a specific snapshot directory), clicking
-  // SnapshotSelectionToolbar's "Restore" button just gets performSnapshotRestore's "invalid
-  // path, cannot restore" -- this button is inherently broken in this scenario and shouldn't
-  // appear. Adding `&& !!browse.browseInfo` stops this dedicated toolbar from popping up.
-  //
-  // Re-check addendum (blocking-level regression): blocking SnapshotSelectionToolbar alone
-  // isn't enough -- once it's blocked, the `v-else-if`'s regular SelectionToolbar
-  // (copy/cut/download/share/delete) takes its place. Re-check testing confirmed this gap is
-  // genuinely exploitable: cut goes through move (= deletes the source, a write not a read);
-  // `useFileOps.paste()`'s blockedInSnapshot() checks the **paste destination**'s
-  // isSnapshotView, so the check is effectively void when pasting into a normal directory;
-  // `sel-share` (share to the LAN) has no guard at all in Files.vue's onShare, and can turn a
-  // snapshot directory directly into a LAN share. This directly conflicts with
-  // SnapshotSelectionToolbar.vue:10-12's comment ("cut/copy/delete/share are either
-  // meaningless or will fail on a read-only snapshot, leaving them in only invites the user
-  // to click") and FileContextMenu.vue's
-  // showCopy/showCut/showDelete/showShare, all of which have `&& !inSnapshot`. Fix: add
-  // `!browse.isSnapshotView` to the `v-else-if` so neither toolbar appears under the
-  // container directory.
-  it('an entry selected under the `.snapshots` container directory: neither toolbar (dedicated restore bar + regular copy/cut/share/delete bar) appears', async () => {
+  // Review re-check (Minor, second round), UPDATED for Task 6 (Vue2-parity Time Machine line,
+  // Ruling P2): SnapshotSelectionToolbar (the dedicated `.snap-sel`/`.snap-sel-restore` multi-
+  // select restore bar) is retired outright -- it no longer exists in Files.vue's template at
+  // all, under any path, so there is nothing left to gate by `!!browse.browseInfo` here. What
+  // this test still guards: the regular write-capable SelectionToolbar (copy/cut/download/
+  // share/delete) must still never appear under the `.snapshots` container directory --
+  // cut/paste/share on a read-only snapshot path is a real hazard the original re-check
+  // addendum already documented (cut = move = deletes the source; useFileOps.paste()'s
+  // blockedInSnapshot() only checks the destination; onShare has no snapshot guard at all).
+  it('an entry selected under the `.snapshots` container directory: the write-capable selection toolbar does not appear', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -396,18 +393,15 @@ describe('snapshot read-only banner', () => {
     await row.trigger('click', { ctrlKey: true })
     const files = useFilesStore()
     expect(files.selectedCount).toBe(1)
-    expect(w.find('.snap-sel').exists()).toBe(false)
-    expect(w.find('.snap-sel-restore').exists()).toBe(false)
-    // Both toolbars share the base class name .selection-toolbar, so its absence means
-    // neither rendered (the regular SelectionToolbar has no .snap-sel modifier class, so
-    // checking it alone isn't enough -- check the base class here instead).
     expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
 
   // Control group (guards against blocking one of the main entry points to the restore
   // feature along with it): with an entry selected under an actual snapshot path (a specific
-  // snapshot name, browseInfo non-null), SnapshotSelectionToolbar must still appear normally.
-  it('an entry selected under a regular snapshot path (with a specific snapshot name): SnapshotSelectionToolbar still appears normally', async () => {
+  // snapshot name, browseInfo non-null), the banner's own restore button -- now the only
+  // restore-selection entry point until Task 9's bottom action bar lands -- still appears and
+  // stays enabled for the multi-select case.
+  it('an entry selected under a regular snapshot path (with a specific snapshot name): the banner\'s restore button still appears, enabled', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -419,37 +413,8 @@ describe('snapshot read-only banner', () => {
     await row.trigger('click', { ctrlKey: true })
     const files = useFilesStore()
     expect(files.selectedCount).toBe(1)
-    expect(w.find('.snap-sel').exists()).toBe(true)
-    expect(w.find('.snap-sel-restore').exists()).toBe(true)
-  })
-
-  // Fix-wave I3: SnapshotSelectionToolbar has its own test proving it renders
-  // whatever `restoreProgress` prop it's given, and the snapshotBrowse store
-  // has its own test proving `restoreProgress` transitions correctly during a
-  // restore -- but nothing exercises the actual `:restore-progress="browse.
-  // restoreProgress"` binding in Files.vue that connects the two. Deleting
-  // that one line left both of those other test files green (59 files / 865
-  // examples across src/views + src/files/snapshot + src/files/stores).
-  it('wires the snapshot store\'s restore progress into the selection toolbar', async () => {
-    const folders = useFoldersStore()
-    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
-    const router = makeRouter()
-    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
-    const w = mount(Files, { global: { plugins: [router, i18n] } })
-    await flushPromises()
-    await w.get('.view-toggle-list').trigger('click')
-    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
-    expect(w.find('.snap-sel-restore').exists()).toBe(true)
-
-    const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
-    const browse = useSnapshotBrowseStore()
-    browse.restoring = true
-    browse.restoreProgress = { done: 3, total: 40 }
-    await w.vm.$nextTick()
-
-    const btnText = w.get('.snap-sel-restore').text()
-    expect(btnText).toContain('3')
-    expect(btnText).toContain('40')
+    expect(w.find('.snap-banner-restore').exists()).toBe(true)
+    expect(w.find('.snap-banner-restore').attributes('disabled')).toBeUndefined()
   })
 
   // Fix-wave I4: the banner's own restore button fires the exact same
@@ -521,18 +486,20 @@ describe('Time Machine entry point', () => {
     const w = await mountFiles('/DATA/.snapshots/snap1')
     expect(w.find('.tb-time-machine').exists()).toBe(false)
   })
-  it('clicking the entry opens the overlay', async () => {
+  it('clicking the entry activates the Time Machine stage', async () => {
     const w = await mountFiles('/DATA/Photos')
     await w.find('.tb-time-machine').trigger('click')
-    expect(w.find('.tm-overlay').exists()).toBe(true)
+    await flushPromises()
+    expect(w.find('.tm-stage--active').exists()).toBe(true)
   })
   it('clicking the gear opens the settings dialog; Time Machine stays open', async () => {
     const w = await mountFiles('/DATA/Photos')
     await w.find('.tb-time-machine').trigger('click')
-    await w.find('.tm-gear').trigger('click')
+    await flushPromises()
+    await w.find('.tm-stage__gear').trigger('click')
     await flushPromises()
     expect(document.querySelector('.ui-dialog-content')).not.toBeNull()
-    expect(w.find('.tm-overlay').exists()).toBe(true)
+    expect(w.find('.tm-stage--active').exists()).toBe(true)
   })
 })
 

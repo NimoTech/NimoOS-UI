@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   fisheyeScale,
   computeFisheyeScales,
-  buildVisibleStack,
-  stepSelectedIndex,
   buildRailNodes,
   resolveDollySlots,
   resolveSlotPose,
@@ -17,11 +15,12 @@ import {
   TM_DEPTH_STEP,
 } from './timeMachineMath'
 
-// --- Kept-for-compat exports (colleague's card-deck mockup, TimeMachineDeck/
-// Rail/Overlay.vue still import these -- see this module's own header
-// comment). Tests below are unchanged from before this rewrite; they exist
-// only to keep these exports honest until the components that use them are
-// deleted later in this plan (Ruling P2, progress.md).
+// --- Kept-for-compat exports (colleague's card-deck mockup). DECK_WINDOW /
+// buildVisibleStack / StackEntry / stepSelectedIndex were removed from
+// timeMachineMath.ts (and their own tests below) in Task 6 (Ruling P2)
+// alongside TimeMachineDeck.vue/TimeMachineOverlay.vue, their only
+// consumers. computeFisheyeScales/buildRailNodes stay: TimeMachineRail.vue
+// (not deleted yet -- Task 7 rebuilds the rail) still imports them.
 
 describe('computeFisheyeScales (kept for compat)', () => {
   it('batch compute by distance of each tick center to cursor', () => {
@@ -32,54 +31,6 @@ describe('computeFisheyeScales (kept for compat)', () => {
   })
   it('empty input returns empty array', () => {
     expect(computeFisheyeScales([], 0)).toEqual([])
-  })
-})
-
-describe('buildVisibleStack (kept for compat)', () => {
-  const items = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-  it('selected item is front, older snapshots behind in order', () => {
-    const st = buildVisibleStack(items, 2, 5, 2)
-    const behind = st.filter((e) => e.state !== 'past')
-    expect(behind.map((e) => e.item)).toEqual(['c', 'd', 'e', 'f', 'g'])
-    expect(behind[0]).toMatchObject({ state: 'front', depth: 0, index: 2 })
-    expect(behind[4]).toMatchObject({ state: 'behind', depth: 4, index: 6 })
-  })
-  it('newer snapshots than selected enter past state (fly toward viewer), max pastDepth cards', () => {
-    const past = buildVisibleStack(items, 4, 5, 2).filter((e) => e.state === 'past')
-    expect(past.map((e) => e.item)).toEqual(['d', 'c'])
-    expect(past.map((e) => e.depth)).toEqual([1, 2])
-  })
-  it('no past cards when newest selected', () => {
-    expect(buildVisibleStack(items, 0, 5, 2).filter((e) => e.state === 'past')).toEqual([])
-  })
-  it('only itself in behind when oldest selected', () => {
-    const st = buildVisibleStack(items, 7, 5, 2).filter((e) => e.state !== 'past')
-    expect(st.map((e) => e.item)).toEqual(['h'])
-  })
-  it('out-of-bounds index is clamped', () => {
-    expect(buildVisibleStack(items, -3, 5, 2)[0]).toMatchObject({ index: 0, state: 'front' })
-    expect(buildVisibleStack(items, 99, 5, 2)[0]).toMatchObject({ index: 7, state: 'front' })
-  })
-  it('empty list returns empty', () => {
-    expect(buildVisibleStack([], 0)).toEqual([])
-  })
-  it('each entry index is original list subscript (for click callback)', () => {
-    const st = buildVisibleStack(items, 3, 3, 1)
-    expect(st.map((e) => e.index).sort((a, b) => a - b)).toEqual([2, 3, 4, 5])
-  })
-})
-
-describe('stepSelectedIndex (kept for compat)', () => {
-  it('clamp at both ends', () => {
-    expect(stepSelectedIndex(0, -1, 5)).toBe(0)
-    expect(stepSelectedIndex(4, 1, 5)).toBe(4)
-  })
-  it('normal step', () => {
-    expect(stepSelectedIndex(2, 1, 5)).toBe(3)
-    expect(stepSelectedIndex(2, -1, 5)).toBe(1)
-  })
-  it('empty list always returns 0', () => {
-    expect(stepSelectedIndex(3, 1, 0)).toBe(0)
   })
 })
 

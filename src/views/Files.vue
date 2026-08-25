@@ -50,12 +50,9 @@ import { resolveDefaultRoot } from '../files/util/defaultRoot'
 import { parseRecover } from '../files/util/recoverEvent'
 import { contextTargets } from '../files/util/contextTarget'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
-import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
-import TimeMachineOverlay from '../files/snapshot/TimeMachineOverlay.vue'
+import TimeMachineStage from '../files/snapshot/TimeMachineStage.vue'
 import SnapshotSettingsDialog from '../files/snapshot/SnapshotSettingsDialog.vue'
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
-import { resolveExitTarget, relPathUnderMount } from '../files/util/snapshotPath'
-import { service } from '@nimotech/nimoos-service'
 import { useWallpaperStore } from '../stores/wallpaper'
 
 const route = useRoute()
@@ -77,7 +74,6 @@ const { t } = useI18n()
 
 // Dialog toggles + context
 const settingsOpen = ref(false)
-const overlayRef = ref<InstanceType<typeof TimeMachineOverlay> | null>(null)
 const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[]; skipped: number }>({ open: false, entries: [], skipped: 0 })
@@ -526,29 +522,8 @@ function askDelete(entries: FileEntry[]) {
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
 
-// Time Machine needs to know the current directory's position relative to the volume root:
-// the card uses it to show "this folder at that moment", and entering it lands on the same
-// relative path.
-const snapshotRelPath = computed(() => relPathUnderMount(browse.currentVolume?.mount ?? '', files.currentPath))
-
-function onSnapshotSelect(path: string) {
-  browse.closeWheel()
-  goVirtual(toVirtualPath(path, files.displayNames))
-}
-
 function goVirtual(vp: string) {
   router.push('/files/' + virtualPathToRouteParam(vp))
-}
-// Exit snapshot: return to the same-named directory on the live volume; if that directory no
-// longer exists on the live volume (e.g. it was deleted afterwards), fall back to the volume
-// root. dirExists is judged by whether listing the directory succeeds — the Files area has no
-// separate "does this directory exist" endpoint, so any listing failure (404/permission) is
-// treated as non-existent, and falling back to the volume root is always a safe landing spot.
-async function exitSnapshot() {
-  const target = await resolveExitTarget(browse.browseInfo, async (p) => {
-    try { await service.folder.getList(p); return true } catch { return false }
-  })
-  if (target) goVirtual(toVirtualPath(target, files.displayNames))
 }
 async function sync() {
   // Legacy deep-link format: /files?path=X (X is real or virtual; sources: Vue2 AI's "open
@@ -804,91 +779,90 @@ onMounted(() => { browse.ensureVolumes() })
              thinking "drop it and it uploads" first, only telling them it's read-only after they
              let go — the experience was backwards. -->
         <div v-if="isDragIn && !browse.isSnapshotView" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
-        <div class="files-topbar">
-          <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
-          <div class="files-topbar-right">
-            <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.openWheel()">
-              {{ t('tmEntry') }}
-            </button>
-            <div v-if="!browse.isSnapshotView" class="files-actions">
-              <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
-              <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
-              <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
-              <!-- Native `title` for the hover hint, as everywhere else in this app: the picker
-                   silently drops empty folders and cannot report it (see triggerFolderSelect),
-                   so the button says up front where empty folders have to go. -->
-              <button class="chip tb-upload-folder" :title="t('filesUploadFolderEmptyHint')" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
-              <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
-            </div>
-            <div class="files-viewtoggle">
-              <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
-              <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+        <TimeMachineStage :dialog-open="settingsOpen" @open-settings="settingsOpen = true">
+          <div class="files-topbar">
+            <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
+            <div class="files-topbar-right">
+              <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.enterTimeMachine()">
+                {{ t('tmEntry') }}
+              </button>
+              <div v-if="!browse.isSnapshotView" class="files-actions">
+                <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
+                <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
+                <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
+                <!-- Native `title` for the hover hint, as everywhere else in this app: the picker
+                     silently drops empty folders and cannot report it (see triggerFolderSelect),
+                     so the button says up front where empty folders have to go. -->
+                <button class="chip tb-upload-folder" :title="t('filesUploadFolderEmptyHint')" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
+                <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
+              </div>
+              <div class="files-viewtoggle">
+                <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
+                <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+              </div>
             </div>
           </div>
-        </div>
-        <SnapshotBanner
-          :info="browse.browseInfo"
-          :restoring="browse.restoring"
-          :can-restore="snapshotSelection.length > 0"
-          :is-container="browse.isSnapshotView && !browse.browseInfo"
-          :restore-progress="browse.restoreProgress"
-          @exit="exitSnapshot"
-          @restore="browse.restore(snapshotSelection)"
-        />
-        <SnapshotSelectionToolbar
-          v-if="browse.isSnapshotView && !!browse.browseInfo && files.selectedCount > 0"
-          :count="files.selectedCount"
-          :restoring="browse.restoring"
-          :restore-progress="browse.restoreProgress"
-          @restore="browse.restore(snapshotSelection)"
-          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
-          @clear="files.clearSelection"
-        />
-        <SelectionToolbar
-          v-else-if="!browse.isSnapshotView && files.selectedCount > 0"
-          :count="files.selectedCount"
-          :all-selected="files.allSelected"
-          :can-share="selectionHasFolder"
-          @select-all="files.selectAll"
-          @clear="files.clearSelection"
-          @delete="onToolbarDelete"
-          @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
-          @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
-          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
-          @share="onShare(null)"
-        />
-        <FileContextMenu :entry="ctxEntry" :selected-count="ctxTargetCount" @action="onCtxAction">
-          <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
-            <div v-if="files.error && !files.loading" class="files-error" role="alert">
-              <span class="files-error-title">{{ t('filesLoadFailed') }}</span>
-              <span class="files-error-detail">{{ files.error }}</span>
-              <button class="chip" @click="files.load(files.currentPath)">{{ t('filesRetry') }}</button>
+          <SnapshotBanner
+            :info="browse.browseInfo"
+            :restoring="browse.restoring"
+            :can-restore="snapshotSelection.length > 0"
+            :is-container="browse.isSnapshotView && !browse.browseInfo"
+            :restore-progress="browse.restoreProgress"
+            @exit="browse.exitTimeMachine()"
+            @restore="browse.restore(snapshotSelection)"
+          />
+          <!-- The dedicated multi-select toolbar for snapshot view (SnapshotSelectionToolbar) is
+               retired here (Ruling P2 — Task 9's bottom action bar takes over "restore the
+               selection" for Time Machine mode). SnapshotBanner above already exposes its own
+               restore button wired to the same snapshotSelection, so single- and multi-select
+               restore both still work meanwhile; download/clear-selection for a multi-selection
+               inside snapshot view are the acknowledged, temporary gap until Task 9 lands. -->
+          <SelectionToolbar
+            v-if="!browse.isSnapshotView && files.selectedCount > 0"
+            :count="files.selectedCount"
+            :all-selected="files.allSelected"
+            :can-share="selectionHasFolder"
+            @select-all="files.selectAll"
+            @clear="files.clearSelection"
+            @delete="onToolbarDelete"
+            @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
+            @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
+            @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
+            @share="onShare(null)"
+          />
+          <FileContextMenu :entry="ctxEntry" :selected-count="ctxTargetCount" @action="onCtxAction">
+            <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
+              <div v-if="files.error && !files.loading" class="files-error" role="alert">
+                <span class="files-error-title">{{ t('filesLoadFailed') }}</span>
+                <span class="files-error-detail">{{ files.error }}</span>
+                <button class="chip" @click="files.load(files.currentPath)">{{ t('filesRetry') }}</button>
+              </div>
+              <FileGridView
+                v-if="files.viewMode === 'grid'"
+                ref="gridRef"
+                :entries="displayEntries"
+                :selected-paths="files.selected"
+                @open="openEntry"
+                @select="onSelect"
+                @contextmenu="onItemContextmenu"
+                @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
+              />
+              <FileListView
+                v-else
+                :entries="displayEntries"
+                :sort="files.sort"
+                :order="files.order"
+                :selected-paths="files.selected"
+                @open="openEntry"
+                @reorder="files.setSort"
+                @select="onSelect"
+                @contextmenu="onItemContextmenu"
+                @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
+              />
+              <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
             </div>
-            <FileGridView
-              v-if="files.viewMode === 'grid'"
-              ref="gridRef"
-              :entries="displayEntries"
-              :selected-paths="files.selected"
-              @open="openEntry"
-              @select="onSelect"
-              @contextmenu="onItemContextmenu"
-              @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
-            />
-            <FileListView
-              v-else
-              :entries="displayEntries"
-              :sort="files.sort"
-              :order="files.order"
-              :selected-paths="files.selected"
-              @open="openEntry"
-              @reorder="files.setSort"
-              @select="onSelect"
-              @contextmenu="onItemContextmenu"
-              @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
-            />
-            <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
-          </div>
-        </FileContextMenu>
+          </FileContextMenu>
+        </TimeMachineStage>
       </div>
     </div>
     <NewItemDialog v-model:open="newDlg.open" :mode="newDlg.mode" @confirm="confirmNew" />
@@ -918,25 +892,14 @@ onMounted(() => { browse.ensureVolumes() })
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
-    <TimeMachineOverlay
-      v-if="browse.wheelOpen"
-      ref="overlayRef"
-      :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
-      :mount-point="browse.currentVolume?.mount ?? ''"
-      :rel-path="snapshotRelPath"
-      :folder-label="currentVirtual"
-      @close="browse.closeWheel()"
-      @select="onSnapshotSelect"
-      @open-settings="settingsOpen = true"
-    />
     <!-- Time Machine stays open while the settings dialog is open (intentional): after creating
          a new snapshot successfully, the new tick mark can be seen appearing right away.
-         z-index ordering holds naturally (overlay 900 < Dialog.vue's 1000/1001), no override needed. -->
+         z-index ordering holds naturally (stage 900 < Dialog.vue's 1000/1001), no override needed. -->
     <SnapshotSettingsDialog
       v-model:open="settingsOpen"
       :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
       :mount-point="browse.currentVolume?.mount ?? ''"
-      @snapshot-created="overlayRef?.reload()"
+      @snapshot-created="browse.refreshSnapshotList()"
     />
     <UploadBatchModal
       v-if="batchModalId"
