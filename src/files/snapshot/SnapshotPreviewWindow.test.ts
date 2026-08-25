@@ -1,17 +1,15 @@
 // Task 5 (Files Time Machine Vue2-parity line): a static, read-only, non-interactive miniature of
 // ONE older snapshot's directory listing at the Files area's CURRENT relative path -- the layer
-// TimeMachineStage.vue (Task 7) stacks up to ~10 of behind the real, live window. Vue2 authority:
-// NimoOS-UI src/components/filebrowser/components/SnapshotPreviewWindow.vue -- but this is NOT a
-// byte-for-byte clone (that file grew into a full grid/list clone of the real file browser, wired
-// to $api.folder.getList + Vuex sort/order + Buefy breadcrumbs). This task's own brief instead asks
-// for a much smaller "miniature Finder window": window chrome with a title bar showing the
-// snapshot's time, a three-column list (name/size/time), a loading skeleton, and an error
-// placeholder -- built against Task 4's own simplified `getSnapshotPreview` contract (no store, no
-// view-mode toggle, no breadcrumb chip). See task-5-report.md for the full design-decision trace.
+// TimeMachineStage.vue (Task 7) stacks up to ~10 of behind the real, live window.
+//
+// Fix round 1 (controller ruling): rewritten to assert against the ACTUAL Vue2 authority
+// (NimoOS-UI src/components/filebrowser/components/SnapshotPreviewWindow.vue, 673 lines) instead
+// of an earlier version built off a research summary's inaccurate paraphrase. See
+// SnapshotPreviewWindow.vue's own header comment for the full structure trace this file asserts.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import SnapshotPreviewWindow from './SnapshotPreviewWindow.vue'
-import { formatSnapshotBannerTime } from '../util/snapshotPath'
+import { dateFmt } from '../util/format'
 import type { SnapshotPreviewEntry } from '../util/snapshotPreviewCache'
 
 vi.mock('../util/snapshotPreviewCache', () => ({ getSnapshotPreview: vi.fn() }))
@@ -30,7 +28,7 @@ function pending() {
   return resolve
 }
 
-const BASE_PROPS = { mount: '/DATA', snapshotName: '20260712T101502Z_manual_x', relPath: '' }
+const BASE_PROPS = { mount: '/media/RAID_0', snapshotName: 'snap-a', relPath: '' }
 
 function mountPreview(props = {}) {
   return mount(SnapshotPreviewWindow, { props: { ...BASE_PROPS, ...props } })
@@ -40,23 +38,7 @@ beforeEach(() => {
   getSnapshotPreviewMock.mockReset()
 })
 
-describe('SnapshotPreviewWindow — title bar time label (parseSnapshotName semantics)', () => {
-  it('shows formatSnapshotBannerTime(snapshotName) for a well-formed snapshot name', async () => {
-    resolved({ entries: [], error: false })
-    const w = mountPreview({ snapshotName: '20260712T101502Z_manual_x' })
-    await flushPromises()
-    expect(w.find('.tm-preview-window__time').text()).toBe(formatSnapshotBannerTime('20260712T101502Z_manual_x'))
-  })
-
-  it('falls back to the raw name for an unparseable snapshot name (never blank, never throws)', async () => {
-    resolved({ entries: [], error: false })
-    const w = mountPreview({ snapshotName: 'not-a-real-snapshot-name' })
-    await flushPromises()
-    expect(w.find('.tm-preview-window__time').text()).toBe('not-a-real-snapshot-name')
-  })
-})
-
-describe('SnapshotPreviewWindow — fetch wiring', () => {
+describe('SnapshotPreviewWindow — fetch wiring (Task 4 contract, unchanged)', () => {
   it('requests the listing via getSnapshotPreview(mount, snapshotName, relPath)', async () => {
     resolved({ entries: [], error: false })
     mountPreview({ mount: '/media/RAID_0', snapshotName: 'snap-a', relPath: 'Documents/Q3' })
@@ -72,101 +54,152 @@ describe('SnapshotPreviewWindow — fetch wiring', () => {
     await w.setProps({ relPath: 'B' })
     await flushPromises()
     expect(getSnapshotPreviewMock).toHaveBeenCalledTimes(2)
-    expect(getSnapshotPreviewMock).toHaveBeenLastCalledWith('/DATA', '20260712T101502Z_manual_x', 'B')
+    expect(getSnapshotPreviewMock).toHaveBeenLastCalledWith('/media/RAID_0', 'snap-a', 'B')
+  })
+
+  it('does not fetch at all when mount or snapshotName is missing, and never throws', async () => {
+    const w = mountPreview({ mount: '', snapshotName: '' })
+    await expect(flushPromises()).resolves.not.toThrow()
+    expect(getSnapshotPreviewMock).not.toHaveBeenCalled()
+    expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
   })
 })
 
-describe('SnapshotPreviewWindow — loading skeleton', () => {
-  it('shows a skeleton (no list, no placeholder) while the fetch is still pending', async () => {
-    pending()
-    const w = mountPreview()
-    await w.vm.$nextTick()
-    expect(w.find('.tm-preview-window__skeleton').exists()).toBe(true)
-    expect(w.find('.tm-preview-window__list').exists()).toBe(false)
-    expect(w.find('.tm-preview-window__placeholder').exists()).toBe(false)
-  })
-
-  it('replaces the skeleton with the list once the fetch resolves', async () => {
-    const resolve = pending()
-    const w = mountPreview()
-    await w.vm.$nextTick()
-    expect(w.find('.tm-preview-window__skeleton').exists()).toBe(true)
-    resolve({ entries: [{ name: 'a.txt', isDir: false, size: 10, mtime: 0 }], error: false })
+describe('SnapshotPreviewWindow — chrome Row 1: breadcrumb + read-only chip (Vue2 parity)', () => {
+  it('renders the full breadcrumb (volume basename, .snapshots, snapshotName, relPath segments), last segment active', async () => {
+    resolved({ entries: [], error: false })
+    const w = mountPreview({ mount: '/media/RAID_0', snapshotName: '20260715T165314Z_auto-hourly', relPath: 'Documents/Q3' })
     await flushPromises()
-    expect(w.find('.tm-preview-window__skeleton').exists()).toBe(false)
-    expect(w.find('.tm-preview-window__list').exists()).toBe(true)
-  })
-})
-
-describe('SnapshotPreviewWindow — error placeholder', () => {
-  it('shows the tmPreviewUnavailable copy when the cache reports error:true', async () => {
-    resolved({ entries: [], error: true })
-    const w = mountPreview()
-    await flushPromises()
-    const placeholder = w.find('.tm-preview-window__placeholder')
-    expect(placeholder.exists()).toBe(true)
-    expect(placeholder.text()).toBe('暂时读不到这个文件夹的内容') // tmPreviewUnavailable (zh, global test locale)
-    expect(w.find('.tm-preview-window__list').exists()).toBe(false)
+    const crumbs = w.findAll('.tm-preview-window__crumb')
+    expect(crumbs.map((c) => c.text())).toEqual(['RAID_0', '.snapshots', '20260715T165314Z_auto-hourly', 'Documents', 'Q3'])
+    expect(crumbs[crumbs.length - 1].classes()).toContain('is-active')
+    expect(crumbs[0].classes()).not.toContain('is-active')
   })
 
-  it('shows the tmNoFolderAtTime copy for a genuinely empty, non-error listing (folder did not exist yet)', async () => {
+  it('renders the "Snapshot · Read-only" chip', async () => {
     resolved({ entries: [], error: false })
     const w = mountPreview()
     await flushPromises()
-    const placeholder = w.find('.tm-preview-window__placeholder')
-    expect(placeholder.exists()).toBe(true)
-    expect(placeholder.text()).toBe('此时还没有这个文件夹') // tmNoFolderAtTime (zh, global test locale)
-  })
-
-  it('never throws when getSnapshotPreview itself rejects (defensive -- the real contract never rejects, but this component must not assume that forever)', async () => {
-    getSnapshotPreviewMock.mockRejectedValue(new Error('boom'))
-    const w = mountPreview()
-    await expect(flushPromises()).resolves.not.toThrow()
-    expect(w.find('.tm-preview-window__placeholder').text()).toBe('暂时读不到这个文件夹的内容')
+    expect(w.find('.tm-preview-window__chip').text()).toBe('快照 · 只读') // snapReadOnlyBanner, zh (global test locale)
   })
 })
 
-describe('SnapshotPreviewWindow — row rendering (row count from mock data, dir-vs-file)', () => {
+describe('SnapshotPreviewWindow — chrome Row 2: total count + select-all (gated on totalCount > 0, Vue2 parity)', () => {
+  it('hides Row 2 entirely when the listing is empty, mirroring Vue2\'s v-if="totalCount > 0"', async () => {
+    resolved({ entries: [], error: false })
+    const w = mountPreview()
+    await flushPromises()
+    expect(w.find('.tm-preview-window__row2').exists()).toBe(false)
+  })
+
+  it('shows "N items" using the FULL count, not capped by the row render cap', async () => {
+    const entries = Array.from({ length: 30 }, (_, i) => ({ name: `file${i}.txt`, isDir: false, size: 1, mtime: 0 }))
+    resolved({ entries, error: false })
+    const w = mountPreview()
+    await flushPromises()
+    expect(w.find('.tm-preview-window__count').text()).toBe('30 项') // tmItemCount, zh
+  })
+
+  it('renders the select-all checkbox as inert/disabled and a decorative view-toggle glyph', async () => {
+    resolved({ entries: [{ name: 'a.txt', isDir: false, size: 1, mtime: 0 }], error: false })
+    const w = mountPreview()
+    await flushPromises()
+    const checkbox = w.find('.tm-preview-window__select-all input[type="checkbox"]')
+    expect(checkbox.exists()).toBe(true)
+    expect(checkbox.attributes('disabled')).toBeDefined()
+    expect(w.find('.tm-preview-window__view-toggle').exists()).toBe(true)
+  })
+})
+
+describe('SnapshotPreviewWindow — viewMode prop (Vue2 parity: grid default, list clones FileListView.vue)', () => {
   const entries = [
     { name: 'Report.pdf', isDir: false, size: 2048, mtime: 1720000000000 },
     { name: 'Photos', isDir: true, size: 0, mtime: 1720000000000 },
-    { name: 'notes.txt', isDir: false, size: 128, mtime: 1720000000000 },
   ]
 
-  it('renders one row per entry (row count = mock data length)', async () => {
+  it('defaults to grid mode: renders .tm-preview-window__card per entry, name + date, no table header', async () => {
     resolved({ entries, error: false })
     const w = mountPreview()
     await flushPromises()
-    expect(w.findAll('.tm-preview-window__row')).toHaveLength(3)
+    expect(w.find('.tm-preview-window__thead').exists()).toBe(false)
+    const cards = w.findAll('.tm-preview-window__card')
+    expect(cards).toHaveLength(2)
+    // Folders-first sort
+    expect(cards[0].find('.tm-preview-window__title').text()).toBe('Photos')
+    expect(cards[0].find('.tm-preview-window__desc').text()).toBe(dateFmt(1720000000000))
+    expect(cards[0].classes()).toContain('is-dir')
   })
 
-  it('sorts folders first, then alphabetically', async () => {
+  it('list mode: renders the sortable header (name/type/date/size, same i18n keys as FileListView.vue) plus one row per entry', async () => {
     resolved({ entries, error: false })
-    const w = mountPreview()
+    const w = mountPreview({ viewMode: 'list' })
     await flushPromises()
-    const names = w.findAll('.tm-preview-window__col--name').map((n) => n.text())
-    expect(names).toEqual(['Photos', 'notes.txt', 'Report.pdf'])
+    expect(w.find('.tm-preview-window__card').exists()).toBe(false)
+    const heads = w.findAll('.tm-preview-window__th').map((h) => h.text())
+    expect(heads).toEqual(['名称', '类型', '修改日期', '大小']) // filesColName/Type/Date/Size, zh
+    const rows = w.findAll('.tm-preview-window__row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].find('.tm-preview-window__col--name').text()).toBe('Photos') // folders-first
+    expect(rows[1].find('.tm-preview-window__col--name').text()).toBe('Report.pdf')
   })
 
-  it('files show a formatted size; directories show a dash, never a byte count', async () => {
+  it('list mode: files show extension + formatted size; directories show blank type/size cells', async () => {
     resolved({ entries, error: false })
-    const w = mountPreview()
+    const w = mountPreview({ viewMode: 'list' })
     await flushPromises()
     const rows = w.findAll('.tm-preview-window__row')
     const photosRow = rows.find((r) => r.text().includes('Photos'))!
-    expect(photosRow.find('.tm-preview-window__col--size').text()).toBe('—')
+    expect(photosRow.find('.tm-preview-window__col--type').text()).toBe('')
+    expect(photosRow.find('.tm-preview-window__col--size').text()).toBe('')
     expect(photosRow.classes()).toContain('is-dir')
     const reportRow = rows.find((r) => r.text().includes('Report.pdf'))!
+    expect(reportRow.find('.tm-preview-window__col--type').text()).toBe('pdf')
     expect(reportRow.find('.tm-preview-window__col--size').text()).toBe('2 KB')
     expect(reportRow.classes()).not.toContain('is-dir')
   })
 
-  it('caps rendered rows at a fixed maximum (perf guardrail across up to 10 concurrent depth-stack layers)', async () => {
+  it('caps rendered rows/cards at a fixed maximum (Vue2 parity: maxRows default 24)', async () => {
     const many = Array.from({ length: 40 }, (_, i) => ({ name: `file${String(i).padStart(2, '0')}.txt`, isDir: false, size: 1, mtime: 0 }))
     resolved({ entries: many, error: false })
     const w = mountPreview()
     await flushPromises()
-    expect(w.findAll('.tm-preview-window__row').length).toBeLessThan(40)
+    expect(w.findAll('.tm-preview-window__card')).toHaveLength(24)
+    // Row 2's own count still reads the FULL, uncapped length.
+    expect(w.find('.tm-preview-window__count').text()).toBe('40 项')
+  })
+})
+
+describe('SnapshotPreviewWindow — loading/error/empty all render as empty chrome (Vue2 parity: no spinner, no error text, no toast)', () => {
+  it('renders zero cards and hides Row 2 while the fetch is still pending', async () => {
+    pending()
+    const w = mountPreview()
+    await w.vm.$nextTick()
+    expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
+    expect(w.find('.tm-preview-window__row2').exists()).toBe(false)
+  })
+
+  it('renders zero cards on a fetch error, and never surfaces error copy anywhere in the DOM', async () => {
+    resolved({ entries: [], error: true })
+    const w = mountPreview()
+    await flushPromises()
+    expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
+    expect(w.find('.tm-preview-window__row2').exists()).toBe(false)
+    expect(w.text()).not.toMatch(/couldn|error|失败|读不到/i)
+  })
+
+  it('never throws when getSnapshotPreview itself rejects (defensive only) -- still empty chrome, no error copy', async () => {
+    getSnapshotPreviewMock.mockRejectedValue(new Error('boom'))
+    const w = mountPreview()
+    await expect(flushPromises()).resolves.not.toThrow()
+    expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
+  })
+
+  it('a genuinely empty (non-error) listing also renders zero cards, same empty chrome', async () => {
+    resolved({ entries: [], error: false })
+    const w = mountPreview()
+    await flushPromises()
+    expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
+    expect(w.find('.tm-preview-window__row2').exists()).toBe(false)
   })
 })
 
@@ -178,7 +211,7 @@ describe('SnapshotPreviewWindow — presentational contract', () => {
     expect(w.attributes('aria-hidden')).toBe('true')
   })
 
-  it('reflects the active prop as a class hook, defaulting to active', async () => {
+  it('reflects the active prop as a class hook (New-UI-only addition, not present in Vue2), defaulting to active', async () => {
     resolved({ entries: [], error: false })
     const active = mountPreview()
     await flushPromises()
@@ -189,10 +222,10 @@ describe('SnapshotPreviewWindow — presentational contract', () => {
     expect(inactive.classes()).not.toContain('is-active')
   })
 
-  it('does not fetch at all when mount or snapshotName is missing', async () => {
-    const w = mountPreview({ mount: '', snapshotName: '' })
+  it('active=false does not gate the fetch (Vue2 has no such concept; every mounted layer always fetches)', async () => {
+    resolved({ entries: [{ name: 'a.txt', isDir: false, size: 1, mtime: 0 }], error: false })
+    mountPreview({ active: false })
     await flushPromises()
-    expect(getSnapshotPreviewMock).not.toHaveBeenCalled()
-    expect(w.find('.tm-preview-window__placeholder').exists()).toBe(true)
+    expect(getSnapshotPreviewMock).toHaveBeenCalledTimes(1)
   })
 })
