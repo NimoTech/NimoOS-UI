@@ -14,13 +14,39 @@
   is disabled rather than hidden — a disabled control with an inline
   explanation reads clearer than a button that silently vanishes.
 
-  Cancel (Esc / outside click) means "stop asking about the rest of this
-  batch"; the caller marks this and every remaining conflict as cancelled.
+  Cancel (Esc / outside click / the header's own close button) means "stop
+  asking about the rest of this batch"; the caller marks this and every
+  remaining conflict as cancelled.
+
+  Task 12 (Files Time Machine Vue2-parity line): rebuilt directly on reka-ui's
+  Dialog primitives instead of the shared components/ui/Dialog.vue wrapper —
+  same reason SnapshotSettingsModal.vue (Task 11) forked off it: the generic
+  wrapper's `.ui-dialog-content` carries its own fixed min-width/padding and
+  dark-glass background, and scoped CSS on THIS component cannot reach up to
+  override an ancestor rendered by a different component. Vue2's own dialog is
+  white-glass (same `--tm-panel-*` token family as SnapshotSettingsModal and
+  the still-to-come RestoreDestinationModal), which the shared wrapper's dark
+  `--popup-bg` can't express either.
+
+  z-index tier: this dialog can open ON TOP of another already-open Time
+  Machine surface — SnapshotSettingsModal today, and RestoreDestinationModal's
+  own "Restore here" click will do the same once Task 13 lands (Vue2's
+  RestoreDestinationModal opens FileConflictDialog directly from its own
+  button, per that file's header comment). Every other white-glass surface in
+  this app renders through the shared 1000/1001 tier (components/ui/Dialog.vue
+  and SnapshotSettingsModal.vue both use it verbatim), so relying on DOM/mount
+  order to stack this ONE dialog above them would be fragile. Instead this
+  dialog claims a dedicated, explicitly higher tier — 1050/1051 — mirroring
+  Vue2's own literal `z-index: 4550` for `.file-conflict-dialog-overlay`
+  against `RestoreDestinationModal`'s `4500` (see that file's own comment):
+  same +50 relative gap, scaled to this app's z-index scheme, so this dialog
+  stacks on top deterministically regardless of which modal happened to open
+  first.
 -->
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import Dialog from '../../components/ui/Dialog.vue'
+import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle } from 'reka-ui'
 import type { ConflictChoice } from '../upload/fileConflict'
 
 const props = withDefaults(
@@ -65,97 +91,156 @@ defineExpose({ choose })
 </script>
 
 <template>
-  <Dialog :open="open" :title="t('filesConflictTitle')" @update:open="onOpenChange">
-    <div v-if="queueTotal > 1" class="fc-queue-pos">
-      {{ t('filesConflictQueuePos', { index: queueIndex + 1, total: queueTotal }) }}
-    </div>
+  <DialogRoot :open="open" @update:open="onOpenChange">
+    <DialogPortal>
+      <DialogOverlay class="fc-overlay" />
+      <DialogContent class="fc-content" :aria-describedby="undefined">
+        <header class="fc-head">
+          <DialogTitle class="fc-title">{{ t('filesConflictTitle') }}</DialogTitle>
+          <button type="button" class="fc-close-x" :aria-label="t('filesViewerClose')" @click="onOpenChange(false)">×</button>
+        </header>
 
-    <div class="fc-item">
-      <span class="fc-item-icon" aria-hidden="true">{{ isDir ? '📁' : '📄' }}</span>
-      <div class="fc-item-text">
-        <div class="fc-item-name" :title="name">{{ name }}</div>
-        <div class="fc-item-path" :title="targetPath">{{ targetPath }}</div>
-      </div>
-    </div>
+        <section class="fc-body">
+          <div v-if="queueTotal > 1" class="fc-queue-pos">
+            {{ t('filesConflictQueuePos', { index: queueIndex + 1, total: queueTotal }) }}
+          </div>
 
-    <p class="fc-hint">{{ t('filesConflictHint') }}</p>
+          <div class="fc-item">
+            <span class="fc-item-icon" aria-hidden="true">{{ isDir ? '📁' : '📄' }}</span>
+            <div class="fc-item-text">
+              <div class="fc-item-name" :title="name">{{ name }}</div>
+              <div class="fc-item-path" :title="targetPath">{{ targetPath }}</div>
+            </div>
+          </div>
 
-    <div v-if="isDir" class="fc-dir-note">
-      {{ allowMerge ? t('filesConflictDirNoteMerge') : t('filesConflictDirNote') }}
-    </div>
+          <p class="fc-hint">{{ t('filesConflictHint') }}</p>
 
-    <label v-if="queueTotal > 1" class="fc-apply-all">
-      <input v-model="applyToAll" type="checkbox" />
-      <span>{{ t('filesConflictApplyAll') }}</span>
-    </label>
+          <div v-if="isDir" class="fc-dir-note">
+            {{ allowMerge ? t('filesConflictDirNoteMerge') : t('filesConflictDirNote') }}
+          </div>
 
-    <template #footer>
-      <button v-if="allowMerge && isDir" class="fc-btn fc-primary" @click="choose('merge')">
-        {{ t('filesConflictMerge') }}
-      </button>
-      <button class="fc-btn" @click="choose('skip')">{{ t('filesConflictSkip') }}</button>
-      <button class="fc-btn" :class="{ 'fc-primary': !(allowMerge && isDir) }" @click="choose('keep_both')">
-        {{ t('filesConflictKeepBoth') }}
-      </button>
-      <!-- The why-disabled hint is a CSS tooltip on a wrapper span, not a
-           native title: title needs a ~1s motionless hover before it shows
-           (and never shows on touch), which read as "no tooltip at all"
-           during acceptance; the wrapper also keeps :hover alive while the
-           button inside is disabled. -->
-      <span class="fc-tip-wrap" :data-tip="isDir ? t('filesConflictOverwriteDisabled') : undefined">
-        <button class="fc-btn fc-danger" :disabled="isDir" @click="choose('overwrite')">
-          {{ t('filesConflictOverwrite') }}
-        </button>
-      </span>
-    </template>
-  </Dialog>
+          <label v-if="queueTotal > 1" class="fc-apply-all">
+            <input v-model="applyToAll" type="checkbox" />
+            <span>{{ t('filesConflictApplyAll') }}</span>
+          </label>
+        </section>
+
+        <footer class="fc-foot">
+          <button v-if="allowMerge && isDir" class="fc-btn fc-primary" @click="choose('merge')">
+            {{ t('filesConflictMerge') }}
+          </button>
+          <button class="fc-btn fc-ghost" @click="choose('skip')">{{ t('filesConflictSkip') }}</button>
+          <button class="fc-btn" :class="(allowMerge && isDir) ? 'fc-ghost' : 'fc-primary'" @click="choose('keep_both')">
+            {{ t('filesConflictKeepBoth') }}
+          </button>
+          <!-- The why-disabled hint is a CSS tooltip on a wrapper span, not a
+               native title: title needs a ~1s motionless hover before it shows
+               (and never shows on touch), which read as "no tooltip at all"
+               during acceptance; the wrapper also keeps :hover alive while the
+               button inside is disabled. -->
+          <span class="fc-tip-wrap" :data-tip="isDir ? t('filesConflictOverwriteDisabled') : undefined">
+            <button class="fc-btn fc-danger" :disabled="isDir" @click="choose('overwrite')">
+              {{ t('filesConflictOverwrite') }}
+            </button>
+          </span>
+        </footer>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>
 
 <style scoped>
-.fc-queue-pos { font-size: 11px; font-weight: 500; color: var(--fg-muted); margin-bottom: 10px; }
+/* Elevated tier — see file header comment for why this dialog does not share
+   the app's normal 1000/1001 dialog tier. */
+.fc-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1050; }
+.fc-content {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1051;
+  width: 420px; max-width: 92vw; height: auto; max-height: 70vh;
+  border-radius: 16px;
+  background: var(--tm-panel-bg);
+  backdrop-filter: var(--tm-panel-blur);
+  -webkit-backdrop-filter: var(--tm-panel-blur);
+  border: 1px solid var(--tm-panel-border);
+  box-shadow: var(--tm-panel-shadow);
+  color: var(--tm-text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .fc-content { background: var(--tm-panel-bg-solid); }
+}
+
+.fc-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 20px 24px 12px; border-bottom: 1px solid var(--tm-hairline); flex-shrink: 0;
+}
+.fc-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--tm-text); }
+.fc-close-x {
+  flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; padding: 0; color: var(--tm-text-dim); cursor: pointer;
+  border-radius: var(--tm-control-radius); font-size: 18px; line-height: 1;
+}
+.fc-close-x:hover { background: var(--tm-ghost-hover-bg); color: var(--tm-text); }
+
+.fc-body { padding: 16px 24px 20px; flex: 1 1 auto; min-height: 0; overflow-y: auto; color: var(--tm-text); }
+.fc-queue-pos { font-size: 11px; font-weight: 500; color: var(--tm-text-dim); margin-bottom: 10px; }
 .fc-item {
   display: flex; align-items: flex-start; gap: 10px; padding: 10px;
-  border: 1px solid var(--chip-border); border-radius: 10px;
+  border: 1px solid var(--tm-ghost-border); border-radius: 10px;
 }
 .fc-item-icon { flex-shrink: 0; font-size: 20px; line-height: 1.2; }
 .fc-item-text { min-width: 0; flex: 1 1 auto; }
 .fc-item-name {
-  font-size: 13px; font-weight: 600; color: var(--fg);
+  font-size: 13px; font-weight: 600; color: var(--tm-text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .fc-item-path {
-  font-size: 11px; color: var(--fg-muted);
+  font-size: 11px; color: var(--tm-text-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.fc-hint { margin: 12px 0 0; font-size: 12px; color: var(--fg-muted); }
-.fc-dir-note {
-  margin-top: 8px; padding: 6px 10px; border-radius: 8px; font-size: 11px;
-  color: var(--warn-fg); background: var(--warn-bg); border: 1px solid var(--warn-border);
-}
+.fc-hint { margin: 12px 0 0; font-size: 12px; color: var(--tm-text-dim); }
+/* Plain warm-amber text, no chip — pixel-matches Vue2's own dir-note rule
+   (margin-top 8px, font-size 11px, --tm-warn-text's exact amber): no
+   background/border there, unlike the old dark-theme chip styling this
+   replaces. */
+.fc-dir-note { margin-top: 8px; font-size: 11px; color: var(--tm-warn-text); }
 .fc-apply-all {
   display: flex; align-items: center; gap: 6px; margin-top: 14px;
-  font-size: 12px; color: var(--fg-muted); cursor: pointer;
+  font-size: 12px; color: var(--tm-text-dim); cursor: pointer;
 }
 
-.fc-btn {
-  padding: 7px 16px; border-radius: 999px; font-size: 13px; cursor: pointer;
-  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
+.fc-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  padding: 12px 24px 18px; border-top: 1px solid var(--tm-hairline); flex-shrink: 0;
 }
-.fc-btn:hover:not(:disabled) { background: var(--chip-bg-hi); }
+
+.fc-btn { padding: 7px 16px; border-radius: var(--tm-control-radius); font-size: 13px; cursor: pointer; border: none; }
 .fc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Every variant redeclares its own :hover background. A bare .fc-btn:hover is
-   (0,2,0) and would otherwise beat a variant class at (0,1,0), washing the
-   variant colour out on hover. */
-.fc-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.fc-primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+.fc-primary { background: var(--tm-accent); color: var(--tm-chrome-text); }
+.fc-primary:hover:not(:disabled) { background: var(--tm-accent-hover); }
 
-.fc-danger { background: transparent; border-color: var(--danger-border); color: var(--danger-fg); }
-.fc-danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger-fg); }
+.fc-ghost { background: transparent; border: 1px solid var(--tm-ghost-border); color: var(--tm-text-dim); }
+.fc-ghost:hover:not(:disabled) { background: var(--tm-ghost-hover-bg); color: var(--tm-text); border-color: var(--tm-ghost-border-hover); }
 
-/* Instant tooltip bubble (same surface recipe as DiskUsageTip.vue). Anchored
-   to the wrapper so it still appears while the button inside is disabled;
-   right-aligned because Overwrite is the last control in the footer row. */
+/* Overwrite — "ghost red": transparent/red-bordered at rest, only fills on
+   hover; same idiom as SnapshotSettingsModal.vue's own history Delete
+   button (identical color-mix() alpha steps: 40% border / 8% hover fill /
+   60% hover border, pixel-matching Vue2's own danger-button alpha trio). */
+.fc-danger {
+  background: transparent; border: 1px solid color-mix(in srgb, var(--tm-danger) 40%, transparent); color: var(--tm-danger);
+}
+.fc-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tm-danger) 8%, transparent);
+  border-color: color-mix(in srgb, var(--tm-danger) 60%, transparent);
+  color: var(--tm-danger-hover);
+}
+
+/* Instant tooltip bubble (same surface recipe as DiskUsageTip.vue), restyled
+   onto the white-glass panel tokens. Anchored to the wrapper so it still
+   appears while the button inside is disabled; right-aligned because
+   Overwrite is the last control in the footer row. */
 .fc-tip-wrap { position: relative; display: inline-flex; }
 .fc-tip-wrap[data-tip]:hover::after {
   content: attr(data-tip);
@@ -166,10 +251,10 @@ defineExpose({ choose })
   padding: 6px 10px;
   border-radius: 8px;
   font-size: 12px;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow-hi);
-  color: var(--fg);
+  background: var(--tm-panel-bg);
+  border: 1px solid var(--tm-panel-border);
+  box-shadow: var(--tm-panel-shadow);
+  color: var(--tm-text);
   pointer-events: none;
   z-index: 1;
 }

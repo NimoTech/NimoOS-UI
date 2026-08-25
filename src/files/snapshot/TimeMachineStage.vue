@@ -369,10 +369,11 @@ onUnmounted(() => {
   inset: 0;
   /* 900: above everything in the Files area (repo-wide files max is 240 — see marquee-box/
      FileContextMenu) but below this app's shared Dialog/AlertDialog/PromptDialog tier
-     (z-index: 1000 overlay / 1001 content) — settings, restore-destination, and file-conflict
-     dialogs all render through those same three shared components today (grepped: New-UI has no
-     distinct tier between them yet), so "stage below every dialog" holds regardless of which one
-     is open on top of it. */
+     (z-index: 1000 overlay / 1001 content). SnapshotSettingsModal (and the still-to-come
+     RestoreDestinationModal) render through that same 1000/1001 tier; FileConflictDialog
+     (Task 12) claims its own higher 1050/1051 tier so it stacks on top of either one when
+     opened from within them — see that file's own header comment. Either way "stage below
+     every dialog" holds regardless of which one is open on top of it. */
   z-index: 900;
   overflow: hidden;
 }

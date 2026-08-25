@@ -123,9 +123,22 @@ describe('FileConflictDialog', () => {
     expect(chooseEvents?.[(chooseEvents?.length ?? 1) - 1]).toEqual([{ action: 'skip', applyToAll: false }])
   })
 
-  it('closing the dialog emits cancel', async () => {
+  it('Escape emits cancel (reka-ui DialogRoot handles it internally)', async () => {
     const w = await open()
-    await w.findComponent({ name: 'Dialog' }).vm.$emit('update:open', false)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
     expect(w.emitted('cancel')).toBeTruthy()
+  })
+
+  it('the header close button emits cancel', async () => {
+    const w = await open()
+    ;(document.body.querySelector('.fc-close-x') as HTMLElement).click()
+    await w.vm.$nextTick()
+    expect(w.emitted('cancel')).toBeTruthy()
+  })
+
+  it('renders the white-glass title', async () => {
+    await open()
+    expect(document.body.textContent).toContain('已存在同名项目')
   })
 })
