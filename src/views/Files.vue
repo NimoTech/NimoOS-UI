@@ -886,7 +886,19 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
              what is selected inside the slotted real window. Task 14 wires it to the same
              `restoreSelectionFlow` entry point ② SnapshotBanner's own restore button below uses,
              fed with the same `snapshotSelection`. -->
-        <TimeMachineStage :dialog-open="settingsOpen" @open-settings="settingsOpen = true" @restore-selection="restoreSelectionFlow(snapshotSelection)">
+        <!-- Critical fix (final review C1): dialogOpen must suppress the stage's Esc/ArrowUp/
+             ArrowDown channel for EVERY dialog stacked above the stage that this view knows about
+             by name, not just the settings dialog -- the whole-folder restore confirm, the
+             destination picker (both live behind `browse.restoring`, which stays true for the
+             whole picker+conflict-queue+execute sequence, see restoreItems's own comment), and the
+             file-conflict dialog all Teleport to document.body just like the settings dialog does,
+             and arrow-key navigation inside any of THEIR own inputs must not be hijacked by
+             snapshot stepping underneath. -->
+        <TimeMachineStage
+          :dialog-open="settingsOpen || restoreFolderConfirm.open || browse.restoring || conflicts.dialog.open"
+          @open-settings="settingsOpen = true"
+          @restore-selection="restoreSelectionFlow(snapshotSelection)"
+        >
           <div class="files-topbar">
             <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
             <div class="files-topbar-right">

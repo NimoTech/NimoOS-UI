@@ -199,7 +199,22 @@ function onKeydown(e: KeyboardEvent) {
   if (!isEscape && !isArrowUp && !isArrowDown) return
   if (props.dialogOpen) return
   const target = e.target
-  if (target instanceof Element && stageRoot.value && !stageRoot.value.contains(target)) return
+  // Critical fix (final review C1): document.body/documentElement are exempted from the
+  // containment check -- they are the browser's own default focus target (after clicking a file
+  // row/glass/blank space, or simply never having received focus at all, e.g. right after Task
+  // 10's deep-link auto-enter), NOT a Teleported dialog stacked above the stage. The un-exempted
+  // check below treated them identically to a real Teleported dialog (neither is ever a
+  // descendant of `.tm-stage`) and swallowed Esc/ArrowUp/ArrowDown on the single most common
+  // focus state. Genuinely Teleported content (rename/conflict/settings dialogs, all mounted as
+  // siblings of the stage under document.body) is still caught: it is an Element, not body/
+  // documentElement, and not contained by stageRoot.
+  if (
+    target instanceof Element
+    && target !== document.body
+    && target !== document.documentElement
+    && stageRoot.value
+    && !stageRoot.value.contains(target)
+  ) return
   e.preventDefault()
   if (isEscape) { browse.exitTimeMachine(); return }
   if (isArrowUp) stepLater()

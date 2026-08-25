@@ -183,6 +183,26 @@ describe('TimeMachineStage shell', () => {
       expect(spy).not.toHaveBeenCalled()
     })
 
+    // Critical fix (final review C1): the browser's default focus target after clicking a file
+    // row/glass/blank space (or after Task 10's own deep-link auto-enter, which never focuses
+    // anything) is document.body itself -- NOT some Teleported dialog. The old guard treated
+    // document.body exactly like a Teleported-dialog target (`stageRoot.value &&
+    // !stageRoot.value.contains(target)`, true for document.body since it is never a descendant
+    // of `.tm-stage`) and swallowed the event, leaving Esc/ArrowUp/ArrowDown dead on the single
+    // most common focus state. Dispatching straight on `document.body` (not `window`, unlike this
+    // suite's other cases) is deliberate: it makes `e.target` genuinely `document.body`, the exact
+    // condition the old guard mishandled -- a `window.dispatchEvent` here would carry the same
+    // target only by accident of jsdom's default focus, not as a reliable regression proof.
+    it('exits when Escape targets document.body (the default focus after clicking rows/glass/blank space)', async () => {
+      mountIt()
+      const browse = useSnapshotBrowseStore()
+      const spy = vi.spyOn(browse, 'exitTimeMachine').mockImplementation(() => {})
+      browse.tmActive = true
+      await nextTick()
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', bubbles: true }))
+      expect(spy).toHaveBeenCalledTimes(1)
+    })
+
     it('does not exit when Escape targets a stacked dialog outside the stage (Teleported content)', async () => {
       const w = mountIt()
       const browse = useSnapshotBrowseStore()
