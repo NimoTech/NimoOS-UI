@@ -45,8 +45,8 @@
 // tick's own LINE by type -- `tm-tick--auto`/`tm-tick--preop`/`tm-tick--manual` are all rendered
 // (every tick gets one), but only `.tm-tick--selected` and `.tm-tick__badge` (shown only for
 // typeKind === 'manual', a SEPARATE element next to the line, not the line itself) carry any CSS
-// rule at all -- auto and preop are visually identical to each other in Vue2 (plain --tm-rail
-// line, no badge). So "per-type tick coloring" here means: the `type-<kind>` class is still
+// rule at all -- auto and preop are visually identical to each other in Vue2 (plain
+// --tm-rail-tick line, no badge). So "per-type tick coloring" here means: the `type-<kind>` class is still
 // applied to every main tick (matching Vue2's own `tm-tick--<kind>` on every tick), but only
 // `type-manual` has an associated CSS rule (the badge's own color) -- `type-auto`/`type-preop`
 // exist purely as hooks, unstyled, exactly as they are in Vue2's own source.
@@ -333,8 +333,8 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
   background: var(--tick-color);
   transition: height 0.15s var(--ease), background 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
-.tm-tick-main { width: 26px; --tick-color: var(--tm-rail); }
-.tm-tick-sub { width: 18px; --tick-color: var(--tm-rail-sub); }
+.tm-tick-main { width: 26px; --tick-color: var(--tm-rail-tick); }
+.tm-tick-sub { width: 18px; --tick-color: var(--tm-rail-tick-sub); }
 /* Selected accent line — Vue2 parity (`.tm-tick--selected .tm-tick__line`'s own literal width/
    height/color/glow, sourced verbatim into --tm-accent/--tm-accent-glow, see task-1-report.md).
    `width: 40px` is Vue2's own literal resting width for a selected tick (visibly wider than the
@@ -385,13 +385,12 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
   pointer-events: none;
 }
 
-/* Loading skeleton: reuses the sub-tick's own faint color (there is no dedicated skeleton token in
-   the approved Task 1 set, and this task is not authorized to add one for a purely decorative
-   loading placeholder). */
+/* Loading skeleton: reuses the sub-tick's own faint color (final review C2: --tm-rail-tick-sub,
+   the same live token the resting sub-ticks above use -- no dedicated skeleton token needed). */
 .tm-tick-skeleton {
   height: 2px;
   border-radius: 2px;
-  background: var(--tm-rail-sub);
+  background: var(--tm-rail-tick-sub);
   animation: tm-rail-skeleton-pulse 1.1s ease-in-out infinite;
 }
 .tm-tick-skeleton:nth-child(1) { width: 22px; }

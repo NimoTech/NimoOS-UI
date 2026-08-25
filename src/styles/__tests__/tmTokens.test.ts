@@ -90,6 +90,14 @@ const TOKENS = [
   // exact Vue2 CSS rules each one pins).
   '--tm-rail-tick-hover',
   '--tm-rail-tick-manual',
+  // Final review (C2): the rail's resting main/sub tick colors, replacing the deleted
+  // colleague-era --tm-rail/--tm-rail-sub tokens (whose light-block values were dark ink,
+  // near-invisible against the always-dark TM glass backdrop). --tm-rail-tick is Vue2's own
+  // exact resting `.tm-tick__line` literal; --tm-rail-tick-sub has no Vue2 counterpart (Vue2
+  // renders no sub-ticks) and is derived proportionally from it -- see theme.css's own comment
+  // on these two for the full account.
+  '--tm-rail-tick',
+  '--tm-rail-tick-sub',
   // Task 9 (stepper + bottom bar): pixel-pinned to Vue2's `.tm-stepper__btn`/`.tm-stepper__time`/
   // `.tm-bottom-bar__exit` literal colors -- see theme.css's own comment on these six for the full
   // per-token Vue2 provenance. `.tm-bottom-bar__restore` reuses --tm-accent/--tm-accent-hover
@@ -157,6 +165,8 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-panel-blur')).toBe('blur(20px) saturate(1.2)')
     expect(valueIn(dark, '--tm-rail-tick-hover')).toBe('#ffffff')
     expect(valueIn(dark, '--tm-rail-tick-manual')).toBe('#f6c760')
+    expect(valueIn(dark, '--tm-rail-tick')).toBe('rgba(255, 255, 255, 0.4)')
+    expect(valueIn(dark, '--tm-rail-tick-sub')).toBe('rgba(255, 255, 255, 0.2)')
     expect(valueIn(dark, '--tm-stepper-btn-bg')).toBe('rgba(255, 255, 255, 0.16)')
     expect(valueIn(dark, '--tm-stepper-btn-hover-bg')).toBe('rgba(255, 255, 255, 0.28)')
     expect(valueIn(dark, '--tm-chrome-text')).toBe('#ffffff')

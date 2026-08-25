@@ -243,43 +243,20 @@
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
-  /* Time Machine overlay. Follows the theme (owner's call): dark theme is a deep-space
-     look, light theme is paper-toned -- each stands on its own, not one dark design
-     forced into the light theme. */
-  --tm-bg:
-    radial-gradient(ellipse at 28% 22%, rgba(76, 61, 158, 0.35) 0%, rgba(10, 13, 33, 0) 55%),
-    radial-gradient(ellipse at 78% 78%, rgba(30, 64, 140, 0.28) 0%, rgba(10, 13, 33, 0) 55%),
-    linear-gradient(160deg, #131a3a 0%, #0a0e21 45%, #05060f 100%);
-  --tm-fg: #f1f5f9;
-  --tm-fg-muted: rgba(241, 245, 249, 0.62);
-  /* Review fix (Important): the card stack's absolutely positioned cards overlap, and the
-     back cards carry large text at opacity 0.86/0.7/... -- the pure-glass gradient's max
-     alpha is only 0.16, so in the dark theme (the default theme, this cycle's showcase)
-     text from a card behind was visible straight through the card in front, doubling up.
-     Adding an opaque base color layer (coordinated with --bg:#1a2138 / --card:#232a45,
-     slightly deeper to match --tm-bg's deep-space tone) keeps the glass look while
-     eliminating the double-exposure. */
-  --tm-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)), #161d3d;
-  --tm-card-bd: rgba(255, 255, 255, 0.18);
-  /* Divider between the card header (date/time / type) and the file grid below it,
-     fainter than the card's outer border */
-  --tm-card-divider: rgba(255, 255, 255, 0.1);
-  --tm-card-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
-  --tm-rail: rgba(255, 255, 255, 0.5);
-  --tm-rail-sub: rgba(255, 255, 255, 0.2);
-
   /* Task 1 (Vue2-parity Time Machine rebuild): the full new token set, pixel-pinned to
      Vue2's TimeMachineStage.vue scoped styles + the SnapshotSettingsModal/
      RestoreDestinationModal/FileConflictDialog white-glass panel tokens (identical values
      in all three files, confirmed by reading each). Owner ruling: Time Machine looks the
-     SAME in dark and light themes -- unlike --tm-bg/--tm-fg/... above, every token below
-     carries the identical literal value in both this block and the light block.
+     SAME in dark and light themes -- every token below carries the identical literal value
+     in both this block and the light block.
      Guard: src/styles/__tests__/tmTokens.test.ts.
-     Note: the OLD --tm-* tokens above (--tm-bg through --tm-rail-sub) are still consumed by
-     the colleague-authored components under src/files/snapshot/ (TimeMachineOverlay.vue,
-     TimeMachineBar.vue, TimeMachineCrumbs.vue, TimeMachineCard.vue, TimeMachineRail.vue) --
-     kept in place deliberately rather than deleted, since those components are slated for
-     removal in a later task (T16), not this one. */
+     Final-review sweep (C2): the nine colleague-era --tm-bg/--tm-fg/--tm-fg-muted/
+     --tm-card-bg/--tm-card-bd/--tm-card-divider/--tm-card-shadow/--tm-rail/--tm-rail-sub
+     tokens that used to live here (each with a DIFFERENT value per theme block, unlike this
+     whole block's own rule) were deleted -- the colleague components that consumed them
+     (TimeMachineOverlay.vue, TimeMachineBar.vue, TimeMachineCrumbs.vue, TimeMachineCard.vue,
+     the colleague's own TimeMachineRail.vue) were themselves deleted in Task 6, and a
+     grep across src/ confirmed zero remaining references before removal. */
   --tm-glass-bg: rgba(8, 10, 22, 0.35);
   --tm-glass-blur: blur(24px) saturate(1.05);
   --tm-rail-text: rgba(255, 255, 255, 0.62);
@@ -308,6 +285,20 @@
      rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
   --tm-rail-tick-hover: #ffffff;
   --tm-rail-tick-manual: #f6c760;
+  /* Final review (C2): the rail's resting tick colors used to read the colleague-era
+     --tm-rail/--tm-rail-sub tokens (deleted above), whose LIGHT block values were dark ink
+     (rgba(28,27,25,...)) -- near-invisible against the always-dark TM glass backdrop
+     (--tm-glass-bg/--tm-bar-scrim etc. are the same literal in both theme blocks, so the rail
+     sits on a dark surface regardless of app theme). `--tm-rail-tick` is Vue2's own EXACT
+     resting `.tm-tick__line` literal (`.tm-tick__line { background: rgba(255, 255, 255, 0.4) }`,
+     TimeMachineStage.vue). Sub-ticks are a New-UI-only decorative addition (Vue2 renders no
+     ticks between real snapshots -- see TimeMachineRail.vue's own header comment), so there is
+     no Vue2 literal to pin for `--tm-rail-tick-sub`; it is set to half `--tm-rail-tick`'s own
+     alpha (0.4 -> 0.2) so sub-ticks read as visibly fainter than main ticks without inventing an
+     unrelated color, and -- like every token in this block -- carries the identical value in
+     both theme blocks. */
+  --tm-rail-tick: rgba(255, 255, 255, 0.4);
+  --tm-rail-tick-sub: rgba(255, 255, 255, 0.2);
   /* Task 9 (stepper + bottom bar): pixel-pinned to Vue2 TimeMachineStage.vue's own literal
      `.tm-stepper__btn`/`.tm-stepper__time`/`.tm-bottom-bar__exit` colors (the `.tm-bottom-bar__restore`
      button reuses --tm-accent/--tm-accent-hover above, already pinned -- no new token needed there).
@@ -719,24 +710,12 @@
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
-  /* Time Machine -- light paper theme: no starfield, the background is ecru plus a
-     very faint glow */
-  --tm-bg:
-    radial-gradient(ellipse at 26% 20%, rgba(59, 91, 219, 0.10) 0%, rgba(247, 245, 239, 0) 58%),
-    radial-gradient(ellipse at 80% 80%, rgba(110, 90, 224, 0.08) 0%, rgba(247, 245, 239, 0) 58%),
-    linear-gradient(160deg, #fbfaf6 0%, #f3f0e8 55%, #ebe7dd 100%);
-  --tm-fg: #1c1b19;
-  --tm-fg-muted: #6e6a61;
-  --tm-card-bg: linear-gradient(155deg, #ffffff, #f6f4ee);
-  --tm-card-bd: rgba(28, 27, 25, 0.12);
-  --tm-card-divider: rgba(28, 27, 25, 0.1);
-  --tm-card-shadow: 0 18px 44px rgba(28, 27, 25, 0.18);
-  --tm-rail: rgba(28, 27, 25, 0.45);
-  --tm-rail-sub: rgba(28, 27, 25, 0.16);
-  /* Paper theme dims toward warm ink rather than deep space (see the dark block's note) */
-
   /* Task 1: same values as the dark block above -- owner ruling: Time Machine looks the
-     same in both themes, so these are NOT re-derived for light/paper tone. */
+     same in both themes, so these are NOT re-derived for light/paper tone. Final-review
+     sweep (C2): the nine colleague-era light-block tokens that used to live here (--tm-bg/
+     --tm-fg/--tm-fg-muted/--tm-card-bg/--tm-card-bd/--tm-card-divider/--tm-card-shadow/
+     --tm-rail/--tm-rail-sub) were deleted alongside their dark-block counterparts -- see this
+     block's own opening comment above the dark block's matching note. */
   --tm-glass-bg: rgba(8, 10, 22, 0.35);
   --tm-glass-blur: blur(24px) saturate(1.05);
   --tm-rail-text: rgba(255, 255, 255, 0.62);
@@ -765,6 +744,10 @@
      rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
   --tm-rail-tick-hover: #ffffff;
   --tm-rail-tick-manual: #f6c760;
+  /* Final review (C2) -- see the dark block's own comment on these two tokens for the full
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-rail-tick: rgba(255, 255, 255, 0.4);
+  --tm-rail-tick-sub: rgba(255, 255, 255, 0.2);
   /* Task 9 (stepper + bottom bar) -- see the dark block's own comment on these six tokens for the
      full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
   --tm-stepper-btn-bg: rgba(255, 255, 255, 0.16);
