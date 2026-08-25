@@ -12,38 +12,36 @@
 // that returns the next index or null when already at a boundary.
 //
 // Signature deviations from Vue2 (deliberate, see task-2-report.md):
-// - fisheyeScale/resolveDollySlots/resolveSlotPose drop Vue2's generic
-//   `options` bag in favor of fixed constants (FISHEYE_*, TM_DEPTH_STEP) --
-//   this module has exactly one production caller (the Time Machine stage),
-//   not a component library, so there is no reason to keep every knob
-//   pluggable. fisheyeScale keeps an OPTIONAL options param purely for
-//   backward compatibility with computeFisheyeScales below (kept-for-compat
-//   export, see that section) -- new call sites only ever pass one argument.
+// - fisheyeScale drops Vue2's generic `options` bag in favor of fixed
+//   constants (FISHEYE_*) for new call sites, but keeps an OPTIONAL options
+//   param purely for backward compatibility with computeFisheyeScales below
+//   (kept-for-compat export, see that section).
 // - resolveDollySlots takes `names: string[]` directly (not an array of
-//   `{ name }` objects) and drops Vue2's `pinNames` (multi-step-jump
-//   continuity) -- no consumer in this line's plan needs it; if a later
-//   task needs distant-jump continuity, pinNames can be re-added additively
-//   without breaking this signature.
-// - resolveSlotPose returns `{ x, y, scale, dim, z }` (GSAP-native property
-//   names -- `x`/`y`/`scale` map straight onto `gsap.set(el, pose)` in
-//   Task 3's choreography) instead of Vue2's `{ offsetY, scaleX, scaleY,
-//   opacity, brightness }`. `dim` is `1 - brightness` (the `__dim` overlay's
-//   own opacity, per the design spec) rather than a brightness multiplier.
-//   `z` is an explicit stacking value (nearer slot = higher z) so paint
-//   order no longer depends on DOM/v-for order the way Vue2's "farthest
-//   first, nearest last" array order did (resolveDollySlots still returns
-//   farthest-first for compatibility/readability, but callers may now
-//   render in any order and rely on `z` alone). There is no `opacity` field:
-//   Vue2's T(-1) opacity:0 existed only to hide a huge, off-screen offset
-//   before it starts a transition -- the stage's own `overflow: hidden`
-//   plus the exit pose's large fixed `y` (see EXIT_OFFSET_Y below) already
-//   keeps it out of view without needing a second signal.
-// - resolveSlotPose has no `stageHeight` option (Vue2 could derive the
-//   exit-pose offset from the real measured stage height): EXIT_OFFSET_Y is
-//   a fixed, generous constant instead, same as Vue2's own
-//   `exitOffsetFallback` (already "generous, viewport clearing" even
-//   unmeasured) -- a fixed value is simpler and Vue2's own fallback was
-//   already good enough at any real viewport size.
+//   `{ name }` objects), unlike Vue2's `flatItems`. `pinNames` (Fix Round
+//   11/M2-F15's multi-step-jump continuity fix) IS ported -- see below.
+// - resolveSlotPose returns `{ x, y, scaleX, scaleY, dim, z }` (GSAP-native
+//   property names -- `x`/`y`/`scaleX`/`scaleY` map straight onto
+//   `gsap.set(el, pose)` in Task 3's choreography) instead of Vue2's
+//   `{ offsetY, scaleX, scaleY, opacity, brightness }`. `dim` is
+//   `1 - brightness` (the `__dim` overlay's own opacity, per the design
+//   spec) rather than a brightness multiplier. `z` is an explicit stacking
+//   value (nearer slot = higher z) so paint order no longer depends on
+//   DOM/v-for order the way Vue2's "farthest first, nearest last" array
+//   order did (resolveDollySlots still returns farthest-first for
+//   compatibility/readability, but callers may now render in any order and
+//   rely on `z` alone). There is no `opacity` field: Vue2's T(-1) opacity:0
+//   existed only to hide a huge, off-screen offset before it starts a
+//   transition -- the stage's own `overflow: hidden` plus the exit pose's
+//   large `y` already keeps it out of view without needing a second signal.
+//
+// Review round 1 (2026-08-25): the controller ruled the spec's pixel/motion
+// 1:1 mandate overrides the brief's sketched minimalism on three points, so
+// scaleX/scaleY, the stageHeight param, and pinNames are now restored to
+// Vue2's exact semantics (formulas/values below are byte-identical to
+// timeMachineMath.js's own resolveSlotPose/resolveDollySlots) -- only the
+// field names/shapes (x/y/scaleX/scaleY/dim/z vs offsetY/scaleX/scaleY/
+// opacity/brightness) and the "plain params instead of one options bag"
+// calling convention remain New-UI-specific.
 
 // --- Kept for compat -------------------------------------------------------
 // The colleague's earlier card-deck mockup variant (M2-F6/F7, see that
@@ -152,7 +150,7 @@ export const TM_STEPPER_BAND = 60
 export const TM_DEPTH_STEP = 30
 
 export interface DollySlot { name: string; depth: number }
-export interface SlotPose { x: number; y: number; scale: number; dim: number; z: number }
+export interface SlotPose { x: number; y: number; scaleX: number; scaleY: number; dim: number; z: number }
 
 // Raised-cosine falloff of tick magnification around the cursor: eases from
 // `maxScale` at distance 0 down to `minScale` at `radius`, staying at
@@ -181,13 +179,30 @@ const DEFAULT_MAX_SLOTS = 10
 // the SAME name persists across a selection change (its depth simply
 // shifts), which is what lets a CSS/GSAP transition animate it rather than
 // tearing the node down and rebuilding one elsewhere.
-export function resolveDollySlots(names: string[], currentIndex: number, maxSlots: number = DEFAULT_MAX_SLOTS): DollySlot[] {
+//
+// `pinNames` (ported from Vue2 Fix Round 11/M2-F15) force-includes specific
+// names at their own real (unclamped) depth regardless of the `[-1,
+// maxSlots]` window above. Without this, a multi-step tick/rail jump whose
+// target lies beyond the visible window (or whose departure lands beyond
+// depth -1 on the "more recent" side) has no rendered DOM node before/after
+// the jump for a travel animation to run from/to -- it just hard-cuts at
+// the final position. A caller pins exactly the travel's two endpoints
+// (departure + target) right before starting a jump; this is per-name, not
+// a wider window for everyone else.
+export function resolveDollySlots(
+  names: string[],
+  currentIndex: number,
+  maxSlots: number = DEFAULT_MAX_SLOTS,
+  pinNames: string[] = [],
+): DollySlot[] {
   const hasSelection = Array.isArray(names) && Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < names.length
   if (!hasSelection) return []
+  const pinSet = pinNames && pinNames.length ? new Set(pinNames) : null
   const slots: DollySlot[] = []
   for (let i = 0; i < names.length; i++) {
+    const name = names[i]
     const depth = i - currentIndex
-    if (depth >= -1 && depth <= maxSlots) slots.push({ name: names[i], depth })
+    if ((depth >= -1 && depth <= maxSlots) || (pinSet && pinSet.has(name))) slots.push({ name, depth })
   }
   slots.sort((a, b) => b.depth - a.depth)
   return slots
@@ -202,28 +217,41 @@ const SLOT_MIN_SCALE = 0.78 // Vue2's minScale floor
 const SLOT_DIM_STEP = 0.06 // dimmer per depth (Vue2's brightnessStep, inverted: dim = 1 - brightness)
 const SLOT_MAX_DIM = 0.55 // Vue2's minBrightness floor (0.45), inverted
 const EXIT_SCALE = 1.2 // T(-1): uniform grow, "coming toward the viewer" (Vue2's exitScale)
-const EXIT_OFFSET_Y = 1600 // px, viewport-clearing translate for T(-1) (Vue2's exitOffsetFallback)
+const EXIT_OFFSET_FALLBACK = 1600 // px, pre-mount/unmeasured fallback (Vue2's exitOffsetFallback)
+const EXIT_OFFSET_MULTIPLIER = 1.4 // stageHeight * this comfortably clears the real stage (Vue2's exitOffsetMultiplier)
 
-// Pose (translate/scale/dim/z) for a slot at a given depth. T(0) (the
-// selection itself) is the identity pose. T(<=-1) ("past the camera") grows
-// uniformly, translates well past any real stage height, and is never
-// dimmed (it is the exiting/incoming front layer, not a deep strip) -- every
-// depth <= -1 collapses to this SAME pose (there is only ever one
-// past-the-camera slot rendered at a time, ported from Vue2's own
-// invariant). Depths >= 1 recede: higher (more negative) y, narrower scale,
-// dimmer, all floored so nothing shrinks/darkens to nothing even far down
-// the cascade.
-export function resolveSlotPose(depth: number): SlotPose {
+// Pose (translate/scale/dim/z) for a slot at a given depth, pre-window-scale
+// coordinates. T(0) (the selection itself) is the identity pose. T(<=-1)
+// ("past the camera") grows UNIFORMLY (scaleX === scaleY, "the whole box
+// grows/rests"), translates well past the stage, and is never dimmed (it is
+// the exiting/incoming front layer, not a deep strip) -- every depth <= -1
+// collapses to this SAME pose (there is only ever one past-the-camera slot
+// rendered at a time, ported from Vue2's own invariant). Depths >= 1 recede:
+// higher (more negative) y, narrower scaleX ONLY (scaleY stays 1 -- Vue2's
+// deliberate "thin peeking sliver" look, not a uniform shrink), dimmer, all
+// floored so nothing shrinks/darkens to nothing even far down the cascade.
+//
+// `stageHeight` (optional, ported from Vue2): when known, the T(-1) exit
+// offset is `stageHeight * EXIT_OFFSET_MULTIPLIER` (Vue2's real production
+// path, which measures the actual stage) rather than the fixed
+// EXIT_OFFSET_FALLBACK -- a fixed fallback under-throws on any stage taller
+// than ~1143px (1600 / 1.4), which can leave T(-1) visibly inside the clip
+// box instead of safely off-screen. A non-finite/non-positive stageHeight
+// (not yet measured, or this module's own test env) falls back to the fixed
+// constant, same as Vue2.
+export function resolveSlotPose(depth: number, stageHeight?: number): SlotPose {
   if (depth <= -1) {
-    return { x: 0, y: EXIT_OFFSET_Y, scale: EXIT_SCALE, dim: 0, z: 1 }
+    const exitOffset = Number.isFinite(stageHeight) && (stageHeight as number) > 0 ? (stageHeight as number) * EXIT_OFFSET_MULTIPLIER : EXIT_OFFSET_FALLBACK
+    return { x: 0, y: exitOffset, scaleX: EXIT_SCALE, scaleY: EXIT_SCALE, dim: 0, z: 1 }
   }
   if (depth === 0) {
-    return { x: 0, y: 0, scale: 1, dim: 0, z: 0 }
+    return { x: 0, y: 0, scaleX: 1, scaleY: 1, dim: 0, z: 0 }
   }
   return {
     x: 0,
     y: -(depth * TM_DEPTH_STEP),
-    scale: Math.max(SLOT_MIN_SCALE, 1 - depth * SLOT_SCALE_STEP),
+    scaleX: Math.max(SLOT_MIN_SCALE, 1 - depth * SLOT_SCALE_STEP),
+    scaleY: 1,
     dim: Math.min(SLOT_MAX_DIM, depth * SLOT_DIM_STEP),
     z: -depth,
   }

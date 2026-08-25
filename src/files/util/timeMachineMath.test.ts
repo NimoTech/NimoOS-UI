@@ -129,6 +129,11 @@ describe('buildRailNodes (kept for compat)', () => {
 // later task, empirically) and clampStepIndex below (which fuses
 // resolveStepperBoundaries' boolean pair into one call).
 
+// Mirrors the module's private DEFAULT_MAX_SLOTS -- used only to pass the
+// default maxSlots through explicitly when a test needs to supply a 4th
+// (pinNames) argument without changing the window size.
+const DEFAULT_MAX_SLOTS_FOR_TEST = 10
+
 describe('constants', () => {
   it('exposes the exact numeric contract downstream tasks rely on', () => {
     expect(FISHEYE_RADIUS).toBe(70)
@@ -267,31 +272,79 @@ describe('resolveDollySlots — name-keyed dolly-slot assignment for a newest-fi
     const many = Array.from({ length: 20 }, (_, i) => 's' + i)
     expect(resolveDollySlots(many, 0, 4).map((s) => s.depth)).toEqual([4, 3, 2, 1, 0])
   })
+
+  // Fix Round 11 (M2-F15, ported): pinNames is what fixes the "a multi-step
+  // jump beyond the visible window hard-cuts instead of animating" defect --
+  // a real, previously-fixed Vue2 regression the fisheye rail encourages
+  // (clicking a tick far from the current selection).
+  describe('pinNames (ported from Vue2 Fix Round 11/M2-F15): force-including specific names beyond the [-1, maxSlots] window', () => {
+    it('force-includes a name far beyond maxSlots, at its OWN real (unclamped) depth', () => {
+      const many = Array.from({ length: 20 }, (_, i) => 's' + i) // s0 newest .. s19 oldest
+      const slots = resolveDollySlots(many, 0, 3, ['s15'])
+      expect(slots.map((s) => s.depth).sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 15])
+      expect(slots.find((s) => s.name === 's15')).toEqual({ name: 's15', depth: 15 })
+    })
+
+    it('force-includes a name on the negative ("more recent than selection") side beyond the bare -1 depth', () => {
+      const flat = ['a', 'b', 'c', 'd', 'e'] // newest-first
+      // Selection is 'd' (index 3); 'a' (index 0) is 3 steps more recent -- its real depth is -3.
+      const slots = resolveDollySlots(flat, 3, DEFAULT_MAX_SLOTS_FOR_TEST, ['a'])
+      expect(slots.find((s) => s.name === 'a')).toEqual({ name: 'a', depth: -3 })
+      // 'b' (index 1, real depth -2) is NOT pinned and stays excluded -- pinning is per-name.
+      expect(slots.some((s) => s.name === 'b')).toBe(false)
+    })
+
+    it('is a no-op when the pinned name would already be included by the normal window (no duplicate entry)', () => {
+      const flat = ['a', 'b', 'c']
+      const slots = resolveDollySlots(flat, 1, DEFAULT_MAX_SLOTS_FOR_TEST, ['a', 'b']) // both already in-range
+      expect(slots.filter((s) => s.name === 'a').length).toBe(1)
+      expect(slots.filter((s) => s.name === 'b').length).toBe(1)
+    })
+
+    it('defaults to [] (identical output to omitting the argument entirely)', () => {
+      const flat = ['a', 'b', 'c', 'd']
+      expect(resolveDollySlots(flat, 1, DEFAULT_MAX_SLOTS_FOR_TEST, [])).toEqual(resolveDollySlots(flat, 1))
+    })
+
+    it('ignores pin names that do not exist in names (defensive, no crash)', () => {
+      const flat = ['a', 'b', 'c']
+      expect(() => resolveDollySlots(flat, 0, DEFAULT_MAX_SLOTS_FOR_TEST, ['does-not-exist'])).not.toThrow()
+      expect(resolveDollySlots(flat, 0, DEFAULT_MAX_SLOTS_FOR_TEST, ['does-not-exist']).some((s) => s.name === 'does-not-exist')).toBe(false)
+    })
+
+    it('a pinned far name still sorts farthest-first alongside the normal cascade (DOM-order/paint-order invariant preserved)', () => {
+      const many = Array.from({ length: 20 }, (_, i) => 's' + i)
+      const slots = resolveDollySlots(many, 0, 3, ['s15'])
+      expect(slots.map((s) => s.depth)).toEqual([15, 3, 2, 1, 0])
+    })
+  })
 })
 
 describe('resolveSlotPose — unified per-depth pose, T(-1) through T(cap)', () => {
   it('depth 1 (nearest of the older cascade) is close to full scale/brightness with a small, non-zero offset', () => {
     const p = resolveSlotPose(1)
     expect(p.y).toBeLessThan(0)
-    expect(p.scale).toBeLessThan(1)
-    expect(p.scale).toBeGreaterThan(0.9)
+    expect(p.scaleX).toBeLessThan(1)
+    expect(p.scaleX).toBeGreaterThan(0.9)
+    expect(p.scaleY).toBe(1) // narrows X only -- the "thin peeking sliver" look
     expect(p.dim).toBeGreaterThan(0)
     expect(p.dim).toBeLessThan(0.1)
   })
 
-  it('is progressively higher (more negative y), narrower (smaller scale), and dimmer (higher dim) as depth grows, for the older cascade', () => {
+  it('is progressively higher (more negative y), narrower (smaller scaleX), and dimmer (higher dim) as depth grows, for the older cascade', () => {
     for (let depth = 1; depth < 10; depth++) {
       const near = resolveSlotPose(depth)
       const far = resolveSlotPose(depth + 1)
       expect(far.y).toBeLessThan(near.y) // more negative = higher
-      expect(far.scale).toBeLessThanOrEqual(near.scale)
+      expect(far.scaleX).toBeLessThanOrEqual(near.scaleX)
+      expect(far.scaleY).toBe(1)
       expect(far.dim).toBeGreaterThanOrEqual(near.dim)
     }
   })
 
-  it('never lets scale go below its floor, nor dim exceed its ceiling, even at a deep depth', () => {
+  it('never lets scaleX go below its floor, nor dim exceed its ceiling, even at a deep depth', () => {
     const p = resolveSlotPose(30)
-    expect(p.scale).toBeGreaterThanOrEqual(0.78)
+    expect(p.scaleX).toBeGreaterThanOrEqual(0.78)
     expect(p.dim).toBeLessThanOrEqual(0.55)
   })
 
@@ -301,17 +354,18 @@ describe('resolveSlotPose — unified per-depth pose, T(-1) through T(cap)', () 
   })
 
   it('T(0) is the identity pose -- no offset, uniform 1x scale, never dimmed', () => {
-    expect(resolveSlotPose(0)).toEqual({ x: 0, y: 0, scale: 1, dim: 0, z: 0 })
+    expect(resolveSlotPose(0)).toEqual({ x: 0, y: 0, scaleX: 1, scaleY: 1, dim: 0, z: 0 })
   })
 
-  it('T(-1) grows past 1x, translates well past a typical viewport, and is never dimmed', () => {
+  it('T(-1) grows UNIFORMLY past 1x (not the older cascade\'s scaleX-only narrowing), translates well past a typical viewport, and is never dimmed', () => {
     const p = resolveSlotPose(-1)
-    expect(p.scale).toBeGreaterThan(1)
-    expect(p.y).toBeGreaterThan(900) // clears a typical viewport height
+    expect(p.scaleX).toBeGreaterThan(1)
+    expect(p.scaleX).toBe(p.scaleY) // uniform, not a narrowing-only scaleX
+    expect(p.y).toBeGreaterThan(900) // clears a typical viewport height (fallback)
     expect(p.dim).toBe(0)
   })
 
-  it('every depth <= -1 collapses to the SAME T(-1) pose (there is only ever one "past the camera" slot rendered at a time)', () => {
+  it('every depth <= -1 collapses to the SAME T(-1) pose when stageHeight is omitted (there is only ever one "past the camera" slot rendered at a time)', () => {
     expect(resolveSlotPose(-1)).toEqual(resolveSlotPose(-2))
     expect(resolveSlotPose(-1)).toEqual(resolveSlotPose(-100))
   })
@@ -320,6 +374,36 @@ describe('resolveSlotPose — unified per-depth pose, T(-1) through T(cap)', () 
     expect(resolveSlotPose(-1).z).toBeGreaterThan(resolveSlotPose(0).z)
     expect(resolveSlotPose(0).z).toBeGreaterThan(resolveSlotPose(1).z)
     expect(resolveSlotPose(1).z).toBeGreaterThan(resolveSlotPose(2).z)
+  })
+
+  // Ported from Vue2's resolveSlotPose stageHeight option: the production
+  // path measures the real stage height and derives the T(-1) exit offset
+  // from it (`stageHeight * 1.4`) rather than always using the fixed
+  // pre-mount/test fallback (1600), which under-throws on any stage taller
+  // than ~1143px.
+  describe('stageHeight (ported from Vue2): T(-1) exit offset derived from the real measured stage', () => {
+    it('derives the exit offset as stageHeight * 1.4 when stageHeight is known', () => {
+      expect(resolveSlotPose(-1, 1400).y).toBeCloseTo(1960, 9) // 1400 * 1.4
+    })
+
+    it('scales with stageHeight, not a fixed number', () => {
+      const short = resolveSlotPose(-1, 600)
+      const tall = resolveSlotPose(-1, 1800)
+      expect(tall.y).toBeGreaterThan(short.y)
+      expect(short.y).toBeGreaterThan(600) // still clears its own (shorter) stage
+    })
+
+    it('falls back to the fixed 1600 constant when stageHeight is unknown/non-finite/non-positive', () => {
+      const unmeasured = resolveSlotPose(-1)
+      expect(unmeasured.y).toBe(1600)
+      expect(resolveSlotPose(-1, NaN).y).toBe(1600)
+      expect(resolveSlotPose(-1, 0).y).toBe(1600)
+      expect(resolveSlotPose(-1, -100).y).toBe(1600)
+    })
+
+    it('every depth <= -1 still collapses to the SAME pose for a given stageHeight', () => {
+      expect(resolveSlotPose(-1, 1000)).toEqual(resolveSlotPose(-5, 1000))
+    })
   })
 })
 
