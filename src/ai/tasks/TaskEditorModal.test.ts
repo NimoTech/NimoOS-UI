@@ -207,7 +207,7 @@ describe('TaskEditorModal', () => {
     expect((w.find('.set-copy .set-input').element as HTMLInputElement).value).toContain('newtok')
   })
 
-  it('shows the agent-revision banner and revert puts the old prompt back into the form', async () => {
+  it('shows the agent-revision banner and the history toggle on an existing task', async () => {
     const w = mountEditor({
       task: {
         id: 't1',
@@ -220,18 +220,39 @@ describe('TaskEditorModal', () => {
     })
     await flush()
     expect(w.find('[data-test="revised-banner"]').exists()).toBe(true)
-    await w.find('[data-test="prev-toggle"]').trigger('click')
-    expect(w.find('[data-test="prev-prompt"]').text()).toBe('the old prompt')
-    await w.find('[data-test="revert-prompt"]').trigger('click')
-    expect((w.find('[data-test="task-prompt"]').element as HTMLTextAreaElement).value)
-      .toBe('the old prompt')
+    expect(w.find('[data-test="history-toggle"]').exists()).toBe(true)
   })
 
-  it('no banner without the agent marker', async () => {
+  it('no banner without the agent marker; no history toggle in create mode', async () => {
     const w = mountEditor({
       task: { id: 't1', name: 'digest', prompt: 'p', prev_prompt: '', prompt_revised_by: '' },
     })
     await flush()
     expect(w.find('[data-test="revised-banner"]').exists()).toBe(false)
+    expect(w.find('[data-test="history-toggle"]').exists()).toBe(true)
+    const create = mountEditor({ task: null })
+    await flush()
+    expect(create.find('[data-test="history-toggle"]').exists()).toBe(false)
+  })
+
+  it('allow_prompt_revision defaults ON, follows the task, and rides the save payload', async () => {
+    h.updateTask.mockResolvedValue(OK_REPORT)
+    const w = mountEditor({
+      task: {
+        id: 't1',
+        name: 'digest',
+        prompt: 'p',
+        trigger_type: 'webhook_only',
+        allow_prompt_revision: 0,
+      },
+    })
+    await flush()
+    const box = w.find('[data-test="allow-revision"]')
+    expect((box.element as HTMLInputElement).checked).toBe(false)
+    await box.setValue(true)
+    await w.find('[data-test="task-save"]').trigger('click')
+    await flush()
+    expect(h.updateTask).toHaveBeenCalled()
+    expect(h.updateTask.mock.calls[0][1].allow_prompt_revision).toBe(true)
   })
 })

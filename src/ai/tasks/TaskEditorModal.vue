@@ -28,25 +28,26 @@
 
         <div class="sk-field">
           <label class="sk-field-label">{{ t('aiTasksFieldPrompt') }}</label>
-          <!-- The agent revised this prompt during a continuation run; the
-               previous version is kept until a human edit supersedes it. -->
-          <div v-if="revisedByAgent" class="tsk-revised" data-test="revised-banner">
-            <span class="tsk-revised-badge">{{ t('aiTasksPromptRevisedByAgent') }}</span>
-            <button class="sk-btn ghost" data-test="prev-toggle" @click="showPrevPrompt = !showPrevPrompt">
-              {{ t('aiTasksPromptPrevVersion') }}
-            </button>
+          <!-- Only an existing task has a history; a create form has nothing
+               to diff against yet. -->
+          <div v-if="task" class="tsk-revised">
+            <span v-if="revisedByAgent" class="tsk-revised-badge" data-test="revised-banner">
+              {{ t('aiTasksPromptRevisedByAgent') }}
+            </span>
             <button
               class="sk-btn ghost"
-              data-test="revert-prompt"
-              :title="t('aiTasksPromptRevertHint')"
-              @click="revertPrompt"
+              data-test="history-toggle"
+              @click="showHistory = !showHistory"
             >
-              {{ t('aiTasksPromptRevert') }}
+              {{ t('aiTasksPromptHistory') }}
             </button>
           </div>
-          <pre v-if="revisedByAgent && showPrevPrompt" class="tsk-prev-prompt" data-test="prev-prompt">{{
-            task?.prev_prompt
-          }}</pre>
+          <PromptHistoryPanel
+            v-if="task && showHistory"
+            :task-id="task.id"
+            :current="form.prompt"
+            @revert="onRevertVersion"
+          />
           <textarea
             v-model="form.prompt"
             rows="6"
@@ -54,6 +55,11 @@
             data-test="task-prompt"
           ></textarea>
           <div class="sk-field-hint">{{ t('aiTasksPromptHint') }}</div>
+          <label class="tsk-check">
+            <input v-model="form.allow_prompt_revision" type="checkbox" data-test="allow-revision" />
+            <span>{{ t('aiTasksAllowPromptRevision') }}</span>
+          </label>
+          <div class="sk-field-hint">{{ t('aiTasksAllowPromptRevisionHint') }}</div>
         </div>
 
         <div class="sk-field">
@@ -292,6 +298,7 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useToast } from '../../stores/toast'
 import AgentIcon from '../components/icons/AgentIcon.vue'
+import PromptHistoryPanel from './PromptHistoryPanel.vue'
 import { useAgentStore, type AgentModel } from '../stores/agentStore'
 import { errorKey, formatTs, tzLabel, type TaskRow } from './taskHelpers'
 
@@ -375,14 +382,15 @@ const models = computed<AgentModel[]>(() => agentStore.availableModels)
 const tz = tzLabel()
 
 const truncatedFields = computed(() => Object.keys(truncated.value || {}))
-const showPrevPrompt = ref(false)
+const showHistory = ref(false)
 const revisedByAgent = computed(
   () => !!(props.task && props.task.prompt_revised_by === 'agent' && props.task.prev_prompt),
 )
-// Puts the pre-revision prompt back into the form; saving applies it (the
-// backend clears the revision markers on any human prompt change).
-function revertPrompt() {
-  form.prompt = props.task?.prev_prompt || ''
+// Puts a historical version back into the form; saving applies it (the
+// backend clears the revision markers on any human prompt change and the
+// replaced version joins the history).
+function onRevertVersion(text: string) {
+  form.prompt = text
 }
 // A webhook can trigger ANY saved task, not just an unscheduled one — the
 // trigger type only says whether the task ALSO fires on its own. There is
@@ -454,6 +462,8 @@ function reset() {
     notify_policy: tk.notify_policy || 'failure',
     notify_channel: tk.notify_channel || '',
     notify_on_start: !!tk.notify_on_start,
+    allow_prompt_revision:
+      tk.allow_prompt_revision === undefined ? true : !!tk.allow_prompt_revision,
     enabled: tk.enabled === undefined ? true : !!tk.enabled,
   })
   // Deep copy: the editor must never mutate the list's task object, or a
@@ -596,6 +606,7 @@ function buildPayload() {
     notify_policy: f.notify_policy,
     notify_channel: f.notify_channel || '',
     notify_on_start: !!f.notify_on_start,
+    allow_prompt_revision: !!f.allow_prompt_revision,
     // The WHOLE document, always: PUT replaces `preauth` instead of merging
     // it, so sending a subset would silently delete the rest.
     preauth: {

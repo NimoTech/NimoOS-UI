@@ -615,6 +615,14 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
+    // Past prompt versions (newest first); the current version is the task's
+    // own `prompt` field.
+    async listPromptRevisions(id: string): Promise<unknown> {
+      const res = await http.get(
+        `${PREFIX}/agent/tasks/${encodeURIComponent(id)}/prompt-revisions`)
+      return res.data
+    },
+
     // Queues a continuation of a finished run on that run's own session; the
     // optional message is the user's supplement to the composed resume prompt.
     async continueTaskRun(id: string, runId: string, message = ''): Promise<unknown> {
