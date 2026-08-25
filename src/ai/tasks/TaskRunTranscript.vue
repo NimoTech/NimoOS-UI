@@ -176,12 +176,20 @@ const progress = computed(() => ({
   live: isLive.value,
 }))
 const countsLabel = computed(() => {
-  const steps = sink.value.state.steps.length
-  const think = items.value.reduce(
-    (n, it) =>
-      n + (it.kind === 'process' ? it.steps.filter((s: RailStep) => s.kind === 'think').length : 0),
-    0,
-  )
+  // Count from the rendered rail, not sink.state.steps: state.steps is fed
+  // only by live SSE activity events, so a finished run replayed from
+  // /messages always read "0 steps" while the rail below showed dozens.
+  // Live equivalence holds because withStepTimings zips state.steps onto
+  // tool-kind rail steps 1:1 — tool-kind count IS the live step count.
+  let steps = 0
+  let think = 0
+  for (const it of items.value) {
+    if (it.kind !== 'process') continue
+    for (const s of it.steps as RailStep[]) {
+      if (s.kind === 'think') think++
+      else steps++
+    }
+  }
   const parts = [t('aiTasksTranscriptSteps', { n: steps })]
   if (think) parts.push(t('aiTasksTranscriptThoughts', { n: think }))
   return parts.join(' · ')
