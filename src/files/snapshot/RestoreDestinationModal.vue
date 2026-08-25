@@ -46,11 +46,12 @@
   its own fixed min-width/padding/dark-glass background that scoped CSS here can't override.
 -->
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, getCurrentScope, onScopeDispose } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle } from 'reka-ui'
 import { service } from '@nimotech/nimoos-service'
 import { destPathBreadcrumbs, listRestoreDirEntries } from '../util/restoreDestination'
+import { iconNameFor, iconUrl } from '../util/icons'
 
 defineOptions({ name: 'RestoreDestinationModal' })
 
@@ -129,6 +130,30 @@ function onOpenChange(v: boolean): void {
   if (!v) handleCancel()
 }
 
+// The modal lives inside whichever component owns it (T14 mounts it once, e.g. Files.vue), but
+// the caller awaiting `open()`'s promise does not necessarily outlive that host — navigating
+// away (or the host being torn down) mid-prompt unmounts this component while `open()`'s
+// returned promise is still pending. Without this, that promise would never settle: the awaiting
+// caller hangs forever. Settling `null` routes it through the exact same path as Cancel/Esc, so
+// the caller reports it like any other cancel — same convention as
+// useFileConflicts.ts's own onScopeDispose guard (see that file's comment for the identical
+// failure mode in the upload-conflict flow). `getCurrentScope()` guard: this component's setup
+// is also invoked directly by some tests without a real component scope, where
+// onScopeDispose has no scope to attach to and would warn.
+if (getCurrentScope()) {
+  onScopeDispose(() => { if (resolver) settle(null) })
+}
+
+/** Real, per-entry folder icon (not an emoji glyph) — same `iconNameFor`/`iconUrl` util
+ *  SnapshotPreviewWindow.vue already uses for its own folder/file rows (which itself picks
+ *  different glyphs for well-known folder names like "Documents"/"Media"/"Downloads"), so this
+ *  picker's drill-down list matches the rest of the Time Machine area pixel-for-pixel instead of
+ *  inventing its own glyph. Vue2's own modal used a real `<b-icon icon="folder" ...>` here too
+ *  (not text/emoji), so this is also closer parity, not just an internal-consistency nicety. */
+function entryIconUrl(name: string): string {
+  return iconUrl(iconNameFor({ name, is_dir: true }))
+}
+
 defineExpose({ open })
 </script>
 
@@ -163,7 +188,7 @@ defineExpose({ open })
             <div v-else-if="entries.length === 0" class="rdm-muted rdm-list-state">{{ t('tmNoSubfolders') }}</div>
             <ul v-else class="rdm-entries">
               <li v-for="entry in entries" :key="entry.path" class="rdm-entry" role="button" @click="navigateTo(entry.path)">
-                <span class="rdm-entry-icon" aria-hidden="true">📁</span>
+                <img class="rdm-entry-icon" :src="entryIconUrl(entry.name)" alt="" />
                 <span class="rdm-entry-name">{{ entry.name }}</span>
               </li>
             </ul>
@@ -253,7 +278,7 @@ defineExpose({ open })
   font-size: 13px; color: var(--tm-text);
 }
 .rdm-entry:hover { background: var(--tm-ghost-hover-bg); }
-.rdm-entry-icon { color: var(--tm-text-dim); flex-shrink: 0; }
+.rdm-entry-icon { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
 .rdm-entry-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .rdm-divider { height: 1px; background: var(--tm-hairline); margin: 16px 0 12px; }

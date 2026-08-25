@@ -219,6 +219,27 @@ describe('RestoreDestinationModal — confirm/cancel resolution', () => {
   })
 })
 
+describe('RestoreDestinationModal — host teardown mid-prompt', () => {
+  // Fix (review finding): the host that mounts this modal (T14, e.g. Files.vue) does not
+  // necessarily outlive an awaited open() -- navigating away mid-prompt unmounts this component.
+  // Without an onScopeDispose teardown, the promise open() returned would never settle and the
+  // awaiting caller would hang forever. Same failure mode/fix as
+  // useFileConflicts.ts's own onScopeDispose guard (see that file's comment).
+  it('unmounting the host while open() is still pending resolves the promise null', async () => {
+    getListMock.mockResolvedValueOnce({ content: [] })
+    const w = mountIt()
+    const promise = vmOf(w).open('/media/RAID_0', '/media/RAID_0/Documents')
+    await flush(w)
+    w.unmount()
+    expect(await promise).toBeNull()
+  })
+
+  it('unmounting a modal with no pending open() is a no-op (does not throw)', () => {
+    const w = mountIt()
+    expect(() => w.unmount()).not.toThrow()
+  })
+})
+
 describe('RestoreDestinationModal — chrome', () => {
   it('renders the white-glass title', async () => {
     getListMock.mockResolvedValueOnce({ content: [] })
