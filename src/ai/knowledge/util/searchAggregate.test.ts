@@ -806,3 +806,49 @@ describe('album-asset hits — the photos: prefix', () => {
     expect(out[0].thumbnailUrl).toBeUndefined()
   })
 })
+
+// Once NimoOS-Search resolves photos:<asset_id> hits through Photos (GET /v1/photos/assets/{id}),
+// the same `paths[0]` slot carries the real file — the card must read like any other file, and
+// the Photo/Video label is only the fallback for a Photos outage (paths back to null).
+describe('album-asset hits — with a path resolved by Photos', () => {
+  const withPath: SearchTextResponseRaw = {
+    hits: [
+      {
+        file_id: 'photos:b615bb4a-5397-4113-b524-0c574d0fa46e',
+        mime: 'video/mp4',
+        kind: 'caption',
+        score: 0.57,
+        paths: [{ root_id: 'photos', path: '/media/RAID_raid10/知识库/肝疾病1.mp4', mtime_ms: 1784600000000 }],
+        cite: { page: null, chunk_no: 0, offset_start: 0, offset_end: 418 },
+        preview: { text: 'A presenter in front of a slide about the liver' },
+      },
+    ],
+  }
+
+  it('name is the file basename, not the Video label', () => {
+    const out = toFileResults(withPath)
+    expect(out[0].name).toBe('肝疾病1.mp4')
+    expect(out[0].name).not.toBe(i18n.global.t('aiKbSrVideoAsset'))
+  })
+
+  it('path / fullPath / mtimeMs come from paths[0] like a document', () => {
+    const out = toFileResults(withPath)
+    expect(out[0].path).toBe('/media/RAID_raid10/知识库/')
+    expect(out[0].fullPath).toBe('/media/RAID_raid10/知识库/肝疾病1.mp4')
+    expect(out[0].mtimeMs).toBe(1784600000000)
+  })
+
+  it('still carries photoAssetId + thumbnailUrl (the drawer and the card thumbnail need them)', () => {
+    const out = toFileResults(withPath)
+    expect(out[0].photoAssetId).toBe('b615bb4a-5397-4113-b524-0c574d0fa46e')
+    expect(out[0].thumbnailUrl).toBe('/v1/photos/assets/b615bb4a-5397-4113-b524-0c574d0fa46e/thumbnail?size=small')
+  })
+
+  it('without a path (Photos unavailable, fail-open) the name still falls back to the Video/Photo label', () => {
+    const out = toFileResults({
+      hits: [{ ...withPath.hits![0], paths: null }, { ...withPath.hits![0], file_id: 'photos:x', mime: 'image/jpeg', paths: null }],
+    })
+    expect(out[0].name).toBe(i18n.global.t('aiKbSrVideoAsset'))
+    expect(out[1].name).toBe(i18n.global.t('aiKbSrPhotoAsset'))
+  })
+})

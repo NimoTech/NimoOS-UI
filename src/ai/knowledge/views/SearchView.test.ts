@@ -61,6 +61,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { i18n } from '../../../i18n'
 import SearchView from './SearchView.vue'
 import FileDetailDrawer from '../components/FileDetailDrawer.vue'
+import AssetDetailDrawer from '../components/AssetDetailDrawer.vue'
 import KFileViewer from '../components/KFileViewer.vue'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import type { FileVM } from '../util/searchAggregate'
@@ -1597,16 +1598,55 @@ describe('SearchView — album-asset hits render as photo cards', () => {
     expect(name).not.toBe(i18n.global.t('aiKbSrUntitled'))
   })
 
-  it('clicking a photo card deep-links to the album lightbox #/photos?asset=<id> and does not open the file drawer', async () => {
+  it('clicking a photo card opens the asset drawer in place — no navigation, no file drawer', async () => {
     const { w, router } = await mountWithPhoto()
-    // The album route isn't in this test's route table; add a minimal one so the push lands.
     router.addRoute({ path: '/photos', name: 'photos', component: { template: '<div />' } })
     await w.find('.k-rcard').trigger('click')
     await flush()
+    expect(router.currentRoute.value.path).toBe('/ai/knowledge/search')
+    expect(w.findComponent(AssetDetailDrawer).exists()).toBe(true)
+    // The file drawer is for hits that have chunks to page through; an album asset must not land in it.
+    expect(w.findComponent(FileDetailDrawer).exists()).toBe(false)
+  })
+
+  it('"Open in Photos" inside the drawer is what deep-links to #/photos?asset=<id>, and closes the drawer', async () => {
+    const { w, router } = await mountWithPhoto()
+    router.addRoute({ path: '/photos', name: 'photos', component: { template: '<div />' } })
+    await w.find('.k-rcard').trigger('click')
+    await flush()
+    await w.find('.k-asset-open-photos').trigger('click')
+    await flush()
     expect(router.currentRoute.value.path).toBe('/photos')
     expect(router.currentRoute.value.query.asset).toBe('b615bb4a-5397-4113-b524-0c574d0fa46e')
-    // The file drawer is for hits that have a path; an album asset must not land in it.
-    expect(w.findComponent(FileDetailDrawer).exists()).toBe(false)
+    expect(w.findComponent(AssetDetailDrawer).exists()).toBe(false)
+  })
+
+  it('the drawer collapses on close and the result list is still there', async () => {
+    const { w } = await mountWithPhoto()
+    await w.find('.k-rcard').trigger('click')
+    await flush()
+    await w.find('.k-drawer-back').trigger('click')
+    await flush()
+    expect(w.findComponent(AssetDetailDrawer).exists()).toBe(false)
+    expect(w.findAll('.k-rcard').length).toBe(1)
+  })
+
+  it('with a path resolved by Photos the card shows the real file name and folder', async () => {
+    const store = withPinia()
+    const withPath = {
+      ...PHOTO_RESPONSE,
+      files: [{ ...PHOTO_RESPONSE.files[0], paths: [{ root_id: 'photos', path: '/media/RAID_raid10/知识库/肝疾病1.mp4', mtime_ms: 1784600000000 }] }],
+    }
+    vi.spyOn(store, 'runSearch').mockResolvedValue(withPath)
+    const { w } = await mountSearch()
+    const input = w.find('.k-search-box input')
+    await input.setValue('liver')
+    await input.trigger('keydown.enter')
+    await flush()
+    expect(w.find('.k-rcard-name').text()).toBe('肝疾病1.mp4')
+    const meta = w.findAll('.k-rcard-meta-item')
+    expect(meta.length).toBe(2)
+    expect(meta[0].text()).toBe('/media/RAID_raid10/知识库/')
   })
 
   it('the meta row swaps the path + mtime items for one photo-library locator', async () => {

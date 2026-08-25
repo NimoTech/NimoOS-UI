@@ -37,6 +37,7 @@ import { useI18n } from 'vue-i18n'
 import { getHttp, service } from '@nimotech/nimoos-service'
 import KIcon from '../components/KIcon.vue'
 import FileDetailDrawer from '../components/FileDetailDrawer.vue'
+import AssetDetailDrawer from '../components/AssetDetailDrawer.vue'
 import KFileViewer from '../components/KFileViewer.vue'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import { chunkCount, fmtMtime, highlight, relLabel, relLevel, toFileResults } from '../util/searchAggregate'
@@ -124,20 +125,28 @@ const results = ref<FileVM[]>([])
 // N39: `clear()` also clears these two together (blueprint :264). Rendering belongs to T7,
 // state declared in this phase.
 const openFile = ref<FileVM | null>(null)
+/** The album-asset hit currently expanded in AssetDetailDrawer (mutually exclusive with openFile). */
+const openAsset = ref<FileVM | null>(null)
 
 /**
  * Result-card click: a plain file opens the file detail drawer; an **album asset**
- * (`file_id` = `photos:<asset_id>`, a caption vector from the semantic source) has neither a
- * path nor a readable chunk file, so the drawer would be empty for it — deep-link to the album
- * lightbox `#/photos?asset=<id>` instead (that query key is Photos' existing share semantics,
- * see `src/photos/composables/usePhotosDeepLinks.ts`).
+ * (`file_id` = `photos:<asset_id>`, a caption vector from the semantic source) opens
+ * AssetDetailDrawer — media preview + caption, in place, so the result list is still there when
+ * the user collapses it. The album lightbox (`#/photos?asset=<id>`, Photos' existing share
+ * semantics, see `src/photos/composables/usePhotosDeepLinks.ts`) is one explicit button away,
+ * see openInPhotos; it used to be the click's default and lost the search context every time.
  */
 function openResult(r: FileVM) {
   if (r.photoAssetId) {
-    void router.push({ path: '/photos', query: { asset: r.photoAssetId } })
+    openAsset.value = r
     return
   }
   openFile.value = r
+}
+
+function openInPhotos(assetId: string) {
+  openAsset.value = null
+  void router.push({ path: '/photos', query: { asset: assetId } })
 }
 
 /**
@@ -180,6 +189,7 @@ function clear() {
   phase.value = 'idle'
   results.value = []
   openFile.value = null
+  openAsset.value = null
   viewerFile.value = null
 }
 
@@ -602,11 +612,11 @@ watch(
               {{ t('aiKbSrMoreHint', { n: r.chunks.length - 1 }) }}
             </div>
             <div class="k-rcard-meta">
-              <!-- An album asset has no path and no mtime (`paths` is always null), so the two
-                   file-oriented items would render as a bare folder icon plus "Modified —".
-                   Replace both with one locator that says where the hit actually lives. -->
+              <!-- An album asset shows its folder when Photos resolved one, else the library
+                   locator; never the "Modified" item — mtime is the capture time, which the
+                   drawer labels properly. -->
               <template v-if="r.photoAssetId">
-                <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ t('aiKbSrPhotoLibrary') }}</span></span>
+                <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ r.path || t('aiKbSrPhotoLibrary') }}</span></span>
               </template>
               <template v-else>
                 <span class="k-rcard-meta-item"><KIcon name="folder" :size="11" /><span class="path">{{ r.path }}</span></span>
@@ -637,6 +647,14 @@ watch(
         @open="openOriginal"
         @download="downloadFile"
         @toast="onDrawerToast"
+      />
+
+      <AssetDetailDrawer
+        v-if="openAsset"
+        :file="openAsset"
+        :query="lastQuery"
+        @close="openAsset = null"
+        @open-photos="openInPhotos"
       />
 
       <KFileViewer v-if="viewerFile" :file="viewerFile" @close="viewerFile = null" @download="downloadFile" />

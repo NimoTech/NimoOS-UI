@@ -207,6 +207,7 @@ const WHITELIST_425 = [
   'nme-content', 'ProseMirror',
   // ---- P5e T2: 55 classes from Appendix D §D.7.1 (copy verbatim from that code block)----
   'k-adv-chip', 'k-adv-chips', 'k-adv-field', 'k-adv-label', 'k-adv-panel', 'k-adv-toggle',
+  'k-asset-caption', 'k-asset-caption-head', 'k-asset-caption-text', 'k-asset-drawer', 'k-asset-media', 'k-asset-stage',
   'k-chunk-content', 'k-chunk-item', 'k-chunk-item-body', 'k-chunk-item-head', 'k-chunk-item-preview',
   'k-chunk-list', 'k-chunk-loc', 'k-chunk-nav', 'k-chunk-nav-count', 'k-chunk-rank',
   'k-chunk-viewer', 'k-chunk-viewer-foot', 'k-chunk-viewer-head', 'k-chunk-viewer-title',
@@ -277,8 +278,11 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
   // casually slipping a class into the whitelist — so changing it means reading the whitelist comment
   // above too, not just levelling the number.
   it('Whitelist exactly 426 items (Appendix D §D.0: 102 + T2\'s 32 + T6\'s 53 + P5c-T2a\'s 39 + P5d-T2\'s 65+2 + P5e-T2\'s 55 + P5f-T2\'s 27+41+9 + 1 from 2026-08-15)', () => {
-    expect(WHITELIST_425).toHaveLength(426)
-    expect(new Set(WHITELIST_425).size, 'Whitelist has duplicate items').toBe(426)
+    // 🔴 2026-08-25: 426 → 432. The six additions are the `k-asset-*` classes of
+    // components/AssetDetailDrawer.vue (album-asset drawer: shares the .k-drawer shell, adds one
+    // media stage + caption block). Still no blueprint dead class involved.
+    expect(WHITELIST_425).toHaveLength(432)
+    expect(new Set(WHITELIST_425).size, 'Whitelist has duplicate items').toBe(432)
   })
 
   it('.k-toast / .k-toast-ico not ported (diverge from K3, use global useToast() instead)', () => {
@@ -1632,6 +1636,7 @@ describe('knowledge.scss — must be imported by at least one production .vue fi
 //   form passes all-green on that input). After each probe, an md5 byte-for-byte restore left `git status`
 //   clean (governance §1.3).
 const KNOWLEDGE_VUE_FILES = [
+  'components/AssetDetailDrawer.vue',
   'components/FileDetailDrawer.vue',
   'components/FolderBrowser.vue',
   'components/KFileViewer.vue',
