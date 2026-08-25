@@ -26,7 +26,7 @@
 // `.tm-bottom-bar`) with its two buttons: Exit calls `browse.exitTimeMachine()` directly (the
 // SAME store action Escape already triggers -- two channels, one destination, Vue2 parity); Restore
 // selection only EMITS `restore-selection` -- deciding WHAT is selected and actually calling
-// `browse.restore(entries)` is Task 14's own orchestration (this task's own brief is explicit that
+// `browse.restoreItems(...)` is Task 14's own orchestration (this task's own brief is explicit that
 // restore wiring here would be premature -- see this file's own template comment on that button).
 //
 // Unlike Vue2 (a plain `active` prop threaded down from FilePanel.vue's own isTimeMachineMode),
@@ -62,7 +62,7 @@ const emit = defineEmits<{
   (e: 'open-settings'): void
   // Task 9's own contract for Task 14: the bottom bar's Restore selection button only announces
   // intent -- it does not know what is selected inside the (still generically-slotted) real window,
-  // nor call `browse.restore(entries)` itself. See this file's own header comment ("Task 9
+  // nor call `browse.restoreItems(...)` itself. See this file's own header comment ("Task 9
   // addition") and the button's own template comment for the full rationale.
   (e: 'restore-selection'): void
 }>()
@@ -336,7 +336,7 @@ onUnmounted(() => {
            `browse.exitTimeMachine()` directly -- the SAME store action Escape already triggers, two
            reachable channels converging on one destination, Vue2 parity (that file's own header
            comment, "Fix Round 7" section). Restore selection deliberately does NOT call
-           `browse.restore(entries)` here -- this component has no notion of what is currently
+           `browse.restoreItems(...)` here -- this component has no notion of what is currently
            selected inside the generically-slotted real window; it only emits `restore-selection`
            and leaves assembling the entry list + calling the store action to Task 14's own
            orchestration (see this file's own header comment, "Task 9 addition"). `:disabled` mirrors

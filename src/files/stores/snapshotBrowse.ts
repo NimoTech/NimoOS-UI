@@ -7,11 +7,12 @@ import {
   snapshotBrowsePath, relPathUnderMount, resolveExitTarget,
   type SnapshotVolumeLike, type VolumesState,
 } from '../util/snapshotPath'
-import { performSnapshotRestore } from '../util/snapshotRestore'
+import { executeRestoreBatch, buildRestoreToasts, type RestoreItem } from '../util/snapshotRestore'
 import { useToast } from '../../stores/toast'
 import { i18n } from '../../i18n'
 import { router } from '../../router'
 import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
+import { useFileConflictsStore } from './fileConflicts'
 import type { SnapshotRaw } from '../../storage/util/snapshotView'
 
 // Time Machine's own snapshot-list item — a straight alias of the /v2/snapshot list's raw shape
@@ -19,6 +20,12 @@ import type { SnapshotRaw } from '../../storage/util/snapshotView'
 // future consumer (Task 7's rail) hand this array straight to the already-accepted
 // storage/util/snapshotView.groupSnapshotsByDay without a second field-renaming map in between.
 export type SnapshotVM = SnapshotRaw
+
+// Function the picker's real call site (RestoreDestinationModal, mounted once by Files.vue per T13)
+// is handed in as — the store cannot hold a component ref itself, so `restoreItems` below takes it
+// as a parameter instead, the same "store owns state/orchestration, caller supplies the one piece
+// it can't" split T6's own `navigateReal`/router-singleton precedent already set.
+export type OpenRestorePicker = (mount: string, defaultDir: string) => Promise<{ destDir: string; withMarker: boolean } | null>
 
 // Shared state for snapshot browsing in the Files area: volume-list cache + read-only lock derived
 // from currentPath + time-machine toggle. Corresponds to the snapshotVolumesState / isSnapshotView /
@@ -305,55 +312,49 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     tmTravelActive.value = false
   }
 
-  // Restore the selected entries. Multiple entries are submitted one by one (the backend accepts a
-  // single path per call); restoring stays true throughout. The three entry points (banner / selection
-  // toolbar / context menu) share this one flag — any in-flight one disables the other two.
-  async function restore(entries: { path: string }[]): Promise<void> {
+  // Full Vue2-parity restore orchestration (Task 14) — the single funnel every entry point (context-menu
+  // single item, banner/bottom-bar selection, whole-folder confirm) converges into after computing its
+  // own `items`/`defaultDir`: destination picker -> (skipped when withMarker is on) same-name-conflict
+  // queue via the shared FileConflictDialog -> serial execution -> aggregate toast(s). `restoring` is
+  // held true for the WHOLE sequence (Vue2's own runRestoreWithConflictCheck: the picker/conflict-queue
+  // phase must disable the other two entry points too, not just the network calls), and the three entry
+  // points still share this one flag — any in-flight one disables the other two.
+  async function restoreItems(items: RestoreItem[], defaultDir: string, openPicker: OpenRestorePicker): Promise<void> {
     if (restoring.value) return
-    const list = entries || []
-    if (!list.length) return
+    const info = browseInfo.value
+    if (!info || !items.length) return
     const toast = useToast()
     const t = i18n.global.t
     restoring.value = true
     try {
-      // Review fix (Important): volumes.value is the same ready data (reaching here means we're
-      // already in a snapshot view — shouldGuardSnapshotView only confirms a real snapshot when
-      // status==='ready', and all three restore entry points render only in that state), so there's
-      // no need to refire GET /v2/snapshot/volumes for every selected item. Inject a function that
-      // reads volumes.value synchronously instead; if (theoretically impossible, defensive fallback)
-      // it really hasn't loaded, fetch once first, to avoid misreporting "no data yet" as every item
-      // failing to restore.
+      const choice = await openPicker(info.mount, defaultDir)
+      if (!choice) return // Cancel/Esc/close on the picker — true no-op, no restore call ever made.
+
+      // Review fix (Important, kept from the pre-Task-14 version): volumes.value is the same ready
+      // data (reaching here means we're already in a snapshot view), so there's no need to refire
+      // GET /v2/snapshot/volumes for every selected item — inject a function that reads volumes.value
+      // synchronously instead; if it really hasn't loaded yet (defensive fallback), fetch once first.
       if (!volumes.value.length) await ensureVolumes()
-      const results = []
-      restoreProgress.value = { done: 0, total: list.length }
-      for (const item of list) {
-        results.push(await performSnapshotRestore({
-          item,
-          info: browseInfo.value,
-          listVolumes: async () => volumes.value,
-          restore: (body) => service.snapshot.restore(body),
-        }))
-        restoreProgress.value = { done: results.length, total: list.length }
+
+      const conflicts = useFileConflictsStore()
+      const { entries, skippedCount } = await conflicts.resolveRestore(items, choice.destDir, choice.withMarker)
+      if (entries.length === 0) {
+        if (skippedCount > 0) toast.show(t('filesUploadSkipped', { count: skippedCount }))
+        return
       }
-      const ok = results.filter((r) => r.ok) as { ok: true; restoredPath: string }[]
-      const failed = results.filter((r) => !r.ok) as { ok: false; reason: string }[]
-      // Review fix: mixed results (some succeed, some fail) must not report only the failures — the
-      // entries that actually restored would be silently swallowed. Three outcomes, three paths: all
-      // succeed uses the original copy; all fail uses the specific-reason copy; mixed results get one
-      // new combined message — human decision: drop the specific failure reasons (no more stacking
-      // 404/400/other copy), report only the success/failure counts.
-      if (failed.length === 0) {
-        if (ok.length === 1) toast.show(t('snapBrowseRestored', { path: ok[0].restoredPath }))
-        else if (ok.length > 1) toast.show(t('snapBrowseRestoredN', { n: ok.length }))
-      } else if (ok.length > 0) {
-        toast.show(t('snapBrowseRestoredPartial', { ok: ok.length, fail: failed.length }))
-      } else {
-        const reason = failed[0].reason
-        toast.show(
-          reason === 'not-found' ? t('snapBrowseRestoreNotFound')
-            : reason === 'invalid' ? t('snapBrowseRestoreInvalid')
-              : t('snapBrowseRestoreFailed'),
-        )
+
+      restoreProgress.value = { done: 0, total: entries.length }
+      const outcomes = await executeRestoreBatch({
+        entries,
+        info,
+        destDir: choice.destDir,
+        withMarker: choice.withMarker,
+        listVolumes: async () => volumes.value,
+        restore: (body) => service.snapshot.restore(body),
+        onProgress: (done, total) => { restoreProgress.value = { done, total } },
+      })
+      for (const msg of buildRestoreToasts(outcomes, skippedCount)) {
+        toast.show(t(msg.key, msg.params ?? {}), undefined, msg.tier)
       }
     } finally {
       restoring.value = false
@@ -377,7 +378,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     status, volumes, restoring, restoreProgress,
     parsed, isSnapshotView, browseInfo, currentVolume, canShowEntry, shouldAutoEnter,
     tmActive, snapshotList, currentSnapshotName, tmLoading, tmTravel, tmTravelActive,
-    ensureVolumes, reset, restore,
+    ensureVolumes, reset, restoreItems,
     enterTimeMachine, autoEnterTimeMachine, exitTimeMachine, switchTo, refreshSnapshotList, settleTravel,
   }
 })

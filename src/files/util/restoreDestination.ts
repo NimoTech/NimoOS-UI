@@ -59,6 +59,18 @@ export function defaultDestDirForChildren(mount: string, browseRelPath: string):
  * `onConflict` is only ever sent for an item the (future, T14-wired) conflict dialog actually
  * prompted the user about ("overwrite" or "keep_both" — "skip" never reaches here at all).
  */
+/** POST /v2/snapshot/restore's own request body shape — matches `packages/service/src/snapshot.ts`'s
+ *  `restore()` param type exactly (Task 14 widened both together), so `buildRestoreBody`'s output can
+ *  be handed straight to `service.snapshot.restore()` with no cast anywhere along the chain. */
+export interface RestoreRequestBody {
+  volume_uuid: string
+  snapshot: string
+  path: string
+  dest_dir?: string
+  with_marker?: boolean
+  on_conflict?: 'overwrite' | 'keep_both'
+}
+
 export function buildRestoreBody(p: {
   volumeUuid: string
   snapshot: string
@@ -66,8 +78,8 @@ export function buildRestoreBody(p: {
   destDir?: string
   withMarker?: boolean
   onConflict?: 'overwrite' | 'keep_both'
-}): Record<string, unknown> {
-  const body: Record<string, unknown> = { volume_uuid: p.volumeUuid, snapshot: p.snapshot, path: p.path }
+}): RestoreRequestBody {
+  const body: RestoreRequestBody = { volume_uuid: p.volumeUuid, snapshot: p.snapshot, path: p.path }
   if (p.destDir) body.dest_dir = p.destDir
   if (typeof p.withMarker === 'boolean') body.with_marker = p.withMarker
   if (p.onConflict) body.on_conflict = p.onConflict

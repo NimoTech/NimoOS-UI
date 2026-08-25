@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useSnapshotBrowseStore } from './snapshotBrowse'
 import { useFilesStore } from './files'
+import { useFileConflictsStore } from './fileConflicts'
 import { useToast } from '../../stores/toast'
 import { router } from '../../router'
 
@@ -527,57 +528,85 @@ describe('time machine: enter / exit / switch', () => {
   })
 })
 
-describe('restore', () => {
+// Task 14: `restore()` became `restoreItems(items, defaultDir, openPicker)` -- every entry point now
+// goes through the destination picker (T13) and the shared conflict queue (useFileConflicts.ts's own
+// resolveRestore) before any network call. `withMarker: true` is used throughout this describe block
+// to skip the conflict precheck entirely (same as production: with_marker on means an exact-name
+// collision is astronomically unlikely) -- exercising the conflict queue itself is
+// useFileConflicts.test.ts's job (it already owns the shared dialog/chain this store just delegates
+// to via useFileConflictsStore()), not this store's.
+describe('restoreItems', () => {
   const inSnapshot = async () => {
     const s = useSnapshotBrowseStore()
     useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'
     await s.ensureVolumes()
     return s
   }
+  const item = (path: string) => ({ path, name: path.split('/').pop()!, is_dir: false })
+  const picker = vi.fn(async () => ({ destDir: '/DATA/Photos', withMarker: true }))
+
+  beforeEach(() => { picker.mockClear() })
+
   it('single restore success: toast should show restored path', async () => {
     restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })
     const s = await inSnapshot()
-    await s.restore([{ path: '/DATA/.snapshots/snap1/Photos/a.jpg' }])
+    await s.restoreItems([item('/DATA/.snapshots/snap1/Photos/a.jpg')], '/DATA/Photos', picker)
     expect(useToast().msg).toContain('/DATA/Photos/a.jpg.restored-1')
   })
   it('multiple restore success: toast should show count, not each item', async () => {
     restoreMock.mockResolvedValue({ restored_path: '/DATA/x.restored-1' })
     const s = await inSnapshot()
-    await s.restore([{ path: '/DATA/.snapshots/snap1/a' }, { path: '/DATA/.snapshots/snap1/b' }])
+    await s.restoreItems([item('/DATA/.snapshots/snap1/a'), item('/DATA/.snapshots/snap1/b')], '/DATA', picker)
     expect(restoreMock).toHaveBeenCalledTimes(2)
     expect(useToast().msg).toContain('2')
   })
-  it('restoring should be true during restore, false when done', async () => {
+  it('the picker is called with the snapshot mount and the given default dir', async () => {
+    restoreMock.mockResolvedValue({ restored_path: '/DATA/x.restored-1' })
+    const s = await inSnapshot()
+    await s.restoreItems([item('/DATA/.snapshots/snap1/a')], '/DATA/custom', picker)
+    expect(picker).toHaveBeenCalledWith('/DATA', '/DATA/custom')
+  })
+  it('cancelling the picker (null) is a true no-op -- no restore call, no toast', async () => {
+    const s = await inSnapshot()
+    const cancelPicker = async () => null
+    await s.restoreItems([item('/DATA/.snapshots/snap1/a')], '/DATA', cancelPicker)
+    expect(restoreMock).not.toHaveBeenCalled()
+    expect(useToast().msg).toBe('')
+  })
+  it('restoring should be true during restore (through the whole picker+execute sequence), false when done', async () => {
     let release: (v: unknown) => void = () => {}
     restoreMock.mockImplementation(() => new Promise((r) => { release = r }))
     const s = await inSnapshot()
-    const p = s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
+    const p = s.restoreItems([item('/DATA/.snapshots/snap1/a')], '/DATA', picker)
     expect(s.restoring).toBe(true)
-    // restore() awaits listVolumes() before it actually calls restoreMock and captures its resolver —
-    // that step crosses a microtask boundary, so we can't release() synchronously right after calling s.restore(); otherwise
-    // we'd still hold the initial empty no-op and p would never settle (hit this once before, ran into the 5s timeout).
     await vi.waitFor(() => expect(restoreMock).toHaveBeenCalled())
     release({ restored_path: '/DATA/a.restored-1' })
     await p
     expect(s.restoring).toBe(false)
   })
-  it('calling again during restore should be ignored (prevent double submit)', async () => {
+  it('calling again during restore should be ignored (prevent double submit) -- the picker is not even opened a second time', async () => {
     let release: (v: unknown) => void = () => {}
     restoreMock.mockImplementation(() => new Promise((r) => { release = r }))
     const s = await inSnapshot()
-    const p = s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
-    await s.restore([{ path: '/DATA/.snapshots/snap1/b' }])
+    const p = s.restoreItems([item('/DATA/.snapshots/snap1/a')], '/DATA', picker)
+    await s.restoreItems([item('/DATA/.snapshots/snap1/b')], '/DATA', picker)
+    // The picker+conflict-resolution phase now adds a few more microtask hops before the first
+    // call's own restoreMock() invocation than the pre-Task-14 direct-call version had -- wait for
+    // it explicitly (same technique the "restoring should be true..." test above already uses)
+    // rather than relying on exact microtask-count timing between two concurrent async chains.
+    await vi.waitFor(() => expect(restoreMock).toHaveBeenCalled())
     release({ restored_path: '/x' })
     await p
     expect(restoreMock).toHaveBeenCalledTimes(1)
+    expect(picker).toHaveBeenCalledTimes(1)
   })
   it('404 → should show dedicated message', async () => {
     restoreMock.mockRejectedValue(Object.assign(new Error('gone'), { code: 404 }))
     const s = await inSnapshot()
-    await s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
+    await s.restoreItems([item('/DATA/.snapshots/snap1/a')], '/DATA', picker)
     expect(useToast().msg).toContain('找不到')
   })
-  // Review finding: on mixed results (some succeed, some fail), the original `&& !failed` check short-circuited
+  // Review finding (kept from the pre-Task-14 version): on mixed results (some succeed, some fail), the original `&& !failed` check short-circuited
   // both success branches, leaving only the failure copy — the entries that actually restored were silently swallowed. Human decision: emit one new toast
   // (snapBrowseRestoredPartial) stating "N succeeded, M failed", without stacking the specific failure-reason copy on top.
   it('mixed results (partial success, partial failure): toast should show both success and failure counts, not swallow success or stack failure reasons', async () => {
@@ -586,11 +615,11 @@ describe('restore', () => {
       .mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 404 }))
       .mockResolvedValueOnce({ restored_path: '/DATA/c.restored-1' })
     const s = await inSnapshot()
-    await s.restore([
-      { path: '/DATA/.snapshots/snap1/a' },
-      { path: '/DATA/.snapshots/snap1/b' },
-      { path: '/DATA/.snapshots/snap1/c' },
-    ])
+    await s.restoreItems([
+      item('/DATA/.snapshots/snap1/a'),
+      item('/DATA/.snapshots/snap1/b'),
+      item('/DATA/.snapshots/snap1/c'),
+    ], '/DATA', picker)
     expect(restoreMock).toHaveBeenCalledTimes(3)
     expect(useToast().msg).toContain('2') // 2 succeeded (a, c)
     expect(useToast().msg).toContain('1') // 1 failed (b)
@@ -603,36 +632,37 @@ describe('restore', () => {
       .mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 404 }))
       .mockRejectedValueOnce(Object.assign(new Error('bad'), { code: 400 }))
     const s = await inSnapshot()
-    await s.restore([{ path: '/DATA/.snapshots/snap1/a' }, { path: '/DATA/.snapshots/snap1/b' }])
+    await s.restoreItems([item('/DATA/.snapshots/snap1/a'), item('/DATA/.snapshots/snap1/b')], '/DATA', picker)
     expect(restoreMock).toHaveBeenCalledTimes(2)
     expect(useToast().msg).toContain('找不到')
   })
   it('empty selection should not send request', async () => {
     const s = await inSnapshot()
-    await s.restore([])
+    await s.restoreItems([], '/DATA', picker)
     expect(restoreMock).not.toHaveBeenCalled()
+    expect(picker).not.toHaveBeenCalled()
   })
-  // Review fix (Important): the Vue2/T7 version fired a separate GET /v2/snapshot/volumes per selected item —
+  // Review fix (Important, kept from the pre-Task-14 version): the Vue2/T7 version fired a separate GET /v2/snapshot/volumes per selected item —
   // 30 items meant 31 requests, and any single network hiccup misreported that item as failed (it was never even submitted).
   // volumes.value is the same already-ready data; batch restore should reuse it directly instead of refetching per item.
   it('batch restore should reuse cached volumes, not refetch per item', async () => {
     restoreMock.mockResolvedValue({ restored_path: '/DATA/x.restored-1' })
     const s = await inSnapshot()
-    listVolumesMock.mockClear() // ensureVolumes() inside inSnapshot() already fetched once; only count calls during restore()
-    await s.restore([
-      { path: '/DATA/.snapshots/snap1/a' },
-      { path: '/DATA/.snapshots/snap1/b' },
-      { path: '/DATA/.snapshots/snap1/c' },
-    ])
+    listVolumesMock.mockClear() // ensureVolumes() inside inSnapshot() already fetched once; only count calls during restoreItems()
+    await s.restoreItems([
+      item('/DATA/.snapshots/snap1/a'),
+      item('/DATA/.snapshots/snap1/b'),
+      item('/DATA/.snapshots/snap1/c'),
+    ], '/DATA', picker)
     expect(restoreMock).toHaveBeenCalledTimes(3)
     expect(listVolumesMock).not.toHaveBeenCalled()
   })
   it('when volumes not yet loaded, should fallback to fetch once, not mistaken all items as failed (edge case that should not happen in theory)', async () => {
     const s = useSnapshotBrowseStore()
     useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'
-    // Deliberately skip s.ensureVolumes(): simulate the edge case of calling restore() before volumes have loaded
+    // Deliberately skip s.ensureVolumes(): simulate the edge case of calling restoreItems() before volumes have loaded
     restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.restored-1' })
-    await s.restore([{ path: '/DATA/.snapshots/snap1/Photos/a.jpg' }])
+    await s.restoreItems([item('/DATA/.snapshots/snap1/Photos/a.jpg')], '/DATA/Photos', picker)
     expect(listVolumesMock).toHaveBeenCalledTimes(1)
     expect(useToast().msg).toContain('/DATA/Photos/a.restored-1')
   })
@@ -649,11 +679,11 @@ describe('restore', () => {
     const s = await inSnapshot()
     expect(s.restoreProgress).toBeNull()
 
-    const p = s.restore([
-      { path: '/DATA/.snapshots/snap1/a' },
-      { path: '/DATA/.snapshots/snap1/b' },
-      { path: '/DATA/.snapshots/snap1/c' },
-    ])
+    const p = s.restoreItems([
+      item('/DATA/.snapshots/snap1/a'),
+      item('/DATA/.snapshots/snap1/b'),
+      item('/DATA/.snapshots/snap1/c'),
+    ], '/DATA', picker)
     await vi.waitFor(() => expect(restoreMock).toHaveBeenCalledTimes(1))
     expect(s.restoreProgress).toEqual({ done: 0, total: 3 })
 
@@ -673,7 +703,28 @@ describe('restore', () => {
   it('clears the progress even when a restore fails', async () => {
     restoreMock.mockRejectedValue(Object.assign(new Error('gone'), { code: 404 }))
     const s = await inSnapshot()
-    await s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
+    await s.restoreItems([item('/DATA/.snapshots/snap1/a')], '/DATA', picker)
     expect(s.restoreProgress).toBeNull()
+  })
+
+  // Task 14: same-name conflicts route through the shared FileConflictDialog queue
+  // (useFileConflicts.ts's own resolveRestore, driven here directly via the Pinia
+  // fileConflicts store -- no component mount needed, same as useFileConflicts.test.ts's own
+  // pattern) -- exercised end-to-end at the store layer once, to confirm the wiring; the full
+  // skip/overwrite/keep_both/applyToAll matrix lives in useFileConflicts.test.ts.
+  it('a same-name conflict (withMarker off) opens the shared conflict dialog; choosing overwrite restores with on_conflict=overwrite', async () => {
+    getListMock.mockResolvedValue({ content: [{ name: 'a', is_dir: false }] })
+    restoreMock.mockResolvedValue({ restored_path: '/DATA/a' })
+    const s = await inSnapshot()
+    const conflicts = useFileConflictsStore()
+    const noMarkerPicker = async () => ({ destDir: '/DATA', withMarker: false })
+
+    const p = s.restoreItems([item('/DATA/.snapshots/snap1/a')], '/DATA', noMarkerPicker)
+    await vi.waitFor(() => expect(conflicts.dialog.open).toBe(true))
+    expect(conflicts.dialog.name).toBe('a')
+    conflicts.onChoose({ action: 'overwrite' })
+    await p
+
+    expect(restoreMock).toHaveBeenCalledWith(expect.objectContaining({ on_conflict: 'overwrite' }))
   })
 })

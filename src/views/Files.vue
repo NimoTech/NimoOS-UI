@@ -52,7 +52,11 @@ import { contextTargets } from '../files/util/contextTarget'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
 import TimeMachineStage from '../files/snapshot/TimeMachineStage.vue'
 import SnapshotSettingsModal from '../files/snapshot/SnapshotSettingsModal.vue'
+import RestoreDestinationModal from '../files/snapshot/RestoreDestinationModal.vue'
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
+import { parseSnapshotBrowsePath } from '../files/util/snapshotPath'
+import { defaultDestDirForItem, defaultDestDirForChildren } from '../files/util/restoreDestination'
+import { shouldRejectRootRestore, wholeFolderRestoreItem, type RestoreItem } from '../files/util/snapshotRestore'
 import { useWallpaperStore } from '../stores/wallpaper'
 
 const route = useRoute()
@@ -128,6 +132,64 @@ const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is
 // button, the selection toolbar, and right-click on a single item, each via its own entry point)
 const snapshotSelection = computed(() => selectedEntries.value)
 
+// ── Time Machine restore (Task 14 — full Vue2-parity orchestration) ──────────────────────────
+// RestoreDestinationModal (T13) is mounted ONCE here (like SnapshotSettingsModal), reused by
+// every restore entry point below — see that component's own header comment for why it exposes
+// a Promise-based open() instead of a v-model prop. `openRestorePicker` is the one function
+// `browse.restoreItems` (snapshotBrowse.ts) is handed as its `openPicker` parameter: the store
+// itself cannot hold a component ref, so this is the "one piece the caller supplies" half of
+// that split (see the store's own comment on `OpenRestorePicker`).
+const restoreModalRef = ref<InstanceType<typeof RestoreDestinationModal>>()
+function openRestorePicker(mount: string, defaultDir: string) {
+  return restoreModalRef.value!.open(mount, defaultDir)
+}
+
+// Entry point ① — context-menu "Restore to original location" (single item, FileContextMenu.vue's
+// own `showRestoreOriginal` already gates this to snapshot view + a single target).
+function restoreSingleItem(entry: FileEntry) {
+  const info = browse.browseInfo
+  if (!info) return
+  const parsed = parseSnapshotBrowsePath(entry.path)
+  const defaultDir = defaultDestDirForItem(info.mount, parsed?.relPath ?? '')
+  void browse.restoreItems([{ path: entry.path, name: entry.name, is_dir: entry.is_dir }], defaultDir, openRestorePicker)
+}
+
+// Entry points ② and ③ — the Time Machine stage's own bottom-bar "Restore selection" button and
+// the classic (outside-TM) SnapshotBanner's restore button both funnel into this ONE function with
+// the current selection (Vue2's own restoreFromBanner, ported): a non-empty selection restores
+// those items directly; an empty selection at a sub-directory asks to confirm the WHOLE browsed
+// directory first (`restoreFolderConfirm` below); an empty selection at the snapshot's own root
+// rejects with a toast (whole-volume restore is intentionally not offered).
+const restoreFolderConfirm = ref<{ open: boolean; item: RestoreItem | null }>({ open: false, item: null })
+function restoreSelectionFlow(items: FileEntry[]) {
+  if (browse.restoring) return
+  const info = browse.browseInfo
+  if (!info) return
+  if (items.length > 0) {
+    const defaultDir = defaultDestDirForChildren(info.mount, info.relPath)
+    void browse.restoreItems(items.map((e) => ({ path: e.path, name: e.name, is_dir: e.is_dir })), defaultDir, openRestorePicker)
+    return
+  }
+  if (shouldRejectRootRestore(info.relPath)) {
+    toast.show(t('tmSelectFirst'))
+    return
+  }
+  restoreFolderConfirm.value = { open: true, item: wholeFolderRestoreItem(files.currentPath, info.relPath) }
+}
+// reka-ui's AlertDialogAction fires its own `update:open(false)` BEFORE `@confirm` (same ordering
+// SnapshotSettingsModal.vue's delete-confirm comment documents) — the dialog's `:open` binding is
+// driven straight off `restoreFolderConfirm.open` (not derived from `.item`), and only this
+// dedicated `@confirm` handler ever reads/clears `.item`, so that auto-close ordering can never
+// race away the pending item the way deriving `:open` from it would.
+function onRestoreFolderConfirmed() {
+  const item = restoreFolderConfirm.value.item
+  restoreFolderConfirm.value = { open: false, item: null }
+  const info = browse.browseInfo
+  if (!item || !info) return
+  const defaultDir = defaultDestDirForItem(info.mount, info.relPath)
+  void browse.restoreItems([item], defaultDir, openRestorePicker)
+}
+
 // Share the effective target set (ctxTargets(entry) — for a right-clicked entry outside the
 // selection this is just [entry]; selection is only honored when the entry is part of a
 // multi-selection, see contextTargets). The link dialog pops
@@ -186,7 +248,7 @@ function onCtxAction(action: string, entry: FileEntry | null, targets: FileEntry
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
     case 'share': onShare(entry, targets); break
-    case 'restore-original': if (entry) browse.restore([entry]); break
+    case 'restore-original': if (entry) restoreSingleItem(entry); break
     case 'set-wallpaper': onSetWallpaper(entry); break
   }
 }
@@ -796,11 +858,10 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
         <div v-if="isDragIn && !browse.isSnapshotView" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
         <!-- @restore-selection: Task 9's own bottom-bar "Restore selection" button only announces
              intent (see TimeMachineStage.vue's own header/template comments) -- it does not know
-             what is selected inside the slotted real window. This handler is an intentional
-             placeholder; Task 14 replaces it with the real orchestration (assembling the entry list
-             and calling `browse.restore(entries)`, the same store action SnapshotBanner's own
-             restore button above already calls with `snapshotSelection`). -->
-        <TimeMachineStage :dialog-open="settingsOpen" @open-settings="settingsOpen = true" @restore-selection="() => {}">
+             what is selected inside the slotted real window. Task 14 wires it to the same
+             `restoreSelectionFlow` entry point ② SnapshotBanner's own restore button below uses,
+             fed with the same `snapshotSelection`. -->
+        <TimeMachineStage :dialog-open="settingsOpen" @open-settings="settingsOpen = true" @restore-selection="restoreSelectionFlow(snapshotSelection)">
           <div class="files-topbar">
             <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
             <div class="files-topbar-right">
@@ -826,11 +887,11 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
           <SnapshotBanner
             :info="browse.browseInfo"
             :restoring="browse.restoring"
-            :can-restore="snapshotSelection.length > 0"
+            :can-restore="true"
             :is-container="browse.isSnapshotView && !browse.browseInfo"
             :restore-progress="browse.restoreProgress"
             @exit="browse.exitTimeMachine()"
-            @restore="browse.restore(snapshotSelection)"
+            @restore="restoreSelectionFlow(snapshotSelection)"
           />
           <!-- The dedicated multi-select toolbar for snapshot view (SnapshotSelectionToolbar) is
                retired here (Ruling P2 — Task 9's bottom action bar takes over "restore the
@@ -908,6 +969,20 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
       :cancel-text="t('filesCancel')"
       @confirm="confirmDownload"
     />
+    <!-- Restore-flow whole-folder confirm (Vue2's own restoreFromBanner no-selection branch #2,
+         "Restore folder" two-step) -- Cancel just toggles `.open` false via v-model (same as every
+         other AlertDialog above); `.item` is only ever read/cleared by `onRestoreFolderConfirmed`
+         itself, so it survives the Cancel toggle intact for a possible re-open, same as
+         `deleteDlg.entries`'s own pattern above. -->
+    <AlertDialog
+      v-model:open="restoreFolderConfirm.open"
+      :title="t('tmRestoreFolderTitle')"
+      :message="t('tmRestoreFolderMsg', { name: restoreFolderConfirm.item?.name ?? '' })"
+      :confirm-text="t('snapBrowseRestore')"
+      :cancel-text="t('filesCancel')"
+      @confirm="onRestoreFolderConfirmed"
+    />
+    <RestoreDestinationModal ref="restoreModalRef" />
     <UploadPanel />
     <UploadPreparingOverlay :open="preparing" />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />

@@ -905,6 +905,7 @@ export default {
   tmMarkerToggle: 'Append .restored marker to file name',
   tmMarkerOffHint: "You'll be asked how to handle files with the same name",
   tmRestoreFolderTitle: 'Restore folder',
+  tmRestoreFolderMsg: 'Restore "{name}"? You\'ll pick the destination next, and be asked before anything is overwritten.',
   tmSelectFirst: 'Select a file or folder to restore first',
   tmRestoredCount: 'Restored {count} item(s) to {path}',
 

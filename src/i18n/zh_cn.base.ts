@@ -893,6 +893,7 @@ export default {
   tmMarkerToggle: '文件名附加 .restored 标记',
   tmMarkerOffHint: '同名文件会询问你如何处理',
   tmRestoreFolderTitle: '取回文件夹',
+  tmRestoreFolderMsg: '取回「{name}」?接下来可以选择目标位置,覆盖前会先询问你。',
   tmSelectFirst: '请先选择要取回的文件或文件夹',
   tmRestoredCount: '已取回 {count} 项到 {path}',
 

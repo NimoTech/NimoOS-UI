@@ -7,7 +7,11 @@ const props = defineProps<{
   info: SnapshotBrowseInfo | null
   /** Restoring in progress: disable button to prevent duplicate submission */
   restoring: boolean
-  /** Whether there are currently selected items that can be restored */
+  /** Task 14 (Vue2 parity): Files.vue always passes `true` here now — Vue2's own restore button is
+   *  never gated on whether anything is selected (a click with no selection opens the whole-folder
+   *  confirm dialog, or toasts `tmSelectFirst` at the snapshot root; see Files.vue's own
+   *  `restoreSelectionFlow`), only on `restoring`. Kept as a prop rather than deleted outright so a
+   *  future caller could still narrow it if a real reason shows up. */
   canRestore: boolean
   /** Bonus item (part of Critical 1 fix): the `<mount-point>/.snapshots` container directory itself — has no specific
    *  snapshot name; parseSnapshotBrowsePath returns null for it, so info is always null and no time can be shown.
@@ -15,13 +19,10 @@ const props = defineProps<{
    *  timeless guidance text without restore/exit buttons (neither has a clear target: without a selected snapshot there is no
    *  snapshot to restore to, nor is there a relative path for exit to return to). */
   isContainer?: boolean
-  // Fix-wave I4: SnapshotSelectionToolbar's restore button already shows this;
-  // this banner's own restore button fires the exact same `browse.restore(...)`
-  // call and is the ONLY restore entry point when the selection isn't a
-  // multi-select (canRestore only turns true here for a batch, per Files.vue's
-  // `:can-restore="snapshotSelection.length > 0"`). Without this, a 40-item
-  // batch showed live progress on one button while this one merely went gray
-  // right next to it.
+  // Fix-wave I4: this banner's own restore button is one of the three Task 14 restore entry
+  // points that all funnel into Files.vue's `restoreSelectionFlow` (-> `browse.restoreItems`).
+  // Without this, a 40-item batch showed live progress on one button while this one merely went
+  // gray right next to it.
   restoreProgress?: { done: number; total: number } | null
 }>()
 const emit = defineEmits<{ (e: 'exit'): void; (e: 'restore'): void }>()

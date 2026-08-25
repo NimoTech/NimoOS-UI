@@ -11,6 +11,8 @@ import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useFavoritesStore } from '../files/stores/favorites'
 import { useClipboardStore } from '../files/stores/clipboard'
+import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
+import { useToast } from '../stores/toast'
 
 // snapshotBrowse.ts navigates through the app's real router SINGLETON (see that file's own
 // navigateReal comment for why: production always has exactly one app.use(router) call, and the
@@ -40,6 +42,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
     snapshot: {
       listVolumes: vi.fn().mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]),
       list: vi.fn().mockResolvedValue([]),
+      restore: vi.fn().mockResolvedValue({ restored_path: '/DATA/restored' }),
       // T11: SnapshotSettingsModal's own store (storage/stores/snapshot.ts) calls getPolicy on
       // open -- mocked so the gear-click case below doesn't hit an undefined function (the
       // store's own try/catch would swallow it either way, but this keeps the case's console
@@ -422,12 +425,10 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.snap-banner-restore').attributes('disabled')).toBeUndefined()
   })
 
-  // Fix-wave I4: the banner's own restore button fires the exact same
-  // `browse.restore(snapshotSelection)` call and is the only entry point that
-  // stays enabled for a multi-select restore (its `canRestore` is
-  // `snapshotSelection.length > 0`) -- it must show the same running count
-  // instead of just sitting there grayed out next to a sibling button that
-  // does show progress.
+  // Fix-wave I4: the banner's own restore button is one of Task 14's three restore entry points
+  // (funnels into `browse.restoreItems(...)` via `restoreSelectionFlow`) -- it must show the same
+  // running count instead of just sitting there grayed out next to a sibling button that does
+  // show progress.
   it('wires the snapshot store\'s restore progress into the banner\'s own restore button too', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
@@ -448,6 +449,157 @@ describe('snapshot read-only banner', () => {
     const btnText = w.get('.snap-banner-restore').text()
     expect(btnText).toContain('3')
     expect(btnText).toContain('40')
+  })
+})
+
+// Task 14: the three restore entry points (context-menu single item, banner restore button,
+// Time Machine stage bottom bar) all converge into `browse.restoreItems(items, defaultDir,
+// openPicker)`. These tests spy on `restoreItems` itself (same technique
+// TimeMachineStage.test.ts's own Task 9 test uses) rather than driving the real
+// RestoreDestinationModal/FileConflictDialog through to completion -- the orchestration logic
+// itself (picker -> conflict queue -> execute -> toast) is already covered end-to-end by
+// snapshotBrowse.test.ts/useFileConflicts.test.ts/snapshotRestore.test.ts; what's under test here
+// is only "does clicking the right thing call restoreItems with the right arguments".
+describe('restore orchestration wiring (Task 14)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    ;(globalThis as any).IntersectionObserver = class {
+      cb: (e: { isIntersecting: boolean }[]) => void
+      constructor(cb: any) { this.cb = cb }
+      observe() { this.cb([{ isIntersecting: true }]) }
+      disconnect() {}
+    }
+    // RestoreDestinationModal/AlertDialog teleport to document.body via reka-ui's Portal -- same
+    // attachTo + cleanup convention as the 'Time Machine entry point' describe block below.
+    document.body.innerHTML = ''
+  })
+
+  it('context menu "Restore to original location" calls browse.restoreItems with the single item', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, {
+      global: { plugins: [router, i18n], stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub } },
+    })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    const files = useFilesStore()
+    const target = files.entries[0]
+    const browse = useSnapshotBrowseStore()
+    const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
+
+    const row = w.findAll('.file-row')[0]
+    await row.trigger('contextmenu')
+    // Same disambiguation as the "context menu paste" case above: FilesSidebar.vue also renders
+    // a FileContextMenu whose own copy of this button (if it renders at all) is not wired to the
+    // main listing's row/store state.
+    const restoreBtn = w.findAll('.ctx-restore-original')
+      .find((btn) => btn.element.parentElement?.parentElement?.querySelector('.files-listwrap'))
+    expect(restoreBtn).toBeTruthy()
+    await restoreBtn!.trigger('click')
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    const [items] = spy.mock.calls[0]!
+    expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
+  })
+
+  it('banner restore with a selection calls browse.restoreItems with the selected items', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    const files = useFilesStore()
+    const target = files.entries[0]
+    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
+    expect(files.selectedCount).toBe(1)
+
+    const browse = useSnapshotBrowseStore()
+    const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
+    await w.get('.snap-banner-restore').trigger('click')
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    const [items] = spy.mock.calls[0]!
+    expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
+  })
+
+  it('banner restore with no selection, not at the snapshot root: opens the folder-confirm dialog; confirming calls browse.restoreItems with the whole browsed directory', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+    await flushPromises()
+
+    const browse = useSnapshotBrowseStore()
+    const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
+    await w.get('.snap-banner-restore').trigger('click')
+    await flushPromises()
+
+    expect(spy).not.toHaveBeenCalled() // not yet -- the confirm dialog must be answered first
+    expect(document.body.textContent).toContain('Photos') // the folder being confirmed, by name
+
+    const confirmBtn = Array.from(document.body.querySelectorAll('.ui-btn'))
+      .find((el) => el.textContent === zh['snapBrowseRestore' as keyof typeof zh])
+    expect(confirmBtn).toBeTruthy()
+    ;(confirmBtn as HTMLElement).click()
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    const [items] = spy.mock.calls[0]!
+    expect(items).toEqual([{ path: '/DATA/.snapshots/20260713T061900Z_manual/Photos', name: 'Photos', is_dir: true }])
+  })
+
+  it('banner restore with no selection AT the snapshot root: toasts tmSelectFirst, no dialog, no restoreItems call', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+    await flushPromises()
+
+    const browse = useSnapshotBrowseStore()
+    const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
+    await w.get('.snap-banner-restore').trigger('click')
+    await flushPromises()
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(useToast().msg).toBe(zh['tmSelectFirst' as keyof typeof zh])
+    expect(document.body.querySelector('.ui-dialog-title')).toBeNull()
+  })
+
+  it('Time Machine stage bottom bar "Restore selection" reaches the same restoreItems orchestration as the banner button', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    const files = useFilesStore()
+    const target = files.entries[0]
+    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
+    expect(files.selectedCount).toBe(1)
+
+    // The real window's own selection is shared state (files store), independent of the stage
+    // shell -- forcing tmActive true directly (same technique TimeMachineStage.test.ts's own
+    // Task 9 cases use) skips the chip-click navigation dance without weakening what's under
+    // test here: whether the bottom bar's emit actually reaches Files.vue's real
+    // `restoreSelectionFlow` handler (T9 shipped this as a no-op placeholder;
+    // Files.vue:803's own comment documents the placeholder Task 14 replaces).
+    const browse = useSnapshotBrowseStore()
+    browse.tmActive = true
+    await w.vm.$nextTick()
+
+    const spy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
+    await w.find('.tm-stage__bar-btn--restore').trigger('click')
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    const [items] = spy.mock.calls[0]!
+    expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
   })
 })
 

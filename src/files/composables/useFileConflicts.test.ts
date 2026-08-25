@@ -380,3 +380,121 @@ describe('resolvePaste', () => {
     expect(warn).toHaveBeenCalled()
   })
 })
+
+// Task 14: restore's own counterpart to resolvePaste above -- same shared dialog/resolver/chain,
+// same "conflict candidates carry only {name, isDir, groupKey}, match back to the original item by
+// .name" contract T13's computeRestoreConflicts already established (restoreDestination.test.ts
+// covers that function itself; this only exercises the wiring resolveRestore adds on top of it).
+describe('resolveRestore', () => {
+  beforeEach(() => { vi.restoreAllMocks() })
+  const ri = (name: string, is_dir = false) => ({ path: `/DATA/.snapshots/snap1/${name}`, name, is_dir })
+
+  it('withMarker on skips the precheck entirely -- no listing call, no dialog, everything unconflicted', async () => {
+    const listFolder = vi.fn()
+    const c = useFileConflicts({ listFolder })
+    const out = await c.resolveRestore([ri('a.txt')], '/DATA', true)
+    expect(listFolder).not.toHaveBeenCalled()
+    expect(c.dialog.value.open).toBe(false)
+    expect(out).toEqual({ entries: [{ item: ri('a.txt'), onConflict: undefined }], skippedCount: 0 })
+  })
+
+  it('withMarker off, no collision → everything unconflicted, dialog never opens', async () => {
+    const c = useFileConflicts({ listFolder: listing([]) })
+    const out = await c.resolveRestore([ri('a.txt')], '/DATA', false)
+    expect(c.dialog.value.open).toBe(false)
+    expect(out).toEqual({ entries: [{ item: ri('a.txt'), onConflict: undefined }], skippedCount: 0 })
+  })
+
+  it('a collision opens the shared dialog; Overwrite maps to onConflict overwrite', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }]) })
+    const p = c.resolveRestore([ri('a.txt')], '/DATA', false)
+    await answer(c, { action: 'overwrite' })
+    const out = await p
+    expect(out).toEqual({ entries: [{ item: ri('a.txt'), onConflict: 'overwrite' }], skippedCount: 0 })
+  })
+
+  it('Keep both maps to onConflict keep_both', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }]) })
+    const p = c.resolveRestore([ri('a.txt')], '/DATA', false)
+    await answer(c, { action: 'keep_both' })
+    const out = await p
+    expect(out).toEqual({ entries: [{ item: ri('a.txt'), onConflict: 'keep_both' }], skippedCount: 0 })
+  })
+
+  it('Skip drops the item entirely (no entry, counted as skipped) — never sends a request for it', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }]) })
+    const p = c.resolveRestore([ri('a.txt')], '/DATA', false)
+    await answer(c, { action: 'skip' })
+    const out = await p
+    expect(out).toEqual({ entries: [], skippedCount: 1 })
+  })
+
+  it('Cancel (Esc/close) counts every remaining conflict as skipped too', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }, { name: 'b.txt', is_dir: false }]) })
+    const p = c.resolveRestore([ri('a.txt'), ri('b.txt')], '/DATA', false)
+    await answer(c, null)
+    const out = await p
+    expect(out).toEqual({ entries: [], skippedCount: 2 })
+  })
+
+  it('applyToAll on the first conflict answers every remaining one without reopening the dialog', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }, { name: 'b.txt', is_dir: false }]) })
+    const p = c.resolveRestore([ri('a.txt'), ri('b.txt')], '/DATA', false)
+    await answer(c, { action: 'overwrite', applyToAll: true })
+    const out = await p
+    expect(out.skippedCount).toBe(0)
+    expect(out.entries).toEqual([
+      { item: ri('a.txt'), onConflict: 'overwrite' },
+      { item: ri('b.txt'), onConflict: 'overwrite' },
+    ])
+  })
+
+  it('conflicting and non-conflicting items in the same batch: only the conflicting one is asked about', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }]) })
+    const p = c.resolveRestore([ri('a.txt'), ri('clean.txt')], '/DATA', false)
+    await answer(c, { action: 'overwrite' })
+    const out = await p
+    expect(out.entries).toEqual(expect.arrayContaining([
+      { item: ri('a.txt'), onConflict: 'overwrite' },
+      { item: ri('clean.txt'), onConflict: undefined },
+    ]))
+    expect(out.entries).toHaveLength(2)
+  })
+
+  it('never offers Merge for a restore collision (restore has no folder-merge backend switch)', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'Trip', is_dir: true }]) })
+    const p = c.resolveRestore([ri('Trip', true)], '/DATA', false)
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.allowMerge).toBe(false)
+    c.onChoose({ action: 'skip' } as never)
+    await p
+  })
+
+  it('a failing destDir listing degrades to submitting everything unconflicted, without opening the dialog', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const c = useFileConflicts({ listFolder: vi.fn().mockRejectedValue(new Error('offline')) })
+    const out = await c.resolveRestore([ri('a.txt')], '/DATA', false)
+    expect(c.dialog.value.open).toBe(false)
+    expect(out).toEqual({ entries: [{ item: ri('a.txt'), onConflict: undefined }], skippedCount: 0 })
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it('runs on the same serial chain as upload/paste — never opens its dialog while one of those is already asking', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }, { name: 'b.txt', is_dir: false }]) })
+    const uploadP = c.resolveEntries([e('a.txt')], '/DATA')
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.name).toBe('a.txt')
+
+    const restoreP = c.resolveRestore([ri('b.txt')], '/DATA', false)
+    for (let i = 0; i < 50; i++) await Promise.resolve()
+    expect(c.dialog.value.name).toBe('a.txt') // still the upload's conflict
+
+    c.onChoose({ action: 'overwrite' } as never)
+    await uploadP
+    for (let i = 0; i < 50 && c.dialog.value.name !== 'b.txt'; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('b.txt') // restore only gets its turn now
+    c.onChoose({ action: 'skip' } as never)
+    await restoreP
+  })
+})

@@ -453,11 +453,12 @@ describe('TimeMachineStage shell', () => {
     })
 
     // Task 9's own contract for Task 14: this button only announces intent, it does not call
-    // browse.restore(...) itself -- see TimeMachineStage.vue's own header/template comment on why.
-    it('bottom bar Restore selection only emits restore-selection, it does not call browse.restore itself', async () => {
+    // browse.restoreItems(...) itself -- see TimeMachineStage.vue's own header/template comment on
+    // why (Task 14 wires the real orchestration in Files.vue, which listens for this emit).
+    it('bottom bar Restore selection only emits restore-selection, it does not call browse.restoreItems itself', async () => {
       const w = mountIt()
       const browse = useSnapshotBrowseStore()
-      const restoreSpy = vi.spyOn(browse, 'restore').mockResolvedValue()
+      const restoreSpy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
       browse.tmActive = true
       await nextTick()
       await w.find('.tm-stage__bar-btn--restore').trigger('click')

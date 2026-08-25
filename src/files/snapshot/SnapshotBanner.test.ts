@@ -50,11 +50,9 @@ describe('SnapshotBanner', () => {
     expect(w.find('.snap-banner-restore').classes()).toContain('is-busy')
   })
 
-  // Fix-wave I4: this banner's restore button fires the exact same
-  // `browse.restore(...)` as SnapshotSelectionToolbar's, and is the only
-  // restore entry point that stays clickable when the user picked a batch
-  // (canRestore only turns true for a multi-select) -- it must show the same
-  // running count instead of just going gray while its sibling shows progress.
+  // Fix-wave I4: this banner's restore button is one of Task 14's three restore entry points
+  // (all converge on `browse.restoreItems(...)`) -- it must show the same running count instead
+  // of just going gray while a batch restore is in flight.
   it('shows the running count while a batch restore is in flight, reusing the toolbar\'s own text', () => {
     const w = mountIt({ restoring: true, restoreProgress: { done: 3, total: 40 } })
     const text = w.find('.snap-banner-restore').text()

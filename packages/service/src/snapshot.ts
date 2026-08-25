@@ -56,8 +56,21 @@ export function createSnapshot(http: AxiosInstance) {
       const res = await http.delete(`/v2/snapshot/${encodeURIComponent(name)}`, { params: { volume_uuid: volumeUuid } })
       return unwrap<unknown>(res.data)
     },
-    // POST /v2/snapshot/restore never overwrites; the target name is chosen by the backend; path is relative to the volume root (not the snapshot dir).
-    async restore(data: { volume_uuid: string; snapshot: string; path: string }): Promise<unknown> {
+    // path is relative to the volume root (not the snapshot dir). Without dest_dir/on_conflict the
+    // backend restores to the original location and never overwrites (picks its own
+    // `<name>.restored-<timestamp>` on collision). Task 14 (restore-destination picker + conflict
+    // dialog) widened this to the optional trio the backend already accepted at the wire level —
+    // dest_dir routes the restore elsewhere, with_marker toggles the `.restored` suffix, on_conflict
+    // ('overwrite' | 'keep_both') is only ever sent for an item the conflict dialog actually asked
+    // about. Type-only widening: the runtime call was already passing these through untyped.
+    async restore(data: {
+      volume_uuid: string
+      snapshot: string
+      path: string
+      dest_dir?: string
+      with_marker?: boolean
+      on_conflict?: 'overwrite' | 'keep_both'
+    }): Promise<unknown> {
       const res = await http.post('/v2/snapshot/restore', data)
       return unwrap<unknown>(res.data)
     },

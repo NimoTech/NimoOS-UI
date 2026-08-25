@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { blockedBySnapshotView, performSnapshotRestore } from './snapshotRestore'
+import {
+  blockedBySnapshotView, performSnapshotRestore, executeRestoreBatch, buildRestoreToasts,
+  shouldRejectRootRestore, wholeFolderRestoreItem, type ResolvedRestoreEntry, type RestoreOutcome,
+} from './snapshotRestore'
 
 describe('blockedBySnapshotView', () => {
   it('not in snapshot → allow, no toast', () => {
@@ -105,5 +108,179 @@ describe('performSnapshotRestore', () => {
       item: { path: '/DATA/.snapshots/snap1/a.txt' }, info: INFO,
       listVolumes: async () => VOLS, restore: async () => ({}),
     })).toEqual({ ok: false, reason: 'error' })
+  })
+  // Task 14: destDir/withMarker/onConflict thread through buildRestoreBody (restoreDestination.ts)
+  // unchanged -- see that module's own test for the exact field-omission rules; this only proves
+  // performSnapshotRestore actually forwards what it's given.
+  it('destDir/withMarker/onConflict are forwarded into the request body via buildRestoreBody', async () => {
+    const restore = vi.fn().mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg' })
+    await performSnapshotRestore({
+      item: { path: '/DATA/.snapshots/snap1/Photos/a.jpg' }, info: INFO,
+      listVolumes: async () => VOLS, restore,
+      destDir: '/DATA/Elsewhere', withMarker: false, onConflict: 'overwrite',
+    })
+    expect(restore).toHaveBeenCalledWith({
+      volume_uuid: 'u-data', snapshot: 'snap1', path: 'Photos/a.jpg',
+      dest_dir: '/DATA/Elsewhere', with_marker: false, on_conflict: 'overwrite',
+    })
+  })
+})
+
+describe('executeRestoreBatch', () => {
+  const INFO = { mount: '/DATA', snapshotName: 'snap1' }
+  const VOLS = [{ volume_uuid: 'u-data', mount: '/DATA' }]
+  const entry = (path: string, onConflict?: 'overwrite' | 'keep_both'): ResolvedRestoreEntry =>
+    ({ item: { path, name: path.split('/').pop()! }, onConflict })
+
+  it('submits entries strictly one at a time, in order', async () => {
+    const order: string[] = []
+    const restore = vi.fn().mockImplementation(async (body: { path: string }) => {
+      order.push(body.path)
+      return { restored_path: `/DATA/${body.path}` }
+    })
+    const outcomes = await executeRestoreBatch({
+      entries: [
+        entry('/DATA/.snapshots/snap1/a'),
+        entry('/DATA/.snapshots/snap1/b'),
+        entry('/DATA/.snapshots/snap1/c'),
+      ],
+      info: INFO, listVolumes: async () => VOLS, restore,
+    })
+    expect(order).toEqual(['a', 'b', 'c'])
+    expect(outcomes.map((o) => o.result.ok)).toEqual([true, true, true])
+  })
+
+  it('a slow first item is fully awaited before the second is even submitted (no overlap)', async () => {
+    let releaseFirst: (() => void) | null = null
+    const restore = vi.fn()
+      .mockImplementationOnce(() => new Promise((res) => { releaseFirst = () => res({ restored_path: '/x' }) }))
+      .mockResolvedValueOnce({ restored_path: '/y' })
+    const p = executeRestoreBatch({
+      entries: [entry('/DATA/.snapshots/snap1/a'), entry('/DATA/.snapshots/snap1/b')],
+      info: INFO, listVolumes: async () => VOLS, restore,
+    })
+    await vi.waitFor(() => expect(restore).toHaveBeenCalledTimes(1))
+    expect(restore).toHaveBeenCalledTimes(1) // second item not submitted yet
+    releaseFirst!()
+    await p
+    expect(restore).toHaveBeenCalledTimes(2)
+  })
+
+  it('per-entry onConflict is forwarded to the network call', async () => {
+    const restore = vi.fn().mockResolvedValue({ restored_path: '/x' })
+    await executeRestoreBatch({
+      entries: [entry('/DATA/.snapshots/snap1/a', 'overwrite'), entry('/DATA/.snapshots/snap1/b', 'keep_both')],
+      info: INFO, listVolumes: async () => VOLS, restore,
+    })
+    expect(restore).toHaveBeenNthCalledWith(1, expect.objectContaining({ on_conflict: 'overwrite' }))
+    expect(restore).toHaveBeenNthCalledWith(2, expect.objectContaining({ on_conflict: 'keep_both' }))
+  })
+
+  it('reports progress after each item settles', async () => {
+    const restore = vi.fn().mockResolvedValue({ restored_path: '/x' })
+    const progress: { done: number; total: number }[] = []
+    await executeRestoreBatch({
+      entries: [entry('/DATA/.snapshots/snap1/a'), entry('/DATA/.snapshots/snap1/b')],
+      info: INFO, listVolumes: async () => VOLS, restore,
+      onProgress: (done, total) => progress.push({ done, total }),
+    })
+    expect(progress).toEqual([{ done: 1, total: 2 }, { done: 2, total: 2 }])
+  })
+
+  it('one item failing does not stop the rest of the batch', async () => {
+    const restore = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 404 }))
+      .mockResolvedValueOnce({ restored_path: '/x' })
+    const outcomes = await executeRestoreBatch({
+      entries: [entry('/DATA/.snapshots/snap1/a'), entry('/DATA/.snapshots/snap1/b')],
+      info: INFO, listVolumes: async () => VOLS, restore,
+    })
+    expect(outcomes[0].result).toEqual({ ok: false, reason: 'not-found' })
+    expect(outcomes[1].result).toEqual({ ok: true, restoredPath: '/x' })
+  })
+
+  it('empty entries → no calls, empty outcomes', async () => {
+    const restore = vi.fn()
+    const outcomes = await executeRestoreBatch({ entries: [], info: INFO, listVolumes: async () => VOLS, restore })
+    expect(outcomes).toEqual([])
+    expect(restore).not.toHaveBeenCalled()
+  })
+})
+
+describe('buildRestoreToasts', () => {
+  const ok = (path: string): RestoreOutcome => ({ item: { path, name: path }, result: { ok: true, restoredPath: path } })
+  const fail = (path: string, reason: 'not-found' | 'invalid' | 'error'): RestoreOutcome =>
+    ({ item: { path, name: path }, result: { ok: false, reason } })
+
+  it('everything restored, no skips → tmRestoredCount only, path is the FIRST success', () => {
+    expect(buildRestoreToasts([ok('/a'), ok('/b')], 0)).toEqual([
+      { key: 'tmRestoredCount', params: { count: 2, path: '/a' } },
+    ])
+  })
+
+  it('a single restored item still uses tmRestoredCount (Vue2 parity: same copy for 1 or many)', () => {
+    expect(buildRestoreToasts([ok('/a')], 0)).toEqual([
+      { key: 'tmRestoredCount', params: { count: 1, path: '/a' } },
+    ])
+  })
+
+  it('skipped items get their own toast, in addition to the success toast', () => {
+    expect(buildRestoreToasts([ok('/a')], 2)).toEqual([
+      { key: 'filesUploadSkipped', params: { count: 2 } },
+      { key: 'tmRestoredCount', params: { count: 1, path: '/a' } },
+    ])
+  })
+
+  it('nothing executed (everything skipped) → only the skipped toast, no restored toast', () => {
+    expect(buildRestoreToasts([], 3)).toEqual([{ key: 'filesUploadSkipped', params: { count: 3 } }])
+  })
+
+  it('nothing executed, nothing skipped → no toasts at all', () => {
+    expect(buildRestoreToasts([], 0)).toEqual([])
+  })
+
+  it('mixed success/failure → one combined partial toast, not a success toast plus a failure toast (colleague fix ⑦)', () => {
+    expect(buildRestoreToasts([ok('/a'), fail('/b', 'not-found'), ok('/c')], 0)).toEqual([
+      { key: 'snapBrowseRestoredPartial', params: { ok: 2, fail: 1 }, tier: 'warning' },
+    ])
+  })
+
+  it('all failed, same reason → the specific-reason key, keyed off the FIRST failure', () => {
+    expect(buildRestoreToasts([fail('/a', 'not-found'), fail('/b', 'not-found')], 0)).toEqual([
+      { key: 'snapBrowseRestoreNotFound', tier: 'danger' },
+    ])
+  })
+  it('all failed, mixed reasons → still keyed off the FIRST failure only (no stacking every reason)', () => {
+    expect(buildRestoreToasts([fail('/a', 'invalid'), fail('/b', 'not-found')], 0)).toEqual([
+      { key: 'snapBrowseRestoreInvalid', tier: 'danger' },
+    ])
+  })
+  it('all failed, generic reason', () => {
+    expect(buildRestoreToasts([fail('/a', 'error')], 0)).toEqual([
+      { key: 'snapBrowseRestoreFailed', tier: 'danger' },
+    ])
+  })
+})
+
+describe('shouldRejectRootRestore', () => {
+  it('empty relPath (the snapshot\'s own root) → reject', () => {
+    expect(shouldRejectRootRestore('')).toBe(true)
+  })
+  it('any non-empty relPath → do not reject', () => {
+    expect(shouldRejectRootRestore('Photos')).toBe(false)
+    expect(shouldRejectRootRestore('Photos/2024')).toBe(false)
+  })
+})
+
+describe('wholeFolderRestoreItem', () => {
+  it('name is the LAST segment of relPath; path is the browsed directory\'s own absolute path', () => {
+    expect(wholeFolderRestoreItem('/DATA/.snapshots/snap1/Photos/2024', 'Photos/2024')).toEqual({
+      path: '/DATA/.snapshots/snap1/Photos/2024', name: '2024', is_dir: true,
+    })
+  })
+  it('a single-segment relPath: name equals the whole relPath', () => {
+    expect(wholeFolderRestoreItem('/DATA/.snapshots/snap1/Photos', 'Photos')).toEqual({
+      path: '/DATA/.snapshots/snap1/Photos', name: 'Photos', is_dir: true,
+    })
   })
 })
