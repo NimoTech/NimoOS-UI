@@ -20,6 +20,15 @@
 // "↑↓键盘" file-list item (task-9-brief.md); Task 9 should extend `stepLater`/`stepEarlier` below
 // (wiring its own visible stepper buttons to them) rather than re-adding the keyboard listener.
 //
+// Task 9 addition: mounts TimeMachineStepper.vue (z-tier 10, its own self-positioned right-edge
+// control -- see that component's own header comment) wired to the SAME stepLater/stepEarlier the
+// keyboard handler above already calls, plus the bottom action bar (z-tier 7, Vue2's own
+// `.tm-bottom-bar`) with its two buttons: Exit calls `browse.exitTimeMachine()` directly (the
+// SAME store action Escape already triggers -- two channels, one destination, Vue2 parity); Restore
+// selection only EMITS `restore-selection` -- deciding WHAT is selected and actually calling
+// `browse.restore(entries)` is Task 14's own orchestration (this task's own brief is explicit that
+// restore wiring here would be premature -- see this file's own template comment on that button).
+//
 // Unlike Vue2 (a plain `active` prop threaded down from FilePanel.vue's own isTimeMachineMode),
 // this component reads active/travel state straight off the snapshotBrowse store — Files.vue's
 // wrap only has to supply the real slot content and forward `open-settings`, nothing else.
@@ -29,9 +38,11 @@ import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useWallpaperStore, recordUrl } from '../../stores/wallpaper'
 import { TM_WINDOW_SCALE, clampStepIndex } from '../util/timeMachineMath'
 import { EXIT_FADE_MS } from '../util/timeMachineChoreo'
+import { snapshotDayLabel, formatSnapshotClockTime } from '../../storage/util/snapshotView'
 import { provideTmStageRoot } from './tmStageRoot'
 import TimeMachineDepthStack from './TimeMachineDepthStack.vue'
 import TimeMachineRail from './TimeMachineRail.vue'
+import TimeMachineStepper from './TimeMachineStepper.vue'
 
 defineOptions({ name: 'TimeMachineStage' })
 
@@ -47,7 +58,14 @@ const props = withDefaults(defineProps<{
   dialogOpen?: boolean
 }>(), { dialogOpen: false })
 
-const emit = defineEmits<{ (e: 'open-settings'): void }>()
+const emit = defineEmits<{
+  (e: 'open-settings'): void
+  // Task 9's own contract for Task 14: the bottom bar's Restore selection button only announces
+  // intent -- it does not know what is selected inside the (still generically-slotted) real window,
+  // nor call `browse.restore(entries)` itself. See this file's own header comment ("Task 9
+  // addition") and the button's own template comment for the full rationale.
+  (e: 'restore-selection'): void
+}>()
 
 const { t } = useI18n()
 const browse = useSnapshotBrowseStore()
@@ -140,6 +158,29 @@ function stepEarlier() {
   const next = clampStepIndex(currentSnapshotIndex(), 1, browse.snapshotList.length)
   if (next !== null) browse.switchTo(browse.snapshotList[next].name)
 }
+
+// Task 9 addition: the visible stepper's own `:disabled` state, pure-function derived from the
+// SAME clampStepIndex call stepLater/stepEarlier themselves guard with above -- exactly the "one
+// notion of can-I-step, not three" posture Task 7's own report flagged for this task (its own
+// keyboard handler re-derives the same thing inline rather than reading these, since it predates
+// them; both paths agree because both ultimately call clampStepIndex with the same arguments).
+const canStepLater = computed(() => clampStepIndex(currentSnapshotIndex(), -1, browse.snapshotList.length) !== null)
+const canStepEarlier = computed(() => clampStepIndex(currentSnapshotIndex(), 1, browse.snapshotList.length) !== null)
+
+// Stepper's centered humanized moment, e.g. "Today 14:30" -- Vue2's own `selectedMomentText`
+// (took over the role the old bottom-bar center date used to have, M2-F7 point 6). Built from the
+// SAME two pure helpers (storage/util/snapshotView.ts) the storage-area timeline and
+// TimeMachineRail.vue's own per-tick time labels already use, applied directly to the current
+// selection's own `created_at` rather than re-deriving it from a full groupSnapshotsByDay() pass
+// (this only ever needs ONE item's day/time, not the whole grouped list).
+const currentSnapshotItem = computed(() => browse.snapshotList.find((s) => s.name === browse.currentSnapshotName) ?? null)
+const stepperLabel = computed(() => {
+  const item = currentSnapshotItem.value
+  if (!item) return ''
+  const day = snapshotDayLabel(item.created_at)
+  const dayText = day.i18nKey ? t(day.i18nKey) : day.text
+  return `${dayText} ${formatSnapshotClockTime(item.created_at)}`
+})
 
 // Escape is one of exactly two exit channels (the other, the bottom-bar Exit button, is Task 9's
 // own addition) — see this file's own header comment. Two guards, same posture as
@@ -266,9 +307,9 @@ onUnmounted(() => {
         @select="(name) => browse.switchTo(name)"
       />
 
-      <!-- Gear button (z-tier 10, same tier the vertical stepper — Task 9 — will occupy): the one
-           piece of the top-right/right-edge chrome group that belongs to no later task by name,
-           so it is built here rather than left as a dead `open-settings` emit with no trigger. -->
+      <!-- Gear button (z-tier 10, same tier the vertical stepper below occupies): the one piece of
+           the top-right/right-edge chrome group that belongs to no later task by name, so it is
+           built here rather than left as a dead `open-settings` emit with no trigger. -->
       <button
         type="button"
         class="tm-stage__gear"
@@ -277,6 +318,41 @@ onUnmounted(() => {
         :title="t('tmSettings')"
         @click="emit('open-settings')"
       >⚙</button>
+
+      <!-- Vertical stepper (Task 9, z-tier 10) -- self-positioned, see TimeMachineStepper.vue's own
+           header/<style> comments for the exact edge-hugging geometry this ports from Vue2. Wired
+           to the SAME stepLater/stepEarlier the keyboard handler (Task 7, top of this file) already
+           calls -- not re-implemented here, per that task's own explicit hand-off note. -->
+      <TimeMachineStepper
+        :class="{ 'tm-stage__fade-exit': fadingOut }"
+        :label="stepperLabel"
+        :can-later="canStepLater"
+        :can-earlier="canStepEarlier"
+        @later="stepLater"
+        @earlier="stepEarlier"
+      />
+
+      <!-- Bottom action bar (Vue2's own `.tm-bottom-bar`, z-tier 7): Exit calls
+           `browse.exitTimeMachine()` directly -- the SAME store action Escape already triggers, two
+           reachable channels converging on one destination, Vue2 parity (that file's own header
+           comment, "Fix Round 7" section). Restore selection deliberately does NOT call
+           `browse.restore(entries)` here -- this component has no notion of what is currently
+           selected inside the generically-slotted real window; it only emits `restore-selection`
+           and leaves assembling the entry list + calling the store action to Task 14's own
+           orchestration (see this file's own header comment, "Task 9 addition"). `:disabled` mirrors
+           Vue2's own `:disabled="restoring"` -- the store's `restoring` flag is already shared
+           across every existing restore entry point (banner / selection toolbar / context menu), so
+           this button correctly greys out while any of THOSE has a restore in flight, even before
+           Task 14 gives it its own trigger. -->
+      <div class="tm-stage__bottom-bar" :class="{ 'tm-stage__fade-exit': fadingOut }">
+        <button type="button" class="tm-stage__bar-btn tm-stage__bar-btn--exit" @click="browse.exitTimeMachine()">{{ t('tmExit') }}</button>
+        <button
+          type="button"
+          class="tm-stage__bar-btn tm-stage__bar-btn--restore"
+          :disabled="browse.restoring"
+          @click="emit('restore-selection')"
+        >{{ t('tmRestoreSelection') }}</button>
+      </div>
     </template>
   </div>
 </template>
@@ -379,6 +455,45 @@ onUnmounted(() => {
   transition: color 0.2s var(--ease), background 0.2s var(--ease);
 }
 .tm-stage__gear:hover { color: var(--tm-rail-text); background: var(--tm-ghost-hover-bg); }
+
+/* Bottom action bar -- Vue2 parity byte-for-byte (`.tm-bottom-bar`, TimeMachineStage.vue). 80px
+   height is Vue2's own `$tm-bottom-gap` literal (the same 80 timeMachineMath.ts's own
+   VISIBLE_STRIP_BOTTOM_GAP pins for the depth-stack's own bottom-clearance geometry -- two
+   independent readers of the one Vue2 constant, not a coincidence). z-index 7 is Vue2's own literal
+   (below `.tm-stage__hold--active`'s 8, but that wrapper's own `pointer-events: none` -- see this
+   file's own `.tm-stage__hold--active` <style> comment -- lets clicks pass through its empty area
+   down to this bar without needing any z-index gymnastics). */
+.tm-stage__bottom-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 80px;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: var(--tm-bar-scrim);
+}
+.tm-stage__bar-btn {
+  border: none;
+  border-radius: 980px;
+  padding: 8px 18px;
+  font-size: 13px;
+  color: var(--tm-chrome-text);
+  cursor: pointer;
+  transition: background 0.15s var(--ease), opacity 0.15s var(--ease);
+}
+.tm-stage__bar-btn--exit {
+  background: var(--tm-bottom-bar-exit-bg);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.tm-stage__bar-btn--exit:hover { background: var(--tm-bottom-bar-exit-hover-bg); }
+.tm-stage__bar-btn--restore { background: var(--tm-accent); }
+.tm-stage__bar-btn--restore:hover:not(:disabled) { background: var(--tm-accent-hover); }
+.tm-stage__bar-btn--restore:disabled { opacity: 0.5; cursor: default; }
 
 /* Pure CSS, 220ms (EXIT_FADE_MS, bound above as --tm-exit-fade-ms so this can never drift from
    the shared constant timeMachineChoreo.ts exports) — applied only to the decorative shell

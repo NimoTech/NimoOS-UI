@@ -368,4 +368,119 @@ describe('TimeMachineStage shell', () => {
       w.unmount()
     })
   })
+
+  describe('TimeMachineStepper wiring + bottom bar (Task 9)', () => {
+    async function setupBrowsing() {
+      const browse = useSnapshotBrowseStore()
+      const files = useFilesStore()
+      listVolumesMock.mockResolvedValue([{ volume_uuid: 'u1', mount: '/media/RAID_0', supported: true }])
+      await browse.ensureVolumes()
+      browse.snapshotList = [
+        { name: 's0', created_at: '2026-01-03T00:00:00Z' },
+        { name: 's1', created_at: '2026-01-02T00:00:00Z' },
+        { name: 's2', created_at: '2026-01-01T00:00:00Z' },
+      ]
+      files.currentPath = '/media/RAID_0/.snapshots/s1'
+      return { browse, files }
+    }
+
+    it('mounts the stepper and bottom bar only while active/fading (never while fully inactive)', async () => {
+      const w = mountIt()
+      expect(w.find('.tm-stepper').exists()).toBe(false)
+      expect(w.find('.tm-stage__bottom-bar').exists()).toBe(false)
+      useSnapshotBrowseStore().tmActive = true
+      await nextTick()
+      expect(w.find('.tm-stepper').exists()).toBe(true)
+      expect(w.find('.tm-stage__bottom-bar').exists()).toBe(true)
+    })
+
+    it('feeds the stepper the humanized current-moment label (Vue2\'s own selectedMomentText shape: "<day> <time>")', async () => {
+      const w = mountIt()
+      const { browse } = await setupBrowsing()
+      browse.tmActive = true
+      await nextTick()
+      // s1's created_at is whatever "today" was when this fixture literal was written -- assert
+      // the SHAPE (day text + a space + HH:mm), not a specific day string, so this test does not
+      // silently rot the day this suite crosses into "not today" for that fixed 2026-01-02 date.
+      expect(w.find('.tm-stepper-time').text()).toMatch(/^\S.* \d{2}:\d{2}$/)
+    })
+
+    it('⬆ click steps to the next MORE RECENT snapshot via the SAME stepLater the keyboard handler uses (not re-implemented)', async () => {
+      const w = mountIt()
+      const { browse } = await setupBrowsing()
+      browse.tmActive = true
+      await nextTick()
+      const spy = vi.spyOn(browse, 'switchTo').mockResolvedValue()
+      await w.find('.tm-stepper-btn-up').trigger('click')
+      expect(spy).toHaveBeenCalledWith('s0')
+    })
+
+    it('⬇ click steps to the next OLDER snapshot via the SAME stepEarlier the keyboard handler uses (not re-implemented)', async () => {
+      const w = mountIt()
+      const { browse } = await setupBrowsing()
+      browse.tmActive = true
+      await nextTick()
+      const spy = vi.spyOn(browse, 'switchTo').mockResolvedValue()
+      await w.find('.tm-stepper-btn-down').trigger('click')
+      expect(spy).toHaveBeenCalledWith('s2')
+    })
+
+    it('disables ⬆ at the newest-snapshot boundary and ⬇ at the oldest-snapshot boundary', async () => {
+      const w = mountIt()
+      const { browse, files } = await setupBrowsing()
+      browse.tmActive = true
+      await nextTick()
+
+      files.currentPath = '/media/RAID_0/.snapshots/s0' // newest
+      await nextTick()
+      expect(w.find('.tm-stepper-btn-up').attributes('disabled')).toBeDefined()
+      expect(w.find('.tm-stepper-btn-down').attributes('disabled')).toBeUndefined()
+
+      files.currentPath = '/media/RAID_0/.snapshots/s2' // oldest
+      await nextTick()
+      expect(w.find('.tm-stepper-btn-down').attributes('disabled')).toBeDefined()
+      expect(w.find('.tm-stepper-btn-up').attributes('disabled')).toBeUndefined()
+    })
+
+    it('bottom bar Exit calls browse.exitTimeMachine() -- the same store action Escape triggers', async () => {
+      const w = mountIt()
+      const browse = useSnapshotBrowseStore()
+      const spy = vi.spyOn(browse, 'exitTimeMachine').mockImplementation(() => {})
+      browse.tmActive = true
+      await nextTick()
+      await w.find('.tm-stage__bar-btn--exit').trigger('click')
+      expect(spy).toHaveBeenCalledTimes(1)
+    })
+
+    // Task 9's own contract for Task 14: this button only announces intent, it does not call
+    // browse.restore(...) itself -- see TimeMachineStage.vue's own header/template comment on why.
+    it('bottom bar Restore selection only emits restore-selection, it does not call browse.restore itself', async () => {
+      const w = mountIt()
+      const browse = useSnapshotBrowseStore()
+      const restoreSpy = vi.spyOn(browse, 'restore').mockResolvedValue()
+      browse.tmActive = true
+      await nextTick()
+      await w.find('.tm-stage__bar-btn--restore').trigger('click')
+      // The Host wrapper (this file's own fixture, above) only re-forwards `open-settings` -- it has
+      // no reason to also forward `restore-selection`, so read the event straight off the mounted
+      // TimeMachineStage instance rather than the Host wrapper's own emitted() log.
+      expect(w.findComponent(TimeMachineStage).emitted('restore-selection')).toHaveLength(1)
+      expect(restoreSpy).not.toHaveBeenCalled()
+    })
+
+    it('bottom bar Restore selection is disabled while browse.restoring is true, mirroring Vue2\'s own :disabled="restoring"', async () => {
+      const w = mountIt()
+      const browse = useSnapshotBrowseStore()
+      browse.tmActive = true
+      await nextTick()
+      expect(w.find('.tm-stage__bar-btn--restore').attributes('disabled')).toBeUndefined()
+
+      browse.restoring = true
+      await nextTick()
+      const btn = w.find('.tm-stage__bar-btn--restore')
+      expect(btn.attributes('disabled')).toBeDefined()
+      await btn.trigger('click')
+      expect(w.findComponent(TimeMachineStage).emitted('restore-selection')).toBeUndefined()
+    })
+  })
 })

@@ -308,6 +308,22 @@
      rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
   --tm-rail-tick-hover: #ffffff;
   --tm-rail-tick-manual: #f6c760;
+  /* Task 9 (stepper + bottom bar): pixel-pinned to Vue2 TimeMachineStage.vue's own literal
+     `.tm-stepper__btn`/`.tm-stepper__time`/`.tm-bottom-bar__exit` colors (the `.tm-bottom-bar__restore`
+     button reuses --tm-accent/--tm-accent-hover above, already pinned -- no new token needed there).
+     `--tm-stepper-btn-bg`/`--tm-stepper-btn-hover-bg` are `.tm-stepper__btn`'s own literal
+     `background`/`&:hover:not(:disabled) background`. `--tm-chrome-text` is the plain white text/icon
+     color shared by `.tm-stepper__time`, `.tm-stepper__btn`'s icon, and both `.tm-bottom-bar__exit`/
+     `__restore` button text -- all four Vue2 rules declare the identical literal `color: #fff`.
+     `--tm-stepper-time-shadow` is `.tm-stepper__time`'s own literal `text-shadow`.
+     `--tm-bottom-bar-exit-bg`/`--tm-bottom-bar-exit-hover-bg` are `.tm-bottom-bar__exit`'s own literal
+     `background`/`&:hover background`. */
+  --tm-stepper-btn-bg: rgba(255, 255, 255, 0.16);
+  --tm-stepper-btn-hover-bg: rgba(255, 255, 255, 0.28);
+  --tm-chrome-text: #ffffff;
+  --tm-stepper-time-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+  --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
+  --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -709,6 +725,14 @@
      rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
   --tm-rail-tick-hover: #ffffff;
   --tm-rail-tick-manual: #f6c760;
+  /* Task 9 (stepper + bottom bar) -- see the dark block's own comment on these six tokens for the
+     full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-stepper-btn-bg: rgba(255, 255, 255, 0.16);
+  --tm-stepper-btn-hover-bg: rgba(255, 255, 255, 0.28);
+  --tm-chrome-text: #ffffff;
+  --tm-stepper-time-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+  --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
+  --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the

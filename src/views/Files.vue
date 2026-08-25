@@ -779,7 +779,13 @@ onMounted(() => { browse.ensureVolumes() })
              thinking "drop it and it uploads" first, only telling them it's read-only after they
              let go — the experience was backwards. -->
         <div v-if="isDragIn && !browse.isSnapshotView" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
-        <TimeMachineStage :dialog-open="settingsOpen" @open-settings="settingsOpen = true">
+        <!-- @restore-selection: Task 9's own bottom-bar "Restore selection" button only announces
+             intent (see TimeMachineStage.vue's own header/template comments) -- it does not know
+             what is selected inside the slotted real window. This handler is an intentional
+             placeholder; Task 14 replaces it with the real orchestration (assembling the entry list
+             and calling `browse.restore(entries)`, the same store action SnapshotBanner's own
+             restore button above already calls with `snapshotSelection`). -->
+        <TimeMachineStage :dialog-open="settingsOpen" @open-settings="settingsOpen = true" @restore-selection="() => {}">
           <div class="files-topbar">
             <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
             <div class="files-topbar-right">

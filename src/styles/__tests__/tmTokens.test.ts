@@ -90,6 +90,16 @@ const TOKENS = [
   // exact Vue2 CSS rules each one pins).
   '--tm-rail-tick-hover',
   '--tm-rail-tick-manual',
+  // Task 9 (stepper + bottom bar): pixel-pinned to Vue2's `.tm-stepper__btn`/`.tm-stepper__time`/
+  // `.tm-bottom-bar__exit` literal colors -- see theme.css's own comment on these six for the full
+  // per-token Vue2 provenance. `.tm-bottom-bar__restore` reuses --tm-accent/--tm-accent-hover
+  // above (already approved), so no new token was needed for it.
+  '--tm-stepper-btn-bg',
+  '--tm-stepper-btn-hover-bg',
+  '--tm-chrome-text',
+  '--tm-stepper-time-shadow',
+  '--tm-bottom-bar-exit-bg',
+  '--tm-bottom-bar-exit-hover-bg',
 ]
 
 describe('Time Machine --tm-* tokens (Task 1)', () => {
@@ -128,5 +138,11 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-panel-blur')).toBe('blur(20px) saturate(1.2)')
     expect(valueIn(dark, '--tm-rail-tick-hover')).toBe('#ffffff')
     expect(valueIn(dark, '--tm-rail-tick-manual')).toBe('#f6c760')
+    expect(valueIn(dark, '--tm-stepper-btn-bg')).toBe('rgba(255, 255, 255, 0.16)')
+    expect(valueIn(dark, '--tm-stepper-btn-hover-bg')).toBe('rgba(255, 255, 255, 0.28)')
+    expect(valueIn(dark, '--tm-chrome-text')).toBe('#ffffff')
+    expect(valueIn(dark, '--tm-stepper-time-shadow')).toBe('0 1px 6px rgba(0, 0, 0, 0.65)')
+    expect(valueIn(dark, '--tm-bottom-bar-exit-bg')).toBe('rgba(255, 255, 255, 0.14)')
+    expect(valueIn(dark, '--tm-bottom-bar-exit-hover-bg')).toBe('rgba(255, 255, 255, 0.24)')
   })
 })
