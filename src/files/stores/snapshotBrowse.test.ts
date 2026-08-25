@@ -289,6 +289,90 @@ describe('time machine: enter / exit / switch', () => {
     })
   })
 
+  // Task 10: deep-link auto-enter. shouldAutoEnter truth table mirrors canShowEntry's own
+  // (above) but with the polarity/shape flipped -- true only INSIDE a confirmed-supported
+  // snapshot path, never outside one.
+  describe('shouldAutoEnter truth table', () => {
+    it('① normal (non-snapshot) path → false', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/Photos'
+      await s.ensureVolumes()
+      expect(s.shouldAutoEnter).toBe(false)
+    })
+    it('② `.snapshots` path but the volume is not yet confirmed (still loading) → false', () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      // Deliberately not awaiting ensureVolumes(): status stays 'loading' here.
+      s.ensureVolumes()
+      expect(s.status).toBe('loading')
+      expect(s.shouldAutoEnter).toBe(false)
+    })
+    it('② `.snapshots` path on a volume confirmed supported:false → false (never guess)', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/mnt/usb/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      expect(s.shouldAutoEnter).toBe(false)
+    })
+    it('③ `.snapshots` path on a confirmed supported:true volume → true', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      expect(s.shouldAutoEnter).toBe(true)
+    })
+    it('the bare `.snapshots` container path (no snapshot name) → false (nothing to land on)', async () => {
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots'
+      await s.ensureVolumes()
+      expect(s.shouldAutoEnter).toBe(false)
+    })
+  })
+
+  describe('autoEnterTimeMachine', () => {
+    it('sets tmActive and fetches the snapshot list, without navigating', async () => {
+      listSnapshotsMock.mockResolvedValue(SNAPS)
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      expect(s.tmActive).toBe(false)
+
+      await s.autoEnterTimeMachine()
+
+      expect(s.tmActive).toBe(true)
+      expect(listSnapshotsMock).toHaveBeenCalledWith('u-data')
+      expect(s.snapshotList.map((x) => x.name)).toEqual([
+        '20260812T090000Z_manual_x', '20260811T090000Z_auto', '20260810T090000Z_auto',
+      ])
+      expect(router.push).not.toHaveBeenCalled()
+      expect(router.replace).not.toHaveBeenCalled()
+    })
+    // ④ already tmActive → no double-trigger: a second call (e.g. the watcher re-evaluating on
+    // an unrelated reactive change while shouldAutoEnter stays true) must not refetch.
+    it('is a no-op when already active (case ④, no double-trigger)', async () => {
+      listSnapshotsMock.mockResolvedValue(SNAPS)
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      await s.autoEnterTimeMachine()
+      listSnapshotsMock.mockClear()
+
+      await s.autoEnterTimeMachine()
+
+      expect(listSnapshotsMock).not.toHaveBeenCalled()
+    })
+    it('tmLoading is true while the list fetch is in flight, false once settled', async () => {
+      let release: (v: unknown) => void = () => {}
+      listSnapshotsMock.mockImplementation(() => new Promise((r) => { release = r }))
+      const s = useSnapshotBrowseStore(); const files = useFilesStore()
+      files.currentPath = '/DATA/.snapshots/snap1/Photos'
+      await s.ensureVolumes()
+      const p = s.autoEnterTimeMachine()
+      await vi.waitFor(() => expect(s.tmLoading).toBe(true))
+      release(SNAPS)
+      await p
+      expect(s.tmLoading).toBe(false)
+    })
+  })
+
   describe('currentSnapshotName', () => {
     it('derives the snapshot name from the current path while in a snapshot view', async () => {
       const s = useSnapshotBrowseStore(); const files = useFilesStore()

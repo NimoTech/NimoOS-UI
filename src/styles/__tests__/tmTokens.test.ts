@@ -100,6 +100,11 @@ const TOKENS = [
   '--tm-stepper-time-shadow',
   '--tm-bottom-bar-exit-bg',
   '--tm-bottom-bar-exit-hover-bg',
+  // Task 10 (entry pill): pixel-pinned to Vue2's Buefy `is-success` entry button -- see
+  // theme.css's own comment on these three for the full color-pipeline derivation.
+  '--tm-entry-bg',
+  '--tm-entry-fg',
+  '--tm-entry-hover-bg',
 ]
 
 describe('Time Machine --tm-* tokens (Task 1)', () => {
@@ -144,5 +149,8 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-stepper-time-shadow')).toBe('0 1px 6px rgba(0, 0, 0, 0.65)')
     expect(valueIn(dark, '--tm-bottom-bar-exit-bg')).toBe('rgba(255, 255, 255, 0.14)')
     expect(valueIn(dark, '--tm-bottom-bar-exit-hover-bg')).toBe('rgba(255, 255, 255, 0.24)')
+    expect(valueIn(dark, '--tm-entry-bg')).toBe('#28c322')
+    expect(valueIn(dark, '--tm-entry-fg')).toBe('#ffffff')
+    expect(valueIn(dark, '--tm-entry-hover-bg')).toBe('#26b821')
   })
 })

@@ -760,6 +760,21 @@ onMounted(() => { uploads.initUploads() })
 // Fetch the snapshot volume list once per session: both the entry button (canShowEntry) and
 // the read-only lock (browseInfo) depend on it being ready.
 onMounted(() => { browse.ensureVolumes() })
+
+// Task 10: deep-link auto-enter. Covers three landing routes uniformly, since all three end up
+// setting files.currentPath to a `.snapshots/<name>/<rel>` real path one way or another: a
+// pasted/bookmarked URL on /files/<virtual>/.snapshots/... (params.path, the route watcher
+// above), the legacy /files?path=<real> deep link (query.path, resolved by sync() above —
+// SnapshotTimeline.vue's own "browse" button on the Storage page uses exactly this format), and
+// the entry chip's own enterTimeMachine() navigation (a no-op here since tmActive is already
+// true by the time this would re-evaluate — see autoEnterTimeMachine's own guard).
+// `immediate: true` mirrors Vue2's own `shouldAutoEnterTimeMachine` watcher (FilePanel.vue) for
+// the same reason: harmless when false at setup time, and covers the (currently hypothetical
+// here) case where the store's volumes/path are already resolved the instant this runs.
+// Exit-loop safety is NOT re-implemented here — it falls out of shouldAutoEnter's own definition
+// (see that computed's header comment in snapshotBrowse.ts): exitTimeMachine() does not change
+// shouldAutoEnter's value across the exit gap, so this watcher simply never re-fires for it.
+watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMachine() }, { immediate: true })
 </script>
 
 <template>
@@ -932,6 +947,13 @@ onMounted(() => { browse.ensureVolumes() })
 .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
+/* Task 10 (Vue2 parity): the Snapshots entry chip is upgraded from a plain neutral chip to the
+   green pill Vue2 FilePanel.vue uses (its own Buefy `<b-button type="is-success" rounded>`
+   entry button) -- see theme.css's own comment on --tm-entry-* for the exact color derivation.
+   Shape/size stay the shared `.chip` pill (already matches Vue2's own rounded/is-small look), so
+   only color is overridden here; no border (Vue2's own is-success button has none either). */
+.chip.tb-time-machine { background: var(--tm-entry-bg); border-color: transparent; color: var(--tm-entry-fg); }
+.chip.tb-time-machine:hover { background: var(--tm-entry-hover-bg); }
 .files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text
    (which is usually the actionable part), and offer the retry. */

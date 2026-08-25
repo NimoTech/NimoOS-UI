@@ -324,6 +324,19 @@
   --tm-stepper-time-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
   --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
   --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
+  /* Task 10 (entry pill): Vue2 FilePanel.vue's own entry button is Buefy's
+     `<b-button type="is-success" rounded size="is-small">` (Snapshots pill). Pixel-pinned by
+     resolving Buefy's own color pipeline for that repo's `$green: hsla(118, 70%, 45%, 1)` base
+     (see NimoOS-UI/src/assets/scss/common/_variables.scss): Bulma's own `.is-success` rule
+     (bulma/sass/elements/button.sass) sets `background-color: $color`,
+     `color: findColorInvert($color)`, and `&:hover background-color: bulmaDarken($color, 2.5%)`
+     -- findColorInvert's own relative-luminance formula returns white for this green (luminance
+     ~0.396, below its 0.55 threshold), and bulmaDarken subtracts 2.5 percentage points of HSL
+     lightness (45% -> 42.5%). All three literal values below were computed from those exact
+     formulas, not eyeballed. */
+  --tm-entry-bg: #28c322;
+  --tm-entry-fg: #ffffff;
+  --tm-entry-hover-bg: #26b821;
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -733,6 +746,11 @@
   --tm-stepper-time-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
   --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
   --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
+  /* Task 10 (entry pill) -- see the dark block's own comment on these three tokens for the full
+     Vue2/Bulma provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-entry-bg: #28c322;
+  --tm-entry-fg: #ffffff;
+  --tm-entry-hover-bg: #26b821;
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the

@@ -128,6 +128,31 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       && !isSnapshotView.value,
   )
 
+  // Task 10 (deep-link auto-enter): mirrors Vue2 FilePanel.vue's own shouldAutoEnterTimeMachine
+  // computed verbatim. `parsed.value` (not isSnapshotView) is the path-shape check deliberately —
+  // isSnapshotView is a broader FAIL-SAFE flag (also true while status is idle/loading/error, or
+  // while the volume match is merely unconfirmed), which is correct for the write-lock but wrong
+  // here: this computed must stay false until the volume is POSITIVELY confirmed supported, never
+  // guess. parsed.value is also null for the bare `<mount>/.snapshots` container path (no snapshot
+  // name to land on), which correctly excludes that level from auto-entering, same as Vue2's own
+  // parseSnapshotBrowsePath returning null there.
+  //
+  // Loop-avoidance note (see Files.vue's own watcher comment for the full mechanism): this
+  // computed is deliberately NOT also gated on `!tmActive` — exitTimeMachine() flips tmActive
+  // false SYNCHRONOUSLY, one statement before its own (async) navigation away actually lands, and
+  // during that gap files.currentPath (hence parsed) is still the OLD `.snapshots/...` path, so
+  // this would still evaluate true. Had it depended on tmActive too, the watcher would see the
+  // value flip false->true->false->true and could re-fire; by leaving tmActive out entirely, the
+  // value simply stays true, unchanged, across the whole exit gap — nothing for a change-triggered
+  // watcher to react to. Vue2's own shouldAutoEnterTimeMachine computed carries the identical
+  // omission for the identical reason (see its own header comment).
+  const shouldAutoEnter = computed(
+    () => !!parsed.value
+      && status.value === 'ready'
+      && !!currentVolume.value
+      && currentVolume.value.supported === true,
+  )
+
   /** Which snapshot the window is currently standing in, or null when not in a snapshot view at
    *  all — derived straight from browseInfo (already gated by isSnapshotView), never independently
    *  computed, so the two can never disagree about "are we in a snapshot right now". */
@@ -190,6 +215,30 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
         const root = snapshotBrowsePath(vol.mount, newest.name)
         await navigateReal(rel ? `${root}/${rel}` : root)
       }
+    } finally {
+      tmLoading.value = false
+    }
+  }
+
+  // Task 10: deep-link / bookmark / Storage-timeline-browse auto-enter. UNLIKE enterTimeMachine
+  // above, this never navigates — by the time shouldAutoEnter is true, files.currentPath is
+  // ALREADY sitting on the exact `.snapshots/<name>/<rel>` path the caller asked for (a pasted
+  // URL, a bookmark, or SnapshotTimeline.vue's own browse() link via Files.vue's sync()), so
+  // there is nothing to land the window on that it isn't already standing on — only the snapshot
+  // LIST needs fetching (rail/stepper read browse.snapshotList, populated so far only by
+  // enterTimeMachine/switchTo/refreshSnapshotList, none of which run on a fresh deep-linked
+  // mount). Idempotent by construction: called from Files.vue's `watch(shouldAutoEnter, ...)`,
+  // which (per shouldAutoEnter's own comment) does not re-fire while already active, but this
+  // guard is kept as a second, defensive line — safe to call redundantly, matching Vue2's own
+  // `if (val) this.isTimeMachineMode = true` being a no-op when already true.
+  async function autoEnterTimeMachine(): Promise<void> {
+    if (tmActive.value) return
+    const vol = currentVolume.value
+    if (!vol?.volume_uuid) return
+    tmActive.value = true
+    tmLoading.value = true
+    try {
+      await fetchSnapshotList(vol.volume_uuid)
     } finally {
       tmLoading.value = false
     }
@@ -326,9 +375,9 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
 
   return {
     status, volumes, restoring, restoreProgress,
-    parsed, isSnapshotView, browseInfo, currentVolume, canShowEntry,
+    parsed, isSnapshotView, browseInfo, currentVolume, canShowEntry, shouldAutoEnter,
     tmActive, snapshotList, currentSnapshotName, tmLoading, tmTravel, tmTravelActive,
     ensureVolumes, reset, restore,
-    enterTimeMachine, exitTimeMachine, switchTo, refreshSnapshotList, settleTravel,
+    enterTimeMachine, autoEnterTimeMachine, exitTimeMachine, switchTo, refreshSnapshotList, settleTravel,
   }
 })

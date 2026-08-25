@@ -501,6 +501,85 @@ describe('Time Machine entry point', () => {
     expect(document.querySelector('.ui-dialog-content')).not.toBeNull()
     expect(w.find('.tm-stage--active').exists()).toBe(true)
   })
+
+  // Task 10: deep-link auto-enter (a watch(() => browse.shouldAutoEnter, ...) in Files.vue's own
+  // script setup, `{ immediate: true }`) -- covers a pasted/bookmarked URL, and (further below)
+  // the Storage page's own "Browse" link, landing directly in the Time Machine stage without a
+  // click on the entry chip. Cases numbered to match task-10-brief.md's own five-case list.
+  describe('deep-link auto-enter', () => {
+    it('① a normal (non-snapshot) path never auto-enters', async () => {
+      const w = await mountFiles('/DATA/Photos')
+      const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+      expect(useSnapshotBrowseStore().tmActive).toBe(false)
+      expect(w.find('.tm-stage--active').exists()).toBe(false)
+    })
+
+    it('② a `.snapshots` deep link whose volume cannot be confirmed (fetch failed) does not auto-enter -- the read-only guard stays locked regardless', async () => {
+      vi.mocked(service.snapshot.listVolumes).mockRejectedValueOnce(new Error('network'))
+      const w = await mountFiles('/DATA/.snapshots/snap1')
+      const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+      const browse = useSnapshotBrowseStore()
+      expect(browse.status).toBe('error')
+      expect(browse.tmActive).toBe(false)
+      expect(w.find('.tm-stage--active').exists()).toBe(false)
+      // Fail-safe: NOT auto-entering must not be mistaken for "safe to write" -- the lock itself
+      // (unrelated to tmActive, see shouldGuardSnapshotView) stays on through the idle/error state.
+      expect(browse.isSnapshotView).toBe(true)
+    })
+
+    it('③ a `.snapshots` deep link on a confirmed-supported volume auto-enters the stage (single snapshot-list fetch)', async () => {
+      // Delta, not an absolute count: this describe block's own beforeEach does not reset mock
+      // call history (by design -- other cases here assert on accumulated state), and earlier
+      // cases in this same top-level describe already clicked the entry chip at least once.
+      const before = vi.mocked(service.snapshot.list).mock.calls.length
+      const w = await mountFiles('/DATA/.snapshots/snap1')
+      const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+      const browse = useSnapshotBrowseStore()
+      expect(browse.tmActive).toBe(true)
+      expect(w.find('.tm-stage--active').exists()).toBe(true)
+      expect(vi.mocked(service.snapshot.list).mock.calls.length - before).toBe(1)
+    })
+
+    // ⑤ (④'s own idempotency is covered at the store level in snapshotBrowse.test.ts, where
+    // autoEnterTimeMachine() can be called directly twice without a real navigation in the way).
+    it('⑤ exiting Time Machine does not immediately re-trigger auto-enter (loop guard)', async () => {
+      const w = await mountFiles('/DATA/.snapshots/snap1')
+      const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+      const browse = useSnapshotBrowseStore()
+      expect(browse.tmActive).toBe(true) // auto-entered on mount, case ③
+
+      browse.exitTimeMachine()
+      expect(browse.tmActive).toBe(false) // clears synchronously
+
+      // exitTimeMachine's own navigation goes through the app router SINGLETON (mocked to a
+      // no-op push/replace at the top of this file), so files.currentPath never actually moves
+      // off the `.snapshots` path here -- exactly the gap shouldAutoEnter's own header comment
+      // describes. If the watcher re-fired on this unrelated reactivity flush, tmActive would
+      // flip back true; it must not.
+      await flushPromises()
+      expect(browse.tmActive).toBe(false)
+    })
+
+    // Storage page's "Browse" link on a snapshot's timeline entry (SnapshotTimeline.vue's own
+    // browse()) pushes the legacy `/files?path=<real .snapshots path>` deep link -- Files.vue's
+    // existing sync() (unchanged by this task) resolves it into the canonical
+    // /files/<virtual>/.snapshots/... route; this only asserts the round trip actually lands the
+    // window in the Time Machine stage, not just on a read-only listing.
+    it('Storage-timeline "Browse" (/files?path=<real path>) lands directly in the stage', async () => {
+      const folders = useFoldersStore()
+      folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+      const router = makeRouter()
+      router.push({ path: '/files', query: { path: '/DATA/.snapshots/snap-a' } })
+      await router.isReady()
+      const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+      await flushPromises()
+      expect(router.currentRoute.value.fullPath).toContain('.snapshots')
+      const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+      const browse = useSnapshotBrowseStore()
+      expect(browse.tmActive).toBe(true)
+      expect(w.find('.tm-stage--active').exists()).toBe(true)
+    })
+  })
 })
 
 // SP12-T9: a directory load failure used to be swallowed into an "empty folder", indistinguishable from a real empty directory.
