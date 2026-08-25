@@ -310,15 +310,25 @@ function clearTravelTimers() {
 // callback can still run at all is an already-queued Promise microtask (a timer clear cannot
 // cancel that), and this guard is what makes that a safe no-op (Vue2's own `reveal(token)` --
 // see this file's own header comment).
-function settle(token: number, travel: { from: string, to: string }) {
+function settle(token: number) {
   if (token !== travelToken) return
   clearTravelTimers()
-  // Fix round (review finding 3): pin-clearing now lives HERE (fires on a normal settle AND,
-  // via the token guard above, is skipped -- not leaked -- on a superseded one, since the newer
-  // travel's own eventual `settle()` clears the union of names it pinned, which still includes
-  // whatever the superseded travel added, see the `tmTravel` watcher above) rather than on the
-  // GSAP timeline's own onComplete, which never fires for a `.kill()`ed (superseded) timeline.
-  pinNames.value = pinNames.value.filter((n) => n !== travel.from && n !== travel.to)
+  // Fix round 2 (review finding 3, re-review): resets the WHOLE pin array unconditionally, not
+  // just the settling travel's own {from,to} (that was fix round 1's own mistake -- see this
+  // function's git history/PR for the filter() version this replaced). pinNames accumulates via
+  // Set-union across EVERY travel whose `tmTravel` watcher fired (see that watcher, above), but
+  // only the ONE winning travel's settle() ever runs (a superseded travel's own settle() is the
+  // token-guard no-op right above) -- filtering only the winner's own pair left every OTHER
+  // superseded travel's names stuck in `pinNames` forever. Repro that caught this: s0->s15 lands
+  // and pins {s0,s15}; before its gate fires, s15->s29 supersedes and settles filtering only
+  // {s15,s29} -- s0 (never part of that pair) stayed pinned 29 slots away permanently. Vue2's own
+  // reveal() (TimeMachineStage.vue) resets the array unconditionally too
+  // (`this.travelPinNames = []`) -- ported verbatim. A full reset is safe here precisely because
+  // settle() only ever fires (past the token guard) for the ONE travel legitimately settling
+  // right now, and nothing needs to stay pinned once ANY travel has settled -- the current
+  // selection is already covered by dollySlots' own depth-0 slot unconditionally, same reasoning
+  // Vue2's own comment there gives.
+  pinNames.value = []
   browse.settleTravel()
 }
 
@@ -338,19 +348,19 @@ function armReveal(travel: { from: string, to: string }, steps: number) {
   // regardless of whether the target's own preview promise ever appears, settles, or rejects.
   travelSafetyTimer = setTimeout(() => {
     travelSafetyTimer = null
-    settle(token, travel)
+    settle(token)
   }, durationMs + TRAVEL_SAFETY_EXTRA_MS)
   travelTimer = setTimeout(() => {
     travelTimer = null
     // getSnapshotPreview both looks up AND fetches (see this file's own header comment) -- no
     // separate "not cached yet, poll again shortly" loop needed, unlike Vue2's own armReveal.
     getSnapshotPreview(mount.value, travel.to, relPath.value).then(
-      () => settle(token, travel),
-      // Deliberately a no-op, not `() => settle(token, travel)` too -- a REJECTED preview fetch
-      // does not reveal early on its own; the safety timer above still guarantees "reveal
-      // anyway" for it. This handler exists so a rejection never surfaces as an unhandled
-      // promise rejection (getSnapshotPreview's own contract never actually rejects, but this
-      // stays defensive against that contract changing).
+      () => settle(token),
+      // Deliberately a no-op, not `() => settle(token)` too -- a REJECTED preview fetch does
+      // not reveal early on its own; the safety timer above still guarantees "reveal anyway"
+      // for it. This handler exists so a rejection never surfaces as an unhandled promise
+      // rejection (getSnapshotPreview's own contract never actually rejects, but this stays
+      // defensive against that contract changing).
       () => {},
     )
   }, durationMs)

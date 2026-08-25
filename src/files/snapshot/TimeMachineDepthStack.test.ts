@@ -345,6 +345,49 @@ describe('TimeMachineDepthStack — pin leak on superseded travel (review findin
     // SURVIVING (second) travel's own gate settled, not left stuck rendered forever.
     expect(w.find('[data-snapshot="s15"]').exists()).toBe(false)
   })
+
+  // Fix round 2 (re-review, finding 3 remained open): the test above (s0->s15->s1) happens to
+  // land back close to s0's own original position -- s0's REAL depth relative to the FINAL
+  // selection (s1, index 1) is -1, which is unconditionally in-window anyway (see
+  // resolveDollySlots' own "depth -1 always included" rule), so it can't tell a real pin-clear
+  // apart from "would have rendered regardless of any pin". This test's own geometry keeps the
+  // leaked name FAR from the final selection's own normal window, so only an actual pin-clear
+  // (not incidental in-window membership) makes it disappear -- this is the exact repro the
+  // re-reviewer used to catch fix round 1's own filter()-only-the-winning-pair mistake (see
+  // settle()'s own comment in TimeMachineDepthStack.vue for the full account).
+  it('a three-hop supersede (s0->s15 superseded by s15->s29) does not leave s0 pinned forever', async () => {
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
+    const { browse, files } = await setup(names, 's0')
+    const w = mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    // First: a distant jump to s15 (pinned in at its own real, far-outside-the-window depth).
+    browse.tmTravel = { from: 's0', to: 's15' }
+    await nextTick()
+    expect(w.find('[data-snapshot="s15"]').exists()).toBe(true)
+
+    files.currentPath = `${MOUNT}/.snapshots/s15`
+    browse.tmTravel = null
+    await nextTick()
+
+    // Before that travel's own gate can ever fire, a SECOND rapid switch supersedes it -- an
+    // even more distant jump to s29. pinNames is now the union {s0, s15, s29}.
+    await vi.advanceTimersByTimeAsync(50)
+    browse.tmTravel = { from: 's15', to: 's29' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s29`
+    browse.tmTravel = null
+    await nextTick()
+
+    // Let everything settle: both timers and both preview promises.
+    await vi.advanceTimersByTimeAsync(3000)
+    await flushPromises()
+
+    // s0's real depth relative to the final selection (s29, index 29) is -29 -- nowhere near the
+    // normal window. Only settle()'s own pinNames reset (fix round 2) clears it; the fix round 1
+    // version (filter out only {s15,s29}, the WINNING travel's own pair) left s0 stuck here.
+    expect(w.find('[data-snapshot="s0"]').exists()).toBe(false)
+  })
 })
 
 describe('TimeMachineDepthStack — reduced motion (GSAP timeline itself, separate from the reveal-gate above)', () => {
