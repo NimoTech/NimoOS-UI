@@ -189,9 +189,11 @@ export interface FileVM {
  * Photo caption vectors live in the same `text_chunks` collection as document bodies, so the
  * semantic source returns album assets alongside files (deliberate — see
  * `NimoOS-Search/service/agent_tools.go:19`: "find a photo by describing it"). Their `file_id`
- * looks like `photos:<asset_id>`, which Parser's `ExpandFiles` does not resolve ⇒ `paths` is
- * always null ⇒ the basename comes out empty ⇒ the whole row used to render as `(Untitled)`
- * with no path. The URL shape matches the images source
+ * looks like `photos:<asset_id>`. NimoOS-Search resolves those through Photos
+ * (GET /v1/photos/assets/{id}) into the same `paths[0]` slot as a document, so the card normally
+ * shows the real file name; `paths` is only null when Photos was unavailable (fail-open) or the
+ * asset has since been deleted — then the name falls back to the Photo/Video label rather than
+ * `(Untitled)`. The URL shape matches the images source
  * (`NimoOS-Search/service/photos_client.go:84`).
  */
 const PHOTO_ID_PREFIX = 'photos:'
@@ -217,16 +219,20 @@ function fileVM(group: FileGroupRaw): FileVM {
     mtimeMs,
     score: group.score || (group.chunks && group.chunks[0] && group.chunks[0].score) || 0,
     chunks: (group.chunks || []).map((c) => chunkVM(group.file_id, c)),
-    // 🔴 Must come after `name` — an album asset has no filename to use (`paths` is always
-    // null), so this overrides the `(Untitled)` fallback above with "Photo" / "Video". Split by
-    // mime, otherwise a video would be labelled a photo.
+    // 🔴 Must come after `name` — when Photos gave no path (see the PHOTO_ID_PREFIX comment)
+    // this overrides the `(Untitled)` fallback with "Photo" / "Video". Split by mime, otherwise
+    // a video would be labelled a photo. A real basename always wins.
     ...(photoAssetId
       ? {
           photoAssetId,
           thumbnailUrl: `/v1/photos/assets/${photoAssetId}/thumbnail?size=small`,
-          name: i18n.global.t(
-            (group.mime || '').startsWith('video/') ? 'aiKbSrVideoAsset' : 'aiKbSrPhotoAsset',
-          ),
+          ...(basename(fullPath)
+            ? {}
+            : {
+                name: i18n.global.t(
+                  (group.mime || '').startsWith('video/') ? 'aiKbSrVideoAsset' : 'aiKbSrPhotoAsset',
+                ),
+              }),
         }
       : {}),
   }

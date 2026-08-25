@@ -356,6 +356,7 @@
   --shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3); /* knowledge.scss:2067, RGB tuple take --warning-soft-border dark-theme triple + base alpha 0.3 */
   --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44, theme-invariant */
   --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44, theme-invariant, verbatim match --text-on-accent but different semantic (near-black on code block, not on accent solid) */
+  --media-stage-bg: #000000; /* AssetDetailDrawer.vue media stage, theme-invariant like the album lightbox's black letterbox; distinct from --code-block-bg (#0d0d0d) on purpose — video should sit on true black */
 
   /* P5e-T2 additions — "file aggregate search" two screens (result card / detail drawer / in-app preview) uses 8
      tokens, remaining new declarations from mapping 17 color literals per-location in Appendix B §B.0.
@@ -533,6 +534,7 @@
   --shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24); /* knowledge.scss:2067, RGB tuple --warning-soft-border light-theme triple + base alpha 0.24 */
   --code-block-bg: #0d0d0d; /* NotesMarkdownEditor.vue:44, theme-invariant */
   --code-block-fg: #ffffff; /* NotesMarkdownEditor.vue:44, theme-invariant */
+  --media-stage-bg: #000000; /* AssetDetailDrawer.vue media stage, theme-invariant (see the dark block) */
 
   /* P5e-T2 additions (see dark-block's same-name comment) — light-theme values. --paper-surface and 5 --rtag-* are
      theme-invariant (same both themes, per header comment's "hidden pit" section proof still must explicit write each);
@@ -3169,12 +3171,28 @@
     display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); flex-shrink: 0;
   }
 
+  /* ---------- album-asset drawer (components/AssetDetailDrawer.vue) ----------
+     Shares the .k-drawer shell above; only the body differs: one media stage + the caption,
+     instead of the section list / passage grid. */
+  .k-asset-drawer .k-drawer-body { display: flex; flex-direction: column; overflow-y: auto; }
+  .k-asset-drawer .k-rcard-thumb { width: 40px; height: 48px; object-fit: cover; border-radius: 6px; }
+  .k-asset-stage {
+    flex-shrink: 0; min-height: 240px; max-height: 60vh; background: var(--media-stage-bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .k-asset-media { display: block; max-width: 100%; max-height: 60vh; object-fit: contain; }
+  .k-asset-caption { padding: 16px 20px 24px; display: flex; flex-direction: column; gap: 8px; }
+  .k-asset-caption-head { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-tertiary); }
+  .k-asset-caption-text { font-size: 13.5px; line-height: 1.7; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; }
+  .k-asset-caption-text mark { background: var(--mark-hl-bg); color: inherit; padding: 1px 2px; border-radius: 3px; font-weight: 600; }
+
   @media (max-width: 720px) {
     .k-drawer { width: 100vw; }
     .k-drawer-body { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
     .k-chunk-list { border-right: 0; border-bottom: 1px solid var(--line-faint); }
     .k-drawer-fileinfo { flex-wrap: wrap; }
     .k-drawer-actions { width: 100%; }
+    .k-asset-stage { min-height: 160px; }
   }
 
   /* ---------- P5e-T2 · KF — the base KFileViewer.vue's `<style lang="scss" scoped>` ----------
