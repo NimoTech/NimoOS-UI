@@ -40,6 +40,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
     snapshot: {
       listVolumes: vi.fn().mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]),
       list: vi.fn().mockResolvedValue([]),
+      // T11: SnapshotSettingsModal's own store (storage/stores/snapshot.ts) calls getPolicy on
+      // open -- mocked so the gear-click case below doesn't hit an undefined function (the
+      // store's own try/catch would swallow it either way, but this keeps the case's console
+      // output clean, matching every other service method already mocked here).
+      getPolicy: vi.fn().mockResolvedValue({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 }),
     },
   },
   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
@@ -456,10 +461,12 @@ describe('Time Machine entry point', () => {
       disconnect() {}
     }
     // Starting at T11, this describe block gains a case (the gear dialog) that goes through
-    // reka-ui's Portal to teleport .ui-dialog-content onto the real document.body -- an
-    // instance mounted with attachTo: document.body doesn't auto-unmount between tests, so
-    // clear body to stop the previous case's leftover node from polluting the next case's
-    // querySelector (same handling as SnapshotSettingsDialog.test.ts / RaidDeleteDialog.test.ts).
+    // reka-ui's Portal to teleport .ssm-content (SnapshotSettingsModal's own dialog content,
+    // not the shared components/ui/Dialog.vue wrapper -- see that component's own file-header
+    // comment for why) onto the real document.body -- an instance mounted with
+    // attachTo: document.body doesn't auto-unmount between tests, so clear body to stop the
+    // previous case's leftover node from polluting the next case's querySelector (same
+    // handling as SnapshotSettingsModal.test.ts / RaidDeleteDialog.test.ts).
     document.body.innerHTML = ''
   })
 
@@ -498,7 +505,7 @@ describe('Time Machine entry point', () => {
     await flushPromises()
     await w.find('.tm-stage__gear').trigger('click')
     await flushPromises()
-    expect(document.querySelector('.ui-dialog-content')).not.toBeNull()
+    expect(document.querySelector('.ssm-content')).not.toBeNull()
     expect(w.find('.tm-stage--active').exists()).toBe(true)
   })
 

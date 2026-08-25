@@ -51,7 +51,7 @@ import { parseRecover } from '../files/util/recoverEvent'
 import { contextTargets } from '../files/util/contextTarget'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
 import TimeMachineStage from '../files/snapshot/TimeMachineStage.vue'
-import SnapshotSettingsDialog from '../files/snapshot/SnapshotSettingsDialog.vue'
+import SnapshotSettingsModal from '../files/snapshot/SnapshotSettingsModal.vue'
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
 import { useWallpaperStore } from '../stores/wallpaper'
 
@@ -916,11 +916,12 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
     <!-- Time Machine stays open while the settings dialog is open (intentional): after creating
          a new snapshot successfully, the new tick mark can be seen appearing right away.
          z-index ordering holds naturally (stage 900 < Dialog.vue's 1000/1001), no override needed. -->
-    <SnapshotSettingsDialog
+    <SnapshotSettingsModal
       v-model:open="settingsOpen"
       :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
-      :mount-point="browse.currentVolume?.mount ?? ''"
+      :mount="browse.currentVolume?.mount ?? ''"
       @snapshot-created="browse.refreshSnapshotList()"
+      @snapshot-deleted="browse.refreshSnapshotList()"
     />
     <UploadBatchModal
       v-if="batchModalId"

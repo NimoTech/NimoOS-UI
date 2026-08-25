@@ -105,6 +105,20 @@ const TOKENS = [
   '--tm-entry-bg',
   '--tm-entry-fg',
   '--tm-entry-hover-bg',
+  // Task 11 (SnapshotSettingsModal): pixel-pinned to Vue2's own $tm-chip-bg / paused-row+preop
+  // amber / history-dot / danger-button literal SCSS values -- see theme.css's own comment on
+  // these eight tokens for the full per-token Vue2 provenance.
+  '--tm-chip-bg',
+  '--tm-warn-text',
+  '--tm-warn-bg',
+  '--tm-warn-dot',
+  '--tm-dot-auto',
+  '--tm-danger',
+  '--tm-danger-hover',
+  '--tm-switch-off-bg',
+  '--tm-panel-shadow',
+  '--tm-switch-thumb-shadow',
+  '--tm-placeholder-text',
 ]
 
 describe('Time Machine --tm-* tokens (Task 1)', () => {
@@ -152,5 +166,16 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-entry-bg')).toBe('#28c322')
     expect(valueIn(dark, '--tm-entry-fg')).toBe('#ffffff')
     expect(valueIn(dark, '--tm-entry-hover-bg')).toBe('#26b821')
+    expect(valueIn(dark, '--tm-chip-bg')).toBe('rgba(0, 0, 0, 0.05)')
+    expect(valueIn(dark, '--tm-warn-text')).toBe('#92400e')
+    expect(valueIn(dark, '--tm-warn-bg')).toBe('rgba(245, 158, 11, 0.14)')
+    expect(valueIn(dark, '--tm-warn-dot')).toBe('#f59e0b')
+    expect(valueIn(dark, '--tm-dot-auto')).toBe('#9ca3af')
+    expect(valueIn(dark, '--tm-danger')).toBe('#dc2626')
+    expect(valueIn(dark, '--tm-danger-hover')).toBe('#b91c1c')
+    expect(valueIn(dark, '--tm-switch-off-bg')).toBe('rgba(0, 0, 0, 0.18)')
+    expect(valueIn(dark, '--tm-panel-shadow')).toBe('0 24px 80px rgba(15, 20, 40, 0.28)')
+    expect(valueIn(dark, '--tm-switch-thumb-shadow')).toBe('0 1px 3px rgba(0, 0, 0, 0.25)')
+    expect(valueIn(dark, '--tm-placeholder-text')).toBe('#9ca3af')
   })
 })

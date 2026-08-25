@@ -337,6 +337,33 @@
   --tm-entry-bg: #28c322;
   --tm-entry-fg: #ffffff;
   --tm-entry-hover-bg: #26b821;
+  /* Task 11 (SnapshotSettingsModal): pixel-pinned to Vue2 SnapshotSettingsModal.vue's own
+     $tm-chip-bg / paused-row+preop-badge amber / auto+preop history-dot / danger-button
+     literal SCSS values (that file's own <style> header comment). `--tm-chip-bg` is the mount
+     pill / group-count badge / auto-type badge shared translucent-black chip background.
+     `--tm-warn-text` is the paused-row warning text AND the preop badge text color (both
+     `#92400e`, amber-800, in Vue2). `--tm-warn-bg` is the preop badge background.
+     `--tm-warn-dot` is the preop history-dot fill. `--tm-dot-auto` is the auto history-dot
+     fill (deliberately its own token, not a reuse of --tm-text-dim, since Vue2 pins a
+     distinct #9ca3af there). `--tm-danger`/`--tm-danger-hover` are the ghost-red Delete
+     button's resting/hover text+border colors (`#dc2626`/`#b91c1c`); alpha variants (border,
+     hover fill) are derived from these two via `color-mix()` in the component itself rather
+     than adding more tokens. `--tm-switch-off-bg` is the pill switch's off-state track.
+     `--tm-panel-shadow` is the panel's own drop shadow. `--tm-switch-thumb-shadow` is the
+     switch knob's own drop shadow. `--tm-placeholder-text` is the manual-label input's
+     `::placeholder` color (Vue2 pins `#9ca3af` there too, same literal as --tm-dot-auto by
+     coincidence, but kept as its own token since the two serve unrelated elements). */
+  --tm-chip-bg: rgba(0, 0, 0, 0.05);
+  --tm-warn-text: #92400e;
+  --tm-warn-bg: rgba(245, 158, 11, 0.14);
+  --tm-warn-dot: #f59e0b;
+  --tm-dot-auto: #9ca3af;
+  --tm-danger: #dc2626;
+  --tm-danger-hover: #b91c1c;
+  --tm-switch-off-bg: rgba(0, 0, 0, 0.18);
+  --tm-panel-shadow: 0 24px 80px rgba(15, 20, 40, 0.28);
+  --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --tm-placeholder-text: #9ca3af;
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -751,6 +778,20 @@
   --tm-entry-bg: #28c322;
   --tm-entry-fg: #ffffff;
   --tm-entry-hover-bg: #26b821;
+  /* Task 11 (SnapshotSettingsModal) -- see the dark block's own comment on these eight tokens
+     for the full Vue2 provenance; values are identical here (owner ruling: same look in both
+     themes). */
+  --tm-chip-bg: rgba(0, 0, 0, 0.05);
+  --tm-warn-text: #92400e;
+  --tm-warn-bg: rgba(245, 158, 11, 0.14);
+  --tm-warn-dot: #f59e0b;
+  --tm-dot-auto: #9ca3af;
+  --tm-danger: #dc2626;
+  --tm-danger-hover: #b91c1c;
+  --tm-switch-off-bg: rgba(0, 0, 0, 0.18);
+  --tm-panel-shadow: 0 24px 80px rgba(15, 20, 40, 0.28);
+  --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --tm-placeholder-text: #9ca3af;
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the
