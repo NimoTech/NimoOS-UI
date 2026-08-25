@@ -134,10 +134,12 @@ const snapshotSelection = computed(() => selectedEntries.value)
 
 // Task 15 (Vue2 parity, banner dual-state semantics): Vue2's own FilePanel.vue passes
 // `:info="isTimeMachineChromeVisible ? null : snapshotBrowseInfo"` into SnapshotBanner -- while
-// the Time Machine stage's own chrome is up, the stage supplies its OWN read-only signal (the
-// shrunk window's snap chip + the bottom bar's Exit/Restore, TimeMachineStage.vue), so the plain
-// top banner is deliberately hidden to avoid two competing "you're read-only, here's Exit/Restore"
-// UIs stacked on screen at once. Outside the stage -- most concretely the fail-safe window where
+// the Time Machine stage's own chrome is up, the shrunk real window supplies its OWN read-only
+// signal instead (the ".tm-snap-chip" span rendered right in THIS file's own `.files-topbar`,
+// below -- see Important 3's own fix comment there -- plus the stage's bottom bar Exit/Restore,
+// TimeMachineStage.vue), so the plain top banner is deliberately hidden to avoid two competing
+// "you're read-only, here's Exit/Restore" UIs stacked on screen at once. Outside the stage --
+// most concretely the fail-safe window where
 // `browse.isSnapshotView` is locked (shouldGuardSnapshotView's fail-safe direction: idle/loading/
 // error/unconfirmed-volume all stay locked) but `browse.tmActive` never flipped true because
 // `shouldAutoEnter` requires a POSITIVELY confirmed `supported: true` volume (snapshotBrowse.ts's
@@ -900,7 +902,18 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
           @restore-selection="restoreSelectionFlow(snapshotSelection)"
         >
           <div class="files-topbar">
-            <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
+            <div class="files-topbar-left">
+              <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
+              <!-- Important 3 (final review): Vue2's FilePanel.vue moves the "you're read-only"
+                   signal into the real window's OWN header bar while Time Machine's chrome is up
+                   (`.tm-snap-chip`, gated on `isTimeMachineChromeVisible`) -- the plain top banner
+                   is hidden during that time (see bannerInfo's own comment above), and without this
+                   chip the shrunk window showed no read-only signal at all. Reuses the exact
+                   color-mix(--tm-accent) pattern SnapshotPreviewWindow.vue's own
+                   `.tm-preview-window__chip` already established for the identical Vue2 literal
+                   (bg = accent purple at 10% alpha, text = the darker accent shade). -->
+              <span v-if="browse.tmActive" class="tm-real-window-chip">{{ t('snapReadOnlyBanner') }}</span>
+            </div>
             <div class="files-topbar-right">
               <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.enterTimeMachine()">
                 {{ t('tmEntry') }}
@@ -1055,7 +1068,22 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
 .files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .files-main { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; align-self: stretch; display: flex; flex-direction: column; } /* Stretches to fill right-side height, so whitespace below the listing can be a right-click target */
 .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+.files-topbar-left { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
 .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+/* Important 3 (final review): Vue2's own `.tm-snap-chip` literal (FilePanel.vue) -- bg = accent
+   purple at 10% alpha, text = the darker accent shade -- reproduced via color-mix rather than a
+   new token, same pattern SnapshotPreviewWindow.vue's own `.tm-preview-window__chip` already
+   uses for the identical Vue2 source. */
+.tm-real-window-chip {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border-radius: 980px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--tm-accent) 10%, transparent);
+  color: var(--tm-accent-hover);
+}
 .files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }

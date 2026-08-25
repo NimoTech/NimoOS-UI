@@ -373,6 +373,41 @@ describe('snapshot read-only banner', () => {
     }
   })
 
+  // Important 3 (final review): Vue2's own FilePanel.vue moves the "you're read-only" signal
+  // into the shrunk real window's OWN header bar (`.tm-snap-chip`, gated on
+  // `isTimeMachineChromeVisible`) while the Time Machine stage's chrome is up -- New-UI hid the
+  // top banner in that state (Task 15, see the dual-state test just above) but never grew a
+  // replacement signal, leaving the shrunk window with NO read-only indicator at all. Covers both
+  // halves: present while tmActive (the stage owns the chrome), absent on a plain directory.
+  it('the real window header shows a "Snapshot · Read-only" chip while Time Machine is active, and nowhere else', async () => {
+    // Half 1: a plain directory -- no chip.
+    {
+      const folders = useFoldersStore()
+      folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+      const router = makeRouter()
+      router.push('/files/NimoOS-HD/Photos'); await router.isReady()
+      const w = mount(Files, { global: { plugins: [router, i18n] } })
+      await flushPromises()
+      expect(w.find('.tm-real-window-chip').exists()).toBe(false)
+    }
+
+    // Half 2: auto-entered Time Machine (default listVolumes mock reports `/DATA` supported) --
+    // chip present with Vue2's own copy.
+    {
+      setActivePinia(createPinia())
+      const folders = useFoldersStore()
+      folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+      const router = makeRouter()
+      router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+      const w = mount(Files, { global: { plugins: [router, i18n] } })
+      await flushPromises()
+      const browse = useSnapshotBrowseStore()
+      expect(browse.tmActive).toBe(true) // sanity: auto-entered
+      expect(w.find('.tm-real-window-chip').exists()).toBe(true)
+      expect(w.find('.tm-real-window-chip').text()).toBe('快照 · 只读')
+    }
+  })
+
   // Review fix (Important): the drag-drop overlay suggests "drop it here to upload", but a
   // drop in snapshot mode is already blocked by commitSelectedFiles' guard and toasted --
   // the overlay shouldn't appear on a read-only snapshot at all.
