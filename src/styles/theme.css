@@ -355,6 +355,16 @@
   --tm-panel-shadow: 0 24px 80px rgba(15, 20, 40, 0.28);
   --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   --tm-placeholder-text: #9ca3af;
+  /* Final review (Important 4, SnapshotActionBar rebuild): pixel-pinned to Vue2's own
+     `.operation-toolbar`/`.toolbar-item` literal SCSS values (_filebrowser.scss) --
+     `.snapshot-action-bar` reuses that same shared floating-pill toolbar look, unstyled itself
+     beyond its own `&__label`/`&__item--busy` rules. `--tm-action-bar-bg` is `.operation-toolbar`'s
+     own literal `background-color: rgb(49, 49, 54)`; `--tm-action-bar-item-hover-bg` is
+     `.toolbar-item:hover`'s own literal `background-color: rgb(86, 86, 90)`. Text/icon color
+     reuses `--tm-chrome-text` (already `#fff`, matching Vue2's own `has-text-white`) -- no new
+     token needed there. */
+  --tm-action-bar-bg: rgb(49, 49, 54);
+  --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -775,6 +785,10 @@
   --tm-panel-shadow: 0 24px 80px rgba(15, 20, 40, 0.28);
   --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   --tm-placeholder-text: #9ca3af;
+  /* Final review (Important 4) -- see the dark block's own comment on these two tokens for the
+     full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-action-bar-bg: rgb(49, 49, 54);
+  --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the

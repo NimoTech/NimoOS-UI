@@ -418,6 +418,13 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   pointer-events: auto;
+  /* Final review (Important 4): SnapshotActionBar.vue (rendered inside the default slot below,
+     from Files.vue) floats itself via `position: absolute; bottom: 50px; left: 50%` -- Vue2's own
+     fix for the identical component (`_filebrowser.scss`, ".tm-fwin--active { position: relative
+     }" comment) makes this box its containing block, so the floating bar is always anchored 50px
+     above THIS window's own bottom edge (clipped correctly by `overflow: hidden` above) rather
+     than escaping to whatever ancestor happens to be positioned further up the tree. */
+  position: relative;
 }
 /* Hard, untransitioned cut — the exact opposite of everything else in this file, which either
    never transitions decoration at all or fades over --tm-exit-fade-ms. A switch between two

@@ -50,6 +50,7 @@ import { resolveDefaultRoot } from '../files/util/defaultRoot'
 import { parseRecover } from '../files/util/recoverEvent'
 import { contextTargets } from '../files/util/contextTarget'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
+import SnapshotActionBar from '../files/snapshot/SnapshotActionBar.vue'
 import TimeMachineStage from '../files/snapshot/TimeMachineStage.vue'
 import SnapshotSettingsModal from '../files/snapshot/SnapshotSettingsModal.vue'
 import RestoreDestinationModal from '../files/snapshot/RestoreDestinationModal.vue'
@@ -943,12 +944,8 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
             @exit="browse.exitTimeMachine()"
             @restore="restoreSelectionFlow(snapshotSelection)"
           />
-          <!-- The dedicated multi-select toolbar for snapshot view (SnapshotSelectionToolbar) is
-               retired here (Ruling P2 — Task 9's bottom action bar takes over "restore the
-               selection" for Time Machine mode). SnapshotBanner above already exposes its own
-               restore button wired to the same snapshotSelection, so single- and multi-select
-               restore both still work meanwhile; download/clear-selection for a multi-selection
-               inside snapshot view are the acknowledged, temporary gap until Task 9 lands. -->
+          <!-- The generic multi-select toolbar (Copy/Cut/Delete/Download/Share) never shows in
+               snapshot view -- Vue2 parity, `.files-actions`' own sibling restriction. -->
           <SelectionToolbar
             v-if="!browse.isSnapshotView && files.selectedCount > 0"
             :count="files.selectedCount"
@@ -961,6 +958,25 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
             @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
             @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
             @share="onShare(null)"
+          />
+          <!-- Important 4 (final review, Ruling F-1): Vue2's SnapshotActionBar (Restore + Download,
+               "{n} selected" -- see that component's own header comment for the full 1:1 rebuild
+               rationale), the snapshot-view equivalent of SelectionToolbar above. Restore funnels
+               into the SAME restoreSelectionFlow entry point ② SnapshotBanner's own restore button
+               and the Time Machine stage's bottom bar already use; Download reuses the plain
+               ops.download SelectionToolbar's own download button uses (read-only snapshot content
+               downloads exactly like live content). Mounted here (inside the slot, alongside
+               SnapshotBanner/FileContextMenu), so -- Vue2 parity -- it is visible whether the Time
+               Machine stage's own chrome is up or the user is plain-browsing snapshot content
+               outside it, positioned via `.tm-fwin--active`'s own `position: relative` in the
+               former case and `.files-main`'s in the latter (see this component's own header
+               comment). -->
+          <SnapshotActionBar
+            v-if="browse.isSnapshotView"
+            :count="files.selectedCount"
+            :restoring="browse.restoring"
+            @restore="restoreSelectionFlow(snapshotSelection)"
+            @download="ops.download(snapshotSelection)"
           />
           <FileContextMenu :entry="ctxEntry" :selected-count="ctxTargetCount" @action="onCtxAction">
             <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">

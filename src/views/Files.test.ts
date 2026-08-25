@@ -562,6 +562,56 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.snap-banner-restore').attributes('disabled')).toBeUndefined()
   })
 
+  // Final review (Important 4, Ruling F-1): SnapshotActionBar rebuild -- the snapshot-view
+  // equivalent of the generic SelectionToolbar, which stays hidden here (see the two
+  // "write-capable selection toolbar does not appear" cases above). Covers all three things the
+  // finding called out: absent outside snapshot view, present with the right count once selected
+  // inside it, and its two buttons wired to the same entry points the banner/context-menu use.
+  it('SnapshotActionBar: absent outside snapshot view, present with the selection count inside it, Restore/Download wired', async () => {
+    // Half 1: a plain directory -- selecting an item never shows it (SelectionToolbar owns that state).
+    {
+      const folders = useFoldersStore()
+      folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+      const router = makeRouter()
+      router.push('/files/NimoOS-HD/Photos'); await router.isReady()
+      const w = mount(Files, { global: { plugins: [router, i18n] } })
+      await flushPromises()
+      await w.get('.view-toggle-list').trigger('click')
+      await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
+      expect(w.find('.tm-action-bar').exists()).toBe(false)
+    }
+
+    // Half 2: a real snapshot path (default listVolumes mock auto-enters the stage) -- present
+    // with the right count, wired to restoreSelectionFlow/ops.download.
+    {
+      setActivePinia(createPinia())
+      const folders = useFoldersStore()
+      folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+      const router = makeRouter()
+      router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+      const w = mount(Files, { global: { plugins: [router, i18n] } })
+      await flushPromises()
+      await w.get('.view-toggle-list').trigger('click')
+      await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
+      const files = useFilesStore()
+      expect(files.selectedCount).toBe(1)
+      expect(w.find('.tm-action-bar').exists()).toBe(true)
+      expect(w.find('.tm-action-bar-label').text()).toContain('1')
+
+      const browse = useSnapshotBrowseStore()
+      const restoreSpy = vi.spyOn(browse, 'restoreItems').mockResolvedValue()
+      await w.find('.tm-action-bar-btn--restore').trigger('click')
+      expect(restoreSpy).toHaveBeenCalled()
+
+      // ops.download() is fire-and-forget (iframe-driven, no awaitable network call) -- its own
+      // "preparing" toast is the observable side effect every other download-wiring case in this
+      // codebase asserts on (e.g. useFileOps.test.ts).
+      const toast = useToast()
+      await w.find('.tm-action-bar-btn--download').trigger('click')
+      expect(toast.toasts.some((t) => t.text === '正在准备下载…')).toBe(true)
+    }
+  })
+
   // Fix-wave I4: the banner's own restore button is one of Task 14's three restore entry points
   // (funnels into `browse.restoreItems(...)` via `restoreSelectionFlow`) -- it must show the same
   // running count instead of just sitting there grayed out next to a sibling button that does

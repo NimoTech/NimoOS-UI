@@ -127,6 +127,11 @@ const TOKENS = [
   '--tm-panel-shadow',
   '--tm-switch-thumb-shadow',
   '--tm-placeholder-text',
+  // Final review (Important 4, SnapshotActionBar rebuild): pixel-pinned to Vue2's own
+  // `.operation-toolbar`/`.toolbar-item:hover` literal SCSS colors -- see theme.css's own
+  // comment on these two for the full provenance.
+  '--tm-action-bar-bg',
+  '--tm-action-bar-item-hover-bg',
 ]
 
 describe('Time Machine --tm-* tokens (Task 1)', () => {
@@ -187,5 +192,7 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-panel-shadow')).toBe('0 24px 80px rgba(15, 20, 40, 0.28)')
     expect(valueIn(dark, '--tm-switch-thumb-shadow')).toBe('0 1px 3px rgba(0, 0, 0, 0.25)')
     expect(valueIn(dark, '--tm-placeholder-text')).toBe('#9ca3af')
+    expect(valueIn(dark, '--tm-action-bar-bg')).toBe('rgb(49, 49, 54)')
+    expect(valueIn(dark, '--tm-action-bar-item-hover-bg')).toBe('rgb(86, 86, 90)')
   })
 })
