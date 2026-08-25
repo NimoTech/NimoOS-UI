@@ -191,7 +191,7 @@ describe('MemorySection', () => {
   })
 
   // 9. saveCompaction() ... compaction_enabled in payload
-  it('saveCompaction() calls putMemorySettings with payload containing compaction_enabled and context_window:null', async () => {
+  it('saveCompaction() calls putMemorySettings with payload containing compaction_enabled and context_window:0 (clear)', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: false })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockResolvedValue({})
@@ -201,7 +201,7 @@ describe('MemorySection', () => {
     await switches[1].trigger('click')
     await flush()
     expect(h.putMemorySettings).toHaveBeenCalledWith(
-      expect.objectContaining({ compaction_enabled: true, context_window: null }),
+      expect.objectContaining({ compaction_enabled: true, context_window: 0 }),
     )
   })
 
@@ -247,8 +247,8 @@ describe('MemorySection', () => {
     )
   })
 
-  // 12. saveContextWindow() sends null when blank
-  it('saveContextWindow() sends context_window:null when left empty', async () => {
+  // 12. blank sends 0 — the backend treats null as "don't touch", so null never cleared
+  it('saveContextWindow() sends context_window:0 (clear) when left empty', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, context_window: 8192 })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockResolvedValue({})
@@ -257,7 +257,7 @@ describe('MemorySection', () => {
     await w.find('.set-input.num').setValue('')
     await flush()
     expect(h.putMemorySettings).toHaveBeenCalledWith(
-      expect.objectContaining({ context_window: null }),
+      expect.objectContaining({ context_window: 0 }),
     )
   })
 
