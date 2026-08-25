@@ -615,6 +615,15 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
+    // Queues a continuation of a finished run on that run's own session; the
+    // optional message is the user's supplement to the composed resume prompt.
+    async continueTaskRun(id: string, runId: string, message = ''): Promise<unknown> {
+      const res = await http.post(
+        `${PREFIX}/agent/tasks/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/continue`,
+        message ? { message } : {})
+      return res.data
+    },
+
     async adoptDeniedAction(id: string, runId: string, index: number): Promise<unknown> {
       const res = await http.post(
         `${PREFIX}/agent/tasks/${encodeURIComponent(id)}/preauth/from-denied`,

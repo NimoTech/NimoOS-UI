@@ -72,6 +72,10 @@
                           <span class="sep"></span>
                           <span>{{ t('aiTasksLastRun', { when: ts(tk.last_run_at) }) }}</span>
                         </template>
+                        <template v-if="tk.prompt_revised_by === 'agent'">
+                          <span class="sep"></span>
+                          <span class="tsk-revised-chip">{{ t('aiTasksPromptRevisedByAgent') }}</span>
+                        </template>
                       </div>
                     </div>
                     <SetSwitch

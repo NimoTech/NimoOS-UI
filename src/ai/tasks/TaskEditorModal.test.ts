@@ -206,4 +206,32 @@ describe('TaskEditorModal', () => {
     expect(h.resetTaskWebhookToken).toHaveBeenCalledWith('t1')
     expect((w.find('.set-copy .set-input').element as HTMLInputElement).value).toContain('newtok')
   })
+
+  it('shows the agent-revision banner and revert puts the old prompt back into the form', async () => {
+    const w = mountEditor({
+      task: {
+        id: 't1',
+        name: 'digest',
+        prompt: 'agent version',
+        prev_prompt: 'the old prompt',
+        prompt_revised_by: 'agent',
+        prompt_revised_at: 123,
+      },
+    })
+    await flush()
+    expect(w.find('[data-test="revised-banner"]').exists()).toBe(true)
+    await w.find('[data-test="prev-toggle"]').trigger('click')
+    expect(w.find('[data-test="prev-prompt"]').text()).toBe('the old prompt')
+    await w.find('[data-test="revert-prompt"]').trigger('click')
+    expect((w.find('[data-test="task-prompt"]').element as HTMLTextAreaElement).value)
+      .toBe('the old prompt')
+  })
+
+  it('no banner without the agent marker', async () => {
+    const w = mountEditor({
+      task: { id: 't1', name: 'digest', prompt: 'p', prev_prompt: '', prompt_revised_by: '' },
+    })
+    await flush()
+    expect(w.find('[data-test="revised-banner"]').exists()).toBe(false)
+  })
 })

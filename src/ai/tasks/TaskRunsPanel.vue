@@ -21,6 +21,9 @@
             <span class="d"></span>{{ t(statusLabel(r.status)) }}
           </span>
           <span class="tsk-run-trig">{{ t(triggerLabel(r.trigger)) }}</span>
+          <span v-if="r.resumed_from" class="tsk-run-cont" data-test="continued-badge">
+            {{ t('aiTasksRunContinued') }}
+          </span>
           <span class="tsk-run-time">{{ ts(r.created_at) }}</span>
           <span v-if="duration(r)" class="tsk-run-dur">{{
             t(duration(r)!.key, duration(r)!.params)
@@ -79,6 +82,29 @@
           <div class="tsk-run-block">
             <TaskRunTranscript :run="r" @progress="(p) => onProgress(r.id, p)" />
           </div>
+          <!-- Continue a finished run on its own session. Terminal + a session
+               only: a queued/running run already has a writer, and without a
+               session there is no history to continue on. -->
+          <div v-if="canContinue(r)" class="tsk-continue">
+            <input
+              type="text"
+              class="tsk-continue-input"
+              data-test="continue-input"
+              :value="continueMsg[r.id] || ''"
+              :placeholder="t('aiTasksContinuePlaceholder')"
+              maxlength="4000"
+              @input="(e) => (continueMsg[r.id] = (e.target as HTMLInputElement).value)"
+              @keydown.enter="onContinue(r)"
+            >
+            <button
+              class="sk-btn"
+              data-test="continue-btn"
+              :disabled="busyKey === `continue:${r.id}`"
+              @click="onContinue(r)"
+            >
+              <AgentIcon name="play" :size="12" /> {{ t('aiTasksContinueRun') }}
+            </button>
+          </div>
           <!-- Only when there is genuinely nothing: a run with a session has a
                transcript block above that speaks for itself. -->
           <div
@@ -127,6 +153,7 @@ const ACTIVE_STATUSES = new Set(['queued', 'running'])
 const runs = ref<TaskRun[]>([])
 const loading = ref(false)
 const busyKey = ref('')
+const continueMsg = ref<Record<string, string>>({})
 const expanded = ref<Record<string, boolean>>({})
 const progress = ref<Record<string, { total: number; current: string; live: boolean }>>({})
 
@@ -204,6 +231,40 @@ async function onAdopt(run: TaskRun, index: number) {
     await load(true)
   } catch (e) {
     showError(e)
+  } finally {
+    busyKey.value = ''
+  }
+}
+
+// Terminal statuses with a session can be continued; 'skipped' never ran,
+// so there is nothing to continue.
+function canContinue(run: TaskRun) {
+  return ['succeeded', 'failed', 'timeout'].includes((run && run.status) || '')
+    && !!(run && run.session_id)
+}
+
+async function onContinue(run: TaskRun) {
+  const key = `continue:${run.id}`
+  if (busyKey.value === key) return
+  busyKey.value = key
+  try {
+    const msg = (continueMsg.value[run.id] || '').trim()
+    const r = (await service.ai.continueTaskRun(props.taskId, run.id, msg)) as {
+      run_id?: string
+    }
+    continueMsg.value[run.id] = ''
+    // Land the user on the new run: it shares the parent's session, so its
+    // transcript picks up live where the old one ended.
+    if (r && r.run_id) expanded.value[r.run_id] = true
+    toast.show(t('aiTasksContinueQueued'))
+    await load(true)
+  } catch (e) {
+    const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+    const map: Record<string, string> = {
+      session_pruned: 'aiTasksContinueSessionPruned',
+      already_active: 'aiTasksContinueAlreadyActive',
+    }
+    toast.show(t(map[detail || ''] || errorKey(e)), 3000, 'danger')
   } finally {
     busyKey.value = ''
   }
