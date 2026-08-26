@@ -9,6 +9,9 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { nextTick } from 'vue'
 import gsap from 'gsap'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import TimeMachineDepthStack from './TimeMachineDepthStack.vue'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
@@ -304,6 +307,65 @@ describe('TimeMachineDepthStack — reveal-gate (review finding 1: does not sett
   })
 })
 
+// Fix wave B (B3b, owner acceptance 2026-08-26): the reveal-gate used to wait only for the preview
+// cache promise (feeding the decorative depth-stack layers) and the travel duration -- never for
+// the REAL window's own `files.load()` of the target path. In production `browse.currentSnapshotName`
+// (this suite's own `files.currentPath = ...` lines above already simulate its post-load value) is
+// itself derived from `files.currentPath`, so the condition is normally already true the instant
+// armReveal runs -- these tests exercise the GATE FUNCTION's own behavior directly (via `files.
+// loading`) rather than that coincidental ordering, so a future refactor that decouples the two
+// cannot silently reopen this gap without turning these red. See TimeMachineDepthStack.vue's own
+// `waitForFilesLoad` comment for the full rationale.
+describe('TimeMachineDepthStack — reveal-gate also waits for the real window\'s files-store load (fix wave B, B3b)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('holds the reveal while files.loading is still true for the target path, releasing once it flips false', async () => {
+    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's1')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    browse.tmTravel = { from: 's1', to: 's2' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s2`
+    files.loading = true // the real window's own listing fetch for the target is still in flight
+    browse.tmTravel = null
+    await nextTick() // currentSnapshotName watcher fires here, arming the gate
+
+    // Both the 420ms travel duration and the (default-resolved) preview promise elapse/settle,
+    // but files.loading is still true -- the gate must not release.
+    await vi.advanceTimersByTimeAsync(500)
+    expect(settleSpy).not.toHaveBeenCalled()
+
+    // The real window's own listing fetch completes.
+    files.loading = false
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('the safety ceiling still fires even if files.loading never flips back false (a hung load cannot wedge the stage)', async () => {
+    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's1')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    browse.tmTravel = { from: 's1', to: 's2' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s2`
+    files.loading = true // never flips back false in this test
+    browse.tmTravel = null
+    await nextTick()
+
+    await vi.advanceTimersByTimeAsync(500) // past the 420ms travel duration, files.loading still true
+    expect(settleSpy).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(800) // TRAVEL_SAFETY_EXTRA_MS
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('TimeMachineDepthStack — pin leak on superseded travel (review finding 3)', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
@@ -423,5 +485,30 @@ describe('TimeMachineDepthStack — gsap context cleanup', () => {
     const revertSpy = vi.spyOn(ctx, 'revert')
     w.unmount()
     expect(revertSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Fix wave B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): this strip
+// hosts a real, full-size preview window whose content paints text in New-UI's theme tokens -- a
+// permanently-white background (TM chrome's own `--tm-panel-bg-solid`) made every label invisible
+// in dark theme. See TimeMachineStage.vue's own `.tm-fwin--active` <style> comment (Ruling B-1)
+// for the full rationale this mirrors. jsdom applies no CSS at all, so the only way to pin this is
+// reading the component's own source text, same technique this app's other TM components already
+// use for their own CSS-literal regression guards.
+describe('TimeMachineDepthStack — strip background follows the app theme (fix wave B, B1)', () => {
+  it('.tm-depth-strip uses the global, theme-following --panel-bg-solid, not TM chrome\'s fixed-white --tm-panel-bg-solid', () => {
+    const src = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineDepthStack.vue'),
+      'utf8',
+    )
+    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const rule = /\.tm-depth-strip\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(rule, 'no .tm-depth-strip rule found').toBeTruthy()
+    // Strip comments before the "must not use the old token" assertion below -- this rule's own
+    // sibling comment (TimeMachineDepthStack.vue, above) mentions --tm-panel-bg-solid by name to
+    // explain what changed, which would otherwise false-fail a naive substring check.
+    const decls = rule![1].replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(decls).toMatch(/background:\s*var\(--panel-bg-solid\)/)
+    expect(decls).not.toMatch(/--tm-panel-bg-solid/)
   })
 })

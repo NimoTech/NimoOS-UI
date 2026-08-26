@@ -499,7 +499,21 @@ onUnmounted(() => {
      most prominent element on screen (see theme.css's own comment on `--tm-fwin-shadow` for the
      exact value, not repeated here to avoid writing a bare color literal in this style block). */
   box-shadow: var(--tm-fwin-shadow);
-  background: var(--tm-panel-bg-solid);
+  /* Fix wave B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): this used to
+     be `var(--tm-panel-bg-solid)` -- TM's own chrome token, pinned to plain opaque white in BOTH
+     themes (Vue2's window styling was authored for a light-only app). The slotted content is the REAL
+     Files window (breadcrumb/listing/etc.), which paints its own text in New-UI's OWN theme
+     tokens (`--fg` etc, light in dark theme) -- forcing a permanently-white pane underneath it
+     made every label white-on-white in dark theme. Controller Ruling B-1: "identical in both
+     themes" governs the TM CHROME (glass/rail/stepper/bars/white-glass modals) only -- the real
+     window (this element) and the preview windows' content (SnapshotPreviewWindow.vue,
+     TimeMachineDepthStack.vue's own `.tm-depth-strip`) are "real windows of THIS app" and must
+     follow New-UI's own theme, same as the Files view does outside Time Machine mode. `--panel-bg-
+     solid` (the GLOBAL, non-`tm-` token, theme.css) is the app's own existing "fully opaque panel
+     that must occlude what is behind it" token -- dark gradient in dark theme, white in light
+     theme -- already load-bearing for exactly this "opaque regardless of theme" need elsewhere
+     (see photosGlassSurfaces.test.ts's own consumer whitelist, extended for this fix). */
+  background: var(--panel-bg-solid);
   display: flex;
   flex-direction: column;
   pointer-events: auto;

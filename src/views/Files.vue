@@ -913,16 +913,26 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
         >
           <div class="files-topbar">
             <div class="files-topbar-left">
-              <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
-              <!-- Important 3 (final review): Vue2's FilePanel.vue moves the "you're read-only"
-                   signal into the real window's OWN header bar while Time Machine's chrome is up
-                   (`.tm-snap-chip`, gated on `isTimeMachineChromeVisible`) -- the plain top banner
-                   is hidden during that time (see bannerInfo's own comment above), and without this
-                   chip the shrunk window showed no read-only signal at all. Reuses the exact
-                   color-mix(--tm-accent) pattern SnapshotPreviewWindow.vue's own
-                   `.tm-preview-window__chip` already established for the identical Vue2 literal
-                   (bg = accent purple at 10% alpha, text = the darker accent shade). -->
-              <span v-if="browse.tmActive" class="tm-real-window-chip">{{ t('snapReadOnlyBanner') }}</span>
+              <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual">
+                <!-- Important 3 (final review): Vue2's FilePanel.vue moves the "you're read-only"
+                     signal into the real window's OWN header bar while Time Machine's chrome is up
+                     (`.tm-snap-chip`, gated on `isTimeMachineChromeVisible`) -- the plain top banner
+                     is hidden during that time (see bannerInfo's own comment above), and without this
+                     chip the shrunk window showed no read-only signal at all. Reuses the exact
+                     color-mix(--tm-accent) pattern SnapshotPreviewWindow.vue's own
+                     `.tm-preview-window__chip` already established for the identical Vue2 literal
+                     (bg = accent purple at 10% alpha, text = the darker accent shade).
+
+                     Fix wave B (B2, owner acceptance 2026-08-26): passed through Breadcrumb.vue's
+                     own `#trailing` slot (not a sibling of <Breadcrumb> in `.files-topbar-left`
+                     any more) -- see that slot's own comment for why: Breadcrumb's root grows to
+                     fill `.files-topbar-left` for its two-line-collapse measuring loop, which was
+                     pushing a SIBLING chip to the far right of the topbar instead of hugging the
+                     breadcrumb's actual rendered path. -->
+                <template #trailing>
+                  <span v-if="browse.tmActive" class="tm-real-window-chip">{{ t('snapReadOnlyBanner') }}</span>
+                </template>
+              </Breadcrumb>
             </div>
             <div class="files-topbar-right">
               <!-- Fix wave A3 (audit-modals.md #4, entry pill icon -- MISSING): Vue2's own
@@ -1105,9 +1115,16 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
 /* Important 3 (final review): Vue2's own `.tm-snap-chip` literal (FilePanel.vue) -- bg = accent
    purple at 10% alpha, text = the darker accent shade -- reproduced via color-mix rather than a
    new token, same pattern SnapshotPreviewWindow.vue's own `.tm-preview-window__chip` already
-   uses for the identical Vue2 source. */
+   uses for the identical Vue2 source.
+   Fix wave B (B2, owner acceptance 2026-08-26): now rendered inside Breadcrumb.vue's own `<nav
+   class="breadcrumb">` flex row (via its `#trailing` slot, see the template above) rather than as
+   a sibling of <Breadcrumb> in `.files-topbar-left` -- that row already applies its own
+   `gap: 4px` between every child (crumbs/separators/the favorite star); `margin-left: 6px` on top
+   of that gap lands this chip exactly `4 + 6 = 10px` after whatever precedes it, matching Vue2's
+   own `.tm-snap-chip { margin-left: 10px }` literal byte-for-byte. */
 .tm-real-window-chip {
   flex: 0 0 auto;
+  margin-left: 6px;
   padding: 3px 10px;
   border-radius: 980px;
   font-size: 12px;

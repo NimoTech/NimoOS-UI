@@ -106,9 +106,28 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
   // stacked over the map canvas) has been fixed to use `--surface-1` instead (see this file's
   // header comment for the full account) — `--surface-1` is already fully opaque in both
   // Photos themes, so there was never a real translucency problem to solve with a second,
-  // is-light-blind token. The whitelist is now empty: any future consumer must justify itself
-  // from scratch, not point back at a precedent that turned out to be a bug.
-  const ALLOW = new Set<string>([])
+  // is-light-blind token. The whitelist was empty for a while: any future consumer must justify
+  // itself from scratch, not point back at a precedent that turned out to be a bug.
+  //
+  // Files Time Machine fix wave B (B1, owner acceptance 2026-08-26): a genuine new legitimate
+  // scenario. TimeMachineStage.vue's `.tm-fwin--active` (the real, scaled-down Files window) and
+  // its preview clones (SnapshotPreviewWindow.vue's `.tm-preview-window`,
+  // TimeMachineDepthStack.vue's `.tm-depth-strip`) all need a background that is (a) fully OPAQUE
+  // regardless of theme (so ~10 stacked preview layers each occlude the one behind, and the real
+  // window never shows the blurred clone/glass backdrop through it) and (b) follows the APP'S OWN
+  // theme (dark in dark theme, white in light theme) -- these are real New-UI windows whose
+  // cloned/slotted content paints text in New-UI's own `--fg`/`--fg-muted` tokens, unlike TM's own
+  // chrome (glass/rail/stepper/bars/white-glass modals), which stays pinned to the SAME literal in
+  // both themes via its own `--tm-panel-bg-solid` token (unchanged, still used by the white-glass
+  // modals). `--panel-bg-solid` is exactly this: a global, already-themed, always-opaque token --
+  // see this file's own header comment for its dark-gradient/white values. Root cause + full
+  // account: .superpowers/sdd/2026-08-25-files-time-machine-vue2-parity/final-fix-report.md,
+  // "Fix wave B" section.
+  const ALLOW = new Set<string>([
+    'files/snapshot/TimeMachineStage.vue',
+    'files/snapshot/SnapshotPreviewWindow.vue',
+    'files/snapshot/TimeMachineDepthStack.vue',
+  ])
 
   function walk(dir: string, out: string[] = []): string[] {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

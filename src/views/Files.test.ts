@@ -408,6 +408,30 @@ describe('snapshot read-only banner', () => {
     }
   })
 
+  // Fix wave B (B2, owner acceptance 2026-08-26): the chip used to be a SIBLING of <Breadcrumb> in
+  // `.files-topbar-left`, which pushed it to the far right of the topbar (Breadcrumb's own root
+  // grows to fill that container, see Breadcrumb.vue's own <style> comment) instead of hugging the
+  // breadcrumb's actual rendered path the way Vue2's `.tm-snap-chip` does (`margin-left: 10px`,
+  // immediately after `<file-breadcrumb>` in the SAME flex row). Pinned two ways: DOM order (the
+  // chip is now a DESCENDANT of `.breadcrumb`, not a child of `.files-topbar-left` sitting after
+  // it) and CSS (no `justify-content: space-between`/auto-margin anywhere between them that could
+  // still shove it to the container's end).
+  it('the read-only chip is nested inside the breadcrumb\'s own flex row, hugging it -- not a sibling pushed to the topbar\'s far end', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    expect(w.find('.breadcrumb .tm-real-window-chip').exists()).toBe(true)
+    // Was a direct child of .files-topbar-left, sitting right after <nav class="breadcrumb">
+    // (whose own flex-grow left no room before the container's far edge) -- must not be any more.
+    const topbarLeft = w.find('.files-topbar-left')
+    const directChipChild = topbarLeft.element.querySelector(':scope > .tm-real-window-chip')
+    expect(directChipChild).toBeNull()
+  })
+
   // Review fix (Important): the drag-drop overlay suggests "drop it here to upload", but a
   // drop in snapshot mode is already blocked by commitSelectedFiles' guard and toasted --
   // the overlay shouldn't appear on a read-only snapshot at all.

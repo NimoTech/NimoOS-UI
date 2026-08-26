@@ -154,6 +154,19 @@ function hiddenLabel(hidden: CrumbSeg[]): string {
       <button v-else class="crumb" @click="emit('navigate', item.seg.vpath)">{{ item.seg.label }}</button>
     </template>
     <FavoriteStar v-if="currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
+    <!-- Fix wave B (B2, owner acceptance 2026-08-26): an optional trailing slot, rendered as the
+         LAST item in this same flex-wrap row -- so whatever the caller puts here (Files.vue's own
+         "Snapshot · Read-only" chip) hugs the breadcrumb's actual rendered content, the same way
+         Vue2's FilePanel.vue puts its own `.tm-snap-chip` inside the SAME flex row as
+         `<file-breadcrumb>` (`#bread-container`, `margin-left: 10px`). This component's own root
+         `.breadcrumb` deliberately grows to fill its parent (`flex: 1 1 auto`, see this file's own
+         style-block comment below) for the two-line-collapse measuring loop above -- a SIBLING element
+         outside this <nav> would sit after that grown (invisible-padding) box, at the far right of
+         whatever container it shares, not hugging the crumbs at all (the exact bug this slot
+         fixes). Putting the caller's content INSIDE this flex row sidesteps that entirely: it is
+         positioned right after the last real child here, regardless of how much of the row's own
+         width this component's `flex: 1 1 auto` claims. -->
+    <slot name="trailing" />
   </nav>
 </template>
 

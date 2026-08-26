@@ -114,6 +114,7 @@ import { useFilesStore } from '../stores/files'
 import { resolveDollySlots, resolveSlotPose, computeVisibleStripCap, TM_WINDOW_SCALE, type SlotPose } from '../util/timeMachineMath'
 import { playTravelTimeline, poseToGsapVars, dimGsapVars, travelDurationMs, TRAVEL_SAFETY_EXTRA_MS, type TravelTarget } from '../util/timeMachineChoreo'
 import { getSnapshotPreview } from '../util/snapshotPreviewCache'
+import { snapshotBrowsePath } from '../util/snapshotPath'
 import { injectTmStageRoot } from './tmStageRoot'
 import SnapshotPreviewWindow from './SnapshotPreviewWindow.vue'
 
@@ -305,6 +306,45 @@ let travelSafetyTimer: ReturnType<typeof setTimeout> | null = null
 function clearTravelTimers() {
   if (travelTimer !== null) { clearTimeout(travelTimer); travelTimer = null }
   if (travelSafetyTimer !== null) { clearTimeout(travelSafetyTimer); travelSafetyTimer = null }
+  // Fix wave B (B3b): a still-pending waitForFilesLoad() watcher (armed by an EARLIER travel,
+  // superseded before the files-store load it was waiting on ever completed) must stop here too --
+  // clearTravelTimers() already runs on every new armReveal() call and on settle(), the same two
+  // places that already retire the timers above; leaving this watcher running would keep it
+  // observing files.loading/currentPath forever for a travel nothing cares about any more.
+  if (pendingFilesLoadStop) { pendingFilesLoadStop(); pendingFilesLoadStop = null }
+}
+
+// Fix wave B (B3b, owner acceptance 2026-08-26): armReveal's own preview-cache wait (below) says
+// nothing about whether the REAL window's own listing for the target path has actually loaded --
+// only that a `getSnapshotPreview` promise (feeding the DECORATIVE preview layers, not the real
+// window) has settled. The real window's own data comes from `useFilesStore().load()` (see
+// files.ts), triggered fire-and-forget by Files.vue's own `watch(() => [route.params.path, ...])`
+// -- `switchTo`'s own `await navigateReal(...)` (snapshotBrowse.ts) only awaits the ROUTER
+// navigation promise, not that watcher's own async `sync()`/`files.load()` call, so nothing in the
+// chain up to here actually waits for the real listing to be ready. In practice `browse.
+// currentSnapshotName` (this component's own travel-trigger watcher, below) is itself DERIVED from
+// `files.currentPath` (via browseInfo/parsed, snapshotBrowse.ts), which `files.load()` only sets
+// once its own fetch has resolved -- so by construction this condition is normally already true by
+// the time armReveal runs. This waiter makes that invariant EXPLICIT and load-bearing rather than
+// an accidental byproduct of two unrelated computeds happening to chain together (a future refactor
+// of either one could silently break it): the reveal-gate should not just assume the real window's
+// entries are ready, it should check. The extra `nextTick()` once the condition holds gives
+// FileGridView.vue's own entries-watcher (`await nextTick(); measure()`) a render tick to actually
+// lay out the new rows before the real window is allowed to reveal -- the fast path (condition
+// already true) still resolves in well under a frame, so this adds no perceptible delay to the
+// common case. Capped the same way the preview-cache wait already is: armReveal's own safety timer
+// (below) reveals unconditionally regardless of whether this ever resolves.
+let pendingFilesLoadStop: (() => void) | null = null
+function waitForFilesLoad(targetRealPath: string): Promise<void> {
+  return new Promise((resolve) => {
+    const ready = () => !files.loading && files.currentPath === targetRealPath
+    const finish = () => { pendingFilesLoadStop = null; nextTick().then(() => resolve()) }
+    if (ready()) { finish(); return }
+    const stop = watch(() => [files.loading, files.currentPath] as const, () => {
+      if (ready()) { stop(); finish() }
+    })
+    pendingFilesLoadStop = stop
+  })
 }
 
 // The ONE place the reveal actually happens. Guarded by `token`: a reveal armed for an EARLIER
@@ -356,15 +396,22 @@ function armReveal(travel: { from: string, to: string }, steps: number) {
   }, durationMs + TRAVEL_SAFETY_EXTRA_MS)
   travelTimer = setTimeout(() => {
     travelTimer = null
+    // Fix wave B (B3b): reveal now waits for BOTH the preview cache promise (decorative layers)
+    // AND the real window's own files-store load of the target path (waitForFilesLoad, above) --
+    // see that function's own comment for the full rationale. root = snapshotBrowsePath(mount,
+    // name) [+ '/' + relPath] mirrors snapshotBrowse.ts's own switchTo() target-path construction
+    // byte-for-byte (the SAME string files.currentPath lands on once its own load() resolves).
+    const targetRoot = snapshotBrowsePath(mount.value, travel.to)
+    const targetPath = relPath.value ? `${targetRoot}/${relPath.value}` : targetRoot
     // getSnapshotPreview both looks up AND fetches (see this file's own header comment) -- no
     // separate "not cached yet, poll again shortly" loop needed, unlike Vue2's own armReveal.
-    getSnapshotPreview(mount.value, travel.to, relPath.value).then(
+    Promise.all([getSnapshotPreview(mount.value, travel.to, relPath.value), waitForFilesLoad(targetPath)]).then(
       () => settle(token),
       // Deliberately a no-op, not `() => settle(token)` too -- a REJECTED preview fetch does
       // not reveal early on its own; the safety timer above still guarantees "reveal anyway"
       // for it. This handler exists so a rejection never surfaces as an unhandled promise
-      // rejection (getSnapshotPreview's own contract never actually rejects, but this stays
-      // defensive against that contract changing).
+      // rejection (getSnapshotPreview's own contract never actually rejects and waitForFilesLoad
+      // never rejects either, but this stays defensive against either contract changing).
       () => {},
     )
   }, durationMs)
@@ -422,7 +469,12 @@ onUnmounted(() => {
   inset: 0;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--tm-panel-bg-solid);
+  /* Fix wave B (B1, Ruling B-1): was `var(--tm-panel-bg-solid)` (TM chrome's own literal white,
+     same-in-both-themes token) -- this strip hosts a real, full-size clone of the New-UI Files
+     window (SnapshotPreviewWindow.vue), which paints its own text in New-UI's theme tokens. See
+     TimeMachineStage.vue's own `.tm-fwin--active` comment for the full rationale this mirrors:
+     the WINDOW must follow the app's theme, not TM's own fixed-white chrome literal. */
+  background: var(--panel-bg-solid);
   /* Fix wave A2 (audit-stage.md #5): Vue2's own `.tm-stage__depth-strip` box-shadow is a single
      layer (TimeMachineStage.vue:3042) -- `--card-shadow-hi`'s 3-layer shadow (with an inset
      highlight Vue2 never has on this element) was a substitution error, not an approved token

@@ -9,6 +9,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import SnapshotPreviewWindow from './SnapshotPreviewWindow.vue'
 import { dateFmt } from '../util/format'
 import { iconUrl, iconNameFor } from '../util/icons'
@@ -86,6 +89,23 @@ describe('SnapshotPreviewWindow — chrome Row 1: breadcrumb + read-only chip (V
     const w = mountPreview()
     await flushPromises()
     expect(w.find('.tm-preview-window__chip').text()).toBe('快照 · 只读') // snapReadOnlyBanner, zh (global test locale)
+  })
+
+  // Fix wave B (B2, owner acceptance 2026-08-26): the chip used to be a sibling of
+  // `.tm-preview-window__crumbs` inside `.tm-preview-window__chrome`, whose own
+  // `justify-content: space-between` plus the crumbs row's `flex: 1 1 auto` pushed it to the far
+  // right of the chrome row -- Vue2's own `.tm-snap-chip` sits immediately after the breadcrumb in
+  // the SAME flex row. Pinned two ways: DOM order (the chip is now a DESCENDANT of the crumbs
+  // `<nav>`, not a child of `.tm-preview-window__chrome` sitting after it) and CSS (no
+  // `justify-content: space-between` left anywhere between them).
+  it('nests the chip inside the crumbs row, hugging it -- not a sibling pushed to the chrome row\'s far end', async () => {
+    resolved({ entries: [], error: false })
+    const w = mountPreview()
+    await flushPromises()
+    expect(w.find('.tm-preview-window__crumbs .tm-preview-window__chip').exists()).toBe(true)
+    const chrome = w.find('.tm-preview-window__chrome')
+    const directChipChild = chrome.element.querySelector(':scope > .tm-preview-window__chip')
+    expect(directChipChild).toBeNull()
   })
 })
 
@@ -359,5 +379,86 @@ describe('SnapshotPreviewWindow — presentational contract', () => {
     mountPreview({ active: false })
     await flushPromises()
     expect(getSnapshotPreviewMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Fix wave B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): this preview
+// clones the real window's own markup/classes, which paint text in New-UI's theme tokens -- a
+// permanently-white background (TM chrome's own `--tm-panel-bg-solid`) made every label invisible
+// in dark theme. See this file's own header comment (Ruling B-1) for the full rationale. jsdom
+// applies no CSS at all, so the only way to pin this is reading the component's own source text,
+// same technique TimeMachineStepper.test.ts/TimeMachineRail.test.ts already use.
+describe('SnapshotPreviewWindow — content follows the app theme, not TM chrome (fix wave B, B1)', () => {
+  it('.tm-preview-window uses the global, theme-following --panel-bg-solid/--fg, not TM chrome\'s --tm-panel-bg-solid/--tm-text', () => {
+    const src = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SnapshotPreviewWindow.vue'),
+      'utf8',
+    )
+    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const rule = /\.tm-preview-window\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(rule, 'no .tm-preview-window rule found').toBeTruthy()
+    expect(rule![1]).toMatch(/background:\s*var\(--panel-bg-solid\)/)
+    expect(rule![1]).toMatch(/color:\s*var\(--fg\)/)
+    expect(rule![1]).not.toMatch(/--tm-panel-bg-solid/)
+    expect(rule![1]).not.toMatch(/--tm-text/)
+  })
+})
+
+// Fix wave B (B2, owner acceptance 2026-08-26): the chrome row no longer has any
+// `justify-content: space-between`/auto-margin left that could shove the chip to the row's far
+// end -- see the DOM-order test above (chrome Row 1 describe block) for the render-side half of
+// this same fix. jsdom applies no CSS at all, so this half is pinned via source text.
+describe('SnapshotPreviewWindow — chrome row layout no longer flex-pushes the chip (fix wave B, B2)', () => {
+  it('.tm-preview-window__chrome has no justify-content: space-between', () => {
+    const src = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SnapshotPreviewWindow.vue'),
+      'utf8',
+    )
+    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const rule = /\.tm-preview-window__chrome\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(rule, 'no .tm-preview-window__chrome rule found').toBeTruthy()
+    expect(rule![1]).not.toMatch(/justify-content:\s*space-between/)
+  })
+
+  it('the chip carries margin-left: 6px (plus the crumbs row\'s own 4px gap = Vue2\'s exact 10px)', () => {
+    const src = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SnapshotPreviewWindow.vue'),
+      'utf8',
+    )
+    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const rule = /\.tm-preview-window__chip\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(rule, 'no .tm-preview-window__chip rule found').toBeTruthy()
+    expect(rule![1]).toMatch(/margin-left:\s*6px/)
+  })
+})
+
+// Fix wave B (B3a, owner acceptance 2026-08-26): the real window's grid (once Time Machine is
+// active, TimeMachineStage.vue's own fixed/absolute positioning escapes .files-layout's sidebar +
+// AreaShell padding entirely) and this preview's own grid must resolve CSS auto-fill against the
+// SAME available width for their column counts to match -- see this file's own <style>-block
+// comment on `.tm-preview-window__grid` (above `.tm-preview-window__grid` itself) for the full
+// trace. jsdom does no real layout, so this is pinned as a source-text parity check: the real
+// FileGridView.vue's own grid container carries NO padding of its own (confirms the premise), and
+// this preview's grid carries zero HORIZONTAL padding to match (vertical padding is unrelated to
+// column count, kept for breathing room).
+describe('SnapshotPreviewWindow — grid width basis matches the real window (fix wave B, B3a)', () => {
+  it('FileGridView.vue\'s own .file-grid/.file-grid-root declare no padding of their own', () => {
+    const realSrc = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../components/FileGridView.vue'),
+      'utf8',
+    )
+    const realStyle = /<style[^>]*>([\s\S]*?)<\/style>/.exec(realSrc)![1]
+    expect(realStyle).not.toMatch(/\.file-grid(-root)?\s*\{[^}]*padding/)
+  })
+
+  it('.tm-preview-window__grid has zero HORIZONTAL padding, matching the real grid\'s edge-to-edge width', () => {
+    const src = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SnapshotPreviewWindow.vue'),
+      'utf8',
+    )
+    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const rule = /\.tm-preview-window__grid\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(rule, 'no .tm-preview-window__grid rule found').toBeTruthy()
+    expect(rule![1]).toMatch(/padding:\s*12px 0;/)
   })
 })

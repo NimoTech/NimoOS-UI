@@ -4,6 +4,9 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { defineComponent, nextTick } from 'vue'
 import gsap from 'gsap'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import TimeMachineStage from './TimeMachineStage.vue'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
@@ -593,5 +596,29 @@ describe('TimeMachineStage shell', () => {
       await btn.trigger('click')
       expect(w.findComponent(TimeMachineStage).emitted('restore-selection')).toBeUndefined()
     })
+  })
+})
+
+// Fix wave B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): the real
+// window must follow New-UI's OWN theme (dark in dark theme, white in light theme), not TM
+// chrome's fixed-white `--tm-panel-bg-solid` -- see this file's own `.tm-fwin--active` <style>
+// comment (Ruling B-1) for the full rationale. jsdom applies no CSS at all, so the only way to
+// pin this is reading the component's own source text, same technique TimeMachineStepper.test.ts/
+// TimeMachineRail.test.ts already use for their own CSS-literal regression guards.
+describe('TimeMachineStage — real window background follows the app theme (fix wave B, B1)', () => {
+  it('.tm-fwin--active uses the global, theme-following --panel-bg-solid, not TM chrome\'s fixed-white --tm-panel-bg-solid', () => {
+    const src = readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineStage.vue'),
+      'utf8',
+    )
+    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const rule = /\.tm-fwin--active\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(rule, 'no .tm-fwin--active rule found').toBeTruthy()
+    // Strip comments before the "must not use the old token" assertion below -- this test's own
+    // sibling header comment (this file, above) mentions --tm-panel-bg-solid by name to explain
+    // what changed, which would otherwise false-fail a naive substring check.
+    const decls = rule![1].replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(decls).toMatch(/background:\s*var\(--panel-bg-solid\)/)
+    expect(decls).not.toMatch(/--tm-panel-bg-solid/)
   })
 })

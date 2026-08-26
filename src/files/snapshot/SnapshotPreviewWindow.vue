@@ -116,8 +116,22 @@
   `border-radius: 12px` + `box-shadow: var(--card-shadow-hi)` (its own window chrome, unchanged by
   this fix wave), so re-declaring a SECOND radius/border/tint on the content inside it doubled up
   and disagreed with Vue2's own inner `.tm-preview`, which is deliberately unstyled beyond an
-  OPAQUE `background: #fff` (kept here as `var(--tm-panel-bg-solid)`, this app's own equivalent
-  opaque-white token, NOT the translucent `--tm-panel-bg` the previous build used).
+  OPAQUE background (Vue2's own literal `#fff`, a light-only app).
+
+  FIX WAVE B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): the opaque
+  background above was ported as `var(--tm-panel-bg-solid)` -- TM chrome's own token, pinned to
+  the SAME literal `#ffffff` in both New-UI themes (Vue2 parity for the app's decorative shell).
+  This preview clones the REAL window's own markup/classes (see this file's own header comment
+  above), which paint text in New-UI's OWN theme tokens (`--fg` etc, light in dark theme) --
+  stacking that on a permanently-white pane made every cloned label invisible in dark theme.
+  Controller Ruling B-1: the preview's CONTENT is "a real window of this app", not TM chrome, and
+  must follow New-UI's theme like the real Files view does outside Time Machine mode -- `color`
+  below is `--fg` (not `--tm-text`, TM chrome's own fixed dark-ink token) and `background` is the
+  GLOBAL `--panel-bg-solid` (theme.css, dark gradient in dark theme / white in light theme --
+  already the app's existing "must stay opaque regardless of theme" token, see
+  photosGlassSurfaces.test.ts's own consumer whitelist, extended for this fix), NOT `--tm-panel-bg-
+  solid`. Still fully opaque in both themes (so up to ~10 stacked layers each occlude the one
+  behind), just theme-following instead of hardcoded white.
 
   Everything the audit's MATCH list already calls correct is preserved as-is by this rewrite: strip
   chrome (untouched, lives on the ancestor), the "Snapshot · Read-only" chip's literal colors
@@ -166,8 +180,15 @@
             :class="{ 'is-active': idx === crumbSegments.length - 1 }"
           >{{ seg }}</span>
         </template>
+        <!-- Fix wave B (B2, owner acceptance 2026-08-26): the chip used to be a SIBLING of this
+             <nav> inside `.tm-preview-window__chrome`, whose own `justify-content: space-between`
+             plus this nav's `flex: 1 1 auto` pushed it to the far right of the chrome row --
+             Vue2's own `.tm-snap-chip` sits immediately after `<file-breadcrumb>` in the SAME flex
+             row (`margin-left: 10px`), not at the row's far end. Nesting it as the LAST child of
+             THIS row (same flex-wrap row as the crumb segments) hugs it to the crumbs' actual
+             rendered content instead, same fix as the real window's own Breadcrumb.vue slot. -->
+        <span class="tm-preview-window__chip">{{ t('snapReadOnlyBanner') }}</span>
       </nav>
-      <span class="tm-preview-window__chip">{{ t('snapReadOnlyBanner') }}</span>
     </header>
 
     <!-- Row 2: total count (Vue2 parity, gated on totalCount > 0 byte-for-byte) + the real
@@ -348,36 +369,46 @@ const crumbSegments = computed(() => {
 </script>
 
 <style scoped>
-/* No border-radius/border/background-tint of its own -- TimeMachineDepthStack.vue's own
-   `.tm-depth-strip` already carries the window chrome (radius + shadow). `background` stays an
-   OPAQUE solid (Vue2 parity: its own inner `.tm-preview` uses a fully opaque white, not a
-   translucent tint) so up to ~10 stacked layers each fully occlude the one behind them, matching
-   a real window. */
+/* No border-radius/border of its own -- TimeMachineDepthStack.vue's own `.tm-depth-strip` already
+   carries the window chrome (radius + shadow). `background` stays an OPAQUE solid (Vue2 parity:
+   its own inner `.tm-preview` uses a fully opaque background, not a translucent tint) so up to
+   ~10 stacked layers each fully occlude the one behind them, matching a real window -- but per
+   Fix wave B (B1, Ruling B-1, see this file's own header comment), the opaque solid follows
+   New-UI's OWN theme (`--panel-bg-solid`, the global token) rather than TM chrome's fixed-white
+   `--tm-panel-bg-solid`, and text color follows suit (`--fg`, not `--tm-text`) -- this is a real
+   window's content, not TM chrome. */
 .tm-preview-window {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   height: 100%;
   width: 100%;
-  background: var(--tm-panel-bg-solid);
-  color: var(--tm-text);
+  background: var(--panel-bg-solid);
+  color: var(--fg);
 }
 
 /* Hand-copied shape of Files.vue's own `.files-topbar` -- see this file's own header comment for
    why there is no border-bottom (the real topbar has none) and why 12px is the horizontal gutter
-   (FileRow.vue's/FileListView.vue's own literal padding value, reused consistently below). */
+   (FileRow.vue's/FileListView.vue's own literal padding value, reused consistently below).
+   Fix wave B (B2, owner acceptance 2026-08-26): dropped `justify-content: space-between` -- the
+   chip is no longer this row's second child (see the template above, moved inside `.tm-preview-
+   window__crumbs`), so it had nothing left to push apart; a single child growing to fill this row
+   made that dead weight, not neutral. */
 .tm-preview-window__chrome {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 8px 12px 10px;
 }
 
 /* Hand-copied literal values from Breadcrumb.vue's own `.breadcrumb`/`.crumb`/`.crumb-sep`/
    `.crumb.current` (see this file's own header comment for why the live component itself is not
-   reused) -- font-size 14px, the real "›" separator, the real muted/active color split. */
+   reused) -- font-size 14px, the real "›" separator, the real muted/active color split.
+   Fix wave B (B2): now also hosts the read-only chip as its own LAST child (see the template
+   above) -- this row's own `flex: 1 1 auto` only widens ITS box within `.tm-preview-window__chrome`
+   (irrelevant to child placement, since none of its children grow themselves); the chip still
+   lands right after the last crumb, not at this row's far edge. */
 .tm-preview-window__crumbs {
   flex: 1 1 auto;
   min-width: 0;
@@ -412,9 +443,15 @@ const crumbSegments = computed(() => {
 
 /* Byte-identical to Files.vue's own `.tm-real-window-chip` (Vue2's literal `.tm-snap-chip`,
    color-mix off --tm-accent/--tm-accent-hover) -- already correct pre-audit (MATCH list: "chip
-   colors (exact)"), unchanged by this fix wave. */
+   colors (exact)"), colors unchanged by this fix wave.
+   Fix wave B (B2, owner acceptance 2026-08-26): now the last child of `.tm-preview-window__crumbs`
+   (see the template above), which already applies its own `gap: 4px` between every child; adding
+   `margin-left: 6px` on top of that gap lands this chip exactly `4 + 6 = 10px` after the last
+   crumb, matching Vue2's own `.tm-snap-chip { margin-left: 10px }` literal byte-for-byte -- same
+   math as Files.vue's own `.tm-real-window-chip`. */
 .tm-preview-window__chip {
   flex: 0 0 auto;
+  margin-left: 6px;
   padding: 3px 10px;
   border-radius: 980px;
   font-size: 12px;
@@ -540,14 +577,29 @@ const crumbSegments = computed(() => {
 }
 
 /* Hand-copied literal value from FileGridView.vue's own `.file-grid` -- CSS auto-fill handles
-   responsive column count with no JS measurement at all (audit fix target 8). 12px outer gutter
-   matches the rest of this window (see this file's own header comment); the grid's own internal
-   gap (14px) is FileGridView.vue's own literal value. */
+   responsive column count with no JS measurement at all (audit fix target 8); the grid's own
+   internal gap (14px) is FileGridView.vue's own literal value.
+   Fix wave B (B3a, owner acceptance 2026-08-26): horizontal padding dropped to 0 -- controller
+   diagnosis named the real window's sidebar as the width-basis mismatch, but tracing the actual
+   CSS chain (TimeMachineStage.vue's `.tm-fwin--active`/`.tm-stage__hold--active`, both `position:
+   fixed`/`absolute` escaping `.files-layout`'s sidebar+padding entirely while Time Machine is
+   active) shows the real window's OWN grid, once active, is edge-to-edge: `.files-topbar`
+   (`padding: 4px 0 14px`, zero horizontal) down to FileGridView.vue's own `.file-grid-root`/
+   `.file-grid` (NO padding anywhere) -- the real cause was this preview's OWN 12px horizontal
+   container padding, absent from the real chain, shrinking `auto-fill`'s available width by 24px
+   (12px each side) and landing a DIFFERENT column count near breakpoints (audit fix target 8's own
+   "reuse FileGridView's layout mechanism" intent, followed one step further: reuse its geometry
+   too, not just its `auto-fill` MECHANISM). Vertical padding (12px top/bottom) is kept for
+   breathing room from Row 2 above -- column count depends only on the horizontal width auto-fill
+   resolves against, so this does not reopen the mismatch. See
+   .superpowers/sdd/2026-08-25-files-time-machine-vue2-parity/final-fix-report.md ("Fix wave B",
+   B3a) for the full trace and why option (a) (a fake sidebar clone) was rejected: neither Vue2's
+   own authority nor the real New-UI window has a sidebar inside the Time Machine window at all. */
 .tm-preview-window__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 14px;
-  padding: 12px;
+  padding: 12px 0;
   align-content: start;
   overflow: hidden;
 }
