@@ -112,7 +112,11 @@ import gsap from 'gsap'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
 import { resolveDollySlots, resolveSlotPose, computeVisibleStripCap, TM_WINDOW_SCALE, type SlotPose } from '../util/timeMachineMath'
-import { playTravelTimeline, poseToGsapVars, dimGsapVars, travelDurationMs, TRAVEL_SAFETY_EXTRA_MS, type TravelTarget } from '../util/timeMachineChoreo'
+import {
+  playTravelTimeline, poseToGsapVars, dimGsapVars, travelDurationMs, TRAVEL_SAFETY_EXTRA_MS,
+  TRAVEL_FLAT_STEPS, flyThroughPlan, flyThroughDurationMs, TRAVEL_FLY_MAX_INTERMEDIATES, TRAVEL_FLY_LAYER_DURATION_MS,
+  type TravelTarget, type FlyThroughStep,
+} from '../util/timeMachineChoreo'
 import { getSnapshotPreview } from '../util/snapshotPreviewCache'
 import { snapshotBrowsePath } from '../util/snapshotPath'
 import { injectTmStageRoot } from './tmStageRoot'
@@ -261,11 +265,40 @@ let pendingTravel: { from: string, to: string } | null = null
 // where a LATER travel supersedes this one before this deferred callback has even run.
 let travelRunToken = 0
 
+// Fix wave H (Ruling H-1, owner acceptance 2026-08-26): long-jump fly-through. Owner design
+// change overriding Vue2's own "just slide the whole stack, stretched out longer" answer for a
+// jump of many steps -- see timeMachineChoreo.ts's own header comment on `travelDurationMs` for
+// the full ruling, and `flyThroughPlan`'s own comment there for the plan shape this pins. A jump
+// beyond `TRAVEL_FLAT_STEPS` (3) now flies SEQUENTIALLY through a sampled set of the intermediate
+// snapshots (Apple Time Machine's own model) instead of one uniform slide; below is how that plan
+// gets wired into THIS component's own pin/pose/timeline machinery:
+// - `flyThroughPlan(...)`'s own names (intermediates + the target itself) are pinned here, in the
+//   SAME watcher and at the SAME click-time moment `val.from`/`val.to` already are (this function's
+//   own header comment on `pinNames` explains why that timing matters: a name must be pinned
+//   BEFORE the DOM patch that would otherwise exclude it from `dollySlots`, not after). `settle()`'s
+//   own unconditional `pinNames.value = []` (below) already covers unpinning every one of them once
+//   the travel lands -- no separate fly-through-specific unpin path needed (this wave's own
+//   dispatch: "the existing full pin reset covers it").
+// - `runTravel`/`armReveal` (below) each independently recompute the SAME plan (pure, cheap, no
+//   extra state to keep in sync) from `names.value`/the resolved indices -- see `runTravel`'s own
+//   comment for how the plan turns into real per-name delay/preset overrides, and `armReveal`'s own
+//   comment for how `flyThroughDurationMs` replaces `travelDurationMs(steps)` as the reveal-gate's
+//   own timing floor once a plan exists.
+function computeFlyThroughPlan(fromName: string, toName: string): FlyThroughStep[] {
+  const fromIdx = names.value.indexOf(fromName)
+  const toIdx = names.value.indexOf(toName)
+  if (fromIdx < 0 || toIdx < 0) return []
+  const steps = Math.abs(toIdx - fromIdx)
+  if (steps <= TRAVEL_FLAT_STEPS) return [] // unchanged, byte-identical short-travel path
+  return flyThroughPlan(names.value, fromIdx, toIdx, { maxIntermediates: TRAVEL_FLY_MAX_INTERMEDIATES })
+}
+
 watch(
   () => browse.tmTravel,
   (val) => {
     if (!val || !val.from || !val.to) return
-    pinNames.value = Array.from(new Set([...pinNames.value, val.from, val.to]))
+    const flyNames = computeFlyThroughPlan(val.from, val.to).map((step) => step.name)
+    pinNames.value = Array.from(new Set([...pinNames.value, val.from, val.to, ...flyNames]))
     pendingTravel = { from: val.from, to: val.to }
   },
 )
@@ -279,6 +312,13 @@ watch(
     const fromIdx = names.value.indexOf(travel.from)
     const toIdx = names.value.indexOf(travel.to)
     const steps = fromIdx >= 0 && toIdx >= 0 ? Math.abs(toIdx - fromIdx) || 1 : 1
+    // Fix wave H (Ruling H-1): recomputed here (same pure inputs as the `tmTravel` watcher's own
+    // call, above) rather than threaded through as extra mutable state -- see that watcher's own
+    // comment for why recomputing is safe/cheap. `durationMs` feeds BOTH `runTravel` (the GSAP
+    // side) and `armReveal` (the reveal-gate) from this ONE shared value, so the two can never
+    // disagree the way a `steps`-vs-recomputed-duration split could.
+    const plan = computeFlyThroughPlan(travel.from, travel.to)
+    const durationMs = plan.length ? flyThroughDurationMs(plan) : travelDurationMs(steps)
     const myToken = ++travelRunToken
     // $nextTick equivalent (Vue2's own playDollyTravel): a name that is entering `dollySlots` for
     // the FIRST time on this exact render (a pinned endpoint that was not already part of the
@@ -288,13 +328,60 @@ watch(
     // own comment above) rather than synchronously alongside it.
     nextTick(() => {
       if (myToken !== travelRunToken) return
-      runTravel(steps, travel)
-      armReveal(travel, steps)
+      runTravel(steps, travel, plan, fromIdx, toIdx)
+      armReveal(travel, durationMs)
     })
   },
 )
 
-function runTravel(steps: number, travel: { from: string, to: string }) {
+// Fix wave H (Ruling H-1): builds the per-name `delayOverridesMs`/`presetPoses` a non-empty `plan`
+// needs -- see `playTravelTimeline`'s own comment (timeMachineChoreo.ts) for what each one does
+// mechanically. Every plan member (intermediates AND the target) gets its own launch delay
+// (`step.launchDelayMs`, the plan's own sequential cadence, overriding the default position-based
+// stagger). Only INTERMEDIATES get a preset pose -- the target's own tween already starts from
+// wherever it was last pinned/rendered and arrives at the identity (depth 0) pose, the same
+// "arrival" motion every ordinary travel already has, no override needed:
+// - BACKWARD (`toIdx > fromIdx`, going deeper/older): an intermediate's OWN `target.pose` (from
+//   `dollySlots.value`, unmodified) is ALREADY the correct exit pose -- once `currentSnapshotName`
+//   has landed on `to` (true by the time this runs), every intermediate's depth relative to the
+//   NEW current is negative (it is chronologically BEFORE the new selection), and `resolveSlotPose`
+//   already collapses every depth <= -1 to the exit pose. What is NOT already correct is the
+//   tween's own STARTING point: this intermediate was just newly pinned, so its `v-tm-pose`
+//   `mounted` hook already `gsap.set()` it to that SAME (already-arrived) exit pose the instant it
+//   was inserted -- a direct tween from there to `target.pose` would be a no-op, no visible motion
+//   at all. The preset fixes the START, not the destination: its OWN pose relative to the OLD
+//   `fromIdx` (a normal, positive-depth receding pose -- where it "actually" was, position-wise,
+//   before this jump), so the tween now visibly travels from there to the exit pose -- "flies past
+//   the camera".
+// - FORWARD (`toIdx < fromIdx`, going shallower/more recent): the mirror image. An intermediate's
+//   own `target.pose` (relative to the NEW current) is a normal, positive-depth RECEDING pose (not
+//   an exit pose -- these intermediates end up chronologically AFTER the new selection) -- already
+//   the correct "where it settles" destination, including the natural "later-launched ones (closer
+//   to the target) land at a SMALLER depth than earlier-launched ones" ordering that alone produces
+//   the dispatch's own "push back to depth 1, 2… as the next arrives" visual, with no extra
+//   per-intermediate depth bookkeeping needed. What is missing is the START: without a preset, the
+//   tween would start from that SAME natural resting pose (again a near no-op). The preset here is
+//   the exit pose -- "arrives already at the camera, then glides to its natural resting spot".
+function buildFlyThroughOverrides(plan: FlyThroughStep[], fromIdx: number, toIdx: number): { delayOverridesMs: Record<string, number>, presetPoses: Record<string, SlotPose> } {
+  const delayOverridesMs: Record<string, number> = {}
+  const presetPoses: Record<string, SlotPose> = {}
+  const forward = toIdx < fromIdx
+  const exitPose = resolveSlotPose(-1, stageHeight.value)
+  for (const step of plan) {
+    delayOverridesMs[step.name] = step.launchDelayMs
+    if (step.role !== 'intermediate') continue
+    if (forward) {
+      presetPoses[step.name] = exitPose
+    }
+    else {
+      const idx = names.value.indexOf(step.name)
+      presetPoses[step.name] = idx >= 0 ? resolveSlotPose(idx - fromIdx, stageHeight.value) : exitPose
+    }
+  }
+  return { delayOverridesMs, presetPoses }
+}
+
+function runTravel(steps: number, travel: { from: string, to: string }, plan: FlyThroughStep[], fromIdx: number, toIdx: number) {
   // A strip with no mounted ref (defensive only -- every name in `dollySlots` should have one by
   // the time this runs, per this function's own $nextTick-deferred call site above) is dropped
   // before the cast: `stripRefs`/`dimRefs` store `HTMLElement | undefined`, narrower than
@@ -302,7 +389,7 @@ function runTravel(steps: number, travel: { from: string, to: string }) {
   // predicate for `.filter()` here -- the cast is safe precisely because the filter already
   // guarantees `el` is non-null for every surviving entry.
   const targets = dollySlots.value
-    .map((slot) => ({ el: stripRefs.get(slot.name) ?? null, dimEl: dimRefs.get(slot.name) ?? null, pose: slot.pose }))
+    .map((slot) => ({ el: stripRefs.get(slot.name) ?? null, dimEl: dimRefs.get(slot.name) ?? null, pose: slot.pose, name: slot.name }))
     .filter((target) => target.el !== null) as TravelTarget[]
   if (travelTimeline) {
     travelTimeline.kill()
@@ -312,7 +399,16 @@ function runTravel(steps: number, travel: { from: string, to: string }) {
   // completion no longer drives anything observable (not the real window's reveal, not pin
   // clearing). See this file's own header comment for why that gate is a SEPARATE, plain-timer
   // mechanism (`armReveal`/`settle` below) rather than hooked to this timeline.
-  const build = () => playTravelTimeline(targets, { steps })
+  // Fix wave H (Ruling H-1): a non-empty `plan` (steps > TRAVEL_FLAT_STEPS) switches this call to
+  // fly-through mode -- see `buildFlyThroughOverrides`' own comment for the full backward/forward
+  // derivation. An EMPTY plan (steps <= TRAVEL_FLAT_STEPS, this wave's own explicit "unchanged"
+  // contract) passes none of these three options, reproducing the exact prior call byte-for-byte.
+  const build = plan.length
+    ? () => {
+        const { delayOverridesMs, presetPoses } = buildFlyThroughOverrides(plan, fromIdx, toIdx)
+        return playTravelTimeline(targets, { steps, delayOverridesMs, presetPoses, durationMsOverride: TRAVEL_FLY_LAYER_DURATION_MS })
+      }
+    : () => playTravelTimeline(targets, { steps })
   travelTimeline = gsapCtx.add(build)
 }
 
@@ -403,17 +499,20 @@ function settle(token: number) {
 }
 
 // Arms the reveal for `travel`, bumping `travelToken` so any STILL-pending earlier reveal becomes
-// a no-op once its own timer/promise eventually fires. `durationMs` is the SAME
-// `travelDurationMs(steps)` the GSAP timeline itself uses (`runTravel`, above) -- deliberately NOT
-// collapsed under `prefers-reduced-motion` (Vue2's own explicit choice, ported: "the readiness
-// gate is unaffected... never whether the real window waits for the target's own preview to be
-// ready" -- only the depth-stack's own visual motion degrades under reduced motion, not this
-// timing floor).
-function armReveal(travel: { from: string, to: string }, steps: number) {
+// a no-op once its own timer/promise eventually fires. `durationMs` is computed ONCE by the
+// `currentSnapshotName` watcher (above) and passed to BOTH this function and `runTravel` -- the
+// SAME `travelDurationMs(steps)` the GSAP timeline itself uses for an ordinary (<= TRAVEL_FLAT_STEPS)
+// travel, or `flyThroughDurationMs(plan)` (Fix wave H, Ruling H-1) for a long-jump fly-through, so
+// the reveal-gate's own timing floor can never disagree with what the timeline is actually doing --
+// see that watcher's own comment for why a single shared value (not two independent computations)
+// is what makes that guarantee real. Deliberately NOT collapsed under `prefers-reduced-motion`
+// (Vue2's own explicit choice, ported: "the readiness gate is unaffected... never whether the real
+// window waits for the target's own preview to be ready" -- only the depth-stack's own visual
+// motion degrades under reduced motion, not this timing floor).
+function armReveal(travel: { from: string, to: string }, durationMs: number) {
   travelToken += 1
   const token = travelToken
   clearTravelTimers()
-  const durationMs = travelDurationMs(steps)
   // Safety ceiling: reveals unconditionally once durationMs + TRAVEL_SAFETY_EXTRA_MS has passed,
   // regardless of whether the target's own preview promise ever appears, settles, or rejects.
   travelSafetyTimer = setTimeout(() => {

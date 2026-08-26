@@ -122,6 +122,23 @@ export const EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS = 6000
  * N <= TRAVEL_FLAT_STEPS) is exactly TRAVEL_BASE_DURATION_MS; beyond that it
  * grows asymptotically (1 - exp(-(n - flat) / growth)) toward
  * TRAVEL_MAX_DURATION_MS, ease-out, never exceeding it.
+ *
+ * Ruling H-1 (owner acceptance 2026-08-26, fly-through redesign for long jumps): this growth
+ * curve was Vue2's OWN answer to "a jump of many steps": stretch the SAME single stack-slide
+ * tween out longer, up to a 900ms ceiling, so a 200-step jump did not visually snap in 420ms flat.
+ * The owner judged that unreasonable on its own terms -- a long jump sliding the whole stack in
+ * one smooth motion reads as "the view got dragged," not "time is passing" -- and ruled that any
+ * jump beyond `TRAVEL_FLAT_STEPS` must instead become a sequential FLY-THROUGH of the intermediate
+ * snapshots (Apple Time Machine's own "fly past the camera one after another" model), overriding
+ * Vue2's design here the same way Ruling E-1'/F'-1/G-1 already override it elsewhere in this line.
+ * `flyThroughPlan`/`flyThroughDurationMs` (below) are the new entry points a `steps >
+ * TRAVEL_FLAT_STEPS` travel actually uses now (TimeMachineDepthStack.vue's own `runTravel`/
+ * `armReveal`) -- this function's own growth branch (`n > TRAVEL_FLAT_STEPS`) is UNREACHABLE from
+ * that real call site any more (a long jump never reaches `travelDurationMs` with `steps > 3`), but
+ * is deliberately NOT deleted: it stays correct, still directly tested (this module's own test
+ * file), and remains the exact duration every INDIVIDUAL leg of a `<= TRAVEL_FLAT_STEPS` travel
+ * still uses (that path is completely unchanged by this wave -- see `flyThroughPlan`'s own header
+ * comment for the explicit "byte-identical for short travel" contract).
  */
 export function travelDurationMs(steps: number): number {
   const n = Math.max(1, Math.abs(Number(steps)) || 1)
@@ -138,6 +155,132 @@ export function travelDurationMs(steps: number): number {
 export function travelStaggerMs(layerIndex: number): number {
   const n = Math.max(0, Number(layerIndex) || 0)
   return Math.min(TRAVEL_STAGGER_CAP_MS, n * TRAVEL_STAGGER_STEP_MS)
+}
+
+// --- Fix wave H (Ruling H-1, owner acceptance 2026-08-26): long-jump fly-through ----------------
+// Apple Time Machine's own model for a jump of many steps: each snapshot BETWEEN the departure and
+// the target flies past the camera one after another (chronological order), instead of one uniform
+// stack-slide. See `travelDurationMs`'s own comment (above) for the full ruling this overrides
+// Vue2's growth-curve design with, and TimeMachineDepthStack.vue's own header comment for how the
+// depth-stack component actually wires this plan into real DOM/GSAP execution (this module stays
+// pose-agnostic -- "what pose" is still entirely `resolveSlotPose`'s own job, timeMachineMath.ts;
+// this section only adds the orthogonal "which names, in what order, launched when" plan, matching
+// this module's own existing "duration/stagger, not pose" scope).
+
+/** Per-layer launch cadence (ms) between two consecutive fly-through launches -- within the
+ * dispatch's own 50-80ms range, tuned toward the brisk end (Apple's own fly-through reads as
+ * quick, not leisurely) while still leaving each layer visually distinct, not a blur. */
+export const TRAVEL_FLY_CADENCE_MS = 65
+/** How long each individual fly-through leg (one intermediate's own launch-to-landing tween, or
+ * the target's own final arrival tween) takes -- the dispatch's own "visible ~300ms" per-layer
+ * hint, also reused as the WHOLE sequence's floor when there are zero intermediates (a >3-step
+ * jump with every intermediate sampled away still needs to reach the target in a real duration,
+ * not instantly). */
+export const TRAVEL_FLY_LAYER_DURATION_MS = 300
+/** Hard ceiling on a fly-through's own TOTAL duration (last launch + its own layer duration),
+ * however many steps the jump spans or however many intermediates get sampled in -- a jump across
+ * an entire multi-thousand-snapshot history must still resolve in a bounded, Apple-quick beat, not
+ * stretch out proportionally to distance the way Vue2's own retired growth curve did. */
+export const TRAVEL_FLY_MAX_DURATION_MS = 1400
+/** Default cap on how many intermediates a fly-through ever mounts as real depth-stack strips --
+ * "a 200-step jump must not mount 200 strips" (this wave's own dispatch, verbatim). Sampled evenly
+ * across the full gap when the real intermediate count exceeds this (see `flyThroughPlan`'s own
+ * comment on `sampleEvenly`), never a hard cutoff at one end. */
+export const TRAVEL_FLY_MAX_INTERMEDIATES = 10
+
+export interface FlyThroughStep {
+  /** The snapshot's own stable name -- what TimeMachineDepthStack.vue pins/looks up strips by. */
+  name: string
+  /** When (ms after the fly-through starts) this layer's own launch tween should begin. Strictly
+   *  non-decreasing across the returned array (monotonic) -- the LAST entry (always `role:
+   *  'target'`) carries the largest delay, arriving last, "decelerates into depth 0 last" (this
+   *  wave's own dispatch). */
+  launchDelayMs: number
+  /** `'intermediate'`: one of the sampled snapshots flying past on the way to the target.
+   *  `'target'`: the travel's own destination, always the LAST (and only 'target') entry. */
+  role: 'intermediate' | 'target'
+}
+
+// Picks up to `max` items from `items` (already ordered), spread as evenly as possible across the
+// full span -- never clustering every sample at one end. `items.length <= max` returns every item
+// unchanged (nothing to sample away). Rounding can occasionally collide two adjacent picks onto the
+// same source index for a `max` close to `items.length`; de-duplicated (order-preserving) rather
+// than padded back out to exactly `max` -- `flyThroughPlan`'s own `maxIntermediates` is a CAP, not
+// a quota, so landing a couple short of it on a rounding coincidence is harmless.
+function sampleEvenly<T>(items: T[], max: number): T[] {
+  if (items.length <= max) return items
+  if (max <= 0) return []
+  if (max === 1) return [items[Math.floor((items.length - 1) / 2)]]
+  const picked: T[] = []
+  const seen = new Set<number>()
+  for (let i = 0; i < max; i++) {
+    const idx = Math.round((i * (items.length - 1)) / (max - 1))
+    if (seen.has(idx)) continue
+    seen.add(idx)
+    picked.push(items[idx])
+  }
+  return picked
+}
+
+/**
+ * Builds the ordered fly-through launch sequence for a long jump from `names[fromIndex]` to
+ * `names[toIndex]` (both index into the SAME newest-first `names` list `resolveDollySlots` already
+ * uses) -- every snapshot strictly BETWEEN the two, in chronological travel order (the order they
+ * are encountered walking from `fromIndex` toward `toIndex`), evenly sampled down to at most
+ * `opts.maxIntermediates` (default `TRAVEL_FLY_MAX_INTERMEDIATES`) when the real gap is larger,
+ * each assigned a launch delay `TRAVEL_FLY_CADENCE_MS` apart -- plus one final `role: 'target'`
+ * entry, one cadence step past the last intermediate (or at delay 0 if there are none), always the
+ * LAST array element.
+ *
+ * Pure and direction-agnostic in its OWN output shape: whether `toIndex > fromIndex` ("going back
+ * in time", index growing -- older) or `toIndex < fromIndex` ("going forward in time", index
+ * shrinking -- more recent), the plan is the SAME kind of "who launches when" list; the visual
+ * DIRECTION of each launch (exit trajectory vs. entry trajectory) is a POSE concern, entirely owned
+ * by the caller (TimeMachineDepthStack.vue, via `resolveSlotPose`) -- this function only ever
+ * returns names/timing/role, never a pose.
+ *
+ * Defensive/degenerate inputs (out-of-range or equal `fromIndex`/`toIndex`, a non-array `names`)
+ * return `[]` -- the caller's own `steps > TRAVEL_FLAT_STEPS` gate is what decides whether this
+ * function is even called; a `steps <= TRAVEL_FLAT_STEPS` (or otherwise degenerate) travel never
+ * reaches it, keeping that whole path byte-identical to before this wave (regression contract this
+ * module's own test file pins directly).
+ */
+export function flyThroughPlan(
+  names: string[],
+  fromIndex: number,
+  toIndex: number,
+  opts: { maxIntermediates?: number } = {},
+): FlyThroughStep[] {
+  if (!Array.isArray(names) || !Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) return []
+  if (fromIndex < 0 || fromIndex >= names.length || toIndex < 0 || toIndex >= names.length) return []
+  if (fromIndex === toIndex) return []
+  const maxIntermediates = Math.max(0, opts.maxIntermediates ?? TRAVEL_FLY_MAX_INTERMEDIATES)
+  const dir = toIndex > fromIndex ? 1 : -1
+  const between: number[] = []
+  for (let i = fromIndex + dir; i !== toIndex; i += dir) between.push(i)
+
+  const sampled = sampleEvenly(between, maxIntermediates)
+  const steps: FlyThroughStep[] = sampled.map((idx, i) => ({
+    name: names[idx],
+    launchDelayMs: i * TRAVEL_FLY_CADENCE_MS,
+    role: 'intermediate' as const,
+  }))
+  const targetDelay = steps.length ? steps[steps.length - 1].launchDelayMs + TRAVEL_FLY_CADENCE_MS : 0
+  steps.push({ name: names[toIndex], launchDelayMs: targetDelay, role: 'target' })
+  return steps
+}
+
+/**
+ * A `flyThroughPlan`'s own total duration (ms): the LAST entry's launch delay (always the target's
+ * own, `TRAVEL_FLY_CADENCE_MS * (K - 1)` for a `K`-entry plan) plus one final layer's own settle
+ * duration, capped at `TRAVEL_FLY_MAX_DURATION_MS` regardless of how large the jump or how many
+ * intermediates were sampled in. `0` for an empty plan (nothing to animate -- the caller's own
+ * `steps <= TRAVEL_FLAT_STEPS` short-circuit never produces one in practice).
+ */
+export function flyThroughDurationMs(plan: FlyThroughStep[]): number {
+  if (!plan || plan.length === 0) return 0
+  const last = plan[plan.length - 1]
+  return Math.min(TRAVEL_FLY_MAX_DURATION_MS, last.launchDelayMs + TRAVEL_FLY_LAYER_DURATION_MS)
 }
 
 /** True when the user's OS/browser requests reduced motion (or matchMedia is unavailable -- defensively false). */
@@ -177,6 +320,12 @@ export interface TravelTarget {
   /** The layer's own dim overlay element (opacity tween target), if the caller renders one. */
   dimEl?: Element | null
   pose: SlotPose
+  /** Fix wave H (Ruling H-1): this layer's own stable snapshot name -- OPTIONAL, only read when
+   *  the caller also supplies `opts.delayOverridesMs`/`opts.presetPoses` (fly-through mode) to
+   *  look either up by name. A caller outside fly-through mode (every pre-wave-H call site) never
+   *  sets this and nothing changes for it -- see this function's own comment below for the exact
+   *  "byte-identical when neither option is passed" contract. */
+  name?: string
 }
 
 /**
@@ -192,30 +341,69 @@ export interface TravelTarget {
  * failed to kill first -- see the gsap skill's own "interrupt and redirect"
  * note; the stage component itself is still responsible for killing the
  * PREVIOUS travel's timeline before calling this again).
+ *
+ * Fix wave H (Ruling H-1) additions, all OPTIONAL and additive -- omitting them (every call site
+ * this module had before this wave) reproduces the EXACT prior behavior byte-for-byte, the
+ * regression contract this module's own test file pins directly:
+ * - `opts.delayOverridesMs`: per-NAME start delay (ms), overriding the default position-based
+ *   `travelStaggerMs` for any target whose `name` has an entry here -- the fly-through's own real
+ *   sequential cadence (`flyThroughPlan`) instead of the tight, position-only stagger a normal
+ *   travel uses.
+ * - `opts.presetPoses`: per-NAME pose applied via an IMMEDIATE `gsap.set` the moment this function
+ *   runs -- same timing as the existing unconditional z-index `gsap.set` below, NOT scheduled
+ *   inside the timeline at that target's own delay. This is deliberate, not an approximation: a
+ *   newly-pinned fly-through intermediate has ALREADY been `gsap.set()` to its own natural resting
+ *   pose by its `v-tm-pose` directive's `mounted` hook (TimeMachineDepthStack.vue) by the time this
+ *   function runs -- an immediate preset overrides that BEFORE this target's own tween (below)
+ *   captures its start value, so the tween animates FROM the preset (e.g. the exit pose, "arrives
+ *   already at the camera") rather than from its natural mount pose (which would make the tween a
+ *   near no-op for a forward-direction intermediate, since that natural pose is often already close
+ *   to where it needs to end up). The preset itself is invisible regardless of exactly when it
+ *   fires (it targets an off-screen/at-the-edge pose) -- what the viewer actually sees, the tween's
+ *   own VISIBLE motion, still only starts at this target's own `delaySec`, same as every other
+ *   target. See TimeMachineDepthStack.vue's own comment on building these for the full
+ *   backward/forward derivation -- this function itself stays pose-agnostic, just applies whatever
+ *   it is handed.
+ * - `opts.durationMsOverride`: bypasses `travelDurationMs(opts.steps)` entirely when present --
+ *   the fly-through's own individual leg duration (`TRAVEL_FLY_LAYER_DURATION_MS`) is a FLAT,
+ *   distance-independent number, not the old growth-curve value `opts.steps` would otherwise
+ *   produce for a long jump.
  */
 export function playTravelTimeline(
   targets: TravelTarget[],
-  opts: { steps: number, onComplete?: () => void },
+  opts: {
+    steps: number
+    onComplete?: () => void
+    delayOverridesMs?: Record<string, number>
+    presetPoses?: Record<string, SlotPose>
+    durationMsOverride?: number
+  },
 ): gsap.core.Timeline {
   registerTmEase()
   const reduced = prefersReducedMotion()
   const list = (targets || []).filter(target => target && target.pose && (target.el || target.dimEl))
-  const durationMs = reduced ? 0 : travelDurationMs(opts?.steps)
+  const durationMs = reduced ? 0 : (opts?.durationMsOverride ?? travelDurationMs(opts?.steps))
   const durationSec = durationMs / 1000
   const total = list.length
 
   const tl = gsap.timeline({ onComplete: opts?.onComplete })
 
   list.forEach((target, i) => {
-    const delaySec = reduced ? 0 : travelStaggerMs(total - 1 - i) / 1000
+    const overrideMs = target.name ? opts?.delayOverridesMs?.[target.name] : undefined
+    const delaySec = reduced ? 0 : (overrideMs !== undefined ? overrideMs / 1000 : travelStaggerMs(total - 1 - i) / 1000)
     const shared = { duration: durationSec, ease: TM_TRAVEL_EASE, overwrite: 'auto' as const }
+    const preset = !reduced && target.name ? opts?.presetPoses?.[target.name] : undefined
     if (target.el) {
       // Stacking is discrete, not a tween-able quantity -- applied instantly,
       // independent of the shared timeline's own duration/stagger.
       gsap.set(target.el, { zIndex: target.pose.z })
+      // Fix wave H: an IMMEDIATE preset (not scheduled inside the timeline) -- see this function's
+      // own comment on opts.presetPoses for why "immediate" is the correct timing, not "at delaySec".
+      if (preset) gsap.set(target.el, poseToGsapVars(preset))
       tl.to(target.el, { ...poseToGsapVars(target.pose), ...shared }, delaySec)
     }
     if (target.dimEl) {
+      if (preset) gsap.set(target.dimEl, dimGsapVars(preset))
       tl.to(target.dimEl, { ...dimGsapVars(target.pose), ...shared }, delaySec)
     }
   })

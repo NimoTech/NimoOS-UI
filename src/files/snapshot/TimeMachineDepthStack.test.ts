@@ -179,6 +179,273 @@ describe('TimeMachineDepthStack — travel playback (mocked choreography, real g
     expect(targetNames).toEqual(expect.arrayContaining(['s1', 's4']))
   })
 
+  // Fix wave H (Ruling H-1, owner acceptance 2026-08-26): explicit regression pin -- a travel at or
+  // under TRAVEL_FLAT_STEPS (3) must call playTravelTimeline EXACTLY the way it always did, with
+  // none of this wave's own new options populated. The test above already proves this indirectly
+  // (unchanged since before this wave, still green); this one asserts it directly so a future
+  // change to the fly-through gating cannot silently start passing these for a short travel too.
+  it('(fix wave H regression) a <= TRAVEL_FLAT_STEPS travel passes NO delayOverridesMs/presetPoses/durationMsOverride -- byte-identical to pre-wave-H', async () => {
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's0')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: 's0', to: 's3' } // exactly TRAVEL_FLAT_STEPS
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s3`
+    browse.tmTravel = null
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    const opts = spy.mock.calls[0][1]
+    expect(opts.steps).toBe(3)
+    expect(opts.delayOverridesMs).toBeUndefined()
+    expect(opts.presetPoses).toBeUndefined()
+    expect(opts.durationMsOverride).toBeUndefined()
+  })
+})
+
+// Fix wave H (Ruling H-1, owner acceptance 2026-08-26): the long-jump fly-through's own wiring --
+// see TimeMachineDepthStack.vue's own header comment on the `tmTravel` watcher (pin timing) and
+// `buildFlyThroughOverrides` (delay/preset derivation) for the full mechanism this exercises.
+// timeMachineChoreo.test.ts covers flyThroughPlan/flyThroughDurationMs as PURE functions
+// exhaustively -- not re-proven here; this suite is scoped to "does the component actually wire a
+// plan into real strips/pins/GSAP calls/the reveal-gate correctly."
+describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ruling H-1)', () => {
+  it('mounts (pins) every sampled intermediate from the plan as a real depth-stack strip, not just the two endpoints', async () => {
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
+    const { browse, files } = await setup(names, 's0')
+    const w = mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    const expectedPlan = choreo.flyThroughPlan(names, 0, 20, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    expect(expectedPlan.length).toBeGreaterThan(1) // sanity: a real plan with intermediates
+
+    browse.tmTravel = { from: 's0', to: 's20' } // 20 steps, well past TRAVEL_FLAT_STEPS
+    await nextTick()
+    for (const step of expectedPlan) {
+      expect(w.find(`[data-snapshot="${step.name}"]`).exists(), `${step.name} (${step.role}) should be pinned/rendered`).toBe(true)
+    }
+  })
+
+  it('a >TRAVEL_FLAT_STEPS travel calls playTravelTimeline with delayOverridesMs (per-name sequential cadence) and durationMsOverride (flat per-layer duration, not the growth curve)', async () => {
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's0')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: 's0', to: 's20' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s20`
+    browse.tmTravel = null
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    const opts = spy.mock.calls[0][1]
+    expect(opts.steps).toBe(20)
+    expect(opts.durationMsOverride).toBe(choreo.TRAVEL_FLY_LAYER_DURATION_MS)
+    expect(opts.delayOverridesMs).toBeDefined()
+    const expectedPlan = choreo.flyThroughPlan(names, 0, 20, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    // Every plan member (intermediates + target) has its own delay override, monotonically
+    // matching the plan's own launchDelayMs values.
+    for (const step of expectedPlan) {
+      expect(opts.delayOverridesMs![step.name]).toBe(step.launchDelayMs)
+    }
+    // The target itself (s20) is the LAST to launch -- the largest delay of the whole set.
+    const target = expectedPlan[expectedPlan.length - 1]
+    expect(target.role).toBe('target')
+    expect(Math.max(...Object.values(opts.delayOverridesMs!))).toBe(target.launchDelayMs)
+  })
+
+  it('BACKWARD (older target): every intermediate gets a preset pose, and they are NOT all identical (each one\'s own real pre-travel position)', async () => {
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's0')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: 's0', to: 's20' } // backward: toIdx(20) > fromIdx(0)
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s20`
+    browse.tmTravel = null
+    await flushPromises()
+
+    const opts = spy.mock.calls[0][1]
+    const expectedPlan = choreo.flyThroughPlan(names, 0, 20, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    const intermediates = expectedPlan.filter((s) => s.role === 'intermediate')
+    expect(intermediates.length).toBeGreaterThan(1)
+    for (const step of intermediates) expect(opts.presetPoses![step.name]).toBeDefined()
+    // Different intermediates sit at different original depths relative to s0 -- their own preset
+    // Y offsets must differ (not every intermediate collapsed onto one shared pose).
+    const ys = intermediates.map((s) => opts.presetPoses![s.name].y)
+    expect(new Set(ys).size).toBeGreaterThan(1)
+    // The target itself gets no preset -- its own natural arrival tween is unmodified.
+    expect(opts.presetPoses![expectedPlan[expectedPlan.length - 1].name]).toBeUndefined()
+  })
+
+  it('FORWARD (more-recent target): every intermediate\'s preset is the SAME exit pose (arriving from the camera)', async () => {
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's20')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: 's20', to: 's0' } // forward: toIdx(0) < fromIdx(20)
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s0`
+    browse.tmTravel = null
+    await flushPromises()
+
+    const opts = spy.mock.calls[0][1]
+    const expectedPlan = choreo.flyThroughPlan(names, 20, 0, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    const intermediates = expectedPlan.filter((s) => s.role === 'intermediate')
+    expect(intermediates.length).toBeGreaterThan(1)
+    const presets = intermediates.map((s) => opts.presetPoses![s.name])
+    // Every forward intermediate's preset is the identical exit pose -- same y/scale for all.
+    for (const p of presets) {
+      expect(p.y).toBeCloseTo(presets[0].y)
+      expect(p.scaleX).toBeCloseTo(presets[0].scaleX)
+    }
+    expect(presets[0].scaleX).toBeGreaterThan(1) // the exit pose's own uniform grow (EXIT_SCALE, timeMachineMath.ts)
+  })
+
+  it('≤3-step and >3-step gating is exact: a 4-step travel already produces a non-empty plan', async () => {
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const names = Array.from({ length: 10 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's0')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: 's0', to: 's4' } // TRAVEL_FLAT_STEPS + 1
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s4`
+    browse.tmTravel = null
+    await flushPromises()
+
+    const opts = spy.mock.calls[0][1]
+    expect(opts.durationMsOverride).toBe(choreo.TRAVEL_FLY_LAYER_DURATION_MS)
+    expect(Object.keys(opts.delayOverridesMs ?? {})).toHaveLength(4) // 3 intermediates + target
+  })
+})
+
+describe('TimeMachineDepthStack — long-jump fly-through: reveal-gate uses the PLAN\'s own total duration (Fix wave H, Ruling H-1)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('does not settle before the plan\'s own total duration elapses, even though that is LONGER than travelDurationMs(steps) would have been', async () => {
+    let resolvePreview: (() => void) | undefined
+    getSnapshotPreviewMock.mockImplementation(
+      () => new Promise<SnapshotPreviewEntry>((resolve) => { resolvePreview = () => resolve({ entries: [], error: false }) }),
+    )
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's0')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    browse.tmTravel = { from: 's0', to: 's20' } // 20 steps -- fly-through
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s20`
+    browse.tmTravel = null
+    await nextTick()
+
+    const plan = choreo.flyThroughPlan(names, 0, 20, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    const planDurationMs = choreo.flyThroughDurationMs(plan)
+    const oldStyleDurationMs = choreo.travelDurationMs(20) // what it WOULD have been pre-wave-H
+    expect(planDurationMs).toBeGreaterThan(oldStyleDurationMs) // sanity: the fly-through genuinely takes longer
+
+    // Advance PAST where the old (pre-wave-H) duration would have fired, but still short of the
+    // plan's own real total -- must NOT have settled yet (proves the gate is using the plan's own
+    // duration, not the old growth-curve one).
+    await vi.advanceTimersByTimeAsync(oldStyleDurationMs + 50)
+    expect(settleSpy).not.toHaveBeenCalled()
+
+    // Now advance the rest of the way past the plan's own real total duration.
+    await vi.advanceTimersByTimeAsync(planDurationMs - oldStyleDurationMs + 10)
+    resolvePreview?.()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('the safety ceiling is planDurationMs + TRAVEL_SAFETY_EXTRA_MS -- reveals regardless if the preview never settles', async () => {
+    getSnapshotPreviewMock.mockReturnValue(new Promise(() => {})) // never settles
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's0')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    browse.tmTravel = { from: 's0', to: 's20' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s20`
+    browse.tmTravel = null
+    await nextTick()
+
+    const plan = choreo.flyThroughPlan(names, 0, 20, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    const planDurationMs = choreo.flyThroughDurationMs(plan)
+
+    await vi.advanceTimersByTimeAsync(planDurationMs + 50)
+    expect(settleSpy).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(choreo.TRAVEL_SAFETY_EXTRA_MS)
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('TimeMachineDepthStack — long-jump fly-through: superseding kills cleanly (Fix wave H, Ruling H-1)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('a fly-through superseded by a SECOND travel before it settles: timeline killed, sampled intermediates unpinned, settles exactly once', async () => {
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
+    const { browse, files } = await setup(names, 's0')
+    const w = mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    // First: a fly-through jump s0 -> s20 (well past TRAVEL_FLAT_STEPS).
+    const planA = choreo.flyThroughPlan(names, 0, 20, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    // A MIDDLE intermediate, not one that could coincidentally coincide with the second travel's
+    // own endpoints or land inside its normal window by chance -- same "pick a name whose final
+    // depth is nowhere near the surviving travel's own window" discipline the existing "pin leak
+    // on superseded travel" suite above already documents (its own re-review comment explains
+    // exactly this pitfall: a leaked name too close to the final selection can't prove a real
+    // pin-clear happened, since it would render anyway).
+    const someIntermediateA = planA.filter((s) => s.role === 'intermediate')[4].name // s11
+
+    browse.tmTravel = { from: 's0', to: 's20' }
+    await nextTick()
+    expect(w.find(`[data-snapshot="${someIntermediateA}"]`).exists()).toBe(true)
+
+    files.currentPath = `${MOUNT}/.snapshots/s20`
+    browse.tmTravel = null
+    await nextTick()
+
+    // Before travel A's own gate can ever fire, a SECOND fly-through supersedes it: s20 -> s25
+    // (also well past TRAVEL_FLAT_STEPS, so a real second plan/timeline gets built too) -- chosen
+    // to share NO names with planA's own sampled set, and to land `someIntermediateA` (s11) far
+    // outside s25's own normal window (depth 11-25 = -14, nowhere near the unconditional -1 slot).
+    await vi.advanceTimersByTimeAsync(50)
+    browse.tmTravel = { from: 's20', to: 's25' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s25`
+    browse.tmTravel = null
+    await nextTick()
+
+    // Let everything settle: both the surviving travel's own timers and preview promises.
+    await vi.advanceTimersByTimeAsync(3000)
+    await flushPromises()
+
+    // Travel A's own sampled intermediate must not still be pinned/rendered -- its real depth
+    // relative to the FINAL selection (s1) is far outside the normal window, so only an actual
+    // pin-clear (not incidental in-window membership) makes it disappear, same geometry discipline
+    // TimeMachineDepthStack.test.ts's own "pin leak on superseded travel" suite already documents.
+    expect(w.find(`[data-snapshot="${someIntermediateA}"]`).exists()).toBe(false)
+    // Exactly one settle -- the superseded travel's own (never-firing, in this test) timers must
+    // not double-fire once the surviving one's own gate lands.
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
 })
 
 // Task 7 fix round (review finding 1 -- Vue2's own armReveal/reveal, ported): the reveal-gate is a

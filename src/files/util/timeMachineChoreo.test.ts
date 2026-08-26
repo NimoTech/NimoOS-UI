@@ -8,7 +8,13 @@ import {
   TRAVEL_FLAT_STEPS,
   TRAVEL_MAX_DURATION_MS,
   TRAVEL_STAGGER_CAP_MS,
+  TRAVEL_FLY_CADENCE_MS,
+  TRAVEL_FLY_LAYER_DURATION_MS,
+  TRAVEL_FLY_MAX_DURATION_MS,
+  TRAVEL_FLY_MAX_INTERMEDIATES,
   dimGsapVars,
+  flyThroughDurationMs,
+  flyThroughPlan,
   playTravelTimeline,
   poseToGsapVars,
   prefersReducedMotion,
@@ -266,5 +272,189 @@ describe('playTravelTimeline — the one gsap-touching function, exercised again
     const tl = playTravelTimeline([one], { steps: 1 })
     expect(tl.duration()).toBeGreaterThan(0)
     tl.kill()
+  })
+
+  // Fix wave H (Ruling H-1, owner acceptance 2026-08-26): the long-jump fly-through's own OPTIONAL
+  // additions to this function -- delayOverridesMs / presetPoses / durationMsOverride. Every
+  // pre-wave-H call site (every test ABOVE this describe block) never passes any of these, and all
+  // of them still pass unmodified -- that IS this wave's own "byte-identical when omitted"
+  // regression contract, already proven by the untouched suite above continuing to pass.
+  describe('Fix wave H (Ruling H-1): delayOverridesMs / presetPoses / durationMsOverride', () => {
+    it('delayOverridesMs overrides the position-based stagger for a NAMED target, leaving un-named/un-overridden targets on the default', () => {
+      const named = { ...target(), name: 'intermediate-1' }
+      const plain = target() // no name -- must fall back to position-based stagger, unaffected
+      const tl = playTravelTimeline([named, plain], { steps: 1, delayOverridesMs: { 'intermediate-1': 130 } })
+      const children = tl.getChildren()
+      const startTimes = children.map((c) => (c as unknown as { startTime: () => number }).startTime())
+      expect(startTimes).toContain(0.13) // 130ms -> 0.13s, the named override
+      tl.kill()
+    })
+
+    it('presetPoses gsap.sets a NAMED target to the preset pose IMMEDIATELY (before the timeline plays at all), which the target\'s own tween then animates away from', () => {
+      const preset: SlotPose = pose({ y: 900, scaleX: 1.2, scaleY: 1.2 })
+      const named = { ...target({ y: 0, scaleX: 1, scaleY: 1 }), name: 'fly-1' }
+      const tl = playTravelTimeline([named], { steps: 1, presetPoses: { 'fly-1': preset } })
+      // The preset applies via an immediate gsap.set (same timing as the existing unconditional
+      // z-index set) -- readable straight off the element BEFORE any progress() call at all, same
+      // way the "applies z-index instantly" test above reads style.zIndex with no progress() call.
+      expect(gsap.getProperty(named.el, 'y')).toBeCloseTo(900)
+      expect(gsap.getProperty(named.el, 'scaleX')).toBeCloseTo(1.2)
+      // Fully progressed, it reaches the REGULAR target pose (y: 0, scale: 1) -- the preset is a
+      // one-instant starting point, not the tween's own destination.
+      tl.progress(1)
+      expect(gsap.getProperty(named.el, 'y')).toBeCloseTo(0)
+      expect(gsap.getProperty(named.el, 'scaleX')).toBeCloseTo(1)
+      tl.kill()
+    })
+
+    it('durationMsOverride bypasses travelDurationMs(steps) entirely -- a huge `steps` still gets the flat override duration', () => {
+      const one = target()
+      const tl = playTravelTimeline([one], { steps: 500, durationMsOverride: TRAVEL_FLY_LAYER_DURATION_MS })
+      expect(tl.duration()).toBeCloseTo(TRAVEL_FLY_LAYER_DURATION_MS / 1000, 5)
+      expect(tl.duration()).toBeLessThan(travelDurationMs(500) / 1000) // the growth-curve value it did NOT use
+      tl.kill()
+    })
+
+    it('reduced motion still collapses delayOverridesMs/presetPoses/durationMsOverride to instant, same as the default path', () => {
+      window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia
+      const named = { ...target(), name: 'fly-1' }
+      const tl = playTravelTimeline([named], {
+        steps: 500,
+        delayOverridesMs: { 'fly-1': 1000 },
+        presetPoses: { 'fly-1': pose({ y: 900 }) },
+        durationMsOverride: TRAVEL_FLY_LAYER_DURATION_MS,
+      })
+      expect(tl.duration()).toBe(0)
+      tl.kill()
+    })
+  })
+})
+
+// Fix wave H (Ruling H-1, owner acceptance 2026-08-26): flyThroughPlan/flyThroughDurationMs --
+// the pure "who launches when" planning layer for a long jump's own fly-through. See
+// timeMachineChoreo.ts's own header comment on this section, and travelDurationMs's own comment,
+// for the full ruling/rationale this ports; TimeMachineDepthStack.test.ts covers how a real
+// TimeMachineDepthStack.vue instance actually WIRES a plan into DOM/GSAP execution -- not
+// re-tested here, this file stays scoped to the pure function.
+describe('flyThroughPlan — long-jump fly-through sequencing (Fix wave H, Ruling H-1)', () => {
+  const names = Array.from({ length: 50 }, (_, i) => `s${i}`) // s0 newest .. s49 oldest
+
+  it('is empty for a degenerate/out-of-range/equal from-to input (no crash)', () => {
+    expect(flyThroughPlan(names, 0, 0)).toEqual([])
+    expect(flyThroughPlan(names, -1, 5)).toEqual([])
+    expect(flyThroughPlan(names, 0, 50)).toEqual([]) // 50 is out of range (length 50, max index 49)
+    expect(flyThroughPlan(names, 1.5, 5)).toEqual([])
+    expect(flyThroughPlan(null as unknown as string[], 0, 5)).toEqual([])
+  })
+
+  it('the LAST entry is always role "target", named after `names[toIndex]`, whichever direction', () => {
+    const backward = flyThroughPlan(names, 0, 10)
+    expect(backward[backward.length - 1]).toEqual({ name: 's10', role: 'target', launchDelayMs: backward[backward.length - 1].launchDelayMs })
+    const forward = flyThroughPlan(names, 10, 0)
+    expect(forward[forward.length - 1]).toEqual({ name: 's0', role: 'target', launchDelayMs: forward[forward.length - 1].launchDelayMs })
+  })
+
+  it('every entry before the last is role "intermediate"', () => {
+    const plan = flyThroughPlan(names, 0, 10)
+    expect(plan.slice(0, -1).every((s) => s.role === 'intermediate')).toBe(true)
+  })
+
+  it('BACKWARD (toIndex > fromIndex): intermediates are every index strictly between, in ASCENDING (chronological travel) order', () => {
+    const plan = flyThroughPlan(names, 0, 5) // gap of 4 intermediates: s1, s2, s3, s4
+    expect(plan.map((s) => s.name)).toEqual(['s1', 's2', 's3', 's4', 's5'])
+    expect(plan[plan.length - 1].role).toBe('target')
+  })
+
+  it('FORWARD (toIndex < fromIndex): intermediates are every index strictly between, in DESCENDING (chronological travel) order -- the exact mirror of backward', () => {
+    const plan = flyThroughPlan(names, 5, 0)
+    expect(plan.map((s) => s.name)).toEqual(['s4', 's3', 's2', 's1', 's0'])
+    expect(plan[plan.length - 1].role).toBe('target')
+  })
+
+  it('tiny gap at the boundary steps=4 (one past TRAVEL_FLAT_STEPS): exactly 3 intermediates, no sampling needed', () => {
+    const plan = flyThroughPlan(names, 0, 4)
+    expect(plan.filter((s) => s.role === 'intermediate')).toHaveLength(3)
+    expect(plan.map((s) => s.name)).toEqual(['s1', 's2', 's3', 's4'])
+  })
+
+  it('launch delays are monotonically non-decreasing, each cadence step apart, target delay = cadence * (K - 1)', () => {
+    const plan = flyThroughPlan(names, 0, 4) // K = 4 (3 intermediates + target)
+    for (let i = 1; i < plan.length; i++) expect(plan[i].launchDelayMs).toBeGreaterThan(plan[i - 1].launchDelayMs)
+    expect(plan.map((s) => s.launchDelayMs)).toEqual([0, TRAVEL_FLY_CADENCE_MS, TRAVEL_FLY_CADENCE_MS * 2, TRAVEL_FLY_CADENCE_MS * 3])
+  })
+
+  it('EVEN SAMPLING when the gap exceeds maxIntermediates: caps at maxIntermediates, spans the full gap (first/last intermediate near each end), never clusters at one side', () => {
+    const bigNames = Array.from({ length: 250 }, (_, i) => `s${i}`)
+    const plan = flyThroughPlan(bigNames, 0, 200, { maxIntermediates: 10 }) // a 200-step jump
+    const intermediates = plan.filter((s) => s.role === 'intermediate')
+    expect(intermediates.length).toBeLessThanOrEqual(10)
+    expect(intermediates.length).toBeGreaterThan(5) // sampling should not collapse to almost nothing
+    const idxOf = (name: string) => Number(name.slice(1))
+    const sampledIdx = intermediates.map((s) => idxOf(s.name))
+    // Strictly increasing (chronological order preserved through sampling).
+    for (let i = 1; i < sampledIdx.length; i++) expect(sampledIdx[i]).toBeGreaterThan(sampledIdx[i - 1])
+    // Spans close to the full [1, 199] gap, not clustered at one end.
+    expect(sampledIdx[0]).toBeLessThan(30)
+    expect(sampledIdx[sampledIdx.length - 1]).toBeGreaterThan(170)
+  })
+
+  it('a 200-step jump does NOT mount 200 strips -- default maxIntermediates caps at TRAVEL_FLY_MAX_INTERMEDIATES', () => {
+    const bigNames = Array.from({ length: 250 }, (_, i) => `s${i}`)
+    const plan = flyThroughPlan(bigNames, 0, 200) // default cap, no opts
+    expect(plan.filter((s) => s.role === 'intermediate').length).toBeLessThanOrEqual(TRAVEL_FLY_MAX_INTERMEDIATES)
+    expect(TRAVEL_FLY_MAX_INTERMEDIATES).toBe(10)
+  })
+
+  it('a maxIntermediates of 0 still produces a valid plan -- just the target, no intermediates, delay 0', () => {
+    const plan = flyThroughPlan(names, 0, 10, { maxIntermediates: 0 })
+    expect(plan).toEqual([{ name: 's10', role: 'target', launchDelayMs: 0 }])
+  })
+
+  it('no duplicate names anywhere in a single plan', () => {
+    const bigNames = Array.from({ length: 250 }, (_, i) => `s${i}`)
+    const plan = flyThroughPlan(bigNames, 0, 200)
+    const names_ = plan.map((s) => s.name)
+    expect(new Set(names_).size).toBe(names_.length)
+  })
+
+  it('a huge (10000-step) jump still resolves without hanging and respects the cap identically to a 200-step one', () => {
+    const hugeNames = Array.from({ length: 10001 }, (_, i) => `s${i}`)
+    const plan = flyThroughPlan(hugeNames, 0, 10000)
+    expect(plan.filter((s) => s.role === 'intermediate').length).toBeLessThanOrEqual(TRAVEL_FLY_MAX_INTERMEDIATES)
+  })
+})
+
+describe('flyThroughDurationMs — a plan\'s own total duration (Fix wave H, Ruling H-1)', () => {
+  const names = Array.from({ length: 250 }, (_, i) => `s${i}`)
+
+  it('is 0 for an empty plan', () => {
+    expect(flyThroughDurationMs([])).toBe(0)
+  })
+
+  it('is cadence * (K - 1) + TRAVEL_FLY_LAYER_DURATION_MS for a plan short of the cap', () => {
+    const plan = flyThroughPlan(names, 0, 4) // K = 4
+    const expected = TRAVEL_FLY_CADENCE_MS * 3 + TRAVEL_FLY_LAYER_DURATION_MS
+    expect(flyThroughDurationMs(plan)).toBe(expected)
+  })
+
+  it('never exceeds TRAVEL_FLY_MAX_DURATION_MS (1400ms), however large the plan/jump', () => {
+    const plan = flyThroughPlan(names, 0, 200) // capped at 10 intermediates -> K = 11
+    expect(flyThroughDurationMs(plan)).toBeLessThanOrEqual(TRAVEL_FLY_MAX_DURATION_MS)
+  })
+
+  it('a single-entry plan (target only, zero intermediates) still takes at least one full layer duration', () => {
+    const plan = flyThroughPlan(names, 0, 10, { maxIntermediates: 0 })
+    expect(flyThroughDurationMs(plan)).toBe(TRAVEL_FLY_LAYER_DURATION_MS)
+  })
+
+  it('grows monotonically with plan length (more intermediates -> longer, up to the cap)', () => {
+    let prev = 0
+    for (const gap of [4, 8, 15, 30, 60, 120, 200]) {
+      const plan = flyThroughPlan(names, 0, gap)
+      const d = flyThroughDurationMs(plan)
+      expect(d).toBeGreaterThanOrEqual(prev)
+      prev = d
+    }
+    expect(prev).toBeLessThanOrEqual(TRAVEL_FLY_MAX_DURATION_MS)
   })
 })
