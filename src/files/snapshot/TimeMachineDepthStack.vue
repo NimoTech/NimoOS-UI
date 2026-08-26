@@ -111,7 +111,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import gsap from 'gsap'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
-import { resolveDollySlots, resolveSlotPose, computeVisibleStripCap, travelStackPlan, TM_WINDOW_SCALE, type SlotPose } from '../util/timeMachineMath'
+import { resolveDollySlots, resolveSlotPose, computeVisibleStripCap, travelStackPlan, TM_WINDOW_SCALE, type SlotPose, type TravelStackEntry } from '../util/timeMachineMath'
 import {
   playTravelTimeline, poseToGsapVars, dimGsapVars, travelDurationMs, TRAVEL_SAFETY_EXTRA_MS,
   TRAVEL_FLAT_STEPS, flyThroughPlan, flyThroughDurationMs, TRAVEL_FLY_MAX_INTERMEDIATES, TRAVEL_FLY_LAYER_DURATION_MS,
@@ -392,19 +392,46 @@ watch(
 //   the correct "where it settles" destination, including the natural "later-launched ones (closer
 //   to the target) land at a SMALLER depth than earlier-launched ones" ordering that alone produces
 //   the dispatch's own "push back to depth 1, 2… as the next arrives" visual, with no extra
-//   per-intermediate depth bookkeeping needed. What is missing is the START: without a preset, the
-//   tween would start from that SAME natural resting pose (again a near no-op). The preset here is
-//   the exit pose -- "arrives already at the camera, then glides to its natural resting spot".
-function buildFlyThroughOverrides(plan: FlyThroughStep[], fromIdx: number, toIdx: number): { delayOverridesMs: Record<string, number>, presetPoses: Record<string, SlotPose> } {
+//   per-intermediate depth bookkeeping needed. What is missing is the START, for a genuinely NEW
+//   entrant: without a preset, its tween would start from that SAME natural resting pose (a near
+//   no-op). The preset for a new entrant is the exit pose -- "arrives already at the camera, then
+//   glides to its natural resting spot".
+//
+//   Fix wave I follow-up (re-review, 2026-08-26): the FORWARD branch used to apply that exit-pose
+//   preset to EVERY sampled intermediate unconditionally -- wrong for a jump just past
+//   `TRAVEL_FLAT_STEPS` (e.g. 4-5 steps at the default window), where a sampled intermediate can
+//   be a genuine, ALREADY-VISIBLE RESIDENT of the OLD window (or already leaving it), not a new
+//   entrant -- for that strip, the unconditional preset SNAPS it from its own correct current
+//   pose to the exit pose right before its tween begins, a visible pop of exactly the kind Ruling
+//   I-1 exists to eliminate. The BACKWARD branch (below) never had this problem: it recomputes the
+//   real old-relative pose directly, which is IDEMPOTENT for an already-resident intermediate (its
+//   "preset" and its actual current pose are the same value, so nothing visibly snaps). The fix:
+//   reuse `travelStackPlan`'s own per-name role (`stackPlan`, computed once in `runTravel` and
+//   passed in here rather than re-derived) -- a forward intermediate only gets the exit-pose preset
+//   when its role is `'entering'`/`'pinned'` (genuinely NOT in the old window); a `'resident'`/
+//   `'leaving'` intermediate gets NO preset at all, exactly `travelStackPlan`'s own base rule for
+//   every other strip in the cascade -- its own current, already-correct pose IS its `fromPose`,
+//   and its existing `target.pose` (the normal receding destination derived above) is already the
+//   right "fly out as part of the cascade" trajectory; no separate destination override needed.
+function buildFlyThroughOverrides(
+  plan: FlyThroughStep[],
+  fromIdx: number,
+  toIdx: number,
+  stackPlan: TravelStackEntry[],
+): { delayOverridesMs: Record<string, number>, presetPoses: Record<string, SlotPose> } {
   const delayOverridesMs: Record<string, number> = {}
   const presetPoses: Record<string, SlotPose> = {}
   const forward = toIdx < fromIdx
   const exitPose = resolveSlotPose(-1, stageHeight.value)
+  const roleByName = new Map(stackPlan.map((entry) => [entry.name, entry.role]))
   for (const step of plan) {
     delayOverridesMs[step.name] = step.launchDelayMs
     if (step.role !== 'intermediate') continue
     if (forward) {
-      presetPoses[step.name] = exitPose
+      // Fix wave I follow-up: only a genuinely NEW entrant (not naturally in the old window) needs
+      // the "arrives from the camera" preset -- see this function's own header comment above.
+      const role = roleByName.get(step.name)
+      if (role !== 'resident' && role !== 'leaving') presetPoses[step.name] = exitPose
     }
     else {
       const idx = names.value.indexOf(step.name)
@@ -467,7 +494,7 @@ function runTravel(steps: number, travel: { from: string, to: string }, plan: Fl
   let delayOverridesMs: Record<string, number> | undefined
   let durationMsOverride: number | undefined
   if (plan.length) {
-    const fly = buildFlyThroughOverrides(plan, fromIdx, toIdx)
+    const fly = buildFlyThroughOverrides(plan, fromIdx, toIdx, stackPlan)
     delayOverridesMs = fly.delayOverridesMs
     Object.assign(presetPoses, fly.presetPoses)
     durationMsOverride = TRAVEL_FLY_LAYER_DURATION_MS

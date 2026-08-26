@@ -309,7 +309,7 @@ describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ru
     expect(opts.presetPoses![targetName]).toBeDefined()
   })
 
-  it('FORWARD (more-recent target): every intermediate\'s preset is the SAME exit pose (arriving from the camera)', async () => {
+  it('FORWARD (more-recent target): every NEW-ENTRANT intermediate\'s preset is the SAME exit pose (arriving from the camera)', async () => {
     const spy = vi.spyOn(choreo, 'playTravelTimeline')
     const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
     const { browse, files } = await setup(names, 's20')
@@ -326,13 +326,78 @@ describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ru
     const expectedPlan = choreo.flyThroughPlan(names, 20, 0, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
     const intermediates = expectedPlan.filter((s) => s.role === 'intermediate')
     expect(intermediates.length).toBeGreaterThan(1)
-    const presets = intermediates.map((s) => opts.presetPoses![s.name])
-    // Every forward intermediate's preset is the identical exit pose -- same y/scale for all.
+    // Fix wave I follow-up (re-review, 2026-08-26): NOT every intermediate gets the exit-pose
+    // preset any more -- only ones that were genuinely NOT in the old window (role 'entering'/
+    // 'pinned' per travelStackPlan). This jump's own geometry has exactly one intermediate (s19)
+    // that WAS a real old-window member (role 'leaving') -- see below for why skipping its preset
+    // is still correct/harmless.
+    const stackPlan = travelStackPlan(names, 20, 0, { maxSlots: 10, extraNames: expectedPlan.map((s) => s.name) })
+    const roleByName = new Map(stackPlan.map((e) => [e.name, e.role]))
+    const newEntrants = intermediates.filter((s) => { const r = roleByName.get(s.name); return r !== 'resident' && r !== 'leaving' })
+    const alreadyResident = intermediates.filter((s) => { const r = roleByName.get(s.name); return r === 'resident' || r === 'leaving' })
+    expect(newEntrants.length).toBeGreaterThan(1)
+    expect(alreadyResident.length).toBeGreaterThan(0) // sanity: this geometry genuinely exercises both branches
+
+    const presets = newEntrants.map((s) => opts.presetPoses![s.name])
     for (const p of presets) {
+      expect(p).toBeDefined()
       expect(p.y).toBeCloseTo(presets[0].y)
       expect(p.scaleX).toBeCloseTo(presets[0].scaleX)
     }
     expect(presets[0].scaleX).toBeGreaterThan(1) // the exit pose's own uniform grow (EXIT_SCALE, timeMachineMath.ts)
+
+    // The already-resident/leaving intermediate (s19) gets NO preset -- its own current pose is
+    // already correct. Harmless precisely because its real old depth (-1) is ALSO already
+    // exit-pose-equivalent (resolveSlotPose collapses every depth <= -1 identically) -- so even
+    // though it is exempted from the preset, it was never visually distinguishable from the exit
+    // pose to begin with.
+    for (const s of alreadyResident) {
+      expect(opts.presetPoses![s.name]).toBeUndefined()
+    }
+  })
+
+  // Fix wave I follow-up (re-review, 2026-08-26): the exact regression the re-review flagged --
+  // a forward jump just PAST TRAVEL_FLAT_STEPS (steps=5, default window) where a sampled
+  // intermediate is a genuine, already-visible OLD-window RESIDENT (role 'resident'/'leaving' per
+  // travelStackPlan), not a new entrant. Every forward intermediate's own raw OLD depth is
+  // structurally negative (it lies between the target and the departure point, always on the
+  // "shallower than departure" side) -- old-window residency for a negative depth only ever occurs
+  // at EXACTLY depth -1 (resolveDollySlots' own "-1 always included" rule), which happens to
+  // already be numerically exit-pose-equivalent, so this specific geometry cannot demonstrate a
+  // VISIBLE pop on its own -- but the CODE-LEVEL regression (the preset being applied
+  // unconditionally, ignoring travelStackPlan's own membership) is exactly what this test pins:
+  // the fix must skip the preset for a resident/leaving intermediate regardless of whether that
+  // particular case happens to be visually distinguishable, the same defensive discipline the
+  // BACKWARD branch already gets "for free" from recomputing the real pose directly.
+  it('FORWARD, steps just past TRAVEL_FLAT_STEPS: a sampled intermediate that is a genuine old-window resident gets NO preset (no pop) -- its tween runs from its own current position', async () => {
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const names = Array.from({ length: 10 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's5')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: 's5', to: 's0' } // forward, 5 steps -- just past TRAVEL_FLAT_STEPS(3)
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s0`
+    browse.tmTravel = null
+    await flushPromises()
+
+    const opts = spy.mock.calls[0][1]
+    const plan = choreo.flyThroughPlan(names, 5, 0, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    expect(plan.some((s) => s.role === 'intermediate')).toBe(true)
+    const stackPlan = travelStackPlan(names, 5, 0, { maxSlots: 10, extraNames: plan.map((s) => s.name) })
+    const roleByName = new Map(stackPlan.map((e) => [e.name, e.role]))
+
+    for (const step of plan.filter((s) => s.role === 'intermediate')) {
+      const role = roleByName.get(step.name)
+      if (role === 'resident' || role === 'leaving') {
+        // The regression this test guards: must NOT be snapped to the fixed exit pose.
+        expect(opts.presetPoses?.[step.name]).toBeUndefined()
+      }
+      else {
+        expect(opts.presetPoses?.[step.name]).toBeDefined()
+      }
+    }
   })
 
   it('≤3-step and >3-step gating is exact: a 4-step travel already produces a non-empty plan', async () => {
