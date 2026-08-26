@@ -925,8 +925,15 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
               <span v-if="browse.tmActive" class="tm-real-window-chip">{{ t('snapReadOnlyBanner') }}</span>
             </div>
             <div class="files-topbar-right">
+              <!-- Fix wave A3 (audit-modals.md #4, entry pill icon -- MISSING): Vue2's own
+                   `<b-button icon-left="history">` precedes the label with a real mdi
+                   clock/history glyph (FilePanel.vue:205-207) -- a UI glyph, not a file icon, so
+                   in-scope per the owner's icon exception (New-UI's own established icon
+                   convention: a plain monochrome Unicode glyph inheriting `currentColor`, same
+                   idiom as this app's other ad-hoc UI icons, e.g. TimeMachineStage.vue's own
+                   gear button). -->
               <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.enterTimeMachine()">
-                {{ t('tmEntry') }}
+                <span class="tb-time-machine-icon" aria-hidden="true">&#8635;</span>{{ t('tmEntry') }}
               </button>
               <div v-if="!browse.isSnapshotView" class="files-actions">
                 <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
@@ -1118,8 +1125,13 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
    entry button) -- see theme.css's own comment on --tm-entry-* for the exact color derivation.
    Shape/size stay the shared `.chip` pill (already matches Vue2's own rounded/is-small look), so
    only color is overridden here; no border (Vue2's own is-success button has none either). */
-.chip.tb-time-machine { background: var(--tm-entry-bg); border-color: transparent; color: var(--tm-entry-fg); }
+/* Fix wave A3 (audit-modals.md #4, entry pill shape): Vue2's own Buefy `is-small` pill computes to
+   `font-size: .75rem`(12px), height `2.5em`≈30px, padding `1.25em`(15px) horizontal / `calc(.5em-1px)`
+   (5px) vertical (FilePanel.vue:205-207) -- overriding the shared `.chip` rule's 13px/6px-14px,
+   which the other (non-snapshot) toolbar chips keep unchanged. */
+.chip.tb-time-machine { background: var(--tm-entry-bg); border-color: transparent; color: var(--tm-entry-fg); font-size: 12px; padding: 5px 15px; display: inline-flex; align-items: center; }
 .chip.tb-time-machine:hover { background: var(--tm-entry-hover-bg); }
+.tb-time-machine-icon { margin-right: 6px; font-size: 13px; line-height: 1; }
 .files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text
    (which is usually the actionable part), and offer the retry. */
