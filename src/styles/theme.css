@@ -52,6 +52,30 @@
      default look); icons must stay square everywhere */
   --icon-radius: 31%;
 
+  /* Fix wave E (E2, owner acceptance 2026-08-26): shared, non-color structural metrics for the
+     Files topbar/list-head "chrome" row, pinned here ONCE and consumed by BOTH the real window
+     (src/views/Files.vue's own `.files-topbar`/`.files-list-head`/`.files-item-count`) and its
+     decorative Time Machine depth-stack replica (src/files/snapshot/SnapshotPreviewWindow.vue's
+     own `.tm-preview-window__chrome`/`__row2`/`__count`) -- so a promoted back panel's chrome
+     rows land at the EXACT same pixels as the just-revealed real window's, with nothing shifting
+     relative to anything else at the reveal instant (the owner's own binding rule for this fix
+     wave, see timeMachineMath.ts's own resolveSlotPose comment on Ruling E-1'). This is the
+     THIRD time this exact pair of files drifted on chrome metrics (Fix waves A1/B2/C each fixed a
+     different piece of it) -- a shared token makes a FOURTH drift a build-time impossibility for
+     the values it covers, rather than another one-off audit. Breadcrumb.vue's own `.crumb` (the
+     LIVE breadcrumb) also consumes `--tm-crumb-*` below, even though it has nothing to do with
+     Time Machine by name -- it is simply the single real source of that geometry both TM chrome
+     and this token block describe; folding it in here (rather than leaving it as a fourth
+     un-pinned literal) closes the loop completely. See timeMachineDepthStackGeometryParity.test.ts
+     for the CI guard that fails if either consumer stops referencing these tokens. */
+  --tm-topbar-padding: 4px 0 14px; /* Files.vue `.files-topbar`, byte-for-byte */
+  --tm-crumb-font-size: 14px;
+  --tm-crumb-padding: 2px 4px;
+  --tm-crumb-gap: 4px;
+  --tm-crumb-sep-font-size: 12px;
+  --tm-list-head-padding: 10px 2px; /* Files.vue `.files-list-head`, byte-for-byte */
+  --tm-item-count-font-size: 12.5px;
+
   /* One-step-up shadow while dragging (more "afloat") + folder glass + edit-mode grid dots */
   --card-shadow-drag:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),

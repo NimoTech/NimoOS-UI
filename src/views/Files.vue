@@ -1195,7 +1195,11 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
    overflow-y:auto finally engages. */
 .files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .files-main { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; align-self: stretch; display: flex; flex-direction: column; } /* Stretches to fill right-side height, so whitespace below the listing can be a right-click target */
-.files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+/* Fix wave E (E2, owner acceptance 2026-08-26): padding is `var(--tm-topbar-padding)` -- shared
+   with SnapshotPreviewWindow.vue's own `.tm-preview-window__chrome` replica (theme.css's own
+   comment on that token explains why: the third drift between this row and its TM depth-stack
+   clone, now closed with a shared source instead of a fourth one-off audit). */
+.files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: var(--tm-topbar-padding); }
 .files-topbar-left { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
 .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
 /* Important 3 (final review): Vue2's own `.tm-snap-chip` literal (FilePanel.vue) -- bg = accent
@@ -1247,7 +1251,10 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
    is the correct foreground here too -- see theme.css's own comment on it: `--on-accent` flips
    with `--accent`'s own per-theme luminance and would put unreadable dark-navy text/icon on this
    always-dark purple in the blue theme. */
-.files-list-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 2px; border-top: 1px solid var(--card-border, rgba(255,255,255,0.1)); flex: 0 0 auto; }
+/* Fix wave E (E2, owner acceptance 2026-08-26): padding is `var(--tm-list-head-padding)` -- shared
+   with SnapshotPreviewWindow.vue's own `.tm-preview-window__row2` replica (see the `.files-topbar`
+   rule above's own comment for the full rationale, same token block). */
+.files-list-head { display: flex; align-items: center; justify-content: space-between; padding: var(--tm-list-head-padding); border-top: 1px solid var(--card-border, rgba(255,255,255,0.1)); flex: 0 0 auto; }
 .files-select-zone { display: flex; align-items: center; gap: 10px; }
 /* Unfilled: a plain ring (border only). Filled (`.on`, all currently-listed entries selected):
    solid --purple-accent fill + the --on-purple-accent check glyph. */
@@ -1259,7 +1266,11 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
 .files-select-all svg { width: 11px; height: 11px; display: none; }
 .files-select-all.on { background: var(--purple-accent); border-color: var(--purple-accent); }
 .files-select-all.on svg { display: block; }
-.files-item-count { font-size: 12.5px; color: var(--fg-muted); }
+/* Fix wave E (E2, owner acceptance 2026-08-26): font-size is `var(--tm-item-count-font-size)` --
+   shared with SnapshotPreviewWindow.vue's own `.tm-preview-window__count` replica, which used to
+   have no dedicated rule at all and silently inherited a DIFFERENT size (13px) from its own row2
+   container -- see this fix wave's own report for the exact before/after. */
+.files-item-count { font-size: var(--tm-item-count-font-size); color: var(--fg-muted); }
 .files-item-count strong { color: var(--fg); font-weight: 600; }
 .files-view-capsule { display: inline-flex; border: 1px solid var(--chip-border); border-radius: 999px; overflow: hidden; background: var(--chip-bg); flex: none; }
 .files-view-capsule-btn { border: none; background: none; cursor: pointer; padding: 6px 16px; display: inline-flex; align-items: center; color: var(--fg-muted); }

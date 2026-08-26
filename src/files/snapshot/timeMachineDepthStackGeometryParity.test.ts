@@ -122,3 +122,89 @@ describe('Time Machine depth-stack vs real window: geometry identity (fix wave D
     expect(depthStackSrc).toMatch(/scale\(\$\{TM_WINDOW_SCALE\}\)/)
   })
 })
+
+// Fix wave E (E2, owner acceptance 2026-08-26): source-pin test for the STATIC content-identity
+// half of the owner's binding rule (Ruling E-1', see timeMachineMath.ts's own resolveSlotPose
+// comment) -- "at rest (scale 1, pre-ancestor-scale), the replica's chrome rows must be
+// pixel-identical to the real window's". D2's own tests above already pin the two windows'
+// GEOMETRY (box/origin/radius); these pin the CONTENT inside them -- font-size/padding/gap for the
+// breadcrumb row and the list-head row, the two rows this fix wave's own audit found still
+// drifting (this file's own "final-fix-report.md", "Fix wave E" section has the full before/after
+// trace). Rather than comparing literal values directly (D2's own approach, still correct there
+// since those pairs have no natural single source to point at), THESE pairs now share actual
+// theme.css tokens (`--tm-topbar-padding`/`--tm-crumb-*`/`--tm-list-head-padding`/
+// `--tm-item-count-font-size`) -- so the strongest test is "do both sides reference the SAME
+// token", which is immune to a future edit that changes the token's OWN value (both consumers
+// follow it automatically) while still catching the actual failure mode this fix wave hit: one
+// side quietly reverting to (or never adopting) the shared token and drifting back to its own
+// private literal.
+describe('Time Machine breadcrumb/list-head chrome: real vs replica content identity (fix wave E, E2)', () => {
+  const themeCss = readFileSync(path.resolve(DIR, '../../styles/theme.css'), 'utf8')
+  const breadcrumbCss = styleBlock('../components/Breadcrumb.vue')
+  const filesCss = styleBlock('../../views/Files.vue')
+  const previewCss = styleBlock('./SnapshotPreviewWindow.vue')
+
+  it('every shared chrome-metric token this test relies on is actually declared in theme.css', () => {
+    for (const token of [
+      '--tm-topbar-padding',
+      '--tm-crumb-font-size',
+      '--tm-crumb-padding',
+      '--tm-crumb-gap',
+      '--tm-crumb-sep-font-size',
+      '--tm-list-head-padding',
+      '--tm-item-count-font-size',
+    ]) {
+      expect(themeCss, `theme.css must declare ${token}`).toMatch(new RegExp(`${token}\\s*:`))
+    }
+  })
+
+  it('the real breadcrumb (.crumb) and the replica (.tm-preview-window__crumb) share the SAME font-size/padding tokens', () => {
+    const realBody = ruleBody(breadcrumbCss, '.crumb')
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__crumb')
+    expect(decl(replicaBody, 'font-size')).toBe(decl(realBody, 'font-size'))
+    expect(decl(replicaBody, 'font-size')).toBe('var(--tm-crumb-font-size)')
+    expect(decl(replicaBody, 'padding')).toBe(decl(realBody, 'padding'))
+    expect(decl(replicaBody, 'padding')).toBe('var(--tm-crumb-padding)')
+  })
+
+  it('the real breadcrumb row (.breadcrumb) and the replica (.tm-preview-window__crumbs) share the SAME gap token', () => {
+    const realBody = ruleBody(breadcrumbCss, '.breadcrumb')
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__crumbs')
+    expect(decl(replicaBody, 'gap')).toBe(decl(realBody, 'gap'))
+    expect(decl(replicaBody, 'gap')).toBe('var(--tm-crumb-gap)')
+  })
+
+  it('the real separator (.crumb-sep) and the replica (.tm-preview-window__crumb-sep) share the SAME font-size token', () => {
+    const realBody = ruleBody(breadcrumbCss, '.crumb-sep')
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__crumb-sep')
+    expect(decl(replicaBody, 'font-size')).toBe(decl(realBody, 'font-size'))
+    expect(decl(replicaBody, 'font-size')).toBe('var(--tm-crumb-sep-font-size)')
+  })
+
+  it('the real topbar (.files-topbar) and the replica chrome row (.tm-preview-window__chrome) share the SAME padding token', () => {
+    const realBody = ruleBody(filesCss, '.files-topbar')
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__chrome')
+    expect(decl(replicaBody, 'padding')).toBe(decl(realBody, 'padding'))
+    expect(decl(replicaBody, 'padding')).toBe('var(--tm-topbar-padding)')
+  })
+
+  it('the real list-head (.files-list-head) and the replica row2 (.tm-preview-window__row2) share the SAME padding token AND the same border-top', () => {
+    const realBody = ruleBody(filesCss, '.files-list-head')
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__row2')
+    expect(decl(replicaBody, 'padding')).toBe(decl(realBody, 'padding'))
+    expect(decl(replicaBody, 'padding')).toBe('var(--tm-list-head-padding)')
+    expect(decl(replicaBody, 'border-top')).toBe(decl(realBody, 'border-top'))
+  })
+
+  it('the real item count (.files-item-count) and the replica count (.tm-preview-window__count) share the SAME font-size token', () => {
+    const realBody = ruleBody(filesCss, '.files-item-count')
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__count')
+    expect(decl(replicaBody, 'font-size')).toBe(decl(realBody, 'font-size'))
+    expect(decl(replicaBody, 'font-size')).toBe('var(--tm-item-count-font-size)')
+  })
+
+  it('the replica grid container (.tm-preview-window__grid) declares NO vertical padding, matching the real .file-grid chain\'s own zero', () => {
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__grid')
+    expect(decl(replicaBody, 'padding')).toBe('0')
+  })
+})

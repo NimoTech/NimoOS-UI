@@ -459,9 +459,17 @@ describe('SnapshotPreviewWindow — chrome row layout no longer flex-pushes the 
 // comment on `.tm-preview-window__grid` (above `.tm-preview-window__grid` itself) for the full
 // trace. jsdom does no real layout, so this is pinned as a source-text parity check: the real
 // FileGridView.vue's own grid container carries NO padding of its own (confirms the premise), and
-// this preview's grid carries zero HORIZONTAL padding to match (vertical padding is unrelated to
-// column count, kept for breathing room).
-describe('SnapshotPreviewWindow — grid width basis matches the real window (fix wave B, B3a)', () => {
+// this preview's grid carries no padding at all to match.
+//
+// Fix wave E (E2, owner acceptance 2026-08-26): B3a's own original assertion here only checked
+// "zero HORIZONTAL padding" and accepted a `12px 0` (vertical-only) padding as intentional
+// "breathing room from Row 2" -- this fix wave's own row-by-row static-mismatch audit found that
+// reasoning wrong: the real `.file-grid`/`.file-grid-root` chain has NO vertical padding either
+// (row2's own bottom padding is the only real gap before the first row/tile), so the 12px vertical
+// padding here was a second, independent offset mismatch (see SnapshotPreviewWindow.vue's own
+// `.tm-preview-window__grid` comment for the full before/after). The assertion below is updated
+// to require padding 0 outright, not just "no horizontal component".
+describe('SnapshotPreviewWindow — grid width basis matches the real window (fix wave B, B3a; fix wave E, E2)', () => {
   it('FileGridView.vue\'s own .file-grid/.file-grid-root declare no padding of their own', () => {
     const realSrc = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../components/FileGridView.vue'),
@@ -471,7 +479,7 @@ describe('SnapshotPreviewWindow — grid width basis matches the real window (fi
     expect(realStyle).not.toMatch(/\.file-grid(-root)?\s*\{[^}]*padding/)
   })
 
-  it('.tm-preview-window__grid has zero HORIZONTAL padding, matching the real grid\'s edge-to-edge width', () => {
+  it('.tm-preview-window__grid has ZERO padding on every side, matching the real grid\'s edge-to-edge box exactly (fix wave E, E2)', () => {
     const src = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SnapshotPreviewWindow.vue'),
       'utf8',
@@ -479,6 +487,6 @@ describe('SnapshotPreviewWindow — grid width basis matches the real window (fi
     const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
     const rule = /\.tm-preview-window__grid\s*\{([^}]*)\}/.exec(styleBlock)
     expect(rule, 'no .tm-preview-window__grid rule found').toBeTruthy()
-    expect(rule![1]).toMatch(/padding:\s*12px 0;/)
+    expect(rule![1]).toMatch(/padding:\s*0;/)
   })
 })

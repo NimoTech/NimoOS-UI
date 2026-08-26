@@ -142,7 +142,7 @@ export function resolveDollySlots(
 // Vue2's resolveSlotPose defaults exactly (offsetStep/scaleStep/
 // brightnessStep/floors/exitScale) -- only the field shapes differ, see this
 // module's own header comment for why.
-const SLOT_SCALE_STEP = 0.02 // narrower per depth (Vue2's scaleStep)
+const SLOT_SCALE_STEP = 0.02 // smaller per depth, BOTH axes uniformly (Vue2's scaleStep -- Vue2 applied this to X only, see the owner-ruling comment below on resolveSlotPose for why this port applies it to both)
 const SLOT_MIN_SCALE = 0.78 // Vue2's minScale floor
 const SLOT_DIM_STEP = 0.06 // dimmer per depth (Vue2's brightnessStep, inverted: dim = 1 - brightness)
 const SLOT_MAX_DIM = 0.55 // Vue2's minBrightness floor (0.45), inverted
@@ -157,9 +157,29 @@ const EXIT_OFFSET_MULTIPLIER = 1.4 // stageHeight * this comfortably clears the 
 // the exiting/incoming front layer, not a deep strip) -- every depth <= -1
 // collapses to this SAME pose (there is only ever one past-the-camera slot
 // rendered at a time, ported from Vue2's own invariant). Depths >= 1 recede:
-// higher (more negative) y, narrower scaleX ONLY (scaleY stays 1 -- Vue2's
-// deliberate "thin peeking sliver" look, not a uniform shrink), dimmer, all
+// higher (more negative) y, smaller (UNIFORM scale, see below), dimmer, all
 // floored so nothing shrinks/darkens to nothing even far down the cascade.
+//
+// Owner ruling E-1' (2026-08-26, supersedes an earlier same-day ruling that
+// flattened resting-depth scale to 1 -- see this task's fix-wave report for
+// the full back-and-forth): the owner's actual objection was never to
+// per-depth SCALING itself -- a receding depth strip getting smaller *is*
+// the camera-dolly illusion, "the front window seen from farther away". The
+// objection was to Vue2's own ANISOTROPIC scaling: `scaleX` shrinking while
+// `scaleY` stayed pinned to 1 (the "thin peeking sliver" look) DISTORTS the
+// glyphs -- squishes them horizontally without shrinking them vertically to
+// match -- which reads as "some other kind of movement", not a clean,
+// undistorted "farther away" scale. The owner's binding rule: a promoted
+// back panel must be exactly a transform-SCALED clone of the front window --
+// same aspect ratio, same relative element positions, nothing reflowing or
+// distorting, only uniformly smaller/larger and translated. So `scaleY` here
+// is no longer hardcoded to `1` for depths >= 1: it now tracks `scaleX`
+// exactly (both derived from the SAME formula Vue2 used for its own scaleX,
+// `Math.max(SLOT_MIN_SCALE, 1 - depth * SLOT_SCALE_STEP)`) -- uniform scale,
+// no distortion, still visibly "farther/smaller" per depth as the owner's
+// dolly metaphor intends. The T(<=-1) exit pose was never anisotropic to
+// begin with (`scaleX === scaleY` already, Vue2's own invariant) and is
+// unaffected by this ruling either way.
 //
 // `stageHeight` (optional, ported from Vue2): when known, the T(-1) exit
 // offset is `stageHeight * EXIT_OFFSET_MULTIPLIER` (Vue2's real production
@@ -177,11 +197,16 @@ export function resolveSlotPose(depth: number, stageHeight?: number): SlotPose {
   if (depth === 0) {
     return { x: 0, y: 0, scaleX: 1, scaleY: 1, dim: 0, z: 0 }
   }
+  // Owner ruling E-1': uniform scale, both axes identical -- no anisotropic
+  // X-only narrowing (was `scaleX: ..., scaleY: 1`). A single `scale` local
+  // keeps the two fields byte-identical by construction, not by coincidence
+  // of two separately-typed-out expressions drifting apart later.
+  const scale = Math.max(SLOT_MIN_SCALE, 1 - depth * SLOT_SCALE_STEP)
   return {
     x: 0,
     y: -(depth * TM_DEPTH_STEP),
-    scaleX: Math.max(SLOT_MIN_SCALE, 1 - depth * SLOT_SCALE_STEP),
-    scaleY: 1,
+    scaleX: scale,
+    scaleY: scale,
     dim: Math.min(SLOT_MAX_DIM, depth * SLOT_DIM_STEP),
     z: -depth,
   }

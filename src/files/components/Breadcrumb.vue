@@ -186,19 +186,22 @@ function hiddenLabel(hidden: CrumbSeg[]): string {
    otherwise collapsing would shrink the box the ResizeObserver is watching.
    overflow:hidden is the backstop for the frame before the measuring loop settles
    and for a single label too long to ever fit. */
-.breadcrumb { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; flex-wrap: wrap; min-width: 0; overflow: hidden; }
+/* Fix wave E (E2, owner acceptance 2026-08-26): gap is `var(--tm-crumb-gap)` -- shared with
+   SnapshotPreviewWindow.vue's own hand-copied replica (theme.css's own comment on that token
+   block explains why this LIVE component, not just the TM-specific ones, also draws from it). */
+.breadcrumb { display: flex; align-items: center; gap: var(--tm-crumb-gap); flex: 1 1 auto; flex-wrap: wrap; min-width: 0; overflow: hidden; }
 /* A single label wider than the whole breadcrumb would wrap by word into a row the
    two-line cap then clips. Truncate it instead — one shortened crumb beats a
    missing one. min-width:0 is defence only, not the thing that makes the ellipsis
    work: a flex item's automatic minimum size applies only while its overflow is
    visible (CSS Flexbox L1 §4.5), and overflow:hidden below already opts out. Keep
    it so the truncation survives someone later relaxing that overflow. */
-.crumb { background: none; border: none; color: var(--fg-muted); font-size: 14px; padding: 2px 4px; border-radius: 6px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb { background: none; border: none; color: var(--fg-muted); font-size: var(--tm-crumb-font-size); padding: var(--tm-crumb-padding); border-radius: 6px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.crumb { cursor: pointer; }
 button.crumb:hover { background: var(--chip-bg); color: var(--fg); }
 .crumb.current { color: var(--fg); font-weight: 600; }
 .crumb-more { font-weight: 600; line-height: 1; }
 .crumb-more[data-state='open'] { background: var(--chip-bg); color: var(--fg); }
-.crumb-sep { color: var(--fg-muted, #9aa4bf); font-size: 12px; }
+.crumb-sep { color: var(--fg-muted, #9aa4bf); font-size: var(--tm-crumb-sep-font-size); }
 .crumb-star { margin-left: 4px; }
 </style>

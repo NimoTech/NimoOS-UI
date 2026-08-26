@@ -436,23 +436,33 @@ const crumbSegments = computed(() => {
 }
 
 /* Hand-copied shape of Files.vue's own `.files-topbar` -- see this file's own header comment for
-   why there is no border-bottom (the real topbar has none) and why 12px is the horizontal gutter
-   (FileRow.vue's/FileListView.vue's own literal padding value, reused consistently below).
+   why there is no border-bottom (the real topbar has none) and why 12px is the vertical row's own
+   `gap` (unrelated to horizontal padding, see below).
    Fix wave B (B2, owner acceptance 2026-08-26): dropped `justify-content: space-between` -- the
    chip is no longer this row's second child (see the template above, moved inside `.tm-preview-
    window__crumbs`), so it had nothing left to push apart; a single child growing to fill this row
-   made that dead weight, not neutral. */
+   made that dead weight, not neutral.
+   Fix wave E (E2, owner acceptance 2026-08-26, static-mismatch audit): padding was `8px 12px 10px`
+   -- a literal that had quietly drifted from the real `.files-topbar`'s own `4px 0 14px` (ZERO
+   horizontal, not 12px) ever since this file's A1 rebuild. That drift shifted this row's whole
+   content -- crumbs included -- 12px right of where the real breadcrumb starts, and a hair off its
+   real vertical baseline; not a font-SIZE bug (the crumb font-size below was already correct, see
+   `.tm-preview-window__crumb`'s own comment), but exactly the kind of "content doesn't land on the
+   same pixels" mismatch the owner's screenshot caught. Now `var(--tm-topbar-padding)`, the SAME
+   token `.files-topbar` itself consumes (theme.css) -- the two literals cannot drift a fourth time. */
 .tm-preview-window__chrome {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px 10px;
+  padding: var(--tm-topbar-padding);
 }
 
 /* Hand-copied literal values from Breadcrumb.vue's own `.breadcrumb`/`.crumb`/`.crumb-sep`/
    `.crumb.current` (see this file's own header comment for why the live component itself is not
-   reused) -- font-size 14px, the real "›" separator, the real muted/active color split.
+   reused) -- font-size 14px, the real "›" separator, the real muted/active color split, all now
+   `var(--tm-crumb-*)` tokens (theme.css) shared with Breadcrumb.vue's own `.breadcrumb`/`.crumb`/
+   `.crumb-sep` (Fix wave E, E2) so the two can never drift on these values again.
    Fix wave B (B2): now also hosts the read-only chip as its own LAST child (see the template
    above) -- this row's own `flex: 1 1 auto` only widens ITS box within `.tm-preview-window__chrome`
    (irrelevant to child placement, since none of its children grow themselves); the chip still
@@ -462,14 +472,14 @@ const crumbSegments = computed(() => {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--tm-crumb-gap);
   overflow: hidden;
 }
 
 .tm-preview-window__crumb {
-  font-size: 14px;
+  font-size: var(--tm-crumb-font-size);
   color: var(--fg-muted);
-  padding: 2px 4px;
+  padding: var(--tm-crumb-padding);
   border-radius: 6px;
   min-width: 0;
   max-width: 100%;
@@ -486,7 +496,7 @@ const crumbSegments = computed(() => {
 .tm-preview-window__crumb-sep {
   flex: 0 0 auto;
   color: var(--fg-muted, #9aa4bf);
-  font-size: 12px;
+  font-size: var(--tm-crumb-sep-font-size);
 }
 
 /* Byte-identical to Files.vue's own `.tm-real-window-chip` (Vue2's literal `.tm-snap-chip`,
@@ -509,15 +519,23 @@ const crumbSegments = computed(() => {
   color: var(--tm-accent-hover);
 }
 
-/* No border-bottom -- see this file's own header comment. */
+/* Fix wave E (E2, owner acceptance 2026-08-26, static-mismatch audit): this row used to have NO
+   border-top and `padding: 0 12px 10px` -- the real `.files-list-head` has BOTH a `border-top`
+   hairline AND `padding: 10px 2px` (theme.css's own `--tm-list-head-padding`, shared with the real
+   rule now so the two can never drift again). Missing the hairline meant this replica's row2 had
+   one fewer visible seam than the real header; the wrong padding put its own content (the count
+   text/circle) at a different vertical position within the row than the real header's. `font-size`
+   dropped from this container entirely (the real `.files-list-head` has none either -- only its
+   own `.files-item-count` child sets a size, now `.tm-preview-window__count` below does the same
+   via the shared `--tm-item-count-font-size` token). */
 .tm-preview-window__row2 {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 12px 10px;
-  font-size: 13px;
+  padding: var(--tm-list-head-padding);
+  border-top: 1px solid var(--card-border, rgba(255,255,255,0.1));
   color: var(--fg-muted);
 }
 
@@ -529,6 +547,16 @@ const crumbSegments = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* Fix wave E (E2, owner acceptance 2026-08-26): this element used to have NO dedicated rule at
+   all, silently inheriting `.tm-preview-window__row2`'s own (now-removed) `font-size: 13px` --
+   the real `.files-item-count` is 12.5px (theme.css's own `--tm-item-count-font-size`, shared).
+   0.5px is a small absolute delta, but it was a genuine, confirmed static mismatch (this replica's
+   count text was actually LARGER than the real one's, not smaller) surfaced by this fix wave's own
+   row-by-row audit -- fixed here rather than left as the one remaining un-pinned literal. */
+.tm-preview-window__count {
+  font-size: var(--tm-item-count-font-size);
 }
 
 /* Static/unfilled only (no `.on` state -- this preview has no selection concept of its own, see
@@ -680,17 +708,24 @@ const crumbSegments = computed(() => {
    container padding, absent from the real chain, shrinking `auto-fill`'s available width by 24px
    (12px each side) and landing a DIFFERENT column count near breakpoints (audit fix target 8's own
    "reuse FileGridView's layout mechanism" intent, followed one step further: reuse its geometry
-   too, not just its `auto-fill` MECHANISM). Vertical padding (12px top/bottom) is kept for
-   breathing room from Row 2 above -- column count depends only on the horizontal width auto-fill
-   resolves against, so this does not reopen the mismatch. See
+   too, not just its `auto-fill` MECHANISM). See
    .superpowers/sdd/2026-08-25-files-time-machine-vue2-parity/final-fix-report.md ("Fix wave B",
    B3a) for the full trace and why option (a) (a fake sidebar clone) was rejected: neither Vue2's
-   own authority nor the real New-UI window has a sidebar inside the Time Machine window at all. */
+   own authority nor the real New-UI window has a sidebar inside the Time Machine window at all.
+   Fix wave E (E2, owner acceptance 2026-08-26, static-mismatch audit): B3a's own "vertical padding
+   kept for breathing room from Row 2" reasoning is RETIRED here -- the real `.file-grid`/
+   `.file-grid-root` chain has NO vertical padding either (row2's own bottom padding, now
+   `var(--tm-list-head-padding)`, is the ONLY gap before the first real row/tile), so this
+   replica's extra `12px` top padding pushed its own first row/tile 12px lower than the real
+   window's, on top of `.tm-preview-window__row2`'s own bottom padding -- a second, independent
+   vertical-offset mismatch this fix wave's row-by-row audit caught. `padding: 0` now matches the
+   real chain exactly; `gap`/`grid-template-columns` (the actual column-count-affecting geometry
+   B3a fixed) are unchanged. */
 .tm-preview-window__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 14px;
-  padding: 12px 0;
+  padding: 0;
   align-content: start;
   overflow: hidden;
 }

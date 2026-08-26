@@ -230,30 +230,44 @@ describe('resolveDollySlots — name-keyed dolly-slot assignment for a newest-fi
 })
 
 describe('resolveSlotPose — unified per-depth pose, T(-1) through T(cap)', () => {
-  it('depth 1 (nearest of the older cascade) is close to full scale/brightness with a small, non-zero offset', () => {
+  // Owner ruling E-1' (2026-08-26, supersedes an earlier same-day ruling
+  // that flattened resting-depth scale to 1 -- see timeMachineMath.ts's own
+  // resolveSlotPose comment on this ruling and this task's fix-wave report
+  // for the full back-and-forth): per-depth SCALING is fine -- it IS the
+  // camera-dolly illusion -- what the owner actually ruled out is Vue2's
+  // ANISOTROPIC scaleX-only narrowing ("thin peeking sliver"), which
+  // distorts glyphs (squishes them horizontally without matching vertical
+  // shrink). The tests below (mined from Vue2's own resolveSlotPose test,
+  // "narrower (smaller scaleX)") are UPDATED here, not left drifting:
+  // scaleX/scaleY now move TOGETHER, uniformly, at every resting depth; this
+  // is a deliberate, documented DIVERGENCE from Vue2's own X-only formula,
+  // not an oversight the final reviewer should flag as parity drift.
+  it('depth 1 (nearest of the older cascade) is close to full scale/brightness with a small, non-zero offset, UNIFORMLY on both axes', () => {
     const p = resolveSlotPose(1)
     expect(p.y).toBeLessThan(0)
     expect(p.scaleX).toBeLessThan(1)
     expect(p.scaleX).toBeGreaterThan(0.9)
-    expect(p.scaleY).toBe(1) // narrows X only -- the "thin peeking sliver" look
+    expect(p.scaleY).toBe(p.scaleX) // owner ruling E-1': uniform scale, no anisotropic narrowing
     expect(p.dim).toBeGreaterThan(0)
     expect(p.dim).toBeLessThan(0.1)
   })
 
-  it('is progressively higher (more negative y), narrower (smaller scaleX), and dimmer (higher dim) as depth grows, for the older cascade', () => {
+  it('is progressively higher (more negative y), smaller (uniform scale, BOTH axes together), and dimmer (higher dim) as depth grows, for the older cascade', () => {
     for (let depth = 1; depth < 10; depth++) {
       const near = resolveSlotPose(depth)
       const far = resolveSlotPose(depth + 1)
       expect(far.y).toBeLessThan(near.y) // more negative = higher
       expect(far.scaleX).toBeLessThanOrEqual(near.scaleX)
-      expect(far.scaleY).toBe(1)
+      expect(far.scaleY).toBe(far.scaleX) // owner ruling E-1': never anisotropic
+      expect(near.scaleY).toBe(near.scaleX)
       expect(far.dim).toBeGreaterThanOrEqual(near.dim)
     }
   })
 
-  it('never lets scaleX go below its floor, nor dim exceed its ceiling, even at a deep depth', () => {
+  it('never lets scale go below its floor, nor dim exceed its ceiling, even at a deep depth', () => {
     const p = resolveSlotPose(30)
     expect(p.scaleX).toBeGreaterThanOrEqual(0.78)
+    expect(p.scaleY).toBe(p.scaleX)
     expect(p.dim).toBeLessThanOrEqual(0.55)
   })
 
