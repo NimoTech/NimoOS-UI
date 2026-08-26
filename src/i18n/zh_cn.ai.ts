@@ -1889,4 +1889,13 @@ export default {
   aiTasksLoading: '加载中…',
   aiTasksRetry: '重试',
   // <<< Scheduled tasks page
+
+  // >>> Safety judge status (chat `judge` block)
+  aiJudgeCheckingShell: '正在检查该命令是否安全…',
+  aiJudgeCheckingUpload: '正在检查发往 {host} 的上传内容…',
+  aiJudgeAllowed: '安全检查通过,已自动执行',
+  aiJudgeNeedsConfirm: '安全检查:需要你确认',
+  aiJudgeBlocked: '安全检查:已拦截',
+  aiJudgeEnded: '安全检查结束',
+  // <<< Safety judge status
 }

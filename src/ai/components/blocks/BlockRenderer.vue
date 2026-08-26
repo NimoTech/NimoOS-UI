@@ -28,6 +28,7 @@ import McpWarningCard from './McpWarningCard.vue'
 import McpInstallCard from './McpInstallCard.vue'
 import McpElicitFormCard from './McpElicitFormCard.vue'
 import McpElicitUrlCard from './McpElicitUrlCard.vue'
+import JudgeStatusCard from './JudgeStatusCard.vue'
 
 interface Block {
   type: string
@@ -42,6 +43,7 @@ const BLOCK_MAP: Record<string, Component> = {
   tool: ToolCard,
   md: MarkdownBlock,
   confirm: ConfirmCard,
+  judge: JudgeStatusCard,
   access_request: PermissionRequestCard,
   max_turns: MaxTurnsCard,
   imggrid: ImageGridCard,

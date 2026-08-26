@@ -1932,6 +1932,7 @@ const COMPONENTS_VUE_FILES = [
   'blocks/ToolCard.vue',
   'blocks/VideoCard.vue',
   'icons/AgentIcon.vue',
+  'blocks/JudgeStatusCard.vue',
   'settings/mcp/McpServerDetail.vue',
   'settings/mcp/McpServerGroup.vue',
   'settings/mcp/McpServerModal.vue',
