@@ -847,6 +847,31 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.tm-stage__hold .files-select-all').exists()).toBe(true)
     expect(w.find('.tm-stage__hold .files-view-capsule').exists()).toBe(true)
   })
+
+  // Fix wave D (D1, owner acceptance 2026-08-26): the breadcrumb's favorite star must be hidden
+  // whenever `browse.isSnapshotView` is true -- snapshots are read-only, matching Vue2's own
+  // GirdView.vue ("never while browsing a snapshot") and restoring front/back parity with
+  // SnapshotPreviewWindow.vue's depth-stack layers, which never rendered a star to begin with.
+  it('snapshot view: hides the breadcrumb favorite star; normal browsing still shows it', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    const browse = useSnapshotBrowseStore()
+    expect(browse.isSnapshotView).toBe(true) // sanity: this really is snapshot view
+
+    // Scoped to the live real-window container -- same reasoning as the adjacent "New dropdown"
+    // case above: TimeMachineStage.vue's own entry-transition clone can carry a stale pre-nav star.
+    expect(w.find('.tm-stage__hold .crumb-star').exists()).toBe(false)
+
+    // Navigate out of the snapshot back to a normal folder: the star must come back.
+    await router.push('/files/NimoOS-HD/Documents')
+    await flushPromises()
+    expect(browse.isSnapshotView).toBe(false)
+    expect(w.find('.tm-stage__hold .crumb-star').exists()).toBe(true)
+  })
 })
 
 // Task 14: the three restore entry points (context-menu single item, banner restore button,

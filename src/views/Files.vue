@@ -914,7 +914,12 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
         >
           <div class="files-topbar">
             <div class="files-topbar-left">
-              <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual">
+              <Breadcrumb
+                :virtual-path="currentVirtual"
+                :current-real-path="files.currentPath"
+                :hide-favorite="browse.isSnapshotView"
+                @navigate="goVirtual"
+              >
                 <!-- Important 3 (final review): Vue2's FilePanel.vue moves the "you're read-only"
                      signal into the real window's OWN header bar while Time Machine's chrome is up
                      (`.tm-snap-chip`, gated on `isTimeMachineChromeVisible`) -- the plain top banner

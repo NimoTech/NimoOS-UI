@@ -7,7 +7,18 @@ import {
 import FavoriteStar from './FavoriteStar.vue'
 import { collapseCrumbs, maxCollapsible, type CrumbSeg } from '../util/breadcrumbCollapse'
 
-const props = defineProps<{ virtualPath: string; currentRealPath: string }>()
+const props = defineProps<{
+  virtualPath: string
+  currentRealPath: string
+  // Fix wave D (D1, owner acceptance 2026-08-26): snapshots are read-only, and Vue2 gates the
+  // favorite-star affordance off while browsing one (GirdView.vue's own `isInSnapshot` computed --
+  // "never while browsing a snapshot", see that file's header comment). The caller passes
+  // `browse.isSnapshotView` here (not `tmActive`: plain snapshot browsing without Time Machine
+  // chrome up still counts). This also restores front/back parity with SnapshotPreviewWindow.vue,
+  // whose own header comment documents that its hand-copied breadcrumb deliberately omits
+  // `<FavoriteStar>` entirely -- the promoted depth-0 layer never had a star to match against.
+  hideFavorite?: boolean
+}>()
 const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
 
 const segments = computed<CrumbSeg[]>(() => {
@@ -153,7 +164,7 @@ function hiddenLabel(hidden: CrumbSeg[]): string {
       <span v-else-if="i === items.length - 1" class="crumb current">{{ item.seg.label }}</span>
       <button v-else class="crumb" @click="emit('navigate', item.seg.vpath)">{{ item.seg.label }}</button>
     </template>
-    <FavoriteStar v-if="currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
+    <FavoriteStar v-if="!props.hideFavorite && currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
     <!-- Fix wave B (B2, owner acceptance 2026-08-26): an optional trailing slot, rendered as the
          LAST item in this same flex-wrap row -- so whatever the caller puts here (Files.vue's own
          "Snapshot · Read-only" chip) hugs the breadcrumb's actual rendered content, the same way
