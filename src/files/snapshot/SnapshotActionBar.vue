@@ -78,7 +78,14 @@ const { t } = useI18n()
         :title="t('tmRestoreSelection')"
         @click="emit('restore')"
       >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <!-- Fix wave A3 (audit-modals.md §6, busy/disabled state -- MISSING the spinner glyph
+             swap): Vue2's own icon swaps to a spinning `mdi-spin loading` glyph while restoring
+             (own file:48-52,82-86) -- previously this button only dimmed via `:disabled{opacity}`,
+             with no spin animation at all. Swapped for a plain rotating ring (same idiom as
+             SnapshotBanner.vue's own `.snap-banner-spin`, no icon library dependency) rather than
+             the resting rotate-ccw icon while `restoring` is true. -->
+        <span v-if="restoring" class="tm-action-bar-spin" aria-hidden="true"></span>
+        <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="3 3 3 8 8 8"></polyline>
           <path d="M3 8a9 9 0 1 0 2.64-6.36"></path>
         </svg>
@@ -142,6 +149,16 @@ const { t } = useI18n()
 }
 .tm-action-bar-btn:hover:not(:disabled) { background: var(--tm-action-bar-item-hover-bg); }
 .tm-action-bar-btn:disabled { opacity: 0.6; cursor: default; }
+/* Fix wave A3 (audit-modals.md §6, busy/disabled state): the spinning-ring swap itself -- see
+   this file's own template comment. Uses `currentColor` (already `--tm-chrome-text`, white) so
+   no new token is needed. */
+.tm-action-bar-spin {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-top-color: currentColor;
+  animation: tm-action-bar-spin 0.7s linear infinite;
+}
+@keyframes tm-action-bar-spin { to { transform: rotate(360deg); } }
 
 /* Fix wave A2 (audit-stage.md #14, priority list item 8): Vue2's own `up-fade` transition
    (_animate.scss:105-117), fully resolved to `opacity 150ms ease-out, transform 150ms ease-out`
