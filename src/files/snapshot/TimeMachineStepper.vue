@@ -111,7 +111,10 @@ const { t } = useI18n()
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.15s var(--ease), opacity 0.15s var(--ease);
+  /* Fix wave A2 (audit-stage.md #10, priority list item 14): Vue2's own literal
+     (`background 0.15s ease, opacity 0.15s ease`, TimeMachineStage.vue:3309) -- plain `ease`, not
+     `var(--ease)`'s custom cubic-bezier curve. */
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 .tm-stepper-btn:hover:not(:disabled) { background: var(--tm-stepper-btn-hover-bg); }
 .tm-stepper-btn:disabled { opacity: 0.35; cursor: default; }
