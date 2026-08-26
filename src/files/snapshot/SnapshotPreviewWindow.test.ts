@@ -89,7 +89,7 @@ describe('SnapshotPreviewWindow — chrome Row 1: breadcrumb + read-only chip (V
   })
 })
 
-describe('SnapshotPreviewWindow — chrome Row 2: total count + select-all (gated on totalCount > 0, Vue2 parity)', () => {
+describe('SnapshotPreviewWindow — chrome Row 2: total count + real view-toggle affordance (fix wave A1)', () => {
   it('hides Row 2 entirely when the listing is empty, mirroring Vue2\'s v-if="totalCount > 0"', async () => {
     resolved({ entries: [], error: false })
     const w = mountPreview()
@@ -105,14 +105,31 @@ describe('SnapshotPreviewWindow — chrome Row 2: total count + select-all (gate
     expect(w.find('.tm-preview-window__count').text()).toBe('30 项') // tmItemCount, zh
   })
 
-  it('renders the select-all checkbox as inert/disabled and a decorative view-toggle glyph', async () => {
+  // Fix wave A1: the previous build's fake disabled select-all checkbox is gone (New-UI's real
+  // window has no persistent select-all affordance for a decorative preview to mirror -- see
+  // this component's own header comment). In its place: the REAL grid/list toggle affordance
+  // Files.vue's own `.files-viewtoggle` uses -- two real chip pills, real i18n text, real
+  // `.is-active` reflecting the current viewMode -- not a blank glyph square.
+  it('renders real grid/list toggle chips (real text, real active-state reflection), no fake checkbox', async () => {
     resolved({ entries: [{ name: 'a.txt', isDir: false, size: 1, mtime: 0 }], error: false })
-    const w = mountPreview()
+    const w = mountPreview({ viewMode: 'grid' })
     await flushPromises()
-    const checkbox = w.find('.tm-preview-window__select-all input[type="checkbox"]')
-    expect(checkbox.exists()).toBe(true)
-    expect(checkbox.attributes('disabled')).toBeDefined()
-    expect(w.find('.tm-preview-window__view-toggle').exists()).toBe(true)
+    expect(w.find('.tm-preview-window__select-all').exists()).toBe(false)
+    expect(w.find('.tm-preview-window__row2 input[type="checkbox"]').exists()).toBe(false)
+    const chips = w.findAll('.tm-preview-window__toggle-chip')
+    expect(chips).toHaveLength(2)
+    expect(chips.map((c) => c.text())).toEqual(['网格', '列表']) // filesViewGrid/filesViewList, zh
+    expect(chips[0].classes()).toContain('is-active') // grid mode → the "网格" chip is active
+    expect(chips[1].classes()).not.toContain('is-active')
+  })
+
+  it('reflects list mode on the toggle chips', async () => {
+    resolved({ entries: [{ name: 'a.txt', isDir: false, size: 1, mtime: 0 }], error: false })
+    const w = mountPreview({ viewMode: 'list' })
+    await flushPromises()
+    const chips = w.findAll('.tm-preview-window__toggle-chip')
+    expect(chips[0].classes()).not.toContain('is-active')
+    expect(chips[1].classes()).toContain('is-active')
   })
 })
 
@@ -140,11 +157,17 @@ describe('SnapshotPreviewWindow — viewMode prop (Vue2 parity: grid default, li
     const w = mountPreview({ viewMode: 'list' })
     await flushPromises()
     expect(w.find('.tm-preview-window__card').exists()).toBe(false)
-    // Vue2 parity: a leading empty spacer th (the checkbox column's header spot) comes first.
+    // Fix wave A1: header columns now mirror FileListView.vue's own real column chain verbatim --
+    // a leading empty 28px check-spacer, the four sortable columns, and a trailing empty 32px
+    // star-spacer (both real FileRow.vue column widths, kept as spacers since the checkbox/star
+    // themselves are interactive-only decorations this decorative preview omits).
     const heads = w.findAll('.tm-preview-window__th')
-    expect(heads[0].classes()).toContain('tm-preview-window__th--spacer')
+    expect(heads).toHaveLength(6)
+    expect(heads[0].classes()).toContain('tm-preview-window__th--check')
     expect(heads[0].text()).toBe('')
-    expect(heads.slice(1).map((h) => h.text())).toEqual(['名称', '类型', '修改日期', '大小']) // filesColName/Type/Date/Size, zh
+    expect(heads.slice(1, 5).map((h) => h.text())).toEqual(['名称', '类型', '修改日期', '大小']) // filesColName/Type/Date/Size, zh
+    expect(heads[5].classes()).toContain('tm-preview-window__th--star')
+    expect(heads[5].text()).toBe('')
     const rows = w.findAll('.tm-preview-window__row')
     expect(rows).toHaveLength(2)
     expect(rows[0].find('.tm-preview-window__col--name').text()).toBe('Photos') // folders-first
@@ -174,6 +197,42 @@ describe('SnapshotPreviewWindow — viewMode prop (Vue2 parity: grid default, li
     expect(w.findAll('.tm-preview-window__card')).toHaveLength(24)
     // Row 2's own count still reads the FULL, uncapped length.
     expect(w.find('.tm-preview-window__count').text()).toBe('40 项')
+  })
+})
+
+describe('SnapshotPreviewWindow — fix wave A1: real-clone structure (audit-preview.md fix targets)', () => {
+  const entries = [{ name: 'Report.pdf', isDir: false, size: 2048, mtime: 0 }]
+
+  it('grid mode: cards use the real FileTile.vue-shaped icon box (--tile modifier) and no bespoke checkbox/star markup', async () => {
+    resolved({ entries, error: false })
+    const w = mountPreview()
+    await flushPromises()
+    const card = w.find('.tm-preview-window__card')
+    expect(card.find('.tm-preview-window__icon-box.tm-preview-window__icon-box--tile').exists()).toBe(true)
+    // Interactive-only decorations (checkbox, favorite star) are omitted -- see this component's
+    // own header comment, "reuse-vs-clone" trace.
+    expect(card.find('input[type="checkbox"]').exists()).toBe(false)
+  })
+
+  it('list mode: rows reserve the real 28px/32px checkbox and star spacer columns (fix target 9, header/row width match)', async () => {
+    resolved({ entries, error: false })
+    const w = mountPreview({ viewMode: 'list' })
+    await flushPromises()
+    const row = w.find('.tm-preview-window__row')
+    expect(row.find('.tm-preview-window__col--check').exists()).toBe(true)
+    expect(row.find('.tm-preview-window__col--star').exists()).toBe(true)
+    expect(row.find('.tm-preview-window__icon-box').exists()).toBe(true)
+    expect(row.find('.tm-preview-window__icon-box--tile').exists()).toBe(false) // list uses the 28px box, not the grid's 64px one
+  })
+
+  it('the inner window carries no border/border-radius classes of its own (strip already owns that chrome)', async () => {
+    resolved({ entries: [], error: false })
+    const w = mountPreview()
+    await flushPromises()
+    // The root element is exactly `.tm-preview-window` (plus the `is-active` hook) -- fix target
+    // 11 removed the old build's own radius/border/translucent-bg rule, not a class to assert on
+    // directly, but this at least pins the root element's class list stays minimal.
+    expect(w.classes()).toEqual(expect.arrayContaining(['tm-preview-window', 'is-active']))
   })
 })
 
