@@ -110,11 +110,19 @@ describe('SnapshotPreviewWindow — chrome Row 1: breadcrumb + read-only chip (V
 })
 
 describe('SnapshotPreviewWindow — chrome Row 2: select-all + count + view capsule (fix wave C, mirrors the real .files-list-head)', () => {
-  it('hides Row 2 entirely when the listing is empty, mirroring Vue2\'s v-if="totalCount > 0"', async () => {
+  // Fix wave D (D2, owner acceptance 2026-08-26 -- reveal-time scale stutter): this used to assert
+  // the OPPOSITE (`.toBe(false)`, "hides Row 2 entirely ... mirroring Vue2's v-if=totalCount>0") --
+  // that was stale Vue2 parity left over from BEFORE Fix wave C made the real window's own
+  // `.files-list-head` unconditional (`Files.vue` renders it with no `v-if` at all). An empty
+  // target directory's preview strip was silently shorter than the real window it is meant to
+  // mirror, causing a vertical content-height mismatch at the exact reveal instant. See
+  // SnapshotPreviewWindow.vue's own header comment (FIX WAVE D section) for the full trace.
+  it('shows Row 2 even when the listing is empty, matching the real .files-list-head\'s unconditional render', async () => {
     resolved({ entries: [], error: false })
     const w = mountPreview()
     await flushPromises()
-    expect(w.find('.tm-preview-window__row2').exists()).toBe(false)
+    expect(w.find('.tm-preview-window__row2').exists()).toBe(true)
+    expect(w.find('.tm-preview-window__count').text()).toBe('0 项') // tmItemCount, zh, n=0
   })
 
   it('shows "N items" using the FULL count, not capped by the row render cap', async () => {
@@ -330,12 +338,16 @@ describe('SnapshotPreviewWindow — sort mirrors the live front window (review f
 })
 
 describe('SnapshotPreviewWindow — loading/error/empty all render as empty chrome (Vue2 parity: no spinner, no error text, no toast)', () => {
-  it('renders zero cards and hides Row 2 while the fetch is still pending', async () => {
+  // Fix wave D (D2): Row 2 itself is no longer gated on totalCount/loading/error at all (see the
+  // describe block above) -- it stays visible through every one of these states, matching the real
+  // window's own `.files-list-head`, which likewise never hides while its own directory listing is
+  // loading, erroring, or empty. Only the CARD/ROW content (the actual file listing) is empty here.
+  it('renders zero cards (but still Row 2) while the fetch is still pending', async () => {
     pending()
     const w = mountPreview()
     await w.vm.$nextTick()
     expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
-    expect(w.find('.tm-preview-window__row2').exists()).toBe(false)
+    expect(w.find('.tm-preview-window__row2').exists()).toBe(true)
   })
 
   it('renders zero cards on a fetch error, and never surfaces error copy anywhere in the DOM', async () => {
@@ -343,7 +355,7 @@ describe('SnapshotPreviewWindow — loading/error/empty all render as empty chro
     const w = mountPreview()
     await flushPromises()
     expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
-    expect(w.find('.tm-preview-window__row2').exists()).toBe(false)
+    expect(w.find('.tm-preview-window__row2').exists()).toBe(true)
     expect(w.text()).not.toMatch(/couldn|error|失败|读不到/i)
   })
 
@@ -354,12 +366,12 @@ describe('SnapshotPreviewWindow — loading/error/empty all render as empty chro
     expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
   })
 
-  it('a genuinely empty (non-error) listing also renders zero cards, same empty chrome', async () => {
+  it('a genuinely empty (non-error) listing also renders zero cards, but still shows Row 2 (matching the real window)', async () => {
     resolved({ entries: [], error: false })
     const w = mountPreview()
     await flushPromises()
     expect(w.findAll('.tm-preview-window__card')).toHaveLength(0)
-    expect(w.find('.tm-preview-window__row2').exists()).toBe(false)
+    expect(w.find('.tm-preview-window__row2').exists()).toBe(true)
   })
 })
 

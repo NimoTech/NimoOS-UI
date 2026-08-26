@@ -240,6 +240,27 @@ const stackStyle = computed(() => ({ transform: `scale(${TM_WINDOW_SCALE})` }))
 // lands", see resolveDollySlots' own header comment on pinNames for why that ordering matters).
 let pendingTravel: { from: string, to: string } | null = null
 
+// Fix wave D (D2, owner acceptance 2026-08-26 -- reveal-time scale stutter): a monotonic counter
+// bumped every time the `currentSnapshotName` watcher below starts processing a NEW travel.
+// `armReveal`'s own setTimeout used to arm SYNCHRONOUSLY, one tick before `runTravel`'s GSAP
+// timeline (deferred into `nextTick`, see that call's own comment) actually started ticking --
+// `travelDurationMs(steps)` being identical on both sides only guaranteed the two countdowns were
+// the same LENGTH, never that they started from the same INSTANT. That one-tick head start let the
+// reveal-gate's timer fire, and the real window swap in, strictly BEFORE the incoming depth-0
+// strip's tween had actually finished interpolating to its resting `{x:0,y:0,scale:1}` pose --
+// the promoted depth-0 layer and the just-revealed real window pop instead of coincide, exactly
+// the "whole view stutters and changes scale" symptom reported. This is Vue2's own Fix Round 15
+// regression (TimeMachineStage.vue's own header comment on `beginTravel`, "Fix Round 15 (2026-07,
+// problem 2c root cause)") reintroduced here -- ported the identical fix: `armReveal` is called
+// from the SAME `nextTick` callback `runTravel` already uses (not merely "the same Vue flush
+// batch" the way Vue2's two SEPARATE `$nextTick` calls rely on -- calling both from one shared
+// callback pins them to the exact same synchronous instant, tighter than Vue2's own two-call
+// arrangement), so both countdowns now start from the same zero point and finish together (mod
+// sub-frame GSAP/rAF quantization, the same residual Vue2's own comment accepts). `myToken` mirrors
+// Vue2's own `token !== this.travelToken` re-check inside its deferred callback: it guards the case
+// where a LATER travel supersedes this one before this deferred callback has even run.
+let travelRunToken = 0
+
 watch(
   () => browse.tmTravel,
   (val) => {
@@ -258,13 +279,18 @@ watch(
     const fromIdx = names.value.indexOf(travel.from)
     const toIdx = names.value.indexOf(travel.to)
     const steps = fromIdx >= 0 && toIdx >= 0 ? Math.abs(toIdx - fromIdx) || 1 : 1
+    const myToken = ++travelRunToken
     // $nextTick equivalent (Vue2's own playDollyTravel): a name that is entering `dollySlots` for
     // the FIRST time on this exact render (a pinned endpoint that was not already part of the
     // cascade) needs its own v-tm-pose/v-tm-dim `mounted` hook to have actually run -- i.e. the DOM
     // patch from the `currentIndex` change above must have landed -- before `stripRefs`/`dimRefs`
-    // lookups below can find it.
-    nextTick(() => runTravel(steps, travel))
-    armReveal(travel, steps)
+    // lookups below can find it. `armReveal` now runs from THIS SAME callback (see `travelRunToken`'s
+    // own comment above) rather than synchronously alongside it.
+    nextTick(() => {
+      if (myToken !== travelRunToken) return
+      runTravel(steps, travel)
+      armReveal(travel, steps)
+    })
   },
 )
 

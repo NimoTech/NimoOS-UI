@@ -307,6 +307,56 @@ describe('TimeMachineDepthStack — reveal-gate (review finding 1: does not sett
   })
 })
 
+// Fix wave D (D2, owner acceptance 2026-08-26 -- reveal-time scale stutter): regression coverage
+// for the exact race the fix addresses -- see TimeMachineDepthStack.vue's own `travelRunToken`
+// comment for the full mechanism and the Vue2 "Fix Round 15" precedent this ports. Wall-clock
+// (`Date.now()`) cannot distinguish the buggy ordering from the fixed one here: under fake timers
+// the virtual clock does not advance across a bare microtask/nextTick boundary, so a `setTimeout`
+// call made "one tick early" resolves to the SAME simulated fire time as one made "on time" --
+// exactly why the bug was invisible to naive timing assertions and only showed up as a real-browser
+// visual pop. The provable, deterministic distinction is PROGRAM ORDER: under the pre-fix code,
+// `armReveal` ran synchronously inside the `currentSnapshotName` watcher -- its own `setTimeout`
+// registration necessarily happened BEFORE `runTravel`'s nextTick-deferred call to
+// `playTravelTimeline` even ran (a `nextTick`-deferred callback can never execute before the
+// synchronous code that scheduled it finishes). Post-fix, both calls happen from the SAME deferred
+// callback with `runTravel` (and therefore `playTravelTimeline`) called FIRST. Vitest's mock
+// functions share one global `invocationCallOrder` counter across every mock, so comparing the two
+// calls' own order numbers proves which one actually ran first -- independent of any faked/real
+// wall-clock value.
+describe('TimeMachineDepthStack — reveal-gate timer starts from the same tick as the GSAP travel timeline (fix wave D, D2)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('registers the reveal-gate timer AFTER playTravelTimeline has already been called, never before', async () => {
+    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's1')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    const playSpy = vi.spyOn(choreo, 'playTravelTimeline')
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+
+    browse.tmTravel = { from: 's1', to: 's2' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s2`
+    browse.tmTravel = null
+    // Flushes the currentSnapshotName watcher, its own nextTick-deferred runTravel+armReveal
+    // callback, and any further microtask hop either one triggers -- how many actual ticks that
+    // takes is an implementation detail this test does not care about; the invocation-order
+    // comparison below is what proves the fix, not the tick count.
+    await nextTick()
+    await nextTick()
+
+    expect(playSpy).toHaveBeenCalledTimes(1)
+    const durationMs = choreo.travelDurationMs(1) // |idx(s2) - idx(s1)| === 1 -> TRAVEL_BASE_DURATION_MS
+    const travelTimerCallIndex = setTimeoutSpy.mock.calls.findIndex(([, delay]) => delay === durationMs)
+    expect(travelTimerCallIndex).toBeGreaterThanOrEqual(0) // sanity: the reveal-gate timer was armed at all
+    const travelTimerOrder = setTimeoutSpy.mock.invocationCallOrder[travelTimerCallIndex]
+    const playOrder = playSpy.mock.invocationCallOrder[0]
+    expect(travelTimerOrder).toBeGreaterThan(playOrder)
+  })
+})
+
 // Fix wave B (B3b, owner acceptance 2026-08-26): the reveal-gate used to wait only for the preview
 // cache promise (feeding the decorative depth-stack layers) and the travel duration -- never for
 // the REAL window's own `files.load()` of the target path. In production `browse.currentSnapshotName`

@@ -113,6 +113,17 @@
   source, which also never puts its checkbox in a checked state on these preview windows); the
   capsule DOES still reflect the live `viewMode` prop, unchanged from before.
 
+  FIX WAVE D (D2, owner acceptance 2026-08-26, reveal-time scale stutter): row2's own `v-if
+  totalCount > 0` gate (Vue2 parity, byte-for-byte per the paragraph above) went stale the instant
+  Fix wave C made the REAL window's `.files-list-head` UNCONDITIONAL (`Files.vue` renders it with
+  no `v-if` at all, per that fix wave's own comment) -- nobody updated this mirror to match. An
+  empty target directory's promoted depth-0 strip therefore omitted this whole row (shorter box)
+  while the just-revealed real window kept showing it (taller box), a genuine vertical content-
+  height mismatch landing at the EXACT reveal instant -- one of the "front-only interactive element
+  changes layout height" cases this fix wave's own audit was told to check for. Un-gated below to
+  match the real row unconditionally, same as the real window; `tmItemCount` already renders "0
+  items" correctly for an empty folder (no copy change needed, just the missing v-if removed).
+
   Row 1/Row 2 chrome padding (audit fix target 12): the previous build's `6px 10px` +
   near-invisible hairline is replaced with 12px horizontal padding (FileRow.vue's/
   FileListView.vue's own literal gutter value, reused consistently across chrome/row2/thead/rows/
@@ -203,18 +214,20 @@
       </nav>
     </header>
 
-    <!-- Row 2: total count (Vue2 parity, gated on totalCount > 0 byte-for-byte) + the real
-         header affordances (Files.vue's own NEW `.files-list-head` row -- Fix wave C toolbar
-         redesign) -- a decorative, non-interactive circle select-all + count on the left, the
-         grid/list capsule switcher on the right. Both are hand-copied at the SAME classes'
-         literal dimensions as the real row (see this file's own header comment's "reuse-vs-clone"
-         section for why hand-copying, not mounting the live component, is this file's established
-         pattern) so a stacked preview layer reads as a genuine miniature of the real window, not
-         an approximation. The circle carries no `.on`/checked state -- this is a static backdrop
+    <!-- Row 2: total count + the real header affordances (Files.vue's own `.files-list-head` row
+         -- Fix wave C toolbar redesign) -- a decorative, non-interactive circle select-all + count
+         on the left, the grid/list capsule switcher on the right. Both are hand-copied at the SAME
+         classes' literal dimensions as the real row (see this file's own header comment's
+         "reuse-vs-clone" section for why hand-copying, not mounting the live component, is this
+         file's established pattern) so a stacked preview layer reads as a genuine miniature of the
+         real window, not an approximation. Fix wave D (D2): rendered UNCONDITIONALLY, matching
+         `.files-list-head`'s own unconditional real render (Fix wave C) -- see this file's own
+         header comment for why the stale `v-if="totalCount > 0"` (leftover pre-Fix-wave-C Vue2
+         parity) was removed. The circle carries no `.on`/checked state -- this is a static backdrop
          layer with no selection concept of its own (Vue2's own source has none either), so it
          always renders in its plain unfilled ring form; the capsule DOES reflect the live
          `viewMode` prop, same as the real header's own `files.viewMode`-driven `.active` class. -->
-    <div v-if="totalCount > 0" class="tm-preview-window__row2">
+    <div class="tm-preview-window__row2">
       <div class="tm-preview-window__select-zone">
         <span class="tm-preview-window__select-all" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4"><path d="M20 6 9 17l-5-5" /></svg>
