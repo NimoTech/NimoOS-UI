@@ -840,6 +840,8 @@ export default {
   snapDailyKeep: '每天保留数',
   snapWeeklyKeep: '每周保留数',
   snapPauseThreshold: '卷使用率超过多少时暂停(%)',
+  snapNumDecrease: '减少',
+  snapNumIncrease: '增加',
   snapErrPositiveInt: '必须是大于 0 的整数',
   snapErrPercent: '必须是 1 到 100 之间的整数',
   snapSave: '保存',

@@ -838,6 +838,12 @@ export default {
   snapDailyKeep: 'Daily keep count',
   snapWeeklyKeep: 'Weekly keep count',
   snapPauseThreshold: 'Pause when volume usage exceeds (%)',
+  // Fix wave A3 (audit-modals.md #6): aria-labels for the [-]/[+] ghost-stepper buttons rebuilt
+  // to Vue2's own Buefy `b-numberinput` shape (SnapshotSettingsModal.vue). Deliberately separate
+  // keys from TimeMachineStepper.vue's `tmStepLater`/`tmStepEarlier` (those step between
+  // snapshots in time; these increment/decrement a policy field's numeric value).
+  snapNumDecrease: 'Decrease',
+  snapNumIncrease: 'Increase',
   snapErrPositiveInt: 'Must be a positive whole number',
   snapErrPercent: 'Must be a whole number between 1 and 100',
   snapSave: 'Save',
