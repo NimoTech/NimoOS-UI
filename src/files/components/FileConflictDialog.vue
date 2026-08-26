@@ -119,8 +119,15 @@ defineExpose({ choose })
             {{ allowMerge ? t('filesConflictDirNoteMerge') : t('filesConflictDirNote') }}
           </div>
 
+          <!-- Fix wave A3 (audit-modals.md, apply-all checkbox): custom-skinned box matching
+               Buefy's own `b-checkbox` geometry (`_checkbox.scss`: 1.25em box @ 12px font ≈ 15px,
+               2px border, $radius(3px) radius, $primary fill+checkmark when checked) instead of
+               an unstyled native control. -->
           <label v-if="queueTotal > 1" class="fc-apply-all">
-            <input v-model="applyToAll" type="checkbox" />
+            <span class="fc-checkbox">
+              <input v-model="applyToAll" type="checkbox" class="fc-checkbox-input" />
+              <span class="fc-checkbox-box" aria-hidden="true"></span>
+            </span>
             <span>{{ t('filesConflictApplyAll') }}</span>
           </label>
         </section>
@@ -133,16 +140,14 @@ defineExpose({ choose })
           <button class="fc-btn" :class="(allowMerge && isDir) ? 'fc-ghost' : 'fc-primary'" @click="choose('keep_both')">
             {{ t('filesConflictKeepBoth') }}
           </button>
-          <!-- The why-disabled hint is a CSS tooltip on a wrapper span, not a
-               native title: title needs a ~1s motionless hover before it shows
-               (and never shows on touch), which read as "no tooltip at all"
-               during acceptance; the wrapper also keeps :hover alive while the
-               button inside is disabled. -->
-          <span class="fc-tip-wrap" :data-tip="isDir ? t('filesConflictOverwriteDisabled') : undefined">
-            <button class="fc-btn fc-danger" :disabled="isDir" @click="choose('overwrite')">
-              {{ t('filesConflictOverwrite') }}
-            </button>
-          </span>
+          <!-- Fix wave A3 (audit-modals.md, Overwrite-disabled tooltip): reverted to Vue2's own
+               native `title` attribute mechanism (own file:96-97) -- the instant custom CSS
+               tooltip bubble this used to be was a deliberate New-UI-only UX improvement, but the
+               audit's own directive is pixel/behavior parity with Vue2, which uses the browser's
+               default `title` tooltip (no custom bubble, ~1s hover delay). -->
+          <button class="fc-btn fc-danger" :disabled="isDir" :title="isDir ? t('filesConflictOverwriteDisabled') : undefined" @click="choose('overwrite')">
+            {{ t('filesConflictOverwrite') }}
+          </button>
         </footer>
       </DialogContent>
     </DialogPortal>
@@ -151,8 +156,11 @@ defineExpose({ choose })
 
 <style scoped>
 /* Elevated tier — see file header comment for why this dialog does not share
-   the app's normal 1000/1001 dialog tier. */
-.fc-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1050; }
+   the app's normal 1000/1001 dialog tier. Fix wave A3 (audit-modals.md #1):
+   flat unblurred Buefy scrim (same fix as the other two TM dialogs, still at
+   this dialog's own elevated 1050 z-index) -- see theme.css's own comment on
+   `--tm-modal-overlay-bg`. */
+.fc-overlay { position: fixed; inset: 0; background: var(--tm-modal-overlay-bg); z-index: 1050; }
 .fc-content {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1051;
   width: 420px; max-width: 92vw; height: auto; max-height: 70vh;
@@ -175,7 +183,9 @@ defineExpose({ choose })
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 20px 24px 12px; border-bottom: 1px solid var(--tm-hairline); flex-shrink: 0;
 }
-.fc-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--tm-text); }
+/* Fix wave A3 (audit-modals.md #2): see SnapshotSettingsModal.vue's own `.ssm-title` comment for
+   the full line-height/font-family citation. */
+.fc-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 24px; color: var(--tm-text); }
 .fc-close-x {
   flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
   background: transparent; border: none; padding: 0; color: var(--tm-text-dim); cursor: pointer;
@@ -209,17 +219,43 @@ defineExpose({ choose })
   display: flex; align-items: center; gap: 6px; margin-top: 14px;
   font-size: 12px; color: var(--tm-text-dim); cursor: pointer;
 }
+/* Fix wave A3 (audit-modals.md, apply-all checkbox): Buefy's own `b-checkbox` box geometry --
+   `$checkbox-size: 1.25em` (at is-small's 12px font ≈ 15px), `$checkbox-border-width: 2px`,
+   `$checkbox-border-radius: $radius`(3px) -- with a border-trick checkmark (avoids embedding an
+   SVG data-URI with a hardcoded fill color, keeping every color here token-driven). */
+.fc-checkbox { position: relative; display: inline-flex; width: 15px; height: 15px; flex-shrink: 0; font-size: 12px; }
+.fc-checkbox-input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
+.fc-checkbox-box {
+  position: absolute; inset: 0; border-radius: 3px; border: 2px solid var(--tm-ghost-border-hover);
+  background: transparent; transition: background 0.15s var(--ease, ease), border-color 0.15s var(--ease, ease);
+}
+.fc-checkbox-input:hover:not(:disabled) + .fc-checkbox-box { border-color: var(--tm-primary); }
+.fc-checkbox-input:checked + .fc-checkbox-box { background: var(--tm-primary); border-color: var(--tm-primary); }
+.fc-checkbox-input:checked + .fc-checkbox-box::after {
+  content: ''; position: absolute; left: 3px; top: -1px; width: 4px; height: 8px;
+  border: solid var(--tm-chrome-text); border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.fc-checkbox-input:focus-visible + .fc-checkbox-box { box-shadow: 0 0 0 3px color-mix(in srgb, var(--tm-primary) 30%, transparent); }
 
 .fc-foot {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px;
   padding: 12px 24px 18px; border-top: 1px solid var(--tm-hairline); flex-shrink: 0;
 }
 
-.fc-btn { padding: 7px 16px; border-radius: var(--tm-control-radius); font-size: 13px; cursor: pointer; border: none; }
+/* Fix wave A3 (audit-modals.md, Merge/Skip/Keep-both/Overwrite buttons): Vue2's own `<b-button>`s
+   here have no `size` prop -> Bulma default/medium: `font-size: 16px; height ≈ 40px` -- same fix
+   as the other two TM dialogs' footer buttons (see SnapshotSettingsModal.vue's own `.ssm-close`
+   comment for the full citation). */
+.fc-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 16px; height: 40px; border-radius: var(--tm-control-radius); font-size: 16px; cursor: pointer; border: none;
+}
 .fc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.fc-primary { background: var(--tm-accent); color: var(--tm-chrome-text); }
-.fc-primary:hover:not(:disabled) { background: var(--tm-accent-hover); }
+/* Fix wave A3 (audit-modals.md, primary button color): Vue2's `is-primary` fill is `$primary`,
+   not `--tm-accent` -- see theme.css's own token-split comment. */
+.fc-primary { background: var(--tm-primary); color: var(--tm-chrome-text); }
+.fc-primary:hover:not(:disabled) { background: var(--tm-primary-hover); }
 
 .fc-ghost { background: transparent; border: 1px solid var(--tm-ghost-border); color: var(--tm-text-dim); }
 .fc-ghost:hover:not(:disabled) { background: var(--tm-ghost-hover-bg); color: var(--tm-text); border-color: var(--tm-ghost-border-hover); }
@@ -237,25 +273,4 @@ defineExpose({ choose })
   color: var(--tm-danger-hover);
 }
 
-/* Instant tooltip bubble (same surface recipe as DiskUsageTip.vue), restyled
-   onto the white-glass panel tokens. Anchored to the wrapper so it still
-   appears while the button inside is disabled; right-aligned because
-   Overwrite is the last control in the footer row. */
-.fc-tip-wrap { position: relative; display: inline-flex; }
-.fc-tip-wrap[data-tip]:hover::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  right: 0;
-  white-space: nowrap;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  background: var(--tm-panel-bg);
-  border: 1px solid var(--tm-panel-border);
-  box-shadow: var(--tm-panel-shadow);
-  color: var(--tm-text);
-  pointer-events: none;
-  z-index: 1;
-}
 </style>
