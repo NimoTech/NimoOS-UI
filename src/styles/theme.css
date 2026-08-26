@@ -365,6 +365,30 @@
      token needed there. */
   --tm-action-bar-bg: rgb(49, 49, 54);
   --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
+  /* Fix wave A2 (audit-stage.md #5/#6/#4/#10/#12): pixel-pinned to Vue2's own remaining
+     TimeMachineStage.vue literals the earlier waves left on `--card-shadow-hi`/`--tm-text`/a
+     borrowed rail token instead of a dedicated one. `--tm-depth-shadow` is `.tm-stage__depth-strip`'s
+     own single-layer `box-shadow` (3042); `--tm-fwin-shadow` is `.tm-fwin--active`'s own single-layer
+     `box-shadow` (3198) -- both replace the generic 3-layer `--card-shadow-hi` (with its inset
+     highlight Vue2 never has on either element). `--tm-depth-dim` is `.tm-stage__depth-strip__dim`'s
+     own literal `background: #000` (3081, pure black, not `--tm-text`'s navy-grey). `--tm-gear-text`
+     is `.tm-stage__gear`'s own resting `color` (3260) -- hover reuses the existing `--tm-chrome-text`
+     (#fff), same literal as Vue2's own hover `color: #ffffff` (3262), so no separate hover token was
+     needed. `--tm-rail-skeleton` is `.tm-tick-skeleton`'s own literal `background` (3403) -- kept
+     distinct from `--tm-rail-tick-sub` (0.2 alpha, the sub-tick's own resting color) since Vue2 pins
+     a different alpha (0.28) for the loading placeholder than for any real tick. */
+  --tm-depth-shadow: 0 6px 18px rgba(5, 8, 30, 0.3);
+  --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
+  --tm-depth-dim: #000;
+  --tm-gear-text: rgba(241, 245, 249, 0.75);
+  --tm-rail-skeleton: rgba(255, 255, 255, 0.28);
+  /* `.tm-tick__label`/`.tm-tick__badge`/`.tm-rail__day` all share this ONE literal text-shadow in
+     Vue2 (3442, 3455, 3422) -- one shared token, not three duplicated ones. */
+  --tm-rail-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  /* `.tm-stage__empty-title`/`-sub`'s own literal colors (3355-3356) -- distinct alphas from
+     `--tm-gear-text` above (0.75), not a reuse: title is fully opaque, sub is 0.7. */
+  --tm-empty-title: #f1f5f9;
+  --tm-empty-sub: rgba(241, 245, 249, 0.7);
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -789,6 +813,16 @@
      full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
   --tm-action-bar-bg: rgb(49, 49, 54);
   --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
+  /* Fix wave A2 -- see the dark block's own comment on these six tokens for the full Vue2
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-depth-shadow: 0 6px 18px rgba(5, 8, 30, 0.3);
+  --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
+  --tm-depth-dim: #000;
+  --tm-gear-text: rgba(241, 245, 249, 0.75);
+  --tm-rail-skeleton: rgba(255, 255, 255, 0.28);
+  --tm-rail-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  --tm-empty-title: #f1f5f9;
+  --tm-empty-sub: rgba(241, 245, 249, 0.7);
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the

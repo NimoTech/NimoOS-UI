@@ -132,6 +132,18 @@ const TOKENS = [
   // comment on these two for the full provenance.
   '--tm-action-bar-bg',
   '--tm-action-bar-item-hover-bg',
+  // Fix wave A2 (audit-stage.md #5/#6/#4/#10/#12): pixel-pinned to Vue2's own single-layer
+  // `.tm-stage__depth-strip`/`.tm-fwin--active` box-shadow, `.tm-stage__depth-strip__dim`'s pure
+  // black, `.tm-stage__gear`'s resting color, and `.tm-tick-skeleton`'s own distinct alpha -- see
+  // theme.css's own comment on these five for the full per-token Vue2 provenance.
+  '--tm-depth-shadow',
+  '--tm-fwin-shadow',
+  '--tm-depth-dim',
+  '--tm-gear-text',
+  '--tm-rail-skeleton',
+  '--tm-rail-text-shadow',
+  '--tm-empty-title',
+  '--tm-empty-sub',
 ]
 
 describe('Time Machine --tm-* tokens (Task 1)', () => {
@@ -194,5 +206,13 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-placeholder-text')).toBe('#9ca3af')
     expect(valueIn(dark, '--tm-action-bar-bg')).toBe('rgb(49, 49, 54)')
     expect(valueIn(dark, '--tm-action-bar-item-hover-bg')).toBe('rgb(86, 86, 90)')
+    expect(valueIn(dark, '--tm-depth-shadow')).toBe('0 6px 18px rgba(5, 8, 30, 0.3)')
+    expect(valueIn(dark, '--tm-fwin-shadow')).toBe('0 18px 50px rgba(5, 8, 30, 0.45)')
+    expect(valueIn(dark, '--tm-depth-dim')).toBe('#000')
+    expect(valueIn(dark, '--tm-gear-text')).toBe('rgba(241, 245, 249, 0.75)')
+    expect(valueIn(dark, '--tm-rail-skeleton')).toBe('rgba(255, 255, 255, 0.28)')
+    expect(valueIn(dark, '--tm-rail-text-shadow')).toBe('0 1px 6px rgba(0, 0, 0, 0.55)')
+    expect(valueIn(dark, '--tm-empty-title')).toBe('#f1f5f9')
+    expect(valueIn(dark, '--tm-empty-sub')).toBe('rgba(241, 245, 249, 0.7)')
   })
 })
