@@ -197,15 +197,121 @@ describe('Files.vue browse pipe', () => {
     expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
 
-  it('toolbar has new-folder/new-file buttons', async () => {
+  // Fix wave C (toolbar redesign): New folder/New file now live inside the collapsed "New"
+  // dropdown (FilesNewMenu.vue) -- its menu content teleports to document.body via reka-ui's
+  // Portal and only renders once opened (no `forceMount`), same convention as the
+  // AlertDialog/RestoreDestinationModal tests elsewhere in this file (attachTo: document.body +
+  // manual cleanup, since a portal-attached instance does not auto-unmount between tests).
+  it('toolbar New dropdown opens and contains new-folder/new-file items', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+    await flushPromises()
+    expect(document.body.querySelector('.tb-new-folder')).toBeNull() // closed by default
+    await w.get('.tb-new-menu').trigger('click')
+    await flushPromises()
+    expect(document.body.querySelector('.tb-new-folder')).not.toBeNull()
+    expect(document.body.querySelector('.tb-new-file')).not.toBeNull()
+    w.unmount()
+    document.body.innerHTML = ''
+  })
+
+  // Fix wave C: each dropdown item must reach the SAME pre-existing handler the old standalone
+  // chips called (openNew/triggerFileSelect/triggerFolderSelect), not just render with the right
+  // label. 'new-folder' → openNew('folder'): proven by NewItemDialog (reka-ui Dialog, also
+  // Portal-teleported to document.body) actually opening with the folder-mode default name.
+  it('New dropdown "New folder" item reaches the real openNew(\'folder\') handler', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+    await flushPromises()
+
+    await w.get('.tb-new-menu').trigger('click')
+    await document.body.querySelector('.tb-new-folder')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect((document.body.querySelector('.ui-dialog-content input') as HTMLInputElement | null)?.value).toBe(zh.filesDefaultFolderName)
+
+    w.unmount()
+    document.body.innerHTML = ''
+  })
+
+  // 'upload-file' → triggerFileSelect(): proven by the hidden <input type=file> (NOT
+  // webkitdirectory, plain Files.vue child, unaffected by the dropdown's own Portal) receiving a
+  // real synthetic click.
+  it('New dropdown "Upload files" item reaches the real triggerFileSelect handler', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] }, attachTo: document.body })
+    await flushPromises()
+
+    await w.get('.tb-new-menu').trigger('click')
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click')
+    await document.body.querySelector('.tb-upload-file')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(clickSpy).toHaveBeenCalled()
+    clickSpy.mockRestore()
+
+    w.unmount()
+    document.body.innerHTML = ''
+  })
+
+  // Fix wave C: the content-area header row's select-all circle wires to the REAL selection
+  // store (files.allSelected/selectAll/clearSelection), the same primitives
+  // SelectionToolbar.vue's own select-all/clear buttons already use -- not a separate local flag.
+  it('content-area header: select-all toggles the real selection store, count reflects listed entries', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
     router.push('/files/NimoOS-HD'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] } })
     await flushPromises()
-    expect(w.find('.tb-new-folder').exists()).toBe(true)
-    expect(w.find('.tb-new-file').exists()).toBe(true)
+    const files = useFilesStore()
+
+    expect(w.find('.files-item-count').text()).toBe('2 项') // tmItemCount, zh — Documents + a.txt
+    expect(files.allSelected).toBe(false)
+
+    await w.get('.files-select-all').trigger('click')
+    expect(files.selectedCount).toBe(2)
+    expect(files.allSelected).toBe(true)
+    expect(w.find('.files-select-all').classes()).toContain('on')
+    expect(w.find('.files-item-count').text()).toBe('已选 2 项') // filesSelectedCount, zh
+
+    await w.get('.files-select-all').trigger('click')
+    expect(files.selectedCount).toBe(0)
+    expect(w.find('.files-select-all').classes()).not.toContain('on')
+    expect(w.find('.files-item-count').text()).toBe('2 项')
+  })
+
+  // Fix wave C: the capsule switcher replaces the old topbar `.files-viewtoggle` chips --
+  // `.view-toggle-grid`/`.view-toggle-list` class names are kept unchanged (see the template's
+  // own comment) precisely so this pre-existing wiring test still holds without modification.
+  it('content-area header: view capsule switches files.viewMode and reflects it back', async () => {
+    // Must clear BEFORE mount: useFilesStore()'s `viewMode` ref reads localStorage once, at
+    // store-creation time (lazily triggered by the first component that accesses the store during
+    // mount) -- clearing afterwards cannot un-read a value an earlier test in this file already
+    // persisted via `.view-toggle-list`.
+    localStorage.clear()
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    const files = useFilesStore()
+
+    expect(files.viewMode).toBe('grid')
+    expect(w.find('.view-toggle-grid').classes()).toContain('active')
+    expect(w.find('.view-toggle-list').classes()).not.toContain('active')
+
+    await w.get('.view-toggle-list').trigger('click')
+    expect(files.viewMode).toBe('list')
+    expect(w.find('.view-toggle-list').classes()).toContain('active')
+    expect(w.find('.view-toggle-grid').classes()).not.toContain('active')
   })
 
   // These two close the exact gap fix-round-1 F4 flagged: FileContextMenu.test.ts
@@ -673,6 +779,33 @@ describe('snapshot read-only banner', () => {
     const btnText = w.get('.snap-banner-restore').text()
     expect(btnText).toContain('3')
     expect(btnText).toContain('40')
+  })
+
+  // Fix wave C: the New dropdown keeps the SAME `v-if="!browse.isSnapshotView"` gate the old
+  // `.files-actions` wrapper already had (writes stay locked while browsing a snapshot), but the
+  // new content-area header row (select-all + count + view capsule) is deliberately NOT gated on
+  // it -- Vue2's own snapshot browsing window carried exactly this same row (see Files.vue's own
+  // template comment above `.files-list-head`), so it must stay visible here too.
+  it('snapshot view: hides the New dropdown but keeps the content-area header row (select-all + capsule)', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    const browse = useSnapshotBrowseStore()
+    expect(browse.isSnapshotView).toBe(true) // sanity: this really is snapshot view
+
+    // Scoped to `.tm-stage__hold` (the LIVE real-window container), not a bare class query --
+    // same reasoning as the "a real (named) snapshot path" case just above: TimeMachineStage.vue's
+    // own entry-transition clones a STALE pre-navigation frame into a decorative `.tm-stage__clone`
+    // layer, where `.tb-new-menu` was still showing (captured before `isSnapshotView` flipped
+    // true). A bare `w.find('.tb-new-menu')` would match that harmless ghost copy instead of (or
+    // as well as) the real, correctly-hidden live one.
+    expect(w.find('.tm-stage__hold .tb-new-menu').exists()).toBe(false)
+    expect(w.find('.tm-stage__hold .files-list-head').exists()).toBe(true)
+    expect(w.find('.tm-stage__hold .files-select-all').exists()).toBe(true)
+    expect(w.find('.tm-stage__hold .files-view-capsule').exists()).toBe(true)
   })
 })
 

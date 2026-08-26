@@ -101,6 +101,18 @@
   show in this position -- the grid/list toggle -- is what now fills that half of Row 2 instead of
   a blank glyph square.
 
+  FIX WAVE C SUPERSEDES THE ABOVE (toolbar redesign, owner-confirmed mockup, 2026-08-26): New-UI's
+  real window NOW HAS a persistent header row (`Files.vue`'s own `.files-list-head`, added by this
+  fix wave, sitting between the topbar and the listing) -- a circular select-all toggle + item
+  count on the left, a grid/list CAPSULE (not text chips any more) on the right. The reasoning
+  above ("no persistent equivalent to mirror, so drop the checkbox") no longer holds now that one
+  exists; per this file's own established reuse-vs-clone convention (see the top of this header
+  comment), row2 is updated to hand-copy THAT real row's shape at its own literal dimensions --
+  see the template/style below. The select-all circle here is STATIC (no `.on` state, no click
+  handler) since this decorative layer has no selection concept of its own (matching Vue2's own
+  source, which also never puts its checkbox in a checked state on these preview windows); the
+  capsule DOES still reflect the live `viewMode` prop, unchanged from before.
+
   Row 1/Row 2 chrome padding (audit fix target 12): the previous build's `6px 10px` +
   near-invisible hairline is replaced with 12px horizontal padding (FileRow.vue's/
   FileListView.vue's own literal gutter value, reused consistently across chrome/row2/thead/rows/
@@ -192,13 +204,36 @@
     </header>
 
     <!-- Row 2: total count (Vue2 parity, gated on totalCount > 0 byte-for-byte) + the real
-         grid/list toggle affordance (Files.vue's own `.files-viewtoggle` chips) -- see this file's
-         own header comment for why the fake select-all checkbox is dropped. -->
+         header affordances (Files.vue's own NEW `.files-list-head` row -- Fix wave C toolbar
+         redesign) -- a decorative, non-interactive circle select-all + count on the left, the
+         grid/list capsule switcher on the right. Both are hand-copied at the SAME classes'
+         literal dimensions as the real row (see this file's own header comment's "reuse-vs-clone"
+         section for why hand-copying, not mounting the live component, is this file's established
+         pattern) so a stacked preview layer reads as a genuine miniature of the real window, not
+         an approximation. The circle carries no `.on`/checked state -- this is a static backdrop
+         layer with no selection concept of its own (Vue2's own source has none either), so it
+         always renders in its plain unfilled ring form; the capsule DOES reflect the live
+         `viewMode` prop, same as the real header's own `files.viewMode`-driven `.active` class. -->
     <div v-if="totalCount > 0" class="tm-preview-window__row2">
-      <span class="tm-preview-window__count">{{ t('tmItemCount', { n: totalCount }) }}</span>
-      <div class="tm-preview-window__view-toggle">
-        <span class="tm-preview-window__toggle-chip" :class="{ 'is-active': viewMode === 'grid' }">{{ t('filesViewGrid') }}</span>
-        <span class="tm-preview-window__toggle-chip" :class="{ 'is-active': viewMode === 'list' }">{{ t('filesViewList') }}</span>
+      <div class="tm-preview-window__select-zone">
+        <span class="tm-preview-window__select-all" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4"><path d="M20 6 9 17l-5-5" /></svg>
+        </span>
+        <span class="tm-preview-window__count">{{ t('tmItemCount', { n: totalCount }) }}</span>
+      </div>
+      <div class="tm-preview-window__view-toggle" role="group" aria-hidden="true">
+        <span class="tm-preview-window__toggle-btn" :class="{ 'is-active': viewMode === 'grid' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="3" y="3" width="7" height="7" rx="1.4" /><rect x="14" y="3" width="7" height="7" rx="1.4" />
+            <rect x="3" y="14" width="7" height="7" rx="1.4" /><rect x="14" y="14" width="7" height="7" rx="1.4" />
+          </svg>
+        </span>
+        <span class="tm-preview-window__toggle-btn" :class="{ 'is-active': viewMode === 'list' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M8 6h13M8 12h13M8 18h13" />
+            <circle cx="4" cy="6" r="1.3" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none" />
+          </svg>
+        </span>
       </div>
     </div>
 
@@ -473,25 +508,62 @@ const crumbSegments = computed(() => {
   color: var(--fg-muted);
 }
 
-/* Hand-copied literal values from Files.vue's own `.files-viewtoggle`/`.chip`/`.chip.active` --
-   see this file's own header comment for why this real text-chip affordance replaces both Vue2's
-   MDI glyph AND the previous build's blank 10x10 square. */
-.tm-preview-window__view-toggle {
+/* Fix wave C (toolbar redesign): row2 now mirrors the real header's OWN two zones -- see this
+   file's own header comment (Row 2 section, updated for fix wave C). Hand-copied literal values
+   from Files.vue's own `.files-select-zone`/`.files-select-all`/`.files-item-count`/
+   `.files-view-capsule`/`.files-view-capsule-btn`. */
+.tm-preview-window__select-zone {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
 }
 
-.tm-preview-window__toggle-chip {
-  padding: 6px 14px;
-  border-radius: 999px;
+/* Static/unfilled only (no `.on` state -- this preview has no selection concept of its own, see
+   this file's own header comment above the template). Same 18px/2px-border geometry as the real
+   `.files-select-all`, `color: var(--on-accent)` kept for parity even though the check glyph
+   never actually shows here (display:none via the real class's own `svg { display: none }` rule,
+   inherited verbatim -- there is no `.on` variant to ever reveal it). */
+.tm-preview-window__select-all {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--chip-border, rgba(255, 255, 255, 0.12));
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-accent);
+}
+
+.tm-preview-window__select-all svg {
+  width: 11px;
+  height: 11px;
+  display: none;
+}
+
+.tm-preview-window__view-toggle {
+  display: inline-flex;
   border: 1px solid var(--chip-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  overflow: hidden;
   background: var(--chip-bg, rgba(255, 255, 255, 0.05));
-  color: var(--fg);
-  font-size: 13px;
 }
 
-.tm-preview-window__toggle-chip.is-active {
-  background: var(--chip-bg-hi, rgba(255, 255, 255, 0.16));
+.tm-preview-window__toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  color: var(--fg-muted, #9aa4bf);
+}
+
+.tm-preview-window__toggle-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.tm-preview-window__toggle-btn.is-active {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .tm-preview-window__body {

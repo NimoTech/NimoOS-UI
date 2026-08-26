@@ -9,6 +9,7 @@ import SelectionToolbar from '../files/components/SelectionToolbar.vue'
 import FileListView from '../files/components/FileListView.vue'
 import FileGridView from '../files/components/FileGridView.vue'
 import FileContextMenu from '../files/components/FileContextMenu.vue'
+import FilesNewMenu from '../files/components/FilesNewMenu.vue'
 import NewItemDialog from '../files/components/NewItemDialog.vue'
 import UploadBatchModal from '../files/components/UploadBatchModal.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
@@ -945,19 +946,25 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
               <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.enterTimeMachine()">
                 <span class="tb-time-machine-icon" aria-hidden="true">&#8635;</span>{{ t('tmEntry') }}
               </button>
+              <!-- Fix wave C (toolbar redesign, owner-confirmed mockup): New folder/New file/
+                   Upload files/Upload folder collapse into ONE accent-purple "New" dropdown
+                   (FilesNewMenu.vue) -- each item still calls the SAME pre-existing handler
+                   (openNew/triggerFileSelect/triggerFolderSelect), only the chrome changed.
+                   Paste stays its OWN chip (contextual, not one of the "four" -- Vue2/pre-redesign
+                   parity: it only ever shows when clipboard.hasPasteData, unrelated to New/Upload),
+                   placed immediately left of New so the purple dropdown reads as this row's
+                   rightmost primary action. Both keep the same `v-if="!browse.isSnapshotView"`
+                   gate the old `.files-actions` wrapper already had (writes stay locked while
+                   browsing a snapshot). Grid/List moved out of the topbar entirely -- see the new
+                   `.files-list-head` row below, right above the listing. -->
               <div v-if="!browse.isSnapshotView" class="files-actions">
-                <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
-                <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
-                <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
-                <!-- Native `title` for the hover hint, as everywhere else in this app: the picker
-                     silently drops empty folders and cannot report it (see triggerFolderSelect),
-                     so the button says up front where empty folders have to go. -->
-                <button class="chip tb-upload-folder" :title="t('filesUploadFolderEmptyHint')" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
                 <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
-              </div>
-              <div class="files-viewtoggle">
-                <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
-                <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+                <FilesNewMenu
+                  @new-folder="openNew('folder')"
+                  @new-file="openNew('file')"
+                  @upload-file="triggerFileSelect"
+                  @upload-folder="triggerFolderSelect"
+                />
               </div>
             </div>
           </div>
@@ -1004,6 +1011,72 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
             @restore="restoreSelectionFlow(snapshotSelection)"
             @download="ops.download(snapshotSelection)"
           />
+          <!-- Fix wave C (toolbar redesign, owner-confirmed mockup): content-area header row --
+               left = circular select-all toggle + item count, right = the grid/list capsule
+               switcher that used to live in the topbar (`.files-viewtoggle`, now removed). This
+               row is intentionally NOT gated on `browse.isSnapshotView` -- Vue2's own snapshot
+               browsing window carried exactly this same select-all + count row (see this file's
+               own report for the fuller trace), so it stays visible in both plain-browse and
+               snapshot view, unlike `.files-actions` above.
+               Select-all wires to the REAL selection store (files.allSelected/selectAll/
+               clearSelection -- the same primitives SelectionToolbar.vue's own select-all/clear
+               buttons already use), not a separate local flag: clicking it selects every entry
+               CURRENTLY LISTED (displayEntries, i.e. post-filter/upload-placeholder-merged, same
+               set the grid/list views actually render) when not already all-selected, and clears
+               when it is. The count text mirrors that same displayEntries length either way (per
+               the mock: only the trailing word flips between "items"/"selected", the number does
+               not) -- reuses tmItemCount ("{n} items", already shared with
+               SnapshotPreviewWindow.vue) and filesSelectedCount ("{count} selected", already used
+               by SelectionToolbar.vue) via <i18n-t> so only the number itself is bold, matching
+               the mock's `<strong>N</strong> items` markup without introducing v-html. -->
+          <div class="files-list-head">
+            <div class="files-select-zone">
+              <button
+                type="button"
+                class="files-select-all"
+                :class="{ on: files.allSelected }"
+                :aria-pressed="files.allSelected"
+                :title="files.allSelected ? t('filesClearSel') : t('filesSelectAll')"
+                @click="files.allSelected ? files.clearSelection() : files.selectAll()"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+              </button>
+              <i18n-t v-if="!files.allSelected" keypath="tmItemCount" tag="span" class="files-item-count" scope="global">
+                <template #n><strong>{{ displayEntries.length }}</strong></template>
+              </i18n-t>
+              <i18n-t v-else keypath="filesSelectedCount" tag="span" class="files-item-count" scope="global">
+                <template #count><strong>{{ displayEntries.length }}</strong></template>
+              </i18n-t>
+            </div>
+            <div class="files-view-capsule" role="group" :aria-label="t('filesViewMode')">
+              <button
+                type="button"
+                class="files-view-capsule-btn view-toggle-grid"
+                :class="{ active: files.viewMode === 'grid' }"
+                :title="t('filesViewGrid')"
+                :aria-label="t('filesViewGrid')"
+                @click="files.setView('grid')"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" rx="1.4" /><rect x="14" y="3" width="7" height="7" rx="1.4" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.4" /><rect x="14" y="14" width="7" height="7" rx="1.4" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="files-view-capsule-btn view-toggle-list"
+                :class="{ active: files.viewMode === 'list' }"
+                :title="t('filesViewList')"
+                :aria-label="t('filesViewList')"
+                @click="files.setView('list')"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                  <path d="M8 6h13M8 12h13M8 18h13" />
+                  <circle cx="4" cy="6" r="1.3" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
+            </div>
+          </div>
           <FileContextMenu :entry="ctxEntry" :selected-count="ctxTargetCount" @action="onCtxAction">
             <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
               <div v-if="files.error && !files.loading" class="files-error" role="alert">
@@ -1133,10 +1206,8 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
   background: color-mix(in srgb, var(--tm-accent) 10%, transparent);
   color: var(--tm-accent-hover);
 }
-.files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
-.files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
+.files-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
-.chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
 /* Task 10 (Vue2 parity): the Snapshots entry chip is upgraded from a plain neutral chip to the
    green pill Vue2 FilePanel.vue uses (its own Buefy `<b-button type="is-success" rounded>`
    entry button) -- see theme.css's own comment on --tm-entry-* for the exact color derivation.
@@ -1149,6 +1220,33 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
 .chip.tb-time-machine { background: var(--tm-entry-bg); border-color: transparent; color: var(--tm-entry-fg); font-size: 12px; padding: 5px 15px; display: inline-flex; align-items: center; }
 .chip.tb-time-machine:hover { background: var(--tm-entry-hover-bg); }
 .tb-time-machine-icon { margin-right: 6px; font-size: 13px; line-height: 1; }
+/* Fix wave C (toolbar redesign): the content-area header row -- left = select-all + count, right
+   = the grid/list capsule that used to be topbar chips (`.files-viewtoggle`, removed). Literal
+   values (padding/border/pill geometry) are the owner-approved mock's own literal CSS, translated
+   1:1 from its `--hairline`/`--chip-border`/`--chip-bg`/`--accent` demo tokens to this app's real
+   equivalents (`--card-border`/`--chip-border`/`--chip-bg`/`--accent`). */
+.files-list-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 2px; border-top: 1px solid var(--card-border, rgba(255,255,255,0.1)); flex: 0 0 auto; }
+.files-select-zone { display: flex; align-items: center; gap: 10px; }
+/* Unfilled: a plain ring (border only). Filled (`.on`, all currently-listed entries selected):
+   solid --accent fill + the check glyph -- same `--accent`/`--on-accent` primary pair the New
+   button and every other filled-affordance in this app already uses (see FilesNewMenu.vue's own
+   header comment), so the check glyph automatically reads as light-on-dark or dark-on-light per
+   theme without a hardcoded "white". */
+.files-select-all {
+  width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--chip-border);
+  background: none; padding: 0; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--on-accent); cursor: pointer;
+}
+.files-select-all svg { width: 11px; height: 11px; display: none; }
+.files-select-all.on { background: var(--accent); border-color: var(--accent); }
+.files-select-all.on svg { display: block; }
+.files-item-count { font-size: 12.5px; color: var(--fg-muted); }
+.files-item-count strong { color: var(--fg); font-weight: 600; }
+.files-view-capsule { display: inline-flex; border: 1px solid var(--chip-border); border-radius: 999px; overflow: hidden; background: var(--chip-bg); flex: none; }
+.files-view-capsule-btn { border: none; background: none; cursor: pointer; padding: 6px 16px; display: inline-flex; align-items: center; color: var(--fg-muted); }
+.files-view-capsule-btn svg { width: 15px; height: 15px; }
+.files-view-capsule-btn.active { background: var(--accent); color: var(--on-accent); }
+.files-view-capsule-btn:not(.active):hover { color: var(--fg); }
 .files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text
    (which is usually the actionable part), and offer the retry. */

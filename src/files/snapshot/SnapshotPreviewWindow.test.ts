@@ -109,7 +109,7 @@ describe('SnapshotPreviewWindow — chrome Row 1: breadcrumb + read-only chip (V
   })
 })
 
-describe('SnapshotPreviewWindow — chrome Row 2: total count + real view-toggle affordance (fix wave A1)', () => {
+describe('SnapshotPreviewWindow — chrome Row 2: select-all + count + view capsule (fix wave C, mirrors the real .files-list-head)', () => {
   it('hides Row 2 entirely when the listing is empty, mirroring Vue2\'s v-if="totalCount > 0"', async () => {
     resolved({ entries: [], error: false })
     const w = mountPreview()
@@ -125,31 +125,39 @@ describe('SnapshotPreviewWindow — chrome Row 2: total count + real view-toggle
     expect(w.find('.tm-preview-window__count').text()).toBe('30 项') // tmItemCount, zh
   })
 
-  // Fix wave A1: the previous build's fake disabled select-all checkbox is gone (New-UI's real
-  // window has no persistent select-all affordance for a decorative preview to mirror -- see
-  // this component's own header comment). In its place: the REAL grid/list toggle affordance
-  // Files.vue's own `.files-viewtoggle` uses -- two real chip pills, real i18n text, real
-  // `.is-active` reflecting the current viewMode -- not a blank glyph square.
-  it('renders real grid/list toggle chips (real text, real active-state reflection), no fake checkbox', async () => {
+  // Fix wave C (toolbar redesign): the real window now HAS a persistent select-all + capsule
+  // header row (Files.vue's own `.files-list-head`) -- this preview mirrors its shape at the
+  // same literal dimensions (see this component's own header comment). The select-all circle is
+  // decorative/static only: no `.on` state, no click handler, no checkbox -- a stacked preview
+  // layer has no selection concept of its own.
+  it('renders a static (non-interactive) select-all circle, never in the "on"/filled state', async () => {
     resolved({ entries: [{ name: 'a.txt', isDir: false, size: 1, mtime: 0 }], error: false })
     const w = mountPreview({ viewMode: 'grid' })
     await flushPromises()
-    expect(w.find('.tm-preview-window__select-all').exists()).toBe(false)
+    const selectAll = w.find('.tm-preview-window__select-all')
+    expect(selectAll.exists()).toBe(true)
+    expect(selectAll.classes()).not.toContain('on')
+    expect(w.find('.tm-preview-window__row2 button').exists()).toBe(false) // non-interactive: no <button>, only aria-hidden <span>s
     expect(w.find('.tm-preview-window__row2 input[type="checkbox"]').exists()).toBe(false)
-    const chips = w.findAll('.tm-preview-window__toggle-chip')
-    expect(chips).toHaveLength(2)
-    expect(chips.map((c) => c.text())).toEqual(['网格', '列表']) // filesViewGrid/filesViewList, zh
-    expect(chips[0].classes()).toContain('is-active') // grid mode → the "网格" chip is active
-    expect(chips[1].classes()).not.toContain('is-active')
   })
 
-  it('reflects list mode on the toggle chips', async () => {
+  it('renders the real grid/list capsule (2 halves, real active-state reflection), not text chips', async () => {
+    resolved({ entries: [{ name: 'a.txt', isDir: false, size: 1, mtime: 0 }], error: false })
+    const w = mountPreview({ viewMode: 'grid' })
+    await flushPromises()
+    const halves = w.findAll('.tm-preview-window__toggle-btn')
+    expect(halves).toHaveLength(2)
+    expect(halves[0].classes()).toContain('is-active') // grid mode → the first (grid) half is active
+    expect(halves[1].classes()).not.toContain('is-active')
+  })
+
+  it('reflects list mode on the capsule', async () => {
     resolved({ entries: [{ name: 'a.txt', isDir: false, size: 1, mtime: 0 }], error: false })
     const w = mountPreview({ viewMode: 'list' })
     await flushPromises()
-    const chips = w.findAll('.tm-preview-window__toggle-chip')
-    expect(chips[0].classes()).not.toContain('is-active')
-    expect(chips[1].classes()).toContain('is-active')
+    const halves = w.findAll('.tm-preview-window__toggle-btn')
+    expect(halves[0].classes()).not.toContain('is-active')
+    expect(halves[1].classes()).toContain('is-active')
   })
 })
 

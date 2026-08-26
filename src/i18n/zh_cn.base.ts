@@ -11,6 +11,9 @@ export default {
   filesEmpty: '此文件夹为空',
   filesViewList: '列表',
   filesViewGrid: '网格',
+  // Fix wave C (toolbar redesign, 2026-08-26): aria-label for the content-area header row's
+  // grid/list capsule switcher (role="group") -- new key, no prior generic label existed.
+  filesViewMode: '视图模式',
   filesColName: '名称',
   filesColType: '类型',
   filesColDate: '修改日期',
@@ -31,6 +34,10 @@ export default {
   filesProtectedRename: '此项目受保护,无法重命名',
   filesProtectedMove: '此项目受保护,无法移动',
   filesCopiedPath: '已复制路径',
+  // Fix wave C (toolbar redesign, 2026-08-26): the collapsed "New" dropdown trigger label
+  // (FilesNewMenu.vue) -- New folder/New file/Upload files/Upload folder now live inside its
+  // menu, each still reusing its own pre-existing key below.
+  filesNewMenu: '新建',
   filesNewFolder: '新建文件夹',
   filesNewFile: '新建文件',
   filesPaste: '粘贴',
