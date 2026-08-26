@@ -270,6 +270,44 @@ export function dispatchEvent(event: Record<string, unknown>, actions: StreamAct
       })
       break
 
+    case 'judging': {
+      // Mirror of Vue2 agentStream.js (2026-08-21): the local safety judge is
+      // inspecting a gray-zone command / upload — up to ~20s on a busy model.
+      // Without this block the agent just looks stalled; the follow-up
+      // `judged` says how it ended (allow → ran with no click).
+      endThinkingStreaming(actions)
+      endMessageStreaming(actions)
+      actions.appendBlock({
+        type: 'judge',
+        kind: e.kind || 'shell',
+        command: e.command || '',
+        host: e.host || '',
+        verdict: '',
+        streaming: true,
+      })
+      break
+    }
+
+    case 'judged': {
+      const found = actions.patchBlock(
+        (b) => b.type === 'judge' && !!b.streaming,
+        () => ({ verdict: e.verdict || '', streaming: false }),
+      )
+      if (!found) {
+        // Replay after refresh can deliver just the tail — render a resolved
+        // row rather than dropping the record.
+        actions.appendBlock({
+          type: 'judge',
+          kind: e.kind || 'shell',
+          command: e.command || '',
+          host: e.host || '',
+          verdict: e.verdict || '',
+          streaming: false,
+        })
+      }
+      break
+    }
+
     case 'max_turns_exceeded':
       actions.appendBlock({
         type: 'max_turns',
@@ -303,6 +341,12 @@ export function dispatchEvent(event: Record<string, unknown>, actions: StreamAct
     case 'done':
       endThinkingStreaming(actions)
       endMessageStreaming(actions)
+      // A judge block whose `judged` never arrived (crash, disconnect) must
+      // not spin forever.
+      actions.patchBlock(
+        (b) => b.type === 'judge' && !!b.streaming,
+        () => ({ streaming: false }),
+      )
       actions.setStreamingDone()
       break
 

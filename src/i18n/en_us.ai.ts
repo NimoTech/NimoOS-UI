@@ -1852,4 +1852,13 @@ export default {
   aiTasksLoading: 'Loading…',
   aiTasksRetry: 'Retry',
   // <<< Scheduled tasks page
+
+  // >>> Safety judge status (chat `judge` block)
+  aiJudgeCheckingShell: 'Checking whether this command is safe…',
+  aiJudgeCheckingUpload: 'Inspecting upload content for {host}…',
+  aiJudgeAllowed: 'Safety check passed — ran automatically',
+  aiJudgeNeedsConfirm: 'Safety check: needs your confirmation',
+  aiJudgeBlocked: 'Safety check: blocked',
+  aiJudgeEnded: 'Safety check ended',
+  // <<< Safety judge status
 }
