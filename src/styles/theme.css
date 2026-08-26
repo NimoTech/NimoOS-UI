@@ -389,6 +389,73 @@
      `--tm-gear-text` above (0.75), not a reuse: title is fully opaque, sub is 0.7. */
   --tm-empty-title: #f1f5f9;
   --tm-empty-sub: rgba(241, 245, 249, 0.7);
+  /* Fix wave A3 (audit-modals.md): Vue2 uses TWO different purples across the three white-glass
+     modal dialogs (SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog) and the
+     always-live stage -- `$primary`/`$casablue = #8950F2` (NimoOS-UI common/_variables.scss:26,186,
+     verified directly against node_modules/buefy's own `_switch.scss` which resolves
+     `$switch-active-background-color: $primary`) for every INTERACTIVE FILL inside those three
+     modals (switch-on track, Save/Create/Restore-here/Merge/Keep-both button fills, the manual
+     history dot, and the breadcrumb link text), vs the separate hardcoded `#7c3aed`/`#6d28d9`
+     (Tailwind violet-600/700, `--tm-accent`/`--tm-accent-hover` above) used ONLY by the read-only
+     `.tm-snap-chip` (FilePanel.vue:3825-3833) and the always-dark TM stage/rail chrome that never
+     touches Buefy's `is-primary` at all. New-UI had collapsed both into the one `--tm-accent`
+     token, which was correct for the chip/stage but wrong everywhere it leaked into these three
+     modals -- `--tm-primary` is the fix: Vue2's exact `$primary` literal, consumed ONLY by
+     SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog. `--tm-primary-hover` is
+     Bulma's own `bulmaDarken($primary, 2.5%)` (button.sass's `.is-primary:hover` rule -- HSL
+     lightness minus 2.5 percentage points, computed and verified via a Python HSL round-trip, not
+     eyeballed), used by every Buefy default-hover fill (Save/Create/Restore-here/Merge/Keep-both).
+     `--tm-primary-text` is the DIFFERENT literal `darken($primary, 14%)` SnapshotSettingsModal.vue
+     itself authors by hand for the manual-type history badge's text color only (own file:1275,
+     `&--manual { color: darken($primary, 14%) }`) -- a distinct SCSS darken call from the Bulma
+     hover one above, so it needed its own token rather than reusing `--tm-primary-hover`. */
+  --tm-primary: #8950f2;
+  --tm-primary-hover: #8144f1;
+  --tm-primary-text: #5d11e9;
+  /* Fix wave A3 (audit-modals.md #1): Buefy's own `.modal` background is a flat, unblurred
+     `rgba(0,0,0,.5)` (Bulma `$modal-background-background-color`, NimoOS-UI
+     common/_variables.scss:276) for all three white-glass TM dialogs -- a different scrim from
+     this app's shared `--overlay-bg`/`--overlay-blur` (blurred, blue-tinted), which those three
+     dialogs' own `<style scoped>` blocks used to reuse. Scoped to ONLY those three components
+     (SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog's own `.ssm-overlay`/
+     `.rdm-overlay`/`.fc-overlay` rules) -- every other dialog in the app keeps the shared
+     blurred overlay unchanged. */
+  --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
+  /* Fix wave A3 (audit-modals.md #7/#14/#16/#18): SnapshotSettingsModal.vue's own remaining
+     history-list literals not yet pinned to a token. `--tm-rail-connector` is
+     `&__history-list::before`'s own literal `background: rgba(0,0,0,.1)` (own file:1218,1220) --
+     the 1px vertical timeline connector line behind the history dots. `--tm-dot-ring` is
+     `&__history-dot`'s own literal `box-shadow: 0 0 0 1px rgba(0,0,0,.12)` (own file:1247) -- the
+     secondary hairline ring around the white dot border. `--tm-history-item-hover` is
+     `&__history-item:hover`'s own literal `rgba(0,0,0,.035)` (own file:1234) -- deliberately its
+     own token, NOT a reuse of `--tm-ghost-hover-bg` (`rgba(0,0,0,.05)`), since Vue2 pins a visibly
+     lighter alpha here than the panel's generic ghost-hover tint. `--tm-history-header-hover-bg`
+     is `&__history-group-header:hover`'s own literal `rgba(242,243,245,.95)` (own file:1185) -- a
+     distinct cool-grey swatch, not derivable from any existing token. `--tm-skeleton-shimmer-mid`
+     is the shimmer gradient's own middle stop `rgba(0,0,0,.1)` (own file:1131,
+     `linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.1) 37%, rgba(0,0,0,.05) 63%)`) -- the
+     gradient's two outer stops are exactly `--tm-chip-bg` (already `rgba(0,0,0,.05)`, reused
+     rather than duplicated) so only the mid-stop needed a new token. `--tm-scroll-thumb-hover` is
+     the history scroll box's own webkit scrollbar-thumb hover rule's literal `rgba(0,0,0,.3)`
+     (`&__history-scroll:hover`, own file:1119) -- the resting thumb color is exactly `--tm-ghost-border` (already
+     `rgba(0,0,0,.15)`, reused), only the hover-darken needed a new token. */
+  --tm-rail-connector: rgba(0, 0, 0, 0.1);
+  --tm-dot-ring: rgba(0, 0, 0, 0.12);
+  --tm-history-item-hover: rgba(0, 0, 0, 0.035);
+  --tm-history-header-hover-bg: rgba(242, 243, 245, 0.95);
+  --tm-skeleton-shimmer-mid: rgba(0, 0, 0, 0.1);
+  --tm-scroll-thumb-hover: rgba(0, 0, 0, 0.3);
+  /* Fix wave A3 (audit-modals.md §5): SnapshotBanner.vue's own component previously reused the
+     app-wide `--dem-*` "noteworthy but not error" semantic tokens, which flips value per theme
+     (translucent gold-on-dark-glass in the default theme) -- but Vue2's own SnapshotBanner.vue
+     (own file:64-68) is a single hardcoded flat pale-yellow strip (`#fef9c3`/`#92400e`, Tailwind
+     yellow-100/amber-800) that never changes look, matching every other `--tm-*` token's "same in
+     both themes" rule, not `--dem-*`'s per-theme rule. Dedicated tokens instead of changing
+     `--dem-bg`/`--dem-fg` themselves, since those are still correctly reused elsewhere (preop
+     badge, storage snapshot timeline) and changing their literal would regress those unrelated
+     consumers. */
+  --tm-banner-bg: #fef9c3;
+  --tm-banner-fg: #92400e;
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -823,6 +890,24 @@
   --tm-rail-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
   --tm-empty-title: #f1f5f9;
   --tm-empty-sub: rgba(241, 245, 249, 0.7);
+  /* Fix wave A3 -- see the dark block's own comment on these three tokens for the full Vue2/Bulma
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-primary: #8950f2;
+  --tm-primary-hover: #8144f1;
+  --tm-primary-text: #5d11e9;
+  /* Fix wave A3 -- see the dark block's own comment for the full Vue2 provenance. */
+  --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
+  /* Fix wave A3 -- see the dark block's own comment on these six tokens for the full Vue2
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-rail-connector: rgba(0, 0, 0, 0.1);
+  --tm-dot-ring: rgba(0, 0, 0, 0.12);
+  --tm-history-item-hover: rgba(0, 0, 0, 0.035);
+  --tm-history-header-hover-bg: rgba(242, 243, 245, 0.95);
+  --tm-skeleton-shimmer-mid: rgba(0, 0, 0, 0.1);
+  --tm-scroll-thumb-hover: rgba(0, 0, 0, 0.3);
+  /* Fix wave A3 -- see the dark block's own comment for the full Vue2 provenance. */
+  --tm-banner-bg: #fef9c3;
+  --tm-banner-fg: #92400e;
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the

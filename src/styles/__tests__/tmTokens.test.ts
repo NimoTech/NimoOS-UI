@@ -144,6 +144,24 @@ const TOKENS = [
   '--tm-rail-text-shadow',
   '--tm-empty-title',
   '--tm-empty-sub',
+  // Fix wave A3 (audit-modals.md): the accent-purple token split (`--tm-primary` family, pixel-
+  // pinned to Vue2's own $primary/$casablue = #8950F2, distinct from --tm-accent's #7c3aed which
+  // stays correct for the read-only chip), the flat unblurred modal scrim (`--tm-modal-overlay-bg`),
+  // and SnapshotSettingsModal's own remaining history-list/scrollbar/skeleton literals plus
+  // SnapshotBanner's own dedicated (not --dem-*) flat-yellow tokens -- see theme.css's own comments
+  // on each group for the full per-token Vue2 provenance.
+  '--tm-primary',
+  '--tm-primary-hover',
+  '--tm-primary-text',
+  '--tm-modal-overlay-bg',
+  '--tm-rail-connector',
+  '--tm-dot-ring',
+  '--tm-history-item-hover',
+  '--tm-history-header-hover-bg',
+  '--tm-skeleton-shimmer-mid',
+  '--tm-scroll-thumb-hover',
+  '--tm-banner-bg',
+  '--tm-banner-fg',
 ]
 
 describe('Time Machine --tm-* tokens (Task 1)', () => {
@@ -214,5 +232,17 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-rail-text-shadow')).toBe('0 1px 6px rgba(0, 0, 0, 0.55)')
     expect(valueIn(dark, '--tm-empty-title')).toBe('#f1f5f9')
     expect(valueIn(dark, '--tm-empty-sub')).toBe('rgba(241, 245, 249, 0.7)')
+    expect(valueIn(dark, '--tm-primary')).toBe('#8950f2')
+    expect(valueIn(dark, '--tm-primary-hover')).toBe('#8144f1')
+    expect(valueIn(dark, '--tm-primary-text')).toBe('#5d11e9')
+    expect(valueIn(dark, '--tm-modal-overlay-bg')).toBe('rgba(0, 0, 0, 0.5)')
+    expect(valueIn(dark, '--tm-rail-connector')).toBe('rgba(0, 0, 0, 0.1)')
+    expect(valueIn(dark, '--tm-dot-ring')).toBe('rgba(0, 0, 0, 0.12)')
+    expect(valueIn(dark, '--tm-history-item-hover')).toBe('rgba(0, 0, 0, 0.035)')
+    expect(valueIn(dark, '--tm-history-header-hover-bg')).toBe('rgba(242, 243, 245, 0.95)')
+    expect(valueIn(dark, '--tm-skeleton-shimmer-mid')).toBe('rgba(0, 0, 0, 0.1)')
+    expect(valueIn(dark, '--tm-scroll-thumb-hover')).toBe('rgba(0, 0, 0, 0.3)')
+    expect(valueIn(dark, '--tm-banner-bg')).toBe('#fef9c3')
+    expect(valueIn(dark, '--tm-banner-fg')).toBe('#92400e')
   })
 })
