@@ -281,10 +281,21 @@ describe('TimeMachineStage shell', () => {
   })
 
   describe('TimeMachineRail mounting (Task 8)', () => {
+    // Fix wave A2 (audit-stage.md #3, empty state): the rail region now shows the rail ONLY while
+    // loading or non-empty (Vue2's own `v-else-if="flatItems.length === 0"` split, see the "empty
+    // state" describe block below) -- this test sets up a real snapshot first so it still exercises
+    // the "mounts while active" half unambiguously, without accidentally landing on the new empty
+    // state instead.
     it('mounts the rail only while active/fading (never while fully inactive)', async () => {
       const w = mountIt()
       expect(w.find('.tm-rail').exists()).toBe(false)
-      useSnapshotBrowseStore().tmActive = true
+      const browse = useSnapshotBrowseStore()
+      const files = useFilesStore()
+      listVolumesMock.mockResolvedValue([{ volume_uuid: 'u1', mount: '/media/RAID_0', supported: true }])
+      await browse.ensureVolumes()
+      browse.snapshotList = [{ name: 's0', created_at: '2026-01-01T00:00:00Z' }]
+      files.currentPath = '/media/RAID_0/.snapshots/s0'
+      browse.tmActive = true
       await nextTick()
       expect(w.find('.tm-rail').exists()).toBe(true)
     })
@@ -309,6 +320,47 @@ describe('TimeMachineStage shell', () => {
       const spy = vi.spyOn(browse, 'switchTo').mockResolvedValue()
       await w.find('[data-flat-index="s0"]').trigger('click')
       expect(spy).toHaveBeenCalledWith('s0')
+    })
+  })
+
+  // Fix wave A2 (audit-stage.md #3, priority list item 3): the entire empty state was previously
+  // unimplemented -- a volume with zero snapshots showed nothing where Vue2 shows a centered
+  // "No snapshots yet" message and hides the live window behind it (`.tm-fwin--empty`).
+  describe('Empty state (Vue2 parity: "No snapshots yet")', () => {
+    it('shows neither the rail nor the empty message while the snapshot list is still loading', async () => {
+      const w = mountIt()
+      const browse = useSnapshotBrowseStore()
+      browse.tmActive = true
+      browse.tmLoading = true
+      await nextTick()
+      expect(w.find('.tm-stage__empty').exists()).toBe(false)
+      expect(w.find('.tm-rail').exists()).toBe(true) // the rail itself renders its own loading skeleton
+    })
+
+    it('shows the "No snapshots yet" message once loading has settled on a genuinely empty list, and hides the real window', async () => {
+      const w = mountIt()
+      const browse = useSnapshotBrowseStore()
+      browse.tmActive = true
+      browse.tmLoading = false
+      browse.snapshotList = []
+      await nextTick()
+      expect(w.find('.tm-stage__empty').exists()).toBe(true)
+      expect(w.find('.tm-stage__empty-title').text()).toBeTruthy()
+      expect(w.find('.tm-stage__empty-sub').text()).toBeTruthy()
+      expect(w.find('.tm-rail').exists()).toBe(false)
+      expect(w.find('.tm-stage__hold .tm-fwin').classes()).toContain('tm-fwin--empty')
+    })
+
+    it('shows the rail (not the empty message) once at least one snapshot exists', async () => {
+      const w = mountIt()
+      const browse = useSnapshotBrowseStore()
+      browse.tmActive = true
+      browse.tmLoading = false
+      browse.snapshotList = [{ name: 's0', created_at: '2026-01-01T00:00:00Z' }]
+      await nextTick()
+      expect(w.find('.tm-stage__empty').exists()).toBe(false)
+      expect(w.find('.tm-rail').exists()).toBe(true)
+      expect(w.find('.tm-stage__hold .tm-fwin').classes()).not.toContain('tm-fwin--empty')
     })
   })
 

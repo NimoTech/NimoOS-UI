@@ -99,6 +99,13 @@ const active = computed(() => browse.tmChromeVisible)
 const traveling = computed(() => browse.tmTravelActive)
 const fadingOut = ref(false)
 
+// Fix wave A2 (audit-stage.md #3, `.tm-stage__empty`): Vue2's own `isEmpty` computed, ported
+// verbatim (`TimeMachineStage.vue:1676-1678`, "`!this.loading && this.flatItems.length === 0`") --
+// gated on `!tmLoading`, not just an empty list, so the initial in-flight fetch (list still empty,
+// nothing wrong) never flashes the empty-state message before the real ticks (or a genuinely empty
+// volume) have had a chance to resolve.
+const isEmpty = computed(() => !browse.tmLoading && browse.snapshotList.length === 0)
+
 // TM_WINDOW_SCALE (timeMachineMath.ts) is the single source of the 0.82 scale factor — bound via
 // :style rather than duplicated as a literal in the style block below, so the two can never drift apart.
 const fwinStyle = computed(() => (active.value ? { transform: `scale(${TM_WINDOW_SCALE})` } : undefined))
@@ -316,27 +323,36 @@ onUnmounted(() => {
     </template>
 
     <div class="tm-stage__hold" :class="{ 'tm-stage__hold--active': active }">
-      <div ref="fwinEl" class="tm-fwin" :class="{ 'tm-fwin--active': active, 'tm-fwin--traveling': traveling }" :style="fwinStyle">
+      <div
+        ref="fwinEl"
+        class="tm-fwin"
+        :class="{ 'tm-fwin--active': active, 'tm-fwin--traveling': traveling, 'tm-fwin--empty': active && isEmpty }"
+        :style="fwinStyle"
+      >
         <slot />
       </div>
     </div>
 
     <template v-if="active || fadingOut">
-      <!-- Right-edge fisheye tick rail (Task 8, z-tier 9) -- its own template gate, like the gear
-           button below, rather than folded into the clone/glass/depth-stack block above (that
-           block is background decoration, always pointer-events:none; the rail, like the gear, is
-           interactive). Wired straight to the store (same props-less-from-Files.vue convention
-           TimeMachineDepthStack.vue's own header comment already established), not threaded
-           through props: snapshots/current/loading come straight off `browse`, and `select` calls
-           `browse.switchTo` directly -- the SAME funnel the keyboard stepper (Task 7) and the
-           bottom-bar stepper (Task 9) also go through. -->
+      <!-- Right-edge fisheye tick rail (Task 8, z-tier 9) vs the empty-state message (fix wave A2,
+           audit-stage.md #3): Vue2 parity -- `v-else-if="flatItems.length === 0"` shows the rail
+           ONLY once there is something to show it for (loading OR a non-empty list); a genuinely
+           empty volume shows the centered "No snapshots yet" message instead, in the SAME slot the
+           rail would otherwise occupy (TimeMachineStage.vue:1385-1388). The rail component itself
+           still owns its own internal loading-skeleton-vs-real-ticks split (its own `loading` prop)
+           -- this level only decides "rail region at all" vs "empty message instead". -->
       <TimeMachineRail
+        v-if="browse.tmLoading || browse.snapshotList.length > 0"
         :class="{ 'tm-stage__fade-exit': fadingOut }"
         :snapshots="browse.snapshotList"
         :current="browse.currentSnapshotName"
         :loading="browse.tmLoading"
         @select="(name) => browse.switchTo(name)"
       />
+      <div v-else class="tm-stage__empty" :class="{ 'tm-stage__fade-exit': fadingOut }">
+        <p class="tm-stage__empty-title">{{ t('snapNoneYet') }}</p>
+        <p class="tm-stage__empty-sub">{{ t('snapEmptyHint') }}</p>
+      </div>
 
       <!-- Gear button (z-tier 10, same tier the vertical stepper below occupies): the one piece of
            the top-right/right-edge chrome group that belongs to no later task by name, so it is
@@ -420,6 +436,13 @@ onUnmounted(() => {
      comment cites the same two constants) — so the floating window's box structurally cannot
      extend under either control once they land, for any viewport width. */
   padding-right: 280px;
+  /* Fix wave A2 (audit-stage.md #12, priority list item 12): Vue2's own `$tm-bottom-gap` literal
+     (`.tm-stage__hold--active { padding-bottom: $tm-bottom-gap }`, TimeMachineStage.vue:3152) --
+     matches the SAME 80px literal `.tm-stage__bar-btn`'s own `.tm-stage__bottom-bar` height uses
+     below, and `TimeMachineDepthStack.vue`'s own `bottom: 80px` -- reserves the bottom band inside
+     the window wrapper's own content box so the real window's content never sits under the bottom
+     action bar (was previously reserving only the right gutter, never the bottom one). */
+  padding-bottom: 80px;
   pointer-events: none;
 }
 .tm-fwin { display: contents; }
@@ -429,7 +452,12 @@ onUnmounted(() => {
   transform-origin: 50% 58%;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: var(--card-shadow-hi);
+  /* Fix wave A2 (audit-stage.md #5, priority list item 5): Vue2's own `.tm-fwin--active` box-shadow
+     is a single layer (TimeMachineStage.vue:3198) -- same substitution error as the depth strips
+     (`--card-shadow-hi`'s 3-layer shadow with an inset highlight Vue2 never has), on the single
+     most prominent element on screen (see theme.css's own comment on `--tm-fwin-shadow` for the
+     exact value, not repeated here to avoid writing a bare color literal in this style block). */
+  box-shadow: var(--tm-fwin-shadow);
   background: var(--tm-panel-bg-solid);
   display: flex;
   flex-direction: column;
@@ -448,6 +476,17 @@ onUnmounted(() => {
    revealing it mid-transition would show a half-navigated, visually jarring frame. */
 .tm-fwin--traveling {
   opacity: 0 !important;
+  transition: none !important;
+}
+/* Fix wave A2 (audit-stage.md #3, `.tm-fwin--empty`): a volume with ZERO snapshots -- the
+   always-mounted real window (wrapping the default slot) would otherwise keep painting the LIVE
+   directory dressed as a read-only snapshot window behind the "No snapshots yet" message below.
+   Same hard, untransitioned idiom as `--traveling` above (Vue2's own `.tm-fwin--empty`,
+   TimeMachineStage.vue:3242-3246) -- deliberately its own modifier, not a persistent value on
+   `.tm-fwin`/`.tm-fwin--active`. */
+.tm-fwin--empty {
+  opacity: 0 !important;
+  pointer-events: none;
   transition: none !important;
 }
 
@@ -474,26 +513,32 @@ onUnmounted(() => {
   -webkit-backdrop-filter: var(--tm-glass-blur);
 }
 
+/* Fix wave A2 (audit-stage.md #9, priority list item 4): Vue2's own `.tm-stage__gear-tooltip`/
+   `.tm-stage__gear` pair (TimeMachineStage.vue:3253-3263) -- position 20px/24px (not 8px/16px),
+   no fixed circular hit box (Vue2 sizes purely off the icon's own intrinsic box; `padding: 8px`
+   here keeps a reasonable touch target without inventing a filled circle Vue2 never has), resting
+   color pinned by `--tm-gear-text` (new token, see theme.css's own comment for the exact Vue2
+   literal), hover color pure white (reuses the existing `--tm-chrome-text`, the SAME literal
+   Vue2's own hover color is), hover `rotate(45deg)` (the signature "gear turns" animation,
+   previously entirely absent), and NO hover background (Vue2 never has one -- the port's own
+   `--tm-ghost-hover-bg` fill was a bolted-on addition, removed). Transition/easing ported
+   literally (`transform 0.2s ease, color 0.2s ease`, 3261) -- `background` dropped from the
+   transition list since there is no longer a background to transition. */
 .tm-stage__gear {
   position: absolute;
-  top: 8px;
-  right: 16px;
+  top: 20px;
+  right: 24px;
   z-index: 10;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  padding: 0;
+  padding: 8px;
   border: none;
-  border-radius: 50%;
   background: none;
-  color: var(--tm-rail-text-dim);
+  color: var(--tm-gear-text);
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
-  transition: color 0.2s var(--ease), background 0.2s var(--ease);
+  transition: transform 0.2s ease, color 0.2s ease;
 }
-.tm-stage__gear:hover { color: var(--tm-rail-text); background: var(--tm-ghost-hover-bg); }
+.tm-stage__gear:hover { color: var(--tm-chrome-text); transform: rotate(45deg); }
 
 /* Bottom action bar -- Vue2 parity byte-for-byte (`.tm-bottom-bar`, TimeMachineStage.vue). 80px
    height is Vue2's own `$tm-bottom-gap` literal (the same 80 timeMachineMath.ts's own
@@ -522,17 +567,57 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--tm-chrome-text);
   cursor: pointer;
-  transition: background 0.15s var(--ease), opacity 0.15s var(--ease);
 }
 .tm-stage__bar-btn--exit {
   background: var(--tm-bottom-bar-exit-bg);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  /* Fix wave A2 (audit-stage.md #13, priority list item 16): Vue2's own `&__exit` rule
+     (TimeMachineStage.vue:3502-3512) declares NO transition at all -- its hover is an instant,
+     untransitioned snap. The port previously inherited a 0.15s transition from the shared
+     `.tm-stage__bar-btn` rule that Vue2 never has here; left undeclared now, matching Vue2. */
 }
 .tm-stage__bar-btn--exit:hover { background: var(--tm-bottom-bar-exit-hover-bg); }
-.tm-stage__bar-btn--restore { background: var(--tm-accent); }
+.tm-stage__bar-btn--restore {
+  background: var(--tm-accent);
+  /* Fix wave A2 (audit-stage.md #13, priority list item 14): Vue2's own literal
+     (`background 0.15s ease, opacity 0.15s ease`, 3521) -- plain `ease`, not `var(--ease)`'s
+     custom cubic-bezier curve (a port-only substitution `.tm-stepper__btn`'s own transition made
+     too, see TimeMachineStepper.vue). Scoped to `--restore` only now that `--exit` has none. */
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
 .tm-stage__bar-btn--restore:hover:not(:disabled) { background: var(--tm-accent-hover); }
 .tm-stage__bar-btn--restore:disabled { opacity: 0.5; cursor: default; }
+
+/* Fix wave A2 (audit-stage.md #3, `.tm-stage__empty`/`-title`/`-sub`): Vue2 parity byte-for-byte
+   (TimeMachineStage.vue:3339-3356) -- centered focal message filling the space the (now hidden,
+   `.tm-fwin--empty` above) live window used to occupy while a volume has zero snapshots.
+   `pointer-events: none` so this full-stage overlay never swallows clicks meant for the bottom bar
+   (z-index 7, below this) or the gear/stepper (z-index 10, above); z-index 9 matches the rail's own
+   tier it replaces in that same template slot. */
+.tm-stage__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9;
+  text-align: center;
+  pointer-events: none;
+}
+.tm-stage__empty-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--tm-empty-title);
+  text-shadow: var(--tm-rail-text-shadow);
+}
+.tm-stage__empty-sub {
+  font-size: 13px;
+  color: var(--tm-empty-sub);
+  text-shadow: var(--tm-rail-text-shadow);
+}
 
 /* Pure CSS, 220ms (EXIT_FADE_MS, bound above as --tm-exit-fade-ms so this can never drift from
    the shared constant timeMachineChoreo.ts exports) — applied only to the decorative shell
@@ -542,5 +627,13 @@ onUnmounted(() => {
 @keyframes tm-stage-fade-exit {
   from { opacity: 1; }
   to { opacity: 0; }
+}
+/* Fix wave A2 (audit-stage.md #7, priority list item 11): Vue2's own reduced-motion override
+   (`transition: none`, TimeMachineStage.vue:3119-3127) collapses this exit fade to an instant cut
+   rather than an animated one -- ported here as `animation: none` (this port's own mechanism is a
+   keyframe animation, not a transition) PLUS an explicit `opacity: 0` so the element still actually
+   disappears instantly instead of being stranded at its un-animated `from { opacity: 1 }` state. */
+@media (prefers-reduced-motion: reduce) {
+  .tm-stage__fade-exit { animation: none; opacity: 0; }
 }
 </style>
