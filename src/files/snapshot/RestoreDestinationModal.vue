@@ -224,8 +224,10 @@ defineExpose({ open })
 </template>
 
 <style scoped>
-/* Shared 1000/1001 tier -- see file header: deliberately BELOW FileConflictDialog's 1050/1051. */
-.rdm-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
+/* Shared 1000/1001 tier -- see file header: deliberately BELOW FileConflictDialog's 1050/1051.
+   Fix wave A3 (audit-modals.md #1): flat unblurred Buefy scrim, same as SnapshotSettingsModal's
+   own `.ssm-overlay` -- see theme.css's own comment on `--tm-modal-overlay-bg`. */
+.rdm-overlay { position: fixed; inset: 0; background: var(--tm-modal-overlay-bg); z-index: 1000; }
 
 .rdm-content {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
@@ -249,7 +251,10 @@ defineExpose({ open })
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 20px 24px 12px; border-bottom: 1px solid var(--tm-hairline); flex-shrink: 0;
 }
-.rdm-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--tm-text); }
+/* Fix wave A3 (audit-modals.md #2): Vue2's `.title.is-header` line-height -- see
+   SnapshotSettingsModal.vue's own `.ssm-title` comment for the full citation (font-family left
+   as a documented deviation there, same reasoning applies here). */
+.rdm-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 24px; color: var(--tm-text); }
 .rdm-close-x {
   flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
   background: transparent; border: none; padding: 0; color: var(--tm-text-dim); cursor: pointer;
@@ -261,9 +266,11 @@ defineExpose({ open })
 .rdm-muted { font-size: 0.75rem; color: var(--tm-text-dim); margin: 0; }
 
 .rdm-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-bottom: 8px; }
+/* Fix wave A3 (audit-modals.md, crumb non-current color): Vue2's breadcrumb link is
+   `color: $primary`, not `--tm-accent` -- see theme.css's own token-split comment. */
 .rdm-crumb {
   background: transparent; border: none; padding: 2px 4px; border-radius: 6px; font-size: 12px;
-  color: var(--tm-accent); cursor: pointer;
+  color: var(--tm-primary); cursor: pointer;
 }
 .rdm-crumb:hover:not(:disabled) { background: var(--tm-ghost-hover-bg); text-decoration: underline; }
 .rdm-crumb--current { color: var(--tm-text); cursor: default; font-weight: 600; }
@@ -286,18 +293,21 @@ defineExpose({ open })
 .rdm-key { font-size: 12px; color: var(--tm-text-dim); }
 .rdm-marker-note { margin-top: 6px; }
 
-/* Switch -- same hand-rolled pill idiom as SnapshotSettingsModal.vue's own .ssm-switch (T11). */
+/* Switch -- same hand-rolled pill idiom as SnapshotSettingsModal.vue's own .ssm-switch (T11).
+   Fix wave A3 (audit-modals.md, marker row + switch): rebuilt to Buefy's own em-based
+   `_switch.scss` formula -- see .ssm-switch's own comment (SnapshotSettingsModal.vue) for the
+   full derivation, identical geometry ported here verbatim. */
 .rdm-switch {
-  position: relative; width: 38px; height: 21px; flex: none; padding: 0; cursor: pointer;
+  position: relative; width: 2.75em; height: 1.575em; font-size: 12px; flex: none; padding: 0; cursor: pointer;
   border-radius: 9999px; border: none; background: var(--tm-switch-off-bg);
   transition: background 0.15s var(--ease, ease);
 }
-.rdm-switch--on { background: var(--tm-accent); }
+.rdm-switch--on { background: var(--tm-primary); }
 .rdm-switch-thumb {
-  position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 9999px;
+  position: absolute; top: 0.2em; left: 0.2em; width: 1.175em; height: 1.175em; border-radius: 9999px;
   background: var(--tm-panel-bg-solid); box-shadow: var(--tm-switch-thumb-shadow); transition: transform 0.15s var(--ease, ease);
 }
-.rdm-switch--on .rdm-switch-thumb { transform: translateX(17px); }
+.rdm-switch--on .rdm-switch-thumb { transform: translateX(1.175em); }
 
 .rdm-foot {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -308,11 +318,16 @@ defineExpose({ open })
   font-size: 11px; color: var(--tm-text-dim);
 }
 .rdm-foot-actions { display: flex; gap: 8px; flex-shrink: 0; }
+/* Fix wave A3 (audit-modals.md, Cancel/Restore-here buttons): Vue2's own `<b-button>`s here have
+   no `size` prop -> Bulma default/medium: `font-size: 16px; height ≈ 40px` -- same fix as
+   SnapshotSettingsModal.vue's own `.ssm-close` (see that rule's own comment for the full
+   citation). Restore-here's fill is `is-primary` = `$primary`, not `--tm-accent`. */
 .rdm-cancel, .rdm-confirm {
-  padding: 7px 16px; border-radius: var(--tm-control-radius); font-size: 13px; cursor: pointer; border: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 16px; height: 40px; border-radius: var(--tm-control-radius); font-size: 16px; cursor: pointer; border: none;
 }
 .rdm-cancel { background: transparent; border: 1px solid var(--tm-ghost-border); color: var(--tm-text-dim); }
 .rdm-cancel:hover { background: var(--tm-ghost-hover-bg); color: var(--tm-text); border-color: var(--tm-ghost-border-hover); }
-.rdm-confirm { background: var(--tm-accent); color: var(--tm-chrome-text); }
-.rdm-confirm:hover { background: var(--tm-accent-hover); }
+.rdm-confirm { background: var(--tm-primary); color: var(--tm-chrome-text); }
+.rdm-confirm:hover { background: var(--tm-primary-hover); }
 </style>
