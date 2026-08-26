@@ -90,29 +90,43 @@ describe('TimeMachineRail', () => {
     expect(w.emitted('select')?.[0]?.[0]).toBe(anchorName)
   })
 
-  it('hovering a major tick shows its time label; leaving the rail hides it', async () => {
+  // Fix wave A2 (audit-stage.md #12, priority list item 1): Vue2 parity -- the time label is
+  // ALWAYS rendered next to every tick at rest, not gated on hover. Replaces the earlier
+  // hover-only floating-label test (that whole `hoveredItem`/`hoverLabelTop` mechanism is gone).
+  it('renders a resting-state time label on every major tick, not gated on hover', () => {
     const w = mountIt()
-    const target = w.findAll('.tm-tick-main').find((n) => n.attributes('data-flat-index') === 's-today-newest')!
-    await target.trigger('mouseenter')
-    expect(w.find('.tm-tick-label').text()).toBe(formatClock(SNAPSHOTS[0]))
-    await w.find('.tm-rail').trigger('mouseleave')
-    expect(w.find('.tm-tick-label').exists()).toBe(false)
+    const labels = w.findAll('.tm-tick-label')
+    expect(labels).toHaveLength(3)
+    expect(labels.map((l) => l.text())).toContain(formatClock(SNAPSHOTS[0]))
   })
 
-  it('on mouse move, writes a scaleX transform onto ticks', async () => {
+  // Sub-ticks have no Vue2 counterpart, so they carry no label of their own -- only main ticks do.
+  it('does not render a label on decorative sub-ticks', () => {
+    const w = mountIt()
+    for (const sub of w.findAll('.tm-tick-sub')) {
+      expect(sub.find('.tm-tick-label').exists()).toBe(false)
+    }
+  })
+
+  it('on mouse move, writes a scale transform onto ticks', async () => {
     const w = mountIt()
     // jsdom's getBoundingClientRect is always 0 here; this only asserts a transform was written
     // after mousemove. The curve itself is covered by timeMachineMath.test.ts (real numeric
     // assertions on fisheyeScale); "closer means larger" is covered by the strengthened case below.
+    // Fix wave A2 (audit-stage.md #12, priority list item 2): uniform `scale(...)`, not
+    // `scaleX(...)` -- Vue2's own fisheye grows the WHOLE tick (line + label + badge), not just a
+    // bar's horizontal axis.
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
-    expect(w.findAll('.tm-tick-main')[0].attributes('style')).toContain('scaleX')
+    const style = w.findAll('.tm-tick-main')[0].attributes('style') ?? ''
+    expect(style).toContain('scale(')
+    expect(style).not.toContain('scaleX(')
   })
 
   it('scale resets once the mouse leaves the rail', async () => {
     const w = mountIt()
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     await w.find('.tm-rail').trigger('mouseleave')
-    expect(w.findAll('.tm-tick-main')[0].attributes('style') ?? '').not.toContain('scaleX(2')
+    expect(w.findAll('.tm-tick-main')[0].attributes('style') ?? '').not.toContain('scale(2')
   })
 
   // ── Fix round (controller ruling): per-type tick class hook + manual badge, restored ──
@@ -164,17 +178,19 @@ describe('TimeMachineRail', () => {
   // applies no CSS at all, so a `.is-selected` class assertion alone cannot tell "styled 40px wide"
   // apart from "styled 26px wide", and there is no inline/computed style to read here since this is
   // a real CSS rule, not a bound `:style`).
-  it('the selected tick\'s own CSS rule pins Vue2\'s literal 40px width and 10px glow blur', () => {
+  // Fix wave A2 (audit-stage.md #12, priority list items 1/2): the tick's own width now lives on
+  // its `::after` line (the button itself is full-width, Vue2's own literal shape, so its own
+  // width is no longer the bar's width) -- the selected-state width/glow-blur literals moved
+  // alongside it into the SAME `::after` rule, rather than a separate bare-class rule.
+  it('the selected tick\'s own ::after rule pins Vue2\'s literal 40px width and 10px glow blur', () => {
     const src = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineRail.vue'),
       'utf8',
     )
     const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
-    const selectedRule = /\.tm-tick-main\.is-selected\s*\{([^}]*)\}/.exec(styleBlock)
-    expect(selectedRule, 'no .tm-tick-main.is-selected rule found').toBeTruthy()
-    expect(selectedRule![1]).toContain('width: 40px')
     const selectedAfterRule = /\.tm-tick-main\.is-selected::after\s*\{([^}]*)\}/.exec(styleBlock)
     expect(selectedAfterRule, 'no .tm-tick-main.is-selected::after rule found').toBeTruthy()
+    expect(selectedAfterRule![1]).toContain('width: 40px')
     expect(selectedAfterRule![1]).toContain('box-shadow: 0 0 10px var(--tm-accent-glow)')
   })
 
@@ -198,7 +214,7 @@ describe('TimeMachineRail', () => {
     await w.find('.tm-rail').trigger('mousemove', { clientY: 105 })
 
     const scaleOf = (style: string | undefined) => {
-      const m = (style ?? '').match(/scaleX\(([\d.]+)\)/)
+      const m = (style ?? '').match(/scale\(([\d.]+)\)/)
       return m ? Number(m[1]) : 1
     }
     const nearScale = scaleOf(w.findAll('.tm-tick-main')[0].attributes('style'))
@@ -224,7 +240,7 @@ describe('TimeMachineRail', () => {
     await w.find('.tm-rail').trigger('mousemove', { clientY: 105 })
 
     const style = w.findAll('.tm-tick-main')[0].attributes('style') ?? ''
-    const m = style.match(/scaleX\(([\d.]+)\)/)
+    const m = style.match(/scale\(([\d.]+)\)/)
     const scale = m ? Number(m[1]) : 1
     expect(scale).toBeGreaterThan(2) // peak maxScale=2.2; if overwritten by a sub-tick it drops to minScale=1
   })

@@ -4,17 +4,37 @@
 // Task 6 deleted TimeMachineOverlay.vue/TimeMachineDeck.vue) -- see task-8-report.md for the full
 // rewrite rationale. Ported from Vue2's `.tm-rail` region in
 // NimoOS-UI/src/components/filebrowser/components/TimeMachineStage.vue: day-grouped snapshot
-// ticks, continuous cursor-driven fisheye magnification (rAF-throttled), a hover time label, a
-// selected-tick accent line, and a 5-bar pulsing skeleton while loading.
+// ticks, continuous cursor-driven fisheye magnification (rAF-throttled), a resting-state time
+// label on every tick, a selected-tick accent line, and a 5-bar pulsing skeleton while loading.
 //
-// Interface change vs the colleague's own version (this task's own binding contract, not a Vue2
-// deviation): props are now `{ snapshots, current, loading }` (the RAW snapshot list + the
-// selected snapshot's NAME), not colleague's own pre-grouped `{ groups, selectedIndex }` -- this
-// component now owns its own day-grouping (via storage/util/snapshotView's groupSnapshotsByDay,
-// the same helper the storage-area timeline already uses) rather than trusting a caller to have
-// already built it. `select` emits the snapshot's NAME (Vue2's own `switchTo(item.name)`
-// convention), not colleague's own numeric flatIndex -- TimeMachineStage.vue wires it straight to
-// `browse.switchTo`.
+// Fix wave A2 (audit-stage.md #12, priority list items 1/2/7/16): re-read the whole Vue2
+// `.tm-tick` template+style block to correct three compounding mistakes the earlier build made:
+//
+// 1. Vue2's per-tick time label (`.tm-tick__label`) is ALWAYS rendered at rest, right inside the
+//    tick `<button>` itself, alongside the badge and the line (badge, label, line, in that DOM
+//    order, right-aligned via `justify-content: flex-end` on the button) -- NOT a hover-only
+//    floating sibling of `.tm-rail`. The earlier build's `hoveredItem`/`hoverLabelTop` machinery
+//    (a single floating `<span>` positioned against whichever tick was last hovered) is gone
+//    entirely; hover color changes are now pure CSS (`:hover`), matching Vue2's own
+//    `.tm-tick:hover .tm-tick__label { color: #fff }` mechanism exactly, and there is nothing left
+//    for `onTickHover`/`itemByName`/`hoveredName` to do, so they are deleted rather than kept as
+//    dead code.
+// 2. Vue2's fisheye magnification (`transform: scale(...)`, template line 1408) scales the WHOLE
+//    button uniformly -- line, label, and badge together -- not just a bar via `scaleX`. Now that
+//    the label lives inside the button being scaled, `scaleStyle` below returns a uniform
+//    `scale(...)` (not `scaleX(...)`) so the label visibly grows/shrinks with the line exactly as
+//    it does in Vue2.
+// 3. `.tm-tick` itself is now `width: 100%` (a full-width flex row, Vue2's own literal shape) with
+//    the line rendered as its `::after` (kept from the earlier build, still a valid flex item) --
+//    the PER-STATE bar width (26/34/40px) that used to live on the button itself now lives on
+//    `::after` instead, since the button's own width is no longer the bar's width.
+//
+// Interface (this task's own binding contract, not a Vue2 deviation): props are `{ snapshots,
+// current, loading }` (the RAW snapshot list + the selected snapshot's NAME) -- this component
+// owns its own day-grouping (via storage/util/snapshotView's groupSnapshotsByDay, the same helper
+// the storage-area timeline already uses) rather than trusting a caller to have already built it.
+// `select` emits the snapshot's NAME (Vue2's own `switchTo(item.name)` convention), wired straight
+// to `browse.switchTo` by TimeMachineStage.vue.
 //
 // Decorative sub-ticks between consecutive main (real snapshot) ticks are NOT a Vue2 behavior --
 // Vue2 renders exactly one button per snapshot, nothing between them. They are carried over from
@@ -23,7 +43,9 @@
 // otherwise look sparse with few snapshots; this component rebuilds that same node-interleaving
 // itself (keyed by snapshot NAME now, not a numeric flatIndex), rather than depending on
 // timeMachineMath.ts's own now-dead buildRailNodes/computeFisheyeScales exports (pruned in this
-// same task -- see task-8-report.md for the grep confirming nothing else referenced them).
+// same task -- see task-8-report.md for the grep confirming nothing else referenced them). This
+// remains an intentional, owner-flagged-in-code deviation (audit-stage.md priority list item 15) --
+// not something this wave removes.
 //
 // The exact bug this component's own data-attribute split guards against (ported verbatim from
 // the colleague's own review-caught fix, kept because it is a real, previously-shipped defect,
@@ -84,12 +106,6 @@ const SUB_PER_GAP = 2
 
 const dayGroups = computed<SnapshotDayGroup[]>(() => groupSnapshotsByDay(props.snapshots || []))
 
-const itemByName = computed(() => {
-  const map: Record<string, SnapshotItemView> = {}
-  for (const g of dayGroups.value) for (const it of g.items) map[it.name] = it
-  return map
-})
-
 // Flattens the already-day-grouped, newest-first snapshot list into one render-order node list,
 // then interleaves SUB_PER_GAP decorative sub-ticks between every pair of consecutive main ticks
 // (never before the first or after the last -- there is nothing to interpolate "toward" there).
@@ -117,10 +133,6 @@ const nodes = computed<RailNode[]>(() => {
 })
 
 const scales = ref<Record<string, number>>({})
-const hoveredName = ref<string | null>(null)
-// Vertical position (px) of the floating label relative to .tm-rail — computed once at
-// mouseenter, not recomputed in the fisheye rAF loop; the label must not jitter with the cursor.
-const hoverLabelTop = ref(0)
 const railEl = ref<HTMLElement | null>(null)
 let rafHandle: number | null = null
 let pendingY = 0
@@ -152,26 +164,7 @@ function updateScales(cursorY: number) {
 }
 
 function onMouseLeave() {
-  hoveredName.value = null
   scales.value = {}
-}
-
-// Main and sub ticks share this one handler: sub-ticks pass the anchorName they snap to, so the
-// floating label naturally shows the time of "the main tick this sub-tick belongs to", consistent
-// with the click-snap target.
-//
-// The offset is measured from the rects rather than from offsetTop: the ticks live in
-// .tm-rail-track (its own scroll container) while the label is a child of .tm-rail, so offsetTop
-// would ignore the track's scrollTop and the label would drift once the rail scrolls. Rect math is
-// scroll-correct by construction.
-function onTickHover(e: MouseEvent, name: string) {
-  hoveredName.value = name
-  const root = railEl.value
-  if (!root) return
-  const el = e.currentTarget as HTMLElement
-  const r = el.getBoundingClientRect()
-  const rootRect = root.getBoundingClientRect()
-  hoverLabelTop.value = r.top - rootRect.top + r.height / 2
 }
 
 onUnmounted(() => { if (rafHandle !== null) cancelAnimationFrame(rafHandle) })
@@ -189,13 +182,14 @@ watch(() => props.current, async (name) => {
   el?.scrollIntoView({ block: 'nearest' })
 })
 
+// Fix wave A2 (audit-stage.md #12, priority list item 2): uniform `scale(...)`, not `scaleX(...)`
+// -- Vue2's own `transform: scale(...)` (template line 1408) grows the WHOLE tick (line + label +
+// badge together), not just a bar. Applied to the whole `<button>`/`<div>`, same as before.
 function scaleStyle(name: string | undefined) {
   if (!name) return undefined
   const s = scales.value[name]
-  return s ? { transform: `scaleX(${s})` } : undefined
+  return s ? { transform: `scale(${s})` } : undefined
 }
-
-const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hoveredName.value] ?? null : null))
 </script>
 
 <template>
@@ -212,6 +206,10 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
       <template v-for="node in nodes" :key="node.key">
         <div v-if="node.type === 'day'" class="tm-rail-day">{{ node.label }}</div>
 
+        <!-- Fix wave A2 (audit-stage.md #12, priority list item 1): badge + label are now real
+             children of the button, ALWAYS rendered (not hover-gated) -- Vue2's own
+             `.tm-tick__badge`/`.tm-tick__label` markup order (badge, label, line), right-aligned
+             by the button's own `justify-content: flex-end` (see the style block below). -->
         <button
           v-else-if="node.type === 'main'"
           type="button"
@@ -220,17 +218,12 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
           :data-flat-index="node.item!.name"
           :style="scaleStyle(node.item!.name)"
           :aria-label="t('tmRailJumpTo', { time: node.item!.time })"
-          @mouseenter="onTickHover($event, node.item!.name)"
           @click="emit('select', node.item!.name)"
         >
-          <!-- Manual-snapshot badge -- Vue2 parity (`.tm-tick__badge`, shown only for
-               typeKind === 'manual', with an optional user label appended). auto/preop render no
-               badge at all in Vue2, so none is rendered here either -- see this file's own header
-               comment (fix round) for the full account of what "per-type coloring" does and does
-               not mean in the real Vue2 source. -->
           <span v-if="node.item!.typeKind === 'manual'" class="tm-tick-badge" aria-hidden="true">
             ● {{ t('snapTypeManual') }}<template v-if="node.item!.label"> · {{ node.item!.label }}</template>
           </span>
+          <span class="tm-tick-label">{{ node.item!.time }}</span>
         </button>
 
         <!-- Decorative sub-tick: not independently selectable (not a button; keyboard/screen
@@ -243,18 +236,10 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
           aria-hidden="true"
           :data-anchor-index="node.anchorName"
           :style="scaleStyle(node.anchorName)"
-          @mouseenter="onTickHover($event, node.anchorName!)"
           @click="emit('select', node.anchorName!)"
         ></div>
       </template>
     </div>
-
-    <!-- The hover label deliberately lives at the .tm-rail level rather than as a child of the
-         tick button: ticks use scaleX for continuous fisheye magnification, and a child label
-         would be horizontally squashed by the parent transform. Rendered as an absolutely
-         positioned sibling at the hovered item's own position, it structurally cannot be
-         stretched by that transform — no reverse-scale compensation needed. -->
-    <span v-if="hoveredItem" class="tm-tick-label" :style="{ top: `${hoverLabelTop}px` }">{{ hoveredItem.time }}</span>
   </div>
 </template>
 
@@ -262,8 +247,8 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
 /* 220px (TM_RAIL_WIDTH, timeMachineMath.ts) fixed right-edge band -- Vue2 parity byte-for-byte
    (`.tm-rail`'s own width). `.tm-stage__hold--active` already reserves this band (plus the
    stepper's own 60px) via padding-right, so the floating window's box cannot extend under this
-   rail at any viewport width. `.tm-rail` itself must NOT scroll — the hover label is positioned
-   against it; scrolling belongs to `.tm-rail-track` alone. */
+   rail at any viewport width. `.tm-rail` itself must NOT scroll — the ticks live in
+   `.tm-rail-track` alone, which owns the scroll container. */
 .tm-rail {
   position: absolute;
   top: 0;
@@ -281,123 +266,147 @@ const hoveredItem = computed(() => (hoveredName.value ? itemByName.value[hovered
   min-height: 0;
   /* 24/12/70 padding (Vue2 literal): the 70px left buffer gives fisheye-magnified ticks (which
      grow leftward via transform-origin: right center) real room before the box edge clips them.
-     space-between spreads ticks evenly over the full height when they fit; with too many to fit
-     it degrades automatically (no spare space to distribute) back to normal top-down flow plus
-     scrolling, without ever pushing the first tick out of view. */
+     Fix wave A2 (audit-stage.md #12, priority list item 7): `justify-content: center` (Vue2's own
+     literal, TimeMachineStage.vue:3384) -- vertically centers the WHOLE tick stack as one group
+     within the rail's available height. `space-between` (the previous value) instead spread ticks
+     across the full available height whenever there were fewer than fit, a visibly different
+     layout for the common case of a snapshot count that doesn't already fill the rail. Degrades
+     automatically with too many ticks to fit (no spare space to distribute) back to normal
+     top-down flow plus scrolling, without ever pushing the first tick out of view. */
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  justify-content: space-between;
+  justify-content: center;
   gap: 2px;
   padding: 24px 12px 24px 70px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
 }
-.tm-rail-track--loading { align-items: flex-end; justify-content: center; gap: 12px; }
+/* Skeleton bars are literal fixed px widths (unlike the real ticks above, which are full-width
+   flex rows) -- `align-items: flex-end` right-aligns them against the rail's own edge, Vue2's own
+   `.tm-rail--loading` literal (TimeMachineStage.vue:3396-3398, `justify-content: center` inherited
+   unchanged from the base rule above). */
+.tm-rail-track--loading { align-items: flex-end; }
 
+/* Fix wave A2 (audit-stage.md #12, priority list item 16): Vue2's own literal margin
+   (`10px 4px 4px 0`, TimeMachineStage.vue:3420) and text-shadow (`--tm-rail-text-shadow`, new
+   token, see theme.css) -- the port previously lost the 4px right/bottom margins and added a
+   font-weight Vue2 never sets (day labels are plain 400 weight in Vue2, inherited, not declared). */
 .tm-rail-day {
   width: 100%;
   text-align: right;
-  margin-top: 10px;
+  margin: 10px 4px 4px 0;
   font-size: 11px;
-  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tm-rail-text-dim);
+  text-shadow: var(--tm-rail-text-shadow);
 }
 .tm-rail-day:first-child { margin-top: 0; }
 
-/* A tick is a 16px-tall transparent hit box with a bar painted by ::after — a small usability
-   improvement over Vue2's own raw thin-line hit target, not a Vue2 behavior. The hit box height
-   stays constant across states (selection only changes ::after), so no tick ever shifts by a
-   pixel when the selection moves, and fisheye distances stay stable while hovering. */
+/* Fix wave A2 (audit-stage.md #12, priority list items 1/2/16): full-width flex row (Vue2's own
+   literal shape, `.tm-tick { display:flex; align-items:center; justify-content:flex-end; gap:8px;
+   width:100% }`, TimeMachineStage.vue:3425-3436) hosting badge/label/line as real flex children
+   (right-aligned, growing leftward) -- not a bare hit-box bar any more. Transition duration/easing
+   ported literally (`transform 0.18s ease`, 3436) -- plain `ease`, not `var(--ease)`'s custom
+   cubic-bezier curve, and 0.18s (not 0.12s) -- the port's own bouncy overshoot easing was a
+   substitution error, not a Vue2 behavior. */
 .tm-tick {
   position: relative;
-  height: 16px;
-  padding: 0;
+  width: 100%;
+  padding: 3px 0;
   border: none;
   background: none;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   transform-origin: right center;
   cursor: pointer;
-  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.18s ease;
 }
+/* The line itself -- still a flex item via `::after` (kept from the earlier build, valid inside a
+   flex parent), now sized per-state on ITSELF rather than on the button (the button is full-width
+   now, so its own width is no longer the bar's width). `transition: all 0.18s` is Vue2's own
+   literal (`.tm-tick__line`, 3450) -- no easing keyword declared there, so the browser default
+   (`ease`) applies, unchanged from before. */
 .tm-tick::after {
   content: '';
   display: block;
-  width: 100%;
   height: 2px;
   border-radius: 2px;
-  background: var(--tick-color);
-  transition: height 0.15s var(--ease), background 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  transition: all 0.18s;
 }
-.tm-tick-main { width: 26px; --tick-color: var(--tm-rail-tick); }
-.tm-tick-sub { width: 18px; --tick-color: var(--tm-rail-tick-sub); }
+.tm-tick-main::after { width: 26px; background: var(--tm-rail-tick); }
+.tm-tick-sub::after { width: 18px; background: var(--tm-rail-tick-sub); }
+
 /* Selected accent line — Vue2 parity (`.tm-tick--selected .tm-tick__line`'s own literal width/
    height/color/glow, sourced verbatim into --tm-accent/--tm-accent-glow, see task-1-report.md).
    `width: 40px` is Vue2's own literal resting width for a selected tick (visibly wider than the
    26px default); it still loses to `.tm-tick-main:hover`'s own 34px below on hover, because that
    rule is declared LATER in this file and both selectors carry equal specificity (two classes)
    -- same "hover wins the tie" outcome Vue2's own cascade produces. Glow blur is 10px, Vue2's own
-   literal (not 8px). */
-.tm-tick-main.is-selected { --tick-color: var(--tm-accent); width: 40px; }
-.tm-tick-main.is-selected::after { height: 3px; box-shadow: 0 0 10px var(--tm-accent-glow); }
+   literal (not 8px). Label color/weight ported alongside (`.tm-tick--selected .tm-tick__label`,
+   3466) -- reuses `--tm-rail-tick-hover`, the SAME literal Vue2 pins for this rule (see that
+   token's own comment in theme.css for the exact value, not repeated here to avoid writing a bare
+   color literal in this style block). */
+.tm-tick-main.is-selected::after { background: var(--tm-accent); width: 40px; height: 3px; box-shadow: 0 0 10px var(--tm-accent-glow); }
+.tm-tick-main.is-selected .tm-tick-label { color: var(--tm-rail-tick-hover); font-weight: 700; }
 
-/* Hover brightening — Vue2 parity (`.tm-tick:hover .tm-tick__line`'s own literal background
-   color and width), restored per controller ruling; the exact literal value is pinned by
+/* Hover brightening — Vue2 parity (`.tm-tick:hover .tm-tick__line`/`.tm-tick:hover
+   .tm-tick__label`'s own literal colors and the main tick's own +8px resting-width growth on
+   hover, 26 -> 34), restored per controller ruling; the exact literal value is pinned by
    `--tm-rail-tick-hover` in theme.css (see that token's own comment there, not repeated here to
-   avoid writing a bare color literal in this style block). The +8px resting-width growth on
-   hover is Vue2's own literal delta for the main tick (26 -> 34); sub-ticks have no Vue2
-   counterpart to pin a delta from, so only their color brightens, not their width. Vue2 does the
-   same color brightening on the SELECTED tick too (its `:hover` rule has no exception for
-   `--selected`) -- unchanged here for the same reason. */
-.tm-tick-main:hover { width: 34px; }
-.tm-tick-main:hover::after,
-.tm-tick-sub:hover::after {
-  background: var(--tm-rail-tick-hover);
+   avoid writing a bare color literal in this style block). Sub-ticks have no Vue2 counterpart to
+   pin a width delta from, so only their color brightens, not their width. Vue2 does the same color
+   brightening on the SELECTED tick too (its `:hover` rule has no exception for `--selected`) --
+   unchanged here for the same reason. Pure CSS now (previously required a JS-driven
+   `hoveredName`/floating-label mechanism since the label lived outside the button; now that it's
+   a real child, `:hover` alone reaches it, matching Vue2's own mechanism exactly). */
+.tm-tick-main:hover::after { width: 34px; }
+.tm-tick:hover::after { background: var(--tm-rail-tick-hover); }
+.tm-tick:hover .tm-tick-label { color: var(--tm-rail-tick-hover); }
+
+.tm-tick-label {
+  font-size: 11.5px;
+  color: var(--tm-rail-text);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--tm-rail-text-shadow);
+  transition: color 0.18s;
+  white-space: nowrap;
 }
 
 .tm-tick-badge {
-  position: absolute;
-  right: 100%;
-  margin-right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  white-space: nowrap;
   font-size: 10px;
   color: var(--tm-rail-tick-manual);
-  pointer-events: none;
-}
-
-.tm-tick-label {
-  position: absolute;
-  right: 34px;
+  text-shadow: var(--tm-rail-text-shadow);
   white-space: nowrap;
-  font-size: 11.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  /* Only ever rendered while a tick is being hovered (see the template's own `v-if="hoveredItem"`)
-     -- so it always shows Vue2's own hover-brightened label color, never the resting one. */
-  color: var(--tm-rail-tick-hover);
-  transform: translateY(-50%);
   pointer-events: none;
 }
 
-/* Loading skeleton: reuses the sub-tick's own faint color (final review C2: --tm-rail-tick-sub,
-   the same live token the resting sub-ticks above use -- no dedicated skeleton token needed). */
+/* Loading skeleton: fix wave A2 (audit-stage.md #11, priority list item 10) -- Vue2's own literal
+   widths (`.tm-tick-skeleton:nth-child(N) { width: 55%/70%/42%/62%/48% }` of the rail's own 138px
+   content box, TimeMachineStage.vue:3405-3409 -- 220-12-70 padding), converted to the equivalent
+   literal px (~76/97/58/86/66px) since this component's own box isn't the exact same 138px
+   reference (structural, non-color value -- fine as a literal, matching this file's own existing
+   convention). Spacing is Vue2's own literal per-bar `margin: 9px 0` (3401, NOT a flex `gap` --
+   `.tm-rail-track`'s inherited `gap: 2px`, unchanged from the non-loading track, still applies on
+   top, matching Vue2's own combined total rather than the audit's own rounded approximation).
+   Color is `--tm-rail-skeleton` (new token, 0.28 alpha) -- distinct from `--tm-rail-tick-sub`
+   (0.2 alpha), which the earlier build incorrectly reused here; Vue2 pins a different alpha for
+   the loading placeholder than for any real tick. */
 .tm-tick-skeleton {
   height: 2px;
+  margin: 9px 0;
   border-radius: 2px;
-  background: var(--tm-rail-tick-sub);
+  background: var(--tm-rail-skeleton);
   animation: tm-rail-skeleton-pulse 1.1s ease-in-out infinite;
 }
-.tm-tick-skeleton:nth-child(1) { width: 22px; }
-.tm-tick-skeleton:nth-child(2) { width: 28px; }
-.tm-tick-skeleton:nth-child(3) { width: 17px; }
-.tm-tick-skeleton:nth-child(4) { width: 25px; }
-.tm-tick-skeleton:nth-child(5) { width: 19px; }
+.tm-tick-skeleton:nth-child(1) { width: 76px; }
+.tm-tick-skeleton:nth-child(2) { width: 97px; }
+.tm-tick-skeleton:nth-child(3) { width: 58px; }
+.tm-tick-skeleton:nth-child(4) { width: 86px; }
+.tm-tick-skeleton:nth-child(5) { width: 66px; }
 @keyframes tm-rail-skeleton-pulse {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 0.75; }
