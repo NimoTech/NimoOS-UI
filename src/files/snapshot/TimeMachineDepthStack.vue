@@ -111,7 +111,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import gsap from 'gsap'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
-import { resolveDollySlots, resolveSlotPose, computeVisibleStripCap, TM_WINDOW_SCALE, type SlotPose } from '../util/timeMachineMath'
+import { resolveDollySlots, resolveSlotPose, computeVisibleStripCap, travelStackPlan, TM_WINDOW_SCALE, type SlotPose } from '../util/timeMachineMath'
 import {
   playTravelTimeline, poseToGsapVars, dimGsapVars, travelDurationMs, TRAVEL_SAFETY_EXTRA_MS,
   TRAVEL_FLAT_STEPS, flyThroughPlan, flyThroughDurationMs, TRAVEL_FLY_MAX_INTERMEDIATES, TRAVEL_FLY_LAYER_DURATION_MS,
@@ -293,12 +293,45 @@ function computeFlyThroughPlan(fromName: string, toName: string): FlyThroughStep
   return flyThroughPlan(names.value, fromIdx, toIdx, { maxIntermediates: TRAVEL_FLY_MAX_INTERMEDIATES })
 }
 
+// Fix wave I (Ruling I-1, owner acceptance 2026-08-26): linked-cascade travel. Owner report on a
+// mid-flight screenshot of a big jump -- the fly-through intermediate itself moved, but the
+// RESIDENT stack of receding slivers behind it sat static, and strips newly entering the visible
+// window popped in already at their final pose. Root cause: `dollySlots` windows around the NEW
+// current index -- an OLD-window resident that falls outside the new window (near-certain for a
+// big jump) simply drops out of `dollySlots`' own v-for and unmounts with no animation at all,
+// while a name newly entering the new window mounts fresh, and `v-tm-pose`'s own `mounted` hook
+// (fires once, at insert, with NO animation by design) sets it directly to its FINAL resting pose.
+// Owner ruling: EVERY travel (short steps AND a wave-H fly-through alike) must move the WHOLE
+// visible stack as one linked cascade -- nothing pops or vanishes at rest mid-travel. See
+// timeMachineMath.ts's own header comment on `travelStackPlan` for the full pure-function design
+// this wires in, and `runTravel`'s own comment below for how the resulting `fromPose`s become real
+// `presetPoses` (generalizing wave H's own fly-through-only preset mechanism to every strip
+// entering the window during ANY travel, per the dispatch's own point 1).
+//
+// This watcher's own job (dispatch point 3): pin the UNION of the OLD window, the NEW window, and
+// the fly-through plan's own names (when one exists) -- computed HERE, at the SAME click-time
+// moment `val.from`/`val.to` themselves get pinned (pinNames' own header comment explains why that
+// timing matters: a name must be pinned BEFORE the DOM patch that would otherwise exclude it).
+// Without this, an OLD-window resident whose real NEW depth falls outside the natural window would
+// unmount the instant `currentSnapshotName` changes -- before `runTravel` even gets a chance to
+// animate it leaving. `settle()`'s own existing unconditional `pinNames.value = []` (below) already
+// covers unpinning this whole (now larger) union once the travel lands -- no separate wave-I unpin
+// path needed, same "the existing full pin reset covers it" reasoning wave H's own pinning already
+// relies on.
+function windowNames(atIndex: number): string[] {
+  return atIndex >= 0 ? resolveDollySlots(names.value, atIndex, visibleStripCap.value).map((s) => s.name) : []
+}
+
 watch(
   () => browse.tmTravel,
   (val) => {
     if (!val || !val.from || !val.to) return
+    const fromIdx = names.value.indexOf(val.from)
+    const toIdx = names.value.indexOf(val.to)
     const flyNames = computeFlyThroughPlan(val.from, val.to).map((step) => step.name)
-    pinNames.value = Array.from(new Set([...pinNames.value, val.from, val.to, ...flyNames]))
+    const oldWindowNames = windowNames(fromIdx)
+    const newWindowNames = windowNames(toIdx)
+    pinNames.value = Array.from(new Set([...pinNames.value, val.from, val.to, ...flyNames, ...oldWindowNames, ...newWindowNames]))
     pendingTravel = { from: val.from, to: val.to }
   },
 )
@@ -399,16 +432,48 @@ function runTravel(steps: number, travel: { from: string, to: string }, plan: Fl
   // completion no longer drives anything observable (not the real window's reveal, not pin
   // clearing). See this file's own header comment for why that gate is a SEPARATE, plain-timer
   // mechanism (`armReveal`/`settle` below) rather than hooked to this timeline.
-  // Fix wave H (Ruling H-1): a non-empty `plan` (steps > TRAVEL_FLAT_STEPS) switches this call to
-  // fly-through mode -- see `buildFlyThroughOverrides`' own comment for the full backward/forward
-  // derivation. An EMPTY plan (steps <= TRAVEL_FLAT_STEPS, this wave's own explicit "unchanged"
-  // contract) passes none of these three options, reproducing the exact prior call byte-for-byte.
-  const build = plan.length
-    ? () => {
-        const { delayOverridesMs, presetPoses } = buildFlyThroughOverrides(plan, fromIdx, toIdx)
-        return playTravelTimeline(targets, { steps, delayOverridesMs, presetPoses, durationMsOverride: TRAVEL_FLY_LAYER_DURATION_MS })
-      }
-    : () => playTravelTimeline(targets, { steps })
+
+  // Fix wave I (Ruling I-1, owner acceptance 2026-08-26): linked-cascade preset poses -- see the
+  // `tmTravel` watcher's own header comment above for the full root-cause trace and
+  // `travelStackPlan`'s own comment (timeMachineMath.ts) for the role/pose derivation. Every strip
+  // whose role is 'entering' or 'pinned' (not naturally in the OLD window -- it was just newly
+  // mounted this render, already `gsap.set()` to its FINAL pose by `v-tm-pose`'s own `mounted`
+  // hook) gets an IMMEDIATE preset back to its own edge-clamped implied pre-travel pose, so its
+  // regular tween (below, same as every other target) actually has visible distance to cover
+  // instead of animating a no-op. 'resident'/'leaving' strips get NO preset here -- their own
+  // current, already-rendered position (from their LAST completed tween, or their original mount)
+  // already IS their correct `fromPose` (they were genuinely there), so the default "tween from
+  // wherever gsap currently has it" behavior is already correct for them, unchanged.
+  const stackPlan = travelStackPlan(names.value, fromIdx, toIdx, {
+    maxSlots: visibleStripCap.value,
+    stageHeight: stageHeight.value,
+    extraNames: plan.map((step) => step.name),
+  })
+  const presetPoses: Record<string, SlotPose> = {}
+  for (const entry of stackPlan) {
+    if (entry.role === 'entering' || entry.role === 'pinned') presetPoses[entry.name] = entry.fromPose
+  }
+
+  // Fix wave H (Ruling H-1): a non-empty `plan` (steps > TRAVEL_FLAT_STEPS) ALSO switches this call
+  // to fly-through mode -- see `buildFlyThroughOverrides`' own comment for the full backward/
+  // forward derivation. Its own per-intermediate presets are MORE SPECIFIC than travelStackPlan's
+  // generic edge-clamped ones (they encode the real backward/forward exit-trajectory pose, not
+  // just "just past the window edge") and therefore WIN via `Object.assign` running after the
+  // generic map above -- every other field (delayOverridesMs, durationMsOverride) stays exactly
+  // as wave H left it. An EMPTY plan (steps <= TRAVEL_FLAT_STEPS) leaves delayOverridesMs/
+  // durationMsOverride unset -- unchanged, "1-position cascade is what it always did" (this wave's
+  // own explicit regression contract) -- `presetPoses` is the ONLY thing that can now be non-empty
+  // for a short travel, exactly the generalization the dispatch's own point 1 asks for.
+  let delayOverridesMs: Record<string, number> | undefined
+  let durationMsOverride: number | undefined
+  if (plan.length) {
+    const fly = buildFlyThroughOverrides(plan, fromIdx, toIdx)
+    delayOverridesMs = fly.delayOverridesMs
+    Object.assign(presetPoses, fly.presetPoses)
+    durationMsOverride = TRAVEL_FLY_LAYER_DURATION_MS
+  }
+
+  const build = () => playTravelTimeline(targets, { steps, delayOverridesMs, presetPoses, durationMsOverride })
   travelTimeline = gsapCtx.add(build)
 }
 

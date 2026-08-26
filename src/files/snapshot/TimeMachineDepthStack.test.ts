@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import TimeMachineDepthStack from './TimeMachineDepthStack.vue'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useFilesStore } from '../stores/files'
-import { resolveDollySlots } from '../util/timeMachineMath'
+import { resolveDollySlots, travelStackPlan } from '../util/timeMachineMath'
 import * as choreo from '../util/timeMachineChoreo'
 import { getSnapshotPreview, type SnapshotPreviewEntry } from '../util/snapshotPreviewCache'
 
@@ -181,12 +181,25 @@ describe('TimeMachineDepthStack — travel playback (mocked choreography, real g
 
   // Fix wave H (Ruling H-1, owner acceptance 2026-08-26): explicit regression pin -- a travel at or
   // under TRAVEL_FLAT_STEPS (3) must call playTravelTimeline EXACTLY the way it always did, with
-  // none of this wave's own new options populated. The test above already proves this indirectly
-  // (unchanged since before this wave, still green); this one asserts it directly so a future
-  // change to the fly-through gating cannot silently start passing these for a short travel too.
-  it('(fix wave H regression) a <= TRAVEL_FLAT_STEPS travel passes NO delayOverridesMs/presetPoses/durationMsOverride -- byte-identical to pre-wave-H', async () => {
+  // none of the fly-through-specific options populated. The test above already proves this
+  // indirectly (unchanged since before wave H, still green); this one asserts it directly so a
+  // future change to the fly-through gating cannot silently start passing these for a short
+  // travel too. Fix wave I (Ruling I-1, owner acceptance 2026-08-26) SUPERSEDES the ORIGINAL
+  // version of this test's own `presetPoses` assertion: `delayOverridesMs`/`durationMsOverride`
+  // stay wave-H/fly-through-only (this wave's own explicit "1-position cascade is what it always
+  // did" contract), but `presetPoses` is no longer fly-through-exclusive -- ANY travel (short
+  // included) now presets strips newly entering the visible window to their edge-clamped implied
+  // pre-travel pose (see TimeMachineDepthStack.vue's own `tmTravel` watcher and `runTravel`
+  // comments for the full root-cause trace: without this, a newly-mounted entering strip's own
+  // `v-tm-pose` `mounted` hook already set it to its FINAL pose, making its own tween a no-op --
+  // exactly the "pops in place" defect the owner's screenshot caught).
+  it('(fix wave H/I) a <= TRAVEL_FLAT_STEPS travel passes NO delayOverridesMs/durationMsOverride (fly-through-only, unchanged) but DOES preset entering strips (wave I, generalized)', async () => {
     const spy = vi.spyOn(choreo, 'playTravelTimeline')
-    const names = Array.from({ length: 6 }, (_, i) => `s${i}`)
+    // 15 names, well past the default 10-slot cap (stageHeight stays unmeasured/0 in jsdom, which
+    // computeVisibleStripCap treats as "assume the uncapped ceiling", i.e. 10 -- same convention
+    // this file's own other tests already rely on) so a 3-step jump genuinely pushes some deep
+    // names outside the OLD window while pulling new ones into the NEW window.
+    const names = Array.from({ length: 15 }, (_, i) => `s${i}`)
     const { browse, files } = await setup(names, 's0')
     mount(TimeMachineDepthStack)
     await flushPromises()
@@ -201,8 +214,12 @@ describe('TimeMachineDepthStack — travel playback (mocked choreography, real g
     const opts = spy.mock.calls[0][1]
     expect(opts.steps).toBe(3)
     expect(opts.delayOverridesMs).toBeUndefined()
-    expect(opts.presetPoses).toBeUndefined()
     expect(opts.durationMsOverride).toBeUndefined()
+    // s11/s12/s13 are newly-entering deepest strips for this jump (real old depth 11/12/13 > the
+    // 10-slot cap, so NOT in the old window; real new depth 8/9/10 <= cap, so they ARE in the new
+    // one) -- they must carry a preset, not sit unset.
+    expect(opts.presetPoses).toBeDefined()
+    for (const name of ['s11', 's12', 's13']) expect(opts.presetPoses![name]).toBeDefined()
   })
 })
 
@@ -281,8 +298,15 @@ describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ru
     // Y offsets must differ (not every intermediate collapsed onto one shared pose).
     const ys = intermediates.map((s) => opts.presetPoses![s.name].y)
     expect(new Set(ys).size).toBeGreaterThan(1)
-    // The target itself gets no preset -- its own natural arrival tween is unmodified.
-    expect(opts.presetPoses![expectedPlan[expectedPlan.length - 1].name]).toBeUndefined()
+    // Fix wave I (Ruling I-1, owner acceptance 2026-08-26) SUPERSEDES wave H's own "the target
+    // gets no preset" assumption: s20 (the target) was ALSO not naturally in the old window for
+    // this big a jump, so it is ALSO a newly-mounted "entering" strip whose own v-tm-pose mounted
+    // hook already set it to its final (identity) pose -- without a preset its own tween would be
+    // a no-op too, the exact "target pops in instead of decelerating into depth 0" gap wave I's
+    // own generic travelStackPlan-driven preset now closes (wave H's own buildFlyThroughOverrides
+    // deliberately never set one for the target -- travelStackPlan's more general pass does).
+    const targetName = expectedPlan[expectedPlan.length - 1].name
+    expect(opts.presetPoses![targetName]).toBeDefined()
   })
 
   it('FORWARD (more-recent target): every intermediate\'s preset is the SAME exit pose (arriving from the camera)', async () => {
@@ -827,5 +851,159 @@ describe('TimeMachineDepthStack — strip background follows the app theme (fix 
     const decls = rule![1].replace(/\/\*[\s\S]*?\*\//g, '')
     expect(decls).toMatch(/background:\s*var\(--panel-bg-solid\)/)
     expect(decls).not.toMatch(/--tm-panel-bg-solid/)
+  })
+})
+
+// Fix wave I (Ruling I-1, owner acceptance 2026-08-26): linked-cascade travel -- see
+// TimeMachineDepthStack.vue's own `tmTravel` watcher and `runTravel` comments for the full
+// root-cause trace and wiring, and timeMachineMath.test.ts's own `travelStackPlan` describe block
+// for that pure function's own exhaustive coverage (not re-proven here). This suite is scoped to
+// "does the component actually pin/preset/animate the WHOLE visible stack, not just the
+// travel's own endpoints or a fly-through's own intermediates."
+describe('TimeMachineDepthStack — linked-cascade travel (Fix wave I, Ruling I-1)', () => {
+  it('a short (1-step) travel: the entering deep-edge strip is pinned immediately and presets to travelStackPlan\'s own edge-clamped pose; the leaving shallow-edge strip is pinned with NO preset (its current position is already correct); a genuine resident also gets no preset', async () => {
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
+    const { browse, files } = await setup(names, 's15')
+    const w = mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: 's15', to: 's16' } // 1 step older
+    await nextTick()
+    // Pinned immediately at click time (dispatch point 3) -- both edge strips already exist so
+    // they have something real to animate from/to, not pop in/out later mid-travel.
+    expect(w.find('[data-snapshot="s14"]').exists()).toBe(true) // leaving (old depth -1 -> new depth -2)
+    expect(w.find('[data-snapshot="s26"]').exists()).toBe(true) // entering (old depth 11, clamps to just past the cap)
+
+    files.currentPath = `${MOUNT}/.snapshots/s16`
+    browse.tmTravel = null
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    const opts = spy.mock.calls[0][1]
+    expect(opts.steps).toBe(1)
+    expect(opts.delayOverridesMs).toBeUndefined() // unchanged, fly-through-only mechanism (wave H)
+    expect(opts.durationMsOverride).toBeUndefined()
+
+    const stackPlan = travelStackPlan(names, 15, 16, { maxSlots: 10 })
+    const entering = stackPlan.find((e) => e.name === 's26')!
+    expect(entering.role).toBe('entering')
+    expect(opts.presetPoses!.s26).toEqual(entering.fromPose)
+
+    const leaving = stackPlan.find((e) => e.name === 's14')!
+    expect(leaving.role).toBe('leaving')
+    expect(opts.presetPoses!.s14).toBeUndefined()
+    expect(opts.presetPoses!.s20).toBeUndefined() // a genuine, unremarkable resident
+
+    const targetNames = spy.mock.calls[0][0].map((t) => t.el.getAttribute('data-snapshot'))
+    expect(targetNames).toEqual(expect.arrayContaining(['s14', 's15', 's16', 's20', 's26']))
+  })
+
+  it('the leaving strip stays mounted through the travel (no pop/vanish) and unmounts only once settle() clears its pin', async () => {
+    vi.useFakeTimers()
+    try {
+      const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
+      const { browse, files } = await setup(names, 's15')
+      const w = mount(TimeMachineDepthStack)
+      await flushPromises()
+
+      browse.tmTravel = { from: 's15', to: 's16' }
+      await nextTick()
+      files.currentPath = `${MOUNT}/.snapshots/s16`
+      browse.tmTravel = null
+      await nextTick()
+      await nextTick() // let the currentSnapshotName watcher's own nextTick-deferred runTravel/armReveal actually run
+
+      expect(w.find('[data-snapshot="s14"]').exists()).toBe(true) // still mounted, animating out
+
+      await vi.advanceTimersByTimeAsync(2000)
+      await flushPromises()
+
+      expect(w.find('[data-snapshot="s14"]').exists()).toBe(false) // gone once settle() unpins it, tween long finished
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('fly-through: resident strips OUTSIDE the plan coexist with the plan\'s own intermediates in the SAME targets array -- only plan members carry delayOverridesMs, everyone else uses the default position-based stagger', async () => {
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's0')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: 's0', to: 's20' } // fly-through
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s20`
+    browse.tmTravel = null
+    await flushPromises()
+
+    const opts = spy.mock.calls[0][1]
+    const plan = choreo.flyThroughPlan(names, 0, 20, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+    const planNames = new Set(plan.map((s) => s.name))
+    const targetNames = spy.mock.calls[0][0].map((t) => t.el.getAttribute('data-snapshot')!)
+
+    const residentCandidate = targetNames.find((n) => !planNames.has(n))
+    expect(residentCandidate, 'expected at least one non-plan resident in the same travel').toBeTruthy()
+    expect(opts.delayOverridesMs![residentCandidate!]).toBeUndefined()
+    for (const step of plan) expect(opts.delayOverridesMs![step.name]).toBe(step.launchDelayMs)
+  })
+
+  it('supersede: a superseded travel\'s own old/new-WINDOW pins (not just its fly-through intermediates) are fully cleared once the surviving travel settles', async () => {
+    vi.useFakeTimers()
+    try {
+      const names = Array.from({ length: 30 }, (_, i) => `s${i}`)
+      const { browse, files } = await setup(names, 's15')
+      const w = mount(TimeMachineDepthStack)
+      await flushPromises()
+
+      // First: a short 1-step travel s15 -> s16, pinning s14 as a leaving-edge resident.
+      browse.tmTravel = { from: 's15', to: 's16' }
+      await nextTick()
+      expect(w.find('[data-snapshot="s14"]').exists()).toBe(true)
+      files.currentPath = `${MOUNT}/.snapshots/s16`
+      browse.tmTravel = null
+      await nextTick()
+
+      // Before its own gate can ever fire, a second, unrelated travel supersedes it, landing far away.
+      await vi.advanceTimersByTimeAsync(50)
+      browse.tmTravel = { from: 's16', to: 's1' }
+      await nextTick()
+      files.currentPath = `${MOUNT}/.snapshots/s1`
+      browse.tmTravel = null
+      await nextTick()
+
+      await vi.advanceTimersByTimeAsync(3000)
+      await flushPromises()
+
+      // s14's real depth relative to the FINAL selection (s1) is far outside any normal window --
+      // only an actual pin-clear (settle()'s own unconditional reset) makes it disappear.
+      expect(w.find('[data-snapshot="s14"]').exists()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('≤1-step keyboard step: every persisting strip shifts by exactly one depth -- the SAME "1-position cascade" this always visually was, now provably so (data-depth before/after)', async () => {
+    const names = Array.from({ length: 10 }, (_, i) => `s${i}`) // small on purpose: with cap 10, everything persists, isolating the "shift by 1" arithmetic from entering/leaving (covered above)
+    const { browse, files } = await setup(names, 's3')
+    const w = mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    const before: Record<string, string> = {}
+    for (const el of w.findAll('.tm-depth-strip')) before[el.attributes('data-snapshot')!] = el.attributes('data-depth')!
+    expect(Object.keys(before).length).toBeGreaterThan(3) // sanity: a real, multi-strip cascade
+
+    browse.tmTravel = { from: 's3', to: 's4' }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s4`
+    browse.tmTravel = null
+    await nextTick()
+
+    for (const [name, depthBefore] of Object.entries(before)) {
+      const el = w.find(`[data-snapshot="${name}"]`)
+      expect(el.exists(), `${name} should still be mounted (nothing left the tiny/uncapped window here)`).toBe(true)
+      expect(Number(el.attributes('data-depth'))).toBe(Number(depthBefore) - 1)
+    }
   })
 })

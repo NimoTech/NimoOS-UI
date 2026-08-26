@@ -7,6 +7,7 @@ import {
   computeVisibleStripCap,
   fisheyeDisplacement,
   shouldShowTickLabel,
+  travelStackPlan,
   FISHEYE_RADIUS,
   FISHEYE_MIN_SCALE,
   FISHEYE_MAX_SCALE,
@@ -547,5 +548,125 @@ describe('shouldShowTickLabel — Fix wave G per-tick label-density rule (supers
   it('the crowded/roomy boundary sits exactly at TM_RAIL_LABEL_MIN_GAP (just under it hides, just at/over it shows)', () => {
     expect(shouldShowTickLabel({ mainCount: 21, bandHeight: 359, isSelected: false, scale: 1 })).toBe(false) // 17.95px/tick
     expect(shouldShowTickLabel({ mainCount: 21, bandHeight: 360, isSelected: false, scale: 1 })).toBe(true) // 18.00px/tick
+  })
+})
+
+// Fix wave I (Ruling I-1, owner acceptance 2026-08-26): travelStackPlan -- the linked-cascade
+// pose-transition layer. See timeMachineMath.ts's own header comment on this section for the full
+// root-cause trace (a big jump's new window recenters on a completely different neighborhood of
+// `names`, so old residents unmount with no animation and new ones pop in already at rest) and
+// TravelStackEntry's own field comments for exactly what each role means.
+describe('travelStackPlan — linked-cascade pose transitions for a travel from oldIndex to newIndex (Fix wave I, Ruling I-1)', () => {
+  const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
+
+  it('is empty for a degenerate/out-of-range input (no crash)', () => {
+    expect(travelStackPlan(names, -1, 5)).toEqual([])
+    expect(travelStackPlan(names, 0, 30)).toEqual([])
+    expect(travelStackPlan(names, 1.5, 5)).toEqual([])
+    expect(travelStackPlan(null as unknown as string[], 0, 5)).toEqual([])
+  })
+
+  // The exact "1-position cascade" a keyboard/single-tick step has always visually been --
+  // this wave's own explicit regression contract: "≤1-step keyboard behavior visually identical".
+  describe('1-step travel (keyboard cascade): every resident shifts by exactly 1, one entrant appears at the deep edge, the old current slides toward exit', () => {
+    // oldIndex=0 ("s0" current), newIndex=1 ("s1" becomes current), maxSlots=3.
+    // old window (depth 0..3 relative to 0, nothing more recent than the newest): s0,s1,s2,s3
+    // new window (depth -1..3 relative to 1): s0,s1,s2,s3,s4
+    const plan = travelStackPlan(names, 0, 1, { maxSlots: 3 })
+    const byName = (n: string) => plan.find((e) => e.name === n)!
+
+    it('every genuine resident (s1,s2,s3) shifts by exactly one depth step, fromPose/toPose matching resolveSlotPose at the real old/new depth', () => {
+      for (const [name, oldDepth] of [['s1', 1], ['s2', 2], ['s3', 3]] as const) {
+        const entry = byName(name)
+        expect(entry.role).toBe('resident')
+        expect(entry.fromPose).toEqual(resolveSlotPose(oldDepth))
+        expect(entry.toPose).toEqual(resolveSlotPose(oldDepth - 1))
+      }
+    })
+
+    it('the OLD current (s0) is still classified "resident" (in both windows) but its own toPose is already the exit pose -- it is sliding into the exit zone, not vanishing', () => {
+      const entry = byName('s0')
+      expect(entry.role).toBe('resident')
+      expect(entry.fromPose).toEqual(resolveSlotPose(0))
+      expect(entry.toPose).toEqual(resolveSlotPose(-1))
+    })
+
+    it('the newly-entering deepest strip (s4) starts from the edge-clamped implied pre-travel pose (maxSlots+1), not its raw (also maxSlots+1 here, coincidentally) old depth -- and animates in to its real new depth', () => {
+      const entry = byName('s4')
+      expect(entry.role).toBe('entering')
+      expect(entry.fromPose).toEqual(resolveSlotPose(4)) // maxSlots(3) + 1
+      expect(entry.toPose).toEqual(resolveSlotPose(3))
+    })
+
+    it('exactly 5 entries -- the full old ∪ new window union for this geometry, nothing more, nothing less', () => {
+      expect(plan.map((e) => e.name).sort()).toEqual(['s0', 's1', 's2', 's3', 's4'].sort())
+    })
+  })
+
+  describe('big jump: entrants clamp to just past the window edge (not their real, enormous old depth); leavers exit via their own real (unclamped) new depth', () => {
+    // oldIndex=0, newIndex=15, maxSlots=3 -- old and new windows share NO names at all.
+    const plan = travelStackPlan(names, 0, 15, { maxSlots: 3 })
+    const byName = (n: string) => plan.find((e) => e.name === n)!
+
+    it('every OLD-window resident (s0..s3) is now "leaving" -- its own real old pose as fromPose, its own real (very negative) new depth collapsing to the exit pose as toPose', () => {
+      for (const [name, oldDepth] of [['s0', 0], ['s1', 1], ['s2', 2], ['s3', 3]] as const) {
+        const entry = byName(name)
+        expect(entry.role).toBe('leaving')
+        expect(entry.fromPose).toEqual(resolveSlotPose(oldDepth)) // real, UNCLAMPED old pose
+        expect(entry.toPose).toEqual(resolveSlotPose(oldDepth - 15)) // real new depth, deeply negative -> exit pose
+      }
+    })
+
+    it('every NEW-window entrant (s14..s18) clamps to the SAME "just past the edge" fromPose, despite wildly different real old depths (14..18)', () => {
+      const entrantNames = ['s14', 's15', 's16', 's17', 's18']
+      const fromPoses = entrantNames.map((n) => byName(n))
+      for (const entry of fromPoses) {
+        expect(entry.role).toBe('entering')
+        expect(entry.fromPose).toEqual(resolveSlotPose(4)) // maxSlots(3) + 1, identical for all of them
+      }
+      // Their DESTINATIONS still differ correctly (real new depths -1, 0, 1, 2, 3).
+      expect(byName('s14').toPose).toEqual(resolveSlotPose(-1))
+      expect(byName('s15').toPose).toEqual(resolveSlotPose(0)) // the new current itself
+      expect(byName('s18').toPose).toEqual(resolveSlotPose(3))
+    })
+
+    it('the union is exactly the old window plus the new window -- no incidental extras', () => {
+      expect(plan.map((e) => e.name).sort()).toEqual(['s0', 's1', 's2', 's3', 's14', 's15', 's16', 's17', 's18'].sort())
+    })
+  })
+
+  describe('extraNames (wave H fly-through plan members, typically): a name in NEITHER natural window still gets a full pose transition, role "pinned"', () => {
+    it('an extraName far outside both windows gets an edge-clamped fromPose and its own real (unclamped) toPose, role "pinned"', () => {
+      const plan = travelStackPlan(names, 0, 15, { maxSlots: 3, extraNames: ['s7'] })
+      const entry = plan.find((e) => e.name === 's7')!
+      expect(entry.role).toBe('pinned')
+      expect(entry.fromPose).toEqual(resolveSlotPose(4)) // clamped, same edge as a natural entrant would use
+      expect(entry.toPose).toEqual(resolveSlotPose(7 - 15))
+    })
+
+    it('an extraName that IS naturally in one of the windows keeps its natural role, not "pinned" (extraNames only affects names neither window already covers)', () => {
+      const plan = travelStackPlan(names, 0, 15, { maxSlots: 3, extraNames: ['s1'] }) // s1 is naturally in the OLD window
+      const entry = plan.find((e) => e.name === 's1')!
+      expect(entry.role).toBe('leaving') // unchanged from the plain big-jump case above
+    })
+
+    it('duplicate/overlapping extraNames do not produce duplicate entries', () => {
+      const plan = travelStackPlan(names, 0, 15, { maxSlots: 3, extraNames: ['s7', 's7', 's1', 's14'] })
+      const names_ = plan.map((e) => e.name)
+      expect(new Set(names_).size).toBe(names_.length)
+    })
+  })
+
+  it('respects a custom stageHeight for the T(-1) exit pose (threaded straight through to resolveSlotPose)', () => {
+    const plan = travelStackPlan(names, 0, 15, { maxSlots: 3, stageHeight: 1000 })
+    const entry = plan.find((e) => e.name === 's0')! // leaving, toPose is the exit pose
+    expect(entry.toPose).toEqual(resolveSlotPose(0 - 15, 1000))
+    expect(entry.toPose.y).toBe(1000 * 1.4) // EXIT_OFFSET_MULTIPLIER, timeMachineMath.ts's own constant
+  })
+
+  it('defaults maxSlots to the same DEFAULT_MAX_SLOTS every other windowing function in this module uses (10) when omitted', () => {
+    const withDefault = travelStackPlan(names, 0, 1)
+    const withExplicit10 = travelStackPlan(names, 0, 1, { maxSlots: 10 })
+    expect(withDefault).toEqual(withExplicit10)
   })
 })

@@ -363,6 +363,128 @@ export function resolveSlotPose(depth: number, stageHeight?: number): SlotPose {
   }
 }
 
+// --- Fix wave I (Ruling I-1, owner acceptance 2026-08-26): linked-cascade travel stack ----------
+// Owner report on a mid-flight screenshot of a big jump: the fly-through intermediate itself
+// moved, but the RESIDENT stack of receding slivers behind it sat static, and strips newly
+// entering the visible window popped in already at their final pose instead of sliding in. Root
+// cause: `dollySlots` (this component's own reactive slot list, TimeMachineDepthStack.vue) windows
+// around the NEW current index once a travel lands -- a resident of the OLD window that falls
+// outside the new one (a near-certainty for a big jump, whose new window is centered on a
+// completely different neighborhood of `names`) simply stops being in that list and unmounts with
+// no animation at all, while a name newly entering the NEW window mounts fresh, and `v-tm-pose`'s
+// own `mounted` hook (fires once, at insert, with NO animation by design -- see
+// TimeMachineDepthStack.vue's own header comment) sets it directly to its FINAL resting pose.
+// Owner ruling: EVERY travel (short steps AND a wave-H fly-through alike) must move the WHOLE
+// visible stack as one linked cascade -- nothing pops or vanishes at rest mid-travel.
+//
+// `travelStackPlan` is the pure "what pose transition should every currently-relevant strip have"
+// layer this ruling needs, deliberately DOM-free (this module's own established convention) --
+// TimeMachineDepthStack.vue's own header comment on its `runTravel`/`tmTravel` watcher describes
+// exactly how the component wires this into real gsap.set/tween calls and the pinNames mechanism
+// that keeps a "leaving" strip mounted long enough to animate out instead of vanishing.
+export interface TravelStackEntry {
+  name: string
+  /** The pose this strip should visibly START its travel tween from. */
+  fromPose: SlotPose
+  /** The pose this strip should visibly END its travel tween at. */
+  toPose: SlotPose
+  /** 'resident': visible in both the old and the new window -- a persisting/shifting strip, the
+   *  exact case the owner's own screenshot showed sitting static. 'entering': not in the old
+   *  window, visible in the new one -- must start from an edge-clamped IMPLIED pre-travel pose,
+   *  not pop in already at `toPose`. 'leaving': was in the old window, not in the new one -- keeps
+   *  its own real old pose as `fromPose` and animates OUT via its own real (unclamped) new-depth
+   *  pose (which `resolveSlotPose`'s own contract already resolves to the correct trajectory: the
+   *  exit pose if the new depth crosses into the negative/"more recent" zone, or simply a deeper,
+   *  dimmer receding pose if it is still on the positive/older side, just beyond the window's own
+   *  cap -- no extra branching needed here, see `resolveSlotPose`'s own header comment). 'pinned':
+   *  neither natural window claims this name (e.g. a wave-H fly-through intermediate on a huge
+   *  jump) -- present only because the caller passed it via `opts.extraNames`; treated like
+   *  'entering' for the DEFAULT pose formula below, but the caller is expected to override it with
+   *  its own more specific logic (wave H's own backward/forward preset derivation) where one
+   *  exists -- see TimeMachineDepthStack.vue's own comment on merging the two. */
+  role: 'resident' | 'entering' | 'leaving' | 'pinned'
+}
+
+// A newly-entering strip's OWN real old depth can be numerically enormous (a big jump's new
+// window can center on a neighborhood hundreds of slots away from the old one) -- resolveSlotPose's
+// own `y` offset is UNBOUNDED for positive depth (`-(depth * TM_DEPTH_STEP)`), so presetting an
+// entrant to its literal raw old depth could place it thousands of px off-screen, an absurd
+// starting point for what should read as "the next sliver sliding in from just past the window's
+// own edge". Clamped to `maxSlots + 1` on the deep/positive side (one step past the deepest
+// NATURALLY visible slot); the negative/"more recent" side needs no clamping for correctness
+// (resolveSlotPose already collapses EVERY depth <= -1 to the identical exit pose regardless of
+// magnitude) but is still clamped to `-1` for clarity -- so this function's own output never
+// depends on how far past either edge the raw depth actually was.
+function clampEnteringDepth(rawDepth: number, maxSlots: number): number {
+  if (rawDepth > maxSlots) return maxSlots + 1
+  if (rawDepth < -1) return -1
+  return rawDepth
+}
+
+/**
+ * The per-name pose TRANSITION (`fromPose` -> `toPose`) every strip relevant to a travel from
+ * `names[oldIndex]` to `names[newIndex]` should animate through, covering the UNION of the OLD
+ * window (`resolveDollySlots(names, oldIndex, maxSlots)`, no pins -- the NATURAL pre-travel visible
+ * set), the NEW window (`resolveDollySlots(names, newIndex, maxSlots)`, likewise natural), and
+ * `opts.extraNames` (any additional names the caller wants covered even though NEITHER natural
+ * window claims them -- wave H's own fly-through plan names, typically).
+ *
+ * `fromPose`: a RESIDENT or LEAVING strip's own real old depth (`idx - oldIndex`, unclamped -- it
+ * really was there); an ENTERING or PINNED strip's own old depth CLAMPED via `clampEnteringDepth`
+ * (it was not really visible before -- start it from just past the window's own edge instead of
+ * wherever its true, possibly enormous, old depth would numerically place it).
+ * `toPose`: ALWAYS the strip's own real new depth (`idx - newIndex`), unclamped, for every role --
+ * `resolveSlotPose`'s own depth contract already gives the right destination in every case: a
+ * RESIDENT/ENTERING strip's real new depth is its correct final resting pose; a LEAVING strip's
+ * real new depth (whatever it numerically is) is exactly where the "continue past the window edge,
+ * unseen" trajectory should end up, no separate case needed.
+ *
+ * Pure/DOM-free, defensive on malformed input (returns `[]`), matching this module's own
+ * established convention for every other function here.
+ */
+export function travelStackPlan(
+  names: string[],
+  oldIndex: number,
+  newIndex: number,
+  opts: { maxSlots?: number, stageHeight?: number, extraNames?: string[] } = {},
+): TravelStackEntry[] {
+  if (!Array.isArray(names) || !Number.isInteger(oldIndex) || !Number.isInteger(newIndex)) return []
+  if (oldIndex < 0 || oldIndex >= names.length || newIndex < 0 || newIndex >= names.length) return []
+  const maxSlots = opts.maxSlots ?? DEFAULT_MAX_SLOTS
+  const stageHeight = opts.stageHeight
+
+  const oldSet = new Set(resolveDollySlots(names, oldIndex, maxSlots).map((s) => s.name))
+  const newSet = new Set(resolveDollySlots(names, newIndex, maxSlots).map((s) => s.name))
+  const unionNames = new Set<string>([...oldSet, ...newSet, ...(opts.extraNames ?? [])])
+
+  const entries: TravelStackEntry[] = []
+  for (const name of unionNames) {
+    const idx = names.indexOf(name)
+    if (idx < 0) continue
+    const wasInOldWindow = oldSet.has(name)
+    const isInNewWindow = newSet.has(name)
+    const rawOldDepth = idx - oldIndex
+    const rawNewDepth = idx - newIndex
+    const fromDepth = wasInOldWindow ? rawOldDepth : clampEnteringDepth(rawOldDepth, maxSlots)
+
+    const role: TravelStackEntry['role'] = wasInOldWindow && isInNewWindow
+      ? 'resident'
+      : !wasInOldWindow && isInNewWindow
+        ? 'entering'
+        : wasInOldWindow && !isInNewWindow
+          ? 'leaving'
+          : 'pinned'
+
+    entries.push({
+      name,
+      fromPose: resolveSlotPose(fromDepth, stageHeight),
+      toPose: resolveSlotPose(rawNewDepth, stageHeight),
+      role,
+    })
+  }
+  return entries
+}
+
 // Clamp a step target into [0, count-1]; returns null when already at the
 // boundary (or when there is no current selection / count is invalid) so
 // callers can disable the stepper button rather than silently no-op-ing.
