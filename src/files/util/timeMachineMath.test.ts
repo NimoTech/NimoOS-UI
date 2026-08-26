@@ -5,6 +5,8 @@ import {
   resolveSlotPose,
   clampStepIndex,
   computeVisibleStripCap,
+  fisheyeDisplacement,
+  shouldShowTickLabel,
   FISHEYE_RADIUS,
   FISHEYE_MIN_SCALE,
   FISHEYE_MAX_SCALE,
@@ -12,6 +14,7 @@ import {
   TM_RAIL_WIDTH,
   TM_STEPPER_BAND,
   TM_DEPTH_STEP,
+  TM_RAIL_LABEL_MIN_GAP,
 } from './timeMachineMath'
 
 // --- Pruned kept-for-compat exports (history). DECK_WINDOW/buildVisibleStack/StackEntry/
@@ -405,5 +408,144 @@ describe('computeVisibleStripCap — how many depth-stack strips fit above the s
 
   it('honors a custom maxSlots ceiling for a tall stage that would otherwise derive a larger cap', () => {
     expect(computeVisibleStripCap(4000, 3)).toBe(3)
+  })
+})
+
+// Fix wave G (Ruling G-1, owner acceptance 2026-08-26): the fisheye rail redesign -- see
+// timeMachineMath.ts's own header comment on this section for the full design rationale
+// (fixed-extent band, no scrollbar, Apple/macOS-dock-style displacement kernel). The "evenly
+// distribute every node across the fixed band" half of this redesign is plain CSS
+// (`justify-content: space-between`, TimeMachineRail.vue) -- see that file's own comment and
+// timeMachineMath.ts's own header comment on this section for why no pure function was needed
+// for it. Only the displacement kernel below needed one.
+describe('fisheyeDisplacement — Apple/macOS-dock-style push-apart-and-compress kernel', () => {
+  it('is empty for an empty centers array', () => {
+    expect(fisheyeDisplacement([], 100)).toEqual([])
+  })
+
+  it('the scale field is identical to plain fisheyeScale(center - cursorY) for every tick', () => {
+    const centers = [50, 90, 100, 130, 400]
+    const cursorY = 100
+    const result = fisheyeDisplacement(centers, cursorY)
+    centers.forEach((c, i) => expect(result[i].scale).toBeCloseTo(fisheyeScale(c - cursorY), 10))
+  })
+
+  it('a tick exactly under the cursor gets zero offset and the peak (maxScale) scale', () => {
+    const result = fisheyeDisplacement([50, 100, 150], 100)
+    expect(result[1].offset).toBe(0)
+    expect(result[1].scale).toBeCloseTo(FISHEYE_MAX_SCALE, 10)
+  })
+
+  it('SYMMETRY: a layout mirror-symmetric around the cursor produces mirror-symmetric (equal magnitude, opposite sign) offsets', () => {
+    const cursorY = 200
+    const deltas = [-40, -20, -10, 10, 20, 40]
+    const centers = deltas.map((d) => cursorY + d)
+    const result = fisheyeDisplacement(centers, cursorY)
+    // deltas is itself symmetric (index i and its mirror at length-1-i are opposite deltas) --
+    // offsets at those two indices must be exact negatives.
+    for (let i = 0; i < deltas.length / 2; i++) {
+      const mirror = deltas.length - 1 - i
+      expect(result[i].offset).toBeCloseTo(-result[mirror].offset, 10)
+    }
+    // A tick above the cursor is pushed UP (negative); a tick below is pushed DOWN (positive).
+    expect(result[0].offset).toBeLessThan(0)
+    expect(result[deltas.length - 1].offset).toBeGreaterThan(0)
+  })
+
+  it('TICKS OUTSIDE RADIUS ARE UNMOVED: offset is exactly 0 at or beyond the fisheye radius, whatever the cursor is doing nearby', () => {
+    const cursorY = 500
+    const centers = [cursorY - 300, cursorY - 71, cursorY - 70, cursorY + 70, cursorY + 71, cursorY + 5000]
+    const result = fisheyeDisplacement(centers, cursorY, 70)
+    for (const r of result) expect(r.offset).toBe(0)
+  })
+
+  it('NO REORDERING/OVERLAP: displaced positions stay strictly increasing across a dense cluster spanning the cursor', () => {
+    const centers = Array.from({ length: 60 }, (_, i) => i * 5) // 0..295, 5px apart, dense
+    const cursorY = 150
+    const result = fisheyeDisplacement(centers, cursorY)
+    const newPositions = centers.map((c, i) => c + result[i].offset)
+    for (let i = 1; i < newPositions.length; i++) expect(newPositions[i]).toBeGreaterThan(newPositions[i - 1])
+  })
+
+  it('NO REORDERING/OVERLAP holds even for an ultra-dense cluster (many more ticks than the radius could ever fit at rest)', () => {
+    const centers = Array.from({ length: 600 }, (_, i) => i * 0.5) // 0..299.5, 0.5px apart
+    const cursorY = 150
+    const result = fisheyeDisplacement(centers, cursorY)
+    const newPositions = centers.map((c, i) => c + result[i].offset)
+    for (let i = 1; i < newPositions.length; i++) expect(newPositions[i]).toBeGreaterThan(newPositions[i - 1])
+  })
+
+  it('ZERO-SUM-ISH BOUNDED DRIFT: the maximum offset magnitude stays within a fixed bound regardless of how densely packed the ticks are (does not grow with N)', () => {
+    const cursorY = 150
+    const sparse = fisheyeDisplacement(Array.from({ length: 10 }, (_, i) => i * 30), cursorY) // 0..270
+    const dense = fisheyeDisplacement(Array.from({ length: 60 }, (_, i) => i * 5), cursorY) // 0..295
+    const ultraDense = fisheyeDisplacement(Array.from({ length: 600 }, (_, i) => i * 0.5), cursorY) // 0..299.5
+    const maxAbs = (rows: { offset: number }[]) => Math.max(...rows.map((r) => Math.abs(r.offset)))
+    // A generous fixed ceiling (well under the fisheye's own 70px radius) -- if displacement grew
+    // unboundedly with tick count this would eventually fail; it does not, for any of the three.
+    const BOUND = 30
+    expect(maxAbs(sparse)).toBeLessThan(BOUND)
+    expect(maxAbs(dense)).toBeLessThan(BOUND)
+    expect(maxAbs(ultraDense)).toBeLessThan(BOUND)
+    // Converges as density grows -- dense and ultra-dense should be close to each other (both
+    // approximating the same continuous integral), not diverging.
+    expect(Math.abs(maxAbs(dense) - maxAbs(ultraDense))).toBeLessThan(1)
+  })
+
+  it('the sum of all offsets is near zero for a mirror-symmetric configuration (mirrored pairs cancel exactly)', () => {
+    const cursorY = 200
+    const centers = [-40, -20, -10, 10, 20, 40].map((d) => cursorY + d)
+    const result = fisheyeDisplacement(centers, cursorY)
+    const sum = result.reduce((acc, r) => acc + r.offset, 0)
+    expect(Math.abs(sum)).toBeLessThan(1e-9)
+  })
+
+  it('accepts custom radius/maxScale, still floors to offset 0 beyond the CUSTOM radius', () => {
+    const cursorY = 100
+    const result = fisheyeDisplacement([100 - 25, 100 + 25, 100 + 40], cursorY, 30, 3)
+    expect(result[2].offset).toBe(0) // 40px beyond a 30px radius
+    expect(result[0].offset).not.toBe(0)
+  })
+})
+
+describe('TM_RAIL_LABEL_MIN_GAP — Fix wave G label-density threshold', () => {
+  it('is a small positive px value, comfortably above the tick label\'s own font-size (11.5px)', () => {
+    expect(TM_RAIL_LABEL_MIN_GAP).toBe(18)
+    expect(TM_RAIL_LABEL_MIN_GAP).toBeGreaterThan(11.5)
+  })
+})
+
+describe('shouldShowTickLabel — Fix wave G per-tick label-density rule (supersedes wave A2\'s "always visible")', () => {
+  it('is always true when the rail is roomy enough at rest (spacing >= TM_RAIL_LABEL_MIN_GAP), regardless of selection/scale', () => {
+    expect(shouldShowTickLabel({ mainCount: 5, bandHeight: 400, isSelected: false, scale: 1 })).toBe(true) // 100px/tick
+    expect(shouldShowTickLabel({ mainCount: 21, bandHeight: 360, isSelected: false, scale: 1 })).toBe(true) // exactly 18px/tick
+  })
+
+  it('is always true when bandHeight is unmeasured (<= 0 or non-finite) -- fails OPEN, not hidden-by-default', () => {
+    expect(shouldShowTickLabel({ mainCount: 200, bandHeight: 0, isSelected: false, scale: 1 })).toBe(true)
+    expect(shouldShowTickLabel({ mainCount: 200, bandHeight: -5, isSelected: false, scale: 1 })).toBe(true)
+    expect(shouldShowTickLabel({ mainCount: 200, bandHeight: NaN, isSelected: false, scale: 1 })).toBe(true)
+  })
+
+  it('is always true for a single main tick (nothing to be crowded against -- restSpacing is Infinity)', () => {
+    expect(shouldShowTickLabel({ mainCount: 1, bandHeight: 5, isSelected: false, scale: 1 })).toBe(true)
+  })
+
+  it('is always true for the CURRENT SELECTION, even in a crowded rail with no fisheye active', () => {
+    expect(shouldShowTickLabel({ mainCount: 200, bandHeight: 600, isSelected: true, scale: 1 })).toBe(true)
+  })
+
+  it('is true for a tick inside the fisheye\'s own magnified zone (scale > 1), even in a crowded rail', () => {
+    expect(shouldShowTickLabel({ mainCount: 200, bandHeight: 600, isSelected: false, scale: 1.4 })).toBe(true)
+  })
+
+  it('is false for a crowded, unselected, unmagnified tick (the actual "hide it" case this rule exists for)', () => {
+    // 600 / 199 ≈ 3.02px/tick -- well under TM_RAIL_LABEL_MIN_GAP (18).
+    expect(shouldShowTickLabel({ mainCount: 200, bandHeight: 600, isSelected: false, scale: 1 })).toBe(false)
+  })
+
+  it('the crowded/roomy boundary sits exactly at TM_RAIL_LABEL_MIN_GAP (just under it hides, just at/over it shows)', () => {
+    expect(shouldShowTickLabel({ mainCount: 21, bandHeight: 359, isSelected: false, scale: 1 })).toBe(false) // 17.95px/tick
+    expect(shouldShowTickLabel({ mainCount: 21, bandHeight: 360, isSelected: false, scale: 1 })).toBe(true) // 18.00px/tick
   })
 })

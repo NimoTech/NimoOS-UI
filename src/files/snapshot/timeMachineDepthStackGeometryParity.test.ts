@@ -43,8 +43,15 @@ function decl(body: string, prop: string): string {
   return m[1].trim()
 }
 
+function px(value: string): number {
+  const m = /^(-?\d+(?:\.\d+)?)px$/.exec(value.trim())
+  if (!m) throw new Error(`not a bare px value: ${value}`)
+  return Number(m[1])
+}
+
 const stageCss = styleBlock('./TimeMachineStage.vue')
 const depthStackCss = styleBlock('./TimeMachineDepthStack.vue')
+const railCss = styleBlock('./TimeMachineRail.vue')
 
 describe('Time Machine depth-stack vs real window: geometry identity (fix wave D, D2)', () => {
   it('.tm-depth-stack\'s right gutter matches .tm-stage__hold--active\'s padding-right (same 280px reserved band)', () => {
@@ -282,5 +289,52 @@ describe('Time Machine breadcrumb/list-head chrome: real vs replica content iden
     const replicaBody = ruleBody(previewCss, '.tm-preview-window__body')
     expect(decl(realBody, 'scrollbar-gutter')).toBe('stable')
     expect(decl(replicaBody, 'scrollbar-gutter')).toBe('stable')
+  })
+})
+
+// Fix wave G (Ruling G-1, owner acceptance 2026-08-26): source-pin tests for the fisheye rail's
+// own two fixed-band geometry numbers (TimeMachineRail.vue's own `.tm-rail` -- see that file's own
+// header comment, point 1, and its own `.tm-rail` style-block comment for the full narrative) --
+// `top` (must clear TimeMachineStage.vue's own gear button) and `bottom` (must match the SAME
+// reserved 80px band `.tm-stage__bottom-bar`/`.tm-depth-stack` already use). Same source-text
+// technique as the rest of this file: nothing at the type level stops these numbers drifting apart
+// if only one file is ever edited.
+describe('Time Machine fisheye rail: fixed-band geometry vs the gear button / bottom bar (fix wave G)', () => {
+  // The clearance gap between the gear button's own bottom edge and the rail's own top -- not
+  // derived from any OTHER file's own literal (there is no "real" gear-clearance value to pin
+  // against), so this is this test's own documented constant, matching the magnitude
+  // timeMachineMath.ts's own VISIBLE_STRIP_MARGIN already establishes elsewhere in this codebase
+  // for an analogous "keep clear of an edge" purpose. See TimeMachineRail.vue's own `.tm-rail`
+  // style-block comment for the identical arithmetic spelled out where the literal actually lives.
+  const GEAR_CLEARANCE_PX = 12
+
+  it('.tm-rail\'s own top clears .tm-stage__gear\'s own box (top + padding + icon height) plus the documented clearance gap', () => {
+    const gearBody = ruleBody(stageCss, '.tm-stage__gear')
+    const gearIconBody = ruleBody(stageCss, '.tm-stage__gear-icon')
+    const railBody = ruleBody(railCss, '.tm-rail')
+    const gearTop = px(decl(gearBody, 'top'))
+    const gearPadding = px(decl(gearBody, 'padding'))
+    const iconHeight = px(decl(gearIconBody, 'height'))
+    const gearBottomEdge = gearTop + gearPadding * 2 + iconHeight
+    expect(px(decl(railBody, 'top'))).toBe(gearBottomEdge + GEAR_CLEARANCE_PX)
+  })
+
+  it('.tm-rail\'s own bottom matches .tm-stage__bottom-bar\'s own height (the SAME reserved band .tm-depth-stack already shares)', () => {
+    const barBody = ruleBody(stageCss, '.tm-stage__bottom-bar')
+    const railBody = ruleBody(railCss, '.tm-rail')
+    expect(decl(railBody, 'bottom')).toBe(decl(barBody, 'height'))
+  })
+
+  it('.tm-rail\'s own bottom also matches .tm-depth-stack\'s own bottom (all three "reserved band" consumers agree)', () => {
+    const stackBody = ruleBody(depthStackCss, '.tm-depth-stack')
+    const railBody = ruleBody(railCss, '.tm-rail')
+    expect(decl(railBody, 'bottom')).toBe(decl(stackBody, 'bottom'))
+  })
+
+  it('.tm-rail-track distributes every node evenly across the fixed band via justify-content: space-between (no scrollbar)', () => {
+    const trackBody = ruleBody(railCss, '.tm-rail-track')
+    expect(decl(trackBody, 'justify-content')).toBe('space-between')
+    expect(trackBody).not.toMatch(/overflow-y\s*:\s*auto/)
+    expect(trackBody).not.toMatch(/scrollbar-width\s*:/)
   })
 })

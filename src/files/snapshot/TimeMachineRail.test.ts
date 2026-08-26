@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { nextTick } from 'vue'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import TimeMachineRail from './TimeMachineRail.vue'
@@ -32,16 +31,24 @@ const mountIt = (props: Record<string, unknown> = {}) =>
     global: { plugins: [i18n] },
   })
 
-// Enough same-day snapshots to give the "scroll the selected tick into view" behavior somewhere
-// real to scroll to (jsdom itself never lays anything out, but this keeps the fixture honest).
-const manySnapshots = (): SnapshotVM[] => Array.from({ length: 50 }, (_, i) => (
-  { name: `s${i}`, created_at: new Date(now.getTime() - i * 3600_000).toISOString() }
-))
-
 // Build a fake DOMRect filling only the top/height fields the component uses; the rest are 0
 // placeholders to satisfy the type.
 const fakeRect = (top: number, height = 10): DOMRect =>
   ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+
+// Fix wave G (Ruling G-1, owner acceptance 2026-08-26): fisheyeDisplacement (timeMachineMath.ts)
+// requires its own `centers` input sorted ascending (top to bottom) -- see that function's own
+// header comment for why (the running trapezoidal walk is stateful across array order, not sorted
+// by value). In a real browser this holds automatically (DOM/query order == render order == top-
+// to-bottom Y), but a jsdom test that only mocks SOME elements' rects (leaving the rest at jsdom's
+// own always-(0,0,0,0) default) can easily violate it by accident -- this helper mocks EVERY main
+// tick's rect at once, in the SAME order they render (`w.findAll('.tm-tick-main')`), so every
+// fisheye-driven test below has a fully self-consistent, sorted fixture instead of a partial one.
+function mockMainRects(w: ReturnType<typeof mountIt>, tops: number[]): void {
+  const mains = w.findAll('.tm-tick-main')
+  expect(mains).toHaveLength(tops.length)
+  tops.forEach((top, i) => { (mains[i].element as HTMLElement).getBoundingClientRect = () => fakeRect(top) })
+}
 
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 1 })
@@ -90,14 +97,28 @@ describe('TimeMachineRail', () => {
     expect(w.emitted('select')?.[0]?.[0]).toBe(anchorName)
   })
 
-  // Fix wave A2 (audit-stage.md #12, priority list item 1): Vue2 parity -- the time label is
-  // ALWAYS rendered next to every tick at rest, not gated on hover. Replaces the earlier
-  // hover-only floating-label test (that whole `hoveredItem`/`hoverLabelTop` mechanism is gone).
-  it('renders a resting-state time label on every major tick, not gated on hover', () => {
+  // Fix wave G (Ruling G-1, owner acceptance 2026-08-26): this REPLACES fix wave A2's own
+  // "resting labels always visible" test -- that rule is explicitly superseded once the rail
+  // stopped scrolling (see TimeMachineRail.vue's own header comment, point 4, and
+  // shouldShowTickLabel's own comment in timeMachineMath.ts for the full override). In jsdom,
+  // `bandHeight` never gets measured (no ResizeObserver callback ever fires -- jsdom has no
+  // ResizeObserver at all), so `shouldShowTickLabel`'s own "unmeasured -- fail open" branch is what
+  // is actually being exercised here: every label still shows, but for a DIFFERENT reason than
+  // wave A2's unconditional rule (which no longer exists). The "genuinely crowded, hide it" branch
+  // is covered exhaustively at the pure-function level (timeMachineMath.test.ts) -- there is no
+  // practical way to force jsdom to report a real, small `clientHeight` for this component's own
+  // ResizeObserver-driven measurement.
+  it('shows every major tick\'s time label in the (jsdom) unmeasured-band default (shouldShowTickLabel fails open)', () => {
     const w = mountIt()
     const labels = w.findAll('.tm-tick-label')
     expect(labels).toHaveLength(3)
     expect(labels.map((l) => l.text())).toContain(formatClock(SNAPSHOTS[0]))
+  })
+
+  it('the current selection\'s label is present even for a tick that is neither the first main tick nor obviously "roomy"', () => {
+    const w = mountIt({ current: 's-yesterday' })
+    const selected = w.findAll('.tm-tick-main').find((n) => n.attributes('data-flat-index') === 's-yesterday')!
+    expect(selected.find('.tm-tick-label').exists()).toBe(true)
   })
 
   // Sub-ticks have no Vue2 counterpart, so they carry no label of their own -- only main ticks do.
@@ -108,25 +129,26 @@ describe('TimeMachineRail', () => {
     }
   })
 
-  it('on mouse move, writes a scale transform onto ticks', async () => {
+  it('on mouse move, writes a translateY+scale transform onto ticks', async () => {
     const w = mountIt()
-    // jsdom's getBoundingClientRect is always 0 here; this only asserts a transform was written
-    // after mousemove. The curve itself is covered by timeMachineMath.test.ts (real numeric
-    // assertions on fisheyeScale); "closer means larger" is covered by the strengthened case below.
-    // Fix wave A2 (audit-stage.md #12, priority list item 2): uniform `scale(...)`, not
-    // `scaleX(...)` -- Vue2's own fisheye grows the WHOLE tick (line + label + badge), not just a
-    // bar's horizontal axis.
+    // jsdom's getBoundingClientRect is always 0 here unless mocked; this only asserts a transform
+    // was written after mousemove. The curve itself is covered by timeMachineMath.test.ts's own
+    // fisheyeDisplacement suite; "closer means larger/more displaced" is covered by the non-hollow
+    // case below.
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     const style = w.findAll('.tm-tick-main')[0].attributes('style') ?? ''
+    expect(style).toContain('translateY(')
     expect(style).toContain('scale(')
     expect(style).not.toContain('scaleX(')
   })
 
-  it('scale resets once the mouse leaves the rail', async () => {
+  it('scale/displacement resets once the mouse leaves the rail', async () => {
     const w = mountIt()
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     await w.find('.tm-rail').trigger('mouseleave')
-    expect(w.findAll('.tm-tick-main')[0].attributes('style') ?? '').not.toContain('scale(2')
+    const style = w.findAll('.tm-tick-main')[0].attributes('style') ?? ''
+    expect(style).not.toContain('scale(2')
+    expect(style).toBe('')
   })
 
   // ── Fix round (controller ruling): per-type tick class hook + manual badge, restored ──
@@ -162,11 +184,7 @@ describe('TimeMachineRail', () => {
   // test.ts and tmTokens.test.ts already use elsewhere in this repo) -- it would fail if the hover
   // rule or either restored token were ever silently removed from the <style> block again.
   it('the hover-brightening and manual-badge tokens are actually wired into <style> (not just declared in theme.css)', () => {
-    const src = readFileSync(
-      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineRail.vue'),
-      'utf8',
-    )
-    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const styleBlock = railStyleBlock()
     expect(styleBlock).toMatch(/:hover[\s\S]*?--tm-rail-tick-hover/)
     expect(styleBlock).toContain('--tm-rail-tick-manual')
     expect(styleBlock).toContain('.tm-tick-badge')
@@ -178,16 +196,8 @@ describe('TimeMachineRail', () => {
   // applies no CSS at all, so a `.is-selected` class assertion alone cannot tell "styled 40px wide"
   // apart from "styled 26px wide", and there is no inline/computed style to read here since this is
   // a real CSS rule, not a bound `:style`).
-  // Fix wave A2 (audit-stage.md #12, priority list items 1/2): the tick's own width now lives on
-  // its `::after` line (the button itself is full-width, Vue2's own literal shape, so its own
-  // width is no longer the bar's width) -- the selected-state width/glow-blur literals moved
-  // alongside it into the SAME `::after` rule, rather than a separate bare-class rule.
   it('the selected tick\'s own ::after rule pins Vue2\'s literal 40px width and 10px glow blur', () => {
-    const src = readFileSync(
-      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineRail.vue'),
-      'utf8',
-    )
-    const styleBlock = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)![1]
+    const styleBlock = railStyleBlock()
     const selectedAfterRule = /\.tm-tick-main\.is-selected::after\s*\{([^}]*)\}/.exec(styleBlock)
     expect(selectedAfterRule, 'no .tm-tick-main.is-selected::after rule found').toBeTruthy()
     expect(selectedAfterRule![1]).toContain('width: 40px')
@@ -200,49 +210,61 @@ describe('TimeMachineRail', () => {
     expect(w.findAll('.tm-rail-day')).toHaveLength(0)
   })
 
-  // ↓ Non-hollow strengthening: the plain "contains scaleX" case above would pass even for a
-  // hollow implementation that always returns scaleX(1) (scaleX(1) itself "contains scaleX"). Here
-  // each main tick's own getBoundingClientRect is mocked to create real, differing cursor
-  // distances, and the tick closer to the cursor must scale larger than the farther one --
-  // actually exercising fisheyeScale's numeric path.
-  it('(non-hollow) real distance differences produce real scale differences, closer is larger', async () => {
+  // ↓ Non-hollow strengthening: the plain "contains scale/translateY" case above would pass even
+  // for a hollow implementation that always returns the same values. Here every main tick's own
+  // getBoundingClientRect is mocked (sorted ascending, see mockMainRects's own comment) to create
+  // real, differing cursor distances, and the tick closer to the cursor must scale LARGER and be
+  // displaced FARTHER than one outside the fisheye's own radius.
+  it('(non-hollow) real distance differences produce real scale AND displacement differences, closer is larger/more displaced', async () => {
     const w = mountIt()
-    const mains = w.findAll('.tm-tick-main')
-    ;(mains[0].element as HTMLElement).getBoundingClientRect = () => fakeRect(100)
-    ;(mains[2].element as HTMLElement).getBoundingClientRect = () => fakeRect(400)
+    mockMainRects(w, [100, 1000, 2000]) // near / far / far, cursor lands near the first
 
     await w.find('.tm-rail').trigger('mousemove', { clientY: 105 })
 
-    const scaleOf = (style: string | undefined) => {
-      const m = (style ?? '').match(/scale\(([\d.]+)\)/)
-      return m ? Number(m[1]) : 1
-    }
-    const nearScale = scaleOf(w.findAll('.tm-tick-main')[0].attributes('style'))
-    const farScale = scaleOf(w.findAll('.tm-tick-main')[2].attributes('style'))
-    expect(nearScale).toBeGreaterThan(farScale)
+    const mains = w.findAll('.tm-tick-main')
+    const near = mains[0].attributes('style') ?? ''
+    const far = mains[1].attributes('style') ?? ''
+    const scaleOf = (style: string) => Number(/scale\(([\d.]+)\)/.exec(style)?.[1] ?? 1)
+    const offsetOf = (style: string) => Number(/translateY\(([-\d.]+)px\)/.exec(style)?.[1] ?? 0)
+    expect(scaleOf(near)).toBeGreaterThan(scaleOf(far))
+    // The far tick sits 1000-105=895px from the cursor, well beyond the 70px radius -- fisheye
+    // must not displace it at all.
+    expect(offsetOf(far)).toBe(0)
+    expect(scaleOf(far)).toBe(1)
   })
 
   // ↓ Regression case for the exact bug this component's own data-attribute split guards against
   // (see TimeMachineRail.vue's own header comment): a main tick's scale must be computed from its
   // own center, never overwritten by a sub-tick sharing its anchor. Places the main tick's own
-  // rect near the cursor (should land close to the maxScale=2.2 peak) while pushing every sub-tick
-  // far away (well beyond radius=70, should read minScale=1). If updateScales() ever again wrote
-  // sub-tick rects into the same map key in DOM order ("later overwrites earlier"), this would read
-  // close to 1 instead of close to 2.2 and the assertion fails.
+  // rect near the cursor (should land close to the maxScale=2.2 peak) while every OTHER main tick
+  // (and every sub-tick) sits far away, well beyond radius=70.
   it('a major tick\'s scale comes from its own center, not from a sub-tick sharing its anchor', async () => {
     const w = mountIt()
-    const main0 = w.findAll('.tm-tick-main')[0].element as HTMLElement
-    main0.getBoundingClientRect = () => fakeRect(100) // cursor at 105, distance ~5px: should be near peak
+    mockMainRects(w, [100, 1000, 2000]) // main0 near the cursor; main1/main2 far, sorted ascending
     for (const sub of w.findAll('.tm-tick-sub')) {
-      (sub.element as HTMLElement).getBoundingClientRect = () => fakeRect(2000) // far beyond radius
+      (sub.element as HTMLElement).getBoundingClientRect = () => fakeRect(5000) // far beyond radius, irrelevant either way (excluded from the fisheye query)
     }
 
     await w.find('.tm-rail').trigger('mousemove', { clientY: 105 })
 
     const style = w.findAll('.tm-tick-main')[0].attributes('style') ?? ''
-    const m = style.match(/scale\(([\d.]+)\)/)
-    const scale = m ? Number(m[1]) : 1
+    const scale = Number(/scale\(([\d.]+)\)/.exec(style)?.[1] ?? 1)
     expect(scale).toBeGreaterThan(2) // peak maxScale=2.2; if overwritten by a sub-tick it drops to minScale=1
+  })
+
+  // Fix wave G: sub-ticks must reuse their anchor main tick's OFFSET too, not just its scale --
+  // otherwise a displaced main tick would visually separate from the decorative filler ticks
+  // sitting right next to it, an obvious "these two pieces of the same line are no longer aligned"
+  // glitch.
+  it('a sub-tick\'s displacement matches its anchor main tick\'s own displacement exactly', async () => {
+    const w = mountIt()
+    mockMainRects(w, [100, 1000, 2000])
+    await w.find('.tm-rail').trigger('mousemove', { clientY: 105 })
+
+    const mainStyle = w.findAll('.tm-tick-main')[0].attributes('style') ?? ''
+    const anchorName = w.findAll('.tm-tick-main')[0].attributes('data-flat-index')
+    const sub = w.findAll('.tm-tick-sub').find((n) => n.attributes('data-anchor-index') === anchorName)!
+    expect(sub.attributes('style')).toBe(mainStyle)
   })
 
   it('multiple mousemoves within one frame request rAF only once (throttling)', async () => {
@@ -275,7 +297,7 @@ describe('TimeMachineRail', () => {
 
   // Main ticks own data-flat-index; sub-ticks own the DIFFERENT data-anchor-index — the two must
   // never collide on the same attribute (the exact bug narrated in this file's own header
-  // comment). Also confirms only main ticks are queried for fisheye scale computation.
+  // comment). Also confirms only main ticks are queried for fisheye computation.
   it('data-flat-index lives only on major ticks; sub-ticks carry a distinct data-anchor-index', () => {
     const w = mountIt()
     for (const sub of w.findAll('.tm-tick-sub')) {
@@ -288,33 +310,50 @@ describe('TimeMachineRail', () => {
     }
   })
 
-  // ── Auto-scroll selected tick into view (Vue2 parity, ported from the colleague's own fix) ──
-  // B4 lesson (carried over from the colleague's own suite): these tests replace the global no-op
-  // stub (vitest.setup.ts) with a per-test spy and must restore it afterward, or any later test in
-  // this file would inherit a spy from an already-finished test.
-  afterEach(() => { Element.prototype.scrollIntoView = () => {} })
-
-  it('scrolls the newly selected tick into view when `current` changes', async () => {
-    const spy = vi.fn()
-    Element.prototype.scrollIntoView = spy // jsdom does not implement scrollIntoView
-    const w = mountIt({ snapshots: manySnapshots(), current: 's0' })
-    spy.mockClear()
-    await w.setProps({ current: 's40' })
-    await nextTick()
-    expect(spy).toHaveBeenCalled()
+  // ── Fix wave G (Ruling G-1, owner acceptance 2026-08-26): fixed extent, no scroll ──
+  // The old "auto-scroll selected tick into view" behavior (and its own two tests) is GONE
+  // entirely -- see TimeMachineRail.vue's own header comment, point 1: the rail is now a fixed
+  // [top, bottom] band that never scrolls, so there is no scroll position left to correct. This
+  // block instead pins the STRUCTURAL absence of scrolling and the presence of the new
+  // fixed-extent/space-between layout, source-text hook-presence checks (same technique this
+  // file's own hover-token test above already uses) since jsdom applies no real CSS/layout.
+  it('declares no scrolling anywhere (no overflow-y:auto, no scrollbar-width) and no scrollIntoView call site', () => {
+    // Comments (this file's own history/rationale prose) are allowed to still mention the retired
+    // declarations BY NAME -- stripped here (same technique tmTokens.test.ts's own stripComments
+    // uses) so only a LIVE declaration would fail this check, not the prose explaining why it is
+    // gone.
+    const codeOnly = railStyleBlock().replace(/\/\*[\s\S]*?\*\//g, ' ')
+    expect(codeOnly).not.toMatch(/overflow-y\s*:\s*auto/)
+    expect(codeOnly).not.toMatch(/scrollbar-width\s*:/)
+    // A real CALL (`.scrollIntoView(`) would be the regression -- the bare word still appears in
+    // this file's own header-comment prose explaining that it was removed, which must stay legal.
+    expect(railSource()).not.toContain('.scrollIntoView(')
   })
 
-  it('does not scroll when `current` did not change', async () => {
-    const spy = vi.fn()
-    Element.prototype.scrollIntoView = spy
-    const w = mountIt({ snapshots: manySnapshots(), current: 's3' })
-    spy.mockClear()
-    await w.setProps({ snapshots: manySnapshots() })
-    await nextTick()
-    expect(spy).not.toHaveBeenCalled()
+  it('distributes all rail nodes evenly across the fixed band via justify-content: space-between (no JS positioning needed)', () => {
+    const styleBlock = railStyleBlock()
+    const trackRule = /\.tm-rail-track\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(trackRule, 'no .tm-rail-track rule found').toBeTruthy()
+    expect(trackRule![1]).toMatch(/justify-content\s*:\s*space-between/)
+  })
+
+  it('`.tm-rail`\'s own fixed top/bottom band declarations are present (no longer natural document flow)', () => {
+    const styleBlock = railStyleBlock()
+    const railRule = /(?:^|\n)\.tm-rail\s*\{([^}]*)\}/.exec(styleBlock)
+    expect(railRule, 'no .tm-rail rule found').toBeTruthy()
+    expect(railRule![1]).toMatch(/top\s*:\s*68px/)
+    expect(railRule![1]).toMatch(/bottom\s*:\s*80px/)
   })
 })
 
 function formatClock(snap: SnapshotVM): string {
   return formatSnapshotClockTime(snap.created_at)
+}
+
+function railSource(): string {
+  return readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineRail.vue'), 'utf8')
+}
+
+function railStyleBlock(): string {
+  return /<style[^>]*>([\s\S]*?)<\/style>/.exec(railSource())![1]
 }

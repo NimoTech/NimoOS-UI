@@ -16,18 +16,20 @@
 //    floating sibling of `.tm-rail`. The earlier build's `hoveredItem`/`hoverLabelTop` machinery
 //    (a single floating `<span>` positioned against whichever tick was last hovered) is gone
 //    entirely; hover color changes are now pure CSS (`:hover`), matching Vue2's own
-//    `.tm-tick:hover .tm-tick__label { color: #fff }` mechanism exactly, and there is nothing left
-//    for `onTickHover`/`itemByName`/`hoveredName` to do, so they are deleted rather than kept as
-//    dead code.
+//    `.tm-tick:hover .tm-tick__label { color: #fff }` mechanism exactly.
+//    FIX WAVE G SUPERSEDES THIS POINT (see the "Fix wave G" section below): "always rendered at
+//    rest" no longer holds unconditionally once the rail stopped scrolling -- see that section for
+//    the full override (Ruling G-1).
 // 2. Vue2's fisheye magnification (`transform: scale(...)`, template line 1408) scales the WHOLE
 //    button uniformly -- line, label, and badge together -- not just a bar via `scaleX`. Now that
-//    the label lives inside the button being scaled, `scaleStyle` below returns a uniform
+//    the label lives inside the button being scaled, `tickStyle` below still returns a uniform
 //    `scale(...)` (not `scaleX(...)`) so the label visibly grows/shrinks with the line exactly as
-//    it does in Vue2.
-// 3. `.tm-tick` itself is now `width: 100%` (a full-width flex row, Vue2's own literal shape) with
-//    the line rendered as its `::after` (kept from the earlier build, still a valid flex item) --
-//    the PER-STATE bar width (26/34/40px) that used to live on the button itself now lives on
-//    `::after` instead, since the button's own width is no longer the bar's width.
+//    it does in Vue2 -- Fix wave G adds a `translateY(...)` alongside it (see below), Vue2 has no
+//    such displacement at all.
+// 3. `.tm-tick` itself is `width: 100%` (a full-width flex row, Vue2's own literal shape) with the
+//    line rendered as its `::after` (kept from the earlier build, still a valid flex item) -- the
+//    PER-STATE bar width (26/34/40px) lives on `::after` itself, since the button's own width is
+//    no longer the bar's width.
 //
 // Interface (this task's own binding contract, not a Vue2 deviation): props are `{ snapshots,
 // current, loading }` (the RAW snapshot list + the selected snapshot's NAME) -- this component
@@ -50,13 +52,13 @@
 // The exact bug this component's own data-attribute split guards against (ported verbatim from
 // the colleague's own review-caught fix, kept because it is a real, previously-shipped defect,
 // not a hypothetical): if sub-ticks carried the SAME identity attribute as the main tick they
-// anchor to, updateScales()'s DOM-order "later write wins" map-building would let a sub-tick's
-// rect (a few px below its anchor) silently clobber the anchor's own correctly-measured scale.
+// anchor to, updateFisheye()'s DOM-order "later write wins" map-building would let a sub-tick's
+// rect (a few px below its anchor) silently clobber the anchor's own correctly-measured entry.
 // Main ticks own `data-flat-index="<name>"` (the tick's own identity, and the ONLY thing
-// updateScales() queries for); sub-ticks own a DIFFERENT attribute, `data-anchor-index="<name>"`
-// (not queried for scale computation at all -- they simply read the same map entry their anchor
-// already wrote, via scaleStyle(), so they scale in visual lock-step with it without ever writing
-// to it themselves).
+// updateFisheye() queries for); sub-ticks own a DIFFERENT attribute, `data-anchor-index="<name>"`
+// (not queried for fisheye computation at all -- they simply read the same map entry their anchor
+// already wrote, via tickStyle(), so they move/scale in visual lock-step with it without ever
+// writing to it themselves).
 //
 // Fix round (controller ruling): the initial version of this task dropped two literal Vue2 `.tm-
 // tick` visuals -- hover brightening and manual-type coloring -- reasoning that no approved token
@@ -72,10 +74,70 @@
 // applied to every main tick (matching Vue2's own `tm-tick--<kind>` on every tick), but only
 // `type-manual` has an associated CSS rule (the badge's own color) -- `type-auto`/`type-preop`
 // exist purely as hooks, unstyled, exactly as they are in Vue2's own source.
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+//
+// --- Fix wave G (Ruling G-1, owner acceptance 2026-08-26): fixed-extent rail, no scroll ---------
+// Owner design change that OVERRIDES Vue2's own scroll-based rail model (the owner's words outrank
+// Vue2 here, per the dispatch for this wave) -- Vue2's `.tm-rail` grows past its own box and lets
+// the page/its own overflow scroll once there are enough snapshots; this app's rail is now a FIXED
+// [top, bottom] band that NEVER scrolls, however many snapshots exist:
+//
+// 1. FIXED VERTICAL EXTENT: `top` sits below the gear button's own box (TimeMachineStage.vue's
+//    `.tm-stage__gear`) plus a real clearance gap -- see this file's own style-block comment on
+//    `.tm-rail` for the exact arithmetic and the source-pin test
+//    (timeMachineDepthStackGeometryParity.test.ts) that keeps the two numbers from drifting apart.
+//    `bottom` matches the SAME 80px reserved band `.tm-stage__bottom-bar`/`.tm-depth-stack` already
+//    use (Vue2's own `$tm-bottom-gap`) -- the previous, unrelated `64px` literal here is gone.
+//    `overflow-y: auto`/`scrollbar-width: thin` are removed outright (`overflow: visible` instead,
+//    see that same style comment for why a small amount of edge overflow from the fisheye's own
+//    BOUNDED displacement -- see fisheyeDisplacement's own header comment in timeMachineMath.ts --
+//    is an accepted, expected edge case, not something worth clipping). The old `watch(() =>
+//    props.current, ...)` `scrollIntoView` effect is deleted entirely, along with its own D-wave
+//    test coverage (TimeMachineRail.test.ts) -- there is no scroll position left to correct; every
+//    tick has a real resting slot inside the fixed band by construction (point 2 below), so the
+//    selected tick is always already on screen.
+// 2. ALL SNAPSHOTS MAP INTO THE FIXED EXTENT: `.tm-rail-track`'s own `justify-content:
+//    space-between` (was `center`) spreads every rendered node (day headers, main ticks, sub-ticks)
+//    evenly across the track's own full fixed height -- a plain CSS flex rule, no JS measurement
+//    needed for this half of the requirement (same "let the browser do the layout math" posture
+//    this file's own header comment already praises FileGridView.vue's `auto-fill` mechanism for
+//    elsewhere in this app). Day-group ordering (newest day first, newest item first within a day,
+//    `groupSnapshotsByDay`'s own contract) is unchanged -- `nodes` below still builds the SAME
+//    ordered list, only the CONTAINER's own distribution rule changed.
+// 3. FISHEYE DISPLACEMENT (the classic Apple/macOS-dock magnification kernel): with enough
+//    snapshots, resting ticks packed into the fixed band can end up sitting very close together --
+//    a nearby tick that only SCALES in place (Vue2's own, sole behavior) still visually collides
+//    with its neighbors once it grows. `fisheyeDisplacement` (timeMachineMath.ts, this wave's own
+//    addition -- see its own header comment for the full kernel derivation: a signed, zero-sum-ish
+//    "push near / compress far, both within radius, nothing beyond it" kernel, provably symmetric
+//    and order-preserving) now returns a per-tick `{ offset, scale }` pair; `tickStyle` below
+//    applies BOTH via one `transform: translateY(...) scale(...)`, still transform-only (GPU-cheap,
+//    the same rAF-throttled `updateFisheye`/`onMouseMove` mechanism as before, mouse-leave still
+//    resets the whole map to `{}`).
+// 4. LABEL DENSITY (Apple/macOS-dock behavior): SUPERSEDES this file's own point 1 above ("always
+//    rendered at rest") -- a fixed band with enough snapshots packed into it has no room to show
+//    every tick's own HH:MM label without them visually overlapping, the exact thing "always
+//    visible" could get away with while the rail could still grow/scroll. Day anchor labels are
+//    UNCHANGED (always visible -- there is always room for the much sparser day headers). Per-tick
+//    labels now go through `shouldShowTickLabel` (timeMachineMath.ts): visible when the rail is
+//    roomy enough at rest (>= `TM_RAIL_LABEL_MIN_GAP` between consecutive main ticks, or the band
+//    has not been measured yet -- fails open, same posture `resolveSlotPose`/`computeVisibleStripCap`
+//    already take for "unmeasured") OR the tick is the CURRENT SELECTION (kept unconditionally --
+//    Ruling G-1's own UX call, the owner never asked for the selected tick's label to ever
+//    disappear) OR the tick sits inside the fisheye's own magnified zone right now (`scale > 1` --
+//    the whole point of the magnified region is to reveal detail a crowded rest state hides). The
+//    hovered tick is, by construction, the one nearest the cursor -- almost always already inside
+//    that magnified zone, so its label is already showing by the time `:hover`'s own existing color
+//    rule (`--tm-rail-tick-hover`, unchanged) kicks in to visually emphasize it; no separate
+//    "hovered" state needed on top of the fisheye-zone rule.
+// 5. Keyboard/step/click semantics are UNCHANGED by this wave: clicking a tick still emits
+//    `select`; up/down stepping stays owned by TimeMachineStage.vue, unaffected by any of the
+//    above. The loading skeleton (`.tm-tick-skeleton`) sits inside the SAME `.tm-rail`/
+//    `.tm-rail-track` fixed band, so it is automatically bounded by this wave's own geometry
+//    without needing its own edit.
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { groupSnapshotsByDay, type SnapshotDayGroup, type SnapshotItemView } from '../../storage/util/snapshotView'
-import { fisheyeScale } from '../util/timeMachineMath'
+import { fisheyeDisplacement, shouldShowTickLabel, type FisheyeDisplacement } from '../util/timeMachineMath'
 import type { SnapshotVM } from '../stores/snapshotBrowse'
 
 defineOptions({ name: 'TimeMachineRail' })
@@ -132,63 +194,101 @@ const nodes = computed<RailNode[]>(() => {
   return withSubs
 })
 
-const scales = ref<Record<string, number>>({})
+// Fix wave G: how many MAIN (real snapshot) ticks are on the rail right now -- the label-density
+// threshold (shouldShowTickLabel) cares about the spacing between REAL ticks, not the decorative
+// sub-ticks/day headers interleaved between them.
+const mainCount = computed(() => nodes.value.reduce((n, node) => n + (node.type === 'main' ? 1 : 0), 0))
+
+const fisheye = ref<Record<string, FisheyeDisplacement>>({})
 const railEl = ref<HTMLElement | null>(null)
+const trackEl = ref<HTMLElement | null>(null)
 let rafHandle: number | null = null
 let pendingY = 0
 
-// Continuous magnification driven by cursor distance. A burst of mousemove events within one
-// frame schedules only one recompute (rAF coalescing), and the callback uses the latest cursor
-// Y — pure CSS :hover can only do discrete steps, not a continuous function. Ported from Vue2's
-// own onTickMouseMove/updateTickScales (same rAF-coalescing shape).
+// Fix wave G: the track's own measured content-box height, feeding shouldShowTickLabel's own
+// "is the rail roomy enough at rest" check. Same ResizeObserver-guarded pattern
+// TimeMachineDepthStack.vue's own stageHeight measurement already uses (guard `typeof
+// ResizeObserver !== 'undefined'` -- jsdom has no ResizeObserver, so this stays at its own `0`
+// default there, which shouldShowTickLabel's own "unmeasured -- fail open" contract already
+// degrades gracefully from, see that function's own comment).
+const bandHeight = ref(0)
+let resizeObserver: ResizeObserver | null = null
+function measureBand() {
+  bandHeight.value = trackEl.value ? trackEl.value.clientHeight : 0
+}
+
+// Continuous magnification+displacement driven by cursor distance. A burst of mousemove events
+// within one frame schedules only one recompute (rAF coalescing), and the callback uses the latest
+// cursor Y -- pure CSS :hover can only do discrete steps, not a continuous function. Ported from
+// Vue2's own onTickMouseMove/updateTickScales (same rAF-coalescing shape); Fix wave G extends the
+// per-tick result from a bare scale number to a `{ offset, scale }` pair (fisheyeDisplacement).
 function onMouseMove(e: MouseEvent) {
   pendingY = e.clientY
   if (rafHandle !== null) return
   rafHandle = requestAnimationFrame(() => {
     rafHandle = null
-    updateScales(pendingY)
+    updateFisheye(pendingY)
   })
 }
 
-function updateScales(cursorY: number) {
+function updateFisheye(cursorY: number) {
   const root = railEl.value
   if (!root) return
   // Only [data-flat-index] (a main tick's own identity) -- see this file's own header comment for
-  // why sub-ticks (data-anchor-index) are deliberately excluded from this query.
+  // why sub-ticks (data-anchor-index) are deliberately excluded from this query. Document order ==
+  // top-to-bottom render order == ascending Y here (`nodes` is newest-first top-to-bottom, and the
+  // track is a plain top-down flex column), matching fisheyeDisplacement's own "centers sorted
+  // ascending" precondition (see that function's own header comment).
   const els = Array.from(root.querySelectorAll<HTMLElement>('[data-flat-index]'))
   const names = els.map((el) => el.dataset.flatIndex as string)
   const centers = els.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 })
-  const map: Record<string, number> = {}
-  names.forEach((name, i) => { map[name] = fisheyeScale(centers[i] - cursorY) })
-  scales.value = map
+  const results = fisheyeDisplacement(centers, cursorY)
+  const map: Record<string, FisheyeDisplacement> = {}
+  names.forEach((name, i) => { map[name] = results[i] })
+  fisheye.value = map
 }
 
 function onMouseLeave() {
-  scales.value = {}
+  fisheye.value = {}
 }
 
-onUnmounted(() => { if (rafHandle !== null) cancelAnimationFrame(rafHandle) })
-
-// The rail scrolls once the snapshots outgrow its height -- pressing up/down (or clicking a tick
-// off-screen) past the visible range must not leave the rail looking frozen while the deck/bottom
-// bar follow along. `block: 'nearest'` so an already-visible tick is left exactly where it is;
-// anything else would yank the whole rail on every selection change.
-watch(() => props.current, async (name) => {
-  if (!name) return
-  await nextTick()
-  const root = railEl.value
-  if (!root) return
-  const el = root.querySelector<HTMLElement>(`[data-flat-index="${name}"]`)
-  el?.scrollIntoView({ block: 'nearest' })
+onMounted(() => {
+  measureBand()
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => measureBand())
+    if (trackEl.value) resizeObserver.observe(trackEl.value)
+  }
+})
+onUnmounted(() => {
+  if (rafHandle !== null) cancelAnimationFrame(rafHandle)
+  resizeObserver?.disconnect()
+  resizeObserver = null
 })
 
 // Fix wave A2 (audit-stage.md #12, priority list item 2): uniform `scale(...)`, not `scaleX(...)`
 // -- Vue2's own `transform: scale(...)` (template line 1408) grows the WHOLE tick (line + label +
-// badge together), not just a bar. Applied to the whole `<button>`/`<div>`, same as before.
-function scaleStyle(name: string | undefined) {
+// badge together), not just a bar. Fix wave G: also applies the SAME entry's own `offset` as a
+// `translateY(...)` ahead of the scale -- see this file's own header comment, point 3, for the
+// kernel this comes from. Returns undefined (no inline transform at all) until the mouse has
+// actually moved over the rail at least once (`fisheye.value[name]` unset) -- unchanged behavior
+// from before this wave, `onMouseLeave` still resets the whole map so this reverts identically.
+function tickStyle(name: string | undefined) {
   if (!name) return undefined
-  const s = scales.value[name]
-  return s ? { transform: `scale(${s})` } : undefined
+  const fx = fisheye.value[name]
+  if (!fx) return undefined
+  return { transform: `translateY(${fx.offset}px) scale(${fx.scale})` }
+}
+
+// Fix wave G: whether a MAIN tick's own per-tick HH:MM label should render right now -- see this
+// file's own header comment, point 4, and shouldShowTickLabel's own comment (timeMachineMath.ts)
+// for the full rule (roomy-at-rest OR selected OR inside the fisheye's own magnified zone).
+function showLabel(item: SnapshotItemView): boolean {
+  return shouldShowTickLabel({
+    mainCount: mainCount.value,
+    bandHeight: bandHeight.value,
+    isSelected: item.name === props.current,
+    scale: fisheye.value[item.name]?.scale ?? 1,
+  })
 }
 </script>
 
@@ -202,28 +302,30 @@ function scaleStyle(name: string | undefined) {
       <div v-for="n in 5" :key="`tick-skeleton-${n}`" class="tm-tick-skeleton" :style="{ animationDelay: `${n * 0.12}s` }"></div>
     </div>
 
-    <div v-else class="tm-rail-track">
+    <div v-else ref="trackEl" class="tm-rail-track">
       <template v-for="node in nodes" :key="node.key">
         <div v-if="node.type === 'day'" class="tm-rail-day">{{ node.label }}</div>
 
-        <!-- Fix wave A2 (audit-stage.md #12, priority list item 1): badge + label are now real
-             children of the button, ALWAYS rendered (not hover-gated) -- Vue2's own
-             `.tm-tick__badge`/`.tm-tick__label` markup order (badge, label, line), right-aligned
-             by the button's own `justify-content: flex-end` (see the style block below). -->
+        <!-- Fix wave A2 (audit-stage.md #12, priority list item 1): badge + label are real
+             children of the button (Vue2's own `.tm-tick__badge`/`.tm-tick__label` markup order --
+             badge, label, line -- right-aligned by the button's own `justify-content: flex-end`,
+             see the style block below). Fix wave G (point 4): the label itself is now gated by
+             `showLabel()` -- see this file's own header comment for the full rule; it is no longer
+             unconditional. -->
         <button
           v-else-if="node.type === 'main'"
           type="button"
           class="tm-tick tm-tick-main"
           :class="[`type-${node.item!.typeKind}`, { 'is-selected': node.item!.name === props.current }]"
           :data-flat-index="node.item!.name"
-          :style="scaleStyle(node.item!.name)"
+          :style="tickStyle(node.item!.name)"
           :aria-label="t('tmRailJumpTo', { time: node.item!.time })"
           @click="emit('select', node.item!.name)"
         >
           <span v-if="node.item!.typeKind === 'manual'" class="tm-tick-badge" aria-hidden="true">
             ● {{ t('snapTypeManual') }}<template v-if="node.item!.label"> · {{ node.item!.label }}</template>
           </span>
-          <span class="tm-tick-label">{{ node.item!.time }}</span>
+          <span v-if="showLabel(node.item!)" class="tm-tick-label">{{ node.item!.time }}</span>
         </button>
 
         <!-- Decorative sub-tick: not independently selectable (not a button; keyboard/screen
@@ -235,7 +337,7 @@ function scaleStyle(name: string | undefined) {
           class="tm-tick tm-tick-sub"
           aria-hidden="true"
           :data-anchor-index="node.anchorName"
-          :style="scaleStyle(node.anchorName)"
+          :style="tickStyle(node.anchorName)"
           @click="emit('select', node.anchorName!)"
         ></div>
       </template>
@@ -247,40 +349,54 @@ function scaleStyle(name: string | undefined) {
 /* 220px (TM_RAIL_WIDTH, timeMachineMath.ts) fixed right-edge band -- Vue2 parity byte-for-byte
    (`.tm-rail`'s own width). `.tm-stage__hold--active` already reserves this band (plus the
    stepper's own 60px) via padding-right, so the floating window's box cannot extend under this
-   rail at any viewport width. `.tm-rail` itself must NOT scroll — the ticks live in
-   `.tm-rail-track` alone, which owns the scroll container. */
+   rail at any viewport width.
+   Fix wave G (Ruling G-1, owner acceptance 2026-08-26): `top`/`bottom` are new -- this file's own
+   header comment, point 1, has the full rationale for WHY the rail is now a fixed band at all;
+   this comment has the geometry ARITHMETIC. `top: 68px` clears TimeMachineStage.vue's own
+   `.tm-stage__gear` box (`top: 20px` + `padding: 8px` top/bottom + the 20px icon = a 36px-tall
+   button, bottom edge at 20+36=56px) plus a 12px clearance gap (this codebase's own established
+   "real breathing room" magnitude -- timeMachineMath.ts's own VISIBLE_STRIP_MARGIN uses the same
+   12px for an analogous "keep clear of an edge" purpose) = 56 + 12 = 68px. `bottom: 80px` (was an
+   unrelated, mismatched `64px` literal) now matches the SAME reserved band
+   `.tm-stage__bottom-bar`'s own height and `.tm-depth-stack`'s own `bottom` already use (Vue2's own
+   `$tm-bottom-gap`) -- see timeMachineDepthStackGeometryParity.test.ts for the source-pin test
+   keeping both of these numbers from silently drifting apart from the files they derive from.
+   `overflow: visible` (was `overflow-y: auto` on the track below, `.tm-rail` itself never scrolled)
+   -- Ruling G-1 removes scrolling entirely; a small amount of edge overflow from the fisheye's own
+   BOUNDED displacement (fisheyeDisplacement, timeMachineMath.ts) is an accepted, expected edge
+   case near the very top/bottom of the band, not something worth clipping (clipping a magnified
+   tick's own glow/label mid-effect would look worse than a few stray px past the nominal edge). */
 .tm-rail {
   position: absolute;
-  top: 0;
+  top: 68px;
   right: 0;
-  bottom: 64px;
+  bottom: 80px;
   width: 220px;
   z-index: 9;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  overflow: visible;
 }
 .tm-rail-track {
   align-self: stretch;
   flex: 1 1 auto;
   min-height: 0;
-  /* 24/12/70 padding (Vue2 literal): the 70px left buffer gives fisheye-magnified ticks (which
-     grow leftward via transform-origin: right center) real room before the box edge clips them.
-     Fix wave A2 (audit-stage.md #12, priority list item 7): `justify-content: center` (Vue2's own
-     literal, TimeMachineStage.vue:3384) -- vertically centers the WHOLE tick stack as one group
-     within the rail's available height. `space-between` (the previous value) instead spread ticks
-     across the full available height whenever there were fewer than fit, a visibly different
-     layout for the common case of a snapshot count that doesn't already fill the rail. Degrades
-     automatically with too many ticks to fit (no spare space to distribute) back to normal
-     top-down flow plus scrolling, without ever pushing the first tick out of view. */
+  /* 12/70 left/right-ish padding (Vue2 literal): the 70px left buffer gives fisheye-magnified
+     ticks (which grow leftward via transform-origin: right center) real room before the box edge
+     clips them.
+     Fix wave G (Ruling G-1, point 2): `justify-content: space-between` (was `center`) -- spreads
+     EVERY rendered node (day headers, main ticks, sub-ticks) evenly across the track's own full
+     fixed height, a plain CSS flex rule doing "distribute the day-grouped ticks across the [fixed]
+     band" with no JS measurement needed (this file's own header comment has the full rationale).
+     `overflow: visible` (was `overflow-y: auto`/`overflow-x: hidden`/`scrollbar-width: thin`) --
+     see `.tm-rail`'s own comment above for why nothing here scrolls or clips any more. */
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
   gap: 2px;
   padding: 24px 12px 24px 70px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
+  overflow: visible;
 }
 /* Skeleton bars are literal fixed px widths (unlike the real ticks above, which are full-width
    flex rows) -- `align-items: flex-end` right-aligns them against the rail's own edge, Vue2's own
@@ -362,7 +478,10 @@ function scaleStyle(name: string | undefined) {
    brightening on the SELECTED tick too (its `:hover` rule has no exception for `--selected`) --
    unchanged here for the same reason. Pure CSS now (previously required a JS-driven
    `hoveredName`/floating-label mechanism since the label lived outside the button; now that it's
-   a real child, `:hover` alone reaches it, matching Vue2's own mechanism exactly). */
+   a real child, `:hover` alone reaches it, matching Vue2's own mechanism exactly). Fix wave G:
+   this is also the whole "hovered tick's label emphasized" requirement -- see this file's own
+   header comment, point 4, for why no separate hover-specific label-visibility rule was needed
+   (a hovered tick is, by construction, inside the fisheye's own magnified zone already). */
 .tm-tick-main:hover::after { width: 34px; }
 .tm-tick:hover::after { background: var(--tm-rail-tick-hover); }
 .tm-tick:hover .tm-tick-label { color: var(--tm-rail-tick-hover); }

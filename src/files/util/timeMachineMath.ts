@@ -97,6 +97,157 @@ export function fisheyeScale(distancePx: number, options: LegacyFisheyeOptions =
   return minScale + (maxScale - minScale) * eased
 }
 
+// --- Fix wave G (Ruling G-1, owner acceptance 2026-08-26): fisheye rail redesign --------------
+// Owner design change, overriding Vue2's own scroll-based rail: the rail band is now a FIXED
+// [top, bottom] region (TimeMachineRail.vue's own header comment has the full geometry/CSS
+// derivation) with NO scrollbar, ever -- every snapshot's tick maps into that fixed extent instead
+// of a scrolling list. "Evenly distribute every node across the fixed band" itself needs no
+// function here: `.tm-rail-track`'s own `justify-content: space-between` (a plain CSS flex rule)
+// already does exactly that with zero JS measurement, the same "let the browser do the layout
+// math" posture this module's own header comment already praises for `.file-grid`'s `auto-fill`
+// column mechanism -- a JS-computed "evenly spread N items across bandHeight" pure function was
+// drafted for this during Fix wave G's own implementation but deleted before landing once the CSS
+// mechanism turned out to cover the exact same requirement with less code and no ResizeObserver
+// dependency; see this task's own fix-wave report for that trace, kept for anyone re-deriving why
+// no such helper exists here.
+//
+// The genuinely new pure-math surface this wave DOES need: with enough snapshots, resting ticks
+// can end up sitting very close together (nothing left to evenly space them further apart with);
+// the fisheye no longer just SCALES a nearby tick in place (which alone does nothing to relieve
+// that crowding -- a bigger tick sitting exactly where a small one used to sit still visually
+// collides with its neighbors) -- it now also DISPLACES nearby ticks apart along the rail's own
+// axis (translateY), the classic Apple/macOS-dock magnification kernel: icons near the cursor grow
+// AND spread apart from each other; icons a little further out (still inside the effect's radius)
+// compress slightly, pulled back toward the cursor to make room for that spread; icons beyond the
+// radius do not move at all.
+
+export interface FisheyeDisplacement { offset: number; scale: number }
+
+/**
+ * Per-tick `{ offset, scale }` for the Apple/macOS-dock-style fisheye kernel (Fix wave G, Ruling
+ * G-1) -- `centers` are each tick's OWN resting Y position (px, any coordinate space, as long as
+ * it is the SAME space `cursorY` is measured in -- TimeMachineRail.vue's own caller uses real
+ * `getBoundingClientRect()` centers, matching `fisheyeScale`'s existing convention), sorted
+ * ascending (top to bottom); `scale` is exactly `fisheyeScale(centers[i] - cursorY, { radius,
+ * maxScale })` (unchanged formula, still floors at `FISHEYE_MIN_SCALE`); `offset` is how far tick
+ * `i` should additionally translateY away from its OWN resting center, so a tick close to the
+ * cursor visibly grows AND separates from its neighbors instead of just growing in place and
+ * colliding with them.
+ *
+ * Design (documented -- not a literal port, Vue2 has no displacement at all, only scale): define a
+ * SIGNED "kernel" at distance `d` (0..radius) from the cursor as `bulge(d) - avgBulge`, where
+ * `bulge(d) = fisheyeScale(d, opts) - FISHEYE_MIN_SCALE` (>= 0, the tick's own "extra growth" at
+ * that distance) and `avgBulge = (maxScale - FISHEYE_MIN_SCALE) / 2` -- the exact closed-form mean
+ * of `bulge` over `[0, radius]` for this module's own raised-cosine easing (the average of
+ * `(1 - cos(t)) / 2` over a half period is exactly `1/2`, so `avgBulge` needs no numeric
+ * integration). This kernel is POSITIVE near the cursor (nearby ticks get pushed further apart) and
+ * NEGATIVE further out but still inside the radius (those ticks compress slightly, pulled a little
+ * back toward the cursor to compensate) -- by construction its definite integral over `[0, radius]`
+ * is exactly zero, so the running (trapezoidal) integral from the cursor outward returns to exactly
+ * zero right at the radius boundary, same place `bulge` itself already reaches zero. `offset` for
+ * tick `i` is that running integral, evaluated from the cursor out to `centers[i]`, signed by which
+ * side of the cursor the tick is on (ticks above the cursor get pushed further up, i.e. negative;
+ * ticks below get pushed further down, i.e. positive) -- an EXPLICIT hard clamp to exactly `0` for
+ * any tick at or beyond `radius` closes the loop precisely (the trapezoidal approximation of the
+ * zero-integral property is only exact in the continuous limit; discrete sampling at real tick
+ * positions can leave a tiny residual, and "ticks outside the fisheye's own radius do not move at
+ * all" is a hard contract this function's own tests rely on, not an approximation).
+ *
+ * This construction has two provable properties that matter for a rail that no longer scrolls:
+ * - SYMMETRY: `fisheyeScale`'s own distance argument is `Math.abs(...)`, so `bulge` (and therefore
+ *   the kernel) is an EVEN function of distance from the cursor -- a layout mirror-symmetric around
+ *   the cursor produces exactly mirror-symmetric (equal magnitude, opposite sign) offsets.
+ * - NO REORDERING/OVERLAP: on either side of the cursor, `offset` is built as a running sum of
+ *   trapezoid areas between consecutive same-side ticks; the DIFFERENCE in offset between two
+ *   adjacent same-side ticks can only be as negative as `-avgBulge` (the kernel's own floor, since
+ *   `bulge >= 0`), and for this module's own `FISHEYE_MAX_SCALE`/`FISHEYE_MIN_SCALE` defaults
+ *   `avgBulge = 0.6` -- comfortably less than `1`, so `(gap + offsetDelta) > 0` always holds and two
+ *   ticks can never cross. This bound is a property of the DEFAULT constants (documented, not
+ *   defensively re-clamped here): a caller passing an exotic `maxScale` with `maxScale -
+ *   FISHEYE_MIN_SCALE >= 2` could in principle violate it -- no real call site in this codebase ever
+ *   does.
+ */
+export function fisheyeDisplacement(
+  centers: number[],
+  cursorY: number,
+  radius: number = FISHEYE_RADIUS,
+  maxScale: number = FISHEYE_MAX_SCALE,
+): FisheyeDisplacement[] {
+  const n = centers.length
+  if (n === 0) return []
+  const minScale = FISHEYE_MIN_SCALE
+  const avgBulge = (maxScale - minScale) / 2 // closed-form mean of bulge(d) over [0, radius] -- see this function's own comment
+  const kernelAt = (dist: number): number => {
+    if (!Number.isFinite(dist) || dist >= radius) return 0
+    return fisheyeScale(dist, { radius, maxScale, minScale }) - minScale - avgBulge
+  }
+  const scales = centers.map((c) => fisheyeScale(c - cursorY, { radius, maxScale, minScale }))
+  const raw = new Array(n).fill(0)
+
+  // Walk DOWNWARD from the cursor (centers[i] > cursorY): positive (pushed further away) offsets.
+  let acc = 0, prevY = cursorY, prevK = kernelAt(0)
+  for (let i = 0; i < n; i++) {
+    if (centers[i] <= cursorY) continue
+    const gap = centers[i] - prevY
+    const k = kernelAt(centers[i] - cursorY)
+    acc += gap * (prevK + k) / 2
+    raw[i] = acc
+    prevY = centers[i]
+    prevK = k
+  }
+  // Walk UPWARD from the cursor (centers[i] <= cursorY): mirror image, negative offsets.
+  acc = 0; prevY = cursorY; prevK = kernelAt(0)
+  for (let i = n - 1; i >= 0; i--) {
+    if (centers[i] > cursorY) continue
+    const gap = prevY - centers[i]
+    const k = kernelAt(cursorY - centers[i])
+    acc -= gap * (prevK + k) / 2
+    raw[i] = acc
+    prevY = centers[i]
+    prevK = k
+  }
+
+  return centers.map((c, i) => ({
+    offset: Math.abs(c - cursorY) >= radius ? 0 : raw[i], // hard clamp -- see this function's own comment
+    scale: scales[i],
+  }))
+}
+
+/** Minimum resting spacing (px) between two consecutive MAIN ticks for their per-tick HH:MM label
+ * to stay visible without asking (Fix wave G, Ruling G-1 -- see TimeMachineRail.vue's own template
+ * comment on this override of wave A2's "resting labels always visible" rule). Chosen as the
+ * label's own font-size (11.5px, `.tm-tick-label`) plus a little under one line of breathing room
+ * (~6.5px) so two labels never visually touch/overlap at rest -- below this, a tick's label is
+ * hidden unless the tick is inside the fisheye's own magnified zone (scale > 1) or is the current
+ * selection. */
+export const TM_RAIL_LABEL_MIN_GAP = 18
+
+/**
+ * Whether a MAIN tick's own per-tick HH:MM label should be visible right now (Fix wave G, Ruling
+ * G-1 -- see this module's own header comment on this section, and `TM_RAIL_LABEL_MIN_GAP`'s own
+ * comment for the threshold). Three independent reasons any one of which is enough:
+ * - the rail is roomy enough at rest (average main-tick-to-main-tick spacing, `bandHeight /
+ *   (mainCount - 1)`, is at or above `TM_RAIL_LABEL_MIN_GAP`) -- OR `bandHeight` has not been
+ *   measured yet (`<= 0`/non-finite): fails OPEN (shows the label) rather than hiding everything
+ *   until a real measurement lands, the same "unmeasured degrades to the generous default" posture
+ *   `resolveSlotPose`/`computeVisibleStripCap` already take elsewhere in this module for their own
+ *   "stageHeight unknown" case.
+ * - the tick IS the current selection -- kept unconditionally, Ruling G-1's own UX call: the "you
+ *   are here" tick's label should never disappear just because the rail got crowded.
+ * - the tick is inside the fisheye's own magnified zone right now (`scale > 1`) -- the whole point
+ *   of the magnified region is to reveal detail a crowded rest state hides; a hovered tick is, by
+ *   construction, (almost) always the nearest one to the cursor and therefore already inside this
+ *   zone, so no separate "hovered" case is needed on top of this one.
+ */
+export function shouldShowTickLabel(opts: { mainCount: number; bandHeight: number; isSelected: boolean; scale: number }): boolean {
+  const { mainCount, bandHeight, isSelected, scale } = opts
+  if (isSelected) return true
+  if (!Number.isFinite(bandHeight) || bandHeight <= 0) return true // unmeasured -- fail open
+  const restSpacing = mainCount <= 1 ? Infinity : bandHeight / (mainCount - 1)
+  if (restSpacing >= TM_RAIL_LABEL_MIN_GAP) return true
+  return scale > 1
+}
+
 const DEFAULT_MAX_SLOTS = 10
 
 // Which snapshots occupy the visible depth slots for currentIndex in a
