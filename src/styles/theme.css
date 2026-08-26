@@ -69,6 +69,27 @@
   --accent2: #b79bff;
   --good: #5fe3b0;
   --on-accent: #16203a;
+  /* Fix wave C re-review (Files toolbar redesign, owner-confirmed mockup): a dedicated app-level
+     PURPLE accent for the "New" dropdown button + its dependents (select-all fill, view-capsule
+     active half, dropdown-item hover tint) -- the mock's own literal `--accent: #7c3aed` /
+     `--accent-hover: #6d28d9`, NOT this block's generic blue `--accent` (other app surfaces
+     depend on that staying blue) and NOT `--tm-accent`/`--tm-accent-hover` below (that pair is
+     Time Machine chrome's own scoped token, semantically "TM subsystem accent" -- reusing it on a
+     plain toolbar button outside TM would blur that boundary, even though the literal hex happens
+     to match). Theme-invariant by owner ruling (same purple in both themes), same "identical
+     value in every theme block" convention `--tm-accent` already established just below.
+     `--on-purple-accent` (NOT `--on-accent`) is the text/icon color painted on top of
+     `--purple-accent` fills -- `--on-accent` is deliberately coupled to `--accent`'s own
+     per-theme luminance flip (dark navy text on the blue theme's pale accent, white text on the
+     light theme's deep accent) and would put unreadable dark-navy text on this always-dark
+     purple in the blue theme; `--purple-accent` is theme-invariant, so its own foreground token
+     is too -- same "own dedicated fg token, not the generic on-accent" precedent this file's
+     `--tm-entry-bg`/`--tm-entry-fg`/`--tm-entry-hover-bg` triplet below already sets for the
+     Snapshots entry pill (another theme-invariant filled pill outside the normal accent flip).
+     Guard: src/styles/__tests__/purpleAccentTokens.test.ts. */
+  --purple-accent: #7c3aed;
+  --purple-accent-hover: #6d28d9;
+  --on-purple-accent: #ffffff;
 
   /* Extended/semantic tokens (promoted to global from SearchDialog/MediaViewer; every theme
      gives these a value). See THEMING.md §2.12 */
@@ -601,6 +622,10 @@
   --accent2: #6e5ae0;
   --good: #15754c;
   --on-accent: #ffffff;
+  /* Same literal purple as the dark block above -- see that block's own comment. */
+  --purple-accent: #7c3aed;
+  --purple-accent-hover: #6d28d9;
+  --on-purple-accent: #ffffff;
 
   /* 2.2 Brand gradient */
   --brand-bg: linear-gradient(135deg, #4c6fe8, #6e5ae0);

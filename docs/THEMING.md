@@ -84,6 +84,9 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | `--accent2` | 次强调色（紫） | `#b79bff` | `#6e5ae0` |
 | `--good` | 成功/正向色 | `#5fe3b0` | `#15754c` |
 | `--on-accent` | 强调色之上的文字 | `#16203a` | `#ffffff` |
+| `--purple-accent` | 独立的紫色强调（Files「New」下拉按钮等，与主强调色 `--accent` 语义分离，两套主题**同值**，不要与 Time Machine 专属的 `--tm-accent` 混用） | `#7c3aed` | `#7c3aed` |
+| `--purple-accent-hover` | `--purple-accent` 的悬停态 | `#6d28d9` | `#6d28d9` |
+| `--on-purple-accent` | `--purple-accent` 底上的文字/图标色（不用 `--on-accent`——那个 token 跟随 `--accent` 自身的深浅翻转，套在恒定深紫底上在蓝色主题会变成不可读的深色文字；两套主题**同值**，同 `--tm-entry-fg` 的既有先例） | `#ffffff` | `#ffffff` |
 
 ### 2.2 品牌渐变
 

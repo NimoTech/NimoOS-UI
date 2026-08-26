@@ -520,9 +520,12 @@ const crumbSegments = computed(() => {
 
 /* Static/unfilled only (no `.on` state -- this preview has no selection concept of its own, see
    this file's own header comment above the template). Same 18px/2px-border geometry as the real
-   `.files-select-all`, `color: var(--on-accent)` kept for parity even though the check glyph
-   never actually shows here (display:none via the real class's own `svg { display: none }` rule,
-   inherited verbatim -- there is no `.on` variant to ever reveal it). */
+   `.files-select-all`, `color: var(--on-purple-accent)` kept for parity even though the check
+   glyph never actually shows here (display:none via the real class's own `svg { display: none }`
+   rule, inherited verbatim -- there is no `.on` variant to ever reveal it). Fix wave C re-review:
+   re-pointed from `--on-accent` to `--on-purple-accent`, following the real `.files-select-all`'s
+   own re-point onto the dedicated purple pair (theme.css) -- see Files.vue's own comment on that
+   rule for the full reasoning. */
 .tm-preview-window__select-all {
   width: 18px;
   height: 18px;
@@ -532,7 +535,7 @@ const crumbSegments = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--on-accent);
+  color: var(--on-purple-accent);
 }
 
 .tm-preview-window__select-all svg {
@@ -561,9 +564,12 @@ const crumbSegments = computed(() => {
   height: 15px;
 }
 
+/* Fix wave C re-review: re-pointed from --accent/--on-accent to the dedicated purple pair,
+   following the real `.files-view-capsule-btn.active`'s own re-point -- see Files.vue's own
+   comment on that rule. */
 .tm-preview-window__toggle-btn.is-active {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--purple-accent);
+  color: var(--on-purple-accent);
 }
 
 .tm-preview-window__body {

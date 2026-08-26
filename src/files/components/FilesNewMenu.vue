@@ -99,12 +99,14 @@ const open = ref(false)
 </template>
 
 <style scoped>
-/* Mock's `.pill.new`: accent-purple pill, white(-on-accent) text, plus icon + label + caret.
-   `--accent`/`--on-accent` is this app's own primary-button pair (already used the same way by
-   e.g. WallpaperDialog.vue's `.wp-primary`, StartAppDialog.vue's `.sa-primary`) -- NOT a new
-   token, and it already carries correct per-theme contrast (light-on-dark-accent in the blue
-   theme, white-on-deep-blue in the light theme), so no hardcoded "white text" is needed to match
-   the mock's literal white-on-purple look. */
+/* Fix wave C re-review: repointed from the app's generic blue --accent onto the DEDICATED
+   --purple-accent/--purple-accent-hover/--on-purple-accent triplet (theme.css) -- see that
+   token's own header comment for the exact owner-approved literal it pins. The mock's own
+   throwaway demo stylesheet just happens to name ITS OWN custom property "--accent" too; that is
+   an unrelated coincidence, not an instruction to reuse this app's real (blue) --accent.
+   `--on-purple-accent` (not `--on-accent`) is the correct foreground here -- see theme.css's own
+   comment on it for why: --on-accent flips with --accent's own per-theme luminance and would put
+   unreadable dark-navy text on this always-dark purple in the blue theme. */
 .files-new-trigger {
   display: inline-flex;
   align-items: center;
@@ -115,18 +117,14 @@ const open = ref(false)
   font-weight: 600;
   border: none;
   cursor: pointer;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--purple-accent);
+  color: var(--on-purple-accent);
 }
-/* Mock's `.pill.new:hover { background: var(--accent-hover) }` -- this app's token family has
-   no separate "accent-hover" token (only Time Machine's own `--tm-accent-hover`, a different
-   subsystem), so darken via `filter` instead of introducing a new global token for one button;
-   `color-mix`-darkening `--accent` itself would also work but filter is simpler and already used
-   for the identical "darken an --accent-bg button on hover" need elsewhere (PhotosMomentDetail.vue's
-   `.sv-action-btn-primary:hover`, which brightens instead -- here darkening reads correctly
-   against a light accent in one theme and a deep accent in the other, matching the mock's own
-   single-direction "always darken" intent in both themes). */
-.files-new-trigger:hover { filter: brightness(0.9); }
+/* Mock's own `.pill.new:hover { background: var(--accent-hover) }`, now a direct 1:1 token
+   match -- `--purple-accent-hover` IS this button's own dedicated hover fill (fix wave C
+   re-review introduced it precisely for this need), so no `filter`-based approximation is
+   needed any more. */
+.files-new-trigger:hover { background: var(--purple-accent-hover); }
 .files-new-icon { width: 13px; height: 13px; flex: none; }
 .files-new-caret { width: 11px; height: 11px; flex: none; transition: transform 0.15s var(--ease, ease); }
 .files-new-caret.is-open { transform: rotate(180deg); }
@@ -140,8 +138,16 @@ const open = ref(false)
 .files-new-content { min-width: 190px; }
 .files-new-item { gap: 10px; }
 .files-new-item-icon { width: 15px; height: 15px; opacity: 0.75; flex: none; }
-/* Mock's own accent-tinted hover (`.menu button:hover { background: var(--accent-soft); color:
-   var(--accent) }`), overriding ui-ctx-item's default neutral chip-bg-hi highlight -- two classes
-   on the item (`.ui-ctx-item.files-new-item`) beats the single-class base rule's specificity. */
-.ui-ctx-item.files-new-item[data-highlighted] { background: var(--accent-soft); color: var(--accent); }
+/* Mock's own purple-tinted hover (`.menu button:hover { background: var(--accent-soft); color:
+   var(--accent) }`, its OWN demo `--accent-soft` token -- a 12%-alpha purple tint), overriding
+   ui-ctx-item's default neutral chip-bg-hi highlight -- two classes on the item
+   (`.ui-ctx-item.files-new-item`) beats the single-class base rule's specificity. Fix wave C
+   re-review: `color-mix` off the real `--purple-accent` token (not this app's generic
+   `--accent-soft`, a DIFFERENT blue-tinted token with its own unrelated consumers) -- same
+   "color-mix a soft tint straight off a fixed accent token" idiom Files.vue's own
+   `.tm-real-window-chip` already uses for `--tm-accent`, at the mock's own literal 12% alpha. */
+.ui-ctx-item.files-new-item[data-highlighted] {
+  background: color-mix(in srgb, var(--purple-accent) 12%, transparent);
+  color: var(--purple-accent);
+}
 </style>

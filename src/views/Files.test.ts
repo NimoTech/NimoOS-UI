@@ -12,6 +12,8 @@ import { useFoldersStore } from '../home/stores/folders'
 import { useFavoritesStore } from '../files/stores/favorites'
 import { useClipboardStore } from '../files/stores/clipboard'
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
+import { useUploadsStore } from '../files/stores/uploads'
+import type { UploadItem } from '../files/upload/types'
 import { useToast } from '../stores/toast'
 
 // snapshotBrowse.ts navigates through the app's real router SINGLETON (see that file's own
@@ -285,6 +287,44 @@ describe('Files.vue browse pipe', () => {
     expect(files.selectedCount).toBe(0)
     expect(w.find('.files-select-all').classes()).not.toContain('on')
     expect(w.find('.files-item-count').text()).toBe('2 项')
+  })
+
+  // Fix wave C re-review (correctness): displayEntries (the "N items" source) can contain
+  // synthetic upload placeholders (uploadPlaceholders/mergeUploadPlaceholders, ../files/upload/
+  // uploadPlaceholders.ts) for uploads still in flight into the current directory -- these render
+  // in the listing but can never be selected (files.selectAll() only ever populates the store
+  // with real files.entries paths). The "N selected" label must therefore read
+  // files.selectedCount (the real selection store's own size), not displayEntries.length, or it
+  // would overstate the selected count by the in-flight placeholder count.
+  it('content-area header: with an active upload placeholder in the listing, select-all shows the REAL selected count, not the display count', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    const files = useFilesStore()
+    expect(files.currentPath).toBe('/DATA')
+
+    const uploads = useUploadsStore()
+    const placeholder: UploadItem = {
+      id: 'up-1', file: null, fileName: 'newfile.txt', fileType: '', size: 1,
+      targetPath: '/DATA', relativePath: 'newfile.txt', status: 'uploading', progress: 0.5,
+      bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
+      createdAt: 0, batchId: 'b1', batchTotal: 1, conflictPolicy: '',
+    }
+    uploads.queue.push(placeholder)
+    await w.vm.$nextTick()
+
+    // Sanity: the placeholder really does add a THIRD listed entry (Documents + a.txt +
+    // newfile.txt), so "N items" (post-filter, placeholders included by design) reads 3 --
+    // this is the display count the buggy version would have wrongly reused for "N selected" too.
+    expect(w.find('.files-item-count').text()).toBe('3 项')
+    expect(files.entries).toHaveLength(2) // the real store never counted the placeholder at all
+
+    await w.get('.files-select-all').trigger('click')
+    expect(files.selectedCount).toBe(2) // only the 2 REAL entries got selected
+    expect(w.find('.files-item-count').text()).toBe('已选 2 项') // NOT "已选 3 项"
   })
 
   // Fix wave C: the capsule switcher replaces the old topbar `.files-viewtoggle` chips --

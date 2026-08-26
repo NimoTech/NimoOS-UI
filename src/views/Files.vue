@@ -1023,12 +1023,20 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
                buttons already use), not a separate local flag: clicking it selects every entry
                CURRENTLY LISTED (displayEntries, i.e. post-filter/upload-placeholder-merged, same
                set the grid/list views actually render) when not already all-selected, and clears
-               when it is. The count text mirrors that same displayEntries length either way (per
-               the mock: only the trailing word flips between "items"/"selected", the number does
-               not) -- reuses tmItemCount ("{n} items", already shared with
-               SnapshotPreviewWindow.vue) and filesSelectedCount ("{count} selected", already used
-               by SelectionToolbar.vue) via <i18n-t> so only the number itself is bold, matching
-               the mock's `<strong>N</strong> items` markup without introducing v-html. -->
+               when it is. Fix wave C re-review (correctness): the two count branches read
+               DIFFERENT sources on purpose, not the same displayEntries length either way --
+               "N items" (not-all-selected branch) uses displayEntries.length (post-filter,
+               placeholders included, matching what's actually on screen), but "N selected"
+               (all-selected branch) uses files.selectedCount (the REAL selection store's own
+               size), because displayEntries can contain synthetic upload placeholders that can
+               NEVER be selected (files.selectAll() only ever populates the store with real
+               files.entries paths -- see stores/files.ts's own selectAll()) -- templating
+               displayEntries.length there would overstate the count by the in-flight-upload
+               count while a batch is uploading into the current directory. Reuses tmItemCount
+               ("{n} items", already shared with SnapshotPreviewWindow.vue) and filesSelectedCount
+               ("{count} selected", already used by SelectionToolbar.vue) via <i18n-t> so only the
+               number itself is bold, matching the mock's `<strong>N</strong> items` markup
+               without introducing v-html. -->
           <div class="files-list-head">
             <div class="files-select-zone">
               <button
@@ -1045,7 +1053,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
                 <template #n><strong>{{ displayEntries.length }}</strong></template>
               </i18n-t>
               <i18n-t v-else keypath="filesSelectedCount" tag="span" class="files-item-count" scope="global">
-                <template #count><strong>{{ displayEntries.length }}</strong></template>
+                <template #count><strong>{{ files.selectedCount }}</strong></template>
               </i18n-t>
             </div>
             <div class="files-view-capsule" role="group" :aria-label="t('filesViewMode')">
@@ -1223,29 +1231,35 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
 /* Fix wave C (toolbar redesign): the content-area header row -- left = select-all + count, right
    = the grid/list capsule that used to be topbar chips (`.files-viewtoggle`, removed). Literal
    values (padding/border/pill geometry) are the owner-approved mock's own literal CSS, translated
-   1:1 from its `--hairline`/`--chip-border`/`--chip-bg`/`--accent` demo tokens to this app's real
-   equivalents (`--card-border`/`--chip-border`/`--chip-bg`/`--accent`). */
+   1:1 from its `--hairline`/`--chip-border`/`--chip-bg` demo tokens to this app's real
+   equivalents (`--card-border`/`--chip-border`/`--chip-bg`).
+   Fix wave C re-review: the filled states below (select-all's `.on`, the capsule's `.active` half)
+   were re-pointed from the app's generic blue `--accent`/`--on-accent` onto the DEDICATED
+   `--purple-accent`/`--on-purple-accent` pair (theme.css) -- see that token's own header comment
+   for the exact owner-approved literal it pins; that mock's own throwaway demo stylesheet just
+   happens to name ITS OWN custom property the same as this app's real (blue) --accent, an
+   unrelated coincidence, not an instruction to reuse it. `--on-purple-accent` (not `--on-accent`)
+   is the correct foreground here too -- see theme.css's own comment on it: `--on-accent` flips
+   with `--accent`'s own per-theme luminance and would put unreadable dark-navy text/icon on this
+   always-dark purple in the blue theme. */
 .files-list-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 2px; border-top: 1px solid var(--card-border, rgba(255,255,255,0.1)); flex: 0 0 auto; }
 .files-select-zone { display: flex; align-items: center; gap: 10px; }
 /* Unfilled: a plain ring (border only). Filled (`.on`, all currently-listed entries selected):
-   solid --accent fill + the check glyph -- same `--accent`/`--on-accent` primary pair the New
-   button and every other filled-affordance in this app already uses (see FilesNewMenu.vue's own
-   header comment), so the check glyph automatically reads as light-on-dark or dark-on-light per
-   theme without a hardcoded "white". */
+   solid --purple-accent fill + the --on-purple-accent check glyph. */
 .files-select-all {
   width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--chip-border);
   background: none; padding: 0; flex: none; display: inline-flex; align-items: center; justify-content: center;
-  color: var(--on-accent); cursor: pointer;
+  color: var(--on-purple-accent); cursor: pointer;
 }
 .files-select-all svg { width: 11px; height: 11px; display: none; }
-.files-select-all.on { background: var(--accent); border-color: var(--accent); }
+.files-select-all.on { background: var(--purple-accent); border-color: var(--purple-accent); }
 .files-select-all.on svg { display: block; }
 .files-item-count { font-size: 12.5px; color: var(--fg-muted); }
 .files-item-count strong { color: var(--fg); font-weight: 600; }
 .files-view-capsule { display: inline-flex; border: 1px solid var(--chip-border); border-radius: 999px; overflow: hidden; background: var(--chip-bg); flex: none; }
 .files-view-capsule-btn { border: none; background: none; cursor: pointer; padding: 6px 16px; display: inline-flex; align-items: center; color: var(--fg-muted); }
 .files-view-capsule-btn svg { width: 15px; height: 15px; }
-.files-view-capsule-btn.active { background: var(--accent); color: var(--on-accent); }
+.files-view-capsule-btn.active { background: var(--purple-accent); color: var(--on-purple-accent); }
 .files-view-capsule-btn:not(.active):hover { color: var(--fg); }
 .files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text
