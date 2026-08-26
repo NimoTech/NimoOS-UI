@@ -207,4 +207,41 @@ describe('Time Machine breadcrumb/list-head chrome: real vs replica content iden
     const replicaBody = ruleBody(previewCss, '.tm-preview-window__grid')
     expect(decl(replicaBody, 'padding')).toBe('0')
   })
+
+  // Fix wave E (E2 follow-up, owner acceptance 2026-08-26): the item-count NUMBER used to render
+  // at one weight in the replica while the real window bolded it via `<i18n-t>`'s own `#n` slot
+  // (Fix wave C) -- see the template's own comment above `.tm-preview-window__row2` for the full
+  // trace. Pinned two ways: the MARKUP shape (both use `<i18n-t keypath="tmItemCount">` with a
+  // `<strong>` inside the `#n` slot template, not a plain interpolated string) and the CSS weight/
+  // color declared on the resulting `strong` element.
+  it('the real count (.files-item-count) and the replica count (.tm-preview-window__count) both bold the number via <i18n-t>\'s #n slot, not a plain interpolated string', () => {
+    const filesSrc = readFileSync(path.resolve(DIR, '../../views/Files.vue'), 'utf8')
+    const previewSrc = readFileSync(path.resolve(DIR, './SnapshotPreviewWindow.vue'), 'utf8')
+    const i18nTBoldRe = /<i18n-t[^>]*keypath="tmItemCount"[^>]*>\s*<template #n><strong>/
+    expect(filesSrc, 'Files.vue must bold the tmItemCount number via <i18n-t>/#n/<strong>').toMatch(i18nTBoldRe)
+    expect(previewSrc, 'SnapshotPreviewWindow.vue must bold the tmItemCount number via <i18n-t>/#n/<strong>').toMatch(i18nTBoldRe)
+  })
+
+  it('the real count\'s bold number (.files-item-count strong) and the replica\'s (.tm-preview-window__count strong) share the SAME font-weight/color', () => {
+    const realBody = ruleBody(filesCss, '.files-item-count strong')
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__count strong')
+    expect(decl(replicaBody, 'font-weight')).toBe(decl(realBody, 'font-weight'))
+    expect(decl(replicaBody, 'color')).toBe(decl(realBody, 'color'))
+  })
+
+  // Fix wave E (E2 follow-up, owner acceptance 2026-08-26, cross-file truncation mismatch): the
+  // real listing container (.files-listwrap, scrolls when content overflows) and its replica
+  // structural counterpart (.tm-preview-window__body, never scrolls -- 24-row cap) must reserve
+  // the IDENTICAL scrollbar gutter unconditionally, or a folder that makes the real one scroll
+  // resolves a narrower `auto-fill`/flex-basis content width than the replica ever does, landing
+  // different ellipsis truncation points between the two (the owner's own repro: the same long
+  // filename truncated at a different character count in each). See each file's own comment on
+  // this declaration for the full trace and the accepted minor visual change to the plain Files
+  // view (a folder that fits without scrolling now still reserves a small gutter strip).
+  it('the real listing container (.files-listwrap) and its replica counterpart (.tm-preview-window__body) both reserve a stable scrollbar gutter', () => {
+    const realBody = ruleBody(filesCss, '.files-listwrap')
+    const replicaBody = ruleBody(previewCss, '.tm-preview-window__body')
+    expect(decl(realBody, 'scrollbar-gutter')).toBe('stable')
+    expect(decl(replicaBody, 'scrollbar-gutter')).toBe('stable')
+  })
 })

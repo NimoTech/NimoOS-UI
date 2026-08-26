@@ -1277,7 +1277,26 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
 .files-view-capsule-btn svg { width: 15px; height: 15px; }
 .files-view-capsule-btn.active { background: var(--purple-accent); color: var(--on-purple-accent); }
 .files-view-capsule-btn:not(.active):hover { color: var(--fg); }
-.files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
+/* Fix wave E (E2 follow-up, owner acceptance 2026-08-26, cross-file truncation mismatch):
+   `scrollbar-gutter: stable` reserves this container's classic-scrollbar gutter WHETHER OR NOT a
+   scrollbar is actually showing right now -- without it, a folder short enough to fit had the
+   FULL width available to `auto-fill`/flex-basis column math, while a longer folder (vertical
+   scrollbar engaged) had that width reduced by the scrollbar's own px, so `.file-grid`'s tile
+   width (and `.file-listview`'s `.col-name` flex-basis) resolved DIFFERENT truncation points
+   between two otherwise-identical folders -- and, the actual owner-reported symptom, between this
+   real window and SnapshotPreviewWindow.vue's own equivalent container (`.tm-preview-window__body`,
+   below), which never scrolls at all and therefore always had the wider, un-gutter'd width. Both
+   containers now reserve the SAME gutter unconditionally (theme.css's own `--tm-item-count-font-
+   size`-style shared-token approach does not fit here -- the gutter WIDTH is platform/browser-
+   scrollbar-implementation-defined, not a value either file could literally share -- so both sides
+   instead share the SAME DECLARATION, `scrollbar-gutter: stable`, which each browser then resolves
+   to its own but MUTUALLY CONSISTENT actual width). Minor visual change to the plain (non-Time-
+   Machine) Files view: a folder that fits without scrolling now shows a small reserved blank strip
+   on the right where the gutter would be, matching the app's own global `scrollbar-width: thin`
+   token (theme.css's own `*` rule) rather than a full classic-width gutter -- owner-approved per
+   this fix wave's own dispatch message. See timeMachineDepthStackGeometryParity.test.ts's own new
+   parity case for the CI guard pinning this declaration between the two files. */
+.files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text
    (which is usually the actionable part), and offer the retry. */
 .files-error {

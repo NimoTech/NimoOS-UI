@@ -226,13 +226,25 @@
          parity) was removed. The circle carries no `.on`/checked state -- this is a static backdrop
          layer with no selection concept of its own (Vue2's own source has none either), so it
          always renders in its plain unfilled ring form; the capsule DOES reflect the live
-         `viewMode` prop, same as the real header's own `files.viewMode`-driven `.active` class. -->
+         `viewMode` prop, same as the real header's own `files.viewMode`-driven `.active` class.
+         Fix wave E (E2 follow-up, owner acceptance 2026-08-26): the count used to be a single
+         plain `t(...)`-interpolated string -- Files.vue's own count (Fix wave C) is `<i18n-t>` with
+         a `<strong>` slot around just the number (`#n` for `tmItemCount`, this preview's only
+         branch -- it never shows the `filesSelectedCount`/"N selected" branch, see this file's own
+         header comment: "this preview has no selection concept of its own"), so the real window's
+         number renders bold and the rest of the string does not. This replica's plain-string
+         version rendered the WHOLE string at one weight, which visibly snapped to partially-bold
+         the instant a promoted strip became the real window. Same `<i18n-t>`/`<strong>` markup as
+         the real window now, byte-for-byte (see `.tm-preview-window__count strong` below, mirroring
+         `.files-item-count strong`), so the two can never drift on this again. -->
     <div class="tm-preview-window__row2">
       <div class="tm-preview-window__select-zone">
         <span class="tm-preview-window__select-all" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4"><path d="M20 6 9 17l-5-5" /></svg>
         </span>
-        <span class="tm-preview-window__count">{{ t('tmItemCount', { n: totalCount }) }}</span>
+        <i18n-t keypath="tmItemCount" tag="span" class="tm-preview-window__count" scope="global">
+          <template #n><strong>{{ totalCount }}</strong></template>
+        </i18n-t>
       </div>
       <div class="tm-preview-window__view-toggle" role="group" aria-hidden="true">
         <span class="tm-preview-window__toggle-btn" :class="{ 'is-active': viewMode === 'grid' }">
@@ -559,6 +571,18 @@ const crumbSegments = computed(() => {
   font-size: var(--tm-item-count-font-size);
 }
 
+/* Fix wave E (E2 follow-up, owner acceptance 2026-08-26): byte-identical to the real
+   `.files-item-count strong` rule (Files.vue) -- the number-only bold span the template's own
+   `<i18n-t>`/`#n`/`<strong>` markup now renders (see the template's own comment above `.tm-preview-
+   window__row2`). Without this rule the `<strong>` tag still bolds via the UA default, but the
+   COLOR would fall back to the row's own muted `--fg-muted` instead of the real window's brighter
+   `--fg` on the number -- a second, smaller weight/color asymmetry alongside the one this follow-up
+   was filed to fix. */
+.tm-preview-window__count strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
 /* Static/unfilled only (no `.on` state -- this preview has no selection concept of its own, see
    this file's own header comment above the template). Same 18px/2px-border geometry as the real
    `.files-select-all`, `color: var(--on-purple-accent)` kept for parity even though the check
@@ -613,9 +637,21 @@ const crumbSegments = computed(() => {
   color: var(--on-purple-accent);
 }
 
+/* Fix wave E (E2 follow-up, owner acceptance 2026-08-26, cross-file truncation mismatch): this is
+   the structural counterpart of the real window's own `.files-listwrap` (Files.vue) -- the box
+   whose content-box width the grid's `auto-fill`/the list's `.col-name` flex-basis actually resolve
+   against. `.files-listwrap` scrolls (`overflow-y: auto`) when a folder's rows overflow its height;
+   this box never does (24-row cap, `overflow: hidden`) -- so a scrolling real folder had its
+   available width reduced by its own classic scrollbar while this always-non-scrolling replica
+   never did, landing DIFFERENT tile/column widths and therefore different ellipsis truncation
+   points between the two. `scrollbar-gutter: stable` (added to BOTH files -- see `.files-listwrap`'s
+   own comment in Files.vue for the full rationale and the minor real-window visual change it
+   accepts) makes both containers reserve the identical gutter unconditionally, so their content
+   width can never again depend on whether THIS PARTICULAR box happens to be scrolling. */
 .tm-preview-window__body {
   flex: 1 1 auto;
   overflow: hidden;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
 }
