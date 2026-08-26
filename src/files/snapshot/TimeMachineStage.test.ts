@@ -116,6 +116,44 @@ describe('TimeMachineStage shell', () => {
     expect(liveFwin.attributes('style') ?? '').toContain('scale')
   })
 
+  // Fix wave A4 (deferred from A2's audit-stage.md #4, "Clone-backdrop media placeholder
+  // DOM-walk"): Vue2's own `sanitizeClonedNode` (TimeMachineStage.vue, ported into this file's own
+  // `sanitizeClonedNode`/`captureClone`) replaces every cloned `<video>`/`<canvas>` with an inert
+  // `.tm-stage__clone-media-placeholder` div -- a `cloneNode(true)` copy of either never preserves
+  // the decoded frame/drawn bitmap, so left alone it would render as a dead black box behind the
+  // glass. No `toDataURL` stub is needed here: Vue2's own mechanism is a flat placeholder swap, NOT
+  // a canvas screenshot -- see this file's own header comment / TimeMachineStage.vue's own
+  // sanitizeClonedNode comment for the "why a placeholder, not a bitmap" reasoning ported verbatim.
+  it('replaces cloned <video>/<canvas> with Vue2-style inert media placeholders, never a dead black box', async () => {
+    const HostWithMedia = defineComponent({
+      components: { TimeMachineStage },
+      template: `
+        <TimeMachineStage>
+          <div class="probe">hello real window</div>
+          <canvas class="real-canvas" width="10" height="10"></canvas>
+          <video class="real-video"></video>
+        </TimeMachineStage>
+      `,
+    })
+    const w = mount(HostWithMedia, { global: { plugins: [i18n] }, attachTo: document.body })
+    useSnapshotBrowseStore().tmActive = true
+    await nextTick() // clone captured synchronously (flush:'sync')
+    await nextTick() // mountClone() itself waits one tick
+
+    const clone = w.find('.tm-stage__clone')
+    expect(clone.exists()).toBe(true)
+    // The clone must contain NO live <video>/<canvas> at all -- each was swapped for a placeholder.
+    expect(clone.find('video').exists()).toBe(false)
+    expect(clone.find('canvas').exists()).toBe(false)
+    // Exactly two placeholders, one per replaced element, Vue2's own class name preserved.
+    const placeholders = clone.findAll('.tm-stage__clone-media-placeholder')
+    expect(placeholders).toHaveLength(2)
+    // The real, live window is completely untouched -- both media elements still render there.
+    expect(w.find('.tm-stage__hold video.real-video').exists()).toBe(true)
+    expect(w.find('.tm-stage__hold canvas.real-canvas').exists()).toBe(true)
+    w.unmount()
+  })
+
   it('gear button emits open-settings', async () => {
     const w = mountIt()
     useSnapshotBrowseStore().tmActive = true

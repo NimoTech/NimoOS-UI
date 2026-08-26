@@ -276,6 +276,14 @@
   --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
   --tm-control-radius: 10px;
   --tm-panel-blur: blur(20px) saturate(1.2);
+  /* Fix wave A4 (deferred from A2's audit-stage.md #4, the clone-backdrop media-placeholder DOM
+     walk): Vue2's own `.tm-stage__clone-media-placeholder` literal (TimeMachineStage.vue:2936-2940,
+     `background: rgba(255, 255, 255, 0.08)`) -- the stand-in box `sanitizeClonedNode` swaps in for
+     every cloned `<video>`/`<canvas>` (a `cloneNode(true)` copy of either never preserves the
+     decoded frame/drawn bitmap, so left alone it would render as a dead black box behind the glass
+     -- see TimeMachineStage.vue's own `sanitizeClonedNode`/`captureClone` for the port this token
+     feeds). */
+  --tm-clone-media-placeholder-bg: rgba(255, 255, 255, 0.08);
   /* Task 8 fix round: two more tokens, same "identical in both themes" rule as the rest of this
      block. Pixel-pinned to Vue2 TimeMachineStage.vue's own literal `.tm-tick:hover` colors:
      `--tm-rail-tick-hover` is the exact value `.tm-tick:hover .tm-tick__label { color }` and
@@ -836,6 +844,7 @@
   --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
   --tm-control-radius: 10px;
   --tm-panel-blur: blur(20px) saturate(1.2);
+  --tm-clone-media-placeholder-bg: rgba(255, 255, 255, 0.08);
   /* Task 8 fix round: two more tokens, same "identical in both themes" rule as the rest of this
      block. Pixel-pinned to Vue2 TimeMachineStage.vue's own literal `.tm-tick:hover` colors:
      `--tm-rail-tick-hover` is the exact value `.tm-tick:hover .tm-tick__label { color }` and

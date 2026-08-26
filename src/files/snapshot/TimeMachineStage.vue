@@ -121,13 +121,43 @@ const fallbackStyle = computed(() => {
 let pendingClone: Node | null = null
 const hasClone = ref(false)
 
+// Fix wave A4 (deferred from A2's audit-stage.md #4, "Clone-backdrop media placeholder DOM-walk"):
+// ported byte-for-byte from Vue2's own `sanitizeClonedNode` (TimeMachineStage.vue, M2-F8 Fix Round
+// 4 point 2). `cloneNode(true)` never preserves a canvas's drawn bitmap or a video's decoded frame
+// -- a cloned `<video>`/`<canvas>` renders blank/broken, not a copy of what was on screen -- so
+// this walks the clone and swaps every one for an inert placeholder div (Vue2's own
+// `.tm-stage__clone-media-placeholder`, "nobody sees detail under blur(24px)" per that file's own
+// comment, so a flat placeholder is strictly better than a broken element showing through). Also
+// strips every `id` (root inclusive -- a cloned element must never let
+// `document.getElementById` resolve to it) and `name` (so a cloned form control can never
+// participate in a real `<form>` submission or a `document.forms` lookup), and marks the whole
+// subtree `aria-hidden` + `pointer-events: none` on the clone's own root -- belt-and-braces
+// alongside the existing host-level `aria-hidden`/CSS `pointer-events: none` on `.tm-stage__clone`
+// itself (see this file's own template and style-block comments), same reasoning Vue2's own comment gives:
+// `cloneNode(true)` never copies `addEventListener`-attached handlers anyway, so neither clone can
+// ever fire a real click handler regardless of this pointer-events belt-and-braces.
+function sanitizeClonedNode(root: Node): Node {
+  if (!(root instanceof Element)) return root
+  root.removeAttribute('id')
+  root.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'))
+  root.querySelectorAll('[name]').forEach((el) => el.removeAttribute('name'))
+  root.querySelectorAll('video, canvas').forEach((el) => {
+    const placeholder = document.createElement('div')
+    placeholder.className = 'tm-stage__clone-media-placeholder'
+    el.parentNode?.replaceChild(placeholder, el)
+  })
+  root.setAttribute('aria-hidden', 'true')
+  if (root instanceof HTMLElement) root.style.pointerEvents = 'none'
+  return root
+}
+
 function captureClone() {
   pendingClone = null
   hasClone.value = false
   const el = fwinEl.value
   if (!el) return
   try {
-    pendingClone = el.cloneNode(true)
+    pendingClone = sanitizeClonedNode(el.cloneNode(true))
     hasClone.value = true
   } catch (e) {
     // Defensive only — cloneNode(true) practically never throws, but a capture failure must
@@ -364,10 +394,21 @@ onUnmounted(() => {
         :aria-label="t('tmSettings')"
         :title="t('tmSettings')"
         @click="emit('open-settings')"
-      >⚙</button>
+      >
+        <!-- Fix wave A4 (deferred from A2's audit-stage.md #9): Vue2's own gear is MDI
+             `cog-outline` (`<b-icon icon="cog-outline">`, TimeMachineStage.vue:1330) -- ported as a
+             hand-inlined SVG reproducing that exact MDI path, house convention for chrome-icon SVGs
+             in this app (see SnapshotActionBar.vue's own header comment on hand-inlining
+             ThemeToggle.vue/HomeTopbar.vue-style, and ThemeToggle.vue's own `.ic` class for the
+             same "class + explicit width/height in its style block" shape this follows below) -- replacing
+             the previous plain Unicode `⚙`, a visibly different glyph shape/weight/stroke. -->
+        <svg class="tm-stage__gear-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10M10,22C9.75,22 9.54,21.82 9.5,21.58L9.13,18.93C8.5,18.68 7.96,18.34 7.44,17.94L4.95,18.95C4.73,19.03 4.46,18.95 4.34,18.73L2.34,15.27C2.21,15.05 2.27,14.78 2.46,14.63L4.57,12.97L4.5,12L4.57,11L2.46,9.37C2.27,9.22 2.21,8.95 2.34,8.73L4.34,5.27C4.46,5.05 4.73,4.96 4.95,5.05L7.44,6.05C7.96,5.66 8.5,5.32 9.13,5.07L9.5,2.42C9.54,2.18 9.75,2 10,2H14C14.25,2 14.46,2.18 14.5,2.42L14.87,5.07C15.5,5.32 16.04,5.66 16.56,6.05L19.05,5.05C19.27,4.96 19.54,5.05 19.66,5.27L21.66,8.73C21.79,8.95 21.73,9.22 21.54,9.37L19.43,11L19.5,12L19.43,12.97L21.54,14.63C21.73,14.78 21.79,15.05 21.66,15.27L19.66,18.73C19.54,18.95 19.27,19.03 19.05,18.95L16.56,17.94C16.04,18.34 15.5,18.68 14.87,18.93L14.5,21.58C14.46,21.82 14.25,22 14,22H10M11.25,4L10.88,6.61C9.68,6.86 8.62,7.5 7.85,8.39L5.44,7.35L4.69,8.65L6.8,10.2C6.4,11.37 6.4,12.64 6.8,13.8L4.68,15.36L5.43,16.66L7.86,15.62C8.63,16.5 9.68,17.14 10.87,17.38L11.24,20H12.76L13.13,17.39C14.32,17.14 15.37,16.5 16.14,15.62L18.57,16.66L19.32,15.36L17.2,13.81C17.6,12.64 17.6,11.37 17.2,10.2L19.31,8.65L18.56,7.35L16.15,8.39C15.38,7.5 14.32,6.86 13.12,6.61L12.75,4H11.25Z" />
+        </svg>
+      </button>
 
       <!-- Vertical stepper (Task 9, z-tier 10) -- self-positioned, see TimeMachineStepper.vue's own
-           header/<style> comments for the exact edge-hugging geometry this ports from Vue2. Wired
+           header and style-block comments for the exact edge-hugging geometry this ports from Vue2. Wired
            to the SAME stepLater/stepEarlier the keyboard handler (Task 7, top of this file) already
            calls -- not re-implemented here, per that task's own explicit hand-off note. -->
       <TimeMachineStepper
@@ -503,6 +544,15 @@ onUnmounted(() => {
   background-repeat: no-repeat;
   background-position: center center;
 }
+/* Fix wave A4 (deferred from A2's audit-stage.md #4): Vue2 parity byte-for-byte
+   (`.tm-stage__clone-media-placeholder`, TimeMachineStage.vue:2936-2940) -- the stand-in box
+   `sanitizeClonedNode` (see this file's own script-block comment) swaps in for every cloned
+   video/canvas element, in place of the dead black box either would otherwise render as. */
+.tm-stage__clone-media-placeholder {
+  width: 100%;
+  height: 100%;
+  background: var(--tm-clone-media-placeholder-bg);
+}
 .tm-stage__glass {
   position: absolute;
   inset: 0;
@@ -533,12 +583,16 @@ onUnmounted(() => {
   border: none;
   background: none;
   color: var(--tm-gear-text);
-  font-size: 20px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: transform 0.2s ease, color 0.2s ease;
 }
 .tm-stage__gear:hover { color: var(--tm-chrome-text); transform: rotate(45deg); }
+/* Fix wave A4: the inline MDI cog-outline SVG's own intrinsic box -- 20px matches this button's
+   previous `font-size: 20px` (the Unicode glyph's own rendered size before this port). */
+.tm-stage__gear-icon { width: 20px; height: 20px; }
 
 /* Bottom action bar -- Vue2 parity byte-for-byte (`.tm-bottom-bar`, TimeMachineStage.vue). 80px
    height is Vue2's own `$tm-bottom-gap` literal (the same 80 timeMachineMath.ts's own

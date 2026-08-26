@@ -49,7 +49,16 @@ const { t } = useI18n()
       :aria-label="t('tmStepLater')"
       :title="t('tmStepLater')"
       @click="emit('later')"
-    >▲</button>
+    >
+      <!-- Fix wave A4 (deferred from A2's audit-stage.md #10): Vue2's own `.tm-stepper__btn`
+           icons are MDI `chevron-up`/`chevron-down` (`<b-icon icon="chevron-up"/>`, own file:1361,
+           1372) -- ported as hand-inlined SVGs reproducing those exact MDI paths (house convention,
+           see TimeMachineStage.vue's own gear-icon comment for the same derivation), replacing the
+           previous plain Unicode ▲/▼ triangles, a visibly different mark entirely. -->
+      <svg class="tm-stepper-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z" />
+      </svg>
+    </button>
     <div class="tm-stepper-time">{{ label }}</div>
     <button
       type="button"
@@ -58,7 +67,11 @@ const { t } = useI18n()
       :aria-label="t('tmStepEarlier')"
       :title="t('tmStepEarlier')"
       @click="emit('earlier')"
-    >▼</button>
+    >
+      <svg class="tm-stepper-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M7.41,8.59L12,13.17L16.59,8.59L18,10L12,16L6,10L7.41,8.59Z" />
+      </svg>
+    </button>
   </div>
 </template>
 
@@ -108,8 +121,6 @@ const { t } = useI18n()
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   color: var(--tm-chrome-text);
-  font-size: 13px;
-  line-height: 1;
   cursor: pointer;
   /* Fix wave A2 (audit-stage.md #10, priority list item 14): Vue2's own literal
      (`background 0.15s ease, opacity 0.15s ease`, TimeMachineStage.vue:3309) -- plain `ease`, not
@@ -118,6 +129,10 @@ const { t } = useI18n()
 }
 .tm-stepper-btn:hover:not(:disabled) { background: var(--tm-stepper-btn-hover-bg); }
 .tm-stepper-btn:disabled { opacity: 0.35; cursor: default; }
+/* Fix wave A4: the inline MDI chevron-up/chevron-down SVG's own intrinsic box -- 13px matches
+   this button's previous `font-size: 13px` (the Unicode triangle glyphs' own rendered size before
+   this port). */
+.tm-stepper-icon { width: 13px; height: 13px; }
 
 .tm-stepper-time {
   font-size: 11.5px;
