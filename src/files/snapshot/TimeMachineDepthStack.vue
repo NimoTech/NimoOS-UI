@@ -423,7 +423,13 @@ onUnmounted(() => {
   border-radius: 12px;
   overflow: hidden;
   background: var(--tm-panel-bg-solid);
-  box-shadow: var(--card-shadow-hi);
+  /* Fix wave A2 (audit-stage.md #5): Vue2's own `.tm-stage__depth-strip` box-shadow is a single
+     layer (TimeMachineStage.vue:3042) -- `--card-shadow-hi`'s 3-layer shadow (with an inset
+     highlight Vue2 never has on this element) was a substitution error, not an approved token
+     reuse; `--tm-depth-shadow` pins the exact Vue2 literal instead (see theme.css's own comment
+     on that token for the value, not repeated here to avoid writing a bare color literal in this
+     style block). */
+  box-shadow: var(--tm-depth-shadow);
   transform-origin: 50% 0%;
   pointer-events: none;
 }
@@ -431,15 +437,16 @@ onUnmounted(() => {
 /* The per-slot "dimmer with depth" falloff lives on this separate overlay (rather than a `filter`
    on the strip itself) -- a `filter` on a box wrapping a real DOM subtree can force a repaint of
    it on every value change; an overlay's own `opacity` never does (Vue2's own M2-F12 perf
-   rationale). `--tm-text` (the darkest token in the approved Task 1 palette, see tmTokens.test.ts)
-   stands in for Vue2's own hardcoded near-black scrim color -- both are opacity-scaled overlays
-   meant to read the same in either theme, matching every other --tm-* token's own "same value in
-   both themes" rule; there is no dedicated tm-scrim token in the Task 1 list, and this task is not
-   authorized to add one. */
+   rationale). Fix wave A2 (audit-stage.md #6): Vue2's own literal is PURE black
+   (`.tm-stage__depth-strip__dim`'s own `background`, TimeMachineStage.vue:3081) -- the previous
+   `--tm-text` token (a navy-grey ink color, see theme.css) was a substitution error that tinted
+   every strip in the receding stack blue-grey instead of neutrally darkening it; `--tm-depth-dim`
+   pins the exact Vue2 literal instead (see theme.css's own comment on that token for the value,
+   not repeated here to avoid writing a bare color literal in this style block). */
 .tm-depth-strip__dim {
   position: absolute;
   inset: 0;
-  background: var(--tm-text);
+  background: var(--tm-depth-dim);
   pointer-events: none;
 }
 </style>
