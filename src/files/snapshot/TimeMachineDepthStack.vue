@@ -504,10 +504,19 @@ onUnmounted(() => {
   /* Fix wave A2 (audit-stage.md #5): Vue2's own `.tm-stage__depth-strip` box-shadow is a single
      layer (TimeMachineStage.vue:3042) -- `--card-shadow-hi`'s 3-layer shadow (with an inset
      highlight Vue2 never has on this element) was a substitution error, not an approved token
-     reuse; `--tm-depth-shadow` pins the exact Vue2 literal instead (see theme.css's own comment
-     on that token for the value, not repeated here to avoid writing a bare color literal in this
-     style block). */
-  box-shadow: var(--tm-depth-shadow);
+     reuse.
+     Fix wave F (Ruling F'-1, owner acceptance 2026-08-26, shadow pop at the reveal swap): this
+     used to be a DEDICATED `--tm-depth-shadow` token pinning Vue2's own (weaker) literal for this
+     element specifically -- now retired in favor of `--tm-fwin-shadow`, the SAME token
+     `.tm-fwin--active` (TimeMachineStage.vue) uses for the real window's own shadow. The owner
+     reported the shadow visibly SNAPPING from weak to strong the instant a promoted strip becomes
+     the real window: this strip sits pixel-for-pixel underneath the fwin (D2's own geometry-parity
+     tests) and is only ever exposed while the fwin is hidden mid-travel, so at depth 0 the strip's
+     shadow must already read as the fwin's own for the swap to be paint-invisible. See theme.css's
+     own comment on `--tm-fwin-shadow` for the full Ruling F'-1 trace (why retiring the token
+     outright, not aliasing it, was the right call) and timeMachineDepthStackGeometryParity.test.ts
+     for the CI guard pinning this exact reference. */
+  box-shadow: var(--tm-fwin-shadow);
   transform-origin: 50% 0%;
   pointer-events: none;
 }

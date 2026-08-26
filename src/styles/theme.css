@@ -420,17 +420,31 @@
   --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
   /* Fix wave A2 (audit-stage.md #5/#6/#4/#10/#12): pixel-pinned to Vue2's own remaining
      TimeMachineStage.vue literals the earlier waves left on `--card-shadow-hi`/`--tm-text`/a
-     borrowed rail token instead of a dedicated one. `--tm-depth-shadow` is `.tm-stage__depth-strip`'s
-     own single-layer `box-shadow` (3042); `--tm-fwin-shadow` is `.tm-fwin--active`'s own single-layer
-     `box-shadow` (3198) -- both replace the generic 3-layer `--card-shadow-hi` (with its inset
-     highlight Vue2 never has on either element). `--tm-depth-dim` is `.tm-stage__depth-strip__dim`'s
-     own literal `background: #000` (3081, pure black, not `--tm-text`'s navy-grey). `--tm-gear-text`
-     is `.tm-stage__gear`'s own resting `color` (3260) -- hover reuses the existing `--tm-chrome-text`
-     (#fff), same literal as Vue2's own hover `color: #ffffff` (3262), so no separate hover token was
-     needed. `--tm-rail-skeleton` is `.tm-tick-skeleton`'s own literal `background` (3403) -- kept
-     distinct from `--tm-rail-tick-sub` (0.2 alpha, the sub-tick's own resting color) since Vue2 pins
-     a different alpha (0.28) for the loading placeholder than for any real tick. */
-  --tm-depth-shadow: 0 6px 18px rgba(5, 8, 30, 0.3);
+     borrowed rail token instead of a dedicated one. `--tm-fwin-shadow` is `.tm-fwin--active`'s own
+     single-layer `box-shadow` (3198), replacing the generic 3-layer `--card-shadow-hi` (with its
+     inset highlight Vue2 never has on this element). `--tm-depth-dim` is `.tm-stage__depth-strip__
+     dim`'s own literal `background: #000` (3081, pure black, not `--tm-text`'s navy-grey).
+     `--tm-gear-text` is `.tm-stage__gear`'s own resting `color` (3260) -- hover reuses the existing
+     `--tm-chrome-text` (#fff), same literal as Vue2's own hover `color: #ffffff` (3262), so no
+     separate hover token was needed. `--tm-rail-skeleton` is `.tm-tick-skeleton`'s own literal
+     `background` (3403) -- kept distinct from `--tm-rail-tick-sub` (0.2 alpha, the sub-tick's own
+     resting color) since Vue2 pins a different alpha (0.28) for the loading placeholder than for
+     any real tick.
+     Fix wave F (Ruling F'-1, owner acceptance 2026-08-26, shadow pop at the reveal swap): this
+     block used to ALSO define `--tm-depth-shadow: 0 6px 18px rgba(5,8,30,0.3)` -- Vue2's own,
+     genuinely weaker, `.tm-stage__depth-strip` box-shadow (3042), distinct from this fwin shadow's
+     `0 18px 50px @0.45`. Since the depth-0 strip sits pixel-for-pixel underneath the real window
+     (D2's own geometry-parity tests) and is only ever exposed during a travel (the fwin is opaque
+     the rest of the time, occluding it completely), that weaker shadow was visibly REPLACED by this
+     stronger one the instant the fwin's opacity snapped back from 0 to 1 at reveal -- a "shadow
+     suddenly appears" pop breaking the "this exact panel slid forward" illusion. The owner's
+     seamlessness directive outranks Vue2's own two-distinct-literals design here (same posture as
+     Ruling E-1' on scaleX/scaleY): retired outright, not aliased -- `--tm-depth-shadow` had exactly
+     ONE consumer (`.tm-depth-strip`, TimeMachineDepthStack.vue) and no reason to ever diverge from
+     `--tm-fwin-shadow` again, so keeping a second token whose value must forever equal the first
+     one's would only invite a FUTURE edit to one drifting from the other -- deleted instead, and
+     `.tm-depth-strip` now references `--tm-fwin-shadow` directly. See timeMachineDepthStackGeometry
+     Parity.test.ts's own new case pinning that reference. */
   --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
   --tm-depth-dim: #000;
   --tm-gear-text: rgba(241, 245, 249, 0.75);
@@ -938,9 +952,10 @@
      full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
   --tm-action-bar-bg: rgb(49, 49, 54);
   --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
-  /* Fix wave A2 -- see the dark block's own comment on these six tokens for the full Vue2
-     provenance; values are identical here (owner ruling: same look in both themes). */
-  --tm-depth-shadow: 0 6px 18px rgba(5, 8, 30, 0.3);
+  /* Fix wave A2 -- see the dark block's own comment on these tokens for the full Vue2 provenance;
+     values are identical here (owner ruling: same look in both themes). Fix wave F (Ruling F'-1):
+     `--tm-depth-shadow` retired here too -- see the dark block's own comment on this token's
+     removal for the full trace. */
   --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
   --tm-depth-dim: #000;
   --tm-gear-text: rgba(241, 245, 249, 0.75);

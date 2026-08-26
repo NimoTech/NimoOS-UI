@@ -137,10 +137,12 @@ const TOKENS = [
   '--tm-action-bar-bg',
   '--tm-action-bar-item-hover-bg',
   // Fix wave A2 (audit-stage.md #5/#6/#4/#10/#12): pixel-pinned to Vue2's own single-layer
-  // `.tm-stage__depth-strip`/`.tm-fwin--active` box-shadow, `.tm-stage__depth-strip__dim`'s pure
-  // black, `.tm-stage__gear`'s resting color, and `.tm-tick-skeleton`'s own distinct alpha -- see
-  // theme.css's own comment on these five for the full per-token Vue2 provenance.
-  '--tm-depth-shadow',
+  // `.tm-fwin--active` box-shadow, `.tm-stage__depth-strip__dim`'s pure black, `.tm-stage__gear`'s
+  // resting color, and `.tm-tick-skeleton`'s own distinct alpha -- see theme.css's own comment on
+  // these four for the full per-token Vue2 provenance. (A former sibling here, `--tm-depth-shadow`,
+  // was retired by fix wave F's Ruling F'-1 -- see theme.css's own comment on `--tm-fwin-shadow`
+  // for why: unifying the depth-strip's shadow onto this SAME token fixed a visible "shadow pop" at
+  // the Time Machine reveal swap.)
   '--tm-fwin-shadow',
   '--tm-depth-dim',
   '--tm-gear-text',
@@ -229,7 +231,6 @@ describe('Time Machine --tm-* tokens (Task 1)', () => {
     expect(valueIn(dark, '--tm-placeholder-text')).toBe('#9ca3af')
     expect(valueIn(dark, '--tm-action-bar-bg')).toBe('rgb(49, 49, 54)')
     expect(valueIn(dark, '--tm-action-bar-item-hover-bg')).toBe('rgb(86, 86, 90)')
-    expect(valueIn(dark, '--tm-depth-shadow')).toBe('0 6px 18px rgba(5, 8, 30, 0.3)')
     expect(valueIn(dark, '--tm-fwin-shadow')).toBe('0 18px 50px rgba(5, 8, 30, 0.45)')
     expect(valueIn(dark, '--tm-depth-dim')).toBe('#000')
     expect(valueIn(dark, '--tm-gear-text')).toBe('rgba(241, 245, 249, 0.75)')

@@ -89,6 +89,45 @@ describe('Time Machine depth-stack vs real window: geometry identity (fix wave D
     expect(decl(stripBody, 'border-radius')).toBe(decl(fwinBody, 'border-radius'))
   })
 
+  // Fix wave F (Ruling F'-1, owner acceptance 2026-08-26): the third paint mismatch this file's
+  // own D2/F sequence found at the reveal swap -- the depth-0 strip used to carry a dedicated,
+  // WEAKER `--tm-depth-shadow` token while the real, revealed `.tm-fwin--active` carries a
+  // stronger `--tm-fwin-shadow` -- since the strip sits pixel-for-pixel underneath the fwin (the
+  // border-radius/geometry tests above) and is only ever exposed mid-travel (the fwin is opaque
+  // and occludes it completely the rest of the time), that weaker shadow was visibly REPLACED by
+  // the stronger one the instant the fwin's opacity snapped back at reveal -- a "shadow suddenly
+  // appears" pop. Fixed by retiring `--tm-depth-shadow` outright (theme.css's own comment on
+  // `--tm-fwin-shadow` has the full trace on why retiring, not aliasing, was the right call) and
+  // pointing `.tm-depth-strip` at the SAME `--tm-fwin-shadow` token `.tm-fwin--active` uses -- so
+  // the strongest test is "do both reference the identical token", immune to either value ever
+  // being edited in isolation.
+  it('.tm-depth-strip and .tm-fwin--active share the SAME box-shadow token (no shadow pop at the reveal swap)', () => {
+    const stripBody = ruleBody(depthStackCss, '.tm-depth-strip')
+    const fwinBody = ruleBody(stageCss, '.tm-fwin--active')
+    expect(decl(stripBody, 'box-shadow')).toBe(decl(fwinBody, 'box-shadow'))
+    expect(decl(stripBody, 'box-shadow')).toBe('var(--tm-fwin-shadow)')
+  })
+
+  it('the retired --tm-depth-shadow token is gone from theme.css and no longer referenced by any live declaration', () => {
+    // Comments (theme.css's own Ruling F'-1 trace, this file's own comments above) are allowed to
+    // still mention the retired token BY NAME (history/rationale) -- stripped here (same technique
+    // tmTokens.test.ts's own `stripComments` uses) so only a LIVE `--tm-depth-shadow:` declaration
+    // would fail this check, not the prose explaining why it no longer exists.
+    const themeCssCodeOnly = readFileSync(path.resolve(DIR, '../../styles/theme.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ' ')
+    expect(themeCssCodeOnly).not.toMatch(/--tm-depth-shadow\s*:/)
+    expect(depthStackCss).not.toMatch(/var\(--tm-depth-shadow\)/)
+    expect(stageCss).not.toMatch(/var\(--tm-depth-shadow\)/)
+  })
+
+  it('neither .tm-depth-strip nor .tm-fwin--active declares outline/filter (no other paint divergence at the swap)', () => {
+    const stripBody = ruleBody(depthStackCss, '.tm-depth-strip')
+    const fwinBody = ruleBody(stageCss, '.tm-fwin--active')
+    for (const body of [stripBody, fwinBody]) {
+      expect(body).not.toMatch(/(?:^|;)\s*outline\s*:/)
+      expect(body).not.toMatch(/(?:^|;)\s*filter\s*:/)
+    }
+  })
+
   // Fix wave D (D2, second mismatch investigated): a CSS `transition` on `.tm-fwin`/
   // `.tm-fwin--active` (or an ancestor) would replay at the exact instant `.tm-fwin--traveling` is
   // removed (reveal), on top of GSAP's own tween of the depth-0 strip -- two independent, unrelated
