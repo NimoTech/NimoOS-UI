@@ -119,6 +119,7 @@ import {
 } from '../util/timeMachineChoreo'
 import { getSnapshotPreview } from '../util/snapshotPreviewCache'
 import { snapshotBrowsePath } from '../util/snapshotPath'
+import { tmDebugLog } from '../util/tmDebug'
 import { injectTmStageRoot } from './tmStageRoot'
 import SnapshotPreviewWindow from './SnapshotPreviewWindow.vue'
 
@@ -325,7 +326,11 @@ function windowNames(atIndex: number): string[] {
 watch(
   () => browse.tmTravel,
   (val) => {
-    if (!val || !val.from || !val.to) return
+    if (!val || !val.from || !val.to) {
+      tmDebugLog('watcher tmTravel: ignored (transient/null)', val)
+      return
+    }
+    tmDebugLog('watcher tmTravel: armed', val)
     const fromIdx = names.value.indexOf(val.from)
     const toIdx = names.value.indexOf(val.to)
     const flyNames = computeFlyThroughPlan(val.from, val.to).map((step) => step.name)
@@ -338,8 +343,19 @@ watch(
 
 watch(
   () => browse.currentSnapshotName,
-  (newName) => {
-    if (!pendingTravel || newName !== pendingTravel.to) return
+  (newName, oldName) => {
+    // Fix wave K (owner acceptance 2026-08-26): traced end to end -- see the guard immediately
+    // below for the exact fix (files.ts's own load() epoch guard, snapshotBrowse.ts's stores/
+    // files.ts) that keeps this watcher from ever observing a STALE, out-of-order value in the
+    // first place; the `pendingTravel.to` comparison here is the second, independent line of
+    // defense this dispatch asked for -- any fire whose value is null/transient, or does not match
+    // the travel this component is actually waiting on, is ignored rather than treated as a new
+    // travel (which would otherwise bump travelRunToken and kill an in-flight timeline for nothing).
+    tmDebugLog('watcher currentSnapshotName:', oldName, '->', newName, 'pendingTravel=', pendingTravel)
+    if (!pendingTravel || newName !== pendingTravel.to) {
+      tmDebugLog('watcher currentSnapshotName: ignored (no matching pending travel -- not a genuinely new travel)')
+      return
+    }
     const travel = pendingTravel
     pendingTravel = null
     const fromIdx = names.value.indexOf(travel.from)
@@ -353,6 +369,7 @@ watch(
     const plan = computeFlyThroughPlan(travel.from, travel.to)
     const durationMs = plan.length ? flyThroughDurationMs(plan) : travelDurationMs(steps)
     const myToken = ++travelRunToken
+    tmDebugLog('travelRunToken bump ->', myToken, 'for a genuinely new travel', travel, `(steps=${steps}, planLen=${plan.length}, durationMs=${durationMs})`)
     // $nextTick equivalent (Vue2's own playDollyTravel): a name that is entering `dollySlots` for
     // the FIRST time on this exact render (a pinned endpoint that was not already part of the
     // cascade) needs its own v-tm-pose/v-tm-dim `mounted` hook to have actually run -- i.e. the DOM
@@ -360,7 +377,10 @@ watch(
     // lookups below can find it. `armReveal` now runs from THIS SAME callback (see `travelRunToken`'s
     // own comment above) rather than synchronously alongside it.
     nextTick(() => {
-      if (myToken !== travelRunToken) return
+      if (myToken !== travelRunToken) {
+        tmDebugLog('runTravel skipped -- superseded before its own nextTick ran (token', myToken, '!=', travelRunToken, ')')
+        return
+      }
       runTravel(steps, travel, plan, fromIdx, toIdx)
       armReveal(travel, durationMs)
     })
@@ -474,7 +494,9 @@ function runTravel(steps: number, travel: { from: string, to: string }, plan: Fl
   const targets = stackPlan
     .map((entry) => ({ el: stripRefs.get(entry.name) ?? null, dimEl: dimRefs.get(entry.name) ?? null, pose: entry.toPose, name: entry.name }))
     .filter((target) => target.el !== null) as TravelTarget[]
+  tmDebugLog('runTravel start', travel, `(targets=${targets.length}, planLen=${plan.length})`)
   if (travelTimeline) {
+    tmDebugLog('timeline killed (source: superseded by a new, genuinely different travel -- runTravel called again before the previous one settled)')
     travelTimeline.kill()
     travelTimeline = null
   }
@@ -518,6 +540,7 @@ function runTravel(steps: number, travel: { from: string, to: string }, plan: Fl
     durationMsOverride = TRAVEL_FLY_LAYER_DURATION_MS
   }
 
+  tmDebugLog('runTravel presets applied:', Object.keys(presetPoses).length, 'of', targets.length, 'targets')
   const build = () => playTravelTimeline(targets, { steps, delayOverridesMs, presetPoses, durationMsOverride })
   travelTimeline = gsapCtx.add(build)
 }
@@ -586,8 +609,9 @@ function waitForFilesLoad(targetRealPath: string): Promise<void> {
 // callback can still run at all is an already-queued Promise microtask (a timer clear cannot
 // cancel that), and this guard is what makes that a safe no-op (Vue2's own `reveal(token)` --
 // see this file's own header comment).
-function settle(token: number) {
+function settle(token: number, path: 'legit' | 'depthstack-safety' = 'legit') {
   if (token !== travelToken) return
+  tmDebugLog('settle (path:', path, ')')
   clearTravelTimers()
   // Fix round 2 (review finding 3, re-review): resets the WHOLE pin array unconditionally, not
   // just the settling travel's own {from,to} (that was fix round 1's own mistake -- see this
@@ -622,12 +646,13 @@ function settle(token: number) {
 function armReveal(travel: { from: string, to: string }, durationMs: number) {
   travelToken += 1
   const token = travelToken
+  tmDebugLog('armReveal', travel, `(durationMs=${durationMs}, token=${token})`)
   clearTravelTimers()
   // Safety ceiling: reveals unconditionally once durationMs + TRAVEL_SAFETY_EXTRA_MS has passed,
   // regardless of whether the target's own preview promise ever appears, settles, or rejects.
   travelSafetyTimer = setTimeout(() => {
     travelSafetyTimer = null
-    settle(token)
+    settle(token, 'depthstack-safety')
   }, durationMs + TRAVEL_SAFETY_EXTRA_MS)
   travelTimer = setTimeout(() => {
     travelTimer = null

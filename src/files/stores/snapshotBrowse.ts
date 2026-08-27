@@ -18,6 +18,7 @@ import {
   EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS, TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS,
   TRAVEL_SAFETY_EXTRA_MS, TRAVEL_STORE_SAFETY_MARGIN_MS,
 } from '../util/timeMachineChoreo'
+import { tmDebugLog } from '../util/tmDebug'
 
 // Time Machine's own snapshot-list item — a straight alias of the /v2/snapshot list's raw shape
 // (not the storage area's mapped SnapshotItemView): keeping `created_at` (not `createdAt`) lets a
@@ -409,6 +410,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     const from = currentSnapshotName.value
     if (from === name) return
     const rel = browseInfo.value?.relPath ?? ''
+    tmDebugLog('store switchTo:', from, '->', name)
     tmTravel.value = { from, to: name }
     tmTravelActive.value = true
     travelSafetyToken += 1
@@ -417,6 +419,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     travelSafetyTimer = setTimeout(() => {
       travelSafetyTimer = null
       if (safetyToken !== travelSafetyToken) return
+      tmDebugLog('settle (path: store-safety ) -- switchTo() own flat ceiling fired, tmTravelActive forced false')
       tmTravelActive.value = false
     }, Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS + TRAVEL_STORE_SAFETY_MARGIN_MS)
     try {

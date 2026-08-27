@@ -64,6 +64,27 @@ export const useFilesStore = defineStore('files', () => {
     return disks.value.length ? disks.value[0].path : ''
   }
 
+  // Fix wave K (Files Time Machine Vue2-parity line, owner acceptance 2026-08-26): epoch guard
+  // against an out-of-order response. Unlike ensureVolumes() (snapshotBrowse.ts) and
+  // useFolderSizesStore() (see this function's own pre-existing comment just below), load() had
+  // no such guard -- whichever call's own service.folder.getList() happened to RESOLVE LAST won,
+  // regardless of which call was STARTED last. Two load() calls fired close together (e.g. a
+  // rapid Time Machine rail re-click: switchTo(A) immediately followed by switchTo(B), before A's
+  // own listing fetch has resolved) race on the network; if A's response is merely SLOWER than
+  // B's (not required to be pathologically slow -- ordinary jitter is enough), it lands AFTER B's
+  // already-correct one and silently overwrites currentPath/entries back to A -- with route/rail
+  // state still showing B. Confirmed via a real router + real Files.vue + real async-timing
+  // integration test (src/files/snapshot/timeMachineFlightChainIntegration.test.ts's own "rapid
+  // re-supersede" case): browse.currentSnapshotName reverts to the stale target, and because
+  // snapshotBrowse.ts's own `pendingTravel` guard (TimeMachineDepthStack.vue) has ALREADY been
+  // consumed by B's own legitimate travel, this stale flip fires with no matching pending travel
+  // -- no runTravel() call ever animates it, so every already-tweened depth-stack strip is simply
+  // never told to move again, appearing permanently frozen at wherever B's travel left it (the
+  // owner's own screenshot symptom) until an unrelated safety net eventually reveals the real
+  // window over it. Guarded here, at the root cause, exactly like ensureVolumes()/
+  // useFolderSizesStore() already guard their own async races -- a stale response can now never
+  // write over a newer call's state, so currentPath only ever reflects the LAST-STARTED load().
+  let loadEpoch = 0
   async function load(realPath: string) {
     clearSelection()
     // New listing, new world: computed folder sizes from the previous view
@@ -71,12 +92,15 @@ export const useFilesStore = defineStore('files', () => {
     useFolderSizesStore().reset()
     loading.value = true
     error.value = ''
+    const myEpoch = ++loadEpoch
     try {
       const data = await service.folder.getList(realPath)
+      if (myEpoch !== loadEpoch) return // superseded by a newer load() call -- discard this stale response entirely
       const content: FileEntry[] = (data && (data as { content?: FileEntry[] }).content) || []
       entries.value = content.filter((e) => !isHiddenEntry(e.name))
       currentPath.value = realPath
     } catch (e) {
+      if (myEpoch !== loadEpoch) return
       // This used to be swallowed into an empty listing, which renders exactly
       // like a genuinely empty folder -- the user could not tell "load failed"
       // from "nothing here", and had nothing to retry.
@@ -85,7 +109,10 @@ export const useFilesStore = defineStore('files', () => {
       currentPath.value = realPath
       error.value = folderListErrorMsg(e)
     } finally {
-      loading.value = false
+      // Only the current epoch's own call may clear `loading` -- a stale call's finally landing
+      // between a newer call's own start and finish must not flip it back false while the real
+      // navigation is still genuinely in flight.
+      if (myEpoch === loadEpoch) loading.value = false
     }
   }
 
