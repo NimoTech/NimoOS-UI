@@ -11,8 +11,8 @@ import TerminalTabs from './TerminalTabs.vue'
 import TerminalLockCard from './TerminalLockCard.vue'
 import { useTerminalSession } from './useTerminalSession'
 import { useTerminalWindows } from './useTerminalWindows'
-import { copyText } from '../files/util/clipboard'
 import { selectionPreview } from './selectionPreview'
+import { decodeOsc52, writeClipboard, type XtermLike } from './osc52'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -37,13 +37,16 @@ function bindWindowActivity() {
 
 // ── Copy-on-select ──────────────────────────────────────────────────────────
 // ttyd's client exposes its xterm instance as `window.term` inside the iframe
-// (same origin: /v1/terminal/). xterm renders to canvas, so the DOM selection
-// is useless — ask xterm itself for the selected text on mouseup and push it
-// to the clipboard. copyText() already handles the plaintext-HTTP-on-LAN case
-// (no navigator.clipboard) via execCommand, and the "Copied: …" pill below
-// tells the user what actually landed on the clipboard.
-interface XtermLike { getSelection(): string; focus(): void }
+// (same origin: /v1/terminal/). Two paths, because the session runs in tmux
+// with `mouse on`:
+//  • plain drag → tmux owns the selection; on release it emits OSC 52 with the
+//    text (see osc52.ts), which we catch via xterm's parser hook;
+//  • shift+drag → xterm's own selection; read it with getSelection() on mouseup.
+// Either way the text goes to the clipboard and the "Copied: …" pill below
+// tells the user what actually landed there.
 let selDoc: Document | null = null
+let oscHandle: { dispose(): void } | null = null
+let termPoll: ReturnType<typeof setInterval> | undefined
 const copied = ref('')
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -53,28 +56,66 @@ function showCopied(text: string) {
   copiedTimer = setTimeout(() => { copied.value = '' }, 2200)
 }
 
-async function onFrameMouseUp(e: MouseEvent) {
-  if (e.button !== 0) return // right-click menus / middle-click paste must not re-copy
-  const term = (frame.value?.contentWindow as (Window & { term?: XtermLike }) | null | undefined)?.term
-  const text = term?.getSelection?.() ?? ''
-  if (!text) return
+function frameTerm(): XtermLike | undefined {
+  try { return (frame.value?.contentWindow as (Window & { term?: XtermLike }) | null | undefined)?.term } catch { return undefined }
+}
+
+async function copyToClipboard(text: string, doc: Document, term: XtermLike | undefined) {
   try {
-    await copyText(text)
-    // copyText's execCommand fallback focuses a temporary textarea in the parent
-    // document; hand focus back to the terminal so the user can keep typing.
+    await writeClipboard(text, doc)
+    // the execCommand fallback focused a temporary textarea; hand focus back
+    // to the terminal so the user can keep typing.
     term?.focus?.()
     showCopied(text)
   } catch { /* clipboard unavailable — selection still highlighted, nothing to report */ }
 }
 
+async function onFrameMouseUp(e: MouseEvent) {
+  if (e.button !== 0) return // right-click menus / middle-click paste must not re-copy
+  const term = frameTerm()
+  const text = term?.getSelection?.() ?? ''
+  if (!text || !selDoc) return
+  await copyToClipboard(text, selDoc, term)
+}
+
+function onOsc52(data: string): boolean {
+  const text = decodeOsc52(data)
+  if (!text || !selDoc) return false
+  void copyToClipboard(text, selDoc, frameTerm())
+  return true
+}
+
+// ttyd constructs the xterm instance from its own script after the document
+// loads, so `window.term` may not exist yet at the iframe's load event — poll
+// briefly until it does, then hook OSC 52 once.
+function bindOsc52() {
+  clearInterval(termPoll)
+  let tries = 0
+  const attempt = () => {
+    const term = frameTerm()
+    if (term?.parser?.registerOscHandler) {
+      clearInterval(termPoll); termPoll = undefined
+      oscHandle = term.parser.registerOscHandler(52, onOsc52)
+    } else if (++tries >= 50) { clearInterval(termPoll); termPoll = undefined }
+  }
+  attempt()
+  if (!oscHandle) termPoll = setInterval(attempt, 100)
+}
+
 function bindSelectionCopy(doc: Document) {
-  if (selDoc === doc) return
+  // same document loading again (or a load that fired before ttyd created
+  // `window.term`): keep the mouseup hook, just make sure OSC 52 is attached.
+  if (selDoc === doc) { if (!oscHandle) bindOsc52(); return }
   unbindSelectionCopy()
   doc.addEventListener('mouseup', onFrameMouseUp)
   selDoc = doc
+  bindOsc52()
 }
 
 function unbindSelectionCopy() {
+  clearInterval(termPoll); termPoll = undefined
+  try { oscHandle?.dispose() } catch { /* terminal already torn down */ }
+  oscHandle = null
   if (!selDoc) return
   try { selDoc.removeEventListener('mouseup', onFrameMouseUp) } catch { /* document already torn down */ }
   selDoc = null
