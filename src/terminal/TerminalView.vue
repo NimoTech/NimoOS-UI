@@ -254,13 +254,14 @@ onUnmounted(() => {
   backdrop-filter: blur(8px);
 }
 /* Copy-on-select confirmation: bottom-right of the stage, over the terminal,
-   never interactive. Stays on the dark console palette (like the stage) so it
-   reads the same in both themes; monospace echoes the copied command. */
+   never interactive. Uses the console tokens (same values in both themes, like
+   the stage itself) so it reads the same everywhere; monospace echoes the
+   copied command. */
 .term-copied {
   position: absolute; right: 14px; bottom: 14px; z-index: 20; max-width: min(70%, 560px);
   padding: 6px 12px; border-radius: 9px; font-size: 12px; line-height: 1.5;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: rgba(20, 20, 20, 0.86); color: #e6e6e6; border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--console-bg); color: var(--console-fg); border: 1px solid var(--border);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none;
   backdrop-filter: blur(8px);
 }
