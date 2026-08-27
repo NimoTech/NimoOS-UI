@@ -32,6 +32,8 @@ const PATHS: Record<string, string> = {
   grid: '<g><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></g>',
   user: '<g><circle cx="10" cy="7" r="3"/><path d="M3 17a7 7 0 0 1 14 0"/></g>',
   arrowRight: '<path d="M4 10h12M11 5l5 5-5 5"/>',
+  // Same glyph as AgentIcon.arrowBack — the rail's back button must look identical to the agent page's.
+  arrowBack: '<path d="M16 10H4"/><path d="m9 5-5 5 5 5"/>',
   download: '<g><path d="M10 3v9M6 9l4 4 4-4"/><path d="M4 16h12"/></g>',
 
   // KIcon extras (knowledge-page.jsx)

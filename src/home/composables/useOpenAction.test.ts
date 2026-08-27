@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore } from '../stores/apps'
+import { useSessionStore } from '../../stores/session'
 import { useOpenAction } from './useOpenAction'
 import { useStartApp, __resetStartAppForTest } from './useStartApp'
 import type { LayoutItem } from '../grid/types'
+
+// Workspace apps open in a new tab as `<origin>/app/#/<path>` (BASE_URL is '/app/' under vitest too).
+const tab = (path: string) => `http://host${import.meta.env.BASE_URL}#${path}`
 
 // P8 cutover: the files entry now uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).
 vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
@@ -21,16 +25,32 @@ beforeEach(() => {
   localStorage.removeItem('strangler:disabled:/settings')
   localStorage.removeItem('strangler:disabled:/kvm')
   localStorage.removeItem('strangler:disabled:/ai')
-  Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+  Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'host', origin: 'http://host', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
   vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
   vi.mocked(router.push).mockClear()
 })
 
 describe('useOpenAction.openApp', () => {
-  it('system app files should use in-app router.push, not full page navigation', () => {
+  it('files tile opens /app/#/files in a new tab (2026-08-27: workspace apps leave the desktop tab alone)', () => {
     const { openApp } = useOpenAction()
     openApp('files')
-    expect(router.push).toHaveBeenCalledWith('/files')
+    expect(opens).toEqual([tab('/files')])
+    expect(router.push).not.toHaveBeenCalled()
+    expect(hrefs.length).toBe(0)
+  })
+  it('workspace apps (files/photos/ai/appstore/knowledge/terminal) all open in a new tab; system panels (storage/settings/vm) stay in-app', () => {
+    // The terminal tile is adminOnly — it only exists in the apps store for an admin session.
+    useSessionStore().setUser({ role: 'admin' } as never)
+    useAppsStore().setApps([])
+    const { openApp } = useOpenAction()
+    openApp('files'); openApp('photos'); openApp('ai'); openApp('appstore'); openApp('knowledge'); openApp('terminal')
+    expect(opens).toEqual([
+      tab('/files'), tab('/photos'), tab('/ai/agent'), tab('/apps/store'), tab('/ai/knowledge'), tab('/terminal'),
+    ])
+    expect(router.push).not.toHaveBeenCalled()
+    openApp('storage'); openApp('settings'); openApp('vm')
+    expect(vi.mocked(router.push).mock.calls.map((c) => c[0])).toEqual(['/storage', '/settings', '/kvm'])
+    expect(opens).toHaveLength(6)
     expect(hrefs.length).toBe(0)
   })
   it('settings tile should use in-app router.push /settings (SP9-P8 cutover)', () => {
@@ -61,10 +81,10 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/kvm')
   })
-  it('appstore tile should use in-app router.push /apps/store (SP5-P8 cutover)', () => {
+  it('appstore tile opens /app/#/apps/store in a new tab (SP5-P8 cutover route)', () => {
     const { openApp } = useOpenAction()
     openApp('appstore')
-    expect(router.push).toHaveBeenCalledWith('/apps/store')
+    expect(opens).toEqual([tab('/apps/store')])
     expect(hrefs.length).toBe(0)
   })
   it('when fallback flag strangler:disabled:/apps==1, appstore should fall back to /#/legacy', () => {
@@ -89,10 +109,10 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/storage')
   })
-  it('photos tile should use in-app router.push /photos (SP7-P8b cutover)', () => {
+  it('photos tile opens /app/#/photos in a new tab (SP7-P8b cutover route)', () => {
     const { openApp } = useOpenAction()
     openApp('photos')
-    expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(opens).toEqual([tab('/photos')])
     expect(hrefs.length).toBe(0)
   })
   it('when fallback flag strangler:disabled:/photos==1, photos should fall back to Vue2 /#/photos (not /#/legacy)', () => {
@@ -109,7 +129,7 @@ describe('useOpenAction.openApp', () => {
     openApp('storage')
     expect(router.push).toHaveBeenCalledWith('/storage')
     openApp('appstore')
-    expect(router.push).toHaveBeenCalledWith('/apps/store')
+    expect(opens).toEqual([tab('/apps/store')])
     expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/photos')
   })
@@ -126,8 +146,8 @@ describe('useOpenAction.openApp', () => {
     const { openApp } = useOpenAction()
     openApp('settings'); expect(router.push).toHaveBeenCalledWith('/settings')
     openApp('storage'); expect(router.push).toHaveBeenCalledWith('/storage')
-    openApp('appstore'); expect(router.push).toHaveBeenCalledWith('/apps/store')
-    openApp('photos'); expect(router.push).toHaveBeenCalledWith('/photos')
+    openApp('appstore'); openApp('photos')
+    expect(opens).toEqual([tab('/apps/store'), tab('/photos')])
     expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/kvm')
   })
@@ -187,10 +207,11 @@ describe('useOpenAction.openItem', () => {
 })
 
 describe('AI section cutover (SP8-P6)', () => {
-  it('ai tile should use in-app router.push /ai/agent', () => {
+  it('ai tile opens /app/#/ai/agent in a new tab', () => {
     const { openApp } = useOpenAction()
     openApp('ai')
-    expect(router.push).toHaveBeenCalledWith('/ai/agent')
+    expect(opens).toEqual([tab('/ai/agent')])
+    expect(router.push).not.toHaveBeenCalled()
     expect(hrefs.length).toBe(0)
   })
 
@@ -230,10 +251,10 @@ describe('AI section cutover (SP8-P6)', () => {
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
   })
 
-  it('knowledge tile should use in-app router /ai/knowledge (SP14 #98, no fallback target)', () => {
+  it('knowledge tile opens /app/#/ai/knowledge in a new tab (SP14 #98 route, no fallback target)', () => {
     const { openApp } = useOpenAction()
     openApp('knowledge')
-    expect(router.push).toHaveBeenCalledWith('/ai/knowledge')
+    expect(opens).toEqual([tab('/ai/knowledge')])
     expect(hrefs.length).toBe(0)
   })
 

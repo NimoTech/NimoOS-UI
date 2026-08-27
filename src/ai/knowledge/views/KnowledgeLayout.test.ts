@@ -161,6 +161,46 @@ describe('KnowledgeLayout — rail', () => {
   })
 })
 
+describe('KnowledgeLayout — rail back button (replaces the former title / "RAG · NimoOS" head)', () => {
+  it('the rail head holds only the back button; the old title/sub text is gone', async () => {
+    const { w } = await mountLayout()
+    expect(w.find('.k-rail-title').exists()).toBe(false)
+    expect(w.find('.k-rail-sub').exists()).toBe(false)
+    expect(w.find('.k-rail').text()).not.toContain('RAG · NimoOS')
+    const back = w.find('.k-rail-head [data-test="back"]')
+    expect(back.exists()).toBe(true)
+    expect(back.text()).toBe('返回')
+    // First thing in the rail = top-left of the page.
+    expect(w.find('.k-rail > *').element).toBe(w.find('.k-rail-head').element)
+  })
+
+  it('click → router.push("/") when the tab has history', async () => {
+    const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(2)
+    const { w, router } = await mountLayout('/ai/knowledge/queue')
+    const push = vi.spyOn(router, 'push').mockResolvedValue(undefined)
+    await w.find('[data-test="back"]').trigger('click')
+    expect(push).toHaveBeenCalledWith('/')
+    historySpy.mockRestore()
+  })
+
+  it('click → hard-navigates to /app/ when the tab has no history (opened fresh from the launcher)', async () => {
+    const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(1)
+    const original = window.location
+    const loc = { ...original, href: '' } as unknown as Location
+    Object.defineProperty(window, 'location', { value: loc, writable: true, configurable: true })
+    try {
+      const { w, router } = await mountLayout()
+      const push = vi.spyOn(router, 'push')
+      await w.find('[data-test="back"]').trigger('click')
+      expect(push).not.toHaveBeenCalled()
+      expect(loc.href).toBe('/app/')
+    } finally {
+      Object.defineProperty(window, 'location', { value: original, writable: true, configurable: true })
+      historySpy.mockRestore()
+    }
+  })
+})
+
 describe('KnowledgeLayout — router-view outlet', () => {
   // [Review Minor, added 2026-08-01] The child page rendered by `<router-view/>`
   // (Stub in tests) was never tested before. Adding a basic existence assertion.

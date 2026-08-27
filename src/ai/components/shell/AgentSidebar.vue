@@ -20,7 +20,6 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AgentIcon from '../icons/AgentIcon.vue'
 import AlertDialog from '../../../components/ui/AlertDialog.vue'
-import brandLogo from '../../assets/nimo-ai-logo.png'
 import defaultAvatar from '../../assets/default-avatar.svg'
 import { useUserProfile } from '../../../stores/userProfile'
 
@@ -105,9 +104,18 @@ function onAvatarError() {
 // avatar in the *old* app only shows up here after a page reload — that's
 // expected, not a bug (see the store's comment for why).
 
+// The single "back" entry for the whole agent shell (the topbar used to have a
+// second one; both were merged here, at the top-left). The Agent page is opened
+// in a new tab from the home launcher, so the tab's history may not include
+// `/`. Try a router push first; if there's no history (we were the entry
+// point) fall back to a hard navigation so the back button always works.
 function goBack() {
-  if (window.history.length > 1) router.go(-1)
-  else router.push('/')
+  if (window.history.length > 1 && router.currentRoute.value.path !== '/') {
+    router.push('/').catch(() => { window.location.href = '/app/' })
+  } else {
+    // In the strangler-fig context, '/' is the old Vue2 app; the new app's entry point is '/app/'
+    window.location.href = '/app/'
+  }
 }
 
 const deleteDlg = ref<{ open: boolean; id: string | number | null }>({ open: false, id: null })
@@ -125,7 +133,9 @@ function onDeleteConfirm() {
 <template>
   <aside class="sidebar" :class="{ collapsed }">
     <template v-if="collapsed">
-      <img class="brand-mark" :src="brandLogo" alt="Nimo AI" style="margin: 0 0 14px" />
+      <button class="side-back side-back-rail" data-test="back" @click="goBack" :title="t('aiBack')">
+        <AgentIcon name="arrowBack" :size="16" />
+      </button>
       <button class="icon-btn" @click="emit('new')"><AgentIcon name="edit" :size="16" /></button>
       <!-- Vue2 AgentSidebar.vue:6 — the collapsed rail's scheduled-tasks entry. -->
       <button class="icon-btn" :title="t('aiTasksTitle')" data-test="open-tasks" @click="emit('open-tasks')">
@@ -135,15 +145,7 @@ function onDeleteConfirm() {
       <button class="icon-btn" @click="emit('open-settings')" :title="t('aiSettings')"><AgentIcon name="settings" :size="16" /></button>
     </template>
     <template v-else>
-      <div class="sidebar-head">
-        <img class="brand-mark" :src="brandLogo" alt="Nimo AI" />
-        <div style="flex: 1; min-width: 0">
-          <div class="brand-name">Nimo</div>
-          <div class="brand-sub">AI · NAS</div>
-        </div>
-      </div>
-
-      <button class="side-back" @click="goBack" :title="t('aiBack')">
+      <button class="side-back" data-test="back" @click="goBack" :title="t('aiBack')">
         <AgentIcon name="arrowBack" :size="15" />
         <span>{{ t('aiBack') }}</span>
       </button>

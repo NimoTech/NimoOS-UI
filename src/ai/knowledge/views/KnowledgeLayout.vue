@@ -183,6 +183,17 @@ const userLabel = computed<string>(
   () => storedUser.value.nickname || storedUser.value.username || t('aiCfgYou'),
 )
 
+/** Mirrors AgentSidebar.goBack: the knowledge app is opened in a new tab from
+ * the home launcher, so the tab's history may not include `/`. Push first;
+ * with no history fall back to a hard navigation to the new app's entry. */
+function goBack(): void {
+  if (window.history.length > 1 && route.path !== '/') {
+    router.push('/').catch(() => { window.location.href = '/app/' })
+  } else {
+    window.location.href = '/app/'
+  }
+}
+
 /** Blueprint :196-199. */
 function navigate(id: KnowledgeTabId): void {
   const path = id === 'dashboard' ? '/ai/knowledge' : `/ai/knowledge/${id}`
@@ -221,11 +232,13 @@ onUnmounted(() => {
   <div class="knowledge-app">
     <!-- Left rail -->
     <aside class="k-rail">
+      <!-- Top-left back button — same placement/behaviour as the agent shell's
+           AgentSidebar back button (replaced the former title/"RAG · NimoOS" head). -->
       <div class="k-rail-head">
-        <div style="flex: 1; min-width: 0">
-          <div class="k-rail-title">{{ t('aiKbKnowledgeBase') }}</div>
-          <div class="k-rail-sub">RAG · NimoOS</div>
-        </div>
+        <button class="k-rail-back" data-test="back" :title="t('aiBack')" @click="goBack">
+          <KIcon name="arrowBack" :size="15" />
+          <span>{{ t('aiBack') }}</span>
+        </button>
       </div>
 
       <div class="k-rail-section">{{ t('aiKbBrowse') }}</div>

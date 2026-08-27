@@ -94,24 +94,21 @@ describe('AgentTopbar', () => {
       global: { plugins: [i18n] },
     })
     const buttons = w.findAll('.icon-btn')
-    await buttons[1].trigger('click') // panelLeft toggle
+    await buttons[0].trigger('click') // panelLeft toggle
     expect(w.emitted('toggle-left')).toBeTruthy()
-    // Index shifts by one since SP8-P1c2 Task 9 inserted the AI-rename button
-    // (also `.icon-btn`) ahead of the theme toggle: goHome, toggle-left,
-    // ai-rename, theme, right-panel-toggle.
-    await buttons[3].trigger('click') // theme toggle
+    // Icon-button order (the topbar's own back button was merged into the
+    // sidebar): toggle-left, ai-rename, theme, right-panel-toggle.
+    await buttons[2].trigger('click') // theme toggle
     expect(w.emitted('toggle-theme')).toBeTruthy()
   })
 
-  it('goHome: uses router.push when there is history and not on the home page', async () => {
-    const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(2)
+  it('has no back button of its own — the single back entry lives in AgentSidebar', () => {
     const w = mount(AgentTopbar, {
       props: { sessionId: 's1' },
       global: { plugins: [i18n] },
     })
-    await w.findAll('.icon-btn')[0].trigger('click') // goHome (arrowLeft)
-    expect(push).toHaveBeenCalledWith('/')
-    historySpy.mockRestore()
+    expect(w.find('[title="返回"]').exists()).toBe(false)
+    expect(push).not.toHaveBeenCalled()
   })
 
   it('SP8-P1c2 Task 9: ModelPicker and the AI-rename button are filled in (placeholder comment gone)', () => {
@@ -123,8 +120,8 @@ describe('AgentTopbar', () => {
     expect(w.html()).not.toContain('1c: AI-rename button')
     expect(w.findComponent({ name: 'ModelPicker' }).exists()).toBe(true)
     expect(w.find('.ai-rename-btn').exists()).toBe(true)
-    // 5 icon buttons now: goHome, toggle-left, ai-rename, theme, right-panel-toggle.
-    expect(w.findAll('.icon-btn')).toHaveLength(5)
+    // 4 icon buttons: toggle-left, ai-rename, theme, right-panel-toggle.
+    expect(w.findAll('.icon-btn')).toHaveLength(4)
   })
 
   it('SP8-P1c2: right panel toggle button emits toggle-right, data-active reflects !rightCollapsed (Vue2 shell/AgentTopbar.vue:43-45)', async () => {
@@ -132,16 +129,15 @@ describe('AgentTopbar', () => {
       props: { sessionId: 's1', rightCollapsed: false },
       global: { plugins: [i18n] },
     })
-    // Index shifts by one since SP8-P1c2 Task 9 inserted the AI-rename button
-    // ahead of the theme toggle: goHome, toggle-left, ai-rename, theme, right-panel-toggle.
+    // Icon-button order: toggle-left, ai-rename, theme, right-panel-toggle.
     const buttons = w.findAll('.icon-btn')
-    const rightToggle = buttons[4]
+    const rightToggle = buttons[3]
     expect(rightToggle.attributes('data-active')).toBe('true')
     await rightToggle.trigger('click')
     expect(w.emitted('toggle-right')).toHaveLength(1)
 
     await w.setProps({ rightCollapsed: true })
-    expect(w.findAll('.icon-btn')[4].attributes('data-active')).toBe('false')
+    expect(w.findAll('.icon-btn')[3].attributes('data-active')).toBe('false')
   })
 
   it('SP8-P1c2 Task 8: ThinkingBar is mounted on the second row, its props are destructured from thinking (Vue2 shell/AgentTopbar.vue:47-54)', () => {
