@@ -122,7 +122,7 @@ const cssKeepLines = blankComments(rawSource)
 // (one of the assertions below nails them to zero occurrences), don't modify whitelist.**
 const WHITELIST_425 = [
   'knowledge-app',
-  'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
+  'k-rail', 'k-rail-head', 'k-rail-back', 'k-rail-section', 'k-rail-nav',
   'k-rail-item', 'k-rail-item-label', 'k-rail-item-cn', 'k-rail-item-en',
   'k-rail-svc', 'k-rail-svc-row', 'k-rail-svc-dot', 'k-rail-svc-name', 'k-rail-svc-meta',
   'k-rail-foot',
@@ -281,8 +281,11 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
     // 🔴 2026-08-25: 426 → 432. The six additions are the `k-asset-*` classes of
     // components/AssetDetailDrawer.vue (album-asset drawer: shares the .k-drawer shell, adds one
     // media stage + caption block). Still no blueprint dead class involved.
-    expect(WHITELIST_425).toHaveLength(432)
-    expect(new Set(WHITELIST_425).size, 'Whitelist has duplicate items').toBe(432)
+    // 🔴 2026-08-27: 432 → 431. The rail head's title/"RAG · NimoOS" block was replaced by a
+    // single back button (same as the agent shell's top-left): `k-rail-title` + `k-rail-sub`
+    // removed, `k-rail-back` added. Still no blueprint dead class involved.
+    expect(WHITELIST_425).toHaveLength(431)
+    expect(new Set(WHITELIST_425).size, 'Whitelist has duplicate items').toBe(431)
   })
 
   it('.k-toast / .k-toast-ico not ported (diverge from K3, use global useToast() instead)', () => {

@@ -30,6 +30,15 @@ function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(`strangler:disabled:${from}`) === '1' } catch { return false }
 }
 
+// Open an in-app hash route in a *new* browser tab (same URL shape SearchDialog
+// uses for file hits: `<origin>/app/#/<path>`). The "workspace" apps launched
+// from the home screen — Files / Photos / AI / AppStore / Knowledge / Terminal —
+// open this way so the desktop stays put in its own tab (2026-08-27 request);
+// the system panels (Storage / Settings / VM) still navigate in place.
+function openInNewTab(path: string): void {
+  window.open(`${window.location.origin}${import.meta.env.BASE_URL}#${path}`, '_blank', 'noopener')
+}
+
 export function useOpenAction() {
   const apps = useAppsStore()
   const startApp = useStartApp()
@@ -38,13 +47,13 @@ export function useOpenAction() {
     const a = apps.app(key)
     if (!a) return
     if (a.system) {
-      if (key === 'files') { router.push('/files'); return }
-      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
+      if (key === 'files') { openInNewTab('/files'); return }
+      if (key === 'appstore' && !cutoverDisabled('/apps')) { openInNewTab('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
-      if (key === 'photos' && !cutoverDisabled('/photos')) { router.push('/photos'); return }
+      if (key === 'photos' && !cutoverDisabled('/photos')) { openInNewTab('/photos'); return }
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
-      if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }
+      if (key === 'ai' && !cutoverDisabled('/ai')) { openInNewTab('/ai/agent'); return }
       // Knowledge: an in-app route built at SP8 (eleven routes, nine-item rail);
       // Vue 2 has no counterpart entry for it, so there is nowhere to fall back to
       // and no strangler:disabled flag is set here (unlike ai/photos/vm/settings above).
@@ -52,11 +61,11 @@ export function useOpenAction() {
       // back to Vue 2 (line above) -- the Knowledge tile keeps routing into this
       // app regardless, because it has no Vue 2 counterpart to roll back to. That
       // partial rollback is correct by necessity, not an oversight.
-      if (key === 'knowledge') { router.push('/ai/knowledge'); return }
+      if (key === 'knowledge') { openInNewTab('/ai/knowledge'); return }
       // Terminal: SP18 in-app route. Like knowledge above, Vue2 no longer exists
       // on-device (retired 08-07), so there is no fallback target and no
       // strangler:disabled flag — the tile always routes into this app.
-      if (key === 'terminal') { router.push('/terminal'); return }
+      if (key === 'terminal') { openInNewTab('/terminal'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return
     }

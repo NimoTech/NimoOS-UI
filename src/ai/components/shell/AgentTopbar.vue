@@ -30,7 +30,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import AgentIcon from '../icons/AgentIcon.vue'
 import ModelPicker from './ModelPicker.vue'
 import ThinkingBar from './ThinkingBar.vue'
@@ -100,7 +99,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const router = useRouter()
 
 const localTitle = ref(props.storedTitle || '')
 const isFocused = ref(false)
@@ -187,27 +185,11 @@ watch(
 onBeforeUnmount(() => {
   clearTimer()
 })
-
-function goHome() {
-  // The Agent page is opened in a new tab from the home launcher, so the
-  // existing tab's history may not include `/`. Try a router push first;
-  // if there's no history (we were the entry point) fall back to a hard
-  // navigation so the back button always works.
-  if (window.history.length > 1 && router.currentRoute.value.path !== '/') {
-    router.push('/').catch(() => { window.location.href = '/app/' })
-  } else {
-    // In the strangler-fig context, '/' is the old Vue2 app; the new app's entry point is '/app/'
-    window.location.href = '/app/'
-  }
-}
 </script>
 
 <template>
   <header class="topbar">
     <div class="topbar-main-row">
-      <button class="icon-btn" @click="goHome" :title="t('aiBack')">
-        <AgentIcon name="arrowLeft" :size="16" />
-      </button>
       <button class="icon-btn" @click="emit('toggle-left')">
         <AgentIcon name="panelLeft" :size="16" />
       </button>

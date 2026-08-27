@@ -593,13 +593,20 @@
     overflow-y: auto; /* rail itself can exceed a short viewport (9 nav items + status card) */
   }
   .k-rail-head {
-    padding: 14px 16px;
+    padding: 12px 12px 0;
     display: flex; align-items: center; gap: 10px;
-    border-bottom: 1px solid var(--line-faint);
-    height: 56px;
   }
-  .k-rail-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
-  .k-rail-sub { font-size: 11px; color: var(--text-tertiary); margin-top: -1px; }
+  // Same look as the agent shell's .side-back (agent-styles.scss).
+  .k-rail-back {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 11px 6px 9px;
+    border-radius: var(--r-sm);
+    color: var(--text-secondary);
+    font-size: 13px; font-weight: 500;
+    transition: background 120ms ease, color 120ms ease;
+    // --bg-hover is not declared in this file's token scope; --bg-chip is what .k-btn.ghost hovers with.
+    &:hover { background: var(--bg-chip); color: var(--text-primary); }
+  }
 
   .k-rail-section {
     padding: 14px 18px 4px;

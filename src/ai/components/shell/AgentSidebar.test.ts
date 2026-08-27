@@ -7,10 +7,10 @@ import zh from '../../../i18n/zh_cn'
 import AgentSidebar from './AgentSidebar.vue'
 import { useUserProfile } from '../../../stores/userProfile'
 
-const push = vi.fn()
-const go = vi.fn()
+const push = vi.fn().mockResolvedValue(undefined)
+const routeState = { path: '/agent' }
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push, go }),
+  useRouter: () => ({ push, currentRoute: { value: routeState } }),
 }))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -23,7 +23,8 @@ const sessions = [
 describe('AgentSidebar', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    push.mockClear(); go.mockClear()
+    push.mockClear()
+    routeState.path = '/agent'
     localStorage.clear()
   })
 
@@ -97,7 +98,9 @@ describe('AgentSidebar', () => {
       props: { sessions, activeId: null, collapsed: true },
       global: { plugins: [i18n] },
     })
-    expect(w.find('.sidebar-head').exists()).toBe(false)
+    // The collapsed rail carries the (single) back button at its very top,
+    // but it is *not* an .icon-btn, so the indices below are unaffected.
+    expect(w.find('[data-test="back"]').exists()).toBe(true)
     const buttons = w.findAll('.icon-btn')
     await buttons[0].trigger('click')
     expect(w.emitted('new')).toBeTruthy()
@@ -109,15 +112,48 @@ describe('AgentSidebar', () => {
     expect(w.emitted('open-settings')).toBeTruthy()
   })
 
-  it('goBack: calls router.go(-1) when history exists', async () => {
+  it('no brand block: the logo / "Nimo · AI · NAS" head is gone in both modes', () => {
+    for (const collapsed of [false, true]) {
+      const w = mount(AgentSidebar, {
+        props: { sessions, activeId: null, collapsed },
+        global: { plugins: [i18n] },
+      })
+      expect(w.find('.sidebar-head').exists()).toBe(false)
+      expect(w.find('.brand-mark').exists()).toBe(false)
+      expect(w.find('.brand-name').exists()).toBe(false)
+      // The single back button is the first thing in the sidebar (top-left).
+      expect(w.find('aside > *').element).toBe(w.find('[data-test="back"]').element)
+    }
+  })
+
+  it('goBack: pushes / when there is history and we are not already on /', async () => {
     const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(2)
     const w = mount(AgentSidebar, {
       props: { sessions, activeId: null },
       global: { plugins: [i18n] },
     })
     await w.find('.side-back').trigger('click')
-    expect(go).toHaveBeenCalledWith(-1)
+    expect(push).toHaveBeenCalledWith('/')
     historySpy.mockRestore()
+  })
+
+  it('goBack: hard-navigates to /app/ when the tab has no history (opened fresh from the launcher)', async () => {
+    const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(1)
+    const original = window.location
+    const loc = { ...original, href: '' } as unknown as Location
+    Object.defineProperty(window, 'location', { value: loc, writable: true, configurable: true })
+    try {
+      const w = mount(AgentSidebar, {
+        props: { sessions, activeId: null, collapsed: true },
+        global: { plugins: [i18n] },
+      })
+      await w.find('[data-test="back"]').trigger('click')
+      expect(push).not.toHaveBeenCalled()
+      expect(loc.href).toBe('/app/')
+    } finally {
+      Object.defineProperty(window, 'location', { value: original, writable: true, configurable: true })
+      historySpy.mockRestore()
+    }
   })
 
   it('avatar: falls back to the default image without a token; builds the avatar URL when access_token is set', () => {

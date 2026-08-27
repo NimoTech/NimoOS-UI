@@ -102,10 +102,14 @@ describe('HomeDock', () => {
   it('collapsed: clicking a fav app opens it without toggling expanded', async () => {
     useAppsStore()
     const hrefs: string[] = []
-    Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+    const opens: string[] = []
+    Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', origin: 'http://h', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
+    vi.stubGlobal('open', (u: string) => { opens.push(u); return null })
     const w = mount(HomeDock)
     await w.get('.dock-app[data-app="files"]').trigger('click')
-    expect(router.push).toHaveBeenCalledWith('/files')
+    // Workspace apps open in a new tab (useOpenAction.openInNewTab), not in place.
+    expect(opens).toEqual([`http://h${import.meta.env.BASE_URL}#/files`])
+    expect(router.push).not.toHaveBeenCalled()
     expect(hrefs.length).toBe(0)
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
   })
