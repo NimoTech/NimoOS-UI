@@ -40,12 +40,13 @@ export async function writeClipboard(text: string, doc: Document): Promise<void>
   ta.value = text
   ta.setAttribute('readonly', '')
   ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none'
-  doc.body.appendChild(ta)
+  const host = doc.body ?? doc.documentElement
+  host.appendChild(ta)
   ta.focus()
   ta.select()
   try {
     if (!doc.execCommand('copy')) throw new Error('execCommand copy failed')
   } finally {
-    doc.body.removeChild(ta)
+    host.removeChild(ta)
   }
 }
