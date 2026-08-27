@@ -14,7 +14,10 @@ import { router } from '../../router'
 import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
 import { useFileConflictsStore } from './fileConflicts'
 import type { SnapshotRaw } from '../../storage/util/snapshotView'
-import { EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS, TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS, TRAVEL_SAFETY_EXTRA_MS } from '../util/timeMachineChoreo'
+import {
+  EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS, TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS,
+  TRAVEL_SAFETY_EXTRA_MS, TRAVEL_STORE_SAFETY_MARGIN_MS,
+} from '../util/timeMachineChoreo'
 
 // Time Machine's own snapshot-list item — a straight alias of the /v2/snapshot list's raw shape
 // (not the storage area's mapped SnapshotItemView): keeping `created_at` (not `createdAt`) lets a
@@ -382,6 +385,17 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // the real window) up to 500ms BEFORE the depth-stack's own reveal-gate would naturally settle.
   // `Math.max(...)` keeps this the genuine worst case across BOTH travel models, present and future,
   // rather than silently falling behind again the next time either duration changes.
+  //
+  // Fix wave J follow-up (re-review finding (a), owner acceptance 2026-08-26): this timer is armed
+  // SYNCHRONOUSLY right here, at click time -- STRICTLY EARLIER than `armReveal`'s own timer, which
+  // only arms once `currentSnapshotName` has actually changed and a further `nextTick()` has run.
+  // Sharing the IDENTICAL nominal worst-case duration with something armed strictly later is a
+  // latent tie: an integration test driving a maximal fly-through through this exact function
+  // found a comfortable ~450ms margin under TODAY's real constants (see this wave's own
+  // final-fix-report.md for the measured numbers and the test itself), but nothing structurally
+  // guarantees that margin survives a future change to the fly-through duration formula's own
+  // constants. `TRAVEL_STORE_SAFETY_MARGIN_MS` (timeMachineChoreo.ts) closes the tie outright,
+  // independent of today's specific headroom.
   let travelSafetyToken = 0
   let travelSafetyTimer: ReturnType<typeof setTimeout> | null = null
   function clearTravelSafetyTimer() {
@@ -404,7 +418,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       travelSafetyTimer = null
       if (safetyToken !== travelSafetyToken) return
       tmTravelActive.value = false
-    }, Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS)
+    }, Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS + TRAVEL_STORE_SAFETY_MARGIN_MS)
     try {
       const root = snapshotBrowsePath(vol.mount, name)
       await navigateReal(rel ? `${root}/${rel}` : root, { replace: true })

@@ -1220,3 +1220,68 @@ describe('TimeMachineDepthStack — flight integrity (Fix wave J)', () => {
     }
   }
 })
+
+// Fix wave J follow-up (re-review finding (a), owner acceptance 2026-08-26): the store's OWN
+// safety-ceiling timer (snapshotBrowse.ts's own `switchTo`, fixed in fix wave J to
+// `Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS`) is
+// ARMED SYNCHRONOUSLY at click time, BEFORE the async navigation even starts. The depth-stack's
+// own LEGITIMATE reveal-gate (`armReveal`) is armed LATER -- only once `currentSnapshotName` has
+// actually changed AND its own `nextTick()`-deferred callback has run. Both timers were built from
+// the SAME nominal worst-case constant (`TRAVEL_FLY_MAX_DURATION_MS`) -- an "identical bound, one
+// side armed earlier" shape is EXACTLY how a same-millisecond tie (the store's ceiling firing
+// microtask-before the depth-stack's own legitimate settle, even though both target "2200ms from
+// their own arm time") could produce a PREMATURE reveal. This suite proves (or disproves) that
+// empirically by driving a REAL travel through `browse.switchTo()` itself (not by hand-setting
+// `browse.tmTravel`, which bypasses the store's own timer-arming code entirely) with BOTH timers
+// running through their real production paths.
+describe('TimeMachineDepthStack — store safety ceiling vs. legitimate settle race (Fix wave J follow-up)', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('a MAXIMAL fly-through driven through browse.switchTo() (the real production path for BOTH timers): the legitimate settle wins, and the store\'s own ceiling then no-ops', async () => {
+    const names = Array.from({ length: 150 }, (_, i) => `s${i}`)
+    const { browse, files } = await setup(names, 's0')
+    mount(TimeMachineDepthStack)
+    await flushPromises()
+    const settleSpy = vi.spyOn(browse, 'settleTravel')
+
+    // The REAL entry point -- arms the STORE's own safety timer synchronously, right here, before
+    // `navigateReal`'s own (mocked, near-instant) promise even settles. `s100` (100 steps, well
+    // past TRAVEL_FLAT_STEPS) samples the maximum TRAVEL_FLY_MAX_INTERMEDIATES(10) intermediates,
+    // the largest `flyThroughDurationMs` this codebase's own real `computeFlyThroughPlan` call site
+    // can EVER produce (see this describe block's own header comment, and final-fix-report.md's
+    // own "Fix wave J follow-up" section, for the exact math: 10*65 + 300 = 950ms -- notably BELOW
+    // `flyThroughDurationMs`'s own theoretical 1400ms cap, which the production code path can never
+    // actually reach given today's TRAVEL_FLY_MAX_INTERMEDIATES/cadence/layer-duration constants).
+    const switchPromise = browse.switchTo('s100')
+    await vi.advanceTimersByTimeAsync(0) // let the mocked router.replace()'s own promise settle
+    await switchPromise
+
+    // This test suite mounts ONLY TimeMachineDepthStack -- there is no Files.vue route watcher
+    // here to bridge the (mocked) navigation back to `files.currentPath` the way production does;
+    // every other reveal-gate test in this file already sets it directly for the same reason.
+    files.currentPath = `${MOUNT}/.snapshots/s100`
+    await nextTick() // currentSnapshotName watcher fires
+    await nextTick() // its own nextTick-deferred callback runs -- runTravel() + armReveal() actually execute here
+
+    expect(browse.tmTravelActive).toBe(true) // still traveling -- neither gate has fired yet
+    expect(settleSpy).not.toHaveBeenCalled()
+
+    // Advance to the shared nominal worst-case duration (2200ms) -- the store's own flat ceiling's
+    // own target, measured from ITS OWN arm time (click, i.e. effectively t=0 here).
+    await vi.advanceTimersByTimeAsync(2200)
+
+    // The LEGITIMATE settle (armReveal's own gate, armed a couple of ticks after t=0 but with a
+    // SHORTER real duration -- 950 + 800 = 1750ms from ITS OWN arm time) must already have fired by
+    // now, calling `browse.settleTravel()` itself -- not the store's own flat ceiling taking over.
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+    expect(browse.tmTravelActive).toBe(false)
+
+    // Advance well past BOTH timers' own absolute deadlines. settleTravel() must still have been
+    // called EXACTLY once -- the store's own ceiling, even if it were technically still pending,
+    // was already cancelled by the legitimate settle() (which calls `clearTravelSafetyTimer()`,
+    // snapshotBrowse.ts's own settleTravel), so it can never fire a second, redundant flip.
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(settleSpy).toHaveBeenCalledTimes(1)
+  })
+})

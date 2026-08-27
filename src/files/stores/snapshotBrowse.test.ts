@@ -606,10 +606,17 @@ describe('time machine: enter / exit / switch', () => {
       // `Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS` =
       // `max(900, 1400) + 800` = 2200ms (was a stale 1700ms, computed before wave H's own
       // long-jump fly-through introduced the larger 1400ms worst case -- see switchTo's own
-      // comment on this constant for the full trace). The three literal millisecond values below
-      // are updated to match; the test SHAPES (boundary check / settle-clears-the-timer /
-      // token-guard-invalidates-a-superseded-timer) are unchanged.
-      describe('store-side safety ceiling (folded minor #7; duration updated fix wave J)', () => {
+      // comment on this constant for the full trace).
+      //
+      // Fix wave J follow-up (re-review finding (a), owner acceptance 2026-08-26): PLUS
+      // `TRAVEL_STORE_SAFETY_MARGIN_MS` (250ms) -- total 2450ms -- closing the latent tie between
+      // this timer (armed synchronously at click time) and the depth-stack's own legitimate
+      // reveal-gate (armed strictly later, once navigation has landed) sharing the identical
+      // nominal worst-case duration. See switchTo's own comment on this constant for the full
+      // trace. The literal millisecond values below are updated to match; the test SHAPES
+      // (boundary check / settle-clears-the-timer / token-guard-invalidates-a-superseded-timer)
+      // are unchanged.
+      describe('store-side safety ceiling (folded minor #7; duration updated fix wave J/J follow-up)', () => {
         it('clears tmTravelActive on its own after the safety ceiling elapses, even if settleTravel() is never called', async () => {
           vi.useFakeTimers()
           try {
@@ -619,7 +626,7 @@ describe('time machine: enter / exit / switch', () => {
             await s.switchTo('snap2')
             expect(s.tmTravelActive).toBe(true)
 
-            await vi.advanceTimersByTimeAsync(2199) // max(900,1400) + 800 - 1
+            await vi.advanceTimersByTimeAsync(2449) // max(900,1400) + 800 + 250 - 1
             expect(s.tmTravelActive).toBe(true) // not yet -- exactly at the boundary
 
             await vi.advanceTimersByTimeAsync(1)
@@ -635,7 +642,7 @@ describe('time machine: enter / exit / switch', () => {
             const s = useSnapshotBrowseStore(); const files = useFilesStore()
             files.currentPath = '/DATA/.snapshots/snap1/Photos'
             await s.ensureVolumes()
-            await s.switchTo('snap2') // first travel, its own safety timer would fire 2200ms from now (t=2200)
+            await s.switchTo('snap2') // first travel, its own safety timer would fire 2450ms from now (t=2450)
             s.settleTravel()
             expect(s.tmTravelActive).toBe(false)
 
@@ -645,13 +652,13 @@ describe('time machine: enter / exit / switch', () => {
             // still derived from the UNCHANGED initial path and stays 'snap1' throughout this
             // isolated store test, so switching back to 'snap1' would hit switchTo's own
             // same-snapshot no-op guard (`from === name`) instead of starting a real second travel.
-            await s.switchTo('snap3') // second, unrelated travel -- its own safety timer targets t=3200
+            await s.switchTo('snap3') // second, unrelated travel -- its own safety timer targets t=3450
             expect(s.tmTravelActive).toBe(true)
 
-            await vi.advanceTimersByTimeAsync(1200) // t=2200 -- exactly when the FIRST travel's timer would have fired
+            await vi.advanceTimersByTimeAsync(1450) // t=2450 -- exactly when the FIRST travel's timer would have fired
             // Still true: settleTravel() cleared that timer outright (not merely superseded it via
             // the token guard) -- if it had leaked, this would have gone false right here, well
-            // before the second travel's own t=3200 deadline.
+            // before the second travel's own t=3450 deadline.
             expect(s.tmTravelActive).toBe(true)
           } finally {
             vi.useRealTimers()
@@ -664,7 +671,7 @@ describe('time machine: enter / exit / switch', () => {
             const s = useSnapshotBrowseStore(); const files = useFilesStore()
             files.currentPath = '/DATA/.snapshots/snap1/Photos'
             await s.ensureVolumes()
-            await s.switchTo('snap2') // first travel, safety timer armed for ~2200ms from now
+            await s.switchTo('snap2') // first travel, safety timer armed for ~2450ms from now
             await vi.advanceTimersByTimeAsync(1000)
 
             // 'snap3', not 'snap1' -- see the previous case's own comment on why (currentSnapshotName
@@ -672,11 +679,11 @@ describe('time machine: enter / exit / switch', () => {
             await s.switchTo('snap3') // second travel supersedes it -- its own token bump clears the old timer
             expect(s.tmTravelActive).toBe(true)
 
-            // The FIRST travel's own timer (armed at t=0, targeting t=2200) would have fired by
-            // now were it not invalidated -- advance to t=2300 (past the FIRST's own t=2200
-            // deadline, still short of the SECOND's own t=1000+2200=3200 deadline) and confirm the
+            // The FIRST travel's own timer (armed at t=0, targeting t=2450) would have fired by
+            // now were it not invalidated -- advance to t=2550 (past the FIRST's own t=2450
+            // deadline, still short of the SECOND's own t=1000+2450=3450 deadline) and confirm the
             // SECOND travel's own (freshly armed) state survives untouched.
-            await vi.advanceTimersByTimeAsync(1300) // t=1000 -> t=2300
+            await vi.advanceTimersByTimeAsync(1550) // t=1000 -> t=2550
             expect(s.tmTravelActive).toBe(true)
           } finally {
             vi.useRealTimers()

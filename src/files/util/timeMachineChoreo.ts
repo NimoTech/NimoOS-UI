@@ -109,6 +109,25 @@ export const EXIT_FADE_MS = 220
 // see that store's own comment on why it needs a SECOND, independent safety cap.
 export const TRAVEL_SAFETY_EXTRA_MS = 800
 
+// Fix wave J follow-up (re-review finding (a), owner acceptance 2026-08-26): extra margin (ms) for
+// snapshotBrowse.ts's own STORE-side `tmTravelActive` safety ceiling (switchTo), on TOP of
+// `Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS` -- the
+// SAME nominal worst-case duration TimeMachineDepthStack.vue's own LEGITIMATE reveal-gate
+// (armReveal) is built from. The two timers are NOT armed at the same instant: the store's own
+// timer is armed SYNCHRONOUSLY at click time (switchTo's own first statements, before the async
+// navigation even starts), while armReveal is armed LATER -- only once `currentSnapshotName` has
+// actually changed AND its own `nextTick()`-deferred callback has run. An "identical nominal
+// duration, one side armed strictly earlier" shape is a latent tie: if a future change to
+// `TRAVEL_FLY_MAX_INTERMEDIATES`/`TRAVEL_FLY_CADENCE_MS`/`TRAVEL_FLY_LAYER_DURATION_MS` ever let
+// `flyThroughDurationMs` genuinely reach its own `TRAVEL_FLY_MAX_DURATION_MS` ceiling (today's real
+// `computeFlyThroughPlan` call site caps out at 950ms in practice, comfortably under it -- see this
+// wave's own final-fix-report.md section for the exact math and the integration test that measured
+// it), the store's own flat ceiling could fire a handful of milliseconds BEFORE the legitimate
+// settle, forcing a premature reveal. This margin closes that gap structurally, independent of
+// today's specific constants happening to leave headroom -- a deliberately generous, round number
+// (comfortably more than a few reactivity ticks + real navigation overhead ever needs).
+export const TRAVEL_STORE_SAFETY_MARGIN_MS = 250
+
 // Safety-ceiling timeout (ms) for the store's own exit-chrome hold (snapshotBrowse.ts's own
 // tmChromeVisible) -- Vue2's own EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS literal (FilePanel.vue),
 // same value: caps how long the Time Machine stage's decorative chrome can be held up waiting for
