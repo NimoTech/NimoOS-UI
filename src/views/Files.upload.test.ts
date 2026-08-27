@@ -247,9 +247,13 @@ describe('Files.vue upload wiring', () => {
     ;(w.vm as any).onRefill({ targetPath: '/DATA/x', missing: ['Trip/a.jpg'] })
 
     // The user now starts a completely unrelated, ordinary folder upload via the
-    // real toolbar chip — this is the actual triggerFolderSelect() code path, not a
-    // stand-in.
-    await w.find('.tb-upload-folder').trigger('click')
+    // real toolbar dropdown item — this is the actual triggerFolderSelect() code path, not a
+    // stand-in. Fix wave C: Upload folder now lives inside the collapsed "New" dropdown
+    // (FilesNewMenu.vue), teleported to document.body via reka-ui's Portal, so it must be
+    // opened first and then queried via `body()` (see the file-scope `body()` helper's own
+    // comment above) rather than `w.find()`.
+    await w.get('.tb-new-menu').trigger('click')
+    await body().find('.tb-upload-folder').trigger('click')
 
     const unrelated = { name: 'z.jpg', webkitRelativePath: 'Somewhere/z.jpg' } as unknown as File
     await (w.vm as any).handleSelectedFiles([unrelated])
@@ -487,6 +491,12 @@ describe('Files.vue folder picker: empty folders', () => {
     router.push('/files'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] } })
     await flushPromises()
+    // Fix wave C: Upload folder now lives inside the collapsed "New" dropdown
+    // (FilesNewMenu.vue), teleported to document.body via reka-ui's Portal and only rendered
+    // once open (no `forceMount`) -- open it once here so every test below can query `body()`
+    // for '.tb-upload-folder' without repeating the open step itself.
+    await w.get('.tb-new-menu').trigger('click')
+    await flushPromises()
     return w
   }
 
@@ -500,7 +510,7 @@ describe('Files.vue folder picker: empty folders', () => {
     // Guard against a vacuous pass: an absent i18n key and an absent `title` attribute are
     // both `undefined`, so assert the copy exists before comparing the two.
     expect(zh.filesUploadFolderEmptyHint).toBeTruthy()
-    expect(w.find('.tb-upload-folder').attributes('title')).toBe(zh.filesUploadFolderEmptyHint)
+    expect(body().find('.tb-upload-folder').attributes('title')).toBe(zh.filesUploadFolderEmptyHint)
   })
 
   it('a pick that yields nothing stays silent — "empty folder" and "user backed out" are the same event', async () => {
@@ -509,7 +519,7 @@ describe('Files.vue folder picker: empty folders', () => {
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
 
-    await w.find('.tb-upload-folder').trigger('click')
+    await body().find('.tb-upload-folder').trigger('click')
     // The browser reports "nothing selected" (empty folder OR dismissed dialog) as `cancel`,
     // with an identical empty payload either way — so there is nothing truthful to say.
     w.find('input[webkitdirectory]').element.dispatchEvent(new Event('cancel'))
@@ -528,7 +538,7 @@ describe('Files.vue folder picker: empty folders', () => {
     const createSpy = vi.mocked(service.folder.create)
     createSpy.mockClear()
 
-    await w.find('.tb-upload-folder').trigger('click')
+    await body().find('.tb-upload-folder').trigger('click')
     await flushPromises()
 
     expect(picker).toHaveBeenCalledTimes(1)
@@ -547,7 +557,7 @@ describe('Files.vue folder picker: empty folders', () => {
     const createSpy = vi.mocked(service.folder.create)
     createSpy.mockClear()
 
-    await w.find('.tb-upload-folder').trigger('click')
+    await body().find('.tb-upload-folder').trigger('click')
     await flushPromises()
 
     expect(queueSpy).toHaveBeenCalledWith([
@@ -566,7 +576,7 @@ describe('Files.vue folder picker: empty folders', () => {
     const createSpy = vi.mocked(service.folder.create)
     createSpy.mockClear()
 
-    await w.find('.tb-upload-folder').trigger('click')
+    await body().find('.tb-upload-folder').trigger('click')
     await flushPromises()
 
     expect(createSpy).not.toHaveBeenCalled()

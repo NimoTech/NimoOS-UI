@@ -4,7 +4,7 @@ import { service } from '@nimotech/nimoos-service'
 import { useFoldersStore } from '../../home/stores/folders'
 import { useFolderSizesStore } from './folderSizes'
 import type { DisplayNames } from '../util/pathUtils'
-import { fileExt } from '../util/ext'
+import { sortEntries, type SortField, type SortOrder } from '../util/sortEntries'
 import { folderListErrorMsg } from '../util/folderListError'
 import { isHiddenEntry } from '../../util/hiddenEntries'
 
@@ -64,6 +64,27 @@ export const useFilesStore = defineStore('files', () => {
     return disks.value.length ? disks.value[0].path : ''
   }
 
+  // Fix wave K (Files Time Machine Vue2-parity line, owner acceptance 2026-08-26): epoch guard
+  // against an out-of-order response. Unlike ensureVolumes() (snapshotBrowse.ts) and
+  // useFolderSizesStore() (see this function's own pre-existing comment just below), load() had
+  // no such guard -- whichever call's own service.folder.getList() happened to RESOLVE LAST won,
+  // regardless of which call was STARTED last. Two load() calls fired close together (e.g. a
+  // rapid Time Machine rail re-click: switchTo(A) immediately followed by switchTo(B), before A's
+  // own listing fetch has resolved) race on the network; if A's response is merely SLOWER than
+  // B's (not required to be pathologically slow -- ordinary jitter is enough), it lands AFTER B's
+  // already-correct one and silently overwrites currentPath/entries back to A -- with route/rail
+  // state still showing B. Confirmed via a real router + real Files.vue + real async-timing
+  // integration test (src/files/snapshot/timeMachineFlightChainIntegration.test.ts's own "rapid
+  // re-supersede" case): browse.currentSnapshotName reverts to the stale target, and because
+  // snapshotBrowse.ts's own `pendingTravel` guard (TimeMachineDepthStack.vue) has ALREADY been
+  // consumed by B's own legitimate travel, this stale flip fires with no matching pending travel
+  // -- no runTravel() call ever animates it, so every already-tweened depth-stack strip is simply
+  // never told to move again, appearing permanently frozen at wherever B's travel left it (the
+  // owner's own screenshot symptom) until an unrelated safety net eventually reveals the real
+  // window over it. Guarded here, at the root cause, exactly like ensureVolumes()/
+  // useFolderSizesStore() already guard their own async races -- a stale response can now never
+  // write over a newer call's state, so currentPath only ever reflects the LAST-STARTED load().
+  let loadEpoch = 0
   async function load(realPath: string) {
     clearSelection()
     // New listing, new world: computed folder sizes from the previous view
@@ -71,12 +92,15 @@ export const useFilesStore = defineStore('files', () => {
     useFolderSizesStore().reset()
     loading.value = true
     error.value = ''
+    const myEpoch = ++loadEpoch
     try {
       const data = await service.folder.getList(realPath)
+      if (myEpoch !== loadEpoch) return // superseded by a newer load() call -- discard this stale response entirely
       const content: FileEntry[] = (data && (data as { content?: FileEntry[] }).content) || []
       entries.value = content.filter((e) => !isHiddenEntry(e.name))
       currentPath.value = realPath
     } catch (e) {
+      if (myEpoch !== loadEpoch) return
       // This used to be swallowed into an empty listing, which renders exactly
       // like a genuinely empty folder -- the user could not tell "load failed"
       // from "nothing here", and had nothing to retry.
@@ -85,40 +109,28 @@ export const useFilesStore = defineStore('files', () => {
       currentPath.value = realPath
       error.value = folderListErrorMsg(e)
     } finally {
-      loading.value = false
+      // Only the current epoch's own call may clear `loading` -- a stale call's finally landing
+      // between a newer call's own start and finish must not flip it back false while the real
+      // navigation is still genuinely in flight.
+      if (myEpoch === loadEpoch) loading.value = false
     }
   }
 
   const viewMode = ref<'list' | 'grid'>((localStorage.getItem('nimoos:file-view') as 'list' | 'grid') || 'grid')
-  const sort = ref<'name' | 'format' | 'date' | 'size'>((localStorage.getItem('nimoos:file-sort') as any) || 'name')
-  const order = ref<'asc' | 'desc'>((localStorage.getItem('nimoos:file-order') as any) || 'asc')
+  const sort = ref<SortField>((localStorage.getItem('nimoos:file-sort') as SortField) || 'name')
+  const order = ref<SortOrder>((localStorage.getItem('nimoos:file-order') as SortOrder) || 'asc')
 
-  const KEY_FN: Record<string, (e: FileEntry) => string | number> = {
-    name: (e) => e.name.toLowerCase(),
-    format: (e) => fileExt(e.name),
-    date: (e) => new Date(e.date || 0).getTime() || 0,
-    size: (e) => Number(e.size) || 0,
-  }
-
-  const sortedEntries = computed<FileEntry[]>(() => {
-    const keyFn = KEY_FN[sort.value] || KEY_FN.name
-    const dir = order.value === 'desc' ? -1 : 1
-    return [...entries.value].sort((a, b) => {
-      // folders first
-      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1
-      const ka = keyFn(a), kb = keyFn(b)
-      if (ka < kb) return -1 * dir
-      if (ka > kb) return 1 * dir
-      return 0
-    })
-  })
+  // Comparator itself lives in ../util/sortEntries.ts (extracted so SnapshotPreviewWindow.vue's
+  // depth-stack previews can mirror this SAME live sort/order rather than reimplementing it --
+  // see that util's own header comment).
+  const sortedEntries = computed<FileEntry[]>(() => sortEntries(entries.value, sort.value, order.value))
 
   function setView(v: 'list' | 'grid') {
     viewMode.value = v
     localStorage.setItem('nimoos:file-view', v)
   }
-  function setSort(s: string, o?: 'asc' | 'desc') {
-    const next = (o ?? (s === sort.value ? (order.value === 'asc' ? 'desc' : 'asc') : 'asc')) as 'asc' | 'desc'
+  function setSort(s: string, o?: SortOrder) {
+    const next = (o ?? (s === sort.value ? (order.value === 'asc' ? 'desc' : 'asc') : 'asc')) as SortOrder
     sort.value = s as typeof sort.value
     order.value = next
     localStorage.setItem('nimoos:file-sort', sort.value)

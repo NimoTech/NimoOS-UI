@@ -258,6 +258,52 @@ describe('FileContextMenu', () => {
       await w.find('.ctx-restore-original').trigger('click')
       expect(w.emitted('action')?.[0]?.[0]).toBe('restore-original')
     })
+
+    // Task 15 gap: the two cases above only assert delete/rename/copy-path are absent (by text)
+    // and that refresh/restore/download are present -- nothing previously pinned copy/cut/
+    // favorite/share/set-wallpaper by their own `.ctx-*` classes, so a stray `!inSnapshot` typo
+    // on any ONE of them (e.g. a dropped `&&`) would not have gone red. Vue2's own ContextMenu.vue
+    // (M2-F2, "converged to the user's final restricted verb set: Restore + Download only") hides
+    // every one of these in snapshot view -- this pins New-UI's showCopy/showCut/showFavorite/
+    // showShare/showSetWallpaper computeds against that same whitelist, one item at a time.
+    it('item menu: copy/cut/favorite/share/set-wallpaper are all absent (Vue2 whitelist is Restore + Download only)', () => {
+      const entry: FileEntry = { name: 'Trip', path: '/DATA/.snapshots/snap1/Trip', is_dir: true }
+      const w = mountSnapshotMenu({ entry, selectedCount: 1 })
+      expect(w.find('.ctx-copy').exists()).toBe(false)
+      expect(w.find('.ctx-cut').exists()).toBe(false)
+      expect(w.find('.ctx-fav').exists()).toBe(false)
+      expect(w.find('.ctx-share').exists()).toBe(false)
+      expect(w.find('.ctx-set-wallpaper').exists()).toBe(false)
+      // The whitelist itself must still be present on the SAME entry, or this would be
+      // vacuously true because nothing renders at all (e.g. a broken `inSnapshot` computed).
+      expect(w.find('.ctx-restore-original').exists()).toBe(true)
+      expect(w.find('.ctx-download').exists()).toBe(true)
+    })
+
+    // Task 15 gap: mountSnapshotMenu's default clipboard is empty, so the existing "not to
+    // contain 粘贴" assertion in the blank-area case above is true for the wrong reason (paste
+    // never shows with nothing copied, snapshot or not) -- it does not actually prove paste is
+    // gated on `inSnapshot`. Populate the clipboard first so this is a real test of the gate.
+    it('blank area menu: paste stays hidden even with clipboard contents, and upload buttons stay hidden too', () => {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      useClipboardStore().operate('copy', [{ path: '/DATA/a', is_dir: false }])
+      const browse = useSnapshotBrowseStore()
+      browse.status = 'ready'
+      browse.volumes = [{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]
+      useFilesStore().currentPath = '/DATA/.snapshots/snap1'
+      const w = mount(FileContextMenu, {
+        props: { entry: null, selectedCount: 0 },
+        global: { plugins: [pinia, i18n], stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub } },
+      })
+      const txt = w.find('.menu').text()
+      expect(txt).toContain('刷新') // the one item Vue2 keeps unconditionally in the blank menu
+      expect(w.find('.ctx-paste').exists()).toBe(false)
+      expect(w.find('.ctx-upload-file').exists()).toBe(false)
+      expect(w.find('.ctx-upload-folder').exists()).toBe(false)
+      expect(w.find('.ctx-new-folder').exists()).toBe(false)
+      expect(w.find('.ctx-new-file').exists()).toBe(false)
+    })
   })
 
   describe('set as wallpaper (SP11)', () => {

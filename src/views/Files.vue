@@ -9,6 +9,7 @@ import SelectionToolbar from '../files/components/SelectionToolbar.vue'
 import FileListView from '../files/components/FileListView.vue'
 import FileGridView from '../files/components/FileGridView.vue'
 import FileContextMenu from '../files/components/FileContextMenu.vue'
+import FilesNewMenu from '../files/components/FilesNewMenu.vue'
 import NewItemDialog from '../files/components/NewItemDialog.vue'
 import UploadBatchModal from '../files/components/UploadBatchModal.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
@@ -50,12 +51,14 @@ import { resolveDefaultRoot } from '../files/util/defaultRoot'
 import { parseRecover } from '../files/util/recoverEvent'
 import { contextTargets } from '../files/util/contextTarget'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
-import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
-import TimeMachineOverlay from '../files/snapshot/TimeMachineOverlay.vue'
-import SnapshotSettingsDialog from '../files/snapshot/SnapshotSettingsDialog.vue'
+import SnapshotActionBar from '../files/snapshot/SnapshotActionBar.vue'
+import TimeMachineStage from '../files/snapshot/TimeMachineStage.vue'
+import SnapshotSettingsModal from '../files/snapshot/SnapshotSettingsModal.vue'
+import RestoreDestinationModal from '../files/snapshot/RestoreDestinationModal.vue'
 import { useSnapshotBrowseStore } from '../files/stores/snapshotBrowse'
-import { resolveExitTarget, relPathUnderMount } from '../files/util/snapshotPath'
-import { service } from '@nimotech/nimoos-service'
+import { parseSnapshotBrowsePath } from '../files/util/snapshotPath'
+import { defaultDestDirForItem, defaultDestDirForChildren } from '../files/util/restoreDestination'
+import { shouldRejectRootRestore, wholeFolderRestoreItem, type RestoreItem } from '../files/util/snapshotRestore'
 import { useWallpaperStore } from '../stores/wallpaper'
 
 const route = useRoute()
@@ -77,7 +80,6 @@ const { t } = useI18n()
 
 // Dialog toggles + context
 const settingsOpen = ref(false)
-const overlayRef = ref<InstanceType<typeof TimeMachineOverlay> | null>(null)
 const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[]; skipped: number }>({ open: false, entries: [], skipped: 0 })
@@ -131,6 +133,100 @@ const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is
 // Current selection (shared by the three restore entry points in snapshot view: the banner
 // button, the selection toolbar, and right-click on a single item, each via its own entry point)
 const snapshotSelection = computed(() => selectedEntries.value)
+
+// Task 15 (Vue2 parity, banner dual-state semantics): Vue2's own FilePanel.vue passes
+// `:info="isTimeMachineChromeVisible ? null : snapshotBrowseInfo"` into SnapshotBanner -- while
+// the Time Machine stage's own chrome is up, the shrunk real window supplies its OWN read-only
+// signal instead (the ".tm-snap-chip" span rendered right in THIS file's own `.files-topbar`,
+// below -- see Important 3's own fix comment there -- plus the stage's bottom bar Exit/Restore,
+// TimeMachineStage.vue), so the plain top banner is deliberately hidden to avoid two competing
+// "you're read-only, here's Exit/Restore" UIs stacked on screen at once. Outside the stage --
+// most concretely the fail-safe window where
+// `browse.isSnapshotView` is locked (shouldGuardSnapshotView's fail-safe direction: idle/loading/
+// error/unconfirmed-volume all stay locked) but `browse.tmActive` never flipped true because
+// `shouldAutoEnter` requires a POSITIVELY confirmed `supported: true` volume (snapshotBrowse.ts's
+// own header comment on shouldAutoEnter) -- the banner is the ONLY read-only signal the user gets,
+// so it must still show. Ported here (the call site), not into SnapshotBanner.vue itself, mirroring
+// Vue2's own split: the banner component stays a pure `v-if="info"` presentational leaf (see that
+// component's own props comment), the caller decides what "should be visible right now" means.
+//
+// Final review (Important 5, Ruling F-2): gated on `browse.tmChromeVisible`, NOT `browse.tmActive`
+// -- exactly matching Vue2's own `isTimeMachineChromeVisible` source. tmActive drops synchronously
+// the instant exitTimeMachine() is called, one statement before its own async navigation away even
+// starts; gating the banner on tmActive directly would show the OLD snapshot's banner (browseInfo
+// is still non-null -- files.currentPath hasn't moved yet) for that whole gap, then hide it again
+// once the navigation lands -- a visible flash. tmChromeVisible instead stays true across that
+// entire gap (see snapshotBrowse.ts's own header comment on it), so the banner never re-appears at
+// all during a normal exit.
+const bannerInfo = computed(() => (browse.tmChromeVisible ? null : browse.browseInfo))
+const bannerIsContainer = computed(() => !browse.tmChromeVisible && browse.isSnapshotView && !browse.browseInfo)
+
+// ── Time Machine restore (Task 14 — full Vue2-parity orchestration) ──────────────────────────
+// RestoreDestinationModal (T13) is mounted ONCE here (like SnapshotSettingsModal), reused by
+// every restore entry point below — see that component's own header comment for why it exposes
+// a Promise-based open() instead of a v-model prop. `openRestorePicker` is the one function
+// `browse.restoreItems` (snapshotBrowse.ts) is handed as its `openPicker` parameter: the store
+// itself cannot hold a component ref, so this is the "one piece the caller supplies" half of
+// that split (see the store's own comment on `OpenRestorePicker`).
+const restoreModalRef = ref<InstanceType<typeof RestoreDestinationModal>>()
+function openRestorePicker(mount: string, defaultDir: string) {
+  return restoreModalRef.value!.open(mount, defaultDir)
+}
+
+// Entry point ① — context-menu "Restore to original location" (single item, FileContextMenu.vue's
+// own `showRestoreOriginal` already gates this to snapshot view + a single target).
+// `{ singleItemFlow: true }` (controller ruling, fix round 1): this is the ONE entry point that
+// shows Vue2's own `snapBrowseRestored` = "Restored to {path}" copy on success (Vue2's
+// restoreSnapshotItem) rather than the `tmRestoredCount` count-based copy every other entry point
+// uses (Vue2's executeSnapshotRestore) — see buildRestoreToasts' own comment for the full split.
+function restoreSingleItem(entry: FileEntry) {
+  const info = browse.browseInfo
+  if (!info) return
+  const parsed = parseSnapshotBrowsePath(entry.path)
+  const defaultDir = defaultDestDirForItem(info.mount, parsed?.relPath ?? '')
+  void browse.restoreItems(
+    [{ path: entry.path, name: entry.name, is_dir: entry.is_dir }],
+    defaultDir,
+    openRestorePicker,
+    { singleItemFlow: true },
+  )
+}
+
+// Entry points ② and ③ — the Time Machine stage's own bottom-bar "Restore selection" button and
+// the classic (outside-TM) SnapshotBanner's restore button both funnel into this ONE function with
+// the current selection (Vue2's own restoreFromBanner, ported): a non-empty selection restores
+// those items directly; an empty selection at a sub-directory asks to confirm the WHOLE browsed
+// directory first (`restoreFolderConfirm` below); an empty selection at the snapshot's own root
+// rejects with a toast (whole-volume restore is intentionally not offered).
+const restoreFolderConfirm = ref<{ open: boolean; item: RestoreItem | null }>({ open: false, item: null })
+function restoreSelectionFlow(items: FileEntry[]) {
+  if (browse.restoring) return
+  const info = browse.browseInfo
+  if (!info) return
+  if (items.length > 0) {
+    const defaultDir = defaultDestDirForChildren(info.mount, info.relPath)
+    void browse.restoreItems(items.map((e) => ({ path: e.path, name: e.name, is_dir: e.is_dir })), defaultDir, openRestorePicker)
+    return
+  }
+  if (shouldRejectRootRestore(info.relPath)) {
+    toast.show(t('tmSelectFirst'))
+    return
+  }
+  restoreFolderConfirm.value = { open: true, item: wholeFolderRestoreItem(files.currentPath, info.relPath) }
+}
+// reka-ui's AlertDialogAction fires its own `update:open(false)` BEFORE `@confirm` (same ordering
+// SnapshotSettingsModal.vue's delete-confirm comment documents) — the dialog's `:open` binding is
+// driven straight off `restoreFolderConfirm.open` (not derived from `.item`), and only this
+// dedicated `@confirm` handler ever reads/clears `.item`, so that auto-close ordering can never
+// race away the pending item the way deriving `:open` from it would.
+function onRestoreFolderConfirmed() {
+  const item = restoreFolderConfirm.value.item
+  restoreFolderConfirm.value = { open: false, item: null }
+  const info = browse.browseInfo
+  if (!item || !info) return
+  const defaultDir = defaultDestDirForItem(info.mount, info.relPath)
+  void browse.restoreItems([item], defaultDir, openRestorePicker)
+}
 
 // Share the effective target set (ctxTargets(entry) — for a right-clicked entry outside the
 // selection this is just [entry]; selection is only honored when the entry is part of a
@@ -190,7 +286,7 @@ function onCtxAction(action: string, entry: FileEntry | null, targets: FileEntry
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
     case 'share': onShare(entry, targets); break
-    case 'restore-original': if (entry) browse.restore([entry]); break
+    case 'restore-original': if (entry) restoreSingleItem(entry); break
     case 'set-wallpaper': onSetWallpaper(entry); break
   }
 }
@@ -526,29 +622,8 @@ function askDelete(entries: FileEntry[]) {
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
 
-// Time Machine needs to know the current directory's position relative to the volume root:
-// the card uses it to show "this folder at that moment", and entering it lands on the same
-// relative path.
-const snapshotRelPath = computed(() => relPathUnderMount(browse.currentVolume?.mount ?? '', files.currentPath))
-
-function onSnapshotSelect(path: string) {
-  browse.closeWheel()
-  goVirtual(toVirtualPath(path, files.displayNames))
-}
-
 function goVirtual(vp: string) {
   router.push('/files/' + virtualPathToRouteParam(vp))
-}
-// Exit snapshot: return to the same-named directory on the live volume; if that directory no
-// longer exists on the live volume (e.g. it was deleted afterwards), fall back to the volume
-// root. dirExists is judged by whether listing the directory succeeds — the Files area has no
-// separate "does this directory exist" endpoint, so any listing failure (404/permission) is
-// treated as non-existent, and falling back to the volume root is always a safe landing spot.
-async function exitSnapshot() {
-  const target = await resolveExitTarget(browse.browseInfo, async (p) => {
-    try { await service.folder.getList(p); return true } catch { return false }
-  })
-  if (target) goVirtual(toVirtualPath(target, files.displayNames))
 }
 async function sync() {
   // Legacy deep-link format: /files?path=X (X is real or virtual; sources: Vue2 AI's "open
@@ -785,6 +860,21 @@ onMounted(() => { uploads.initUploads() })
 // Fetch the snapshot volume list once per session: both the entry button (canShowEntry) and
 // the read-only lock (browseInfo) depend on it being ready.
 onMounted(() => { browse.ensureVolumes() })
+
+// Task 10: deep-link auto-enter. Covers three landing routes uniformly, since all three end up
+// setting files.currentPath to a `.snapshots/<name>/<rel>` real path one way or another: a
+// pasted/bookmarked URL on /files/<virtual>/.snapshots/... (params.path, the route watcher
+// above), the legacy /files?path=<real> deep link (query.path, resolved by sync() above —
+// SnapshotTimeline.vue's own "browse" button on the Storage page uses exactly this format), and
+// the entry chip's own enterTimeMachine() navigation (a no-op here since tmActive is already
+// true by the time this would re-evaluate — see autoEnterTimeMachine's own guard).
+// `immediate: true` mirrors Vue2's own `shouldAutoEnterTimeMachine` watcher (FilePanel.vue) for
+// the same reason: harmless when false at setup time, and covers the (currently hypothetical
+// here) case where the store's volumes/path are already resolved the instant this runs.
+// Exit-loop safety is NOT re-implemented here — it falls out of shouldAutoEnter's own definition
+// (see that computed's header comment in snapshotBrowse.ts): exitTimeMachine() does not change
+// shouldAutoEnter's value across the exit gap, so this watcher simply never re-fires for it.
+watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMachine() }, { immediate: true })
 </script>
 
 <template>
@@ -804,91 +894,235 @@ onMounted(() => { browse.ensureVolumes() })
              thinking "drop it and it uploads" first, only telling them it's read-only after they
              let go — the experience was backwards. -->
         <div v-if="isDragIn && !browse.isSnapshotView" class="files-drop-mask">{{ t('filesUploadTo', { name: currentVirtual }) }}</div>
-        <div class="files-topbar">
-          <Breadcrumb :virtual-path="currentVirtual" :current-real-path="files.currentPath" @navigate="goVirtual" />
-          <div class="files-topbar-right">
-            <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.openWheel()">
-              {{ t('tmEntry') }}
-            </button>
-            <div v-if="!browse.isSnapshotView" class="files-actions">
-              <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
-              <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
-              <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
-              <!-- Native `title` for the hover hint, as everywhere else in this app: the picker
-                   silently drops empty folders and cannot report it (see triggerFolderSelect),
-                   so the button says up front where empty folders have to go. -->
-              <button class="chip tb-upload-folder" :title="t('filesUploadFolderEmptyHint')" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
-              <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
+        <!-- @restore-selection: Task 9's own bottom-bar "Restore selection" button only announces
+             intent (see TimeMachineStage.vue's own header/template comments) -- it does not know
+             what is selected inside the slotted real window. Task 14 wires it to the same
+             `restoreSelectionFlow` entry point ② SnapshotBanner's own restore button below uses,
+             fed with the same `snapshotSelection`. -->
+        <!-- Critical fix (final review C1): dialogOpen must suppress the stage's Esc/ArrowUp/
+             ArrowDown channel for EVERY dialog stacked above the stage that this view knows about
+             by name, not just the settings dialog -- the whole-folder restore confirm, the
+             destination picker (both live behind `browse.restoring`, which stays true for the
+             whole picker+conflict-queue+execute sequence, see restoreItems's own comment), and the
+             file-conflict dialog all Teleport to document.body just like the settings dialog does,
+             and arrow-key navigation inside any of THEIR own inputs must not be hijacked by
+             snapshot stepping underneath. -->
+        <TimeMachineStage
+          :dialog-open="settingsOpen || restoreFolderConfirm.open || browse.restoring || conflicts.dialog.open"
+          @open-settings="settingsOpen = true"
+          @restore-selection="restoreSelectionFlow(snapshotSelection)"
+        >
+          <div class="files-topbar">
+            <div class="files-topbar-left">
+              <Breadcrumb
+                :virtual-path="currentVirtual"
+                :current-real-path="files.currentPath"
+                :hide-favorite="browse.isSnapshotView"
+                @navigate="goVirtual"
+              >
+                <!-- Important 3 (final review): Vue2's FilePanel.vue moves the "you're read-only"
+                     signal into the real window's OWN header bar while Time Machine's chrome is up
+                     (`.tm-snap-chip`, gated on `isTimeMachineChromeVisible`) -- the plain top banner
+                     is hidden during that time (see bannerInfo's own comment above), and without this
+                     chip the shrunk window showed no read-only signal at all. Reuses the exact
+                     color-mix(--tm-accent) pattern SnapshotPreviewWindow.vue's own
+                     `.tm-preview-window__chip` already established for the identical Vue2 literal
+                     (bg = accent purple at 10% alpha, text = the darker accent shade).
+
+                     Fix wave B (B2, owner acceptance 2026-08-26): passed through Breadcrumb.vue's
+                     own `#trailing` slot (not a sibling of <Breadcrumb> in `.files-topbar-left`
+                     any more) -- see that slot's own comment for why: Breadcrumb's root grows to
+                     fill `.files-topbar-left` for its two-line-collapse measuring loop, which was
+                     pushing a SIBLING chip to the far right of the topbar instead of hugging the
+                     breadcrumb's actual rendered path. -->
+                <template #trailing>
+                  <span v-if="browse.tmActive" class="tm-real-window-chip">{{ t('snapReadOnlyBanner') }}</span>
+                </template>
+              </Breadcrumb>
             </div>
-            <div class="files-viewtoggle">
-              <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
-              <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+            <div class="files-topbar-right">
+              <!-- Fix wave A3 (audit-modals.md #4, entry pill icon -- MISSING): Vue2's own
+                   `<b-button icon-left="history">` precedes the label with a real mdi
+                   clock/history glyph (FilePanel.vue:205-207) -- a UI glyph, not a file icon, so
+                   in-scope per the owner's icon exception (New-UI's own established icon
+                   convention: a plain monochrome Unicode glyph inheriting `currentColor`, same
+                   idiom as this app's other ad-hoc UI icons, e.g. TimeMachineStage.vue's own
+                   gear button). -->
+              <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.enterTimeMachine()">
+                <span class="tb-time-machine-icon" aria-hidden="true">&#8635;</span>{{ t('tmEntry') }}
+              </button>
+              <!-- Fix wave C (toolbar redesign, owner-confirmed mockup): New folder/New file/
+                   Upload files/Upload folder collapse into ONE accent-purple "New" dropdown
+                   (FilesNewMenu.vue) -- each item still calls the SAME pre-existing handler
+                   (openNew/triggerFileSelect/triggerFolderSelect), only the chrome changed.
+                   Paste stays its OWN chip (contextual, not one of the "four" -- Vue2/pre-redesign
+                   parity: it only ever shows when clipboard.hasPasteData, unrelated to New/Upload),
+                   placed immediately left of New so the purple dropdown reads as this row's
+                   rightmost primary action. Both keep the same `v-if="!browse.isSnapshotView"`
+                   gate the old `.files-actions` wrapper already had (writes stay locked while
+                   browsing a snapshot). Grid/List moved out of the topbar entirely -- see the new
+                   `.files-list-head` row below, right above the listing. -->
+              <div v-if="!browse.isSnapshotView" class="files-actions">
+                <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
+                <FilesNewMenu
+                  @new-folder="openNew('folder')"
+                  @new-file="openNew('file')"
+                  @upload-file="triggerFileSelect"
+                  @upload-folder="triggerFolderSelect"
+                />
+              </div>
             </div>
           </div>
-        </div>
-        <SnapshotBanner
-          :info="browse.browseInfo"
-          :restoring="browse.restoring"
-          :can-restore="snapshotSelection.length > 0"
-          :is-container="browse.isSnapshotView && !browse.browseInfo"
-          :restore-progress="browse.restoreProgress"
-          @exit="exitSnapshot"
-          @restore="browse.restore(snapshotSelection)"
-        />
-        <SnapshotSelectionToolbar
-          v-if="browse.isSnapshotView && !!browse.browseInfo && files.selectedCount > 0"
-          :count="files.selectedCount"
-          :restoring="browse.restoring"
-          :restore-progress="browse.restoreProgress"
-          @restore="browse.restore(snapshotSelection)"
-          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
-          @clear="files.clearSelection"
-        />
-        <SelectionToolbar
-          v-else-if="!browse.isSnapshotView && files.selectedCount > 0"
-          :count="files.selectedCount"
-          :all-selected="files.allSelected"
-          :can-share="selectionHasFolder"
-          @select-all="files.selectAll"
-          @clear="files.clearSelection"
-          @delete="onToolbarDelete"
-          @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
-          @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
-          @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
-          @share="onShare(null)"
-        />
-        <FileContextMenu :entry="ctxEntry" :selected-count="ctxTargetCount" @action="onCtxAction">
-          <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
-            <div v-if="files.error && !files.loading" class="files-error" role="alert">
-              <span class="files-error-title">{{ t('filesLoadFailed') }}</span>
-              <span class="files-error-detail">{{ files.error }}</span>
-              <button class="chip" @click="files.load(files.currentPath)">{{ t('filesRetry') }}</button>
+          <SnapshotBanner
+            :info="bannerInfo"
+            :restoring="browse.restoring"
+            :can-restore="true"
+            :is-container="bannerIsContainer"
+            :restore-progress="browse.restoreProgress"
+            @exit="browse.exitTimeMachine()"
+            @restore="restoreSelectionFlow(snapshotSelection)"
+          />
+          <!-- The generic multi-select toolbar (Copy/Cut/Delete/Download/Share) never shows in
+               snapshot view -- Vue2 parity, `.files-actions`' own sibling restriction. -->
+          <SelectionToolbar
+            v-if="!browse.isSnapshotView && files.selectedCount > 0"
+            :count="files.selectedCount"
+            :all-selected="files.allSelected"
+            :can-share="selectionHasFolder"
+            @select-all="files.selectAll"
+            @clear="files.clearSelection"
+            @delete="onToolbarDelete"
+            @copy="ops.copy(files.entries.filter((e) => files.isSelected(e.path)))"
+            @cut="ops.cut(files.entries.filter((e) => files.isSelected(e.path)))"
+            @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
+            @share="onShare(null)"
+          />
+          <!-- Important 4 (final review, Ruling F-1): Vue2's SnapshotActionBar (Restore + Download,
+               "{n} selected" -- see that component's own header comment for the full 1:1 rebuild
+               rationale), the snapshot-view equivalent of SelectionToolbar above. Restore funnels
+               into the SAME restoreSelectionFlow entry point ② SnapshotBanner's own restore button
+               and the Time Machine stage's bottom bar already use; Download reuses the plain
+               ops.download SelectionToolbar's own download button uses (read-only snapshot content
+               downloads exactly like live content). Mounted here (inside the slot, alongside
+               SnapshotBanner/FileContextMenu), so -- Vue2 parity -- it is visible whether the Time
+               Machine stage's own chrome is up or the user is plain-browsing snapshot content
+               outside it, positioned via `.tm-fwin--active`'s own `position: relative` in the
+               former case and `.files-main`'s in the latter (see this component's own header
+               comment). -->
+          <SnapshotActionBar
+            v-if="browse.isSnapshotView"
+            :count="files.selectedCount"
+            :restoring="browse.restoring"
+            @restore="restoreSelectionFlow(snapshotSelection)"
+            @download="ops.download(snapshotSelection)"
+          />
+          <!-- Fix wave C (toolbar redesign, owner-confirmed mockup): content-area header row --
+               left = circular select-all toggle + item count, right = the grid/list capsule
+               switcher that used to live in the topbar (`.files-viewtoggle`, now removed). This
+               row is intentionally NOT gated on `browse.isSnapshotView` -- Vue2's own snapshot
+               browsing window carried exactly this same select-all + count row (see this file's
+               own report for the fuller trace), so it stays visible in both plain-browse and
+               snapshot view, unlike `.files-actions` above.
+               Select-all wires to the REAL selection store (files.allSelected/selectAll/
+               clearSelection -- the same primitives SelectionToolbar.vue's own select-all/clear
+               buttons already use), not a separate local flag: clicking it selects every entry
+               CURRENTLY LISTED (displayEntries, i.e. post-filter/upload-placeholder-merged, same
+               set the grid/list views actually render) when not already all-selected, and clears
+               when it is. Fix wave C re-review (correctness): the two count branches read
+               DIFFERENT sources on purpose, not the same displayEntries length either way --
+               "N items" (not-all-selected branch) uses displayEntries.length (post-filter,
+               placeholders included, matching what's actually on screen), but "N selected"
+               (all-selected branch) uses files.selectedCount (the REAL selection store's own
+               size), because displayEntries can contain synthetic upload placeholders that can
+               NEVER be selected (files.selectAll() only ever populates the store with real
+               files.entries paths -- see stores/files.ts's own selectAll()) -- templating
+               displayEntries.length there would overstate the count by the in-flight-upload
+               count while a batch is uploading into the current directory. Reuses tmItemCount
+               ("{n} items", already shared with SnapshotPreviewWindow.vue) and filesSelectedCount
+               ("{count} selected", already used by SelectionToolbar.vue) via <i18n-t> so only the
+               number itself is bold, matching the mock's `<strong>N</strong> items` markup
+               without introducing v-html. -->
+          <div class="files-list-head">
+            <div class="files-select-zone">
+              <button
+                type="button"
+                class="files-select-all"
+                :class="{ on: files.allSelected }"
+                :aria-pressed="files.allSelected"
+                :title="files.allSelected ? t('filesClearSel') : t('filesSelectAll')"
+                @click="files.allSelected ? files.clearSelection() : files.selectAll()"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+              </button>
+              <i18n-t v-if="!files.allSelected" keypath="tmItemCount" tag="span" class="files-item-count" scope="global">
+                <template #n><strong>{{ displayEntries.length }}</strong></template>
+              </i18n-t>
+              <i18n-t v-else keypath="filesSelectedCount" tag="span" class="files-item-count" scope="global">
+                <template #count><strong>{{ files.selectedCount }}</strong></template>
+              </i18n-t>
             </div>
-            <FileGridView
-              v-if="files.viewMode === 'grid'"
-              ref="gridRef"
-              :entries="displayEntries"
-              :selected-paths="files.selected"
-              @open="openEntry"
-              @select="onSelect"
-              @contextmenu="onItemContextmenu"
-              @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
-            />
-            <FileListView
-              v-else
-              :entries="displayEntries"
-              :sort="files.sort"
-              :order="files.order"
-              :selected-paths="files.selected"
-              @open="openEntry"
-              @reorder="files.setSort"
-              @select="onSelect"
-              @contextmenu="onItemContextmenu"
-              @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
-            />
-            <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
+            <div class="files-view-capsule" role="group" :aria-label="t('filesViewMode')">
+              <button
+                type="button"
+                class="files-view-capsule-btn view-toggle-grid"
+                :class="{ active: files.viewMode === 'grid' }"
+                :title="t('filesViewGrid')"
+                :aria-label="t('filesViewGrid')"
+                @click="files.setView('grid')"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" rx="1.4" /><rect x="14" y="3" width="7" height="7" rx="1.4" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.4" /><rect x="14" y="14" width="7" height="7" rx="1.4" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="files-view-capsule-btn view-toggle-list"
+                :class="{ active: files.viewMode === 'list' }"
+                :title="t('filesViewList')"
+                :aria-label="t('filesViewList')"
+                @click="files.setView('list')"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                  <path d="M8 6h13M8 12h13M8 18h13" />
+                  <circle cx="4" cy="6" r="1.3" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
+            </div>
           </div>
-        </FileContextMenu>
+          <FileContextMenu :entry="ctxEntry" :selected-count="ctxTargetCount" @action="onCtxAction">
+            <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
+              <div v-if="files.error && !files.loading" class="files-error" role="alert">
+                <span class="files-error-title">{{ t('filesLoadFailed') }}</span>
+                <span class="files-error-detail">{{ files.error }}</span>
+                <button class="chip" @click="files.load(files.currentPath)">{{ t('filesRetry') }}</button>
+              </div>
+              <FileGridView
+                v-if="files.viewMode === 'grid'"
+                ref="gridRef"
+                :entries="displayEntries"
+                :selected-paths="files.selected"
+                @open="openEntry"
+                @select="onSelect"
+                @contextmenu="onItemContextmenu"
+                @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
+              />
+              <FileListView
+                v-else
+                :entries="displayEntries"
+                :sort="files.sort"
+                :order="files.order"
+                :selected-paths="files.selected"
+                @open="openEntry"
+                @reorder="files.setSort"
+                @select="onSelect"
+                @contextmenu="onItemContextmenu"
+                @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
+              />
+              <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
+            </div>
+          </FileContextMenu>
+        </TimeMachineStage>
       </div>
     </div>
     <NewItemDialog v-model:open="newDlg.open" :mode="newDlg.mode" @confirm="confirmNew" />
@@ -913,30 +1147,34 @@ onMounted(() => { browse.ensureVolumes() })
       :cancel-text="t('filesCancel')"
       @confirm="confirmDownload"
     />
+    <!-- Restore-flow whole-folder confirm (Vue2's own restoreFromBanner no-selection branch #2,
+         "Restore folder" two-step) -- Cancel just toggles `.open` false via v-model (same as every
+         other AlertDialog above); `.item` is only ever read/cleared by `onRestoreFolderConfirmed`
+         itself, so it survives the Cancel toggle intact for a possible re-open, same as
+         `deleteDlg.entries`'s own pattern above. -->
+    <AlertDialog
+      v-model:open="restoreFolderConfirm.open"
+      :title="t('tmRestoreFolderTitle')"
+      :message="t('tmRestoreFolderMsg', { name: restoreFolderConfirm.item?.name ?? '' })"
+      :confirm-text="t('snapBrowseRestore')"
+      :cancel-text="t('filesCancel')"
+      @confirm="onRestoreFolderConfirmed"
+    />
+    <RestoreDestinationModal ref="restoreModalRef" />
     <UploadPanel />
     <UploadPreparingOverlay :open="preparing" />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
-    <TimeMachineOverlay
-      v-if="browse.wheelOpen"
-      ref="overlayRef"
-      :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
-      :mount-point="browse.currentVolume?.mount ?? ''"
-      :rel-path="snapshotRelPath"
-      :folder-label="currentVirtual"
-      @close="browse.closeWheel()"
-      @select="onSnapshotSelect"
-      @open-settings="settingsOpen = true"
-    />
     <!-- Time Machine stays open while the settings dialog is open (intentional): after creating
          a new snapshot successfully, the new tick mark can be seen appearing right away.
-         z-index ordering holds naturally (overlay 900 < Dialog.vue's 1000/1001), no override needed. -->
-    <SnapshotSettingsDialog
+         z-index ordering holds naturally (stage 900 < Dialog.vue's 1000/1001), no override needed. -->
+    <SnapshotSettingsModal
       v-model:open="settingsOpen"
       :volume-uuid="browse.currentVolume?.volume_uuid ?? ''"
-      :mount-point="browse.currentVolume?.mount ?? ''"
-      @snapshot-created="overlayRef?.reload()"
+      :mount="browse.currentVolume?.mount ?? ''"
+      @snapshot-created="browse.refreshSnapshotList()"
+      @snapshot-deleted="browse.refreshSnapshotList()"
     />
     <UploadBatchModal
       v-if="batchModalId"
@@ -957,13 +1195,108 @@ onMounted(() => { browse.ensureVolumes() })
    overflow-y:auto finally engages. */
 .files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .files-main { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; align-self: stretch; display: flex; flex-direction: column; } /* Stretches to fill right-side height, so whitespace below the listing can be a right-click target */
-.files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
+/* Fix wave E (E2, owner acceptance 2026-08-26): padding is `var(--tm-topbar-padding)` -- shared
+   with SnapshotPreviewWindow.vue's own `.tm-preview-window__chrome` replica (theme.css's own
+   comment on that token explains why: the third drift between this row and its TM depth-stack
+   clone, now closed with a shared source instead of a fourth one-off audit). */
+.files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: var(--tm-topbar-padding); }
+.files-topbar-left { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; }
 .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
-.files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
-.files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
+/* Important 3 (final review): Vue2's own `.tm-snap-chip` literal (FilePanel.vue) -- bg = accent
+   purple at 10% alpha, text = the darker accent shade -- reproduced via color-mix rather than a
+   new token, same pattern SnapshotPreviewWindow.vue's own `.tm-preview-window__chip` already
+   uses for the identical Vue2 source.
+   Fix wave B (B2, owner acceptance 2026-08-26): now rendered inside Breadcrumb.vue's own `<nav
+   class="breadcrumb">` flex row (via its `#trailing` slot, see the template above) rather than as
+   a sibling of <Breadcrumb> in `.files-topbar-left` -- that row already applies its own
+   `gap: 4px` between every child (crumbs/separators/the favorite star); `margin-left: 6px` on top
+   of that gap lands this chip exactly `4 + 6 = 10px` after whatever precedes it, matching Vue2's
+   own `.tm-snap-chip { margin-left: 10px }` literal byte-for-byte. */
+.tm-real-window-chip {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  padding: 3px 10px;
+  border-radius: 980px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--tm-accent) 10%, transparent);
+  color: var(--tm-accent-hover);
+}
+.files-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
-.chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
-.files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
+/* Task 10 (Vue2 parity): the Snapshots entry chip is upgraded from a plain neutral chip to the
+   green pill Vue2 FilePanel.vue uses (its own Buefy `<b-button type="is-success" rounded>`
+   entry button) -- see theme.css's own comment on --tm-entry-* for the exact color derivation.
+   Shape/size stay the shared `.chip` pill (already matches Vue2's own rounded/is-small look), so
+   only color is overridden here; no border (Vue2's own is-success button has none either). */
+/* Fix wave A3 (audit-modals.md #4, entry pill shape): Vue2's own Buefy `is-small` pill computes to
+   `font-size: .75rem`(12px), height `2.5em`≈30px, padding `1.25em`(15px) horizontal / `calc(.5em-1px)`
+   (5px) vertical (FilePanel.vue:205-207) -- overriding the shared `.chip` rule's 13px/6px-14px,
+   which the other (non-snapshot) toolbar chips keep unchanged. */
+.chip.tb-time-machine { background: var(--tm-entry-bg); border-color: transparent; color: var(--tm-entry-fg); font-size: 12px; padding: 5px 15px; display: inline-flex; align-items: center; }
+.chip.tb-time-machine:hover { background: var(--tm-entry-hover-bg); }
+.tb-time-machine-icon { margin-right: 6px; font-size: 13px; line-height: 1; }
+/* Fix wave C (toolbar redesign): the content-area header row -- left = select-all + count, right
+   = the grid/list capsule that used to be topbar chips (`.files-viewtoggle`, removed). Literal
+   values (padding/border/pill geometry) are the owner-approved mock's own literal CSS, translated
+   1:1 from its `--hairline`/`--chip-border`/`--chip-bg` demo tokens to this app's real
+   equivalents (`--card-border`/`--chip-border`/`--chip-bg`).
+   Fix wave C re-review: the filled states below (select-all's `.on`, the capsule's `.active` half)
+   were re-pointed from the app's generic blue `--accent`/`--on-accent` onto the DEDICATED
+   `--purple-accent`/`--on-purple-accent` pair (theme.css) -- see that token's own header comment
+   for the exact owner-approved literal it pins; that mock's own throwaway demo stylesheet just
+   happens to name ITS OWN custom property the same as this app's real (blue) --accent, an
+   unrelated coincidence, not an instruction to reuse it. `--on-purple-accent` (not `--on-accent`)
+   is the correct foreground here too -- see theme.css's own comment on it: `--on-accent` flips
+   with `--accent`'s own per-theme luminance and would put unreadable dark-navy text/icon on this
+   always-dark purple in the blue theme. */
+/* Fix wave E (E2, owner acceptance 2026-08-26): padding is `var(--tm-list-head-padding)` -- shared
+   with SnapshotPreviewWindow.vue's own `.tm-preview-window__row2` replica (see the `.files-topbar`
+   rule above's own comment for the full rationale, same token block). */
+.files-list-head { display: flex; align-items: center; justify-content: space-between; padding: var(--tm-list-head-padding); border-top: 1px solid var(--card-border, rgba(255,255,255,0.1)); flex: 0 0 auto; }
+.files-select-zone { display: flex; align-items: center; gap: 10px; }
+/* Unfilled: a plain ring (border only). Filled (`.on`, all currently-listed entries selected):
+   solid --purple-accent fill + the --on-purple-accent check glyph. */
+.files-select-all {
+  width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--chip-border);
+  background: none; padding: 0; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--on-purple-accent); cursor: pointer;
+}
+.files-select-all svg { width: 11px; height: 11px; display: none; }
+.files-select-all.on { background: var(--purple-accent); border-color: var(--purple-accent); }
+.files-select-all.on svg { display: block; }
+/* Fix wave E (E2, owner acceptance 2026-08-26): font-size is `var(--tm-item-count-font-size)` --
+   shared with SnapshotPreviewWindow.vue's own `.tm-preview-window__count` replica, which used to
+   have no dedicated rule at all and silently inherited a DIFFERENT size (13px) from its own row2
+   container -- see this fix wave's own report for the exact before/after. */
+.files-item-count { font-size: var(--tm-item-count-font-size); color: var(--fg-muted); }
+.files-item-count strong { color: var(--fg); font-weight: 600; }
+.files-view-capsule { display: inline-flex; border: 1px solid var(--chip-border); border-radius: 999px; overflow: hidden; background: var(--chip-bg); flex: none; }
+.files-view-capsule-btn { border: none; background: none; cursor: pointer; padding: 6px 16px; display: inline-flex; align-items: center; color: var(--fg-muted); }
+.files-view-capsule-btn svg { width: 15px; height: 15px; }
+.files-view-capsule-btn.active { background: var(--purple-accent); color: var(--on-purple-accent); }
+.files-view-capsule-btn:not(.active):hover { color: var(--fg); }
+/* Fix wave E (E2 follow-up, owner acceptance 2026-08-26, cross-file truncation mismatch):
+   `scrollbar-gutter: stable` reserves this container's classic-scrollbar gutter WHETHER OR NOT a
+   scrollbar is actually showing right now -- without it, a folder short enough to fit had the
+   FULL width available to `auto-fill`/flex-basis column math, while a longer folder (vertical
+   scrollbar engaged) had that width reduced by the scrollbar's own px, so `.file-grid`'s tile
+   width (and `.file-listview`'s `.col-name` flex-basis) resolved DIFFERENT truncation points
+   between two otherwise-identical folders -- and, the actual owner-reported symptom, between this
+   real window and SnapshotPreviewWindow.vue's own equivalent container (`.tm-preview-window__body`,
+   below), which never scrolls at all and therefore always had the wider, un-gutter'd width. Both
+   containers now reserve the SAME gutter unconditionally (theme.css's own `--tm-item-count-font-
+   size`-style shared-token approach does not fit here -- the gutter WIDTH is platform/browser-
+   scrollbar-implementation-defined, not a value either file could literally share -- so both sides
+   instead share the SAME DECLARATION, `scrollbar-gutter: stable`, which each browser then resolves
+   to its own but MUTUALLY CONSISTENT actual width). Minor visual change to the plain (non-Time-
+   Machine) Files view: a folder that fits without scrolling now shows a small reserved blank strip
+   on the right where the gutter would be, matching the app's own global `scrollbar-width: thin`
+   token (theme.css's own `*` rule) rather than a full classic-width gutter -- owner-approved per
+   this fix wave's own dispatch message. See timeMachineDepthStackGeometryParity.test.ts's own new
+   parity case for the CI guard pinning this declaration between the two files. */
+.files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text
    (which is usually the actionable part), and offer the retry. */
 .files-error {

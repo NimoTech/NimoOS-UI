@@ -52,6 +52,30 @@
      default look); icons must stay square everywhere */
   --icon-radius: 31%;
 
+  /* Fix wave E (E2, owner acceptance 2026-08-26): shared, non-color structural metrics for the
+     Files topbar/list-head "chrome" row, pinned here ONCE and consumed by BOTH the real window
+     (src/views/Files.vue's own `.files-topbar`/`.files-list-head`/`.files-item-count`) and its
+     decorative Time Machine depth-stack replica (src/files/snapshot/SnapshotPreviewWindow.vue's
+     own `.tm-preview-window__chrome`/`__row2`/`__count`) -- so a promoted back panel's chrome
+     rows land at the EXACT same pixels as the just-revealed real window's, with nothing shifting
+     relative to anything else at the reveal instant (the owner's own binding rule for this fix
+     wave, see timeMachineMath.ts's own resolveSlotPose comment on Ruling E-1'). This is the
+     THIRD time this exact pair of files drifted on chrome metrics (Fix waves A1/B2/C each fixed a
+     different piece of it) -- a shared token makes a FOURTH drift a build-time impossibility for
+     the values it covers, rather than another one-off audit. Breadcrumb.vue's own `.crumb` (the
+     LIVE breadcrumb) also consumes `--tm-crumb-*` below, even though it has nothing to do with
+     Time Machine by name -- it is simply the single real source of that geometry both TM chrome
+     and this token block describe; folding it in here (rather than leaving it as a fourth
+     un-pinned literal) closes the loop completely. See timeMachineDepthStackGeometryParity.test.ts
+     for the CI guard that fails if either consumer stops referencing these tokens. */
+  --tm-topbar-padding: 4px 0 14px; /* Files.vue `.files-topbar`, byte-for-byte */
+  --tm-crumb-font-size: 14px;
+  --tm-crumb-padding: 2px 4px;
+  --tm-crumb-gap: 4px;
+  --tm-crumb-sep-font-size: 12px;
+  --tm-list-head-padding: 10px 2px; /* Files.vue `.files-list-head`, byte-for-byte */
+  --tm-item-count-font-size: 12.5px;
+
   /* One-step-up shadow while dragging (more "afloat") + folder glass + edit-mode grid dots */
   --card-shadow-drag:
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
@@ -69,6 +93,27 @@
   --accent2: #b79bff;
   --good: #5fe3b0;
   --on-accent: #16203a;
+  /* Fix wave C re-review (Files toolbar redesign, owner-confirmed mockup): a dedicated app-level
+     PURPLE accent for the "New" dropdown button + its dependents (select-all fill, view-capsule
+     active half, dropdown-item hover tint) -- the mock's own literal `--accent: #7c3aed` /
+     `--accent-hover: #6d28d9`, NOT this block's generic blue `--accent` (other app surfaces
+     depend on that staying blue) and NOT `--tm-accent`/`--tm-accent-hover` below (that pair is
+     Time Machine chrome's own scoped token, semantically "TM subsystem accent" -- reusing it on a
+     plain toolbar button outside TM would blur that boundary, even though the literal hex happens
+     to match). Theme-invariant by owner ruling (same purple in both themes), same "identical
+     value in every theme block" convention `--tm-accent` already established just below.
+     `--on-purple-accent` (NOT `--on-accent`) is the text/icon color painted on top of
+     `--purple-accent` fills -- `--on-accent` is deliberately coupled to `--accent`'s own
+     per-theme luminance flip (dark navy text on the blue theme's pale accent, white text on the
+     light theme's deep accent) and would put unreadable dark-navy text on this always-dark
+     purple in the blue theme; `--purple-accent` is theme-invariant, so its own foreground token
+     is too -- same "own dedicated fg token, not the generic on-accent" precedent this file's
+     `--tm-entry-bg`/`--tm-entry-fg`/`--tm-entry-hover-bg` triplet below already sets for the
+     Snapshots entry pill (another theme-invariant filled pill outside the normal accent flip).
+     Guard: src/styles/__tests__/purpleAccentTokens.test.ts. */
+  --purple-accent: #7c3aed;
+  --purple-accent-hover: #6d28d9;
+  --on-purple-accent: #ffffff;
 
   /* Extended/semantic tokens (promoted to global from SearchDialog/MediaViewer; every theme
      gives these a value). See THEMING.md §2.12 */
@@ -243,30 +288,241 @@
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
-  /* Time Machine overlay. Follows the theme (owner's call): dark theme is a deep-space
-     look, light theme is paper-toned -- each stands on its own, not one dark design
-     forced into the light theme. */
-  --tm-bg:
-    radial-gradient(ellipse at 28% 22%, rgba(76, 61, 158, 0.35) 0%, rgba(10, 13, 33, 0) 55%),
-    radial-gradient(ellipse at 78% 78%, rgba(30, 64, 140, 0.28) 0%, rgba(10, 13, 33, 0) 55%),
-    linear-gradient(160deg, #131a3a 0%, #0a0e21 45%, #05060f 100%);
-  --tm-fg: #f1f5f9;
-  --tm-fg-muted: rgba(241, 245, 249, 0.62);
-  /* Review fix (Important): the card stack's absolutely positioned cards overlap, and the
-     back cards carry large text at opacity 0.86/0.7/... -- the pure-glass gradient's max
-     alpha is only 0.16, so in the dark theme (the default theme, this cycle's showcase)
-     text from a card behind was visible straight through the card in front, doubling up.
-     Adding an opaque base color layer (coordinated with --bg:#1a2138 / --card:#232a45,
-     slightly deeper to match --tm-bg's deep-space tone) keeps the glass look while
-     eliminating the double-exposure. */
-  --tm-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)), #161d3d;
-  --tm-card-bd: rgba(255, 255, 255, 0.18);
-  /* Divider between the card header (date/time / type) and the file grid below it,
-     fainter than the card's outer border */
-  --tm-card-divider: rgba(255, 255, 255, 0.1);
-  --tm-card-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
-  --tm-rail: rgba(255, 255, 255, 0.5);
-  --tm-rail-sub: rgba(255, 255, 255, 0.2);
+  /* Task 1 (Vue2-parity Time Machine rebuild): the full new token set, pixel-pinned to
+     Vue2's TimeMachineStage.vue scoped styles + the SnapshotSettingsModal/
+     RestoreDestinationModal/FileConflictDialog white-glass panel tokens (identical values
+     in all three files, confirmed by reading each). Owner ruling: Time Machine looks the
+     SAME in dark and light themes -- every token below carries the identical literal value
+     in both this block and the light block.
+     Guard: src/styles/__tests__/tmTokens.test.ts.
+     Final-review sweep (C2): the nine colleague-era --tm-bg/--tm-fg/--tm-fg-muted/
+     --tm-card-bg/--tm-card-bd/--tm-card-divider/--tm-card-shadow/--tm-rail/--tm-rail-sub
+     tokens that used to live here (each with a DIFFERENT value per theme block, unlike this
+     whole block's own rule) were deleted -- the colleague components that consumed them
+     (TimeMachineOverlay.vue, TimeMachineBar.vue, TimeMachineCrumbs.vue, TimeMachineCard.vue,
+     the colleague's own TimeMachineRail.vue) were themselves deleted in Task 6, and a
+     grep across src/ confirmed zero remaining references before removal. */
+  --tm-glass-bg: rgba(8, 10, 22, 0.35);
+  --tm-glass-blur: blur(24px) saturate(1.05);
+  --tm-rail-text: rgba(255, 255, 255, 0.62);
+  --tm-rail-text-dim: rgba(255, 255, 255, 0.55);
+  --tm-accent: #7c3aed;
+  --tm-accent-hover: #6d28d9;
+  --tm-accent-glow: rgba(124, 58, 237, 0.9);
+  --tm-bar-scrim: linear-gradient(to top, rgba(6, 9, 26, 0.75), rgba(6, 9, 26, 0.25), transparent);
+  --tm-panel-bg: rgba(255, 255, 255, 0.9);
+  --tm-panel-bg-solid: #ffffff;
+  --tm-panel-border: rgba(0, 0, 0, 0.06);
+  --tm-hairline: rgba(0, 0, 0, 0.06);
+  --tm-text: #1f2430;
+  --tm-text-dim: #6b7280;
+  --tm-ghost-border: rgba(0, 0, 0, 0.15);
+  --tm-ghost-hover-bg: rgba(0, 0, 0, 0.05);
+  --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
+  --tm-control-radius: 10px;
+  --tm-panel-blur: blur(20px) saturate(1.2);
+  /* Fix wave A4 (deferred from A2's audit-stage.md #4, the clone-backdrop media-placeholder DOM
+     walk): Vue2's own `.tm-stage__clone-media-placeholder` literal (TimeMachineStage.vue:2936-2940,
+     `background: rgba(255, 255, 255, 0.08)`) -- the stand-in box `sanitizeClonedNode` swaps in for
+     every cloned `<video>`/`<canvas>` (a `cloneNode(true)` copy of either never preserves the
+     decoded frame/drawn bitmap, so left alone it would render as a dead black box behind the glass
+     -- see TimeMachineStage.vue's own `sanitizeClonedNode`/`captureClone` for the port this token
+     feeds). */
+  --tm-clone-media-placeholder-bg: rgba(255, 255, 255, 0.08);
+  /* Task 8 fix round: two more tokens, same "identical in both themes" rule as the rest of this
+     block. Pixel-pinned to Vue2 TimeMachineStage.vue's own literal `.tm-tick:hover` colors:
+     `--tm-rail-tick-hover` is the exact value `.tm-tick:hover .tm-tick__label { color }` and
+     `.tm-tick:hover .tm-tick__line { background }` both share; `--tm-rail-tick-manual` is
+     `.tm-tick__badge`'s own literal `color` (shown only on manual-type ticks -- Vue2 has no
+     equivalent auto/preop tick coloring to pin: `tm-tick--auto`/`tm-tick--preop` carry no CSS
+     rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
+  --tm-rail-tick-hover: #ffffff;
+  --tm-rail-tick-manual: #f6c760;
+  /* Final review (C2): the rail's resting tick colors used to read the colleague-era
+     --tm-rail/--tm-rail-sub tokens (deleted above), whose LIGHT block values were dark ink
+     (rgba(28,27,25,...)) -- near-invisible against the always-dark TM glass backdrop
+     (--tm-glass-bg/--tm-bar-scrim etc. are the same literal in both theme blocks, so the rail
+     sits on a dark surface regardless of app theme). `--tm-rail-tick` is Vue2's own EXACT
+     resting `.tm-tick__line` literal (`.tm-tick__line { background: rgba(255, 255, 255, 0.4) }`,
+     TimeMachineStage.vue). Sub-ticks are a New-UI-only decorative addition (Vue2 renders no
+     ticks between real snapshots -- see TimeMachineRail.vue's own header comment), so there is
+     no Vue2 literal to pin for `--tm-rail-tick-sub`; it is set to half `--tm-rail-tick`'s own
+     alpha (0.4 -> 0.2) so sub-ticks read as visibly fainter than main ticks without inventing an
+     unrelated color, and -- like every token in this block -- carries the identical value in
+     both theme blocks. */
+  --tm-rail-tick: rgba(255, 255, 255, 0.4);
+  --tm-rail-tick-sub: rgba(255, 255, 255, 0.2);
+  /* Task 9 (stepper + bottom bar): pixel-pinned to Vue2 TimeMachineStage.vue's own literal
+     `.tm-stepper__btn`/`.tm-stepper__time`/`.tm-bottom-bar__exit` colors (the `.tm-bottom-bar__restore`
+     button reuses --tm-accent/--tm-accent-hover above, already pinned -- no new token needed there).
+     `--tm-stepper-btn-bg`/`--tm-stepper-btn-hover-bg` are `.tm-stepper__btn`'s own literal
+     `background`/`&:hover:not(:disabled) background`. `--tm-chrome-text` is the plain white text/icon
+     color shared by `.tm-stepper__time`, `.tm-stepper__btn`'s icon, and both `.tm-bottom-bar__exit`/
+     `__restore` button text -- all four Vue2 rules declare the identical literal `color: #fff`.
+     `--tm-stepper-time-shadow` is `.tm-stepper__time`'s own literal `text-shadow`.
+     `--tm-bottom-bar-exit-bg`/`--tm-bottom-bar-exit-hover-bg` are `.tm-bottom-bar__exit`'s own literal
+     `background`/`&:hover background`. */
+  --tm-stepper-btn-bg: rgba(255, 255, 255, 0.16);
+  --tm-stepper-btn-hover-bg: rgba(255, 255, 255, 0.28);
+  --tm-chrome-text: #ffffff;
+  --tm-stepper-time-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+  --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
+  --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
+  /* Task 10 (entry pill): Vue2 FilePanel.vue's own entry button is Buefy's
+     `<b-button type="is-success" rounded size="is-small">` (Snapshots pill). Pixel-pinned by
+     resolving Buefy's own color pipeline for that repo's `$green: hsla(118, 70%, 45%, 1)` base
+     (see NimoOS-UI/src/assets/scss/common/_variables.scss): Bulma's own `.is-success` rule
+     (bulma/sass/elements/button.sass) sets `background-color: $color`,
+     `color: findColorInvert($color)`, and `&:hover background-color: bulmaDarken($color, 2.5%)`
+     -- findColorInvert's own relative-luminance formula returns white for this green (luminance
+     ~0.396, below its 0.55 threshold), and bulmaDarken subtracts 2.5 percentage points of HSL
+     lightness (45% -> 42.5%). All three literal values below were computed from those exact
+     formulas, not eyeballed. */
+  --tm-entry-bg: #28c322;
+  --tm-entry-fg: #ffffff;
+  --tm-entry-hover-bg: #26b821;
+  /* Task 11 (SnapshotSettingsModal): pixel-pinned to Vue2 SnapshotSettingsModal.vue's own
+     $tm-chip-bg / paused-row+preop-badge amber / auto+preop history-dot / danger-button
+     literal SCSS values (that file's own <style> header comment). `--tm-chip-bg` is the mount
+     pill / group-count badge / auto-type badge shared translucent-black chip background.
+     `--tm-warn-text` is the paused-row warning text AND the preop badge text color (both
+     `#92400e`, amber-800, in Vue2). `--tm-warn-bg` is the preop badge background.
+     `--tm-warn-dot` is the preop history-dot fill. `--tm-dot-auto` is the auto history-dot
+     fill (deliberately its own token, not a reuse of --tm-text-dim, since Vue2 pins a
+     distinct #9ca3af there). `--tm-danger`/`--tm-danger-hover` are the ghost-red Delete
+     button's resting/hover text+border colors (`#dc2626`/`#b91c1c`); alpha variants (border,
+     hover fill) are derived from these two via `color-mix()` in the component itself rather
+     than adding more tokens. `--tm-switch-off-bg` is the pill switch's off-state track.
+     `--tm-panel-shadow` is the panel's own drop shadow. `--tm-switch-thumb-shadow` is the
+     switch knob's own drop shadow. `--tm-placeholder-text` is the manual-label input's
+     `::placeholder` color (Vue2 pins `#9ca3af` there too, same literal as --tm-dot-auto by
+     coincidence, but kept as its own token since the two serve unrelated elements). */
+  --tm-chip-bg: rgba(0, 0, 0, 0.05);
+  --tm-warn-text: #92400e;
+  --tm-warn-bg: rgba(245, 158, 11, 0.14);
+  --tm-warn-dot: #f59e0b;
+  --tm-dot-auto: #9ca3af;
+  --tm-danger: #dc2626;
+  --tm-danger-hover: #b91c1c;
+  --tm-switch-off-bg: rgba(0, 0, 0, 0.18);
+  --tm-panel-shadow: 0 24px 80px rgba(15, 20, 40, 0.28);
+  --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --tm-placeholder-text: #9ca3af;
+  /* Final review (Important 4, SnapshotActionBar rebuild): pixel-pinned to Vue2's own
+     `.operation-toolbar`/`.toolbar-item` literal SCSS values (_filebrowser.scss) --
+     `.snapshot-action-bar` reuses that same shared floating-pill toolbar look, unstyled itself
+     beyond its own `&__label`/`&__item--busy` rules. `--tm-action-bar-bg` is `.operation-toolbar`'s
+     own literal `background-color: rgb(49, 49, 54)`; `--tm-action-bar-item-hover-bg` is
+     `.toolbar-item:hover`'s own literal `background-color: rgb(86, 86, 90)`. Text/icon color
+     reuses `--tm-chrome-text` (already `#fff`, matching Vue2's own `has-text-white`) -- no new
+     token needed there. */
+  --tm-action-bar-bg: rgb(49, 49, 54);
+  --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
+  /* Fix wave A2 (audit-stage.md #5/#6/#4/#10/#12): pixel-pinned to Vue2's own remaining
+     TimeMachineStage.vue literals the earlier waves left on `--card-shadow-hi`/`--tm-text`/a
+     borrowed rail token instead of a dedicated one. `--tm-fwin-shadow` is `.tm-fwin--active`'s own
+     single-layer `box-shadow` (3198), replacing the generic 3-layer `--card-shadow-hi` (with its
+     inset highlight Vue2 never has on this element). `--tm-depth-dim` is `.tm-stage__depth-strip__
+     dim`'s own literal `background: #000` (3081, pure black, not `--tm-text`'s navy-grey).
+     `--tm-gear-text` is `.tm-stage__gear`'s own resting `color` (3260) -- hover reuses the existing
+     `--tm-chrome-text` (#fff), same literal as Vue2's own hover `color: #ffffff` (3262), so no
+     separate hover token was needed. `--tm-rail-skeleton` is `.tm-tick-skeleton`'s own literal
+     `background` (3403) -- kept distinct from `--tm-rail-tick-sub` (0.2 alpha, the sub-tick's own
+     resting color) since Vue2 pins a different alpha (0.28) for the loading placeholder than for
+     any real tick.
+     Fix wave F (Ruling F'-1, owner acceptance 2026-08-26, shadow pop at the reveal swap): this
+     block used to ALSO define `--tm-depth-shadow: 0 6px 18px rgba(5,8,30,0.3)` -- Vue2's own,
+     genuinely weaker, `.tm-stage__depth-strip` box-shadow (3042), distinct from this fwin shadow's
+     `0 18px 50px @0.45`. Since the depth-0 strip sits pixel-for-pixel underneath the real window
+     (D2's own geometry-parity tests) and is only ever exposed during a travel (the fwin is opaque
+     the rest of the time, occluding it completely), that weaker shadow was visibly REPLACED by this
+     stronger one the instant the fwin's opacity snapped back from 0 to 1 at reveal -- a "shadow
+     suddenly appears" pop breaking the "this exact panel slid forward" illusion. The owner's
+     seamlessness directive outranks Vue2's own two-distinct-literals design here (same posture as
+     Ruling E-1' on scaleX/scaleY): retired outright, not aliased -- `--tm-depth-shadow` had exactly
+     ONE consumer (`.tm-depth-strip`, TimeMachineDepthStack.vue) and no reason to ever diverge from
+     `--tm-fwin-shadow` again, so keeping a second token whose value must forever equal the first
+     one's would only invite a FUTURE edit to one drifting from the other -- deleted instead, and
+     `.tm-depth-strip` now references `--tm-fwin-shadow` directly. See timeMachineDepthStackGeometry
+     Parity.test.ts's own new case pinning that reference. */
+  --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
+  --tm-depth-dim: #000;
+  --tm-gear-text: rgba(241, 245, 249, 0.75);
+  --tm-rail-skeleton: rgba(255, 255, 255, 0.28);
+  /* `.tm-tick__label`/`.tm-tick__badge`/`.tm-rail__day` all share this ONE literal text-shadow in
+     Vue2 (3442, 3455, 3422) -- one shared token, not three duplicated ones. */
+  --tm-rail-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  /* `.tm-stage__empty-title`/`-sub`'s own literal colors (3355-3356) -- distinct alphas from
+     `--tm-gear-text` above (0.75), not a reuse: title is fully opaque, sub is 0.7. */
+  --tm-empty-title: #f1f5f9;
+  --tm-empty-sub: rgba(241, 245, 249, 0.7);
+  /* Fix wave A3 (audit-modals.md): Vue2 uses TWO different purples across the three white-glass
+     modal dialogs (SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog) and the
+     always-live stage -- `$primary`/`$casablue = #8950F2` (NimoOS-UI common/_variables.scss:26,186,
+     verified directly against node_modules/buefy's own `_switch.scss` which resolves
+     `$switch-active-background-color: $primary`) for every INTERACTIVE FILL inside those three
+     modals (switch-on track, Save/Create/Restore-here/Merge/Keep-both button fills, the manual
+     history dot, and the breadcrumb link text), vs the separate hardcoded `#7c3aed`/`#6d28d9`
+     (Tailwind violet-600/700, `--tm-accent`/`--tm-accent-hover` above) used ONLY by the read-only
+     `.tm-snap-chip` (FilePanel.vue:3825-3833) and the always-dark TM stage/rail chrome that never
+     touches Buefy's `is-primary` at all. New-UI had collapsed both into the one `--tm-accent`
+     token, which was correct for the chip/stage but wrong everywhere it leaked into these three
+     modals -- `--tm-primary` is the fix: Vue2's exact `$primary` literal, consumed ONLY by
+     SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog. `--tm-primary-hover` is
+     Bulma's own `bulmaDarken($primary, 2.5%)` (button.sass's `.is-primary:hover` rule -- HSL
+     lightness minus 2.5 percentage points, computed and verified via a Python HSL round-trip, not
+     eyeballed), used by every Buefy default-hover fill (Save/Create/Restore-here/Merge/Keep-both).
+     `--tm-primary-text` is the DIFFERENT literal `darken($primary, 14%)` SnapshotSettingsModal.vue
+     itself authors by hand for the manual-type history badge's text color only (own file:1275,
+     `&--manual { color: darken($primary, 14%) }`) -- a distinct SCSS darken call from the Bulma
+     hover one above, so it needed its own token rather than reusing `--tm-primary-hover`. */
+  --tm-primary: #8950f2;
+  --tm-primary-hover: #8144f1;
+  --tm-primary-text: #5d11e9;
+  /* Fix wave A3 (audit-modals.md #1): Buefy's own `.modal` background is a flat, unblurred
+     `rgba(0,0,0,.5)` (Bulma `$modal-background-background-color`, NimoOS-UI
+     common/_variables.scss:276) for all three white-glass TM dialogs -- a different scrim from
+     this app's shared `--overlay-bg`/`--overlay-blur` (blurred, blue-tinted), which those three
+     dialogs' own `<style scoped>` blocks used to reuse. Scoped to ONLY those three components
+     (SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog's own `.ssm-overlay`/
+     `.rdm-overlay`/`.fc-overlay` rules) -- every other dialog in the app keeps the shared
+     blurred overlay unchanged. */
+  --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
+  /* Fix wave A3 (audit-modals.md #7/#14/#16/#18): SnapshotSettingsModal.vue's own remaining
+     history-list literals not yet pinned to a token. `--tm-rail-connector` is
+     `&__history-list::before`'s own literal `background: rgba(0,0,0,.1)` (own file:1218,1220) --
+     the 1px vertical timeline connector line behind the history dots. `--tm-dot-ring` is
+     `&__history-dot`'s own literal `box-shadow: 0 0 0 1px rgba(0,0,0,.12)` (own file:1247) -- the
+     secondary hairline ring around the white dot border. `--tm-history-item-hover` is
+     `&__history-item:hover`'s own literal `rgba(0,0,0,.035)` (own file:1234) -- deliberately its
+     own token, NOT a reuse of `--tm-ghost-hover-bg` (`rgba(0,0,0,.05)`), since Vue2 pins a visibly
+     lighter alpha here than the panel's generic ghost-hover tint. `--tm-history-header-hover-bg`
+     is `&__history-group-header:hover`'s own literal `rgba(242,243,245,.95)` (own file:1185) -- a
+     distinct cool-grey swatch, not derivable from any existing token. `--tm-skeleton-shimmer-mid`
+     is the shimmer gradient's own middle stop `rgba(0,0,0,.1)` (own file:1131,
+     `linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.1) 37%, rgba(0,0,0,.05) 63%)`) -- the
+     gradient's two outer stops are exactly `--tm-chip-bg` (already `rgba(0,0,0,.05)`, reused
+     rather than duplicated) so only the mid-stop needed a new token. `--tm-scroll-thumb-hover` is
+     the history scroll box's own webkit scrollbar-thumb hover rule's literal `rgba(0,0,0,.3)`
+     (`&__history-scroll:hover`, own file:1119) -- the resting thumb color is exactly `--tm-ghost-border` (already
+     `rgba(0,0,0,.15)`, reused), only the hover-darken needed a new token. */
+  --tm-rail-connector: rgba(0, 0, 0, 0.1);
+  --tm-dot-ring: rgba(0, 0, 0, 0.12);
+  --tm-history-item-hover: rgba(0, 0, 0, 0.035);
+  --tm-history-header-hover-bg: rgba(242, 243, 245, 0.95);
+  --tm-skeleton-shimmer-mid: rgba(0, 0, 0, 0.1);
+  --tm-scroll-thumb-hover: rgba(0, 0, 0, 0.3);
+  /* Fix wave A3 (audit-modals.md §5): SnapshotBanner.vue's own component previously reused the
+     app-wide `--dem-*` "noteworthy but not error" semantic tokens, which flips value per theme
+     (translucent gold-on-dark-glass in the default theme) -- but Vue2's own SnapshotBanner.vue
+     (own file:64-68) is a single hardcoded flat pale-yellow strip (`#fef9c3`/`#92400e`, Tailwind
+     yellow-100/amber-800) that never changes look, matching every other `--tm-*` token's "same in
+     both themes" rule, not `--dem-*`'s per-theme rule. Dedicated tokens instead of changing
+     `--dem-bg`/`--dem-fg` themselves, since those are still correctly reused elsewhere (preop
+     badge, storage snapshot timeline) and changing their literal would regress those unrelated
+     consumers. */
+  --tm-banner-bg: #fef9c3;
+  --tm-banner-fg: #92400e;
 
   --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
   --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
@@ -404,6 +660,10 @@
   --accent2: #6e5ae0;
   --good: #15754c;
   --on-accent: #ffffff;
+  /* Same literal purple as the dark block above -- see that block's own comment. */
+  --purple-accent: #7c3aed;
+  --purple-accent-hover: #6d28d9;
+  --on-purple-accent: #ffffff;
 
   /* 2.2 Brand gradient */
   --brand-bg: linear-gradient(135deg, #4c6fe8, #6e5ae0);
@@ -622,21 +882,105 @@
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
-  /* Time Machine -- light paper theme: no starfield, the background is ecru plus a
-     very faint glow */
-  --tm-bg:
-    radial-gradient(ellipse at 26% 20%, rgba(59, 91, 219, 0.10) 0%, rgba(247, 245, 239, 0) 58%),
-    radial-gradient(ellipse at 80% 80%, rgba(110, 90, 224, 0.08) 0%, rgba(247, 245, 239, 0) 58%),
-    linear-gradient(160deg, #fbfaf6 0%, #f3f0e8 55%, #ebe7dd 100%);
-  --tm-fg: #1c1b19;
-  --tm-fg-muted: #6e6a61;
-  --tm-card-bg: linear-gradient(155deg, #ffffff, #f6f4ee);
-  --tm-card-bd: rgba(28, 27, 25, 0.12);
-  --tm-card-divider: rgba(28, 27, 25, 0.1);
-  --tm-card-shadow: 0 18px 44px rgba(28, 27, 25, 0.18);
-  --tm-rail: rgba(28, 27, 25, 0.45);
-  --tm-rail-sub: rgba(28, 27, 25, 0.16);
-  /* Paper theme dims toward warm ink rather than deep space (see the dark block's note) */
+  /* Task 1: same values as the dark block above -- owner ruling: Time Machine looks the
+     same in both themes, so these are NOT re-derived for light/paper tone. Final-review
+     sweep (C2): the nine colleague-era light-block tokens that used to live here (--tm-bg/
+     --tm-fg/--tm-fg-muted/--tm-card-bg/--tm-card-bd/--tm-card-divider/--tm-card-shadow/
+     --tm-rail/--tm-rail-sub) were deleted alongside their dark-block counterparts -- see this
+     block's own opening comment above the dark block's matching note. */
+  --tm-glass-bg: rgba(8, 10, 22, 0.35);
+  --tm-glass-blur: blur(24px) saturate(1.05);
+  --tm-rail-text: rgba(255, 255, 255, 0.62);
+  --tm-rail-text-dim: rgba(255, 255, 255, 0.55);
+  --tm-accent: #7c3aed;
+  --tm-accent-hover: #6d28d9;
+  --tm-accent-glow: rgba(124, 58, 237, 0.9);
+  --tm-bar-scrim: linear-gradient(to top, rgba(6, 9, 26, 0.75), rgba(6, 9, 26, 0.25), transparent);
+  --tm-panel-bg: rgba(255, 255, 255, 0.9);
+  --tm-panel-bg-solid: #ffffff;
+  --tm-panel-border: rgba(0, 0, 0, 0.06);
+  --tm-hairline: rgba(0, 0, 0, 0.06);
+  --tm-text: #1f2430;
+  --tm-text-dim: #6b7280;
+  --tm-ghost-border: rgba(0, 0, 0, 0.15);
+  --tm-ghost-hover-bg: rgba(0, 0, 0, 0.05);
+  --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
+  --tm-control-radius: 10px;
+  --tm-panel-blur: blur(20px) saturate(1.2);
+  --tm-clone-media-placeholder-bg: rgba(255, 255, 255, 0.08);
+  /* Task 8 fix round: two more tokens, same "identical in both themes" rule as the rest of this
+     block. Pixel-pinned to Vue2 TimeMachineStage.vue's own literal `.tm-tick:hover` colors:
+     `--tm-rail-tick-hover` is the exact value `.tm-tick:hover .tm-tick__label { color }` and
+     `.tm-tick:hover .tm-tick__line { background }` both share; `--tm-rail-tick-manual` is
+     `.tm-tick__badge`'s own literal `color` (shown only on manual-type ticks -- Vue2 has no
+     equivalent auto/preop tick coloring to pin: `tm-tick--auto`/`tm-tick--preop` carry no CSS
+     rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
+  --tm-rail-tick-hover: #ffffff;
+  --tm-rail-tick-manual: #f6c760;
+  /* Final review (C2) -- see the dark block's own comment on these two tokens for the full
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-rail-tick: rgba(255, 255, 255, 0.4);
+  --tm-rail-tick-sub: rgba(255, 255, 255, 0.2);
+  /* Task 9 (stepper + bottom bar) -- see the dark block's own comment on these six tokens for the
+     full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-stepper-btn-bg: rgba(255, 255, 255, 0.16);
+  --tm-stepper-btn-hover-bg: rgba(255, 255, 255, 0.28);
+  --tm-chrome-text: #ffffff;
+  --tm-stepper-time-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+  --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
+  --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
+  /* Task 10 (entry pill) -- see the dark block's own comment on these three tokens for the full
+     Vue2/Bulma provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-entry-bg: #28c322;
+  --tm-entry-fg: #ffffff;
+  --tm-entry-hover-bg: #26b821;
+  /* Task 11 (SnapshotSettingsModal) -- see the dark block's own comment on these eight tokens
+     for the full Vue2 provenance; values are identical here (owner ruling: same look in both
+     themes). */
+  --tm-chip-bg: rgba(0, 0, 0, 0.05);
+  --tm-warn-text: #92400e;
+  --tm-warn-bg: rgba(245, 158, 11, 0.14);
+  --tm-warn-dot: #f59e0b;
+  --tm-dot-auto: #9ca3af;
+  --tm-danger: #dc2626;
+  --tm-danger-hover: #b91c1c;
+  --tm-switch-off-bg: rgba(0, 0, 0, 0.18);
+  --tm-panel-shadow: 0 24px 80px rgba(15, 20, 40, 0.28);
+  --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --tm-placeholder-text: #9ca3af;
+  /* Final review (Important 4) -- see the dark block's own comment on these two tokens for the
+     full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-action-bar-bg: rgb(49, 49, 54);
+  --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
+  /* Fix wave A2 -- see the dark block's own comment on these tokens for the full Vue2 provenance;
+     values are identical here (owner ruling: same look in both themes). Fix wave F (Ruling F'-1):
+     `--tm-depth-shadow` retired here too -- see the dark block's own comment on this token's
+     removal for the full trace. */
+  --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
+  --tm-depth-dim: #000;
+  --tm-gear-text: rgba(241, 245, 249, 0.75);
+  --tm-rail-skeleton: rgba(255, 255, 255, 0.28);
+  --tm-rail-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  --tm-empty-title: #f1f5f9;
+  --tm-empty-sub: rgba(241, 245, 249, 0.7);
+  /* Fix wave A3 -- see the dark block's own comment on these three tokens for the full Vue2/Bulma
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-primary: #8950f2;
+  --tm-primary-hover: #8144f1;
+  --tm-primary-text: #5d11e9;
+  /* Fix wave A3 -- see the dark block's own comment for the full Vue2 provenance. */
+  --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
+  /* Fix wave A3 -- see the dark block's own comment on these six tokens for the full Vue2
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-rail-connector: rgba(0, 0, 0, 0.1);
+  --tm-dot-ring: rgba(0, 0, 0, 0.12);
+  --tm-history-item-hover: rgba(0, 0, 0, 0.035);
+  --tm-history-header-hover-bg: rgba(242, 243, 245, 0.95);
+  --tm-skeleton-shimmer-mid: rgba(0, 0, 0, 0.1);
+  --tm-scroll-thumb-hover: rgba(0, 0, 0, 0.3);
+  /* Fix wave A3 -- see the dark block's own comment for the full Vue2 provenance. */
+  --tm-banner-bg: #fef9c3;
+  --tm-banner-fg: #92400e;
 }
 
 /* Light theme: the scrollbar thumb color is already flipped inside the theme block by the

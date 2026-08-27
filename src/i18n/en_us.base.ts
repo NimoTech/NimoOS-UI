@@ -11,6 +11,9 @@ export default {
   filesEmpty: 'This folder is empty',
   filesViewList: 'List',
   filesViewGrid: 'Grid',
+  // Fix wave C (toolbar redesign, 2026-08-26): aria-label for the content-area header row's
+  // grid/list capsule switcher (role="group") -- new key, no prior generic label existed.
+  filesViewMode: 'View mode',
   filesColName: 'Name',
   filesColType: 'Type',
   filesColDate: 'Date modified',
@@ -31,6 +34,10 @@ export default {
   filesProtectedRename: 'This item is protected and cannot be renamed',
   filesProtectedMove: 'This item is protected and cannot be moved',
   filesCopiedPath: 'Path copied',
+  // Fix wave C (toolbar redesign, 2026-08-26): the collapsed "New" dropdown trigger label
+  // (FilesNewMenu.vue) -- New folder/New file/Upload files/Upload folder now live inside its
+  // menu, each still reusing its own pre-existing key below.
+  filesNewMenu: 'New',
   filesNewFolder: 'New folder',
   filesNewFile: 'New file',
   filesPaste: 'Paste',
@@ -838,6 +845,12 @@ export default {
   snapDailyKeep: 'Daily keep count',
   snapWeeklyKeep: 'Weekly keep count',
   snapPauseThreshold: 'Pause when volume usage exceeds (%)',
+  // Fix wave A3 (audit-modals.md #6): aria-labels for the [-]/[+] ghost-stepper buttons rebuilt
+  // to Vue2's own Buefy `b-numberinput` shape (SnapshotSettingsModal.vue). Deliberately separate
+  // keys from TimeMachineStepper.vue's `tmStepLater`/`tmStepEarlier` (those step between
+  // snapshots in time; these increment/decrement a policy field's numeric value).
+  snapNumDecrease: 'Decrease',
+  snapNumIncrease: 'Increase',
   snapErrPositiveInt: 'Must be a positive whole number',
   snapErrPercent: 'Must be a whole number between 1 and 100',
   snapSave: 'Save',
@@ -862,23 +875,44 @@ export default {
   snapBrowseWriteBlocked: 'This is a read-only snapshot — changes are disabled here',
   snapBrowseRestoreToOriginal: 'Restore to original location',
   snapBrowseRestored: 'Restored to {path}',
-  snapBrowseRestoredN: 'Restored {n} items (copies are suffixed .restored)',
   snapBrowseRestoreNotFound: 'That file no longer exists in this snapshot',
   snapBrowseRestoreInvalid: 'Invalid path — cannot restore',
   snapBrowseRestoreFailed: 'Restore failed, please try again',
   snapBrowseRestoredPartial: 'Restored {ok} items, {fail} failed',
   snapBrowseRestoringProgress: 'Restoring {done}/{total}',
 
-  tmEntry: 'Time Machine',
-  tmEnter: 'Enter this snapshot',
+  // Task 1 (Files Time Machine Vue2-parity line): tmEntry's copy changes from 'Time Machine'
+  // to 'Snapshots' -- Vue2 authority (en_US.json's "Snapshots" key) renamed the nav entry
+  // itself. tmEnter/tmNoFolderAtTime/tmPreviewUnavailable/tmStepNewer/tmOpenFolder were
+  // consumed only by the colleague-authored cards/rail components under src/files/snapshot/
+  // and were removed in T16 alongside those components (zero `t('key')` references left).
+  // tmItemCount and tmRailJumpTo are NOT colleague-only: SnapshotPreviewWindow.vue and
+  // TimeMachineRail.vue (both permanent components in this rebuild) still render them.
+  tmEntry: 'Snapshots',
   tmSettings: 'Snapshot settings',
-  tmNoFolderAtTime: 'This folder did not exist yet',
-  tmPreviewUnavailable: "Couldn't read this folder just now",
   tmItemCount: '{n} items',
   tmRailJumpTo: 'Jump to the snapshot from {time}',
-  tmStepNewer: 'Newer snapshot',
   tmStepEarlier: 'Earlier snapshot',
-  tmOpenFolder: 'Open folder {name}',
+  // Task 1 additions below: copied verbatim from Vue2 NimoOS-UI's src/assets/lang/en_US.json
+  // (the Time Machine stage / snapshot settings modal / restore destination modal / file
+  // conflict dialog strings for the Vue2-parity rebuild). Several of the brief's proposed
+  // names turned out to duplicate an EXISTING key's exact English text -- those are reused,
+  // not re-added; see task-1-report.md for the full brief-name -> actual-key mapping table.
+  tmExit: 'Exit Time Machine',
+  tmRestoreSelection: 'Restore selection',
+  tmStepLater: 'Later snapshot',
+  snapReadOnlyBanner: 'Snapshot · Read-only',
+  snapProtectionBlock: 'Protection & Schedule',
+  snapManualBlock: 'Manual Snapshot',
+  tmRestoreTo: 'Restore to',
+  tmRestoreHere: 'Restore here',
+  tmNoSubfolders: 'No subfolders here',
+  tmMarkerToggle: 'Append .restored marker to file name',
+  tmMarkerOffHint: "You'll be asked how to handle files with the same name",
+  tmRestoreFolderTitle: 'Restore folder',
+  tmRestoreFolderMsg: 'Restore "{name}"? You\'ll pick the destination next, and be asked before anything is overwritten.',
+  tmSelectFirst: 'Select a file or folder to restore first',
+  tmRestoredCount: 'Restored {count} item(s) to {path}',
 
   wpTitle: 'Change wallpaper',
   wpPresetBlue: 'Blue base',

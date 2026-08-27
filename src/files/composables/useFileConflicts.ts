@@ -10,6 +10,8 @@ import {
   type UploadEntry, type AcceptedEntry, type InnerPrecheckResult,
 } from '../upload/uploadConflict'
 import { computePasteConflicts, splitPasteItems } from '../upload/pasteConflict'
+import { computeRestoreConflicts } from '../util/restoreDestination'
+import type { RestoreItem, ResolvedRestoreEntry } from '../util/snapshotRestore'
 import type { OperateItem } from '../stores/clipboard'
 
 export interface ConflictDialogState {
@@ -277,5 +279,67 @@ export function useFileConflicts(deps: FileConflictDeps = {}) {
     return p
   }
 
-  return { dialog, onChoose, onCancel, resolveEntries, resolvePaste }
+  /**
+   * Restore's counterpart to `resolvePaste()` above — Task 14. Shares this composable's dialog,
+   * resolver and serial chain (a Time Machine restore batch and an upload/paste can never both be
+   * asking at once, same reasoning as resolvePaste's own header comment).
+   *
+   * When `withMarker` is on, `computeRestoreConflicts` (restoreDestination.ts) skips its own
+   * destDir listing entirely and returns no candidates — see that function's own comment: the
+   * backend's `.restored-<timestamp>` suffix makes a collision astronomically unlikely, so this
+   * degrades to the same "everything proceeds unconflicted" path as a genuinely empty destDir.
+   *
+   * Restore never offers Merge (its own backend conflict switch is overwrite/keep_both only, same
+   * as paste's own move/copy switch — see `resolvePaste`'s comment) — `ask()` below is called with
+   * no 4th `opts` argument, so `allowMerge` falls back to `false`, matching resolvePaste exactly.
+   *
+   * Conflict candidates carry only `{name, isDir, groupKey}` (T13's own `computeRestoreConflicts`
+   * decision — see restoreDestination.ts's header comment for why the full item isn't threaded
+   * through), so resolutions are matched back to their original `RestoreItem` by `.name` — safe
+   * because one restore batch always lands flat in one destDir, where name is already unique.
+   */
+  async function resolveRestore(
+    items: RestoreItem[],
+    destDir: string,
+    withMarker: boolean,
+  ): Promise<{ entries: ResolvedRestoreEntry[]; skippedCount: number }> {
+    const task = async (): Promise<{ entries: ResolvedRestoreEntry[]; skippedCount: number }> => {
+      let candidates: ConflictCandidate[]
+      try {
+        candidates = await computeRestoreConflicts({
+          items: items.map((item) => ({ name: item.name, is_dir: item.is_dir })),
+          destDir,
+          withMarker,
+          listFolder,
+        })
+      } catch (err) {
+        // Same degrade-instead-of-reject posture as resolvePaste's own listing failure above:
+        // an unreadable destDir must not turn into "the whole restore silently does nothing" —
+        // treat it as conflict-free and let performSnapshotRestore itself be the source of truth.
+        console.warn('[restore] listing the destination directory failed — conflict detection degraded, everything submitted as-is', err)
+        candidates = []
+      }
+      if (!candidates.length) {
+        return { entries: items.map((item) => ({ item, onConflict: undefined })), skippedCount: 0 }
+      }
+
+      const resolutions = await resolveConflictQueue(candidates, (c, ctx) => ask(c, destDir, ctx))
+      const skippedNames = new Set<string>()
+      const actionByName = new Map<string, 'overwrite' | 'keep_both'>()
+      resolutions.forEach(({ conflict, action }) => {
+        if (action === 'skip' || action === 'cancelled') { skippedNames.add(conflict.name); return }
+        if (action === 'overwrite' || action === 'keep_both') actionByName.set(conflict.name, action)
+      })
+
+      const entries = items
+        .filter((item) => !skippedNames.has(item.name))
+        .map((item) => ({ item, onConflict: actionByName.get(item.name) }))
+      return { entries, skippedCount: skippedNames.size }
+    }
+    const p = chain.then(task, task)
+    chain = p.then(() => undefined, () => undefined)
+    return p
+  }
+
+  return { dialog, onChoose, onCancel, resolveEntries, resolvePaste, resolveRestore }
 }

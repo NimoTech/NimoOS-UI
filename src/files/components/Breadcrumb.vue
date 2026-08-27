@@ -7,7 +7,18 @@ import {
 import FavoriteStar from './FavoriteStar.vue'
 import { collapseCrumbs, maxCollapsible, type CrumbSeg } from '../util/breadcrumbCollapse'
 
-const props = defineProps<{ virtualPath: string; currentRealPath: string }>()
+const props = defineProps<{
+  virtualPath: string
+  currentRealPath: string
+  // Fix wave D (D1, owner acceptance 2026-08-26): snapshots are read-only, and Vue2 gates the
+  // favorite-star affordance off while browsing one (GirdView.vue's own `isInSnapshot` computed --
+  // "never while browsing a snapshot", see that file's header comment). The caller passes
+  // `browse.isSnapshotView` here (not `tmActive`: plain snapshot browsing without Time Machine
+  // chrome up still counts). This also restores front/back parity with SnapshotPreviewWindow.vue,
+  // whose own header comment documents that its hand-copied breadcrumb deliberately omits
+  // `<FavoriteStar>` entirely -- the promoted depth-0 layer never had a star to match against.
+  hideFavorite?: boolean
+}>()
 const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
 
 const segments = computed<CrumbSeg[]>(() => {
@@ -153,7 +164,20 @@ function hiddenLabel(hidden: CrumbSeg[]): string {
       <span v-else-if="i === items.length - 1" class="crumb current">{{ item.seg.label }}</span>
       <button v-else class="crumb" @click="emit('navigate', item.seg.vpath)">{{ item.seg.label }}</button>
     </template>
-    <FavoriteStar v-if="currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
+    <FavoriteStar v-if="!props.hideFavorite && currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
+    <!-- Fix wave B (B2, owner acceptance 2026-08-26): an optional trailing slot, rendered as the
+         LAST item in this same flex-wrap row -- so whatever the caller puts here (Files.vue's own
+         "Snapshot · Read-only" chip) hugs the breadcrumb's actual rendered content, the same way
+         Vue2's FilePanel.vue puts its own `.tm-snap-chip` inside the SAME flex row as
+         `<file-breadcrumb>` (`#bread-container`, `margin-left: 10px`). This component's own root
+         `.breadcrumb` deliberately grows to fill its parent (`flex: 1 1 auto`, see this file's own
+         style-block comment below) for the two-line-collapse measuring loop above -- a SIBLING element
+         outside this <nav> would sit after that grown (invisible-padding) box, at the far right of
+         whatever container it shares, not hugging the crumbs at all (the exact bug this slot
+         fixes). Putting the caller's content INSIDE this flex row sidesteps that entirely: it is
+         positioned right after the last real child here, regardless of how much of the row's own
+         width this component's `flex: 1 1 auto` claims. -->
+    <slot name="trailing" />
   </nav>
 </template>
 
@@ -162,19 +186,22 @@ function hiddenLabel(hidden: CrumbSeg[]): string {
    otherwise collapsing would shrink the box the ResizeObserver is watching.
    overflow:hidden is the backstop for the frame before the measuring loop settles
    and for a single label too long to ever fit. */
-.breadcrumb { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; flex-wrap: wrap; min-width: 0; overflow: hidden; }
+/* Fix wave E (E2, owner acceptance 2026-08-26): gap is `var(--tm-crumb-gap)` -- shared with
+   SnapshotPreviewWindow.vue's own hand-copied replica (theme.css's own comment on that token
+   block explains why this LIVE component, not just the TM-specific ones, also draws from it). */
+.breadcrumb { display: flex; align-items: center; gap: var(--tm-crumb-gap); flex: 1 1 auto; flex-wrap: wrap; min-width: 0; overflow: hidden; }
 /* A single label wider than the whole breadcrumb would wrap by word into a row the
    two-line cap then clips. Truncate it instead — one shortened crumb beats a
    missing one. min-width:0 is defence only, not the thing that makes the ellipsis
    work: a flex item's automatic minimum size applies only while its overflow is
    visible (CSS Flexbox L1 §4.5), and overflow:hidden below already opts out. Keep
    it so the truncation survives someone later relaxing that overflow. */
-.crumb { background: none; border: none; color: var(--fg-muted); font-size: 14px; padding: 2px 4px; border-radius: 6px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb { background: none; border: none; color: var(--fg-muted); font-size: var(--tm-crumb-font-size); padding: var(--tm-crumb-padding); border-radius: 6px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.crumb { cursor: pointer; }
 button.crumb:hover { background: var(--chip-bg); color: var(--fg); }
 .crumb.current { color: var(--fg); font-weight: 600; }
 .crumb-more { font-weight: 600; line-height: 1; }
 .crumb-more[data-state='open'] { background: var(--chip-bg); color: var(--fg); }
-.crumb-sep { color: var(--fg-muted, #9aa4bf); font-size: 12px; }
+.crumb-sep { color: var(--fg-muted, #9aa4bf); font-size: var(--tm-crumb-sep-font-size); }
 .crumb-star { margin-left: 4px; }
 </style>

@@ -61,6 +61,27 @@ describe('Breadcrumb', () => {
     expect(w.find('.crumb-star').exists()).toBe(true)
   })
 
+  // Fix wave D (D1, owner acceptance 2026-08-26): snapshots are read-only -- Vue2's own
+  // GirdView.vue hides the favorite affordance while `isInSnapshot` ("never while browsing a
+  // snapshot"). The caller passes `browse.isSnapshotView` as `hideFavorite`; this also restores
+  // front/back parity with SnapshotPreviewWindow.vue's hand-copied breadcrumb, which never had a
+  // star to begin with.
+  it('hides the favorite star when hideFavorite is set (snapshot view)', () => {
+    const w = mount(Breadcrumb, {
+      props: { virtualPath: '/NimoOS-HD/Documents', currentRealPath: '/DATA/Documents', hideFavorite: true },
+      ...opts,
+    })
+    expect(w.find('.crumb-star').exists()).toBe(false)
+  })
+
+  it('still shows the favorite star when hideFavorite is false/unset (normal browsing)', () => {
+    const w = mount(Breadcrumb, {
+      props: { virtualPath: '/NimoOS-HD/Documents', currentRealPath: '/DATA/Documents', hideFavorite: false },
+      ...opts,
+    })
+    expect(w.find('.crumb-star').exists()).toBe(true)
+  })
+
   it('does not navigate when the current directory segment is clicked', async () => {
     const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
     const crumbs = w.findAll('.crumb')
