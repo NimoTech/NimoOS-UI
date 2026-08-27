@@ -1071,4 +1071,152 @@ describe('TimeMachineDepthStack — linked-cascade travel (Fix wave I, Ruling I-
       expect(Number(el.attributes('data-depth'))).toBe(Number(depthBefore) - 1)
     }
   })
+
+})
+
+// Fix wave J (owner acceptance 2026-08-26): "flight integrity" -- required per the dispatch after
+// an owner screenshot of a far jump to a MUCH OLDER snapshot showed two hard defects (a giant
+// blank-chrome strip parked mid-screen never moving until settle, and the target appearing to fly
+// in from the camera side instead of from depth). This suite exists because those are exactly the
+// class of bug prior unit tests (pure-function-level, or single-name spot checks) could miss --
+// see this file's own "Fix wave J" section in final-fix-report.md for the full root-cause
+// narrative, including the extensive empirical probing (both directions, steps 4/8/40/100, maxSlots
+// 2/3/10, and a supersede scenario) that did NOT reproduce a structural name-set mismatch in THIS
+// jsdom environment before the fix below landed -- documented there honestly rather than
+// fabricated, alongside the real, confirmed issue this investigation DID find and fix (see
+// snapshotBrowse.ts's own switchTo() comment on its safety-ceiling duration).
+//
+// TRUTH TABLE (names newest-first; index increasing = OLDER; see the report's own fuller
+// derivation):
+// - Target OLDER (toIdx > fromIdx): the old current AND every fly-through intermediate END at the
+//   EXIT pose (toPose.scaleX > 1, toPose.y > 0 -- "exit past the camera"); their own START (when
+//   they have a preset at all) is a receding, depth-side pose (fromPose.scaleX <= 1, fromPose.y <=
+//   0). The TARGET ends at the IDENTITY pose; when it has a preset, that preset is ALSO a
+//   depth-side pose (fromPose.scaleX <= 1) -- "arrives from depth, small -> 1".
+// - Target NEWER (toIdx < fromIdx): the mirror image. Every fly-through intermediate STARTS at the
+//   EXIT pose (fromPose.scaleX > 1, "drops in from the camera") and ENDS at a normal receding,
+//   depth-side pose (toPose.scaleX <= 1, "settles into the stack"). The TARGET ends at IDENTITY;
+//   when it has a preset, that preset is a CAMERA-side pose (fromPose.scaleX > 1) -- "arrives from
+//   the camera side".
+// `scaleX` is the unambiguous sign carrier used below (receding poses are always < 1, the exit
+// pose is always exactly `EXIT_SCALE` = 1.2, identity is exactly 1 -- `y` can coincidentally be 0
+// at more than one pose, `scaleX` cannot).
+describe('TimeMachineDepthStack — flight integrity (Fix wave J)', () => {
+  const N = 150
+  const BASE = 50
+
+  async function mountAndTravel(steps: number, forward: boolean) {
+    const names = Array.from({ length: N }, (_, i) => `s${i}`)
+    const fromIdx = forward ? BASE + steps : BASE
+    const toIdx = forward ? BASE : BASE + steps
+    const spy = vi.spyOn(choreo, 'playTravelTimeline')
+    const { browse, files } = await setup(names, `s${fromIdx}`)
+    const w = mount(TimeMachineDepthStack)
+    await flushPromises()
+
+    browse.tmTravel = { from: `s${fromIdx}`, to: `s${toIdx}` }
+    await nextTick()
+    files.currentPath = `${MOUNT}/.snapshots/s${toIdx}`
+    browse.tmTravel = null
+    await flushPromises()
+
+    return { w, browse, files, spy, names, fromIdx, toIdx }
+  }
+
+  for (const steps of [4, 8, 40]) {
+    for (const forward of [false, true]) {
+      const dirLabel = forward ? 'NEWER target (forward)' : 'OLDER target (backward)'
+
+      it(`${dirLabel}, steps=${steps}: (a) every mounted strip has a real tween in the built timeline -- no stuck strips`, async () => {
+        const { w, spy } = await mountAndTravel(steps, forward)
+        expect(spy).toHaveBeenCalledTimes(1)
+        const targets = spy.mock.calls[0][0]
+        const targetNames = new Set(targets.map((t) => t.el.getAttribute('data-snapshot')))
+        const mountedNames = w.findAll('.tm-depth-strip').map((el) => el.attributes('data-snapshot')!)
+        expect(mountedNames.length).toBeGreaterThan(0)
+        for (const name of mountedNames) {
+          expect(targetNames.has(name), `${name} is mounted but has no tween in the built timeline (stuck strip)`).toBe(true)
+        }
+      })
+
+      it(`${dirLabel}, steps=${steps}: (b) fly-through intermediates' preset/final poses land on the CORRECT trajectory side per the truth table`, async () => {
+        const { spy, names, fromIdx, toIdx } = await mountAndTravel(steps, forward)
+        const opts = spy.mock.calls[0][1]
+        const targets = spy.mock.calls[0][0]
+        const poseByName = new Map(targets.map((t) => [t.el.getAttribute('data-snapshot'), t.pose]))
+        const plan = choreo.flyThroughPlan(names, fromIdx, toIdx, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
+        expect(plan.some((s) => s.role === 'intermediate')).toBe(true) // sanity: a real fly-through with real intermediates
+
+        for (const step of plan.filter((s) => s.role === 'intermediate')) {
+          const toPose = poseByName.get(step.name)
+          expect(toPose, `${step.name} has no target/final pose at all`).toBeDefined()
+          if (!toPose) continue
+          if (forward) {
+            // Ends at a receding, depth-side pose ("settles into the stack").
+            expect(toPose.scaleX, `${step.name} (forward intermediate) should END receding (scaleX <= 1)`).toBeLessThanOrEqual(1)
+          }
+          else {
+            // Ends at the exit pose ("exits past the camera").
+            expect(toPose.scaleX, `${step.name} (backward intermediate) should END at the exit pose (scaleX > 1)`).toBeGreaterThan(1)
+          }
+          const preset = opts.presetPoses?.[step.name]
+          if (!preset) continue // a genuine old-window resident/leaving intermediate legitimately gets none (fix wave I follow-up)
+          if (forward) {
+            expect(preset.scaleX, `${step.name} (forward intermediate) should START at the camera (scaleX > 1)`).toBeGreaterThan(1)
+          }
+          else {
+            expect(preset.scaleX, `${step.name} (backward intermediate) should START receding (scaleX <= 1)`).toBeLessThanOrEqual(1)
+          }
+        }
+      })
+
+      it(`${dirLabel}, steps=${steps}: (b) the TARGET's own preset (when it has one) lands on the CORRECT trajectory side, and it always ENDS at the identity pose`, async () => {
+        const { spy, toIdx } = await mountAndTravel(steps, forward)
+        const opts = spy.mock.calls[0][1]
+        const targets = spy.mock.calls[0][0]
+        const targetName = `s${toIdx}`
+        const targetPose = targets.find((t) => t.el.getAttribute('data-snapshot') === targetName)?.pose
+        expect(targetPose).toEqual({ x: 0, y: 0, scaleX: 1, scaleY: 1, dim: 0, z: 0 }) // always identity
+
+        const preset = opts.presetPoses?.[targetName]
+        if (!preset) return // a small jump can leave the target a genuine old-window resident -- no preset needed, covered elsewhere
+        if (forward) {
+          expect(preset.scaleX, 'the target (forward/newer jump) should arrive FROM THE CAMERA (scaleX > 1), not from depth').toBeGreaterThan(1)
+        }
+        else {
+          expect(preset.scaleX, 'the target (backward/older jump) should arrive FROM DEPTH (scaleX <= 1), not from the camera').toBeLessThanOrEqual(1)
+        }
+      })
+
+      it(`${dirLabel}, steps=${steps}: (c) after the timeline fully progresses and the travel settles, no element remains at a preset pose, and the mounted set equals the natural window`, async () => {
+        vi.useFakeTimers()
+        try {
+          const { w, browse, spy, names, toIdx } = await mountAndTravel(steps, forward)
+          const tl = spy.mock.results[0].value as ReturnType<typeof choreo.playTravelTimeline>
+          const targets = spy.mock.calls[0][0]
+          tl.progress(1)
+
+          // Every animated element's own rendered pose now matches its OWN final `target.pose` --
+          // none is left stranded at a preset value (real gsap + jsdom, same technique
+          // timeMachineChoreo.test.ts already uses for reading back x/y/scaleX/scaleY).
+          for (const target of targets) {
+            expect(gsap.getProperty(target.el, 'y')).toBeCloseTo(target.pose.y, 0)
+            expect(gsap.getProperty(target.el, 'scaleX')).toBeCloseTo(target.pose.scaleX, 5)
+          }
+
+          // Let the reveal-gate's own timers run to completion so settle() fires and pins clear.
+          await vi.advanceTimersByTimeAsync(choreo.TRAVEL_SAFETY_EXTRA_MS + choreo.TRAVEL_FLY_MAX_DURATION_MS + 100)
+          await flushPromises()
+
+          const mountedNames = w.findAll('.tm-depth-strip').map((el) => el.attributes('data-snapshot')!).sort()
+          const naturalWindow = resolveDollySlots(names, toIdx, 10).map((s) => s.name).sort() // jsdom's own unmeasured-stageHeight cap (10)
+          expect(mountedNames).toEqual(naturalWindow)
+          expect(browse.tmTravelActive).toBe(false)
+        }
+        finally {
+          vi.useRealTimers()
+        }
+      })
+    }
+  }
 })

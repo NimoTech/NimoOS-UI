@@ -441,15 +441,38 @@ function buildFlyThroughOverrides(
   return { delayOverridesMs, presetPoses }
 }
 
+// Fix wave J (owner acceptance 2026-08-26): single source of truth for BOTH the timeline's own
+// `targets` (what actually gets a tween) and `presetPoses` (what gets a corrective starting
+// `gsap.set()`). Before this wave, the two were built from TWO INDEPENDENTLY-COMPUTED lists --
+// `targets` from `dollySlots.value` (natural window around the new current index, unioned with
+// whatever `pinNames.value` happens to force-include), `presetPoses` from a SEPARATE
+// `travelStackPlan(...)` call whose own `extraNames` only covered THIS travel's own fly-through
+// plan (not the full, possibly-larger accumulated `pinNames.value`, e.g. leftover pins from a
+// just-superseded travel). Nothing in this codebase's own tests ever forced these two lists to
+// actually disagree (see this file's own extensive "Fix wave J" root-cause investigation in
+// final-fix-report.md -- an owner screenshot reported a strip stuck mid-flight with no tween, a
+// symptom this exact "two parallel lists" shape is the textbook way to produce), but relying on
+// two independently-derived lists staying in sync by coincidence is exactly the kind of
+// architectural risk the dispatch asked to close STRUCTURALLY, not just patch around. Fixed by
+// computing `stackPlan` ONCE, with `extraNames: pinNames.value` (the FULL, accumulated pin set,
+// not just this one travel's own old∪new∪plan names) -- this makes `stackPlan`'s own union a
+// PROVABLE superset of `dollySlots.value`'s own rendered set (natural-new-window ∪ pinNames.value,
+// and natural-new-window is exactly the same `resolveDollySlots` call `stackPlan`'s own internal
+// new-window computation already makes) -- and deriving BOTH `targets` and `presetPoses` from that
+// ONE list. A strip present in `stackPlan` but with no mounted ref yet (defensive only) is dropped
+// by the same `.filter()` this always had.
+function buildStackPlan(fromIdx: number, toIdx: number): TravelStackEntry[] {
+  return travelStackPlan(names.value, fromIdx, toIdx, {
+    maxSlots: visibleStripCap.value,
+    stageHeight: stageHeight.value,
+    extraNames: pinNames.value,
+  })
+}
+
 function runTravel(steps: number, travel: { from: string, to: string }, plan: FlyThroughStep[], fromIdx: number, toIdx: number) {
-  // A strip with no mounted ref (defensive only -- every name in `dollySlots` should have one by
-  // the time this runs, per this function's own $nextTick-deferred call site above) is dropped
-  // before the cast: `stripRefs`/`dimRefs` store `HTMLElement | undefined`, narrower than
-  // `TravelTarget`'s own `Element`/`Element | null | undefined` fields, so TS cannot derive a type
-  // predicate for `.filter()` here -- the cast is safe precisely because the filter already
-  // guarantees `el` is non-null for every surviving entry.
-  const targets = dollySlots.value
-    .map((slot) => ({ el: stripRefs.get(slot.name) ?? null, dimEl: dimRefs.get(slot.name) ?? null, pose: slot.pose, name: slot.name }))
+  const stackPlan = buildStackPlan(fromIdx, toIdx)
+  const targets = stackPlan
+    .map((entry) => ({ el: stripRefs.get(entry.name) ?? null, dimEl: dimRefs.get(entry.name) ?? null, pose: entry.toPose, name: entry.name }))
     .filter((target) => target.el !== null) as TravelTarget[]
   if (travelTimeline) {
     travelTimeline.kill()
@@ -471,11 +494,6 @@ function runTravel(steps: number, travel: { from: string, to: string }, plan: Fl
   // current, already-rendered position (from their LAST completed tween, or their original mount)
   // already IS their correct `fromPose` (they were genuinely there), so the default "tween from
   // wherever gsap currently has it" behavior is already correct for them, unchanged.
-  const stackPlan = travelStackPlan(names.value, fromIdx, toIdx, {
-    maxSlots: visibleStripCap.value,
-    stageHeight: stageHeight.value,
-    extraNames: plan.map((step) => step.name),
-  })
   const presetPoses: Record<string, SlotPose> = {}
   for (const entry of stackPlan) {
     if (entry.role === 'entering' || entry.role === 'pinned') presetPoses[entry.name] = entry.fromPose

@@ -14,7 +14,7 @@ import { router } from '../../router'
 import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
 import { useFileConflictsStore } from './fileConflicts'
 import type { SnapshotRaw } from '../../storage/util/snapshotView'
-import { EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS, TRAVEL_MAX_DURATION_MS, TRAVEL_SAFETY_EXTRA_MS } from '../util/timeMachineChoreo'
+import { EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS, TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS, TRAVEL_SAFETY_EXTRA_MS } from '../util/timeMachineChoreo'
 
 // Time Machine's own snapshot-list item — a straight alias of the /v2/snapshot list's raw shape
 // (not the storage area's mapped SnapshotItemView): keeping `created_at` (not `createdAt`) lets a
@@ -366,11 +366,22 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // timer only exists while the component itself is mounted (active/fadingOut) -- if it were ever
   // torn down mid-travel some other way (before calling settleTravel()), tmTravelActive would stay
   // stuck true forever, hard-hiding the real window (`.tm-fwin--traveling`) permanently. This
-  // backstop reuses the SAME two constants the depth-stack's own timer is built from
-  // (TRAVEL_MAX_DURATION_MS + TRAVEL_SAFETY_EXTRA_MS, timeMachineChoreo.ts) as a flat worst-case
-  // ceiling (switchTo has no step-count of its own to compute a tighter duration from), token-
-  // guarded the same way the exit-hold above is: a later switchTo, or a legitimate settleTravel(),
-  // invalidates any still-pending earlier timer.
+  // backstop reuses the SAME constants the depth-stack's own timer is built from
+  // (timeMachineChoreo.ts) as a flat worst-case ceiling (switchTo has no step-count of its own to
+  // compute a tighter duration from), token-guarded the same way the exit-hold above is: a later
+  // switchTo, or a legitimate settleTravel(), invalidates any still-pending earlier timer.
+  //
+  // Fix wave J (owner acceptance 2026-08-26, found during a direction/root-cause audit of a
+  // reported stuck-strip defect): this ceiling used to be `TRAVEL_MAX_DURATION_MS +
+  // TRAVEL_SAFETY_EXTRA_MS` (900 + 800 = 1700ms) -- the OLD, pre-wave-H "single uniform stack
+  // slide" duration's own worst case. Wave H's own long-jump fly-through introduced a SEPARATE,
+  // LARGER worst-case duration (`TRAVEL_FLY_MAX_DURATION_MS` = 1400ms, TimeMachineDepthStack.vue's
+  // own `armReveal` safety timer already uses `flyThroughDurationMs(plan) + TRAVEL_SAFETY_EXTRA_MS`,
+  // up to 1400 + 800 = 2200ms) but this store-side backstop was never updated to match -- for a
+  // maximally-long fly-through, THIS timer could fire (forcing `tmTravelActive = false`, revealing
+  // the real window) up to 500ms BEFORE the depth-stack's own reveal-gate would naturally settle.
+  // `Math.max(...)` keeps this the genuine worst case across BOTH travel models, present and future,
+  // rather than silently falling behind again the next time either duration changes.
   let travelSafetyToken = 0
   let travelSafetyTimer: ReturnType<typeof setTimeout> | null = null
   function clearTravelSafetyTimer() {
@@ -393,7 +404,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       travelSafetyTimer = null
       if (safetyToken !== travelSafetyToken) return
       tmTravelActive.value = false
-    }, TRAVEL_MAX_DURATION_MS + TRAVEL_SAFETY_EXTRA_MS)
+    }, Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS)
     try {
       const root = snapshotBrowsePath(vol.mount, name)
       await navigateReal(rel ? `${root}/${rel}` : root, { replace: true })
