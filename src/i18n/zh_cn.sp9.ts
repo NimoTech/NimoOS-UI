@@ -633,4 +633,5 @@ export default {
   termCloseWin: '关闭窗口',
   termConfirm: '确认',
   termCancel: '取消',
+  termCopied: '已复制：{text}',
 }

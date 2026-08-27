@@ -584,4 +584,5 @@ export default {
   termCloseWin: 'Close window',
   termConfirm: 'Confirm',
   termCancel: 'Cancel',
+  termCopied: 'Copied: {text}',
 }
