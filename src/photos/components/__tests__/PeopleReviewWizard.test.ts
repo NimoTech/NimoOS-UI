@@ -476,6 +476,93 @@ describe('PeopleReviewWizard.vue — merge cards (merge-cards feature, 2026-08-2
     })
   })
 
+  // T12b (face-locate box, 2026-08-27 addendum to the detector-gen6 plan): a merge tile's
+  // fromFaces/intoFaces entry may carry a normalized bbox (backend T12a) -- the review wizard
+  // draws it as an overlay on the opened lightbox's ORIGINAL photo (not on the small tile itself).
+  describe('face-locate box on the lightbox (T12b, 2026-08-27 addendum)', () => {
+    function setImgDims(w: VueWrapper) {
+      const img = w.get('[data-test="prw-lightbox-img"]').element as HTMLImageElement
+      Object.defineProperty(img, 'clientWidth', { value: 200, configurable: true })
+      Object.defineProperty(img, 'clientHeight', { value: 200, configurable: true })
+      Object.defineProperty(img, 'naturalWidth', { value: 100, configurable: true })
+      Object.defineProperty(img, 'naturalHeight', { value: 50, configurable: true })
+    }
+
+    it('a tile with a bbox: opening the lightbox and loading the image renders .prw-face-box at the mapped rect', async () => {
+      await seedMerge([rawPair({ fromFaces: [{ faceId: 'ff1', assetId: 'a1', bbox: [0.1, 0.2, 0.5, 0.6] }] })])
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+      const box = w.find('[data-test="prw-face-box"]')
+      expect(box.exists()).toBe(true)
+      const style = box.attributes('style')!
+      expect(style).toContain('left: 20px')
+      expect(style).toContain('top: 70px')
+      expect(style).toContain('width: 80px')
+      expect(style).toContain('height: 40px')
+    })
+
+    it('a tile without a bbox: opening the lightbox never renders .prw-face-box', async () => {
+      await seedMerge([rawPair({ fromFaces: [{ faceId: 'ff1', assetId: 'a1' }] })])
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(false)
+    })
+
+    it('fallback tiles (no fromFaces at all, id-only arrays) never render .prw-face-box', async () => {
+      await seedMerge([rawPair({ fromFaceIds: ['ff1', 'ff2'] })]) // no fromFaces field
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(false)
+    })
+
+    it('the face-suggestion context-photo lightbox (no tile involved) never renders .prw-face-box', async () => {
+      await seed([rawGroup(rawPerson(), [rawSuggestion({ assetId: 'a1' })])])
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-context-photo"]').trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(false)
+    })
+
+    it('closing the lightbox and opening a different (bbox-less) tile does not leak the previous box', async () => {
+      await seedMerge([rawPair({
+        fromFaces: [
+          { faceId: 'ff1', assetId: 'a1', bbox: [0.1, 0.2, 0.5, 0.6] },
+          { faceId: 'ff2', assetId: 'a2' },
+        ],
+      })])
+      const w = mountWizard(true)
+      const tiles = w.find('[data-test="prw-merge-side-from"]').findAll('img')
+
+      await tiles[0]!.trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(true)
+
+      await w.find('[data-test="prw-lightbox-close"]').trigger('click')
+      expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(false)
+
+      await tiles[1]!.trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(false)
+    })
+  })
+
   // Merge-card legibility fix (2026-08-21): "1 photos" was a literal, unpluralized string.
   describe('photo-count pluralization (merge-card legibility fix)', () => {
     it('en_us: count === 1 renders the singular "1 photo", not "1 photos"', async () => {
