@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { REPLACE, PATCH } from './manifest.mjs'
-import { scanTree, isExpectedSkip } from './forbidden.mjs'
+import { scanTree, isExpectedSkip, SOFT } from './forbidden.mjs'
 
 const OSS = path.dirname(new URL(import.meta.url).pathname)
 let tree
@@ -115,6 +115,41 @@ describe('Content check over the real artifact tree', () => {
     const shown = findings.slice(0, 20)
       .map((f) => `${f.file}:${f.line} [${f.word}] ${String(f.excerpt).slice(0, 100)}`).join('\n')
     expect(findings, `content check flagged ${findings.length} place(s) in the artifact tree:\n${shown}`).toEqual([])
+  })
+
+  // 2026-08-28:白名单条目按**整行精确匹配**登记(见 forbidden.mjs 的 exactLine),
+  // 所以源码一改写、条目就失效 —— 而失效是**静默**的:白名单少匹配几条只会让检查更严,
+  // 没有任何信号。一次盘点在产物树上查出 12 条条目锚点早已不存在(多数是 2026-08-14
+  // 那轮把中文注释译成英文时留下的,英文等价条目当时已补上,中文旧条目没人删)。
+  // 死条目本身不是风险,但它们让"这条白名单为什么存在"无从复核,也掩盖了同一个文件里
+  // 真正还需要豁免的行是哪几条。这条用例把失效变成可见:红了就是有条目该删或该重新锚定。
+  it('every whitelist entry still matches a line in the artifact tree (no silently dead exemptions)', () => {
+    const files = []
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === 'node_modules' || e.name === '.git' || e.name === 'dist') continue
+        const p = path.join(dir, e.name)
+        if (e.isDirectory()) walk(p)
+        else files.push(path.relative(tree, p))
+      }
+    }
+    walk(tree)
+    const lineCache = new Map()
+    const linesOf = (rel) => {
+      if (!lineCache.has(rel)) {
+        try { lineCache.set(rel, fs.readFileSync(path.join(tree, rel), 'utf8').split('\n')) } catch { lineCache.set(rel, []) }
+      }
+      return lineCache.get(rel)
+    }
+    const dead = []
+    for (const entry of SOFT) {
+      for (const a of entry.allow ?? []) {
+        const targets = files.filter((f) => a.file.test(f))
+        if (targets.some((f) => linesOf(f).some((l) => a.re.test(l)))) continue
+        dead.push(`[${entry.word}] file=${a.file} re=${String(a.re).slice(0, 90)} (files matching: ${targets.length})`)
+      }
+    }
+    expect(dead, `${dead.length} whitelist entr(ies) match nothing any more — delete them, or re-anchor to the line that replaced them:\n${dead.join('\n')}`).toEqual([])
   })
 })
 
