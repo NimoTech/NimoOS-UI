@@ -1,9 +1,8 @@
 <!--
   SP8-P5f Task 4 — Allowlist page (rail item 8, route `/ai/knowledge/allowlist`),
-  migrated 1:1 from Vue2 blueprint `NimoOS-UI` @ `7a6ee6b7`
-  `src/views/AI/Knowledge/AllowlistView.vue` (249 lines, read via
-  `git -C ../../NimoOS-UI show 7a6ee6b7:` — governance §0.4: that repo's working tree
-  is on a different branch, cannot be trusted).
+  migrated 1:1 from the Vue 2 panel's blueprint `src/views/AI/Knowledge/AllowlistView.vue`
+  (main@7a6ee6b7, 249 lines, diffed against that commit —
+  governance §0.4: that repo's working tree is on a different branch, cannot be trusted).
 
   Structure cross-reference (blueprint line range → this file):
     :2-4     `.k-view` → `.k-scroll` → `.k-scroll-inner` three-layer wrapper
@@ -86,7 +85,7 @@
     in blueprint are `this.store.actions.toast(this.$t('Save failed') + ': ' +
     (e.message || e))` (`:199` `:209` `:221` `:237` `:244`) — the second part
     is exactly what K5 forbids echoing. This repo follows the **established
-    pattern (form A)** per `p5f-task-0-report.md` §12: **show only fixed i18n
+    pattern (form A)**: **show only fixed i18n
     keys, no `': '` prefix** ("no second part to concatenate, so no prefix",
     precedent `QueueView.vue:212-217` / `IndexedFilesView.vue:592-593` /
     `NoteEditPane.vue:461`). **Do not invent a second mapping set.**

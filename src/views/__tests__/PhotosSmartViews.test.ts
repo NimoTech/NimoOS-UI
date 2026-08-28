@@ -1,5 +1,5 @@
-// SP7-P7a-T4: PhotosSmartViews.vue — smart-view list page tests. Maps line-for-line to
-// task-4-brief.md's "required cases" checklist. Mounts Pinia + i18n + a real router (resolving
+// PhotosSmartViews.vue — smart-view list page tests. Maps line-for-line to
+// the "required cases" checklist. Mounts Pinia + i18n + a real router (resolving
 // for real once before spying on push, since AreaShell/PhotosSidebar both use useRouter() —
 // following PhotosPeople.test.ts's existing mounting pattern), mocking the shared package's
 // photos methods.
@@ -124,7 +124,7 @@ describe('PhotosSmartViews.vue — style block structural check', () => {
   })
 })
 
-// Fix-1 item 1 (owner acceptance, 2026-08-13): Vue2 mounts the same <PhotosTopbar> for
+// Vue2 mounts the same <PhotosTopbar> for
 // activeNav === 'smart' (PhotosTimeline.vue:957-971) with title = topbarTitle's 'smart' branch
 // ('For You', PhotosTimeline.vue:190) and sub = topbarSubContext's DEFAULT branch (navMap has
 // no 'smart' entry, PhotosTimeline.vue:229-234) -- the same full-library count line the topbar

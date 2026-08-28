@@ -1,6 +1,6 @@
 // SP8-P5a Task 12 — DashboardView test.
-// Step 2 The skeleton is taken verbatim from the task brief (`.superpowers/sdd/p5a-task-12-brief.md` lines
-// 20–205). This file then adds high-risk control-flow assertions required by the governance file §9
+// Step 2 The skeleton is taken verbatim from the task brief (lines 20–205).
+// This file then adds high-risk control-flow assertions required by the governance file §9
 // "Test Quality" (each reinforced assertion is marked with [Reinforcement N] in comments), corresponding one-by-one
 // to the 8 high-risk points named in the task:
 //   1) isEmpty's `&&` — brief provided only pure-empty / pure-full extremes; a mixed-state

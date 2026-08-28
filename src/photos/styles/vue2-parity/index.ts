@@ -1,5 +1,5 @@
 // Vue2-parity pixel source of truth (spec 2026-08-11 §4).
-// Copied verbatim from NimoOS-UI src/views/Photos/*.scss (frozen baseline
+// Copied verbatim from the Vue 2 panel's src/views/Photos/*.scss (frozen baseline
 // main=1faa782b). Importing these is inert until a view root carries the
 // `.photos-root` class (Plans B-H) — but not every rule is nested under it:
 // there are bare top-level class selectors too (e.g. `.tile`, `.toolbar`),

@@ -1,5 +1,5 @@
-/* Pure helpers for the folder picker. 1:1 port of Vue2
- * NimoOS-UI/src/components/common/folderBrowser.js (34 lines).
+/* Pure helpers for the folder picker. 1:1 port of the Vue 2
+ * panel's src/components/common/folderBrowser.js (34 lines).
  */
 import type { FolderEntry } from '@nimotech/nimoos-service'
 import type { FolderCandidate } from './folderPermissions'

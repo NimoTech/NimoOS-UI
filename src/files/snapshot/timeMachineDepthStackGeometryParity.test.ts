@@ -1,5 +1,5 @@
-// Fix wave D (D2, owner acceptance 2026-08-26 -- reveal-time scale stutter): source-pin test for
-// the FIRST of the two mismatches this fix wave investigated -- "does the promoted depth-0 strip's
+// Reveal-time scale stutter fix: source-pin test for
+// the FIRST of two mismatches investigated -- "does the promoted depth-0 strip's
 // box coincide EXACTLY with the revealed `.tm-fwin--active` box". Both TimeMachineDepthStack.vue's
 // `.tm-depth-stack` and TimeMachineStage.vue's `.tm-fwin--active` derive their on-screen rect from
 // the SAME source values (TM_RAIL_WIDTH+TM_STEPPER_BAND=280px right gutter, the 80px bottom band,
@@ -8,11 +8,10 @@
 // vs `.tm-depth-stack`'s `right`/`bottom`) -- nothing at the type level stops the two from drifting
 // apart if either literal is ever edited alone. jsdom applies no CSS at all (every layout metric
 // reads 0/auto), so this reads the components' own source text and diffs the literal values
-// directly -- same technique TimeMachineStage.test.ts's own B1 background-token test and
+// directly -- same technique TimeMachineStage.test.ts's own background-token test and
 // TimeMachineStepper.test.ts/TimeMachineRail.test.ts already use for their own CSS-literal
 // regression guards. A real-browser pixel comparison is still the only way to catch a mismatch this
-// test's own inputs (the two source files) do not encode -- see this fix wave's own report for the
-// residual-risk note.
+// test's own inputs (the two source files) do not encode.
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -53,7 +52,7 @@ const stageCss = styleBlock('./TimeMachineStage.vue')
 const depthStackCss = styleBlock('./TimeMachineDepthStack.vue')
 const railCss = styleBlock('./TimeMachineRail.vue')
 
-describe('Time Machine depth-stack vs real window: geometry identity (fix wave D, D2)', () => {
+describe('Time Machine depth-stack vs real window: geometry identity', () => {
   it('.tm-depth-stack\'s right gutter matches .tm-stage__hold--active\'s padding-right (same 280px reserved band)', () => {
     const holdBody = ruleBody(stageCss, '.tm-stage__hold--active')
     const stackBody = ruleBody(depthStackCss, '.tm-depth-stack')
@@ -96,8 +95,7 @@ describe('Time Machine depth-stack vs real window: geometry identity (fix wave D
     expect(decl(stripBody, 'border-radius')).toBe(decl(fwinBody, 'border-radius'))
   })
 
-  // Fix wave F (Ruling F'-1, owner acceptance 2026-08-26): the third paint mismatch this file's
-  // own D2/F sequence found at the reveal swap -- the depth-0 strip used to carry a dedicated,
+  // A third paint mismatch found at the reveal swap -- the depth-0 strip used to carry a dedicated,
   // WEAKER `--tm-depth-shadow` token while the real, revealed `.tm-fwin--active` carries a
   // stronger `--tm-fwin-shadow` -- since the strip sits pixel-for-pixel underneath the fwin (the
   // border-radius/geometry tests above) and is only ever exposed mid-travel (the fwin is opaque
@@ -116,7 +114,7 @@ describe('Time Machine depth-stack vs real window: geometry identity (fix wave D
   })
 
   it('the retired --tm-depth-shadow token is gone from theme.css and no longer referenced by any live declaration', () => {
-    // Comments (theme.css's own Ruling F'-1 trace, this file's own comments above) are allowed to
+    // Comments (theme.css's own trace, this file's own comments above) are allowed to
     // still mention the retired token BY NAME (history/rationale) -- stripped here (same technique
     // tmTokens.test.ts's own `stripComments` uses) so only a LIVE `--tm-depth-shadow:` declaration
     // would fail this check, not the prose explaining why it no longer exists.
@@ -135,7 +133,7 @@ describe('Time Machine depth-stack vs real window: geometry identity (fix wave D
     }
   })
 
-  // Fix wave D (D2, second mismatch investigated): a CSS `transition` on `.tm-fwin`/
+  // Second mismatch investigated: a CSS `transition` on `.tm-fwin`/
   // `.tm-fwin--active` (or an ancestor) would replay at the exact instant `.tm-fwin--traveling` is
   // removed (reveal), on top of GSAP's own tween of the depth-0 strip -- two independent, unrelated
   // animations landing on the SAME frame is itself a stutter, even with the geometry above already
@@ -169,22 +167,21 @@ describe('Time Machine depth-stack vs real window: geometry identity (fix wave D
   })
 })
 
-// Fix wave E (E2, owner acceptance 2026-08-26): source-pin test for the STATIC content-identity
-// half of the owner's binding rule (Ruling E-1', see timeMachineMath.ts's own resolveSlotPose
+// Source-pin test for the STATIC content-identity
+// half of the binding rule (see timeMachineMath.ts's own resolveSlotPose
 // comment) -- "at rest (scale 1, pre-ancestor-scale), the replica's chrome rows must be
-// pixel-identical to the real window's". D2's own tests above already pin the two windows'
+// pixel-identical to the real window's". The geometry tests above already pin the two windows'
 // GEOMETRY (box/origin/radius); these pin the CONTENT inside them -- font-size/padding/gap for the
-// breadcrumb row and the list-head row, the two rows this fix wave's own audit found still
-// drifting (this file's own "final-fix-report.md", "Fix wave E" section has the full before/after
-// trace). Rather than comparing literal values directly (D2's own approach, still correct there
+// breadcrumb row and the list-head row, the two rows an audit found still
+// drifting. Rather than comparing literal values directly (still correct there
 // since those pairs have no natural single source to point at), THESE pairs now share actual
 // theme.css tokens (`--tm-topbar-padding`/`--tm-crumb-*`/`--tm-list-head-padding`/
 // `--tm-item-count-font-size`) -- so the strongest test is "do both sides reference the SAME
 // token", which is immune to a future edit that changes the token's OWN value (both consumers
-// follow it automatically) while still catching the actual failure mode this fix wave hit: one
+// follow it automatically) while still catching the actual failure mode found: one
 // side quietly reverting to (or never adopting) the shared token and drifting back to its own
 // private literal.
-describe('Time Machine breadcrumb/list-head chrome: real vs replica content identity (fix wave E, E2)', () => {
+describe('Time Machine breadcrumb/list-head chrome: real vs replica content identity', () => {
   const themeCss = readFileSync(path.resolve(DIR, '../../styles/theme.css'), 'utf8')
   const breadcrumbCss = styleBlock('../components/Breadcrumb.vue')
   const filesCss = styleBlock('../../views/Files.vue')
@@ -254,9 +251,9 @@ describe('Time Machine breadcrumb/list-head chrome: real vs replica content iden
     expect(decl(replicaBody, 'padding')).toBe('0')
   })
 
-  // Fix wave E (E2 follow-up, owner acceptance 2026-08-26): the item-count NUMBER used to render
-  // at one weight in the replica while the real window bolded it via `<i18n-t>`'s own `#n` slot
-  // (Fix wave C) -- see the template's own comment above `.tm-preview-window__row2` for the full
+  // A follow-up fix: the item-count NUMBER used to render
+  // at one weight in the replica while the real window bolded it via `<i18n-t>`'s own `#n` slot --
+  // see the template's own comment above `.tm-preview-window__row2` for the full
   // trace. Pinned two ways: the MARKUP shape (both use `<i18n-t keypath="tmItemCount">` with a
   // `<strong>` inside the `#n` slot template, not a plain interpolated string) and the CSS weight/
   // color declared on the resulting `strong` element.
@@ -275,12 +272,12 @@ describe('Time Machine breadcrumb/list-head chrome: real vs replica content iden
     expect(decl(replicaBody, 'color')).toBe(decl(realBody, 'color'))
   })
 
-  // Fix wave E (E2 follow-up, owner acceptance 2026-08-26, cross-file truncation mismatch): the
+  // A cross-file truncation mismatch: the
   // real listing container (.files-listwrap, scrolls when content overflows) and its replica
   // structural counterpart (.tm-preview-window__body, never scrolls -- 24-row cap) must reserve
   // the IDENTICAL scrollbar gutter unconditionally, or a folder that makes the real one scroll
   // resolves a narrower `auto-fill`/flex-basis content width than the replica ever does, landing
-  // different ellipsis truncation points between the two (the owner's own repro: the same long
+  // different ellipsis truncation points between the two (the repro: the same long
   // filename truncated at a different character count in each). See each file's own comment on
   // this declaration for the full trace and the accepted minor visual change to the plain Files
   // view (a folder that fits without scrolling now still reserves a small gutter strip).
@@ -292,14 +289,14 @@ describe('Time Machine breadcrumb/list-head chrome: real vs replica content iden
   })
 })
 
-// Fix wave G (Ruling G-1, owner acceptance 2026-08-26): source-pin tests for the fisheye rail's
+// Source-pin tests for the fisheye rail's
 // own two fixed-band geometry numbers (TimeMachineRail.vue's own `.tm-rail` -- see that file's own
 // header comment, point 1, and its own `.tm-rail` style-block comment for the full narrative) --
 // `top` (must clear TimeMachineStage.vue's own gear button) and `bottom` (must match the SAME
 // reserved 80px band `.tm-stage__bottom-bar`/`.tm-depth-stack` already use). Same source-text
 // technique as the rest of this file: nothing at the type level stops these numbers drifting apart
 // if only one file is ever edited.
-describe('Time Machine fisheye rail: fixed-band geometry vs the gear button / bottom bar (fix wave G)', () => {
+describe('Time Machine fisheye rail: fixed-band geometry vs the gear button / bottom bar', () => {
   // The clearance gap between the gear button's own bottom edge and the rail's own top -- not
   // derived from any OTHER file's own literal (there is no "real" gear-clearance value to pin
   // against), so this is this test's own documented constant, matching the magnitude

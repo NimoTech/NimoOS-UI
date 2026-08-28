@@ -1,18 +1,18 @@
 // SP8-P5d Task 7 — `NoteEditPane.vue` **top half**(top bar + draft banner + main column editor) unit tests.
-// Blueprint `NimoOS-UI`(main@7a6ee6b7) `src/views/AI/Knowledge/NoteEditPane.vue`(338 lines).
+// Blueprint: the Vue 2 panel's `src/views/AI/Knowledge/NoteEditPane.vue`(338 lines).
 // This file only tests T7 scope(top bar/draft banner/main column editor + props/data/isNew/status/
 // wordCount/created() equivalent/onEditorReady/tbActive/cmd/save/curateInPlace).
 // 5 aside cards/tag editing/conflict modal rendering belong to T8, not in this file assertion scope —
 // but `save()` catch branch "conflict state being set" behavior this pass must test(use
 // `wrapper.vm` technique to read internal ref, no new UI, reason see corresponding describe block below).
 //
-// ═══ mock strategy(governance §4.1 / p5d-fixtures/README.md §2) ═══
+// ═══ mock strategy(governance §4.1) ═══
 // `service.notes.get/create/update/curate` return **single normalized Note**(camelCase).
 // `service.notes.backlinks` return **array**, empty is `[]`(not `{backlinks:[]}` envelope).
-// `NOTE_FIXTURE` each field from real response in `.superpowers/sdd/p5d-fixtures/notes-get-one.json`
+// `NOTE_FIXTURE` each field from a real captured response
 // (camelCased; `source_refs`→`sourceRefs`, `created_by`→`createdBy`,
 // `updated_at`→`updatedAt`; `user_id` discarded by package, `created_at` not in `Note` type).
-// 409 conflict body from `.superpowers/sdd/p5d-fixtures/notes-update-409-conflict.http`
+// 409 conflict body from a captured HTTP response
 // (`{"detail":"revision conflict","current_revision":1}`), axios error object reshaped to
 // `{response:{status:409,data:{current_revision:...}}}`.
 //
@@ -58,7 +58,7 @@ const openInAppMock = vi.hoisted(() => ({
 }))
 vi.mock('../../services/openInApp', () => openInAppMock)
 
-// FIXTURE-COPY-BEGIN  p5d-fixtures/notes-get-one.json(camelCased, K1 normalized)
+// FIXTURE-COPY-BEGIN — notes-get-one fixture (camelCased, K1 normalized)
 // Each field from real response in that file(captured 2026-08-04): id/title/description/type/
 // status/createdBy(← created_by)/revision/updatedAt(← updated_at)/path/tags/
 // sourceRefs(← source_refs)/body all original values, `user_id`/`created_at` discarded by

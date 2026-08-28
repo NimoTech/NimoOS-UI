@@ -1,5 +1,5 @@
-// SP8-P5a Task 5 — knowledge base 11 routes (blueprint NimoOS-UI@main src/router/route.js:155-200,
-// git show main: read from source, working tree is old branch unreliable, see governance §1).
+// SP8-P5a Task 5 — knowledge base 11 routes (blueprint: the Vue 2 panel's src/router/route.js:155-200,
+// read via `git show main:` rather than the on-disk working tree, which was a stale branch).
 //
 // Divergence declarations (following governance §2 three-part):
 // 1) Route names verbatim from blueprint PascalCase (KnowledgeDashboard etc.), rest of this repo's
@@ -124,7 +124,7 @@
 // modules don't enter Vite graph (governance §12.3 E-13: `.vue` just "exists" doesn't enter output).
 // This move already tested per governance §8 build pipeline gate: before change `dist/assets/*.js`
 // has `__name:"WikiView"` / `"RootsView"` / `"AllowlistView"` and `kw-split` all **0 hits**,
-// after change all hit (evidence in p5f-task-8-report.md).
+// after change all hit.
 import type { RouteRecordRaw } from 'vue-router'
 // 🔴 [P5f T8 declaration] After this move flips the last three routes, **this file no longer has
 // any route pointing to KnowledgeDeferred** ⇒ this import line has become an "unused import" in

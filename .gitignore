@@ -3,10 +3,14 @@ dist
 
 # Claude Code local state (isolated worktrees, session config) — not committed
 .claude/
-# .superpowers/ IS committed — the ledgers are the only decision record per sprint. SP7 once
-# lost the whole directory with no git recovery, and SP9-P7 found the P5/P6 ledgers only
-# existed in gitignore. Rules live in .superpowers/.gitignore:
-# ledgers (.md) and self-check screenshots (.png) go in; review diffs / backups / snapshot-env machine artifacts stay out.
+# Local collaboration guide — kept on each working copy, not versioned (2026-08-27)
+CLAUDE.md
+# Sprint ledgers and working design notes — kept on disk, not versioned (2026-08-27).
+# They were briefly versioned; the repository now keeps only the durable product docs
+# under docs/ (THEMING.md, nimoos-app-label-spec.md).
+# Note: with these untracked, git no longer backs them up — keep your own copy.
+.superpowers/
+docs/superpowers/
 
 # Env vars / local config (may contain secrets, never committed)
 .env

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Lightbox bottom filmstrip — ported from Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue
+// Lightbox bottom filmstrip — ported from the Vue 2 panel's src/views/Photos/PhotosLightbox.vue
 // Template :167-176 (.lb-strip) + methods :249-298 (centerActiveThumb / findCenterThumbIndex /
 // updateLocalActiveFromCenter / commitSelection / onStripWheel).
 //

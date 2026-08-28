@@ -85,7 +85,7 @@ describe('i18n message syntax', () => {
 
   // SP8-P3b Task 2 后续修复(评审 Important):aiSkUninstallTitle/aiSkDeleteTitle 的
   // zh_cn 问号被手抖打成了全角 U+FF1F，而任务书表格与权威源
-  // NimoOS-UI/src/assets/lang/zh_CN.json:931-932 都是半角 U+003F —— 违反「不许改
+  // Vue2 面板的 src/assets/lang/zh_CN.json:931-932 都是半角 U+003F —— 违反「不许改
   // 标点」硬约束，且当时没有任何自动化断言覆盖这两个键的具体内容，只靠人工逐字符
   // grep 才抓到。这里补一条程序化守卫，钉死本期新增的这批 aiSk* 键（P3b Task 2 引入
   // 的 74 个）在 zh_cn 里不出现全角 ？/！/：。
@@ -138,7 +138,7 @@ describe('i18n message syntax', () => {
       }
     })
 
-    it('aiSkUninstallTitle and aiSkDeleteTitle end with a half-width "?" (U+003F), matching NimoOS-UI/src/assets/lang/zh_CN.json:931-932', () => {
+    it('aiSkUninstallTitle and aiSkDeleteTitle end with a half-width "?" (U+003F), matching the Vue 2 panel\'s src/assets/lang/zh_CN.json:931-932', () => {
       expect(zh.aiSkUninstallTitle).toBe('卸载这个技能?')
       expect(zh.aiSkUninstallTitle.codePointAt(zh.aiSkUninstallTitle.length - 1)).toBe(0x3f)
       expect(zh.aiSkDeleteTitle).toBe('删除这个技能?')
@@ -1034,9 +1034,9 @@ describe('i18n message syntax', () => {
     // 🔴 Coordinator ruling R13 — anti-resurrection guard for the key D-9 deleted.
     //
     // T1 originally omitted this guard to keep D-9's self-proof (`grep -rw <key> src/` hits only
-    // SettingsPage.vue's history comment) literally true. Ruling R13 判定该两难是假的: 「只命中那条
+    // SettingsPage.vue's history comment) literally true. 该两难被判定是假的: 「只命中那条
     // 注释」原本是「删干净了」的一次性自证, 不是对代码库的永久约束, 而本档既定的死键 grep 口径
-    // (P5d 终审 §1) 本来就排除 `*.test.ts`:
+    // 本来就排除 `*.test.ts`:
     //   grep -rlw --include='*.vue' --include='*.ts' -e "$k" src/ \
     //     | grep -v '^src/i18n/' | grep -v '\.test\.ts$'
     // ⇒ 守卫写在测试文件里, 两个目标零妥协地同时成立.
@@ -1337,7 +1337,7 @@ describe('i18n message syntax', () => {
   // above for why a file-wide placeholder-parity assertion would be wrong (aiResTurn /
   // aiResFilesInTurns intentionally differ, {s} being an English plural suffix).
   //
-  // 🔴 Ruling R3: three of this batch's strings (`Delete` / `Auto` / `Removed`) are byte-identical
+  // Three of this batch's strings (`Delete` / `Auto` / `Removed`) are byte-identical
   // in BOTH locales to existing aiKbNtDelete / aiKbOriginAuto / aiKbDeviceAuto / aiKbStatusRemoved
   // and were still created new, because those keys' semantic domains are the notes page / a note's
   // origin / the Parser device / an indexed file's status. A-1's rationale: 「键名语义属于别的区,

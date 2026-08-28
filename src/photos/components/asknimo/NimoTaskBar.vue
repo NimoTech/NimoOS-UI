@@ -1,6 +1,6 @@
-<!-- Background task progress strip for Ask Nimo. Pixel source: Vue2 NimoOS-UI
+<!-- Background task progress strip for Ask Nimo. Pixel source: the Vue 2 panel's
      src/views/Photos/NimoTaskBar.vue + photos.scss:4398-4426 (collapsed strip, already ported)
-     + this plan's Task 5 addition (expanded per-type breakdown, photos.scss:4427-4460, re-transcribed
+     + the expanded per-type breakdown (photos.scss:4427-4460, re-transcribed
      from NimoTaskBar.vue's own <style scoped>:111-157). Reads the SAME `tasks` list the rest of
      Photos already polls via useTimelineStore() -- this is the identical data Vue2 read off
      Vuex `photos/tasks`.

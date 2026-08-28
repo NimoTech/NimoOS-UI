@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// EXIF/详情栏——移植自 Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue:74-149(<aside class="lb-info">)。
+// EXIF/详情栏——移植自 the Vue 2 panel's src/views/Photos/PhotosLightbox.vue:74-149(<aside class="lb-info">)。
 // 纯展示组件:props { photo, visible },emits 无。
 // delta(见 task-7-brief.md):
 //   1) 删「交给 Nimo」/「Hand off to Nimo」按钮(Vue2 :84-87)——本组件不渲染任何 ask-nimo 交互。

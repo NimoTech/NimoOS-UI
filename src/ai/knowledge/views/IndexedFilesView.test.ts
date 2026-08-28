@@ -15,13 +15,13 @@
 // Mock shape sources (governance §4, no hand-editing; documented individually):
 //   ai.parserFiles({...}) — service.ai.* has zero transformation of this endpoint (§4.1), fixture
 //     as-is snake_case.
-//   FILES_ALL_8 — verbatim from p5b-fixtures/files-all-8.json (8 files, 5 indexing / 3 ok,
+//   FILES_ALL_8 — verbatim from files-all-8.json (8 files, 5 indexing / 3 ok,
 //     device distribution measured 2026-08-01, see governance §4.5/§12 E-8).
 //   ALL_OK_FILES — 3 rows filtered as-is from FILES_ALL_8 where status==='ok', not synthesized
 //     data, just a subset of the same fixture (device has no "all ok, zero indexing" 8-row
 //     scenario, so we must pick the no-indexing-rows subset from verified data to cover the
 //     isAnyIndexing=false branch).
-//   EMPTY_RESULT — verbatim from p5b-fixtures/files-has-error.json
+//   EMPTY_RESULT — verbatim from files-has-error.json
 //     (`{"total":0,"limit":3,"offset":0,"files":[]}`, the real empty response when has_error=true
 //     on device), borrowed as a generic empty-state fixture (shape unchanged, just this file doesn't
 //     specifically assert it came from the has_error scenario).
@@ -61,12 +61,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // ── vi.hoisted mock scaffold (governance §9: avoid ESM hoisting TDZ) ──
 // T10 adds `parserReindexFiles` — three rebuild entry points (rebuildRow / rebuildSelected /
 // doRebuildAll) all fall through to one wrapper method in store (`knowledgeStore.ts:467` and
-// `:477`, just body: one passes `file_ids` one passes `filter`). Shape from `p5b-fixtures/
-// reindex-one.http` measured text (snake_case, §4.1 zero transformation).
+// `:477`, just body: one passes `file_ids` one passes `filter`). Shape from
+// `reindex-one.http` measured text (snake_case, §4.1 zero transformation).
 const ai = vi.hoisted(() => ({ parserFiles: vi.fn(), parserReindexFiles: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
-// ── Fixture data (verbatim from p5b-fixtures/files-all-8.json) ──
+// ── Fixture data (verbatim from files-all-8.json) ──
 const FILES_ALL_8 = [
   { file_id: '2685dfba774c87b77b9ca4af44e691f6', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/tmp/nimoos_panic.log', mtime_ms: 1785413747017 }], sha256_full: '2685dfba774c87b77b9ca4af44e691f63f21d35402307fe1686aa0b6333ffe9c', size: 627268604, mime: 'application/octet-stream', modalities_done: {}, parser_version: 'parser/0.2.0', indexed_at: 1785413748112, tombstoned_at: null, vector_count: 0, last_error: null, status: 'indexing' },
   { file_id: '05d732586959ea3f480b5feb4b0d17c8', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/log/nimoos/log.log', mtime_ms: 1784404128499 }], sha256_full: '05d732586959ea3f480b5feb4b0d17c833ea5df0bffb7cea68d53b29e05db7e3', size: 1670833, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784436202505, tombstoned_at: null, vector_count: 856, last_error: null, status: 'ok' },
@@ -80,7 +80,7 @@ const FILES_ALL_8 = [
 // Subset (not synthesized): 3 rows from FILES_ALL_8 where status==='ok', specifically covers isAnyIndexing=false.
 const ALL_OK_FILES = FILES_ALL_8.filter((f) => f.status === 'ok')
 
-// Verbatim from p5b-fixtures/files-has-error.json (real empty response when has_error=true on device).
+// Verbatim from files-has-error.json (real empty response when has_error=true on device).
 const EMPTY_RESULT = { total: 0, limit: 3, offset: 0, files: [] }
 
 // Synthesized (README registers: all device files under /DATA, cannot test multiple roots), same field set.
@@ -1504,11 +1504,11 @@ describe('IndexedFilesView — Multi-select checkboxes (toggleRow/toggleAll, att
 // bottom action bar + polling close. All below newly added this cut.
 //
 // Mock shape sources (governance §4, no hand-editing, documented individually):
-//   ai.parserReindexFiles success → `REINDEX_OK`, verbatim from `p5b-fixtures/reindex-one.http`
+//   ai.parserReindexFiles success → `REINDEX_OK`, verbatim from `reindex-one.http`
 //     200 response body (`{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`, snake_case,
 //     §4.1 endpoint in-package zero transformation).
 //   ai.parserReindexFiles 400 (file_ids exceeded) → `CAP_400_FILE_IDS`, verbatim from
-//     `p5b-fixtures/reindex-cap-400.http` (`{"detail":"too many file_ids (max 500)"}`,
+//     `reindex-cap-400.http` (`{"detail":"too many file_ids (max 500)"}`,
 //     **already tested**). ⚠️ Backend uses same message for "empty array" and ">500" (§4.4).
 //   ai.parserReindexFiles 400 (filter exceeded) → `CAP_400_FILTER`, shape from fixture README
 //     "not tested · source-inferred shape" section (`{"detail":"filter matches {n} files (> 10000);
@@ -1526,7 +1526,7 @@ describe('IndexedFilesView — Multi-select checkboxes (toggleRow/toggleAll, att
 // button `disabled`), not reading component internal state self-proving.
 // ══════════════════════════════════════════════════════════════════════
 
-// Copied verbatim from p5b-fixtures/reindex-cap-400.http (measured on device).
+// Copied verbatim from reindex-cap-400.http (measured on device).
 const CAP_400_FILE_IDS = { response: { data: { detail: 'too many file_ids (max 500)' } } }
 // Taken from the fixture README's "not tested · source-inferred" table (filter-mode cap exceeded).
 const CAP_400_FILTER = {

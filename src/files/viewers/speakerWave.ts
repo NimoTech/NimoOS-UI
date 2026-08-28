@@ -1,5 +1,4 @@
 // Waveform × speakers: pure functions (bar assignment / color token mapping / filter predicate).
-// Design: docs/superpowers/specs/2026-07-13-new-ui-audio-speaker-waveform-design.md §3/§4/§7
 import { parseTimestamp } from './audioTranscripts'
 
 /** Speaker index → color token (5-color cycle, token defined in theme.css, both themes have values). */

@@ -1,7 +1,7 @@
 /*
  * Shared settings-area styles (not scoped). Only holds skeleton/list styles reused across
  * components; each component's own layout still lives in its own scoped <style> block.
- * Colors always go through var(--token) (CLAUDE.md hard constraint); new semantic tokens
+ * Colors always go through var(--token) (a hard constraint for this repo); new semantic tokens
  * land in src/styles/theme.sp9.css.
  * Uses .css rather than the .scss called for by spec §4.1 -- this repo has no sass installed
  * and zero .scss files anywhere, and adding a build dependency for a single file conflicts
@@ -262,7 +262,7 @@
 }
 
 /* The brand logo is brought in via <img>; the asset itself is a near-dark + light duotone
- * (CLAUDE.md theming exception category 1: brand identity, skin-independent, art assets must
+ * (Theming exception category 1: brand identity, skin-independent, art assets must
  * not be altered). Under the default dark theme the near-dark part is invisible, so it gets
  * inverted on the **style side** instead, leaving the .svg itself untouched.
  * theme-exception: visibility compensation for brand art assets, not a color semantic, no
@@ -451,7 +451,7 @@
 .set-comp-empty { padding: 28px 16px; text-align: center; color: var(--fg-muted); font-size: 12px; }
 
 /* ── P3 terminal tab ───────────────────────────────────────────────────── */
-/* 2026-08 owner acceptance SP9-P3: the log card switched to components/ui/LogConsole.vue
+/* The log card switched to components/ui/LogConsole.vue
  * (sharing the same display shell as the app console's apps/console/LogsPane.vue), and no
  * longer has its own separate .set-logs look.
  * Only two "settings-area specific" things are done here, via the --log-console-* custom
@@ -461,8 +461,8 @@
  *      the log card needs its own min/max-height (carried over from the original .set-logs's
  *      480px / 60vh), with the cap lifted in fullscreen.
  *   2. The toolbar (download log + fullscreen) needs visible clearance from both the card's
- *      top edge and the log body's first line -- owner acceptance feedback said "needs a bit
- *      more spacing", so after measuring the actual .set-btn toolbar height, the pad-top value
+ *      top edge and the log body's first line -- the toolbar needed a bit more spacing, so
+ *      after measuring the actual .set-btn toolbar height, the pad-top value
  *      was re-derived (see the comment below), replacing the original standalone
  *      padding-top: 52px hardcode. */
 .set-logs-wrap { position: relative; }

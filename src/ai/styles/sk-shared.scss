@@ -54,10 +54,10 @@
   }
 }
 
-// SP8-P2a Task 6 — iOS-style switch (used by SetSwitch.vue).
-// Source: NimoOS-UI (Vue2) `src/views/AI/Skills/skills-styles.scss:235-249`.
-// Task 2 extracted this file using line ranges 338-353, 698-726; missed this section (explicit verification
-// item recorded in brief); Task 6 grep verification found it; adding here, appending without reordering
+// iOS-style switch (used by SetSwitch.vue).
+// Source: the Vue 2 panel's `src/views/AI/Skills/skills-styles.scss:235-249`.
+// The original extraction pass used line ranges 338-353, 698-726 and missed this section; a later
+// grep verification pass found it; adding here, appending without reordering
 // existing content. Bare color handling: Vue2 original `background: white` and `box-shadow: 0 2px 4px
 // rgba(0,0,0,0.18)` are slider color; replaced with newly-added tokens.scss --switch-thumb/--switch-thumb-shadow
 // (same value in both themes; see that file's comment); --line-strong / --success tokens already in use in

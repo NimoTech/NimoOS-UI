@@ -1,5 +1,5 @@
 // Manual drag-to-reorder for album detail grids. Ported (behavior verbatim)
-// from Vue2 NimoOS-UI src/views/Photos/PhotosAlbumDetail.vue:
+// from the Vue 2 panel's src/views/Photos/PhotosAlbumDetail.vue:
 //   :253-256 created()       -> this._sortable/_dragging init (here: module-
 //                                closure locals `inst`/`dragging`, no ref —
 //                                same "non-reactive plain flag" intent).
@@ -25,7 +25,7 @@ export interface AlbumDragSort {
   destroy(): void
 }
 
-// Fix-6 (owner acceptance, 2026-08-18): reuses the exact `.is-dragging` convention already
+// Note: reuses the exact `.is-dragging` convention already
 // established for the Ask Nimo FAB's own drag (AskNimoFab.vue's `dragging` ref -> photos.scss
 // :860-867 `.nimo-fab.is-dragging { transition: none !important; ... }`) -- same idea, applied
 // to the *container* here rather than the single dragged element. Root cause this addresses:

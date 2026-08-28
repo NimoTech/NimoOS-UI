@@ -1,5 +1,5 @@
 <!--
-  SP8-P4 Task 6 — 1:1 ported from Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerDetail.vue`
+  SP8-P4 Task 6 — 1:1 ported from the Vue 2 panel's `src/views/AI/MCP/McpServerDetail.vue`
   (174 lines) :1-157. Task 7 (test connection) fills three gaps T6 left:
     - :50-53 "Test connection" button
     - :87-100 test hint `.mcp-test-hint` / result panel `.mcp-test-result`
@@ -178,7 +178,7 @@ async function runTest() {
   testAbort = ac
   try {
     // 【Deviation D1, public constraint §3 #1】single layer data extraction: shared package
-    // `service.ai.testMCPServer` already `return res.data` (`NimoOS-Service/src/ai.ts:388-391`),
+    // `service.ai.testMCPServer` already `return res.data` (the shared HTTP client's `src/ai.ts:388-391`),
     // backend `mcp.go:355` is `c.JSONBlob` raw object. Vue2 :164's `resp.data` is always
     // `undefined` in this repo, would make "test connection" **always show failure**, even if backend returns
     // `ok:true` — verbatim copy would be a bug, here directly use `body` itself.

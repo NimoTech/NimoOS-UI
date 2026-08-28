@@ -73,7 +73,7 @@ describe('/photos route', () => {
     w.unmount()
   })
 
-  // Fix-1 item 4 (owner acceptance, 2026-08-16): PlaceDetailPanel.vue's "Open in Library"/
+  // PlaceDetailPanel.vue's "Open in Library"/
   // spot "View in Library" jumps now land here with `?libraryPlace=<city>` — this file must
   // seed the existing `places` EXIF facet from it once on mount, then strip the query key so
   // a later bare reload doesn't silently resurrect a filter the user may have since cleared.

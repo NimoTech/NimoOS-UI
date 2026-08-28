@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // SP7-P7a-T8: SmartViewActivityFeed.vue — activity feed, 4th section in smart view detail page right column.
-// Based on Vue2 NimoOS-UI src/views/Photos/PhotosSmartViewDetail.vue:211-229 (template),
+// Based on the Vue 2 panel's src/views/Photos/PhotosSmartViewDetail.vue:211-229 (template),
 // :270-280 (activityText), :318-324 (activity computed, `seeds: a.assetIds`), ported;
 // styles from photos-smartview.scss:606-625 (+ placeholder thumbnail inline style from :211-221, converted to class).
 //

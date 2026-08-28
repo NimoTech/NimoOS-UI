@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // Task 7 (SP7-P4 albums): the album list view — card grid + sort + the three new-album fill
 // modes (empty/recent/select; the Ask Nimo branch is deliberately not built per the brief) +
-// empty state. The structure follows Vue2 NimoOS-UI
+// empty state. The structure follows the Vue 2 panel's
 // src/views/Photos/PhotosAlbumsView.vue:16-86 (banner+grid), :99-165 (new-album modal).
 // Route registration is left for T11.
 //
 // Plan C Task 2 (shared re-shell): the shell moves from AreaShell + a `.photos-layout` flex
 // row to Photos.vue's Vue2 structure `.photos-root[themeClass] > .app[data-collapsed] >
-// PhotosSidebar + main.main` (NimoOS-UI PhotosTimeline.vue:943-956) — `collapsed` now comes
+// PhotosSidebar + main.main` (the Vue 2 panel's PhotosTimeline.vue:943-956) — `collapsed` now comes
 // from the shared composable useSidebarCollapse() introduced in Task 2, rather than state this
 // page never had (the albums page had never persisted a collapsed state, so PhotosSidebar was
 // always eating the prop default of false, i.e. permanently expanded — a gap in its own right,
@@ -67,7 +67,7 @@ type SourceId = 'empty' | 'recent' | 'select' | 'nimo'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button,
+// `toggle` wires the topbar's collapse button,
 // same as Photos.vue's own `onToggleCollapse` (Photos.vue:104).
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
@@ -109,7 +109,7 @@ const sourceOptions = computed(() => [
   { id: 'nimo' as SourceId, label: t('photosSvLetNimoDraft'), hint: t('photosSvLetNimoDraftHint') },
 ])
 
-// Fix-1 item 1 (owner acceptance, 2026-08-13): PhotosTopbar's title/sub for the 'albums' nav
+// PhotosTopbar's title/sub for the 'albums' nav
 // -- Vue2 topbarTitle's 'albums' branch is literally `this.$t('Albums')`
 // (PhotosTimeline.vue:187, this repo's own photosAlbumsTitle key already carries that exact
 // string) and topbarSubContext's 'albums' branch sums photoCount/videoCount across every
@@ -211,7 +211,7 @@ async function confirmCreate(): Promise<void> {
   try {
     // Deliberate deviation from Vue2 here (review Important verdict: a new defect, fixed this
     // round): Vue2's album list was never a standalone route — it was a v-else-if sub-block
-    // inside PhotosTimeline.vue switched on activeNav (NimoOS-UI src/router/route.js:206-208
+    // inside PhotosTimeline.vue switched on activeNav (the Vue 2 panel's src/router/route.js:206-208
     // registers only a single /photos route), and PhotosTimeline.mounted() unconditionally
     // dispatches fetchTimeline regardless of activeNav, so under Vue2 "the timeline data is
     // necessarily already loaded" was a structural guarantee that came from the parent
@@ -376,8 +376,8 @@ onUnmounted(() => {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
-           Photos.vue (its own Task 2 review-fix comment) -- the topbar's own collapse button
+      <!-- Same narrow-mode coordination as
+           Photos.vue -- the topbar's own collapse button
            now delegates to the sidebar drawer on narrow viewports, so the sidebar's floating
            trigger would be a redundant second affordance here. -->
       <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
@@ -399,9 +399,9 @@ onUnmounted(() => {
           </div>
           <div class="albums-actions">
             <div ref="sortMenuRef" class="albums-sort-wrap">
-              <!-- Fix-7 (owner acceptance, 2026-08-14): was `class="bar-btn"` -- a *global*
+              <!-- Was `class="bar-btn"` -- a *global*
                    New-UI button class (theme.css), not Vue2's real class for this button
-                   (NimoOS-UI PhotosAlbumsView.vue:60 uses `class="btn"`, parity's own
+                   (the Vue 2 panel's PhotosAlbumsView.vue:60 uses `class="btn"`, parity's own
                    `.photos-root .btn`, photos.scss:290-298). `.bar-btn`'s chrome
                    (`--chip-bg`/`--chip-border`/`--fg`) is not shadowed on `.photos-root`, so it
                    doesn't follow the private photos-is-light toggle -- in photos light mode
@@ -418,12 +418,11 @@ onUnmounted(() => {
                    background regardless of theme, which is why the owner reported it as fine
                    and it is left untouched. -->
               <button type="button" class="btn" data-test="albums-sort-btn" @click.stop="sortOpen = !sortOpen">
-                <!-- Fix-11 (owner acceptance, 2026-08-14): was missing entirely -- Vue2
+                <!-- Was missing entirely -- Vue2
                      (PhotosAlbumsView.vue:60-61) leads this button with
-                     `<photos-icon name="filter" :size="13"/>`. The owner's screenshot showed a
-                     lone chevron with nothing in front of it (described as "a degenerate hollow
-                     triangle"); root cause was a missing icon element, not a wrong/unmapped
-                     icon name -- this button never had a leading icon at all. -->
+                     `<photos-icon name="filter" :size="13"/>`. Root cause was a missing icon
+                     element, not a wrong/unmapped icon name -- this button never had a leading
+                     icon at all. -->
                 <PhotosIcon name="filter" :size="13" data-test="albums-sort-icon" />
                 {{ t('photosAlbumSort') }} {{ currentSort.label }}
                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -447,7 +446,7 @@ onUnmounted(() => {
               </div>
             </div>
             <button type="button" class="bar-btn btn-primary" data-test="albums-new-btn" @click="openCreate">
-              <!-- Fix-11 (owner acceptance, 2026-08-14): was missing entirely -- Vue2
+              <!-- Was missing entirely -- Vue2
                    (PhotosAlbumsView.vue:83-84) leads this button with
                    `<photos-icon name="album" :size="13"/>`. -->
               <PhotosIcon name="album" :size="13" data-test="albums-new-icon" />
@@ -489,7 +488,7 @@ onUnmounted(() => {
              (photos.scss:3202-3206) — the section head and the grid are both static content
              that scrolls together inside it, not a separate scroll region owned by the grid
              itself. Same structure here.
-             Fix-1 item 2 (owner acceptance, 2026-08-13): this container's class name used to
+             This container's class name used to
              be the repo-invented `.albums-scroll` (a slip during the T3 cleanup) — the parity
              stylesheet only knows `.albums-body` (photos.scss:3206-3211, padding: 18px 24px
              80px, which also carries flex:1 + min-height:0 + overflow-y:auto). `.albums-scroll`
@@ -547,7 +546,7 @@ onUnmounted(() => {
                    height: it follows the theme's own font metrics. -->
               <div class="album-create" data-test="album-create-tile" @click="openCreate">
                 <div class="album-create-cover">
-                  <!-- Fix-11 (owner acceptance, 2026-08-14): was a literal "+" text glyph, a
+                  <!-- Was a literal "+" text glyph, a
                        substitute an earlier cleanup (T3) explicitly registered as standing in
                        for "Vue2's PhotosIcon SVG that parity has no property for"
                        (PhotosAlbumsView.vue:118-120 uses
@@ -654,7 +653,7 @@ onUnmounted(() => {
       </main>
     </div>
 
-    <!-- Fix-1 item 3 (owner acceptance, 2026-08-13): the create-modal and the library picker
+    <!-- The create-modal and the library picker
          below used to sit as template-root SIBLINGS of `.photos-root` (outside its DOM
          subtree entirely, Vue 3's multi-root fragment). Every layout rule either one relies
          on is written `.photos-root .albums-modal-scrim { position: fixed; ... }`
@@ -846,7 +845,7 @@ onUnmounted(() => {
    apologise for. Vue2 939a7d3a unified both kinds into a single `.album-grid-user` at
    minmax(220px, 1fr) (photos.scss:3190-3193) and renders smart-view-card inside it
    (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width.
-   Fix-1 item 2 (owner acceptance, 2026-08-13): the local `.albums-scroll` rule that used to
+   The local `.albums-scroll` rule that used to
    sit here is deleted outright, not value-patched -- the template now carries parity's own
    `.albums-body` class name (photos.scss:3206-3211), which already provides
    flex/min-height/overflow-y AND the correct `padding: 18px 24px 80px` (this local copy's
@@ -879,7 +878,7 @@ onUnmounted(() => {
    survive too -- Vue2 renders this pair via inline `style=` on unclassed divs
    (PhotosAlbumsView.vue:121-122), so parity's extraction has no selector for them; hint's
    opacity corrected from 0.75 to Vue2's actual 0.7.
-   Fix-11 (owner acceptance, 2026-08-14): `.album-create .plus { font-size: 20px }` is deleted
+   `.album-create .plus { font-size: 20px }` is deleted
    here -- it sized this repo's literal "+" text glyph, now replaced with the real
    `<PhotosIcon name="album" :size="20">` Vue2 itself renders inside `.plus`
    (PhotosAlbumsView.vue:120); the icon component sizes itself via its own `:size` prop, so the

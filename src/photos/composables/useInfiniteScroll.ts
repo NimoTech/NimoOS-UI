@@ -1,5 +1,5 @@
 // SP7-P7a-T15: useInfiniteScroll — IntersectionObserver wrapper for infinite-scroll sentinel.
-// Ported from Vue2 NimoOS-UI src/views/Photos/PhotosSearchView.vue:
+// Ported from the Vue 2 panel's src/views/Photos/PhotosSearchView.vue:
 //   :706-721 (observeLoadMoreSentinel/teardownLoadMoreObserver)
 //   :607-610 (showLoadMoreSentinel watcher, decides when to attach/detach observer)
 //

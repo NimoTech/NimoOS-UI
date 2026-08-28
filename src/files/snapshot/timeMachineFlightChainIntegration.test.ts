@@ -1,5 +1,4 @@
-// Fix wave K (owner acceptance 2026-08-26, controller escalation -- previous agent's session
-// expired mid-task): the owner reported a long fly-through freezing ENTIRELY mid-flight --
+// A long fly-through was reported freezing ENTIRELY mid-flight --
 // strips parked at intermediate poses (one mid-screen, one at the camera-mouth pose), static
 // until a safety net finally reveals the real window. Frozen-at-intermediate-poses across ALL
 // strips is the signature of the GSAP timeline being `.kill()`ed mid-flight, with the strips it
@@ -23,10 +22,9 @@
 // interleaving production has (and any transient intermediate state that interleaving can create)
 // has a real chance to happen here too.
 //
-// WORKING HYPOTHESIS HANDED DOWN, AND WHAT ACTUALLY HAPPENED WHEN VERIFIED (see this wave's own
-// section in final-fix-report.md for the full narrative):
+// WORKING HYPOTHESIS, AND WHAT ACTUALLY HAPPENED WHEN VERIFIED:
 //
-// The dispatch's own hypothesis was a SPURIOUS second fire of the `currentSnapshotName` watcher
+// The initial hypothesis was a SPURIOUS second fire of the `currentSnapshotName` watcher
 // (TimeMachineDepthStack.vue) during ONE logical `switchTo()` -- e.g. a transient null, or a late
 // re-fire once the real window's own files-store load lands -- bumping `travelRunToken` a second
 // time and killing an in-flight timeline for nothing. The describe block below,
@@ -36,7 +34,7 @@
 // called exactly once in every configuration. Reading the code explains why: the watcher already
 // guards `if (!pendingTravel || newName !== pendingTravel.to) return` BEFORE ever touching
 // `travelRunToken` -- a transient/mismatched value is already a safe no-op, structurally, not
-// something that needed a new guard. The dispatch's own hypothesis, as literally stated, is
+// something that needed a new guard. This hypothesis, as literally stated, is
 // DISPROVEN for this codebase as it stands.
 //
 // What full-chain testing DID surface -- the actual root cause -- is a DIFFERENT, real race:
@@ -56,7 +54,7 @@
 // because Vue's `v-tm-pose` directive only applies a pose on INSERT (never on update), every
 // STILL-MOUNTED strip from the second (correct) travel is simply never told to move again --
 // permanently frozen exactly where that travel's own tween last left it, which is exactly the
-// owner's screenshot (strips parked mid-transition, static, until an unrelated safety net
+// reported symptom (strips parked mid-transition, static, until an unrelated safety net
 // eventually reveals the real window over the now also-wrong content underneath).
 //
 // See the 'files.ts load() out-of-order race' describe block below for the RED (pre-fix) /
@@ -212,7 +210,7 @@ describe('Time Machine flight -- exactly one runTravel per switchTo (hypothesis 
 
   // A dozen router-delay/listing-delay combinations, several orders of magnitude apart in both
   // directions (router slower than listing, listing slower than router, both near-instant, both
-  // slow) -- the timing sweep that actually went looking for the hypothesis's own double-fire
+  // slow) -- the timing sweep that actually went looking for the hypothesized double-fire
   // (see this file's own header comment). None of these reproduce it.
   const combos: [number, number][] = [[0, 0], [0, 30], [30, 0], [50, 5], [5, 50], [1, 1], [100, 1], [1, 100], [10, 200], [200, 10]]
   for (const [routerDelay, listDelay] of combos) {
@@ -234,7 +232,7 @@ describe('Time Machine flight -- exactly one runTravel per switchTo (hypothesis 
   }
 })
 
-describe('files.ts load() out-of-order race during rapid re-supersede (Fix wave K -- the actual bug)', () => {
+describe('files.ts load() out-of-order race during rapid re-supersede (the actual bug)', () => {
   // RED pre-fix / GREEN post-fix (files.ts's own load() epoch guard). Two switchTo() calls fired
   // in quick succession -- the SECOND before the FIRST's own directory listing has resolved (an
   // ordinary fast double rail-click, not a contrived timing coincidence). The first call's own

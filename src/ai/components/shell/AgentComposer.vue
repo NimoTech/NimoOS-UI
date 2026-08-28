@@ -80,8 +80,7 @@
       old `closeMention()` into `hideMentionPanel()` (hide only, used in onBlur) and
       `resetMention()` (full reset, used in Esc/select/send/session-switch/clear-text) —
       blur no longer destroys drilled levels, reset only on true end. See notes at
-      `syncMentionFromCaret`/`hideMentionPanel`/`resetMention` declarations and
-      `.superpowers/sdd/p1c1-patch-task-4-brief.md`.
+      `syncMentionFromCaret`/`hideMentionPanel`/`resetMention` declarations.
 
   gitignore 409 confirmation (only intentional interaction deviation this cycle): Vue2 uses
   blocking `window.confirm` (Vue2 398, 630), here use repo's reka-ui `AlertDialog`. Note
@@ -125,8 +124,7 @@
   This doesn't change URL (plan ② not chosen), doesn't add skill-disabled hint (plan ③ not
   chosen), just reads `store.pendingSkillId` and renders a dismissible banner, dismissal only
   nulls it. Place before chips row because semantically same: both are "attached to next message",
-  both inherit `.composer`'s `pointer-events: auto`. See
-  .superpowers/sdd/p3a-post-skillbanner-brief.md.
+  both inherit `.composer`'s `pointer-events: auto`.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
@@ -160,9 +158,9 @@ interface AttachmentRef {
   url: string
 }
 
-// Three emit names and payload shapes are Task 12 wiring contract, don't change
-// (p1c1-task-9-brief.md Interfaces section). `send-init` has no caller in this task
-// (SlashMenu/onInit are Task 11's concern), declared here as interface placeholder.
+// Three emit names and payload shapes are Task 12 wiring contract, don't change.
+// `send-init` has no caller in this task (SlashMenu/onInit are Task 11's concern),
+// declared here as interface placeholder.
 const emit = defineEmits<{
   send: [payload: { text: string; attachmentIds: string[]; attachmentRefs: AttachmentRef[] }]
   stop: []
@@ -293,8 +291,8 @@ function updateAnchor() {
  * word from "re-derive from text every time" to "state priority, text only discovers new
  * words / extracts filter words".
  *
- * Root cause (see p1c1-patch-task-4-brief.md "root cause" section, code-verified not
- * guessed): `scanMention` (composerText.ts:48-67, same as Vue2 shell/AgentComposer.vue:331
+ * Root cause (code-verified, not guessed): `scanMention` (composerText.ts:48-67, same as
+ * Vue2 shell/AgentComposer.vue:331
  * note "mention path contains no spaces") is backward-scan discovery algorithm, breaks on
  * whitespace to set `{open:false}`. NimoOS mount point display name `System (/DATA)` has
  * both spaces and slashes — after drilling text becomes `@System (/DATA)/.system_data/`,
@@ -547,8 +545,7 @@ const chips = computed(() =>
 /** Vue2 654-657 toastError() — shared generic error hint for removeChip/pickItem/onBrowserPick,
  *  corresponds to Vue2's `$t('Authorization failed: {msg}')`, catch with `aiAuthFailed` key here;
  *  removeChip is the only call site wired in this task, else resource removal failure silently
- *  swallowed. SP8-P1c2 Task 6: auth failure → danger tier (p1c2-task-6-brief.md
- *  "AgentComposer 7 places"). */
+ *  swallowed. SP8-P1c2 Task 6: auth failure → danger tier ("AgentComposer 7 places"). */
 function toastError(e: unknown) {
   const err = e as { response?: { data?: { detail?: string } }; message?: string } | null
   const msg = err?.response?.data?.detail || err?.message || 'unknown'
@@ -1033,9 +1030,9 @@ function openFilePicker() {
 }
 
 /** Vue2 651-653 notSupported() (voice key). Vue2 uses 'is-warning' type, not error, default
- *  toast duration. SP8-P1c2 Task 6: brief categorizes "feature not yet supported" as info tier
- *  (p1c2-task-6-brief.md "AgentComposer 7 places") — don't pass tier param, use show()'s default,
- *  so this call site needs no change. */
+ *  toast duration. SP8-P1c2 Task 6: "feature not yet supported" is categorized as info tier
+ *  ("AgentComposer 7 places") — don't pass tier param, use show()'s default, so this call
+ *  site needs no change. */
 function notSupported() {
   toast.show(t('aiNotSupportedYet'))
 }

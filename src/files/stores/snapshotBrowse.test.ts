@@ -36,7 +36,7 @@ beforeEach(() => {
   listVolumesMock.mockResolvedValue(VOLS)
   listSnapshotsMock.mockResolvedValue([])
   getListMock.mockResolvedValue({ content: [] })
-  // Task 7 fix round: `mockReset()`, not `mockClear()` -- a test further down
+  // `mockReset()`, not `mockClear()` -- a test further down
   // ("sets tmTravel around the navigation, clears it once settled") installs a custom
   // `mockImplementation` on `router.replace` to control timing; `mockClear()` alone only wipes
   // call history, leaving that implementation (a promise nothing else will ever resolve) to leak
@@ -227,8 +227,8 @@ describe('canShowEntry truth table', () => {
   })
 })
 
-// Task 6: wheelOpen/openWheel/closeWheel are gone (Ruling P2 — the retired wheel component tree
-// that read them is deleted in this same task). tmActive/enterTimeMachine/exitTimeMachine/switchTo
+// wheelOpen/openWheel/closeWheel are gone (the retired wheel component tree
+// that read them is deleted alongside them). tmActive/enterTimeMachine/exitTimeMachine/switchTo
 // replace that whole toggle, driving TimeMachineStage.vue instead.
 describe('time machine: enter / exit / switch', () => {
   const SNAPS = [
@@ -290,7 +290,7 @@ describe('time machine: enter / exit / switch', () => {
     })
   })
 
-  // Task 10: deep-link auto-enter. shouldAutoEnter truth table mirrors canShowEntry's own
+  // Deep-link auto-enter. shouldAutoEnter truth table mirrors canShowEntry's own
   // (above) but with the polarity/shape flipped -- true only INSIDE a confirmed-supported
   // snapshot path, never outside one.
   describe('shouldAutoEnter truth table', () => {
@@ -403,7 +403,7 @@ describe('time machine: enter / exit / switch', () => {
       expect(getListMock).toHaveBeenCalledWith('/DATA/Photos')
       expect(router.push).toHaveBeenCalledWith(expect.stringContaining('Photos'))
     })
-    // Task 7 fix round: a stuck-true tmTravelActive (e.g. the depth-stack component was
+    // A stuck-true tmTravelActive (e.g. the depth-stack component was
     // unmounted mid-travel, so nothing was ever going to call settleTravel()) must not survive
     // past leaving Time Machine mode entirely.
     it('clears a stuck tmTravelActive synchronously too', async () => {
@@ -437,12 +437,12 @@ describe('time machine: enter / exit / switch', () => {
     })
   })
 
-  // Final review (Important 5, Ruling F-2): Vue2's own isTimeMachineChromeVisible held-chrome
+  // Vue2's own isTimeMachineChromeVisible held-chrome
   // exit -- ported as tmChromeVisible (see that field's own header comment in snapshotBrowse.ts
   // for the full token+timer mechanism this block exercises). Drives TimeMachineStage.vue's own
   // `active` and Files.vue's own bannerInfo/bannerIsContainer -- NOT tmActive directly -- so the
   // un-shrinking real window never flashes the OLD snapshot listing + banner mid-exit.
-  describe('tmChromeVisible (final review, Ruling F-2: held-chrome exit)', () => {
+  describe('tmChromeVisible (held-chrome exit)', () => {
     it('entering sets tmChromeVisible immediately, in lockstep with tmActive', async () => {
       const s = useSnapshotBrowseStore(); const files = useFilesStore()
       files.currentPath = '/DATA/Photos'
@@ -475,7 +475,7 @@ describe('time machine: enter / exit / switch', () => {
 
     it('does not hold when the exit target is already ready at exit time (e.g. a re-entrant no-op exit)', async () => {
       const s = useSnapshotBrowseStore(); const files = useFilesStore()
-      files.currentPath = '/DATA/Photos' // never actually inside a snapshot view
+      files.currentPath = '/DATA/Documents' // never actually inside a snapshot view
       await s.ensureVolumes()
       s.tmActive = true
       expect(s.tmChromeVisible).toBe(true)
@@ -559,12 +559,12 @@ describe('time machine: enter / exit / switch', () => {
       expect(router.replace).not.toHaveBeenCalled()
     })
 
-    // Task 7 fix round (review finding 1): tmTravelActive is a SEPARATE flag from tmTravel,
+    // tmTravelActive is a SEPARATE flag from tmTravel,
     // deliberately NOT cleared by switchTo itself -- it stays true past the navigation settling
     // (tmTravel already null by then) until an external caller (TimeMachineDepthStack.vue's own
     // reveal-gate, in real use) calls settleTravel(). See snapshotBrowse.ts's own header comment
     // on tmTravelActive for why the two flags' lifecycles are deliberately different.
-    describe('tmTravelActive (Task 7 fix round, review finding 1)', () => {
+    describe('tmTravelActive', () => {
       it('goes true the instant switchTo is called, and stays true after the navigation itself settles', async () => {
         const s = useSnapshotBrowseStore(); const files = useFilesStore()
         files.currentPath = '/DATA/.snapshots/snap1/Photos'
@@ -595,20 +595,19 @@ describe('time machine: enter / exit / switch', () => {
         expect(s.tmTravelActive).toBe(false)
       })
 
-      // Folded minor #7 (final review, Ruling F-3): a STORE-side safety ceiling, independent of
+      // A STORE-side safety ceiling, independent of
       // TimeMachineDepthStack.vue's own reveal-gate timer -- that component's own timer only runs
       // while it is mounted; if it were ever torn down mid-travel before calling settleTravel(),
       // tmTravelActive would stay stuck true forever (hard-hiding the real window permanently)
       // with nothing left in the component tree to clear it. Reuses the SAME constants
       // (timeMachineChoreo.ts) as a flat worst-case cap.
       //
-      // Fix wave J (owner acceptance 2026-08-26): the ceiling is now
+      // The ceiling is
       // `Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS` =
-      // `max(900, 1400) + 800` = 2200ms (was a stale 1700ms, computed before wave H's own
+      // `max(900, 1400) + 800` = 2200ms (was a stale 1700ms, computed before the
       // long-jump fly-through introduced the larger 1400ms worst case -- see switchTo's own
-      // comment on this constant for the full trace).
-      //
-      // Fix wave J follow-up (re-review finding (a), owner acceptance 2026-08-26): PLUS
+      // comment on this constant for the full trace),
+      // PLUS
       // `TRAVEL_STORE_SAFETY_MARGIN_MS` (250ms) -- total 2450ms -- closing the latent tie between
       // this timer (armed synchronously at click time) and the depth-stack's own legitimate
       // reveal-gate (armed strictly later, once navigation has landed) sharing the identical
@@ -616,7 +615,7 @@ describe('time machine: enter / exit / switch', () => {
       // trace. The literal millisecond values below are updated to match; the test SHAPES
       // (boundary check / settle-clears-the-timer / token-guard-invalidates-a-superseded-timer)
       // are unchanged.
-      describe('store-side safety ceiling (folded minor #7; duration updated fix wave J/J follow-up)', () => {
+      describe('store-side safety ceiling', () => {
         it('clears tmTravelActive on its own after the safety ceiling elapses, even if settleTravel() is never called', async () => {
           vi.useFakeTimers()
           try {
@@ -712,8 +711,8 @@ describe('time machine: enter / exit / switch', () => {
   })
 })
 
-// Task 14: `restore()` became `restoreItems(items, defaultDir, openPicker)` -- every entry point now
-// goes through the destination picker (T13) and the shared conflict queue (useFileConflicts.ts's own
+// `restore()` became `restoreItems(items, defaultDir, openPicker)` -- every entry point now
+// goes through the destination picker and the shared conflict queue (useFileConflicts.ts's own
 // resolveRestore) before any network call. `withMarker: true` is used throughout this describe block
 // to skip the conflict precheck entirely (same as production: with_marker on means an exact-name
 // collision is astronomically unlikely) -- exercising the conflict queue itself is
@@ -737,7 +736,7 @@ describe('restoreItems', () => {
     await s.restoreItems([item('/DATA/.snapshots/snap1/Photos/a.jpg')], '/DATA/Photos', picker)
     expect(useToast().msg).toContain('/DATA/Photos/a.jpg.restored-1')
   })
-  // Controller ruling, fix round 1: entry point decides the success-toast copy, not item count --
+  // The entry point decides the success-toast copy, not item count --
   // opts.singleItemFlow (Files.vue's own restoreSingleItem, the context-menu entry point) switches
   // to Vue2's `snapBrowseRestored` = "Restored to {path}" copy, which has NO count/"项" wording,
   // distinguishing it from the default `tmRestoredCount` copy every other entry point uses even for
@@ -869,7 +868,7 @@ describe('restoreItems', () => {
     expect(useToast().msg).toContain('/DATA/Photos/a.restored-1')
   })
 
-  // Task 11: the backend restores one path per call, so a 40-item batch stays
+  // The backend restores one path per call, so a 40-item batch stays
   // serial — but a single disabled button gave no sign of life for the whole
   // wait. Each restore call is gated on a manually-resolved promise so the
   // test can assert progress mid-batch.
@@ -909,7 +908,7 @@ describe('restoreItems', () => {
     expect(s.restoreProgress).toBeNull()
   })
 
-  // Task 14: same-name conflicts route through the shared FileConflictDialog queue
+  // Same-name conflicts route through the shared FileConflictDialog queue
   // (useFileConflicts.ts's own resolveRestore, driven here directly via the Pinia
   // fileConflicts store -- no component mount needed, same as useFileConflicts.test.ts's own
   // pattern) -- exercised end-to-end at the store layer once, to confirm the wiring; the full

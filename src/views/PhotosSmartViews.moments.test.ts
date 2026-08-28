@@ -146,7 +146,7 @@ describe('grid', () => {
     expect(cards[1].classes()).toContain('mo-card-tall')
   })
 
-  // Fix-6 (owner acceptance, 2026-08-18): masonry placement. jsdom has no ResizeObserver and
+  // Masonry placement. jsdom has no ResizeObserver and
   // clientWidth is always 0 (this file's convention — see PhotosSmartViews.vue's own
   // startObservingMomentGrid() feature-detect comment), so the measured container width stays 0
   // and numColumns falls back to its documented floor of 1 — a real, deterministic end-to-end

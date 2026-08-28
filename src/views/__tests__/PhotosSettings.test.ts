@@ -1,6 +1,6 @@
-// SP7-P8a-T5: PhotosSettings.vue -- the settings page container, wiring in T3 (storage card) /
-// T4 (AI card) + a real route `/photos/settings` + sidebar entry. See task-5-brief.md's header
-// and the component's own file-header comment for the source-mapping coordinates.
+// PhotosSettings.vue -- the settings page container, wiring in the storage card / the AI card
+// + a real route `/photos/settings` + sidebar entry. See the component's own file-header
+// comment for the source-mapping coordinates.
 //
 // Both cards already have their own dedicated unit tests (PhotosStorageCard.test.ts /
 // PhotosAiCard.test.ts) covering their internal logic; here global.stubs replaces them with two

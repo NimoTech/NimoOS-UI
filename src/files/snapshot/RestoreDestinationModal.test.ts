@@ -1,4 +1,4 @@
-// Task 13 (Files Time Machine Vue2-parity line): ports the intent of Vue2 NimoOS-UI's
+// Ports the intent of the Vue 2 panel's
 // tests/restoreDestinationModal.test.js against this rebuild's own Promise-based `open()` API
 // (no `visible`/`confirm`/`close` props+events -- see RestoreDestinationModal.vue's own header
 // comment) and real reka-ui/i18n stack, same mocking technique SnapshotSettingsModal.test.ts /
@@ -220,7 +220,7 @@ describe('RestoreDestinationModal — confirm/cancel resolution', () => {
 })
 
 describe('RestoreDestinationModal — host teardown mid-prompt', () => {
-  // Fix (review finding): the host that mounts this modal (T14, e.g. Files.vue) does not
+  // The host that mounts this modal (e.g. Files.vue) does not
   // necessarily outlive an awaited open() -- navigating away mid-prompt unmounts this component.
   // Without an onScopeDispose teardown, the promise open() returned would never settle and the
   // awaiting caller would hang forever. Same failure mode/fix as

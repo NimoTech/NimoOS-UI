@@ -1,7 +1,7 @@
 // Task 11 (SP7-P5 people): PersonAssetGrid.vue — person detail page asset grid by month
 // (multi-select / detach / expand all per month). Pure display + emit, no store access, only mock
 // @nimotech/nimoos-service thumbnailUrl (same mock approach as PhotosGrid.test.ts / PersonHero.test.ts).
-// Each section follows Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:
+// Each section follows the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue:
 // 132-154 (grid template), :760-763 (assetThumb, size=large), :868-883 (select logic).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'

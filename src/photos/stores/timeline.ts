@@ -1,4 +1,4 @@
-// Ported (behavior unchanged, types added) from Vue2 NimoOS-UI
+// Ported (behavior unchanged, types added) from the Vue 2 panel's
 // src/store/modules/photos.js:590-610 (fetchTimeline/refreshTimelineQuiet) and
 // :620-653 (fetchIndexStatus side effects + startIndexPoll/stopIndexPoll).
 //
@@ -272,7 +272,7 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       }
     } catch {
       // Align with Vue2: polling failure silent, recovery by next round—when backend goes down this 5s polling keeps
-      // spamming errors (equivalent polling in NimoOS-UI src/store/modules/photos.js also swallows exceptions).
+      // spamming errors (equivalent polling in the Vue 2 panel's src/store/modules/photos.js also swallows exceptions).
     }
   }
 

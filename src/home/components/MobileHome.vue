@@ -30,7 +30,6 @@ import FolderTile from './FolderTile.vue'
 import PhotoTile from './PhotoTile.vue'
 
 // Mobile read-only launcher: widgets full-width stacked vertically + icons in 4-column flow, order follows desktop visual order.
-// See docs/superpowers/specs/2026-07-18-mobile-home-launcher-design.md
 const layout = useLayoutStore()
 const { openItem } = useOpenAction()
 

@@ -1,4 +1,4 @@
-// Guards a New-UI hard constraint (CLAUDE.md / docs/THEMING.md):
+// Guards a New-UI hard constraint (docs/THEMING.md):
 // every token in theme.sp9.css must have a value in both :root and :root[data-theme="light"].
 // theme.css itself has no such guard (for historical reasons); the shard is a new file, so the
 // guard is in place from day one.

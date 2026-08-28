@@ -1,11 +1,10 @@
 // SP8-P1c1 Task 9 — AgentComposer skeleton: chips + textarea + toolbar + send/stop.
 // 1:1 ported from Vue2 src/views/AI/Agent/shell/AgentComposer.vue segment (see component
 // top comment). Attachment upload pipeline (Task 10) and @mention/slash wiring (Task 11)
-// not in this task scope, test cases verbatim from
-// .superpowers/sdd/p1c1-task-9-brief.md Step 1.
+// not in this task scope, test cases copied verbatim.
 //
-// SP8-P1c1 Task 10 — attachment pipeline describe block added from p1c1-task-10-brief.md Step 1
-// (verbatim from brief, assertions unchanged).
+// SP8-P1c1 Task 10 — attachment pipeline describe block added
+// (copied verbatim, assertions unchanged).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -150,9 +149,8 @@ describe('AgentComposer attachment pipeline', () => {
     expect(w.find('.ctx-chip-att').text()).toContain('p.png')
   })
 
-  // SP8-P1c2 Task 6: create session failure → danger tier (p1c2-task-6-brief.md
-  // "AgentComposer 7 places"). onFilesPicked() 507-514 lazy-create branch, fail returns,
-  // no upload sent.
+  // SP8-P1c2 Task 6: create session failure → danger tier ("AgentComposer 7 places").
+  // onFilesPicked() 507-514 lazy-create branch, fail returns, no upload sent.
   it('no session: lazy create fails: danger toast, no upload sent', async () => {
     const store = useAgentStore()
     vi.spyOn(store, 'createSession').mockRejectedValue(new Error('network down'))
@@ -309,7 +307,7 @@ describe('AgentComposer attachment pipeline', () => {
 })
 
 // SP8-P1c1 Task 11 — @mention/slash wiring + gitignore 409 confirmation describe block,
-// verbatim from p1c1-task-11-brief.md Step 1 (assertions unchanged).
+// copied verbatim (assertions unchanged).
 describe('AgentComposer @mention / slash', () => {
   beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
 
@@ -422,9 +420,9 @@ describe('AgentComposer @mention / slash', () => {
 })
 
 // P1c1 acceptance patch Task 1 — blur-close then refocus/click should reopen panel (Vue2
-// also lacks @focus handler, defect fixed per project "logic follows correctness" rule,
-// see p1c1-patch-task-1-brief.md). Cases verbatim from brief "test requirements" 1-4,
-// fake timers usage aligns with AgentTopbar.test.ts.
+// also lacks @focus handler, defect fixed per project "logic follows correctness" rule).
+// Cases copied verbatim from the test requirements, fake timers usage aligns with
+// AgentTopbar.test.ts.
 describe('AgentComposer @mention panel focus/click resync (P1c1 patch)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -499,8 +497,8 @@ describe('AgentComposer @mention panel focus/click resync (P1c1 patch)', () => {
 // P1c1 acceptance patch task 4 — @ mention word changed to "state tracking" instead of
 // re-deriving from text every time (scanMention breaks on whitespace). NimoOS mount point
 // name `System (/DATA)` has spaces and slashes; after drilling old impl loses panel on next
-// blur/focus or keystroke — cases verbatim from .superpowers/sdd/p1c1-patch-task-4-brief.md
-// "component tests" 1-6, fake timers usage aligns with focus/click resync describe above.
+// blur/focus or keystroke — cases copied verbatim from the "component tests" 1-6, fake
+// timers usage aligns with focus/click resync describe above.
 describe('AgentComposer @mention word state tracking (P1c1 patch task 4, mount point with spaces/slashes)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -604,8 +602,8 @@ describe('AgentComposer @mention word state tracking (P1c1 patch task 4, mount p
 })
 
 // SP8-P1c1 patch task 3 — retire rejected fullscreen SlashMenu, wire up SlashPopover
-// instead. Ten cases verbatim from .superpowers/sdd/p1c1-patch-task-3-brief.md
-// "test requirements" 1-10. Old single test exercising SlashMenu + "whole string is
+// instead. Ten cases copied verbatim from the "test requirements" 1-10. Old single
+// test exercising SlashMenu + "whole string is
 // exactly '/'" trigger rule deleted (not superseded) because rule and component are
 // exactly what patch replaces — keeping it would duplicate coverage or assert retired.
 describe('AgentComposer slash command panel (P1c1 patch task 3)', () => {
@@ -845,8 +843,8 @@ describe('AgentComposer drillIn caret math (P1c1 acceptance patch round 2 Item B
   })
 })
 
-// SP8-P3a post-acceptance addition — "mounted skill" banner. Verbatim from
-// .superpowers/sdd/p3a-post-skillbanner-brief.md §3. Uses real Pinia store (consistent
+// SP8-P3a post-acceptance addition — "mounted skill" banner. Copied verbatim.
+// Uses real Pinia store (consistent
 // with rest of file, no agentStore mock), directly reads/writes store.pendingSkillId.
 describe('AgentComposer mounted skill banner (SP8-P3a post-acceptance)', () => {
   beforeEach(() => {

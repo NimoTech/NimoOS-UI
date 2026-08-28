@@ -1,5 +1,5 @@
-// SP7-P7a-T16: views/PhotosSearch.vue —— 搜索容器接线(路由 /photos/search)。
-// 逐条对应 task-16-brief.md「必含用例」清单(Step 1)。
+// views/PhotosSearch.vue —— 搜索容器接线(路由 /photos/search)。
+// 逐条覆盖「必含用例」清单。
 //
 // 测试策略:usePhotosSearch/usePhotosPeople/usePhotosAlbums/usePhotosSmartViews 全部用
 // 真实 store(spyOn 而不 mock,以便 matchesQuery/isSearchMode 等派生状态是真实推导出来
@@ -296,7 +296,7 @@ describe('Fix-4: 清除搜索历史', () => {
 })
 
 // ── Plan F Task 1: D13 topbar alignment ───────────────────────────────────
-// Vue2 ground truth (NimoOS-UI PhotosSearchView.vue + PhotosTopbar.vue) has exactly ONE
+// Vue2 ground truth (the Vue 2 page's PhotosSearchView.vue + PhotosTopbar.vue) has exactly ONE
 // search input on this page — the shared topbar's `.search` box — and this page's own hero
 // is a pure TEXT echo row (`.search-query` + `.kw` spans), never an editable input. New-UI's
 // own PhotosSearchBar.vue (a D13 deviation: a second, page-body-local editable input) has been
@@ -1276,8 +1276,8 @@ describe('路由', () => {
     expect(resolved.name).toBe('photos-search')
   })
 
-  // Fix-4 item 2 (owner acceptance, 2026-08-13): PhotosTopbar 的 back 按钮(Vue2 searchMode 的
-  // chevL,Fix-3 item 7 接线)点击后应导航回 /photos——不是 router.back()(深链/新开标签页
+  // PhotosTopbar 的 back 按钮(Vue2 searchMode 的
+  // chevL)点击后应导航回 /photos——不是 router.back()(深链/新开标签页
   // 没有历史记录可退),onBack() 的既定实现是 router.push('/photos')。
   it('点 PhotosTopbar 的返回键 → router.push("/photos")', async () => {
     const { w, router } = await mountSearch('/photos/search?q=abc')
@@ -1389,8 +1389,8 @@ describe('样式:hover 硬约束(cssCascade)', () => {
     expect(winner.selector).toContain('data-saved')
   })
 
-  // Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward) — same rollback treatment
-  // as PhotosFilterChip.vue/PhotosFilterPopover.vue's own 2026-08-13 rollback: `.prestate-chip`
+  // Same rollback treatment
+  // as PhotosFilterChip.vue/PhotosFilterPopover.vue's own rollback: `.prestate-chip`
   // is genuine Vue2-sourced CSS (Vue2 photos.scss:2781 has this exact hover rule too, not a
   // New-UI additive enhancement like `.sort button`/`.save-smart` above), and
   // vue2-parity/photos.scss already carries it verbatim — the local scoped duplicate (which used

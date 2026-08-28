@@ -760,9 +760,8 @@ export default {
   aiSkAuthorYou: '你',
   aiSkTriggerSlash: '/{name}',
 
-  // SP8-P3a 验收后追加 —— 输入框内「已挂载技能」提示条(用户 2026-07-30 当面要求
-  // 新增,Vue2 无对应 UI;见 AgentComposer.vue 顶部注释与
-  // .superpowers/sdd/p3a-post-skillbanner-brief.md)。{name} 由 <i18n-t> 具名插槽
+  // 输入框内「已挂载技能」提示条(Vue2 无对应 UI;见 AgentComposer.vue 顶部注释)。
+  // {name} 由 <i18n-t> 具名插槽
   // 用 <code> 填充,值本身不含 <code> 标签。
   aiSkPendingBanner: '已挂载技能 {name},将应用于下一条消息',
   aiSkPendingDetach: '取消挂载',
@@ -1066,9 +1065,8 @@ export default {
   aiKbSampleSkating: '羽生结弦',
   // <<< SP8-P5a Task 8
   // >>> SP8-P5b Task 1 —— 队列页/已收录文件页文案(Vue2 QueueView/IndexedFilesView),
-  // 中文值已按 `git show main:src/assets/lang/zh_CN.json` 逐码点比对(见
-  // .superpowers/sdd/p5b-task-1-i18n-verify.mjs,95/95 MATCH)。
-  // 9 行带 Vue2 语言包自身错译/同值撞车(照抄不改,详见 p5b-appendix-A-i18n.md):
+  // 中文值已按 `git show main:src/assets/lang/zh_CN.json` 逐码点比对(95/95 MATCH)。
+  // 9 行带 Vue2 语言包自身错译/同值撞车(照抄不改):
   // aiKbColAction(「操作」译成「类型」)· aiKbColVectors/aiKbSortVectorCount(同值撞车)·
   // aiKbPagerNext(「下一步」)· aiKbPagerPrev(「上一张」)· aiKbRebuild(「恢复」)·
   // aiKbStatusActive(「已启用」,语义错但是 Vue2 原文)· aiKbTotalDone/aiKbTotalDoneLabel(同值撞车)。
@@ -1181,8 +1179,7 @@ export default {
   // >>> SP8-P5c Task 1 —— 知识库配置页 / Parser 详情页 / Parser 测试沙盒 / 目录选择器文案
   // (Vue2 SettingsView.vue · ParserStatus.vue · ParserTest.vue · FolderBrowser.vue),共 99 条。
   // 99 条中文值全部有 Vue2 权威源(本期新造 0 条、死键 0 条),已按
-  // `git show main:src/assets/lang/zh_CN.json` 逐码点比对(见
-  // .superpowers/sdd/p5c-task-1-i18n-verify.mjs,99/99 MATCH)。
+  // `git show main:src/assets/lang/zh_CN.json` 逐码点比对(99/99 MATCH)。
   // 协调者裁定 A-1(2026-08-03):aiKbDeviceAuto 不复用既有 aiKbOriginAuto —— 两者现值渲染
   // 完全一致(自动 / Auto),但 aiKbOriginAuto 的语义是「沉淀任务来源 manual|auto」,与「推理
   // 设备自动档」无关,将来改沉淀文案会静默改掉设备下拉。aiKbDeviceAuto 一个键服务三处调用点
@@ -1306,8 +1303,8 @@ export default {
   // <<< SP8-P5c Task 1
   // >>> SP8-P5d Task 1 —— 知识库笔记区文案(Vue2 NotesView.vue / NoteEditPane.vue /
   // notesViewHelpers.js 的 NOTE_TYPES/NOTE_SOURCES labelKey 目标),共 92 条,全部有 Vue2
-  // 权威 zh 值(本期新造 0、死键 0)。逐码点比对见 .superpowers/sdd/p5d-task-1-i18n-verify.mjs
-  // (92/92 MATCH),值取自 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`。
+  // 权威 zh 值(本期新造 0、死键 0)。逐码点比对(92/92 MATCH),
+  // 值取自 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`。
   //
   // 🔴 裁定 R10(与本文件的 en 侧连带,详见 en_us.ts 同名注释):en_US.json 的权威源地位本期
   // 第一次出现 2 处覆盖(aiKbNtDeleteBody2 / aiKbNoteTypeNote),不影响 zh 侧。
@@ -1426,7 +1423,7 @@ export default {
   // KFileViewer.vue / searchAggregate.js),共 54 条新键,全部有 Vue2 权威 zh 值
   // (本期新造 0、死键 0)。另有 9 条 aiKb* 既有键直接复用、不在本块内重复声明
   // (附录 A §A.1/§A.1.1:5 个 SAMPLE_QUERIES + aiKbTry / aiKbSearch / aiKbClose /
-  // aiKbStatusIndexed)。逐码点比对见 .superpowers/sdd/p5e-task-1-i18n-verify.mjs
+  // aiKbStatusIndexed)。逐码点比对
   // (54/54 + 9/9 MATCH,值由脚本直接从 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`
   // 生成、非手抄 —— P5a-T8 的教训是「附录零差异,手抄进 TS 时引入 5 处全角标点错」)。
   //
@@ -1519,7 +1516,7 @@ export default {
   // 另有 11 条 aiKb* 既有键直接复用、不在本块内重复声明(附录 A §A.2 减去裁定 R3 的三条:
   // aiKbColPath / aiKbColAction / aiKbCancel / aiKbNavRoots / aiKbRealtimeWatch /
   // aiKbScheduledScanOnly / aiKbLastScan / aiKbNever / aiKbOpFailed / aiKbRetry /
-  // aiKbManageRoots)。逐码点比对见 .superpowers/sdd/p5f-task-1-i18n-verify.mjs
+  // aiKbManageRoots)。逐码点比对
   // (79/79 + 11/11 MATCH,值由该脚本的映射表直接从 `git show 7a6ee6b7:src/assets/lang/zh_CN.json`
   // 生成、非手抄 —— P5a-T8 的教训是「附录零差异,手抄进 TS 时引入 5 处全角标点错」)。
   //

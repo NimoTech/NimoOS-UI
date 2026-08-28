@@ -1,5 +1,5 @@
 // SP7-P7a-T15: PhotosSearchGrid.vue — Search results two-tier grid (best matches + collapsed long tail) +
-// infinite scroll sentinel. Each test corresponds to task-15-brief.md "required tests" section B
+// infinite scroll sentinel. Each test corresponds to the "required tests" section B
 // (except tile-level assertions already moved to SearchResultTile.test.ts). Only mock @nimotech/nimoos-service's
 // thumbnailUrl; IntersectionObserver stubbed (afterEach restores, prevents leaking to other test files).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'

@@ -232,7 +232,7 @@ export const useStorageStore = defineStore('storage', () => {
     const toast = useToast()
     try {
       // The backend (NimoOS-LocalStorage route/v2/raid.go:187-190) returns bare {task_id,status},
-      // no .data envelope; the shared package NimoOS-Service src/raid.ts create() was changed in step to skip unwrap()
+      // no .data envelope; the shared service package's src/raid.ts create() was changed in step to skip unwrap()
       // and pass the bare body through (should the backend add the standard envelope later, res?.data?.task_id is still read as a fallback).
       // Previously reading one extra .data layer yielded undefined, taskId became an empty string, and the progress modal/polling stalled on an empty id.
       const res = (await service.raid.create(body)) as { task_id?: string; data?: { task_id?: string } } | undefined

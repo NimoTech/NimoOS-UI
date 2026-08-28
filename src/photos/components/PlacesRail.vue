@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // P6a-T5 (SP7-P6a 地点·地图主视图): PlacesRail.vue —— 地点页左侧城市 rail(大洲分组
-// 折叠 + 搜索 + 激活态)。逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue
+// 折叠 + 搜索 + 激活态)。逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue
 // :762-825(模板)、photos-places.scss:39-190(样式,跳过死码 :80-95 的 .rail-segments/
 // .rail-seg——Vue2 模板零消费那两个 class)。regions 顺序来自 Vue2 :406
-// `this.regionKeys = this.regions.map(r => r.id)`(核对结果见 task-5-report.md)。
+// `this.regionKeys = this.regions.map(r => r.id)`。
 //
-// 控制器裁定(brief 未写清,以此为准):
+// 实现决定(brief 未写清,以此为准):
 //  - 折叠态直接消费 usePhotosPlaces().isRegionCollapsed(rId, searchActive)——组件自己
 //    不重写"搜索压过折叠"这条判断(那条语义的唯一实现留在 T3 store)。
 //  - 写路径(切换折叠)仍走 emit('toggle-fold', rId),由容器(T11)调 store.toggleRegionFold。

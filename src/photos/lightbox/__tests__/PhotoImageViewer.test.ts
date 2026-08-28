@@ -39,7 +39,7 @@ const mountViewer = async (props: Partial<{ assetId: string | number; mimeType: 
 }
 
 // Plan F Task 3: the <img> keeps its own `.img-el` hook (zoom/pan mechanics, net addition over
-// Vue2 -- controller ruling 4) and gains parity's anchor `.lb-photo` alongside it
+// Vue2, intentionally kept) and gains parity's anchor `.lb-photo` alongside it
 // (`.lb-media > .lb-photo(img|video)`, Vue2 PhotosLightbox.vue:38-45).
 describe('PhotoImageViewer 结构:.lb-photo 锚点(Plan F Task 3)', () => {
   it('<img> 同时带 .img-el 与 .lb-photo 两个类', async () => {

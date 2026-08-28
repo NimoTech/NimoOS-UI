@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Task 13 (SP7-P5 people): PersonRelationsTab.vue — people detail page "relations" tab
 // (relation graph area + co-appearance list + Nimo's read insight card). Line-by-line port from
-// Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:187-227 (entire v-if="tab==='graph'"
+// the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue:187-227 (entire v-if="tab==='graph'"
 // block), :530-536 (sortedRelations/relMax), :571-585 (nimoRead sentence assembly); styles from
 // photos-people.scss:502-568 (relation graph + co-appearance list) and :647-682 (insight card).
 //

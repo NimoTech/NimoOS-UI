@@ -1,8 +1,7 @@
-// GSAP travel choreography backing the Vue2-parity Time Machine stage (see
-// docs/superpowers/sdd/2026-08-25-files-time-machine-vue2-parity/task-3-brief.md).
+// GSAP travel choreography backing the Vue2-parity Time Machine stage.
 //
 // This ports Vue2's components/filebrowser/components/timeMachineChoreo.js
-// (Fix Round 13, GSAP migration -- see that file's own extensive header
+// (GSAP migration -- see that file's own extensive header
 // comment for the full design rationale: why duration scales with distance
 // past a small flat zone, why stagger is tiny/front-led, and why the ease is
 // a CustomEase reproducing the retired CSS `cubic-bezier(0.2, 0.7, 0.2, 1)`
@@ -12,11 +11,11 @@
 // much stagger" plus the actual GSAP calls that interpolate a DOM node from
 // its current pose to the target one.
 //
-// Signature deviation from Vue2 (documented per task-3-brief's own "follow
-// Vue2, document" instruction): Vue2's resolveSlotPose returned a SEPARATE
+// Signature deviation from Vue2 (documented inline, following the "follow
+// Vue2, document" convention): Vue2's resolveSlotPose returned a SEPARATE
 // `brightness` field that playTravelTimeline inverted itself (`1 -
 // brightness`) into the dim overlay's own opacity. New-UI's resolveSlotPose
-// (Task 2) already returns `dim` as the final overlay opacity value directly
+// already returns `dim` as the final overlay opacity value directly
 // (see timeMachineMath.ts's own header comment: "`dim` is `1 - brightness`
 // ... rather than a brightness multiplier") -- so this module's own
 // `dimGsapVars` is a straight passthrough, no inversion. Vue2 also drove the
@@ -28,14 +27,14 @@
 // signal needed) while adding `z` (an explicit stacking value, applied via
 // an immediate `gsap.set` -- z-index does not tween).
 //
-// API deviation from the brief's own sketch (documented, same "follow Vue2"
-// instruction): the brief sketches `TravelTarget { el: Element; pose:
+// API deviation from the initial design sketch (documented, same "follow Vue2"
+// convention): that sketch specified `TravelTarget { el: Element; pose:
 // SlotPose }` -- ONE element per target. Vue2's own `buildTravelPlan`/
 // `playTravelTimeline` always animate TWO elements per layer (`transformEl`
 // + `dimEl`) -- a separate overlay node for the dim/opacity tween, so a
 // brightness change never repaints the transform element's own DOM subtree
 // (Vue2's own M2-F12 perf rationale, still cited in its header comment).
-// This module keeps the brief's `el` name for the transform element (the one
+// This module keeps the sketch's `el` name for the transform element (the one
 // every target must have) and adds an OPTIONAL `dimEl` alongside it, so a
 // caller that only has one element (or wants to skip the dim overlay) still
 // works, while the stage tasks that build TimeMachineStage.vue's two-node-
@@ -43,7 +42,7 @@
 //
 // `playTravelTimeline` takes the array of targets directly (not a
 // pre-flattened array of gsap vars) -- ordering is assumed farthest-first
-// (Vue2's `resolveDollySlots`/New-UI's `resolveDollySlots`, Task 2, own DOM-
+// (Vue2's `resolveDollySlots`/New-UI's `resolveDollySlots`, own DOM-
 // order convention), and stagger order is assigned in REVERSE internally
 // (nearest = last in the array = 0 delay, "the front leads, the depth
 // follows by a hair" -- see Vue2's own header comment, point 2). All layers
@@ -109,7 +108,7 @@ export const EXIT_FADE_MS = 220
 // see that store's own comment on why it needs a SECOND, independent safety cap.
 export const TRAVEL_SAFETY_EXTRA_MS = 800
 
-// Fix wave J follow-up (re-review finding (a), owner acceptance 2026-08-26): extra margin (ms) for
+// Extra margin (ms) for
 // snapshotBrowse.ts's own STORE-side `tmTravelActive` safety ceiling (switchTo), on TOP of
 // `Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS` -- the
 // SAME nominal worst-case duration TimeMachineDepthStack.vue's own LEGITIMATE reveal-gate
@@ -120,9 +119,8 @@ export const TRAVEL_SAFETY_EXTRA_MS = 800
 // duration, one side armed strictly earlier" shape is a latent tie: if a future change to
 // `TRAVEL_FLY_MAX_INTERMEDIATES`/`TRAVEL_FLY_CADENCE_MS`/`TRAVEL_FLY_LAYER_DURATION_MS` ever let
 // `flyThroughDurationMs` genuinely reach its own `TRAVEL_FLY_MAX_DURATION_MS` ceiling (today's real
-// `computeFlyThroughPlan` call site caps out at 950ms in practice, comfortably under it -- see this
-// wave's own final-fix-report.md section for the exact math and the integration test that measured
-// it), the store's own flat ceiling could fire a handful of milliseconds BEFORE the legitimate
+// `computeFlyThroughPlan` call site caps out at 950ms in practice, comfortably under it -- see the
+// integration test that measures the exact math), the store's own flat ceiling could fire a handful of milliseconds BEFORE the legitimate
 // settle, forcing a premature reveal. This margin closes that gap structurally, independent of
 // today's specific constants happening to leave headroom -- a deliberately generous, round number
 // (comfortably more than a few reactivity ticks + real navigation overhead ever needs).
@@ -142,21 +140,21 @@ export const EXIT_CHROME_HOLD_SAFETY_TIMEOUT_MS = 6000
  * grows asymptotically (1 - exp(-(n - flat) / growth)) toward
  * TRAVEL_MAX_DURATION_MS, ease-out, never exceeding it.
  *
- * Ruling H-1 (owner acceptance 2026-08-26, fly-through redesign for long jumps): this growth
+ * Fly-through redesign for long jumps: this growth
  * curve was Vue2's OWN answer to "a jump of many steps": stretch the SAME single stack-slide
  * tween out longer, up to a 900ms ceiling, so a 200-step jump did not visually snap in 420ms flat.
- * The owner judged that unreasonable on its own terms -- a long jump sliding the whole stack in
- * one smooth motion reads as "the view got dragged," not "time is passing" -- and ruled that any
- * jump beyond `TRAVEL_FLAT_STEPS` must instead become a sequential FLY-THROUGH of the intermediate
+ * That was judged unreasonable on its own terms -- a long jump sliding the whole stack in
+ * one smooth motion reads as "the view got dragged," not "time is passing" -- so any
+ * jump beyond `TRAVEL_FLAT_STEPS` instead becomes a sequential FLY-THROUGH of the intermediate
  * snapshots (Apple Time Machine's own "fly past the camera one after another" model), overriding
- * Vue2's design here the same way Ruling E-1'/F'-1/G-1 already override it elsewhere in this line.
+ * Vue2's design here the same way several other deliberate design overrides already do elsewhere in this line.
  * `flyThroughPlan`/`flyThroughDurationMs` (below) are the new entry points a `steps >
  * TRAVEL_FLAT_STEPS` travel actually uses now (TimeMachineDepthStack.vue's own `runTravel`/
  * `armReveal`) -- this function's own growth branch (`n > TRAVEL_FLAT_STEPS`) is UNREACHABLE from
  * that real call site any more (a long jump never reaches `travelDurationMs` with `steps > 3`), but
  * is deliberately NOT deleted: it stays correct, still directly tested (this module's own test
  * file), and remains the exact duration every INDIVIDUAL leg of a `<= TRAVEL_FLAT_STEPS` travel
- * still uses (that path is completely unchanged by this wave -- see `flyThroughPlan`'s own header
+ * still uses (that path is completely unchanged by this redesign -- see `flyThroughPlan`'s own header
  * comment for the explicit "byte-identical for short travel" contract).
  */
 export function travelDurationMs(steps: number): number {
@@ -176,10 +174,10 @@ export function travelStaggerMs(layerIndex: number): number {
   return Math.min(TRAVEL_STAGGER_CAP_MS, n * TRAVEL_STAGGER_STEP_MS)
 }
 
-// --- Fix wave H (Ruling H-1, owner acceptance 2026-08-26): long-jump fly-through ----------------
+// --- Long-jump fly-through ----------------------------------------------------------------------
 // Apple Time Machine's own model for a jump of many steps: each snapshot BETWEEN the departure and
 // the target flies past the camera one after another (chronological order), instead of one uniform
-// stack-slide. See `travelDurationMs`'s own comment (above) for the full ruling this overrides
+// stack-slide. See `travelDurationMs`'s own comment (above) for the full rationale this overrides
 // Vue2's growth-curve design with, and TimeMachineDepthStack.vue's own header comment for how the
 // depth-stack component actually wires this plan into real DOM/GSAP execution (this module stays
 // pose-agnostic -- "what pose" is still entirely `resolveSlotPose`'s own job, timeMachineMath.ts;
@@ -187,11 +185,11 @@ export function travelStaggerMs(layerIndex: number): number {
 // this module's own existing "duration/stagger, not pose" scope).
 
 /** Per-layer launch cadence (ms) between two consecutive fly-through launches -- within the
- * dispatch's own 50-80ms range, tuned toward the brisk end (Apple's own fly-through reads as
+ * target 50-80ms range, tuned toward the brisk end (Apple's own fly-through reads as
  * quick, not leisurely) while still leaving each layer visually distinct, not a blur. */
 export const TRAVEL_FLY_CADENCE_MS = 65
 /** How long each individual fly-through leg (one intermediate's own launch-to-landing tween, or
- * the target's own final arrival tween) takes -- the dispatch's own "visible ~300ms" per-layer
+ * the target's own final arrival tween) takes -- the "visible ~300ms" per-layer
  * hint, also reused as the WHOLE sequence's floor when there are zero intermediates (a >3-step
  * jump with every intermediate sampled away still needs to reach the target in a real duration,
  * not instantly). */
@@ -202,7 +200,7 @@ export const TRAVEL_FLY_LAYER_DURATION_MS = 300
  * stretch out proportionally to distance the way Vue2's own retired growth curve did. */
 export const TRAVEL_FLY_MAX_DURATION_MS = 1400
 /** Default cap on how many intermediates a fly-through ever mounts as real depth-stack strips --
- * "a 200-step jump must not mount 200 strips" (this wave's own dispatch, verbatim). Sampled evenly
+ * "a 200-step jump must not mount 200 strips". Sampled evenly
  * across the full gap when the real intermediate count exceeds this (see `flyThroughPlan`'s own
  * comment on `sampleEvenly`), never a hard cutoff at one end. */
 export const TRAVEL_FLY_MAX_INTERMEDIATES = 10
@@ -212,8 +210,7 @@ export interface FlyThroughStep {
   name: string
   /** When (ms after the fly-through starts) this layer's own launch tween should begin. Strictly
    *  non-decreasing across the returned array (monotonic) -- the LAST entry (always `role:
-   *  'target'`) carries the largest delay, arriving last, "decelerates into depth 0 last" (this
-   *  wave's own dispatch). */
+   *  'target'`) carries the largest delay, arriving last, "decelerates into depth 0 last". */
   launchDelayMs: number
   /** `'intermediate'`: one of the sampled snapshots flying past on the way to the target.
    *  `'target'`: the travel's own destination, always the LAST (and only 'target') entry. */
@@ -261,7 +258,7 @@ function sampleEvenly<T>(items: T[], max: number): T[] {
  * Defensive/degenerate inputs (out-of-range or equal `fromIndex`/`toIndex`, a non-array `names`)
  * return `[]` -- the caller's own `steps > TRAVEL_FLAT_STEPS` gate is what decides whether this
  * function is even called; a `steps <= TRAVEL_FLAT_STEPS` (or otherwise degenerate) travel never
- * reaches it, keeping that whole path byte-identical to before this wave (regression contract this
+ * reaches it, keeping that whole path byte-identical to before this change (regression contract this
  * module's own test file pins directly).
  */
 export function flyThroughPlan(
@@ -326,7 +323,7 @@ export function poseToGsapVars(pose: SlotPose): { x: number, y: number, scaleX: 
 
 /**
  * Pure: the SAME pose -> the dim overlay's own opacity. `pose.dim` is
- * already the final opacity value (Task 2's resolveSlotPose already inverted
+ * already the final opacity value (resolveSlotPose already inverted
  * brightness into it) -- straight passthrough, no further inversion.
  */
 export function dimGsapVars(pose: SlotPose): { opacity: number } {
@@ -339,9 +336,9 @@ export interface TravelTarget {
   /** The layer's own dim overlay element (opacity tween target), if the caller renders one. */
   dimEl?: Element | null
   pose: SlotPose
-  /** Fix wave H (Ruling H-1): this layer's own stable snapshot name -- OPTIONAL, only read when
+  /** This layer's own stable snapshot name -- OPTIONAL, only read when
    *  the caller also supplies `opts.delayOverridesMs`/`opts.presetPoses` (fly-through mode) to
-   *  look either up by name. A caller outside fly-through mode (every pre-wave-H call site) never
+   *  look either up by name. A caller outside fly-through mode (every call site before this addition) never
    *  sets this and nothing changes for it -- see this function's own comment below for the exact
    *  "byte-identical when neither option is passed" contract. */
   name?: string
@@ -361,8 +358,8 @@ export interface TravelTarget {
  * note; the stage component itself is still responsible for killing the
  * PREVIOUS travel's timeline before calling this again).
  *
- * Fix wave H (Ruling H-1) additions, all OPTIONAL and additive -- omitting them (every call site
- * this module had before this wave) reproduces the EXACT prior behavior byte-for-byte, the
+ * Long-jump fly-through additions, all OPTIONAL and additive -- omitting them (every call site
+ * this module had before this addition) reproduces the EXACT prior behavior byte-for-byte, the
  * regression contract this module's own test file pins directly:
  * - `opts.delayOverridesMs`: per-NAME start delay (ms), overriding the default position-based
  *   `travelStaggerMs` for any target whose `name` has an entry here -- the fly-through's own real
@@ -416,7 +413,7 @@ export function playTravelTimeline(
       // Stacking is discrete, not a tween-able quantity -- applied instantly,
       // independent of the shared timeline's own duration/stagger.
       gsap.set(target.el, { zIndex: target.pose.z })
-      // Fix wave H: an IMMEDIATE preset (not scheduled inside the timeline) -- see this function's
+      // An IMMEDIATE preset (not scheduled inside the timeline) -- see this function's
       // own comment on opts.presetPoses for why "immediate" is the correct timing, not "at delaySec".
       if (preset) gsap.set(target.el, poseToGsapVars(preset))
       tl.to(target.el, { ...poseToGsapVars(target.pose), ...shared }, delaySec)

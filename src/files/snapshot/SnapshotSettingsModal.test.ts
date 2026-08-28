@@ -1,9 +1,9 @@
-// Task 11 (Files Time Machine Vue2-parity line): white-glass snapshot settings modal, ported
-// from Vue2 NimoOS-UI's SnapshotSettingsModal.vue (see tests/snapshotSettingsModal.test.js
+// White-glass snapshot settings modal, ported
+// from the Vue 2 panel's SnapshotSettingsModal.vue (see tests/snapshotSettingsModal.test.js
 // there, 638 lines) -- this file re-derives that test's assertion intent against this rebuild's
 // own stack (Pinia store + reka-ui dialog primitives + real i18n, not shallowMount/Buefy
 // stubs). Reuses the same mocking technique TimeMachineStage.test.ts and
-// SnapshotSettingsDialog.test.ts (deleted alongside this task, see the controller amendment)
+// SnapshotSettingsDialog.test.ts (also deleted)
 // already established: stub @nimotech/nimoos-service and the router singleton so mounting
 // pulls in zero real network/navigation.
 import { describe, it, expect, vi, beforeEach } from 'vitest'

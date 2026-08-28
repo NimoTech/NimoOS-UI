@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // SP7-P7a-T4: PhotosSmartViews.vue — the smart-view list page (shell + AI banner + hero +
-// grid + create card). Ported section by section from Vue2 NimoOS-UI
+// grid + create card). Ported section by section from the Vue 2 panel's
 // src/views/Photos/PhotosSmartViewsView.vue:14-38 (the list portion — the detail/dialog
 // portion belongs to other tasks), the inline banner :15-19, hero :22-30, grid :31-38.
 // Styles ported from photos-smartview.scss:4-25 (hero/create-btn/grid) + :118-145 (create-card).
@@ -77,7 +77,7 @@ import { useToast } from '../stores/toast'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// `toggle` wires the topbar's collapse button
 // (same as Photos.vue/PhotosAlbums.vue). title = topbarTitle's 'smart' branch ('For You',
 // PhotosTimeline.vue:190); sub is left to PhotosTopbar's own default (topbarSubContext's
 // navMap has no 'smart' entry, PhotosTimeline.vue:229-234, so it falls through to the same
@@ -155,7 +155,7 @@ function onMomentOpen(id: string): void {
   router.push('/photos/moments/' + id)
 }
 
-// Fix-6 (owner acceptance, 2026-08-18): explicit masonry placement, replacing reliance on the
+// Explicit masonry placement, replacing reliance on the
 // browser's own `grid-auto-flow: row dense` for `.mo-grid` (still declared in the parity scss —
 // harmless to leave, since an item with its own explicit inline `grid-column`/`grid-row` is never
 // auto-placed regardless). Root cause + full algorithm are documented on packMasonry itself
@@ -246,7 +246,7 @@ onMounted(() => {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+      <!-- Same narrow-mode coordination as
            Photos.vue/PhotosAlbums.vue. -->
       <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
@@ -386,7 +386,7 @@ onMounted(() => {
 }
 .mo-grid :deep(.mo-drag-chosen) { cursor: grabbing; }
 
-/* Fix-6 (owner acceptance, 2026-08-18): same drag-smoothness fix as the album detail grid's
+/* Same drag-smoothness fix as the album detail grid's
    `.album-photo-grid.is-dragging` (photos.scss), applied here via `:deep()` since MomentCard's
    own hover lift (`.sv-card:hover { transform: translateY(-2px) }`, MomentCard.vue) lives behind
    its scoped-style boundary -- see useAlbumDragSort.ts's header comment for the full mechanism

@@ -1,5 +1,5 @@
 // SP7-P8a-T4: PhotosAiCard.vue — AI card for settings page.
-// Source coordinates: task-4-brief.md; Vue2 PhotosSettings.vue:129-192(template)/:283-291(watcher)/
+// Source coordinates: Vue2 PhotosSettings.vue:129-192(template)/:283-291(watcher)/
 // :332-370(computed)/:458-486(rebuildIndex/doRecluster).
 //
 // Test infrastructure follows T3 (PhotosStorageCard.test.ts) established approach already verified

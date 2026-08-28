@@ -1,4 +1,4 @@
-// Ported (behavior unchanged, types added) from Vue2 NimoOS-UI
+// Ported (behavior unchanged, types added) from the Vue 2 panel's
 // src/store/modules/photos.js:1413-1468 (fetchTrashRetention/setTrashRetention/
 // fetchTrash/restoreTrash/restoreAllTrash/purgeTrash/emptyTrash) and
 // views/Photos/PhotosTrashView.vue:267-275 (undoLast).

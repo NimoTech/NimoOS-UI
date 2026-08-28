@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Task 9(SP7-P6a 地点·地图主视图):PlacesFilterMenu.vue —— 地图工具栏「Filters」胶囊按钮 +
 // 下拉弹层(时间范围/最少照片数/大洲/只看当前行程 四段过滤 + chip 徽标计数 + 重置/完成)。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:830-906(模板,chip 与弹层
+// 逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue:830-906(模板,chip 与弹层
 // 同在一个 position:relative 容器里)、:152-186(视觉过滤态派生 anyExtraFilter/
 // extraFilterCount,已在 T2 落到 placesMap.ts 的 extraFilterCount 纯函数,这里直接消费)、
 // :329-336(document mousedown 开关判定)、:441-449(toggleRegion/clearFilters)移植;样式段
@@ -280,7 +280,7 @@ onUnmounted(() => {
    (class vs. inline style), not a different value. */
 .pfm-badge { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: 0.7; }
 
-/* D3 surface-treatment ruling — REVERSED (Fix-1 item 6, owner acceptance, 2026-08-16).
+/* D3 surface-treatment ruling — REVERSED.
    The former "reviewed and upheld" note below (kept for history) argued for this repo's
    established floating-menu/panel chrome convention (--popup-bg / --card-shadow-hi) over
    Vue2's own flat grey + single shadow, on the basis that a popover's chrome is "component

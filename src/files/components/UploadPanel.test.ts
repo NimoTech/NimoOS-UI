@@ -64,12 +64,12 @@ describe('UploadPanel', () => {
 
   // Guard against the old per-file conflict dialog coming back. Reading the
   // source with node:fs rather than a `?raw` import — `?raw` returns empty
-  // under this repo's vitest setup and has silently no-op'd a guard before
-  // (see task-8 brief). Checked against source rather than by seeding a
+  // under this repo's vitest setup and has silently no-op'd a guard before.
+  // Checked against source rather than by seeding a
   // 'conflict' status: that status no longer exists on UploadStatus, so a
   // rendering-based assertion would either not compile or trivially pass for
   // an unrelated reason. Proven RED before the removal (Dialog import + the
-  // conflict block present) and GREEN after, per task-8-report.md.
+  // conflict block present) and GREEN after.
   it('no longer imports the per-file conflict Dialog or references its resolveConflict path', () => {
     const source = readFileSync(path.join(__dirname, 'UploadPanel.vue'), 'utf-8')
     expect(source).not.toMatch(/import\s+Dialog\s+from/)

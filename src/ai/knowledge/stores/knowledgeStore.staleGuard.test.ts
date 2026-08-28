@@ -8,7 +8,7 @@
 // per filter, etc.) already covered in `knowledgeStore.parser.test.ts` /
 // `knowledgeStore.notesWiki.test.ts`, no repeat here.
 //
-// Mock shapes sourced (all from `.superpowers/sdd/p5b-fixtures/`, no hand-editing, see
+// Mock shapes sourced (all from a captured device response, no hand-editing, see
 // governance §4):
 //   - `ai.parserJobs` → `jobs-pending.json` / `jobs-running.json` / `jobs-failed.json`
 //     verbatim snake_case (`service.ai.parser*` zero transformation, §4.1).

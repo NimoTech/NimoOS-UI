@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// P2 lightbox shell -- structurally ported from Vue2 NimoOS-UI's
+// P2 lightbox shell -- structurally ported from the Vue 2 panel's
 // src/views/Photos/PhotosLightbox.vue; all state reads from the useLightbox() singleton (T2/T3),
 // the static-image stage is delegated to PhotoImageViewer (T5, carries its own bottom zoom bar).
 // delta (see task-6-brief.md): 1) add-to-album was added back in P4 (Task 9), Ask Nimo still
@@ -588,7 +588,7 @@ onBeforeUnmount(() => {
 .lb-nav { z-index: 3; cursor: pointer; }
 /* New-UI addition, no Vue2 source (M3): Vue2's own disabled-nav opacity rule (parity's verbatim
    transcription targets a data-* attribute this file's own dead-code test above asserts stays
-   unwired, control ruling 5) is dead code in Vue2 too -- its template never sets that attribute on
+   unwired) is dead code in Vue2 too -- its template never sets that attribute on
    `.lb-nav`. This component instead wires the real, native `:disabled` attribute
    (`:disabled="!lb.hasPrev.value"` etc.), so the disabled-visual needs an actual local rule to
    have any effect -- parity has no LIVE counterpart to defer to here. */

@@ -1,5 +1,5 @@
 // P6b-T3: PlaceDetailPanel.vue —— 地点详情面板外壳 + hero + 三统计 + 两动作。
-// 逐条对应 task-3-brief.md「必含测试清单」,覆盖结构规格 1-7 与删码清单 7 处。
+// 逐条对应必含测试清单,覆盖结构规格 1-7 与删码清单 7 处。
 // 纯展示 + emit,不碰 store——只 mock @nimotech/nimoos-service 的 thumbnailUrl(照
 // PlacesRail.test.ts / PersonHero.test.ts 的既有 mock 手法)。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -343,7 +343,7 @@ describe('.map-detail 进场 transition(评审 I2)', () => {
 // 这块面板绝对定位压在地图画布上,半透明底会把地图网格点透上来。只守组件这一头:
 // token 本身在两套主题块里是否真的不带 alpha,本文件不验,取值的记录归 docs/THEMING.md。
 //
-// 【SP8-P6 T10 订正 —— 上面这个「只守组件一头」的**理由**已经不成立了,但决定本身本刀不改】
+// 【订正 —— 上面这个「只守组件一头」的**理由**已经不成立了,但决定本身未改】
 // 原注释给的两条理由里:
 //   ✅ 仍成立:`?raw` / `?inline` 两种 glob 对 `.css` 实测都返回空串
 //      (vitest 自带的 CSSEnablerPlugin 把样式源整体替换成空串,且**不看查询串**)。
@@ -355,10 +355,10 @@ describe('.map-detail 进场 transition(评审 I2)', () => {
 //      它跳过 `theme.css`/`theme.sp9.css` 的真实理由写在源码里:那是 **token 定义档**,
 //      「裸字面量是它的本职工作」,与能不能读到文本无关。
 // ⇒ 「本文件要不要改成用 `node:fs` 读 theme.css、程序化断言 `--panel-bg-solid` 两套主题块
-//    下都不带 alpha」现在是一个**纯设计取舍**,不再有技术阻塞。**T10 只动注释,不改实现**,
-//    该取舍已登记为债务(见 VUE2 `docs/vue3-migration-roadmap.md` §SP8 债务台账 I4)。
+//    下都不带 alpha」现在是一个**纯设计取舍**,不再有技术阻塞。**本次只动注释,不改实现**,
+//    该取舍已登记为已知债务。
 //
-// Fix-1 item 6 订正(owner acceptance, 2026-08-16):上面那条"半透会把网格点透上来"的
+// 订正:上面那条"半透会把网格点透上来"的
 // **前提本身**已经证伪——`--surface-1`(本文件改用的 token)在两套 Photos 主题下都是
 // 完全不透明的纯色,从来没有 alpha 通道;`--panel-bg-solid` 反而是个*全局* token,只跟随
 // 全站 `[data-theme]`、不跟随 Photos 私有的 `.photos-root.is-light` 切换——真机验收报告的

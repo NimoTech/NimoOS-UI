@@ -1,5 +1,0 @@
-HTTP/1.1 200 OK
-content-type: application/json
-content-length: 64
-
-{"status":"deleted","id":"aac91828-5ce4-456f-ba40-2cf87c8c173c"}

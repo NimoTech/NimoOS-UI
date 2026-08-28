@@ -122,8 +122,8 @@ describe('FileRow', () => {
 // Bug 2 (second half): long names are truncated with the desktop area's
 // ellipsis rule (AppTile.vue:49 / FolderTile.vue:26). The CSS itself cannot be
 // asserted here — jsdom does no layout, so scrollWidth/clientWidth are both 0
-// and `text-overflow` never resolves; that half is verified by the real-browser
-// screenshots under .superpowers/sdd/2026-08-13-files-bugfix-batch/. What IS
+// and `text-overflow` never resolves; that half is verified by real-browser
+// screenshots. What IS
 // testable is the escape hatch: once a name can be visually cut off, the full
 // name has to stay reachable, and in a file manager that is the only way to
 // tell two 200-character names apart.

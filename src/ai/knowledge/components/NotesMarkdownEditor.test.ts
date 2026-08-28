@@ -7,7 +7,7 @@
 // then `await flushPromises()` (single nextTick not enough). Mount needs `attachTo: document.body`
 // (jsdom's ProseMirror selection/getClientRects paths without real document will error).
 //
-// 🔴 Ruling R5: Appendix D §D.6.1 "N29 tbTick false dependency" only proved premise, didn't
+// 🔴 Appendix D §D.6.1 "N29 tbTick false dependency" only proved premise, didn't
 // mount parent — this file doesn't import it, counting as proved (N29 itself not in this
 // component, goes to T7). But this file's own assertions on `transaction` event (§3③
 // onTransaction → emit('transaction')) still requires mutation evidence per ruling — see

@@ -1,18 +1,18 @@
 // SP8-P5e Task 3 — unit tests for `searchAggregate.ts`, inherit from Vue2 existing
 // `__tests__/searchAggregate.spec.js`(46 lines / 2 cases, governance §4.3) and add refinement
 // (`kindFromMime` six branches / `basename`/`dirname` boundaries / `chunkVM` boundaries /
-// N45 three things each independent), plus K48 (equivalence programmatically proven by T0,
-// `p5e-task-0-report.md` §9) and K49 (only XSS surface this period) specialized cases.
+// N45 three things each independent), plus K48 (equivalence programmatically proven by T0)
+// and K49 (only XSS surface this period) specialized cases.
 //
-// 🔴 Fixture discipline (ruling R3.2/R9/R10, `p5e-fixtures/README.md`):
-// This file's multi-file aggregate cases from `.superpowers/sdd/p5e-fixtures/F5b-search-text.multifile.REPLAYED.json`
+// 🔴 Fixture discipline:
+// This file's multi-file aggregate cases are sourced from a replayed search fixture
 // (three-level source label = **REPLAYED**: true Qdrant payload replayed through authoritative code path
-// `NimoOS-Search/service/search.go`, with 2 human elements declared in README §3.1: 8 scores from local
+// `NimoOS-Search/service/search.go`, with 2 human elements declared in the fixtures README §3.1: 8 scores from local
 // test interval tier representative values, "4 files × 2 chunks" selection rule).
 // 🔴 **R9-3**: full text zero-truncated truth (each preview.text 2156–2379 chars) → this file **keeps 1 full text only**
 // (below `FIRST_CHUNK_FULL_TEXT`, from F5b `files[0].chunks[0].preview.text`,
 // sha256 `fe4f68aa570a1ad127811d38a3d87f3845523f0ff0cb53c4f9baad6327bade1b`, length 2342,
-// verifiable via `python3 -c "import json,hashlib; d=json.load(open('.superpowers/sdd/p5e-fixtures/F5b-search-text.multifile.REPLAYED.json')); t=d['files'][0]['chunks'][0]['preview']['text']; print(len(t), hashlib.sha256(t.encode()).hexdigest())"`
+// verifiable by hashing `files[0].chunks[0].preview.text` from the source fixture with sha256
 // should print `2342 fe4f68aa570a…`), **other preview.text all truncated to first 50 chars**
 // (still true prefix from same real data, not hand-written — aggregate/sort/score logic
 // independent of text length or content, only one separate case validates "pass through untruncated").
@@ -713,7 +713,7 @@ describe('fileVM.name fallback — aiKbSrUntitled', () => {
 //   be reached via an empty/all-whitespace query (covered by the two cases below, which are
 //   another phrasing of assertions already present in the K49 block).
 //
-// Criterion (RED probe, see p5f-task-1b-report.md): changing the threshold to `>= 2` → this
+// Criterion (RED probe): changing the threshold to `>= 2` → this
 // block must go red.
 // ⚠️ The opposite direction (changing to `>= 0`) is caught by the K49 block's existing
 // "empty query → returned as-is" two cases:

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 12 (SP7-P5 people): PersonPlacesTab.vue — person detail page "places" tab
-// (section title + mini world map + Top5 legend + all places card strip). Ported segment-by-segment from Vue2 NimoOS-UI
+// (section title + mini world map + Top5 legend + all places card strip). Ported segment-by-segment from the Vue 2 panel
 // src/views/Photos/PhotosPersonDetail.vue:157-183 (entire v-if="tab === 'map'" block,
 // including :158-162 .detail-section / .detail-section-title title shell), :446
 // (PLACE_PALETTE seven colors), :537-570 (groupedPlaces / coloredPoints — moved to

@@ -1,6 +1,6 @@
 <!--
   SP8-P5c Task 7 — "Parser test sandbox" page (route `/ai/parser/test`), 1:1 ported from Vue2 blueprint
-  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Parser/ParserTest.vue` (369 lines,
+  the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Parser/ParserTest.vue` (369 lines,
   read via `git show main:` — governance §1: that repo's working tree is old branch, not trustworthy).
 
   🔴 **This cut covers template (blueprint :1-152) + script (blueprint :154-243) = 242 lines only.**
@@ -44,7 +44,7 @@
     Blueprint :216-219 is
       `api.post('/ai/parser/test/analyze', fd, { headers:{'Content-Type':'multipart/form-data'}, timeout:120000 })`
     This repo writes `service.ai.parserTestAnalyze(fd)` — 🔴 **no second argument passed**:
-    the package method signature at `NimoOS-Service/src/ai.ts:673-680` only accepts `FormData`; internally it
+    the package method signature at `the shared service package's src/ai.ts:673-680` only accepts `FormData`; internally it
     **already** adds the multipart header + a dedicated 120s timeout (the comment there states "matches Vue2
     `ParserTest.vue:207-219` verbatim").
     Passing it again would be redundant, and the types don't even allow it.
@@ -144,8 +144,8 @@ const { t } = useI18n()
 
 /* ═══ Response shape of `POST /v1/parser/test/analyze` ═══
  * 🔴 HTTP shape as-is, snake_case: the package method `service.ai.parserTestAnalyze` only does `return res.data`
- * (`NimoOS-Service/src/ai.ts:673-680`, zero transformation) → field names match
- * `.superpowers/sdd/p5c-fixtures/parser-test-analyze-*.json` verbatim.
+ * (`the shared service package's src/ai.ts:673-680`, zero transformation) → field names match
+ * a captured device response verbatim.
  * The optional fields are exactly the ones governance §4.2 measured as "this machine never sends"
  * (`docling_markdown` / `rerank_error` / `scored` / `rerank_score`) — **the `v-if` guards in the template exist
  * precisely for them, don't simplify them away**. */

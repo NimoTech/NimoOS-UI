@@ -64,8 +64,7 @@ export const useFilesStore = defineStore('files', () => {
     return disks.value.length ? disks.value[0].path : ''
   }
 
-  // Fix wave K (Files Time Machine Vue2-parity line, owner acceptance 2026-08-26): epoch guard
-  // against an out-of-order response. Unlike ensureVolumes() (snapshotBrowse.ts) and
+  // Epoch guard against an out-of-order response. Unlike ensureVolumes() (snapshotBrowse.ts) and
   // useFolderSizesStore() (see this function's own pre-existing comment just below), load() had
   // no such guard -- whichever call's own service.folder.getList() happened to RESOLVE LAST won,
   // regardless of which call was STARTED last. Two load() calls fired close together (e.g. a
@@ -79,11 +78,11 @@ export const useFilesStore = defineStore('files', () => {
   // snapshotBrowse.ts's own `pendingTravel` guard (TimeMachineDepthStack.vue) has ALREADY been
   // consumed by B's own legitimate travel, this stale flip fires with no matching pending travel
   // -- no runTravel() call ever animates it, so every already-tweened depth-stack strip is simply
-  // never told to move again, appearing permanently frozen at wherever B's travel left it (the
-  // owner's own screenshot symptom) until an unrelated safety net eventually reveals the real
-  // window over it. Guarded here, at the root cause, exactly like ensureVolumes()/
-  // useFolderSizesStore() already guard their own async races -- a stale response can now never
-  // write over a newer call's state, so currentPath only ever reflects the LAST-STARTED load().
+  // never told to move again, appearing permanently frozen at wherever B's travel left it until an
+  // unrelated safety net eventually reveals the real window over it. Guarded here, at the root
+  // cause, exactly like ensureVolumes()/useFolderSizesStore() already guard their own async races
+  // -- a stale response can now never write over a newer call's state, so currentPath only ever
+  // reflects the LAST-STARTED load().
   let loadEpoch = 0
   async function load(realPath: string) {
     clearSelection()

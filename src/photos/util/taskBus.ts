@@ -1,4 +1,4 @@
-// Ported verbatim (logic unchanged, types added) from Vue2 NimoOS-UI
+// Ported verbatim (logic unchanged, types added) from the Vue 2 panel
 // src/views/Photos/photosTaskBusAdapter.js (unwrapTaskBusPayload, :9-39).
 //
 // Unwrap NimoOS-MessageBus socket envelope ({SourceID,Name,Properties,...})

@@ -1,5 +1,5 @@
 // SP8-P5d Task 3 —— 1:1 ported from Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/noteEditHelpers.js` (11 lines).
+// the Vue 2 panel's `src/views/AI/Knowledge/noteEditHelpers.js` (main@7a6ee6b7, 11 lines).
 //
 // N23: `conflictMessage` returns hardcoded English string, no i18n —— only call site
 // `NoteEditPane.vue:293` is `if (conflictMessage(e) && !this.isNew)`, used only as boolean

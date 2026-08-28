@@ -77,8 +77,8 @@ describe('getSnapshotPreview', () => {
     expect(getListMock).toHaveBeenCalledTimes(2)
   })
 
-  // Vue2 parity (controller ruling: Vue2 source is authority over the task brief's prose,
-  // which had this backwards). Verified against NimoOS-UI's snapshotPreviewCache.js: it never
+  // Vue2 parity (the Vue2 source is authority here). Verified against the Vue 2 panel's
+  // snapshotPreviewCache.js: it never
   // caches an error for the session -- setCachedSnapshotPreview's `promise.catch(() => { if
   // (cache.get(key) === promise) cache.delete(key) })` evicts the entry on failure, so the next
   // mount/call for the same key fires a fresh request. Reproduced here as: a call that resolves

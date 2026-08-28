@@ -13,7 +13,7 @@ function mountIt(props: Record<string, unknown> = {}) {
   return mount(SnapshotActionBar, { props: { count: 0, restoring: false, ...props }, global: { plugins: [i18n] } })
 }
 
-describe('SnapshotActionBar (final review Important 4, Ruling F-1)', () => {
+describe('SnapshotActionBar', () => {
   it('renders nothing when the selection is empty', () => {
     const w = mountIt({ count: 0 })
     expect(w.find('.tm-action-bar').exists()).toBe(false)
@@ -49,7 +49,7 @@ describe('SnapshotActionBar (final review Important 4, Ruling F-1)', () => {
     expect(w.emitted('restore')).toBeUndefined()
   })
 
-  // Fix wave A2 (audit-stage.md #14, priority list item 9): Vue2 renders icon-only buttons
+  // Vue2 renders icon-only buttons
   // (`<b-icon>`), not text labels -- the earlier build's `{{ t('tmRestoreSelection') }}`/
   // `{{ t('filesCtxDownload') }}` text content is gone, replaced by an inline SVG glyph; the
   // hover tooltip is the existing native `:title` attribute (house style, Vue2's own `<b-tooltip>`
@@ -66,7 +66,7 @@ describe('SnapshotActionBar (final review Important 4, Ruling F-1)', () => {
     expect(download.attributes('title')).toBeTruthy()
   })
 
-  // Fix wave A2 (audit-stage.md #14, priority list item 8): the whole bar previously popped
+  // The whole bar previously popped
   // in/out instantly (`v-if`, no `<Transition>` wrapper at all). Now wrapped in Vue2's own
   // `up-fade` transition (ported as `tm-up-fade`, see this component's own <style> comment for the
   // full derivation) -- jsdom applies no CSS and cannot exercise an actual mid-transition frame, so

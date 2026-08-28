@@ -1,7 +1,7 @@
-// SP8-P2b Task 11 — see channelsFormat.ts header comment: these 7 examples are written directly based on Vue2
+// See channelsFormat.ts header comment: these 7 examples are written directly based on Vue2
 // ChannelsSection.vue bindingLabel (:304-307) / pairInstructions (:185-190) /
-// channelsBotTokenTail template population (:29) source code behavior as per brief Step 1,
-// not derived from NimoOS-UI ChannelsSection.spec.js — that spec has no
+// channelsBotTokenTail template population (:29) source code behavior,
+// not derived from the Vue 2 panel's ChannelsSection.spec.js — that spec has no
 // direct assertions for these two methods (genCode test comment explicitly states {bot}/{code} replacement not tested).
 import { describe, it, expect } from 'vitest'
 import { bindingLabel, fillPairInstructions, fillTokenTail, addBotErrorKey } from './channelsFormat'

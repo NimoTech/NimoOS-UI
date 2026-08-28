@@ -1,8 +1,7 @@
 <!--
-  SP8-P5c Task 6 —— "Parser Details" page (route `/ai/parser`), 1:1 ported from Vue2
-  blueprint `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Parser/ParserStatus.vue` (164 lines,
-  read with `git show main:` —— governance §1: the working tree of that repo is stale,
-  cannot be trusted).
+  SP8-P5c Task 6 —— "Parser Details" page (route `/ai/parser`), 1:1 ported from the Vue 2
+  panel's blueprint `src/views/AI/Parser/ParserStatus.vue` (164 lines,
+  read with `git show main:` rather than the on-disk working tree, which was a stale branch).
 
   Structure mapping (blueprint line range → this file):
     :3-9     Page header: title + 🧪 test sandbox link + refresh button (`:disabled` watches

@@ -36,7 +36,7 @@ const mountIt = (props: Record<string, unknown> = {}) =>
 const fakeRect = (top: number, height = 10): DOMRect =>
   ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
 
-// Fix wave G (Ruling G-1, owner acceptance 2026-08-26): fisheyeDisplacement (timeMachineMath.ts)
+// fisheyeDisplacement (timeMachineMath.ts)
 // requires its own `centers` input sorted ascending (top to bottom) -- see that function's own
 // header comment for why (the running trapezoidal walk is stateful across array order, not sorted
 // by value). In a real browser this holds automatically (DOM/query order == render order == top-
@@ -97,14 +97,14 @@ describe('TimeMachineRail', () => {
     expect(w.emitted('select')?.[0]?.[0]).toBe(anchorName)
   })
 
-  // Fix wave G (Ruling G-1, owner acceptance 2026-08-26): this REPLACES fix wave A2's own
+  // This REPLACES an earlier
   // "resting labels always visible" test -- that rule is explicitly superseded once the rail
   // stopped scrolling (see TimeMachineRail.vue's own header comment, point 4, and
   // shouldShowTickLabel's own comment in timeMachineMath.ts for the full override). In jsdom,
   // `bandHeight` never gets measured (no ResizeObserver callback ever fires -- jsdom has no
   // ResizeObserver at all), so `shouldShowTickLabel`'s own "unmeasured -- fail open" branch is what
   // is actually being exercised here: every label still shows, but for a DIFFERENT reason than
-  // wave A2's unconditional rule (which no longer exists). The "genuinely crowded, hide it" branch
+  // the earlier unconditional rule (which no longer exists). The "genuinely crowded, hide it" branch
   // is covered exhaustively at the pure-function level (timeMachineMath.test.ts) -- there is no
   // practical way to force jsdom to report a real, small `clientHeight` for this component's own
   // ResizeObserver-driven measurement.
@@ -151,7 +151,7 @@ describe('TimeMachineRail', () => {
     expect(style).toBe('')
   })
 
-  // ── Fix round (controller ruling): per-type tick class hook + manual badge, restored ──
+  // ── Per-type tick class hook + manual badge, restored ──
   const TYPED_SNAPSHOTS: SnapshotVM[] = [
     { name: 's-manual', created_at: now.toISOString(), type: 'manual', label: 'before upgrade' },
     { name: 's-manual-no-label', created_at: oneHourAgo.toISOString(), type: 'manual' },
@@ -190,7 +190,7 @@ describe('TimeMachineRail', () => {
     expect(styleBlock).toContain('.tm-tick-badge')
   })
 
-  // Fix round (review): the selected tick's own resting width/glow-blur literals must match Vue2's
+  // The selected tick's own resting width/glow-blur literals must match Vue2's
   // `.tm-tick--selected .tm-tick__line` exactly (width: 40px, box-shadow blur: 10px) -- same
   // source-text hook-presence technique as the hover-token test above, for the same reason (jsdom
   // applies no CSS at all, so a `.is-selected` class assertion alone cannot tell "styled 40px wide"
@@ -252,7 +252,7 @@ describe('TimeMachineRail', () => {
     expect(scale).toBeGreaterThan(2) // peak maxScale=2.2; if overwritten by a sub-tick it drops to minScale=1
   })
 
-  // Fix wave G: sub-ticks must reuse their anchor main tick's OFFSET too, not just its scale --
+  // Sub-ticks must reuse their anchor main tick's OFFSET too, not just its scale --
   // otherwise a displaced main tick would visually separate from the decorative filler ticks
   // sitting right next to it, an obvious "these two pieces of the same line are no longer aligned"
   // glitch.
@@ -310,7 +310,7 @@ describe('TimeMachineRail', () => {
     }
   })
 
-  // ── Fix wave G (Ruling G-1, owner acceptance 2026-08-26): fixed extent, no scroll ──
+  // ── Fixed extent, no scroll ──
   // The old "auto-scroll selected tick into view" behavior (and its own two tests) is GONE
   // entirely -- see TimeMachineRail.vue's own header comment, point 1: the rail is now a fixed
   // [top, bottom] band that never scrolls, so there is no scroll position left to correct. This

@@ -1,4 +1,4 @@
-// SP8-P5a Task 6 — unit tests taken from the task brief `.superpowers/sdd/p5a-task-6-brief.md`
+// SP8-P5a Task 6 — unit tests taken from the task brief a captured device response
 // Step 2 skeleton (used verbatim, including the discriminating intent noted in its comments).
 // Covers knowledgeStore's Parser group: loadOverview / Jobs' five actions / Allowlist's four /
 // setControl / IndexedFiles' five actions (including polling) / toast (P4 deviation) / fmtAgo.

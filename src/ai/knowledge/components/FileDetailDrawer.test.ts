@@ -1,11 +1,11 @@
-// SP8-P5e Task 5 — `FileDetailDrawer.vue` unit tests. Blueprint `NimoOS-UI@7a6ee6b7`
+// SP8-P5e Task 5 — `FileDetailDrawer.vue` unit tests. Blueprint: the Vue 2 panel's
 // `src/views/AI/Knowledge/components/FileDetailDrawer.vue`(220 lines, all ported this pass)+
 // following Vue2 spec `src/views/AI/Knowledge/__tests__/fileDetailDrawerDistill.spec.js`(N43,
 // test approach must change, see corresponding describe block below).
 //
 // ═══ mock boundary(governance §4.1)═══
 // `service.notes.distillFile` uses `vi.hoisted` mock; `isDistillableName` uses
-// `importOriginal` keeping real implementation(sole definition in `NimoOS-Service/src/notes.ts`'s
+// `importOriginal` keeping real implementation(sole definition in the shared HTTP client's `src/notes.ts`'s
 // `DISTILL_EXTS`, N44 requires this repo not re-define extension table — if mock here too,
 // `canDistill`'s `.pdf`/`.png` two cases can't test real extension table).
 // `store.loadChunkContext` uses real Pinia + `vi.spyOn(store, 'loadChunkContext')` per-case
@@ -13,16 +13,15 @@
 // (`{chunks:[{chunk_no,text}], anchor_chunk_no}`), follows governance §4.1 level table.
 //
 // ═══ fixture source(three-level labels per entry, ruling R3 constraint 1 / R9)═══
-// `REAL_FILE_ID` / `CHUNK0_TEXT_PREFIX` / `CHUNK1_TEXT_PREFIX` from
-// `.superpowers/sdd/p5e-fixtures/F5b-search-text.multifile.REPLAYED.json`
-// (`files[0]`, real file_id/mime/score/mtime_ms/path, REPLAYED).
+// `REAL_FILE_ID` / `CHUNK0_TEXT_PREFIX` / `CHUNK1_TEXT_PREFIX` are taken from a captured
+// search-text fixture (`files[0]`, real file_id/mime/score/mtime_ms/path, replayed).
 // `F6_ANCHOR_TEXT_PREFIX`/`F6B_ANCHOR_TEXT_PREFIX` from
 // `F6-search-chunk.window.REPLAYED.json` / `F6b-search-chunk.window-multi.REPLAYED.json`
 // anchor entries(REPLAYED). RED per R9-3「test allows only 1-2 complete texts」, this file **zero**
 // complete texts — all truncated to real first 48–72 chars(still real prefix of real data, not hand-written),
 // each marked with complete value's `len`/`sha256`, verify command unified in comment below(swap `<n>`
 // for corresponding length to verify prefix truly is real prefix of that sha256 value):
-//   python3 -c "import json,hashlib; d=json.load(open('.superpowers/sdd/p5e-fixtures/<FILE>')); \
+//   python3 -c "import json,hashlib; d=json.load(open('<fixture file>')); \
 //     t=<value path>; print(len(t), hashlib.sha256(t.encode()).hexdigest())"
 // `F12_CONSTRUCTED`(sole sample for anchor absent fallback) from
 // `F12-search-chunk.anchor-absent.CONSTRUCTED.json`(CONSTRUCTED, D-6 template, already very short,
@@ -667,7 +666,7 @@ describe('FileDetailDrawer —— T5 DoD-12: auto-load guard (views/SearchView.v
 // ⇒ **removing this argument is harmless, only changing the value is harmful** — so the criterion pins down "value === 2",
 // not "key exists".
 //
-// Criterion (RED probe, see p5f-task-1b-report.md): change product code to `window: 3` → must fail red.
+// Criterion (RED probe): change product code to `window: 3` → must fail red.
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('FileDetailDrawer —— debt M-1: loadChunkContext arguments (window: 2 is the hard criterion)', () => {

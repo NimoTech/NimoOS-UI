@@ -1,4 +1,4 @@
-// Test cases ported 1:1 from Vue2 NimoOS-UI tests/raidEtaFormat.test.js (commit 028837e8)
+// Test cases ported 1:1 from the Vue 2 panel's tests/raidEtaFormat.test.js (commit 028837e8)
 import { describe, it, expect } from 'vitest'
 import { etaDurationParts, etaCompletionParts } from './raidEta'
 

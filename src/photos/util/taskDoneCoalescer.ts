@@ -1,4 +1,4 @@
-// Ported verbatim (logic unchanged, types added) from Vue2 NimoOS-UI
+// Ported verbatim (logic unchanged, types added) from the Vue 2 panel
 // src/views/Photos/taskDoneCoalescer.js (createTaskDoneCoalescer, :11-45).
 //
 // NOTE — API shape deviates from the task-2 brief's assumed signature

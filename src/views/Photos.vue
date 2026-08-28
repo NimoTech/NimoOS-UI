@@ -1,9 +1,8 @@
 <script setup lang="ts">
 // Task 8: 时间线集成——fills the content area left as a placeholder by T5,
 // wires the socket task-progress feed, task-done toast coalescing and batch
-// delete. Ports Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's socket
-// block (:74-91) and mounted-time coalescer wiring (:315-335), simplified per
-// task-8-brief.md's P1 scope cut:
+// delete. Ports the Vue 2 panel's src/views/Photos/PhotosTimeline.vue's socket
+// block (:74-91) and mounted-time coalescer wiring (:315-335), simplified per the P1 scope cut:
 //  - non-'index' task types get a generic `{label} completed` toast
 //    (photosTaskCompletedToast) instead of Vue2's per-type messages.
 //  - no 5s pre-removal delay before announcing — a status:'done' transition
@@ -21,7 +20,7 @@
 // 灯箱翻页集)。
 //
 // Task 3(壳 + 侧栏重刻):根结构改为 Vue2 的 `.photos-root[themeClass] > .app[data-collapsed]
-// [data-selecting] > PhotosSidebar + main.main`(NimoOS-UI PhotosTimeline.vue:943-956),
+// [data-selecting] > PhotosSidebar + main.main`(Vue2 PhotosTimeline.vue:943-956),
 // 取代旧的 AreaShell + `.photos-layout` flex-row 外壳。内容槽位(当时是 PhotosSearchBar 起到
 // PhotosGrid 止)原样保留在 `.photos-main` 里,只是外面多套了一层 `.app`/`main.main` 网格壳。
 //
@@ -111,7 +110,7 @@ const { themeClass } = usePhotosTheme()
 // first consumer; the five re-shelled album/for-you views (Task 2) share the same instance.
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 
-// Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
+// Default tab: aligned with the Vue 2 panel's src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
 // the port (SP7-P1 review finding), sanctioned fix.
 const tab = ref('photo')
@@ -130,8 +129,8 @@ const selected = ref<Array<string | number>>([])
 // facet 键——Vue2 那个对象上还挂着 placeKey/spotKey 两个 spot 跳转用的键,New-UI 的
 // 城市/spot 跳转走独立路由页(D6),那两个键在本仓无对应物。
 //
-// Fix-1 item 4 (owner acceptance, 2026-08-16) partial reversal of D6: the owner's explicit,
-// binding instruction is that PlaceDetailPanel.vue's "Open in Library" button AND a spot row's
+// Partial reversal of D6: the explicit,
+// binding requirement is that PlaceDetailPanel.vue's "Open in Library" button AND a spot row's
 // "View in Library" jump must land HERE (the photo library), with a place filter applied — not
 // on the standalone place-assets page (that page stays, as a net addition other entries may
 // still use; only these two buttons' own navigation target changes, see PlaceDetailPanel.vue's
@@ -314,7 +313,7 @@ async function onLightboxDelete(id: string | number) {
 // ─── task-done toast coalescing ───────────────────────────────────────────
 // P1 message table: 'index' reports the indexed count (Vue2 taskDoneMessage's
 // index branch, PhotosTimeline.vue:720-723); every other type collapses to a
-// generic "{label} completed" toast (task-8-brief.md P1 scope cut — Vue2's
+// generic "{label} completed" toast (P1 scope cut — Vue2's
 // nuanced per-type face/embedding copy is out of scope here).
 function messageFor(task: TaskBusPayload): string | null {
   if (task.type === 'index') {
@@ -326,7 +325,7 @@ function messageFor(task: TaskBusPayload): string | null {
 
 const doneCoalescer = createTaskDoneCoalescer<TaskBusPayload>({
   messageFor,
-  // 4000ms, aligned with Vue2's task-done toast duration (NimoOS-UI
+  // 4000ms, aligned with Vue2's task-done toast duration (the Vue 2 panel's
   // src/views/Photos/PhotosTimeline.vue:329 `$buefy.toast.open({..., duration: 4000})`).
   emit: (message) => toast.show(message, 4000),
 })
@@ -417,7 +416,7 @@ onUnmounted(() => {
             <!-- Task 7 (D19): the floating selectbar moves off being PhotosToolbar's
                  preceding sibling (P1 layout) and mounts INSIDE the grid slot instead — Vue2
                  pixel parity has `.selectbar` `position:absolute` anchored to the grid/scrubber
-                 area it floats over (NimoOS-UI PhotosGrid.vue:109), not the toolbar row above
+                 area it floats over (the Vue 2 panel's PhotosGrid.vue:109), not the toolbar row above
                  it. `.photos-grid-slot` is already `position: relative` (see this file's
                  style block below), so no extra positioning container is needed. -->
             <div class="photos-grid-slot">
@@ -441,11 +440,11 @@ onUnmounted(() => {
       </main>
     </div>
 
-    <!-- Fix-4 item 1 (owner acceptance, 2026-08-13; F1/F2 lesson class, now found on the
-         timeline page too): AlbumPickerDialog used to be a template-root SIBLING of
+    <!-- Same lesson class as elsewhere, now found on the
+         timeline page too: AlbumPickerDialog used to be a template-root SIBLING of
          `.photos-root` (a Vue 3 multi-root fragment) rather than its DOM descendant — the same
-         root cause as Fix-1 item 3's "New album" modal bug and Fix-2 item 5's detail-page
-         dialogs (acceptance-fix-report.md §F1/§F2), just never audited on this page until now.
+         root cause as the "New album" modal bug and the detail-page
+         dialogs' issue, just never audited on this page until now.
          Its own parity styling is written as `.photos-root .album-picker-panel` etc.
          (vue2-parity/photos.scss:1072-1102) and its panel background is `var(--surface-2)` — a
          `.photos-root`-local custom property with NO fallback and no global (theme.css)

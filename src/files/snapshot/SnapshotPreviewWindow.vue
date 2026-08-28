@@ -1,20 +1,18 @@
 <!--
-  Task 5 (Files Time Machine Vue2-parity line): a static, read-only, non-interactive miniature
+  A static, read-only, non-interactive miniature
   Finder-style window showing ONE older snapshot's directory listing at the Files area's CURRENT
-  relative path. TimeMachineStage.vue (Task 7) mounts one instance per depth-stack slot, stacked
+  relative path. TimeMachineStage.vue mounts one instance per depth-stack slot, stacked
   behind the real, live window, so a "step through time" gesture always reveals a REAL-looking
   preview of the destination snapshot rather than a blank frame.
 
-  FIX WAVE A1 (owner-rejection root cause, 2026-08-25 pixel audit -- .superpowers/sdd/
-  2026-08-25-files-time-machine-vue2-parity/audit-preview.md): the owner rejected the previous
-  build's file-listing design. The audit's root-cause finding: the Vue2 authority
-  (NimoOS-UI src/components/filebrowser/components/SnapshotPreviewWindow.vue, 673 lines) is NOT a
+  Root-cause finding behind this rewrite: the previous build's file-listing design did not match
+  the Vue2 authority (the Vue 2 panel's src/components/filebrowser/components/SnapshotPreviewWindow.vue, 673 lines), which is NOT a
   hand-authored miniature -- its own 244-line header comment documents that a bespoke-small-text
   version (M2-F12) was REJECTED ("looked like a different app") and rewritten (M2-F14/F15) to reuse
   the REAL window's own full-size classes, with the ancestor `.tm-stage__depth-stack`'s
-  `transform: scale(0.82)` doing ALL the shrinking. The previous New-UI build got the OUTER
+  `transform: scale(0.82)` doing ALL the shrinking. An earlier New-UI build got the OUTER
   architecture right (TimeMachineDepthStack.vue's `.tm-depth-strip` is already `position: absolute;
-  inset: 0` -- full stage size, confirmed unchanged by this fix wave, no strip-sizing edit needed)
+  inset: 0` -- full stage size, unchanged by this rewrite, no strip-sizing edit needed)
   but hand-authored an INDEPENDENTLY small inner design (10-12px fonts, 20x20 icons, 64px cards,
   a blank 10x10 view-toggle square) instead of reusing New-UI's own real window pieces at full
   size -- reproducing the exact REJECTED M2-F12 mistake one layer in. This rewrite fixes that:
@@ -42,9 +40,9 @@
     `showThumb` branch fetches a REAL live thumbnail (`service.image.thumbUrl`, gated by
     `useInView`) whenever the entry looks like an image -- exactly the per-row network fetch this
     preview must NOT perform (Vue2's own explicit policy, preserved verbatim: "no live thumbnails,
-    static icons only" -- see MATCH list, audit). There is no prop to disable that branch, so
+    static icons only" -- see MATCH list). There is no prop to disable that branch, so
     reusing FileTile/FileRow whole would silently reintroduce live thumbnail fetches for up to ~10
-    concurrently mounted preview layers the instant a folder full of photos is browsed in Time
+    concurrently mounted preview layers the instant a folder full of images is browsed in Time
     Machine mode. This file therefore hand-copies FileTile.vue's/FileRow.vue's own template shape
     and literal CSS values (`.file-tile`/`.tile-icon`/`.tile-name`/`.tile-date`,
     `.file-row`/`.file-icon`/`.file-name`/`.file-format`/`.file-date`/`.file-size`) at their real
@@ -66,7 +64,7 @@
     chain (`.file-listhead`/`.head-cell`/`.col-check`(28px)/`.col-name`(flex, margin-left 40px on
     the HEADER only)/`.col-format`(48px)/`.col-date`(160px)/`.col-size`(80px, right-aligned)/
     `.col-star`(32px)) is hand-copied verbatim, so header and row columns land at the exact same
-    real widths (audit fix target 9).
+    real widths.
   - `<FileGridView>`'s (../components/FileGridView.vue) own virtualization/resize-observer/scroll
     machinery is NOT reused (this preview caps at 24 rows total -- see `MAX_ROWS` below -- so there
     is nothing to virtualize, and a second set of scroll/resize listeners per depth-stack layer
@@ -74,10 +72,10 @@
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px; }` is copied verbatim
     (as `.tm-preview-window__grid` below) -- CSS `auto-fill` handles responsive column count on its
     own, with NO JavaScript measurement needed at all, unlike Vue2's own `floor(width / 144)`
-    port (audit fix target 8: "read how FileGridView lays out columns -- reuse that, not Vue2's
-    floor(width/144)"). `<FileTile>`'s own per-card shape is hand-copied per the point above.
+    port: read how FileGridView lays out columns and reuse that, not Vue2's
+    floor(width/144). `<FileTile>`'s own per-card shape is hand-copied per the point above.
 
-  Row 2's "view mode" affordance (audit fix target 2 -- Vue2 renders a real MDI
+  Row 2's "view mode" affordance (Vue2 renders a real MDI
   view-grid-outline/format-list-bulleted glyph; the PREVIOUS New-UI build rendered a blank,
   glyph-less 10x10 square): New-UI's own real window has NO icon-based view toggle at all --
   Files.vue's own `.files-viewtoggle` (src/views/Files.vue) is a pair of TEXT chip buttons
@@ -87,23 +85,23 @@
   `padding: 6px 14px; border-radius: 999px` size), not inventing an icon Vue2 has but New-UI's own
   real chrome does not.
 
-  Row 2's total-count select-all bar (audit fix target 3, and the controller ruling's "keep the
-  '{n} items' count and the grid/list state reflection with REAL affordance visuals"): Vue2's real
+  Row 2's total-count select-all bar (the requirement is to keep the
+  "{n} items" count and the grid/list state reflection with REAL affordance visuals): Vue2's real
   window has a persistent select-all checkbox + count in its own tool-bar. New-UI's real window has
   no persistent equivalent -- SelectionToolbar.vue's own "{n} selected" pill only exists while a
   selection is actually active, which a decorative, pointer-events:none preview can never have.
-  Per the controller ruling's own instruction to keep the count, this rewrite keeps the "{n} items"
+  To keep the count, this rewrite keeps the "{n} items"
   text (unchanged behavior: `totalCount`, uncapped by `maxRows`, exactly matching Vue2's own
   `v-if="totalCount > 0"` gate byte-for-byte) but DROPS the previous build's fake disabled
   `<input type="checkbox">` -- New-UI's real chrome has no persistent select-all control for this
   count to sit next to, and inventing one is exactly the "bespoke small affordance with no real
-  counterpart" pattern this whole fix wave removes. The real affordance New-UI's own topbar DOES
+  counterpart" pattern this rewrite removes. The real affordance New-UI's own topbar DOES
   show in this position -- the grid/list toggle -- is what now fills that half of Row 2 instead of
   a blank glyph square.
 
-  FIX WAVE C SUPERSEDES THE ABOVE (toolbar redesign, owner-confirmed mockup, 2026-08-26): New-UI's
-  real window NOW HAS a persistent header row (`Files.vue`'s own `.files-list-head`, added by this
-  fix wave, sitting between the topbar and the listing) -- a circular select-all toggle + item
+  This later toolbar redesign supersedes the above: New-UI's
+  real window NOW HAS a persistent header row (`Files.vue`'s own `.files-list-head`,
+  sitting between the topbar and the listing) -- a circular select-all toggle + item
   count on the left, a grid/list CAPSULE (not text chips any more) on the right. The reasoning
   above ("no persistent equivalent to mirror, so drop the checkbox") no longer holds now that one
   exists; per this file's own established reuse-vs-clone convention (see the top of this header
@@ -113,18 +111,18 @@
   source, which also never puts its checkbox in a checked state on these preview windows); the
   capsule DOES still reflect the live `viewMode` prop, unchanged from before.
 
-  FIX WAVE D (D2, owner acceptance 2026-08-26, reveal-time scale stutter): row2's own `v-if
+  A later fix (reveal-time scale stutter): row2's own `v-if
   totalCount > 0` gate (Vue2 parity, byte-for-byte per the paragraph above) went stale the instant
-  Fix wave C made the REAL window's `.files-list-head` UNCONDITIONAL (`Files.vue` renders it with
-  no `v-if` at all, per that fix wave's own comment) -- nobody updated this mirror to match. An
+  the toolbar redesign made the REAL window's `.files-list-head` UNCONDITIONAL (`Files.vue` renders it with
+  no `v-if` at all) -- nobody updated this mirror to match. An
   empty target directory's promoted depth-0 strip therefore omitted this whole row (shorter box)
   while the just-revealed real window kept showing it (taller box), a genuine vertical content-
   height mismatch landing at the EXACT reveal instant -- one of the "front-only interactive element
-  changes layout height" cases this fix wave's own audit was told to check for. Un-gated below to
+  changes layout height" cases to check for. Un-gated below to
   match the real row unconditionally, same as the real window; `tmItemCount` already renders "0
   items" correctly for an empty folder (no copy change needed, just the missing v-if removed).
 
-  Row 1/Row 2 chrome padding (audit fix target 12): the previous build's `6px 10px` +
+  Row 1/Row 2 chrome padding: the previous build's `6px 10px` +
   near-invisible hairline is replaced with 12px horizontal padding (FileRow.vue's/
   FileListView.vue's own literal gutter value, reused consistently across chrome/row2/thead/rows/
   grid below) and NO border-bottom hairline on either row -- Files.vue's own real `.files-topbar`
@@ -134,41 +132,41 @@
   hairline (`border-bottom`, copied from `.file-listhead`) since that one genuinely exists on the
   real `FileListView.vue`.
 
-  The inner container's own border-radius/border/translucent background (audit fix target 11) are
+  The inner container's own border-radius/border/translucent background are
   REMOVED here -- `TimeMachineDepthStack.vue`'s own `.tm-depth-strip` already carries
-  `border-radius: 12px` + `box-shadow: var(--card-shadow-hi)` (its own window chrome, unchanged by
-  this fix wave), so re-declaring a SECOND radius/border/tint on the content inside it doubled up
+  `border-radius: 12px` + `box-shadow: var(--card-shadow-hi)` (its own window chrome, unchanged
+  here), so re-declaring a SECOND radius/border/tint on the content inside it doubled up
   and disagreed with Vue2's own inner `.tm-preview`, which is deliberately unstyled beyond an
   OPAQUE background (Vue2's own literal `#fff`, a light-only app).
 
-  FIX WAVE B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): the opaque
+  A later fix (real-browser dark-theme screenshot): the opaque
   background above was ported as `var(--tm-panel-bg-solid)` -- TM chrome's own token, pinned to
   the SAME literal `#ffffff` in both New-UI themes (Vue2 parity for the app's decorative shell).
   This preview clones the REAL window's own markup/classes (see this file's own header comment
   above), which paint text in New-UI's OWN theme tokens (`--fg` etc, light in dark theme) --
   stacking that on a permanently-white pane made every cloned label invisible in dark theme.
-  Controller Ruling B-1: the preview's CONTENT is "a real window of this app", not TM chrome, and
+  The preview's CONTENT is "a real window of this app", not TM chrome, and
   must follow New-UI's theme like the real Files view does outside Time Machine mode -- `color`
   below is `--fg` (not `--tm-text`, TM chrome's own fixed dark-ink token) and `background` is the
   GLOBAL `--panel-bg-solid` (theme.css, dark gradient in dark theme / white in light theme --
   already the app's existing "must stay opaque regardless of theme" token, see
-  photosGlassSurfaces.test.ts's own consumer whitelist, extended for this fix), NOT `--tm-panel-bg-
+  the opaque-surface token's own consumer-whitelist test), NOT `--tm-panel-bg-
   solid`. Still fully opaque in both themes (so up to ~10 stacked layers each occlude the one
   behind), just theme-following instead of hardcoded white.
 
-  Everything the audit's MATCH list already calls correct is preserved as-is by this rewrite: strip
+  Everything already correct before this rewrite is preserved as-is: strip
   chrome (untouched, lives on the ancestor), the "Snapshot · Read-only" chip's literal colors
   (`color-mix` off `--tm-accent`/`--tm-accent-hover`, byte-identical to Files.vue's own
   `.tm-real-window-chip` -- see that file's own header comment for the same literal pairing),
   folders-first + live sort mirroring (`sortedRows` below, unchanged), the hidden-file filter
   (upstream in `getSnapshotPreview`, unchanged), the 24-row render cap, the `dateFmt`/`renderSize`
   formatters, blank-chrome loading/error/empty (Vue2's own explicit "no spinner, no error text, no
-  toast" policy), no live thumbnails (this fix wave's own reuse-vs-clone trace above reaffirms
+  toast" policy), no live thumbnails (the reuse-vs-clone trace above reaffirms
   this), non-interactive presentation (parent-owned `pointer-events: none`), and New-UI's own icon
-  system for file/folder glyphs (the owner's one approved deviation from Vue2, which comes for free
+  system for file/folder glyphs (an approved deviation from Vue2, which comes for free
   from reusing `iconUrl(iconNameFor(...))`, the real window's own icon lookup).
 
-  `volumeLabel` (Task 7 addition, unchanged by this fix wave): Vue2's breadcrumb's first segment
+  `volumeLabel`: Vue2's breadcrumb's first segment
   sources from `$store.state.displayNames` (the user-renamed volume label shown everywhere else in
   the app), not the bare mount-path basename. New-UI's equivalent (`useFilesStore().displayNames`,
   a `{ [mountPath]: label }` map -- see `stores/files.ts`) lives in a Pinia store this component
@@ -203,7 +201,7 @@
             :class="{ 'is-active': idx === crumbSegments.length - 1 }"
           >{{ seg }}</span>
         </template>
-        <!-- Fix wave B (B2, owner acceptance 2026-08-26): the chip used to be a SIBLING of this
+        <!-- The chip used to be a SIBLING of this
              <nav> inside `.tm-preview-window__chrome`, whose own `justify-content: space-between`
              plus this nav's `flex: 1 1 auto` pushed it to the far right of the chrome row --
              Vue2's own `.tm-snap-chip` sits immediately after `<file-breadcrumb>` in the SAME flex
@@ -215,20 +213,20 @@
     </header>
 
     <!-- Row 2: total count + the real header affordances (Files.vue's own `.files-list-head` row
-         -- Fix wave C toolbar redesign) -- a decorative, non-interactive circle select-all + count
+         from the toolbar redesign) -- a decorative, non-interactive circle select-all + count
          on the left, the grid/list capsule switcher on the right. Both are hand-copied at the SAME
          classes' literal dimensions as the real row (see this file's own header comment's
          "reuse-vs-clone" section for why hand-copying, not mounting the live component, is this
          file's established pattern) so a stacked preview layer reads as a genuine miniature of the
-         real window, not an approximation. Fix wave D (D2): rendered UNCONDITIONALLY, matching
-         `.files-list-head`'s own unconditional real render (Fix wave C) -- see this file's own
-         header comment for why the stale `v-if="totalCount > 0"` (leftover pre-Fix-wave-C Vue2
+         real window, not an approximation. Rendered UNCONDITIONALLY, matching
+         `.files-list-head`'s own unconditional real render -- see this file's own
+         header comment for why the stale `v-if="totalCount > 0"` (leftover pre-redesign Vue2
          parity) was removed. The circle carries no `.on`/checked state -- this is a static backdrop
          layer with no selection concept of its own (Vue2's own source has none either), so it
          always renders in its plain unfilled ring form; the capsule DOES reflect the live
          `viewMode` prop, same as the real header's own `files.viewMode`-driven `.active` class.
-         Fix wave E (E2 follow-up, owner acceptance 2026-08-26): the count used to be a single
-         plain `t(...)`-interpolated string -- Files.vue's own count (Fix wave C) is `<i18n-t>` with
+         The count used to be a single
+         plain `t(...)`-interpolated string -- Files.vue's own count is now `<i18n-t>` with
          a `<strong>` slot around just the number (`#n` for `tmItemCount`, this preview's only
          branch -- it never shows the `filesSelectedCount`/"N selected" branch, see this file's own
          header comment: "this preview has no selection concept of its own"), so the real window's
@@ -345,8 +343,8 @@ const { t } = useI18n()
 const filesStore = useFilesStore()
 
 // Vue2 parity: `maxRows` default is 24 (its own prop default) -- kept as a fixed internal
-// constant (not exposed as a prop) since this task's own brief fixes the prop list to
-// mount/snapshotName/relPath/active only, and Task 7's brief only authorized adding `viewMode`.
+// constant (not exposed as a prop): the prop list is deliberately fixed to
+// mount/snapshotName/relPath/active/viewMode only.
 const MAX_ROWS = 24
 
 const loading = ref(true)
@@ -433,7 +431,7 @@ const crumbSegments = computed(() => {
    carries the window chrome (radius + shadow). `background` stays an OPAQUE solid (Vue2 parity:
    its own inner `.tm-preview` uses a fully opaque background, not a translucent tint) so up to
    ~10 stacked layers each fully occlude the one behind them, matching a real window -- but per
-   Fix wave B (B1, Ruling B-1, see this file's own header comment), the opaque solid follows
+   this file's own header comment, the opaque solid follows
    New-UI's OWN theme (`--panel-bg-solid`, the global token) rather than TM chrome's fixed-white
    `--tm-panel-bg-solid`, and text color follows suit (`--fg`, not `--tm-text`) -- this is a real
    window's content, not TM chrome. */
@@ -450,17 +448,17 @@ const crumbSegments = computed(() => {
 /* Hand-copied shape of Files.vue's own `.files-topbar` -- see this file's own header comment for
    why there is no border-bottom (the real topbar has none) and why 12px is the vertical row's own
    `gap` (unrelated to horizontal padding, see below).
-   Fix wave B (B2, owner acceptance 2026-08-26): dropped `justify-content: space-between` -- the
+   `justify-content: space-between` was dropped -- the
    chip is no longer this row's second child (see the template above, moved inside `.tm-preview-
    window__crumbs`), so it had nothing left to push apart; a single child growing to fill this row
    made that dead weight, not neutral.
-   Fix wave E (E2, owner acceptance 2026-08-26, static-mismatch audit): padding was `8px 12px 10px`
+   Padding was previously `8px 12px 10px`
    -- a literal that had quietly drifted from the real `.files-topbar`'s own `4px 0 14px` (ZERO
-   horizontal, not 12px) ever since this file's A1 rebuild. That drift shifted this row's whole
+   horizontal, not 12px) ever since this file's initial rebuild. That drift shifted this row's whole
    content -- crumbs included -- 12px right of where the real breadcrumb starts, and a hair off its
    real vertical baseline; not a font-SIZE bug (the crumb font-size below was already correct, see
    `.tm-preview-window__crumb`'s own comment), but exactly the kind of "content doesn't land on the
-   same pixels" mismatch the owner's screenshot caught. Now `var(--tm-topbar-padding)`, the SAME
+   same pixels" mismatch a dark-theme screenshot review caught. Now `var(--tm-topbar-padding)`, the SAME
    token `.files-topbar` itself consumes (theme.css) -- the two literals cannot drift a fourth time. */
 .tm-preview-window__chrome {
   flex: 0 0 auto;
@@ -474,8 +472,8 @@ const crumbSegments = computed(() => {
    `.crumb.current` (see this file's own header comment for why the live component itself is not
    reused) -- font-size 14px, the real "›" separator, the real muted/active color split, all now
    `var(--tm-crumb-*)` tokens (theme.css) shared with Breadcrumb.vue's own `.breadcrumb`/`.crumb`/
-   `.crumb-sep` (Fix wave E, E2) so the two can never drift on these values again.
-   Fix wave B (B2): now also hosts the read-only chip as its own LAST child (see the template
+   `.crumb-sep` so the two can never drift on these values again.
+   This row now also hosts the read-only chip as its own LAST child (see the template
    above) -- this row's own `flex: 1 1 auto` only widens ITS box within `.tm-preview-window__chrome`
    (irrelevant to child placement, since none of its children grow themselves); the chip still
    lands right after the last crumb, not at this row's far edge. */
@@ -512,9 +510,8 @@ const crumbSegments = computed(() => {
 }
 
 /* Byte-identical to Files.vue's own `.tm-real-window-chip` (Vue2's literal `.tm-snap-chip`,
-   color-mix off --tm-accent/--tm-accent-hover) -- already correct pre-audit (MATCH list: "chip
-   colors (exact)"), colors unchanged by this fix wave.
-   Fix wave B (B2, owner acceptance 2026-08-26): now the last child of `.tm-preview-window__crumbs`
+   color-mix off --tm-accent/--tm-accent-hover) -- colors unchanged here.
+   Now the last child of `.tm-preview-window__crumbs`
    (see the template above), which already applies its own `gap: 4px` between every child; adding
    `margin-left: 6px` on top of that gap lands this chip exactly `4 + 6 = 10px` after the last
    crumb, matching Vue2's own `.tm-snap-chip { margin-left: 10px }` literal byte-for-byte -- same
@@ -531,7 +528,7 @@ const crumbSegments = computed(() => {
   color: var(--tm-accent-hover);
 }
 
-/* Fix wave E (E2, owner acceptance 2026-08-26, static-mismatch audit): this row used to have NO
+/* This row used to have NO
    border-top and `padding: 0 12px 10px` -- the real `.files-list-head` has BOTH a `border-top`
    hairline AND `padding: 10px 2px` (theme.css's own `--tm-list-head-padding`, shared with the real
    rule now so the two can never drift again). Missing the hairline meant this replica's row2 had
@@ -551,8 +548,8 @@ const crumbSegments = computed(() => {
   color: var(--fg-muted);
 }
 
-/* Fix wave C (toolbar redesign): row2 now mirrors the real header's OWN two zones -- see this
-   file's own header comment (Row 2 section, updated for fix wave C). Hand-copied literal values
+/* Row2 now mirrors the real header's OWN two zones -- see this
+   file's own header comment (Row 2 section). Hand-copied literal values
    from Files.vue's own `.files-select-zone`/`.files-select-all`/`.files-item-count`/
    `.files-view-capsule`/`.files-view-capsule-btn`. */
 .tm-preview-window__select-zone {
@@ -561,23 +558,22 @@ const crumbSegments = computed(() => {
   gap: 10px;
 }
 
-/* Fix wave E (E2, owner acceptance 2026-08-26): this element used to have NO dedicated rule at
+/* This element used to have NO dedicated rule at
    all, silently inheriting `.tm-preview-window__row2`'s own (now-removed) `font-size: 13px` --
    the real `.files-item-count` is 12.5px (theme.css's own `--tm-item-count-font-size`, shared).
    0.5px is a small absolute delta, but it was a genuine, confirmed static mismatch (this replica's
-   count text was actually LARGER than the real one's, not smaller) surfaced by this fix wave's own
-   row-by-row audit -- fixed here rather than left as the one remaining un-pinned literal. */
+   count text was actually LARGER than the real one's, not smaller) surfaced by a
+   row-by-row review -- fixed here rather than left as the one remaining un-pinned literal. */
 .tm-preview-window__count {
   font-size: var(--tm-item-count-font-size);
 }
 
-/* Fix wave E (E2 follow-up, owner acceptance 2026-08-26): byte-identical to the real
+/* Byte-identical to the real
    `.files-item-count strong` rule (Files.vue) -- the number-only bold span the template's own
    `<i18n-t>`/`#n`/`<strong>` markup now renders (see the template's own comment above `.tm-preview-
    window__row2`). Without this rule the `<strong>` tag still bolds via the UA default, but the
    COLOR would fall back to the row's own muted `--fg-muted` instead of the real window's brighter
-   `--fg` on the number -- a second, smaller weight/color asymmetry alongside the one this follow-up
-   was filed to fix. */
+   `--fg` on the number -- a second, smaller weight/color asymmetry this rule also fixes. */
 .tm-preview-window__count strong {
   color: var(--fg);
   font-weight: 600;
@@ -587,7 +583,7 @@ const crumbSegments = computed(() => {
    this file's own header comment above the template). Same 18px/2px-border geometry as the real
    `.files-select-all`, `color: var(--on-purple-accent)` kept for parity even though the check
    glyph never actually shows here (display:none via the real class's own `svg { display: none }`
-   rule, inherited verbatim -- there is no `.on` variant to ever reveal it). Fix wave C re-review:
+   rule, inherited verbatim -- there is no `.on` variant to ever reveal it). Later
    re-pointed from `--on-accent` to `--on-purple-accent`, following the real `.files-select-all`'s
    own re-point onto the dedicated purple pair (theme.css) -- see Files.vue's own comment on that
    rule for the full reasoning. */
@@ -629,7 +625,7 @@ const crumbSegments = computed(() => {
   height: 15px;
 }
 
-/* Fix wave C re-review: re-pointed from --accent/--on-accent to the dedicated purple pair,
+/* Re-pointed from --accent/--on-accent to the dedicated purple pair,
    following the real `.files-view-capsule-btn.active`'s own re-point -- see Files.vue's own
    comment on that rule. */
 .tm-preview-window__toggle-btn.is-active {
@@ -637,7 +633,7 @@ const crumbSegments = computed(() => {
   color: var(--on-purple-accent);
 }
 
-/* Fix wave E (E2 follow-up, owner acceptance 2026-08-26, cross-file truncation mismatch): this is
+/* Cross-file truncation mismatch: this is
    the structural counterpart of the real window's own `.files-listwrap` (Files.vue) -- the box
    whose content-box width the grid's `auto-fill`/the list's `.col-name` flex-basis actually resolve
    against. `.files-listwrap` scrolls (`overflow-y: auto`) when a folder's rows overflow its height;
@@ -657,7 +653,7 @@ const crumbSegments = computed(() => {
 }
 
 /* Hand-copied literal values from FileListView.vue's own `.file-listhead`/`.head-cell`/
-   `.col-*` -- widths match the row columns below exactly (audit fix target 9). This is the one
+   `.col-*` -- widths match the row columns below exactly. This is the one
    place in this component that keeps its real hairline: FileListView.vue's own header genuinely
    has one. */
 .tm-preview-window__thead {
@@ -732,9 +728,9 @@ const crumbSegments = computed(() => {
 }
 
 /* Hand-copied literal value from FileGridView.vue's own `.file-grid` -- CSS auto-fill handles
-   responsive column count with no JS measurement at all (audit fix target 8); the grid's own
+   responsive column count with no JS measurement at all; the grid's own
    internal gap (14px) is FileGridView.vue's own literal value.
-   Fix wave B (B3a, owner acceptance 2026-08-26): horizontal padding dropped to 0 -- controller
+   Horizontal padding was dropped to 0 -- an earlier
    diagnosis named the real window's sidebar as the width-basis mismatch, but tracing the actual
    CSS chain (TimeMachineStage.vue's `.tm-fwin--active`/`.tm-stage__hold--active`, both `position:
    fixed`/`absolute` escaping `.files-layout`'s sidebar+padding entirely while Time Machine is
@@ -742,21 +738,19 @@ const crumbSegments = computed(() => {
    (`padding: 4px 0 14px`, zero horizontal) down to FileGridView.vue's own `.file-grid-root`/
    `.file-grid` (NO padding anywhere) -- the real cause was this preview's OWN 12px horizontal
    container padding, absent from the real chain, shrinking `auto-fill`'s available width by 24px
-   (12px each side) and landing a DIFFERENT column count near breakpoints (audit fix target 8's own
-   "reuse FileGridView's layout mechanism" intent, followed one step further: reuse its geometry
-   too, not just its `auto-fill` MECHANISM). See
-   .superpowers/sdd/2026-08-25-files-time-machine-vue2-parity/final-fix-report.md ("Fix wave B",
-   B3a) for the full trace and why option (a) (a fake sidebar clone) was rejected: neither Vue2's
+   (12px each side) and landing a DIFFERENT column count near breakpoints. The intent is to
+   reuse FileGridView's layout mechanism one step further: reuse its geometry
+   too, not just its `auto-fill` MECHANISM. A fake sidebar clone was considered and rejected: neither Vue2's
    own authority nor the real New-UI window has a sidebar inside the Time Machine window at all.
-   Fix wave E (E2, owner acceptance 2026-08-26, static-mismatch audit): B3a's own "vertical padding
+   The earlier "vertical padding
    kept for breathing room from Row 2" reasoning is RETIRED here -- the real `.file-grid`/
    `.file-grid-root` chain has NO vertical padding either (row2's own bottom padding, now
    `var(--tm-list-head-padding)`, is the ONLY gap before the first real row/tile), so this
    replica's extra `12px` top padding pushed its own first row/tile 12px lower than the real
    window's, on top of `.tm-preview-window__row2`'s own bottom padding -- a second, independent
-   vertical-offset mismatch this fix wave's row-by-row audit caught. `padding: 0` now matches the
-   real chain exactly; `gap`/`grid-template-columns` (the actual column-count-affecting geometry
-   B3a fixed) are unchanged. */
+   vertical-offset mismatch a row-by-row review caught. `padding: 0` now matches the
+   real chain exactly; `gap`/`grid-template-columns` (the actual column-count-affecting geometry)
+   are unchanged. */
 .tm-preview-window__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -805,8 +799,8 @@ const crumbSegments = computed(() => {
 }
 
 /* Real FileTile.vue title is a SINGLE-line ellipsis at 13px -- NOT Vue2's 2-line clamp at 14px
-   (audit fix target 6 named the Vue2 number; the controller ruling's own instruction is to mirror
-   New-UI's real component, and New-UI's real FileTile.vue title is genuinely single-line). */
+   (the goal here is to mirror New-UI's real component, and New-UI's real FileTile.vue title is
+   genuinely single-line). */
 .tm-preview-window__title {
   margin: 0;
   max-width: 100%;

@@ -193,7 +193,7 @@ describe('Legitimate Chinese usage zero false positives (T6.5 new)', () => {
   it('transcript whitelist is content-precise: RAID copy source note doesn\'t hit, real audio-transcript key in same file still hits', () => {
     // 逐字摘自 src/i18n/zh_cn.base.ts:663/678/682
     const raidDocs = [
-      '  // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)',
+      '  // 逐字转录自 Vue2 面板的 RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)',
       '  // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。',
       "  // desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)",
     ]
@@ -252,8 +252,8 @@ describe('Review fix: whitelist tightened to exact line match, no entire-line/fi
     // Each [file, legitimate original (copied from source), constructed sample with leak appended].
     const rows = [
       ['src/i18n/zh_cn.base.ts',
-        '  // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)',
-        '  // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)(顺带把这段转录接入向量化知识库)'],
+        '  // 逐字转录自 Vue2 面板的 RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)',
+        '  // 逐字转录自 Vue2 面板的 RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)(顺带把这段转录接入向量化知识库)'],
       ['src/i18n/zh_cn.base.ts',
         '  // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。',
         '  // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。(顺带做语义搜索索引)'],

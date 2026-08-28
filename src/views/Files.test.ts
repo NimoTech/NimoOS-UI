@@ -199,7 +199,7 @@ describe('Files.vue browse pipe', () => {
     expect(w.find('.selection-toolbar').exists()).toBe(false)
   })
 
-  // Fix wave C (toolbar redesign): New folder/New file now live inside the collapsed "New"
+  // New folder/New file now live inside the collapsed "New"
   // dropdown (FilesNewMenu.vue) -- its menu content teleports to document.body via reka-ui's
   // Portal and only renders once opened (no `forceMount`), same convention as the
   // AlertDialog/RestoreDestinationModal tests elsewhere in this file (attachTo: document.body +
@@ -220,7 +220,7 @@ describe('Files.vue browse pipe', () => {
     document.body.innerHTML = ''
   })
 
-  // Fix wave C: each dropdown item must reach the SAME pre-existing handler the old standalone
+  // Each dropdown item must reach the SAME pre-existing handler the old standalone
   // chips called (openNew/triggerFileSelect/triggerFolderSelect), not just render with the right
   // label. 'new-folder' → openNew('folder'): proven by NewItemDialog (reka-ui Dialog, also
   // Portal-teleported to document.body) actually opening with the folder-mode default name.
@@ -262,7 +262,7 @@ describe('Files.vue browse pipe', () => {
     document.body.innerHTML = ''
   })
 
-  // Fix wave C: the content-area header row's select-all circle wires to the REAL selection
+  // The content-area header row's select-all circle wires to the REAL selection
   // store (files.allSelected/selectAll/clearSelection), the same primitives
   // SelectionToolbar.vue's own select-all/clear buttons already use -- not a separate local flag.
   it('content-area header: select-all toggles the real selection store, count reflects listed entries', async () => {
@@ -289,7 +289,7 @@ describe('Files.vue browse pipe', () => {
     expect(w.find('.files-item-count').text()).toBe('2 项')
   })
 
-  // Fix wave C re-review (correctness): displayEntries (the "N items" source) can contain
+  // displayEntries (the "N items" source) can contain
   // synthetic upload placeholders (uploadPlaceholders/mergeUploadPlaceholders, ../files/upload/
   // uploadPlaceholders.ts) for uploads still in flight into the current directory -- these render
   // in the listing but can never be selected (files.selectAll() only ever populates the store
@@ -327,7 +327,7 @@ describe('Files.vue browse pipe', () => {
     expect(w.find('.files-item-count').text()).toBe('已选 2 项') // NOT "已选 3 项"
   })
 
-  // Fix wave C: the capsule switcher replaces the old topbar `.files-viewtoggle` chips --
+  // The capsule switcher replaces the old topbar `.files-viewtoggle` chips --
   // `.view-toggle-grid`/`.view-toggle-list` class names are kept unchanged (see the template's
   // own comment) precisely so this pre-existing wiring test still holds without modification.
   it('content-area header: view capsule switches files.viewMode and reflects it back', async () => {
@@ -554,7 +554,7 @@ describe('snapshot read-only banner', () => {
     }
   })
 
-  // Fix wave B (B2, owner acceptance 2026-08-26): the chip used to be a SIBLING of <Breadcrumb> in
+  // The chip used to be a SIBLING of <Breadcrumb> in
   // `.files-topbar-left`, which pushed it to the far right of the topbar (Breadcrumb's own root
   // grows to fill that container, see Breadcrumb.vue's own <style> comment) instead of hugging the
   // breadcrumb's actual rendered path the way Vue2's `.tm-snap-chip` does (`margin-left: 10px`,
@@ -657,8 +657,7 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.tm-stage__hold .tb-time-machine').exists()).toBe(false)
   })
 
-  // Review re-check (Minor, second round), UPDATED for Task 6 (Vue2-parity Time Machine line,
-  // Ruling P2): SnapshotSelectionToolbar (the dedicated `.snap-sel`/`.snap-sel-restore` multi-
+  // SnapshotSelectionToolbar (the dedicated `.snap-sel`/`.snap-sel-restore` multi-
   // select restore bar) is retired outright -- it no longer exists in Files.vue's template at
   // all, under any path, so there is nothing left to gate by `!!browse.browseInfo` here. What
   // this test still guards: the regular write-capable SelectionToolbar (copy/cut/download/
@@ -739,7 +738,7 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.snap-banner-restore').attributes('disabled')).toBeUndefined()
   })
 
-  // Final review (Important 4, Ruling F-1): SnapshotActionBar rebuild -- the snapshot-view
+  // SnapshotActionBar rebuild -- the snapshot-view
   // equivalent of the generic SelectionToolbar, which stays hidden here (see the two
   // "write-capable selection toolbar does not appear" cases above). Covers all three things the
   // finding called out: absent outside snapshot view, present with the right count once selected
@@ -821,7 +820,7 @@ describe('snapshot read-only banner', () => {
     expect(btnText).toContain('40')
   })
 
-  // Fix wave C: the New dropdown keeps the SAME `v-if="!browse.isSnapshotView"` gate the old
+  // The New dropdown keeps the SAME `v-if="!browse.isSnapshotView"` gate the old
   // `.files-actions` wrapper already had (writes stay locked while browsing a snapshot), but the
   // new content-area header row (select-all + count + view capsule) is deliberately NOT gated on
   // it -- Vue2's own snapshot browsing window carried exactly this same row (see Files.vue's own
@@ -848,7 +847,7 @@ describe('snapshot read-only banner', () => {
     expect(w.find('.tm-stage__hold .files-view-capsule').exists()).toBe(true)
   })
 
-  // Fix wave D (D1, owner acceptance 2026-08-26): the breadcrumb's favorite star must be hidden
+  // The breadcrumb's favorite star must be hidden
   // whenever `browse.isSnapshotView` is true -- snapshots are read-only, matching Vue2's own
   // GirdView.vue ("never while browsing a snapshot") and restoring front/back parity with
   // SnapshotPreviewWindow.vue's depth-stack layers, which never rendered a star to begin with.
@@ -924,7 +923,7 @@ describe('restore orchestration wiring (Task 14)', () => {
     expect(spy).toHaveBeenCalledTimes(1)
     const [items, , , opts] = spy.mock.calls[0]!
     expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
-    // Controller ruling, fix round 1: the context-menu entry point is the ONE caller that passes
+    // Fix round 1: the context-menu entry point is the ONE caller that passes
     // singleItemFlow -- it's what makes restoreItems show Vue2's snapBrowseRestored copy instead of
     // the count-based tmRestoredCount copy every other entry point uses (see buildRestoreToasts).
     expect(opts).toEqual({ singleItemFlow: true })
@@ -957,7 +956,7 @@ describe('restore orchestration wiring (Task 14)', () => {
     expect(spy).toHaveBeenCalledTimes(1)
     const [items, , , opts] = spy.mock.calls[0]!
     expect(items).toEqual([{ path: target.path, name: target.name, is_dir: target.is_dir }])
-    // Controller ruling, fix round 1: even a one-item selection keeps the banner's own
+    // Fix round 1: even a one-item selection keeps the banner's own
     // count-based tmRestoredCount copy -- entry point decides, not item count (contrast with
     // the context-menu case above, which DOES pass singleItemFlow for the exact same shape call).
     expect(opts?.singleItemFlow).toBeFalsy()
@@ -1116,7 +1115,7 @@ describe('Time Machine entry point', () => {
   // Task 10: deep-link auto-enter (a watch(() => browse.shouldAutoEnter, ...) in Files.vue's own
   // script setup, `{ immediate: true }`) -- covers a pasted/bookmarked URL, and (further below)
   // the Storage page's own "Browse" link, landing directly in the Time Machine stage without a
-  // click on the entry chip. Cases numbered to match task-10-brief.md's own five-case list.
+  // click on the entry chip.
   describe('deep-link auto-enter', () => {
     it('① a normal (non-snapshot) path never auto-enters', async () => {
       const w = await mountFiles('/DATA/Photos')

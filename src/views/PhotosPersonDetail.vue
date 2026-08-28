@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 14 (SP7-P5 People): person detail view container — the largest single item this
-// sprint. Ported line-by-line against Vue2 NimoOS-UI
+// sprint. Ported line-by-line against the Vue 2 panel's
 // src/views/Photos/PhotosPersonDetail.vue (1561 lines): four-state gating (skeleton /
 // load failed + retry / person not found / normal) + PersonHero (T10) +
 // three tabs (self-drawn co-occurrence strip on the timeline + PersonAssetGrid T11 /
@@ -1315,7 +1315,7 @@ watch(() => route.params.id, (raw) => {
    comments. */
 
 /* Survivor 1: parity's `.person-dialog-btn` matches Vue2 itself byte-for-byte — Vue2's source
-   (NimoOS-UI/.../PhotosPersonDetail.vue:1476-1488) has no flex layout at all, because Vue2's icon
+   (the Vue 2 panel's .../PhotosPersonDetail.vue:1476-1488) has no flex layout at all, because Vue2's icon
    is a `<photos-icon>` component that aligns itself. New-UI's delete-confirm / merge-confirm
    buttons embed a bare `<svg>` + text instead, and without this layout the icon and text would be
    misaligned (inconsistent baseline). This is New-UI's own typography enhancement, not something

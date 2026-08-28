@@ -1,6 +1,6 @@
 // Task 6 (grid rewrite) migrates the single source of truth for grid geometry from
 // PhotosGrid.vue's own <style> to src/photos/styles/vue2-parity/photos.scss (ported
-// verbatim from NimoOS-UI's photos.scss) — the component no longer carries ANY column/
+// verbatim from the Vue 2 panel's photos.scss) — the component no longer carries ANY column/
 // gap CSS of its own; `.grid[data-density]`'s three fixed-column rules live only in the
 // parity stylesheet now. This file's job stays the same (catch a silent drift between the
 // TS geometry table and the CSS that actually renders the grid), it just now reads the new

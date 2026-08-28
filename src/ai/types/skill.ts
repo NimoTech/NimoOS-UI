@@ -44,7 +44,6 @@ export interface Skill {
   md: string
 }
 
-// SP8-P3b Task 8 — coordinator pre-disambiguates ① (p3b-task-8-brief.md "authorized deviations").
 // Purely moved from `AddSkillModal.vue` (originally an unexported component-internal interface),
 // fields unchanged. Reason for exporting here: `SkillsSection.vue`'s `onCreate` handler needs
 // this type annotation for the `@save` event's payload; interface does not acquire implicit index

@@ -1,33 +1,31 @@
 <script setup lang="ts">
-// Vue2-parity Time Machine stage shell (Task 6 of
-// docs/superpowers/sdd/2026-08-25-files-time-machine-vue2-parity). Ported from Vue2
+// Vue2-parity Time Machine stage shell. Ported from Vue2
 // components/filebrowser/components/TimeMachineStage.vue's own "three always-mounted wrapper
 // layers" model (`.tm-stage > .tm-stage__hold > .tm-fwin > <slot>`, each `display: contents`
 // while inactive so it never disturbs the slotted real Files layout, and only becomes a real box
-// once Time Machine mode is active) — see that file's own header comment, Fix Round 15 section,
+// once Time Machine mode is active) — see that file's own header comment
 // for the full "why contents, not v-if" argument this file reproduces byte-for-byte.
 //
-// Scope (Task 6 built the shell — Tasks 7-9 build on top of it, do not duplicate their work
-// here): the clone/glass decorative backdrop, the scaled-down real window, the Escape exit
-// channel, and the z-index tiers every later task's own markup must slot into
-// (clone 0 < glass 1 < depth-stack 3 (Task 7, built here) < bottom bar 7 (Task 9) < real window 8 <
-// rail 9 (Task 8) < stepper/gear 10 (Task 8/9, gear built here)). The bottom bar is Task 9's own
-// second exit channel — Escape is the only one this task wires up.
+// Scope: the clone/glass decorative backdrop, the scaled-down real window, the Escape exit
+// channel, and the z-index tiers later additions' own markup must slot into
+// (clone 0 < glass 1 < depth-stack 3 < bottom bar 7 < real window 8 <
+// rail 9 < stepper/gear 10). The bottom bar is a
+// second exit channel — Escape is the only one wired up initially.
 //
-// Task 7 addition: mounts TimeMachineDepthStack.vue at z-tier 3 (see that component's own header
+// Depth-stack addition: mounts TimeMachineDepthStack.vue at z-tier 3 (see that component's own header
 // comment) and extends `onKeydown` with ArrowUp/ArrowDown (ported from Vue2's own stepLater/
-// stepEarlier keyboard handler) alongside the existing Escape channel — preempting Task 9's own
-// "up/down arrow keys" file-list item (task-9-brief.md); Task 9 should extend `stepLater`/`stepEarlier` below
+// stepEarlier keyboard handler) alongside the existing Escape channel — preempting the later
+// "up/down arrow keys" file-list item; that later work should extend `stepLater`/`stepEarlier` below
 // (wiring its own visible stepper buttons to them) rather than re-adding the keyboard listener.
 //
-// Task 9 addition: mounts TimeMachineStepper.vue (z-tier 10, its own self-positioned right-edge
+// Stepper addition: mounts TimeMachineStepper.vue (z-tier 10, its own self-positioned right-edge
 // control -- see that component's own header comment) wired to the SAME stepLater/stepEarlier the
 // keyboard handler above already calls, plus the bottom action bar (z-tier 7, Vue2's own
 // `.tm-bottom-bar`) with its two buttons: Exit calls `browse.exitTimeMachine()` directly (the
 // SAME store action Escape already triggers -- two channels, one destination, Vue2 parity); Restore
 // selection only EMITS `restore-selection` -- deciding WHAT is selected and actually calling
-// `browse.restoreItems(...)` is Task 14's own orchestration (this task's own brief is explicit that
-// restore wiring here would be premature -- see this file's own template comment on that button).
+// `browse.restoreItems(...)` is the restore orchestration's own job (wiring it here directly
+// would be premature -- see this file's own template comment on that button).
 //
 // Unlike Vue2 (a plain `active` prop threaded down from FilePanel.vue's own isTimeMachineMode),
 // this component reads active/travel state straight off the snapshotBrowse store — Files.vue's
@@ -50,9 +48,9 @@ const props = withDefaults(defineProps<{
   /**
    * Suppresses the Escape-to-exit shortcut while a dialog the caller knows about (Files.vue's own
    * snapshot settings dialog today) is open — Vue2 has no equivalent of this specific prop (its
-   * gear dialog is a `<b-modal>` layered differently), but the New-UI colleague's TimeMachineOverlay.vue
+   * gear dialog is a `<b-modal>` layered differently), but this app's own (now-retired) TimeMachineOverlay.vue
    * hit and fixed the exact same class of bug for its own gear dialog (see that file's own
-   * onKeydown header comment, "Review fix (Critical, round 1/2)") — this prop is the explicit,
+   * onKeydown header comment) — this prop is the explicit,
    * directly-testable half of that same fix, preserved here per that precedent.
    */
   dialogOpen?: boolean
@@ -60,9 +58,9 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'open-settings'): void
-  // Task 9's own contract for Task 14: the bottom bar's Restore selection button only announces
+  // The bottom bar's Restore selection button only announces
   // intent -- it does not know what is selected inside the (still generically-slotted) real window,
-  // nor call `browse.restoreItems(...)` itself. See this file's own header comment ("Task 9
+  // nor call `browse.restoreItems(...)` itself. See this file's own header comment ("Stepper
   // addition") and the button's own template comment for the full rationale.
   (e: 'restore-selection'): void
 }>()
@@ -75,14 +73,14 @@ const stageRoot = ref<HTMLElement | null>(null)
 const fwinEl = ref<HTMLElement | null>(null)
 const cloneMount = ref<HTMLElement | null>(null)
 
-// Task 7 fix round (review finding 2): TimeMachineDepthStack.vue's own stage-height measurement
+// TimeMachineDepthStack.vue's own stage-height measurement
 // needs THIS element (`.tm-stage`, the same one Vue2 measures via its own `$refs.stage`), not its
 // own `.tm-depth-stack` wrapper — see tmStageRoot.ts's own header comment for why measuring the
 // wrapper double-subtracts the bottom-gap constant resolveSlotPose/computeVisibleStripCap already
 // subtract themselves.
 provideTmStageRoot(stageRoot)
 
-// Final review (Important 5, Ruling F-2): reads `tmChromeVisible`, NOT `tmActive` -- Vue2's own
+// Reads `tmChromeVisible`, NOT `tmActive` -- Vue2's own
 // `<time-machine-stage :active="isTimeMachineChromeVisible">` (FilePanel.vue) drives this whole
 // component's chrome off the HELD flag, not the raw mode flag, so the decorative shell (and this
 // component's own keyboard/rail/stepper/bottom-bar interactivity, all gated on `active` below)
@@ -90,7 +88,7 @@ provideTmStageRoot(stageRoot)
 // un-shrinking real window never shows a frame of the OLD snapshot listing underneath. See
 // snapshotBrowse.ts's own header comment on tmChromeVisible for the full token+timer mechanism.
 const active = computed(() => browse.tmChromeVisible)
-// Task 7 fix round (review finding 1): reads tmTravelActive (TimeMachineDepthStack.vue's own
+// Reads tmTravelActive (TimeMachineDepthStack.vue's own
 // reveal-gate — armReveal/settle, ported from Vue2's own armReveal/reveal), NOT tmTravel
 // (which clears the instant the store's own router.replace resolves, ms before the depth-stack's
 // 420-900ms dolly sweep or the target's own preview listing have actually finished — releasing
@@ -99,7 +97,7 @@ const active = computed(() => browse.tmChromeVisible)
 const traveling = computed(() => browse.tmTravelActive)
 const fadingOut = ref(false)
 
-// Fix wave A2 (audit-stage.md #3, `.tm-stage__empty`): Vue2's own `isEmpty` computed, ported
+// Vue2's own `isEmpty` computed, ported
 // verbatim (`TimeMachineStage.vue:1676-1678`, "`!this.loading && this.flatItems.length === 0`") --
 // gated on `!tmLoading`, not just an empty list, so the initial in-flight fetch (list still empty,
 // nothing wrong) never flashes the empty-state message before the real ticks (or a genuinely empty
@@ -110,7 +108,7 @@ const isEmpty = computed(() => !browse.tmLoading && browse.snapshotList.length =
 // :style rather than duplicated as a literal in the style block below, so the two can never drift apart.
 const fwinStyle = computed(() => (active.value ? { transform: `scale(${TM_WINDOW_SCALE})` } : undefined))
 
-// Fallback background for the clone layer when capture fails, or on the (Task 10+) case of a
+// Fallback background for the clone layer when capture fails, or on the case of a
 // deep-link landing already-active with nothing pre-Time-Machine to have captured — same
 // "screenshot vs wallpaper" fallback Vue2's own hasEntryClone/wallpaperImageUrl pair implements.
 const fallbackStyle = computed(() => {
@@ -121,9 +119,8 @@ const fallbackStyle = computed(() => {
 let pendingClone: Node | null = null
 const hasClone = ref(false)
 
-// Fix wave A4 (deferred from A2's audit-stage.md #4, "Clone-backdrop media placeholder DOM-walk"):
-// ported byte-for-byte from Vue2's own `sanitizeClonedNode` (TimeMachineStage.vue, M2-F8 Fix Round
-// 4 point 2). `cloneNode(true)` never preserves a canvas's drawn bitmap or a video's decoded frame
+// Clone-backdrop media placeholder DOM-walk, ported byte-for-byte from Vue2's own
+// `sanitizeClonedNode`. `cloneNode(true)` never preserves a canvas's drawn bitmap or a video's decoded frame
 // -- a cloned `<video>`/`<canvas>` renders blank/broken, not a copy of what was on screen -- so
 // this walks the clone and swaps every one for an inert placeholder div (Vue2's own
 // `.tm-stage__clone-media-placeholder`, "nobody sees detail under blur(24px)" per that file's own
@@ -183,11 +180,11 @@ function destroyClone() {
   hasClone.value = false
 }
 
-// Task 7 addition (preempting Task 9's own "up/down arrow keys" line item -- see this file's own header
-// comment/task-9-brief.md's file list; flagged for T9 in the Task 7 report so it extends this
-// rather than re-adding it): the SAME switchTo funnel a tick click / stepper click will use (Tasks
-// 8/9) -- Vue2's stepEarlier/stepLater, ported. `clampStepIndex` (Task 2) fuses "can I step" and
-// "what's the next index" into one call; `browse.snapshotList` is newest-first (T6), so a HIGHER
+// Preempts the later "up/down arrow keys" line item -- see this file's own header
+// comment; the later stepper/rail work should extend this rather than re-adding it. The SAME
+// switchTo funnel a tick click / stepper click will use -- Vue2's stepEarlier/stepLater, ported.
+// `clampStepIndex` fuses "can I step" and
+// "what's the next index" into one call; `browse.snapshotList` is newest-first, so a HIGHER
 // index is an OLDER snapshot -- delta +1 is Vue2's own "earlier", delta -1 is "later" (index 0).
 function currentSnapshotIndex(): number {
   const name = browse.currentSnapshotName
@@ -203,9 +200,9 @@ function stepEarlier() {
   if (next !== null) browse.switchTo(browse.snapshotList[next].name)
 }
 
-// Task 9 addition: the visible stepper's own `:disabled` state, pure-function derived from the
+// The visible stepper's own `:disabled` state, pure-function derived from the
 // SAME clampStepIndex call stepLater/stepEarlier themselves guard with above -- exactly the "one
-// notion of can-I-step, not three" posture Task 7's own report flagged for this task (its own
+// notion of can-I-step, not three" posture this component aims for (its own
 // keyboard handler re-derives the same thing inline rather than reading these, since it predates
 // them; both paths agree because both ultimately call clampStepIndex with the same arguments).
 const canStepLater = computed(() => clampStepIndex(currentSnapshotIndex(), -1, browse.snapshotList.length) !== null)
@@ -226,15 +223,15 @@ const stepperLabel = computed(() => {
   return `${dayText} ${formatSnapshotClockTime(item.created_at)}`
 })
 
-// Escape is one of exactly two exit channels (the other, the bottom-bar Exit button, is Task 9's
-// own addition) — see this file's own header comment. Two guards, same posture as
+// Escape is one of exactly two exit channels (the other is the bottom-bar Exit button)
+// — see this file's own header comment. Two guards, same posture as
 // TimeMachineOverlay.vue's own onKeydown: an explicit caller-supplied `dialogOpen` flag for the
 // one dialog Files.vue already knows about, PLUS a generic "the event's own target is not inside
 // this stage" check that also covers any OTHER Teleported dialog (rename/conflict/etc.) stacked
-// above it without needing a dedicated prop wired through for each one. ArrowUp/ArrowDown (Task 7
-// addition) share the SAME two guards -- a dialog stacked above the stage (e.g. a text input
+// above it without needing a dedicated prop wired through for each one. ArrowUp/ArrowDown
+// share the SAME two guards -- a dialog stacked above the stage (e.g. a text input
 // inside it) must not have its own arrow-key navigation hijacked by snapshot stepping underneath.
-// Fix round (2026-07, Vue2 user report, ported): ArrowUp -> stepLater (next MORE RECENT), ArrowDown
+// Ported from a Vue2 user report: ArrowUp -> stepLater (next MORE RECENT), ArrowDown
 // -> stepEarlier (next OLDER) -- see stepLater/stepEarlier's own comment for the index direction.
 function onKeydown(e: KeyboardEvent) {
   const isEscape = e.code === 'Escape' || e.key === 'Escape'
@@ -243,10 +240,10 @@ function onKeydown(e: KeyboardEvent) {
   if (!isEscape && !isArrowUp && !isArrowDown) return
   if (props.dialogOpen) return
   const target = e.target
-  // Critical fix (final review C1): document.body/documentElement are exempted from the
+  // document.body/documentElement are exempted from the
   // containment check -- they are the browser's own default focus target (after clicking a file
-  // row/glass/blank space, or simply never having received focus at all, e.g. right after Task
-  // 10's deep-link auto-enter), NOT a Teleported dialog stacked above the stage. The un-exempted
+  // row/glass/blank space, or simply never having received focus at all, e.g. right after the
+  // deep-link auto-enter path), NOT a Teleported dialog stacked above the stage. The un-exempted
   // check below treated them identically to a real Teleported dialog (neither is ever a
   // descendant of `.tm-stage`) and swallowed Esc/ArrowUp/ArrowDown on the single most common
   // focus state. Genuinely Teleported content (rename/conflict/settings dialogs, all mounted as
@@ -271,7 +268,7 @@ let fadeOutTimer: ReturnType<typeof setTimeout> | null = null
 // before Vue's own render effect applies `tm-fwin--active`'s scale-down to fwinEl, or the clone
 // would capture the ALREADY-shrunk window instead of the real pre-Time-Machine page.
 //
-// Verified empirically (review round 1 follow-up), not just asserted: Vue 3's scheduler already
+// Verified empirically, not just asserted: Vue 3's scheduler already
 // flushes pre-flush watcher callbacks before any component's own render job in the SAME batch
 // (that ordering is structural to 'pre', not a coincidence of effect-creation order) — so, for
 // this exact call site, flipping this option to the Composition API's default 'pre' does NOT
@@ -287,7 +284,7 @@ let fadeOutTimer: ReturnType<typeof setTimeout> | null = null
 // header comment cites the same watcher-before-render concern), even though Vue3's mechanism for
 // guaranteeing it differs from Vue2's id-ordered watcher queue.
 //
-// Final review (Important 5, Ruling F-2): watches `tmChromeVisible`, NOT `tmActive` -- Vue2's own
+// Watches `tmChromeVisible`, NOT `tmActive` -- Vue2's own
 // `active` prop IS `isTimeMachineChromeVisible`, so this component's own `active`-driven watcher
 // was always keyed to the held flag, never the raw mode flag. Keeping this watcher on tmActive
 // while the `active` computed above reads tmChromeVisible would desync the two: the keydown
@@ -322,7 +319,7 @@ watch(
 )
 
 onMounted(() => {
-  // Mirrors the `active` watcher's own setup for the (Task 10+) case of mounting already-active
+  // Mirrors the `active` watcher's own setup for the case of mounting already-active
   // (a watcher only fires on a change, never on the initial value) — Vue2's own `mounted()` hook
   // has the identical mirror for the same reason.
   if (browse.tmChromeVisible) window.addEventListener('keydown', onKeydown)
@@ -345,7 +342,7 @@ onUnmounted(() => {
         aria-hidden="true"
       ></div>
       <div class="tm-stage__glass" :class="{ 'tm-stage__fade-exit': fadingOut }" aria-hidden="true"></div>
-      <!-- z-tier 3 (Task 7): the Apple-style depth-stack cascade -- see TimeMachineDepthStack.vue's
+      <!-- z-tier 3: the Apple-style depth-stack cascade -- see TimeMachineDepthStack.vue's
            own header comment for the full slot/travel model. `tm-stage__fade-exit` is a fallthrough
            class (lands on the component's own root, same mechanism the clone/glass layers above
            already rely on for their own scoped rule to apply across the component boundary). -->
@@ -364,8 +361,8 @@ onUnmounted(() => {
     </div>
 
     <template v-if="active || fadingOut">
-      <!-- Right-edge fisheye tick rail (Task 8, z-tier 9) vs the empty-state message (fix wave A2,
-           audit-stage.md #3): Vue2 parity -- `v-else-if="flatItems.length === 0"` shows the rail
+      <!-- Right-edge fisheye tick rail (z-tier 9) vs the empty-state message: Vue2 parity --
+           `v-else-if="flatItems.length === 0"` shows the rail
            ONLY once there is something to show it for (loading OR a non-empty list); a genuinely
            empty volume shows the centered "No snapshots yet" message instead, in the SAME slot the
            rail would otherwise occupy (TimeMachineStage.vue:1385-1388). The rail component itself
@@ -395,7 +392,7 @@ onUnmounted(() => {
         :title="t('tmSettings')"
         @click="emit('open-settings')"
       >
-        <!-- Fix wave A4 (deferred from A2's audit-stage.md #9): Vue2's own gear is MDI
+        <!-- Vue2's own gear is MDI
              `cog-outline` (`<b-icon icon="cog-outline">`, TimeMachineStage.vue:1330) -- ported as a
              hand-inlined SVG reproducing that exact MDI path, house convention for chrome-icon SVGs
              in this app (see SnapshotActionBar.vue's own header comment on hand-inlining
@@ -407,10 +404,10 @@ onUnmounted(() => {
         </svg>
       </button>
 
-      <!-- Vertical stepper (Task 9, z-tier 10) -- self-positioned, see TimeMachineStepper.vue's own
+      <!-- Vertical stepper (z-tier 10) -- self-positioned, see TimeMachineStepper.vue's own
            header and style-block comments for the exact edge-hugging geometry this ports from Vue2. Wired
-           to the SAME stepLater/stepEarlier the keyboard handler (Task 7, top of this file) already
-           calls -- not re-implemented here, per that task's own explicit hand-off note. -->
+           to the SAME stepLater/stepEarlier the keyboard handler (top of this file) already
+           calls -- not re-implemented here, by design. -->
       <TimeMachineStepper
         :class="{ 'tm-stage__fade-exit': fadingOut }"
         :label="stepperLabel"
@@ -422,16 +419,15 @@ onUnmounted(() => {
 
       <!-- Bottom action bar (Vue2's own `.tm-bottom-bar`, z-tier 7): Exit calls
            `browse.exitTimeMachine()` directly -- the SAME store action Escape already triggers, two
-           reachable channels converging on one destination, Vue2 parity (that file's own header
-           comment, "Fix Round 7" section). Restore selection deliberately does NOT call
+           reachable channels converging on one destination, Vue2 parity. Restore selection deliberately does NOT call
            `browse.restoreItems(...)` here -- this component has no notion of what is currently
            selected inside the generically-slotted real window; it only emits `restore-selection`
-           and leaves assembling the entry list + calling the store action to Task 14's own
-           orchestration (see this file's own header comment, "Task 9 addition"). `:disabled` mirrors
+           and leaves assembling the entry list + calling the store action to the restore
+           orchestration (see this file's own header comment, "Stepper addition"). `:disabled` mirrors
            Vue2's own `:disabled="restoring"` -- the store's `restoring` flag is already shared
            across every existing restore entry point (banner / selection toolbar / context menu), so
            this button correctly greys out while any of THOSE has a restore in flight, even before
-           Task 14 gives it its own trigger. -->
+           the restore orchestration gives it its own trigger. -->
       <div class="tm-stage__bottom-bar" :class="{ 'tm-stage__fade-exit': fadingOut }">
         <button type="button" class="tm-stage__bar-btn tm-stage__bar-btn--exit" @click="browse.exitTimeMachine()">{{ t('tmExit') }}</button>
         <button
@@ -447,8 +443,8 @@ onUnmounted(() => {
 
 <style scoped>
 /* The three wrapper layers stay `display: contents` (structurally invisible, zero layout effect)
-   until Time Machine mode is active — Vue2 parity (TimeMachineStage.vue's own Fix Round 15,
-   "three always-mounted wrapper layers"): the slotted real Files content must remain a direct
+   until Time Machine mode is active — Vue2 parity (TimeMachineStage.vue's own
+   "three always-mounted wrapper layers" model): the slotted real Files content must remain a direct
    flex participant of whatever it was a child of before this component existed. */
 .tm-stage { display: contents; }
 .tm-stage--active {
@@ -459,7 +455,7 @@ onUnmounted(() => {
      FileContextMenu) but below this app's shared Dialog/AlertDialog/PromptDialog tier
      (z-index: 1000 overlay / 1001 content). SnapshotSettingsModal (and the still-to-come
      RestoreDestinationModal) render through that same 1000/1001 tier; FileConflictDialog
-     (Task 12) claims its own higher 1050/1051 tier so it stacks on top of either one when
+     claims its own higher 1050/1051 tier so it stacks on top of either one when
      opened from within them — see that file's own header comment. Either way "stage below
      every dialog" holds regardless of which one is open on top of it. */
   z-index: 900;
@@ -472,12 +468,12 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   z-index: 8;
-  /* Reserves the rail (Task 7, TM_RAIL_WIDTH=220px) + stepper (Task 8, TM_STEPPER_BAND=60px) band
+  /* Reserves the rail (TM_RAIL_WIDTH=220px) + stepper (TM_STEPPER_BAND=60px) band
      on the right edge — Vue2's $tm-right-gutter byte-for-byte (timeMachineMath.ts's own header
      comment cites the same two constants) — so the floating window's box structurally cannot
      extend under either control once they land, for any viewport width. */
   padding-right: 280px;
-  /* Fix wave A2 (audit-stage.md #12, priority list item 12): Vue2's own `$tm-bottom-gap` literal
+  /* Vue2's own `$tm-bottom-gap` literal
      (`.tm-stage__hold--active { padding-bottom: $tm-bottom-gap }`, TimeMachineStage.vue:3152) --
      matches the SAME 80px literal `.tm-stage__bar-btn`'s own `.tm-stage__bottom-bar` height uses
      below, and `TimeMachineDepthStack.vue`'s own `bottom: 80px` -- reserves the bottom band inside
@@ -493,18 +489,18 @@ onUnmounted(() => {
   transform-origin: 50% 58%;
   border-radius: 12px;
   overflow: hidden;
-  /* Fix wave A2 (audit-stage.md #5, priority list item 5): Vue2's own `.tm-fwin--active` box-shadow
+  /* Vue2's own `.tm-fwin--active` box-shadow
      is a single layer (TimeMachineStage.vue:3198) -- same substitution error as the depth strips
      (`--card-shadow-hi`'s 3-layer shadow with an inset highlight Vue2 never has), on the single
      most prominent element on screen (see theme.css's own comment on `--tm-fwin-shadow` for the
      exact value, not repeated here to avoid writing a bare color literal in this style block). */
   box-shadow: var(--tm-fwin-shadow);
-  /* Fix wave B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): this used to
+  /* This used to
      be `var(--tm-panel-bg-solid)` -- TM's own chrome token, pinned to plain opaque white in BOTH
      themes (Vue2's window styling was authored for a light-only app). The slotted content is the REAL
      Files window (breadcrumb/listing/etc.), which paints its own text in New-UI's OWN theme
      tokens (`--fg` etc, light in dark theme) -- forcing a permanently-white pane underneath it
-     made every label white-on-white in dark theme. Controller Ruling B-1: "identical in both
+     made every label white-on-white in dark theme. "Identical in both
      themes" governs the TM CHROME (glass/rail/stepper/bars/white-glass modals) only -- the real
      window (this element) and the preview windows' content (SnapshotPreviewWindow.vue,
      TimeMachineDepthStack.vue's own `.tm-depth-strip`) are "real windows of THIS app" and must
@@ -512,12 +508,12 @@ onUnmounted(() => {
      solid` (the GLOBAL, non-`tm-` token, theme.css) is the app's own existing "fully opaque panel
      that must occlude what is behind it" token -- dark gradient in dark theme, white in light
      theme -- already load-bearing for exactly this "opaque regardless of theme" need elsewhere
-     (see photosGlassSurfaces.test.ts's own consumer whitelist, extended for this fix). */
+     (see the opaque-surface token's own consumer-whitelist test, extended for this fix). */
   background: var(--panel-bg-solid);
   display: flex;
   flex-direction: column;
   pointer-events: auto;
-  /* Final review (Important 4): SnapshotActionBar.vue (rendered inside the default slot below,
+  /* SnapshotActionBar.vue (rendered inside the default slot below,
      from Files.vue) floats itself via `position: absolute; bottom: 50px; left: 50%` -- Vue2's own
      fix for the identical component (`_filebrowser.scss`, ".tm-fwin--active { position: relative
      }" comment) makes this box its containing block, so the floating bar is always anchored 50px
@@ -527,13 +523,13 @@ onUnmounted(() => {
 }
 /* Hard, untransitioned cut — the exact opposite of everything else in this file, which either
    never transitions decoration at all or fades over --tm-exit-fade-ms. A switch between two
-   snapshots (Tasks 7-9's own dolly-travel choreography) hides the real window for its duration;
+   snapshots (the dolly-travel choreography) hides the real window for its duration;
    revealing it mid-transition would show a half-navigated, visually jarring frame. */
 .tm-fwin--traveling {
   opacity: 0 !important;
   transition: none !important;
 }
-/* Fix wave A2 (audit-stage.md #3, `.tm-fwin--empty`): a volume with ZERO snapshots -- the
+/* A volume with ZERO snapshots -- the
    always-mounted real window (wrapping the default slot) would otherwise keep painting the LIVE
    directory dressed as a read-only snapshot window behind the "No snapshots yet" message below.
    Same hard, untransitioned idiom as `--traveling` above (Vue2's own `.tm-fwin--empty`,
@@ -558,7 +554,7 @@ onUnmounted(() => {
   background-repeat: no-repeat;
   background-position: center center;
 }
-/* Fix wave A4 (deferred from A2's audit-stage.md #4): Vue2 parity byte-for-byte
+/* Vue2 parity byte-for-byte
    (`.tm-stage__clone-media-placeholder`, TimeMachineStage.vue:2936-2940) -- the stand-in box
    `sanitizeClonedNode` (see this file's own script-block comment) swaps in for every cloned
    video/canvas element, in place of the dead black box either would otherwise render as. */
@@ -577,7 +573,7 @@ onUnmounted(() => {
   -webkit-backdrop-filter: var(--tm-glass-blur);
 }
 
-/* Fix wave A2 (audit-stage.md #9, priority list item 4): Vue2's own `.tm-stage__gear-tooltip`/
+/* Vue2's own `.tm-stage__gear-tooltip`/
    `.tm-stage__gear` pair (TimeMachineStage.vue:3253-3263) -- position 20px/24px (not 8px/16px),
    no fixed circular hit box (Vue2 sizes purely off the icon's own intrinsic box; `padding: 8px`
    here keeps a reasonable touch target without inventing a filled circle Vue2 never has), resting
@@ -604,7 +600,7 @@ onUnmounted(() => {
   transition: transform 0.2s ease, color 0.2s ease;
 }
 .tm-stage__gear:hover { color: var(--tm-chrome-text); transform: rotate(45deg); }
-/* Fix wave A4: the inline MDI cog-outline SVG's own intrinsic box -- 20px matches this button's
+/* The inline MDI cog-outline SVG's own intrinsic box -- 20px matches this button's
    previous `font-size: 20px` (the Unicode glyph's own rendered size before this port). */
 .tm-stage__gear-icon { width: 20px; height: 20px; }
 
@@ -640,7 +636,7 @@ onUnmounted(() => {
   background: var(--tm-bottom-bar-exit-bg);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  /* Fix wave A2 (audit-stage.md #13, priority list item 16): Vue2's own `&__exit` rule
+  /* Vue2's own `&__exit` rule
      (TimeMachineStage.vue:3502-3512) declares NO transition at all -- its hover is an instant,
      untransitioned snap. The port previously inherited a 0.15s transition from the shared
      `.tm-stage__bar-btn` rule that Vue2 never has here; left undeclared now, matching Vue2. */
@@ -648,7 +644,7 @@ onUnmounted(() => {
 .tm-stage__bar-btn--exit:hover { background: var(--tm-bottom-bar-exit-hover-bg); }
 .tm-stage__bar-btn--restore {
   background: var(--tm-accent);
-  /* Fix wave A2 (audit-stage.md #13, priority list item 14): Vue2's own literal
+  /* Vue2's own literal
      (`background 0.15s ease, opacity 0.15s ease`, 3521) -- plain `ease`, not `var(--ease)`'s
      custom cubic-bezier curve (a port-only substitution `.tm-stepper__btn`'s own transition made
      too, see TimeMachineStepper.vue). Scoped to `--restore` only now that `--exit` has none. */
@@ -657,7 +653,7 @@ onUnmounted(() => {
 .tm-stage__bar-btn--restore:hover:not(:disabled) { background: var(--tm-accent-hover); }
 .tm-stage__bar-btn--restore:disabled { opacity: 0.5; cursor: default; }
 
-/* Fix wave A2 (audit-stage.md #3, `.tm-stage__empty`/`-title`/`-sub`): Vue2 parity byte-for-byte
+/* Vue2 parity byte-for-byte
    (TimeMachineStage.vue:3339-3356) -- centered focal message filling the space the (now hidden,
    `.tm-fwin--empty` above) live window used to occupy while a volume has zero snapshots.
    `pointer-events: none` so this full-stage overlay never swallows clicks meant for the bottom bar
@@ -696,7 +692,7 @@ onUnmounted(() => {
   from { opacity: 1; }
   to { opacity: 0; }
 }
-/* Fix wave A2 (audit-stage.md #7, priority list item 11): Vue2's own reduced-motion override
+/* Vue2's own reduced-motion override
    (`transition: none`, TimeMachineStage.vue:3119-3127) collapses this exit fade to an instant cut
    rather than an animated one -- ported here as `animation: none` (this port's own mechanism is a
    keyframe animation, not a transition) PLUS an explicit `opacity: 0` so the element still actually

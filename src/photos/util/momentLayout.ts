@@ -1,5 +1,5 @@
 // SP15-P1-T2: Moments mosaic layout engine — a pure function, no Date/random/DOM dependency.
-// Ported line-by-line from Vue2 NimoOS-UI 899af59b:src/views/Photos/PhotosSmartViewsView.vue:322-357
+// Ported line-by-line from the Vue 2 panel 899af59b:src/views/Photos/PhotosSmartViewsView.vue:322-357
 // (that side was already a module-level `export function`, designed to be unit-testable as-is).
 // The only changes are the snake_case → camelCase field rename and the type annotations; the
 // rules themselves are unchanged.

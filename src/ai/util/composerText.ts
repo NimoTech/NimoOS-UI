@@ -67,13 +67,12 @@ export function scanMention(text: string, caret: number): MentionScan {
 }
 
 /**
- * P1c1 acceptance patch task 4 — prefix written to text: `'@' + segments.join('/') + '/'`
+ * Prefix written to text: `'@' + segments.join('/') + '/'`
  * (when segments are empty it's just bare `'@'`, no trailing slash). Originally
  * `buildDrillText` and `buildPopText` each inlined this logic; now both changed to call this
  * function — pure deduplication, both retain their existing behavior/tests. Also the sole
  * authoritative prefix source for `parseActiveMention` to slice-compare when checking "whether
- * the recorded mention is still valid". See p1c1-patch-task-4-brief.md "root cause" and "target
- * design" sections.
+ * the recorded mention is still valid".
  */
 export function mentionPrefix(segments: string[]): string {
   return '@' + (segments.length ? segments.join('/') + '/' : '')

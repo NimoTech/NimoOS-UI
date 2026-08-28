@@ -1,5 +1,5 @@
 // P6a-T6: PlacesMap.vue —— 地点页的 SVG 地图舞台。
-// 逐条对应 task-6-brief.md 的「必含测试清单」,补充覆盖结构规格 1-8 与删码清单 5 处。
+// 逐条对应「必含测试清单」,补充覆盖结构规格 1-8 与删码清单 5 处。
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { visitedDots, type Place } from '../../util/placesMap'
@@ -23,7 +23,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const themeCssRaw = fs.readFileSync(path.resolve(__dirname, '../../../styles/theme.css'), 'utf8')
-// Fix-5 (owner acceptance, 2026-08-17): parity's own photos-places.scss, needed to verify the
+// Note: parity's own photos-places.scss, needed to verify the
 // `.geo-pin:hover` glow rule now governs from THERE (purple `rgba(var(--accent-rgb), …)`) rather
 // than from this component's own (now-deleted) local `--pin-glow`-consuming duplicate.
 const placesParityScssRaw = fs.readFileSync(
@@ -277,10 +277,10 @@ describe('结构规格 4/8: .pin-scale 几何声明 + hover 发光引用(补测,
     expect(rule!.body).toMatch(/transform-origin:\s*center/)
   })
 
-  // Fix-5 (owner acceptance, 2026-08-17, P6a overturned): this local `.geo-pin:hover` rule (blue
+  // Note: this local `.geo-pin:hover` rule (blue
   // `var(--pin-glow)`) is DELETED from PlacesMap.vue's own `<style scoped>` — it was shadowing
   // parity's already-correct, byte-transcribed-from-Vue2 purple rule at a cascade tie (see
-  // PlacesMap.vue's own Fix-5 header comment). Retargeted: assert the local rule is gone, and
+  // PlacesMap.vue's own header comment on this fix). Retargeted: assert the local rule is gone, and
   // that parity's own `.photos-root .geo-pin:hover` (photos-places.scss) is what actually governs
   // the glow now, using the purple `rgba(var(--accent-rgb), 0.7)` family Vue2 itself uses.
   it('本地不再有 .geo-pin:hover 规则(已删除,让 parity 接管)', () => {

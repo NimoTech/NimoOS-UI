@@ -1,4 +1,4 @@
-// Ported verbatim (logic unchanged, types added) from Vue2 NimoOS-UI
+// Ported verbatim (logic unchanged, types added) from the Vue 2 panel
 // src/store/modules/photos.js:75-76 (MONTH_NAMES), :92-115 (format helpers),
 // :117-189 (assetToPhoto), :215-219 (groupToMonth), and
 // src/utils/countryFromCoords.js (countryFromCoords).

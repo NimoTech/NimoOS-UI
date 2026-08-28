@@ -89,8 +89,8 @@ const cssKeepLines = blankComments(rawSource)
 // from Appendix D §D.1, 226 → **293** (constant name changes with number, this file's convention;
 // 226 + 65 + 2 = 293, the 2 are non-k-prefix classes nme-content/ProseMirror added by R9, see section below).
 // 🔴 Both governance/plan versions of "missing 66 classes / have 21" are incorrect (E-39),
-// coordinator's decision R9 corrected final value to 293, independent reproduction command see
-// `.superpowers/sdd/p5d-gen-r8r9-sim.mjs` (T2 report pasted baseline state output
+// coordinator's decision R9 corrected final value to 293, independently reproduced with a
+// standalone script (baseline state output
 // **before** editing this file: old 225 / new 225, strict superset self-proof).
 // K45 (decision R1) moved-in .k-btn.text doesn't go in this whitelist — it's `text` within
 // compound class `.k-btn.text`, the "no over-moving" regex below (see) can't scan `text` inside
@@ -102,10 +102,9 @@ const cssKeepLines = blankComments(rawSource)
 // :1572-1672(S6), plus KFileViewer.vue:71-76 + :102-119(KF)) adds **55** k-prefix new classes
 // listed verbatim in P5e Appendix D §D.7.1, 293 → **348** (constant name changes with number,
 // this file's convention).
-// 🔴 Final value per decision R8 (T0 review independently reproduced with own rewritten simulator,
-// not T0's self-report); T2 work first action already independently re-ran
-// `.superpowers/sdd/p5e-fixtures/scripts/sim-r8r9.mjs` and `classes2.mjs`,
-// reproduced 292→347 / 293→348 / 16→19 and 74=54/17/3, output pasted verbatim in T2 report.
+// 🔴 Final value per decision R8 (independently reproduced with a separately rewritten simulator,
+// not from self-reported numbers); independently re-ran the reproduction script,
+// reproduced 292→347 / 293→348 / 16→19 and 74=54/17/3.
 // ⚠️ **The 1 difference between "constant length ≠ NEW_RE count" is pre-existing, don't "fix" it** —
 // that one is `knowledge-app`, true cause is NEW_RE's `k(?:2|n)?-` branch requires `k-`/`k2-`/`kn-`,
 // but `knowledge-app` is `kn` + `o`, **doesn't match at all** (decision R8 corrected
@@ -2030,7 +2029,7 @@ describe('guard gap ③′ extended (ticket 3b) — same bare-color template sca
 // 【Newly added in P5e-T8, ruling R23】Fixes the gap from T4's review Important-1, "the ancestor-chain
 // conclusion has zero automated guarding".
 //
-// Fact (proven by a probe T4's own review added; see p5e-task-4-review.md §3-B / ruling R23): add one line,
+// Fact (proven by a probe added during review; see ruling R23): add one line,
 // `transform: translateZ(0)`, to `.knowledge-app` → the whole suite still comes back 4134/4134 green. K46's
 // entire argument (that `.k-fileviewer-host`'s `position: fixed; inset: 0` can fill the viewport, on the
 // premise that `.knowledge-app` and the whole real DOM ancestor chain above it up to <html> never establish a

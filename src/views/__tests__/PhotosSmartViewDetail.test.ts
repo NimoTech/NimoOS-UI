@@ -1,6 +1,6 @@
-// SP7-P7a-T6: PhotosSmartViewDetail.vue -- smart view detail page shell (byId data source +
+// PhotosSmartViewDetail.vue -- smart view detail page shell (byId data source +
 // header + three menus + delete confirmation + export 401 fix + two-section grid). Maps
-// item by item to task-6-brief.md's "required cases" checklist.
+// item by item to the "required cases" checklist.
 //
 // Test strategy: the store (usePhotosSmartViews) uses its real implementation; only the
 // shared-package service is mocked -- byId's "the view automatically follows once the store
@@ -57,7 +57,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 // directly is both the simplest and most reliable approach -- the test file and the
 // component's internals end up sharing the exact same `mockLb.openAt`.
 //
-// Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>`
+// This page now also mounts a real `<PhotoLightbox>`
 // (it never did before). That component's own internals call `useLightbox()` too and read
 // `lb.open.value`/`lb.list.value`/etc directly in a `watch()` and its template's `v-if` --
 // the original `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after
@@ -96,7 +96,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// Fix-12 (owner acceptance, 2026-08-14): fill in `mockLb` (declared above, before `vue` was
+// Fill in `mockLb` (declared above, before `vue` was
 // ready) with real `ref()`s now that normal imports have settled -- see that declaration's own
 // comment for why this two-step construction is necessary. Mutates the same object identity the
 // `vi.mock` factory above already closed over.
@@ -318,8 +318,8 @@ describe('.sv-detail-bar -- back entry + last-updated time', () => {
 })
 
 // fix round 1 · M5 (brief §3 explicitly requires this mount-point assertion; the original version had 0 grep hits) ──────────────
-// P7a-T7 originally mounted a dedicated SmartViewConditionEditor component here (chips +
-// an "Add condition" popover). Task 8 (SP15-P2c, ported from Vue2 NimoOS-UI 33b05636
+// This originally mounted a dedicated SmartViewConditionEditor component here (chips +
+// an "Add condition" popover). Later work (ported from the Vue 2 page's
 // PhotosSmartViewDetail.vue:26-30/:700-710, "user-added requirement") removes the add entry as a
 // deliberate product decision -- only removable chips survive. Once `add` was gone the
 // component was down to a bare v-for with no local state, so it no longer earned its own
@@ -878,11 +878,11 @@ describe('SP15-P2c Task 6: header action row', () => {
     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
   })
 
-  // Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): the export toast, edit-mode
+  // The export toast, edit-mode
   // select bar, and library picker used to be template-root SIBLINGS of `.photos-root` rather
   // than its DOM descendants, so none of parity's `.photos-root .sv-select-bar` / `.sv-toast`
   // descendant selectors (photos-smartview.scss:550-567/675) could match -- the exact same root
-  // cause as Fix-1 item 3's "New album" modal bug (acceptance-fix-report.md §F1). Same fix:
+  // cause as the "New album" modal bug elsewhere. Same fix:
   // nest them back inside `.photos-root`.
   describe('Fix-2 item 5: the tail section is a real descendant of .photos-root', () => {
     it('the select bar renders inside .photos-root (so parity .sv-select-bar can match)', async () => {
@@ -1246,7 +1246,7 @@ describe('delete smart view', () => {
 })
 
 // ── duplicate ──────────────────────────────────────────────────────────────────
-// Fix-10 (owner acceptance, 2026-08-14): both cases below used to assert against the generic
+// Both cases below used to assert against the generic
 // `useToast()` -- Vue2's real duplicate confirmation is `window.PhotosToast.show(...)`, the
 // photos-private bottom-pill toast. Updated to assert against `usePhotosToast()`'s queue.
 describe('duplicate', () => {
@@ -1316,10 +1316,10 @@ describe('convert to regular album', () => {
     expect(push).toHaveBeenCalledWith('/photos/albums/al-new')
   })
 
-  // Fix-10 (owner acceptance, 2026-08-14): Vue2's real convert-success confirmation is
+  // Vue2's real convert-success confirmation is
   // `window.PhotosToast.show({ icon: 'album', title: 'Converted to regular album' })` -- this
-  // page's own `doConvertToAlbum()` used to call the generic `useToast()` instead, so the
-  // owner never saw a bottom-pill confirmation for it. No prior test asserted this toast at
+  // page's own `doConvertToAlbum()` used to call the generic `useToast()` instead, so a
+  // bottom-pill confirmation never appeared for it. No prior test asserted this toast at
   // all (net-new coverage, not a changed assertion).
   it('shows the photos-private toast (album icon) on a successful convert', async () => {
     convertFromSmartView.mockResolvedValue({ id: 'al-new' } as never)
@@ -1477,7 +1477,7 @@ describe('two-section photo grid', () => {
   })
 })
 
-// Fix-12 (owner acceptance, 2026-08-14): this page always called `lb.openAt` (state opened,
+// This page always called `lb.openAt` (state opened,
 // network fired) but never mounted a `<PhotoLightbox>` of its own -- nothing on this page's own
 // tree ever rendered the photo. Added the mount; these cases assert the DOM actually appears
 // (not just that `openAt` was called, which every case above already covered) and that the
@@ -1710,11 +1710,10 @@ describe('style: hover cascade attribution variant', () => {
 
 // ── red goes through a token, no literal color value ────────────────────────────────────────────────────
 describe('red goes through a token, not hardcoded as a literal', () => {
-  // Fix-2 item 6 (owner acceptance, 2026-08-13): --remove-fg switched to --danger throughout
+  // --remove-fg switched to --danger throughout
   // this file -- --remove-fg is a global token not shadowed on `.photos-root`, so it did not
   // follow the private photos-is-light toggle; --danger is declared directly on `.photos-root`
-  // and deliberately invariant across both of its own themes by spec (see the report's sweep
-  // table).
+  // and deliberately invariant across both of its own themes by spec.
   it('the style block contains the --danger family, not the literal #FF6B5C', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
     expect(style).toContain('--danger')
@@ -1723,7 +1722,7 @@ describe('red goes through a token, not hardcoded as a literal', () => {
   })
 })
 
-// Fix-1 item 1 (owner acceptance, 2026-08-13): this page is the SMART ALBUM detail (saved
+// This page is the SMART ALBUM detail (saved
 // search / conds+threshold+live, makeSv's own shape above) -- Vue2 renders it as
 // <photos-smart-view-detail> INSIDE PhotosAlbumsView.vue (:23-45), i.e. nested under
 // activeNav==='albums', the exact same nesting as <photos-album-detail> a few lines above it

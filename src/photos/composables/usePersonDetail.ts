@@ -1,4 +1,4 @@
-// Detail page data orchestration. Ported from Vue2 NimoOS-UI
+// Detail page data orchestration. Ported from the Vue 2 panel's
 // src/views/Photos/PhotosPersonDetail.vue:596 (watch), :728-759 (loadPerson/groupByMonth).
 // Deviation spec 6: Vue2 has no race guards; rapid clicks on timeline/relations jumping to
 // others, slow old responses overwrite new page data. Here use useLightbox.hydrateDetail

@@ -15,14 +15,14 @@ import zh from '../../i18n/zh_cn'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
 const listVolumesMock = vi.fn()
-// The stage never talks to the network itself (Task 6's own store actions do), but mounting it
+// The stage never talks to the network itself (the store's own actions do), but mounting it
 // still pulls in the snapshotBrowse store module, which imports the service client and the router
 // singleton — stub both so an accidental real call in a future edit fails loudly instead of hanging.
 vi.mock('@nimotech/nimoos-service', () => ({
   service: { snapshot: { listVolumes: () => listVolumesMock(), list: vi.fn(), restore: vi.fn() }, folder: { getList: vi.fn() } },
 }))
 vi.mock('../../router', () => ({ router: { push: vi.fn(), replace: vi.fn() } }))
-// Task 7's own TimeMachineDepthStack (mounted at z-tier 3 while active) renders one
+// TimeMachineDepthStack (mounted at z-tier 3 while active) renders one
 // SnapshotPreviewWindow per visible slot, each fetching its own listing -- stub it so this suite
 // stays about the stage's own wiring, not that already-tested fetch behavior.
 vi.mock('../util/snapshotPreviewCache', () => ({ getSnapshotPreview: vi.fn().mockResolvedValue({ entries: [], error: false }) }))
@@ -119,8 +119,7 @@ describe('TimeMachineStage shell', () => {
     expect(liveFwin.attributes('style') ?? '').toContain('scale')
   })
 
-  // Fix wave A4 (deferred from A2's audit-stage.md #4, "Clone-backdrop media placeholder
-  // DOM-walk"): Vue2's own `sanitizeClonedNode` (TimeMachineStage.vue, ported into this file's own
+  // Clone-backdrop media placeholder DOM-walk: Vue2's own `sanitizeClonedNode` (TimeMachineStage.vue, ported into this file's own
   // `sanitizeClonedNode`/`captureClone`) replaces every cloned `<video>`/`<canvas>` with an inert
   // `.tm-stage__clone-media-placeholder` div -- a `cloneNode(true)` copy of either never preserves
   // the decoded frame/drawn bitmap, so left alone it would render as a dead black box behind the
@@ -165,7 +164,7 @@ describe('TimeMachineStage shell', () => {
     expect(w.emitted('open-settings')).toHaveLength(1)
   })
 
-  // Fix round (review finding 1): `.tm-fwin--traveling` reflects `tmTravelActive` (the
+  // `.tm-fwin--traveling` reflects `tmTravelActive` (the
   // reveal-gate flag TimeMachineDepthStack.vue's own armReveal/settle owns), NOT `tmTravel` (a
   // pure "navigation in flight" signal that clears within milliseconds, long before a real dolly
   // sweep finishes) -- see snapshotBrowse.ts's own header comment on tmTravelActive for why the
@@ -224,8 +223,8 @@ describe('TimeMachineStage shell', () => {
       expect(spy).not.toHaveBeenCalled()
     })
 
-    // Critical fix (final review C1): the browser's default focus target after clicking a file
-    // row/glass/blank space (or after Task 10's own deep-link auto-enter, which never focuses
+    // The browser's default focus target after clicking a file
+    // row/glass/blank space (or after the deep-link auto-enter path, which never focuses
     // anything) is document.body itself -- NOT some Teleported dialog. The old guard treated
     // document.body exactly like a Teleported-dialog target (`stageRoot.value &&
     // !stageRoot.value.contains(target)`, true for document.body since it is never a descendant
@@ -263,7 +262,7 @@ describe('TimeMachineStage shell', () => {
     })
   })
 
-  describe('TimeMachineDepthStack mounting (Task 7)', () => {
+  describe('TimeMachineDepthStack mounting', () => {
     it('mounts the depth stack only while active/fading (never while fully inactive)', async () => {
       const w = mountIt()
       expect(w.find('.tm-depth-stack').exists()).toBe(false)
@@ -272,7 +271,7 @@ describe('TimeMachineStage shell', () => {
       expect(w.find('.tm-depth-stack').exists()).toBe(true)
     })
 
-    // Fix round (review finding 2): TimeMachineDepthStack.vue must measure the STAGE root
+    // TimeMachineDepthStack.vue must measure the STAGE root
     // (`.tm-stage`, provided by TimeMachineStage.vue via tmStageRoot.ts), NOT its own
     // `.tm-depth-stack` wrapper -- the wrapper's own CSS already reserves the bottom 80px band,
     // so measuring IT double-subtracts that band inside resolveSlotPose/computeVisibleStripCap.
@@ -321,8 +320,8 @@ describe('TimeMachineStage shell', () => {
     })
   })
 
-  describe('TimeMachineRail mounting (Task 8)', () => {
-    // Fix wave A2 (audit-stage.md #3, empty state): the rail region now shows the rail ONLY while
+  describe('TimeMachineRail mounting', () => {
+    // The rail region now shows the rail ONLY while
     // loading or non-empty (Vue2's own `v-else-if="flatItems.length === 0"` split, see the "empty
     // state" describe block below) -- this test sets up a real snapshot first so it still exercises
     // the "mounts while active" half unambiguously, without accidentally landing on the new empty
@@ -364,7 +363,7 @@ describe('TimeMachineStage shell', () => {
     })
   })
 
-  // Fix wave A2 (audit-stage.md #3, priority list item 3): the entire empty state was previously
+  // The entire empty state was previously
   // unimplemented -- a volume with zero snapshots showed nothing where Vue2 shows a centered
   // "No snapshots yet" message and hides the live window behind it (`.tm-fwin--empty`).
   describe('Empty state (Vue2 parity: "No snapshots yet")', () => {
@@ -405,7 +404,7 @@ describe('TimeMachineStage shell', () => {
     })
   })
 
-  describe('ArrowUp/ArrowDown stepping (Task 7, preempts Task 9\'s own keyboard line item)', () => {
+  describe('ArrowUp/ArrowDown stepping (preempts the stepper\'s own keyboard line item)', () => {
     async function setupBrowsing() {
       const browse = useSnapshotBrowseStore()
       const files = useFilesStore()
@@ -482,7 +481,7 @@ describe('TimeMachineStage shell', () => {
     })
   })
 
-  describe('TimeMachineStepper wiring + bottom bar (Task 9)', () => {
+  describe('TimeMachineStepper wiring + bottom bar', () => {
     async function setupBrowsing() {
       const browse = useSnapshotBrowseStore()
       const files = useFilesStore()
@@ -565,9 +564,9 @@ describe('TimeMachineStage shell', () => {
       expect(spy).toHaveBeenCalledTimes(1)
     })
 
-    // Task 9's own contract for Task 14: this button only announces intent, it does not call
+    // This button only announces intent, it does not call
     // browse.restoreItems(...) itself -- see TimeMachineStage.vue's own header/template comment on
-    // why (Task 14 wires the real orchestration in Files.vue, which listens for this emit).
+    // why (the restore orchestration wires the real handling in Files.vue, which listens for this emit).
     it('bottom bar Restore selection only emits restore-selection, it does not call browse.restoreItems itself', async () => {
       const w = mountIt()
       const browse = useSnapshotBrowseStore()
@@ -599,13 +598,13 @@ describe('TimeMachineStage shell', () => {
   })
 })
 
-// Fix wave B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): the real
+// Verified against a real browser in dark theme: the real
 // window must follow New-UI's OWN theme (dark in dark theme, white in light theme), not TM
 // chrome's fixed-white `--tm-panel-bg-solid` -- see this file's own `.tm-fwin--active` <style>
-// comment (Ruling B-1) for the full rationale. jsdom applies no CSS at all, so the only way to
+// comment for the full rationale. jsdom applies no CSS at all, so the only way to
 // pin this is reading the component's own source text, same technique TimeMachineStepper.test.ts/
 // TimeMachineRail.test.ts already use for their own CSS-literal regression guards.
-describe('TimeMachineStage — real window background follows the app theme (fix wave B, B1)', () => {
+describe('TimeMachineStage — real window background follows the app theme', () => {
   it('.tm-fwin--active uses the global, theme-following --panel-bg-solid, not TM chrome\'s fixed-white --tm-panel-bg-solid', () => {
     const src = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineStage.vue'),

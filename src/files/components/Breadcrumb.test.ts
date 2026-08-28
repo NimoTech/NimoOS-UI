@@ -18,7 +18,7 @@ function extractStyle(src: string): string {
   return m[1].replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
-// Cascade-aware guard for fix round 1 · F1: a plain source-text regex on `.crumb`
+// Cascade-aware guard: a plain source-text regex on `.crumb`
 // cannot distinguish the bare class selector from a type-qualified one like
 // `button.crumb` — the current-segment <span> only avoids the pointer cursor
 // because no rule matching it (by both tag and class) declares `cursor: pointer`.
@@ -61,7 +61,7 @@ describe('Breadcrumb', () => {
     expect(w.find('.crumb-star').exists()).toBe(true)
   })
 
-  // Fix wave D (D1, owner acceptance 2026-08-26): snapshots are read-only -- Vue2's own
+  // Snapshots are read-only -- Vue2's own
   // GirdView.vue hides the favorite affordance while `isInSnapshot` ("never while browsing a
   // snapshot"). The caller passes `browse.isSnapshotView` as `hideFavorite`; this also restores
   // front/back parity with SnapshotPreviewWindow.vue's hand-copied breadcrumb, which never had a
@@ -116,8 +116,7 @@ describe('Breadcrumb', () => {
   // ── Two-line cap ─────────────────────────────────────────────────────────
   // Only the parts that survive without a layout engine are asserted here. jsdom
   // reports every box as 0x0, so the measuring loop can never collapse anything
-  // and the geometry itself has to be verified in a real browser — see the
-  // screenshots in .superpowers/sdd/2026-08-13-files-bugfix-batch/.
+  // and the geometry itself has to be verified in a real browser.
 
   it('hides nothing and caps nothing when the environment reports no layout', async () => {
     const deep = '/NimoOS-HD/a/b/c/d/e/f/g/h'

@@ -1,9 +1,8 @@
-// DOM-free math backing the Vue2-parity Time Machine stage (see
-// docs/superpowers/plans/2026-08-25-files-time-machine-vue2-parity.md, Task 2).
+// DOM-free math backing the Vue2-parity Time Machine stage.
 //
 // This rewrite ports the "single camera-dolly slot model" from Vue2's
-// components/filebrowser/components/timeMachineMath.js (Fix Round 9/13,
-// see that file's own extensive header comment for the full history):
+// components/filebrowser/components/timeMachineMath.js
+// (see that file's own extensive header comment for the full history):
 // fisheyeScale (cursor-distance tick magnification), resolveDollySlots
 // (name-keyed depth-slot assignment) and resolveSlotPose (per-slot pose).
 // New-UI adds clampStepIndex, a small helper Vue2 never had as a standalone
@@ -11,17 +10,17 @@
 // step" across the component itself); here they are fused into one call
 // that returns the next index or null when already at a boundary.
 //
-// Signature deviations from Vue2 (deliberate, see task-2-report.md):
+// Signature deviations from Vue2 (deliberate):
 // - fisheyeScale drops Vue2's generic `options` bag in favor of fixed
 //   constants (FISHEYE_*) for new call sites, but keeps an OPTIONAL options
 //   param purely for backward compatibility with computeFisheyeScales below
 //   (kept-for-compat export, see that section).
 // - resolveDollySlots takes `names: string[]` directly (not an array of
-//   `{ name }` objects), unlike Vue2's `flatItems`. `pinNames` (Fix Round
-//   11/M2-F15's multi-step-jump continuity fix) IS ported -- see below.
+//   `{ name }` objects), unlike Vue2's `flatItems`. `pinNames` (Vue2's
+//   multi-step-jump continuity fix) IS ported -- see below.
 // - resolveSlotPose returns `{ x, y, scaleX, scaleY, dim, z }` (GSAP-native
 //   property names -- `x`/`y`/`scaleX`/`scaleY` map straight onto
-//   `gsap.set(el, pose)` in Task 3's choreography) instead of Vue2's
+//   `gsap.set(el, pose)` in this module's own choreography) instead of Vue2's
 //   `{ offsetY, scaleX, scaleY, opacity, brightness }`. `dim` is
 //   `1 - brightness` (the `__dim` overlay's own opacity, per the design
 //   spec) rather than a brightness multiplier. `z` is an explicit stacking
@@ -34,9 +33,9 @@
 //   transition -- the stage's own `overflow: hidden` plus the exit pose's
 //   large `y` already keeps it out of view without needing a second signal.
 //
-// Review round 1 (2026-08-25): the controller ruled the spec's pixel/motion
-// 1:1 mandate overrides the brief's sketched minimalism on three points, so
-// scaleX/scaleY, the stageHeight param, and pinNames are now restored to
+// Design review: the spec's pixel/motion
+// 1:1 mandate overrides an earlier sketched minimalism on three points, so
+// scaleX/scaleY, the stageHeight param, and pinNames are restored to
 // Vue2's exact semantics (formulas/values below are byte-identical to
 // timeMachineMath.js's own resolveSlotPose/resolveDollySlots) -- only the
 // field names/shapes (x/y/scaleX/scaleY/dim/z vs offsetY/scaleX/scaleY/
@@ -44,16 +43,16 @@
 // calling convention remain New-UI-specific.
 
 // --- Pruned kept-for-compat exports (history, for anyone grepping this area) -----------------
-// The colleague's earlier card-deck mockup variant (M2-F6/F7) exported RailNode/
-// LegacyFisheyeOptions/computeFisheyeScales/buildRailNodes, all consumed only by the colleague's
-// own TimeMachineRail.vue. Task 6 (Ruling P2) already removed this section's siblings
+// An earlier card-deck mockup variant exported RailNode/
+// LegacyFisheyeOptions/computeFisheyeScales/buildRailNodes, all consumed only by that earlier
+// TimeMachineRail.vue. An earlier cleanup already removed this section's siblings
 // (DECK_WINDOW/buildVisibleStack/StackEntry/stepSelectedIndex) alongside TimeMachineDeck.vue/
-// TimeMachineOverlay.vue. Task 8 rewrote TimeMachineRail.vue wholesale (new props/emits contract,
+// TimeMachineOverlay.vue. A later rewrite of TimeMachineRail.vue wholesale (new props/emits contract,
 // day-grouping now owned by the component itself via storage/util/snapshotView's
 // groupSnapshotsByDay, and its own name-keyed node-building rather than this module's numeric
 // flatIndex-keyed one) -- confirmed by grep that nothing outside this module and its own test file
 // referenced RailNode/LegacyFisheyeOptions/computeFisheyeScales/buildRailNodes any longer, so all
-// four were deleted here in that same task. `LegacyFisheyeOptions` itself is NOT one of the four --
+// four were deleted here at that point. `LegacyFisheyeOptions` itself is NOT one of the four --
 // fisheyeScale below still takes an optional `options` param of that shape (kept, still directly
 // tested); only the type's "Legacy" name is a holdover from when it existed solely to serve
 // computeFisheyeScales.
@@ -85,7 +84,7 @@ export interface SlotPose { x: number; y: number; scaleX: number; scaleY: number
 // `minScale` beyond it. Slope is 0 at both t=0 and t=1 (no visible "kink"
 // where neighbouring ticks blend in/out) -- ported verbatim from Vue2.
 // `options` is optional and unused by every real call site today (TimeMachineRail.vue's own
-// updateScales() -- Task 8 -- calls this with one argument); it survives Task 8's pruning of
+// updateScales() calls this with one argument); it survives the later pruning of
 // computeFisheyeScales (its only former caller) purely because it is still directly tested and
 // costs nothing to keep as a parameterization escape hatch.
 export function fisheyeScale(distancePx: number, options: LegacyFisheyeOptions = {}): number {
@@ -97,8 +96,8 @@ export function fisheyeScale(distancePx: number, options: LegacyFisheyeOptions =
   return minScale + (maxScale - minScale) * eased
 }
 
-// --- Fix wave G (Ruling G-1, owner acceptance 2026-08-26): fisheye rail redesign --------------
-// Owner design change, overriding Vue2's own scroll-based rail: the rail band is now a FIXED
+// --- Fisheye rail redesign --------------------------------------------------------------------
+// Design change, overriding Vue2's own scroll-based rail: the rail band is now a FIXED
 // [top, bottom] region (TimeMachineRail.vue's own header comment has the full geometry/CSS
 // derivation) with NO scrollbar, ever -- every snapshot's tick maps into that fixed extent instead
 // of a scrolling list. "Evenly distribute every node across the fixed band" itself needs no
@@ -106,12 +105,11 @@ export function fisheyeScale(distancePx: number, options: LegacyFisheyeOptions =
 // already does exactly that with zero JS measurement, the same "let the browser do the layout
 // math" posture this module's own header comment already praises for `.file-grid`'s `auto-fill`
 // column mechanism -- a JS-computed "evenly spread N items across bandHeight" pure function was
-// drafted for this during Fix wave G's own implementation but deleted before landing once the CSS
+// drafted during this redesign's implementation but deleted before landing once the CSS
 // mechanism turned out to cover the exact same requirement with less code and no ResizeObserver
-// dependency; see this task's own fix-wave report for that trace, kept for anyone re-deriving why
-// no such helper exists here.
+// dependency; kept as a note for anyone re-deriving why no such helper exists here.
 //
-// The genuinely new pure-math surface this wave DOES need: with enough snapshots, resting ticks
+// The genuinely new pure-math surface this redesign DOES need: with enough snapshots, resting ticks
 // can end up sitting very close together (nothing left to evenly space them further apart with);
 // the fisheye no longer just SCALES a nearby tick in place (which alone does nothing to relieve
 // that crowding -- a bigger tick sitting exactly where a small one used to sit still visually
@@ -124,8 +122,7 @@ export function fisheyeScale(distancePx: number, options: LegacyFisheyeOptions =
 export interface FisheyeDisplacement { offset: number; scale: number }
 
 /**
- * Per-tick `{ offset, scale }` for the Apple/macOS-dock-style fisheye kernel (Fix wave G, Ruling
- * G-1) -- `centers` are each tick's OWN resting Y position (px, any coordinate space, as long as
+ * Per-tick `{ offset, scale }` for the Apple/macOS-dock-style fisheye kernel -- `centers` are each tick's OWN resting Y position (px, any coordinate space, as long as
  * it is the SAME space `cursorY` is measured in -- TimeMachineRail.vue's own caller uses real
  * `getBoundingClientRect()` centers, matching `fisheyeScale`'s existing convention), sorted
  * ascending (top to bottom); `scale` is exactly `fisheyeScale(centers[i] - cursorY, { radius,
@@ -214,8 +211,8 @@ export function fisheyeDisplacement(
 }
 
 /** Minimum resting spacing (px) between two consecutive MAIN ticks for their per-tick HH:MM label
- * to stay visible without asking (Fix wave G, Ruling G-1 -- see TimeMachineRail.vue's own template
- * comment on this override of wave A2's "resting labels always visible" rule). Chosen as the
+ * to stay visible without asking (see TimeMachineRail.vue's own template
+ * comment on this override of the earlier "resting labels always visible" rule). Chosen as the
  * label's own font-size (11.5px, `.tm-tick-label`) plus a little under one line of breathing room
  * (~6.5px) so two labels never visually touch/overlap at rest -- below this, a tick's label is
  * hidden unless the tick is inside the fisheye's own magnified zone (scale > 1) or is the current
@@ -223,8 +220,8 @@ export function fisheyeDisplacement(
 export const TM_RAIL_LABEL_MIN_GAP = 18
 
 /**
- * Whether a MAIN tick's own per-tick HH:MM label should be visible right now (Fix wave G, Ruling
- * G-1 -- see this module's own header comment on this section, and `TM_RAIL_LABEL_MIN_GAP`'s own
+ * Whether a MAIN tick's own per-tick HH:MM label should be visible right now (see this module's
+ * own header comment on this section, and `TM_RAIL_LABEL_MIN_GAP`'s own
  * comment for the threshold). Three independent reasons any one of which is enough:
  * - the rail is roomy enough at rest (average main-tick-to-main-tick spacing, `bandHeight /
  *   (mainCount - 1)`, is at or above `TM_RAIL_LABEL_MIN_GAP`) -- OR `bandHeight` has not been
@@ -232,7 +229,7 @@ export const TM_RAIL_LABEL_MIN_GAP = 18
  *   until a real measurement lands, the same "unmeasured degrades to the generous default" posture
  *   `resolveSlotPose`/`computeVisibleStripCap` already take elsewhere in this module for their own
  *   "stageHeight unknown" case.
- * - the tick IS the current selection -- kept unconditionally, Ruling G-1's own UX call: the "you
+ * - the tick IS the current selection -- kept unconditionally, a deliberate UX call: the "you
  *   are here" tick's label should never disappear just because the rail got crowded.
  * - the tick is inside the fisheye's own magnified zone right now (`scale > 1`) -- the whole point
  *   of the magnified region is to reveal detail a crowded rest state hides; a hovered tick is, by
@@ -251,8 +248,8 @@ export function shouldShowTickLabel(opts: { mainCount: number; bandHeight: numbe
 const DEFAULT_MAX_SLOTS = 10
 
 // Which snapshots occupy the visible depth slots for currentIndex in a
-// newest-first `names` list. Ported from Vue2's resolveDollySlots (Fix
-// Round 9/13): depth 0 is the selection itself, depth -1 is the one
+// newest-first `names` list. Ported from Vue2's resolveDollySlots:
+// depth 0 is the selection itself, depth -1 is the one
 // snapshot more recent than the selection (when one exists, unconditionally
 // included -- never capped by `maxSlots`), depths 1..maxSlots are the
 // receding older cascade. Returned farthest-first (depth descending) so a
@@ -261,7 +258,7 @@ const DEFAULT_MAX_SLOTS = 10
 // shifts), which is what lets a CSS/GSAP transition animate it rather than
 // tearing the node down and rebuilding one elsewhere.
 //
-// `pinNames` (ported from Vue2 Fix Round 11/M2-F15) force-includes specific
+// `pinNames` (ported from Vue2) force-includes specific
 // names at their own real (unclamped) depth regardless of the `[-1,
 // maxSlots]` window above. Without this, a multi-step tick/rail jump whose
 // target lies beyond the visible window (or whose departure lands beyond
@@ -293,7 +290,7 @@ export function resolveDollySlots(
 // Vue2's resolveSlotPose defaults exactly (offsetStep/scaleStep/
 // brightnessStep/floors/exitScale) -- only the field shapes differ, see this
 // module's own header comment for why.
-const SLOT_SCALE_STEP = 0.02 // smaller per depth, BOTH axes uniformly (Vue2's scaleStep -- Vue2 applied this to X only, see the owner-ruling comment below on resolveSlotPose for why this port applies it to both)
+const SLOT_SCALE_STEP = 0.02 // smaller per depth, BOTH axes uniformly (Vue2's scaleStep -- Vue2 applied this to X only, see the design-rationale comment below on resolveSlotPose for why this port applies it to both)
 const SLOT_MIN_SCALE = 0.78 // Vue2's minScale floor
 const SLOT_DIM_STEP = 0.06 // dimmer per depth (Vue2's brightnessStep, inverted: dim = 1 - brightness)
 const SLOT_MAX_DIM = 0.55 // Vue2's minBrightness floor (0.45), inverted
@@ -311,26 +308,25 @@ const EXIT_OFFSET_MULTIPLIER = 1.4 // stageHeight * this comfortably clears the 
 // higher (more negative) y, smaller (UNIFORM scale, see below), dimmer, all
 // floored so nothing shrinks/darkens to nothing even far down the cascade.
 //
-// Owner ruling E-1' (2026-08-26, supersedes an earlier same-day ruling that
-// flattened resting-depth scale to 1 -- see this task's fix-wave report for
-// the full back-and-forth): the owner's actual objection was never to
+// Design rationale (supersedes an earlier variant that
+// flattened resting-depth scale to 1): the actual objection was never to
 // per-depth SCALING itself -- a receding depth strip getting smaller *is*
 // the camera-dolly illusion, "the front window seen from farther away". The
 // objection was to Vue2's own ANISOTROPIC scaling: `scaleX` shrinking while
 // `scaleY` stayed pinned to 1 (the "thin peeking sliver" look) DISTORTS the
 // glyphs -- squishes them horizontally without shrinking them vertically to
 // match -- which reads as "some other kind of movement", not a clean,
-// undistorted "farther away" scale. The owner's binding rule: a promoted
+// undistorted "farther away" scale. The binding rule: a promoted
 // back panel must be exactly a transform-SCALED clone of the front window --
 // same aspect ratio, same relative element positions, nothing reflowing or
 // distorting, only uniformly smaller/larger and translated. So `scaleY` here
 // is no longer hardcoded to `1` for depths >= 1: it now tracks `scaleX`
 // exactly (both derived from the SAME formula Vue2 used for its own scaleX,
 // `Math.max(SLOT_MIN_SCALE, 1 - depth * SLOT_SCALE_STEP)`) -- uniform scale,
-// no distortion, still visibly "farther/smaller" per depth as the owner's
+// no distortion, still visibly "farther/smaller" per depth as the
 // dolly metaphor intends. The T(<=-1) exit pose was never anisotropic to
 // begin with (`scaleX === scaleY` already, Vue2's own invariant) and is
-// unaffected by this ruling either way.
+// unaffected by this decision either way.
 //
 // `stageHeight` (optional, ported from Vue2): when known, the T(-1) exit
 // offset is `stageHeight * EXIT_OFFSET_MULTIPLIER` (Vue2's real production
@@ -348,7 +344,7 @@ export function resolveSlotPose(depth: number, stageHeight?: number): SlotPose {
   if (depth === 0) {
     return { x: 0, y: 0, scaleX: 1, scaleY: 1, dim: 0, z: 0 }
   }
-  // Owner ruling E-1': uniform scale, both axes identical -- no anisotropic
+  // Uniform scale, both axes identical -- no anisotropic
   // X-only narrowing (was `scaleX: ..., scaleY: 1`). A single `scale` local
   // keeps the two fields byte-identical by construction, not by coincidence
   // of two separately-typed-out expressions drifting apart later.
@@ -363,8 +359,8 @@ export function resolveSlotPose(depth: number, stageHeight?: number): SlotPose {
   }
 }
 
-// --- Fix wave I (Ruling I-1, owner acceptance 2026-08-26): linked-cascade travel stack ----------
-// Owner report on a mid-flight screenshot of a big jump: the fly-through intermediate itself
+// --- Linked-cascade travel stack --------------------------------------------------------------
+// Bug report on a mid-flight screenshot of a big jump: the fly-through intermediate itself
 // moved, but the RESIDENT stack of receding slivers behind it sat static, and strips newly
 // entering the visible window popped in already at their final pose instead of sliding in. Root
 // cause: `dollySlots` (this component's own reactive slot list, TimeMachineDepthStack.vue) windows
@@ -374,11 +370,11 @@ export function resolveSlotPose(depth: number, stageHeight?: number): SlotPose {
 // no animation at all, while a name newly entering the NEW window mounts fresh, and `v-tm-pose`'s
 // own `mounted` hook (fires once, at insert, with NO animation by design -- see
 // TimeMachineDepthStack.vue's own header comment) sets it directly to its FINAL resting pose.
-// Owner ruling: EVERY travel (short steps AND a wave-H fly-through alike) must move the WHOLE
+// Fix: EVERY travel (short steps AND a long-jump fly-through alike) must move the WHOLE
 // visible stack as one linked cascade -- nothing pops or vanishes at rest mid-travel.
 //
 // `travelStackPlan` is the pure "what pose transition should every currently-relevant strip have"
-// layer this ruling needs, deliberately DOM-free (this module's own established convention) --
+// layer this fix needs, deliberately DOM-free (this module's own established convention) --
 // TimeMachineDepthStack.vue's own header comment on its `runTravel`/`tmTravel` watcher describes
 // exactly how the component wires this into real gsap.set/tween calls and the pinNames mechanism
 // that keeps a "leaving" strip mounted long enough to animate out instead of vanishing.
@@ -389,7 +385,7 @@ export interface TravelStackEntry {
   /** The pose this strip should visibly END its travel tween at. */
   toPose: SlotPose
   /** 'resident': visible in both the old and the new window -- a persisting/shifting strip, the
-   *  exact case the owner's own screenshot showed sitting static. 'entering': not in the old
+   *  exact case the bug report showed sitting static. 'entering': not in the old
    *  window, visible in the new one -- must start from an edge-clamped IMPLIED pre-travel pose,
    *  not pop in already at `toPose`. 'leaving': was in the old window, not in the new one -- keeps
    *  its own real old pose as `fromPose` and animates OUT via its own real (unclamped) new-depth
@@ -397,10 +393,10 @@ export interface TravelStackEntry {
    *  exit pose if the new depth crosses into the negative/"more recent" zone, or simply a deeper,
    *  dimmer receding pose if it is still on the positive/older side, just beyond the window's own
    *  cap -- no extra branching needed here, see `resolveSlotPose`'s own header comment). 'pinned':
-   *  neither natural window claims this name (e.g. a wave-H fly-through intermediate on a huge
+   *  neither natural window claims this name (e.g. a long-jump fly-through intermediate on a huge
    *  jump) -- present only because the caller passed it via `opts.extraNames`; treated like
    *  'entering' for the DEFAULT pose formula below, but the caller is expected to override it with
-   *  its own more specific logic (wave H's own backward/forward preset derivation) where one
+   *  its own more specific logic (the fly-through's own backward/forward preset derivation) where one
    *  exists -- see TimeMachineDepthStack.vue's own comment on merging the two. */
   role: 'resident' | 'entering' | 'leaving' | 'pinned'
 }
@@ -427,7 +423,7 @@ function clampEnteringDepth(rawDepth: number, maxSlots: number): number {
  * window (`resolveDollySlots(names, oldIndex, maxSlots)`, no pins -- the NATURAL pre-travel visible
  * set), the NEW window (`resolveDollySlots(names, newIndex, maxSlots)`, likewise natural), and
  * `opts.extraNames` (any additional names the caller wants covered even though NEITHER natural
- * window claims them -- wave H's own fly-through plan names, typically).
+ * window claims them -- the fly-through's own plan names, typically).
  *
  * `fromPose`: a RESIDENT or LEAVING strip's own real old depth (`idx - oldIndex`, unclamped -- it
  * really was there); an ENTERING or PINNED strip's own old depth CLAMPED via `clampEnteringDepth`
@@ -498,14 +494,14 @@ export function clampStepIndex(current: number, delta: number, count: number): n
   return next
 }
 
-// Task 7 addition: ported from Vue2's own computeVisibleStripCap
+// Ported from Vue2's own computeVisibleStripCap
 // (timeMachineMath.js) -- how many OLDER-cascade depth-stack strips actually
 // fit above `.tm-stage`'s own clip line, given the stage's real measured
 // height. Without this, `resolveDollySlots`' own `maxSlots` stays a flat 10
 // regardless of viewport height, and at ordinary window sizes most of that
 // cascade renders clipped off-canvas against the stage's `overflow: hidden`
-// (Vue2's own Fix Round 7b defect this fixed) -- see that fix round's header
-// comment in the Vue2 authority file for the full trace.
+// (a defect Vue2 itself fixed) -- see the Vue2 authority file's own header
+// comment for the full trace.
 //
 // Geometry (byte-identical formula to Vue2's own, deliberately NOT re-using
 // an options bag -- same "plain params over one bag" deviation this module's

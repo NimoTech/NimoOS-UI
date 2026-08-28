@@ -1,5 +1,4 @@
-// Fix wave C (toolbar redesign, owner-confirmed mockup: .superpowers/sdd/
-// 2026-08-25-files-time-machine-vue2-parity/files-toolbar-mock.html): FilesNewMenu.vue collapses
+// Toolbar redesign: FilesNewMenu.vue collapses
 // New folder/New file/Upload files/Upload folder into one accent-purple "New" dropdown. This
 // component owns ONLY the menu chrome + emits -- Files.vue wires each emit to its own
 // pre-existing handler (see Files.test.ts for that wiring's own coverage). Real reka-ui

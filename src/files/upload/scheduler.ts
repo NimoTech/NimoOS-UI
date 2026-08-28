@@ -19,7 +19,7 @@ export interface SchedulerDeps {
   upload?: typeof tusUpload
 }
 
-// Stable code strings — NOT prose. The UI layer (UploadPanel, Task 8) maps these
+// Stable code strings — NOT prose. The UI layer (UploadPanel) maps these
 // to zh_cn via uploadErrorKey. 409 is handled separately as error:'duplicate'.
 function humanize(status: number | null): string {
   if (status === 413) return 'no_space'

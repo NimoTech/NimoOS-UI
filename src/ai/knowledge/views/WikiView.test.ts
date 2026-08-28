@@ -1,5 +1,5 @@
 // SP8-P5f Task 6 — Component test for `WikiView.vue` (top half).
-// Blueprint `NimoOS-UI` @ `7a6ee6b7` `src/views/AI/Knowledge/WikiView.vue` (314 lines).
+// Blueprint the Vue 2 panel @ `7a6ee6b7` `src/views/AI/Knowledge/WikiView.vue` (314 lines).
 // 🔴 T7 will continue writing this file (summary / directory / recent changes / source view toggle / rescan / §9.15 XSS cases).
 //
 // ═══ mock strategy (governance §4.1 requires explicit statement) ═══
@@ -9,7 +9,7 @@
 //   if we mock out the store, that layer becomes equivalent to the test rewriting its own shadow implementation,
 //   "404 becomes business state, 500 becomes catch" degrades to "I say it returns null and it returns null".
 // 🔴 Shape (§4.1 table + `p5f-fixtures/README.md` §3):
-//   · `service.wiki.getRoots` → **already normalized by shared package** (`NimoOS-Service/src/wiki.ts:85`
+//   · `service.wiki.getRoots` → **already normalized by shared package** (`the shared service package's src/wiki.ts:85`
 //     `normalizeRoot`) ⇒ 🔴 **camelCase**, **not** HTTP original PascalCase (N46).
 //   · `service.wiki.getTree`  → **flat array**, already normalized to camelCase
 //     (`wiki.ts:102 normalizeTreeNode`: `aiLabel` / `lastModified` / `userNotesUpdatedAt`).
@@ -22,7 +22,7 @@
 //
 // ═══ fixtures are copies, not read at runtime (governance §4 / P5c §4.4) ═══
 // Data copied verbatim into the `FIXTURE-COPY-BEGIN/END` blocks below with **three-level source tags** (ruling R3 constraint 1),
-// **do not use `node:fs` to read `.superpowers/`** — that directory is covered by gitignore (SP7 lost it once).
+// **do not use `node:fs` to read the capture directory at runtime** — that directory is covered by gitignore (SP7 lost it once).
 // 🔴 **take only data fields, convert `__meta` to comments** (ruling R14 / `p5f-fixtures/README.md` §0.2).
 // 🔴 Wiki samples are **all `.CONSTRUCTED`**, 🔴 **not real device data** (D1: `/v1/wiki/{roots,tree,node}`
 //   device 90 second 0 byte timeout) — also cannot use it to overturn N46's naming conclusion (governance §9.18-2).
@@ -92,7 +92,7 @@ vi.mock('../../services/openInApp', () => ({
 //                  user_notes_updated_at / last_modified
 //   · value_units: empty string valid for ai_label; last_modified is RFC3339 local timezone string,
 //                  backend formatTS(ms<=0) returns **empty string** (wiki.go:47-52) — not '1970'
-//   · normalized_shape: via NimoOS-Service/src/wiki.ts:102 normalizeTreeNode → camelCase
+//   · normalized_shape: via the shared service package's src/wiki.ts:102 normalizeTreeNode → camelCase
 // 🔴 Device D1: `/v1/wiki/tree` 90 s zero bytes timeout ⇒ §9.17 determines "entire left tree always goes `treeError` branch",
 //   device can only verify "load failure + retry". **This is not a defect, it's D1.**
 const TREE_RAW_NORMAL = [
@@ -106,7 +106,7 @@ const TREE_RAW_NORMAL = [
 // Three-level source tag: **`.CONSTRUCTED`**. `__meta` converted to this comment (ruling R14):
 //   · why        : same as wiki-roots.CONSTRUCTED.json — /roots device timeout, no real device sample.
 //   · built_from : pass wiki-roots.CONSTRUCTED.json raw_response field by field through
-//                  NimoOS-Service/src/wiki.ts:85 normalizeRoot.
+//                  the shared service package's src/wiki.ts:85 normalizeRoot.
 //   · shape      : 🔴 camelCase — this is the outlet shape of store.state.wikiRoots (N46).
 //   · note       : enabled normalized to boolean via `!!r.Enabled`;
 //                  scanIntervalS/createdAt/lastScanAt defaulted via `|| 0`.

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-// Task 5 (SP7-P4 相册): 「加入相册」选择器 —— 被三处宿主复用(时间线批量工具栏 / 收藏视图 /
-// 灯箱顶栏,T9 接线)。结构照 Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue:1040-1065
+// 「加入相册」选择器 —— 被三处宿主复用(时间线批量工具栏 / 收藏视图 /
+// 灯箱顶栏,T9 接线)。结构照 Vue2 老面板 src/views/Photos/PhotosTimeline.vue:1040-1065
 // 的相册选择覆盖层(遮罩+面板+列表+「+ New Album」行),行为照 :582-607(onBatchAlbum/
 // pickAlbum/createAndPickAlbum)。
 //
-// 形态偏离登记(范围收口,brief 明确要求):Vue2 用 window.prompt 收集新相册名;本仓无
+// 形态偏离登记(范围收口):Vue2 用 window.prompt 收集新相册名;本仓无
 // prompt 惯例且窄屏体验差,改为面板内联输入行(回车提交/Esc 收起),行为语义不变。
 //
 // 关键与 Vue2 的语义差异(brief 明确、非疏漏):失败路径不关闭面板 —— Vue2 的
@@ -218,14 +218,13 @@ async function submitCreate(): Promise<void> {
    漂移,即 T3 albums 弹层清理时踩过的坑)。下面只保留 parity 完全没有覆盖的选择器,逐条注释
    保留理由。 */
 
-/* Fix-2 item 3 (owner acceptance, 2026-08-16): parity's own `.photos-root .album-picker-panel`
+/* Note: parity's own `.photos-root .album-picker-panel`
    (vue2-parity/photos.scss:1160-1161, `width: 280px; max-height: 360px;`) is byte-transcribed
-   from Vue2's real dialog -- a plain `window.prompt`-era text list, no cover thumbnails. The
-   owner's acceptance screenshot flagged this box as too small now that this component renders
-   real 40px cover thumbnails + a title/count two-line layout (this component's own, documented
-   structural addition over Vue2, see the next comment below). This is a deliberate, owner-
-   directed DEVIATION from parity's pixel value here -- not a transcription bug -- enlarging the
-   panel and making it viewport-responsive.
+   from Vue2's real dialog -- a plain `window.prompt`-era text list, no cover thumbnails. This
+   box turned out too small now that this component renders real 40px cover thumbnails + a
+   title/count two-line layout (this component's own, documented structural addition over
+   Vue2, see the next comment below). This is a deliberate DEVIATION from parity's pixel value
+   here -- not a transcription bug -- enlarging the panel and making it viewport-responsive.
 
    Sizing formula: `width: min(520px, 90vw)` reads comfortably on a wide monitor (capped at 520px
    so the album list doesn't stretch into an awkwardly wide single column) while still fitting a
@@ -275,13 +274,12 @@ async function submitCreate(): Promise<void> {
 }
 .album-picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
-/* 标题文字(模板处 `.album-picker-title-text` span,Task 8 静态自查记录 + Fix-3 订正):
+/* 标题文字(模板处 `.album-picker-title-text` span):
    font-size/font-weight 仍不声明局部规则——parity 的 .album-picker-head 本身已是
    font-size:13px;font-weight:600 的 flex 容器(space-between 天然把标题和关闭按钮分置
    两端),留出这层局部覆盖只会把 13px 悄悄改成 14.5px,构成像素漂移。
 
-   Fix-3(owner acceptance, 2026-08-17,screenshot image copy 77.png)订正 Task 8 当年的
-   color 判断——**"删除后交给继承环境色,与 Vue2 行为一致"这条推论是错的**:本组件
+   本处订正此前对 color 的判断——**"删除后交给继承环境色,与 Vue2 行为一致"这条推论是错的**:本组件
    挂载在 `.app` 的**同级**(`.photos-root > .app` 与 `.photos-root > AlbumPickerDialog`
    是兄弟,见 PhotosSearch.vue 等宿主页模板),不在 `.app` 子树内——而 `.photos-root .app`
    才是本仓唯一显式设 `color: var(--text-1)`(Photos 私有、随 is-light 翻转)的祖先层级

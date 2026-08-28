@@ -109,7 +109,7 @@ describe('performSnapshotRestore', () => {
       listVolumes: async () => VOLS, restore: async () => ({}),
     })).toEqual({ ok: false, reason: 'error' })
   })
-  // Task 14: destDir/withMarker/onConflict thread through buildRestoreBody (restoreDestination.ts)
+  // destDir/withMarker/onConflict thread through buildRestoreBody (restoreDestination.ts)
   // unchanged -- see that module's own test for the exact field-omission rules; this only proves
   // performSnapshotRestore actually forwards what it's given.
   it('destDir/withMarker/onConflict are forwarded into the request body via buildRestoreBody', async () => {
@@ -224,8 +224,8 @@ describe('buildRestoreToasts', () => {
     ])
   })
 
-  // Controller ruling, fix round 1: the task-1 key list was planning shorthand, not a copy ruling
-  // — visible copy follows Vue2 exactly. Vue2's restoreSnapshotItem (context-menu single item) uses
+  // The key list was planning shorthand, not a copy ruling — visible copy follows Vue2 exactly.
+  // Vue2's restoreSnapshotItem (context-menu single item) uses
   // a DIFFERENT copy than executeSnapshotRestore (every other entry point): "Restored to {path}",
   // no count. `opts.singleItemFlow` is how the CALLER (not this function) picks that branch.
   it('singleItemFlow: true → snapBrowseRestored ("Restored to {path}"), no count', () => {

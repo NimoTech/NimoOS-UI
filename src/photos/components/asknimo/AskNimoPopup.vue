@@ -1,4 +1,4 @@
-<!-- Small FAB popup shell. Pixel source: Vue2 NimoOS-UI src/views/Photos/PhotosAskNimo.vue's
+<!-- Small FAB popup shell. Pixel source: the Vue 2 panel's src/views/Photos/PhotosAskNimo.vue's
      popup half + photos.scss:951-972 (already ported).
      Preflight F-16 (verified against Vue2 source directly, not assumed): PhotosAskNimo.vue has
      NO scrim, NO Esc-to-close, NO click-outside-to-close -- grepped for

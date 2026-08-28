@@ -31,8 +31,8 @@ export interface AgentModel {
  * reusable for ThinkingBar.vue/AgentTopbar.vue props types without each inventing their own.
  *
  * `ThinkingState.level` itself is **not** narrowed to this union type: `loadSessionThinking`
- * directly assigns the return value of `service.ai.getSessionThinking()` (in shared package
- * NimoOS-Service/src/ai.ts, the type is bare `string`; external contract — backend may
+ * directly assigns the return value of `service.ai.getSessionThinking()` (in the shared
+ * service package's `src/ai.ts`, the type is bare `string`; external contract — backend may
  * return any historical/future string) to `thinking.value.level`; narrowing the field to
  * `ThinkingLevel` would cause a type error on this assignment, which would then either
  * entail changes to the shared package's return type or require additional runtime validation/
@@ -765,7 +765,7 @@ export function useAgentStore(agentType?: string) {
     /**
      * agentStore.js:663-669 — if no sessionId, return directly without requesting.
      * `service.ai.getSessionThinking` already normalizes "no override for this session" to `null`
-     * (see NimoOS-Service/src/ai.ts:183-198) and swallows request exceptions itself; here we only
+     * (see the shared service package's `src/ai.ts:183-198`) and swallows request exceptions itself; here we only
      * handle `null` by falling back to a shallow copy of `thinking.defaults`; write only enabled/
      * level fields, don't touch supportsThinking/providerType (those are maintained only by
      * updateThinkingForModel).

@@ -4,7 +4,7 @@ import RFB from '@novnc/novnc'
 import { service } from '@nimotech/nimoos-service'
 import type { KvmVM, KvmVncInfo } from '@nimotech/nimoos-service'
 
-// noVNC console lifecycle. Character-for-character matches NimoOS-UI/src/components/KVM/KVMFullPage.vue
+// noVNC console lifecycle. Character-for-character matches the Vue 2 panel's src/components/KVM/KVMFullPage.vue
 // disconnectVNC(:944-954)/connectVNC(:956-1018)/toggleModifier(:1020-1029)/
 // releaseModifiers(:1031-1040)/sendKey(:1042-1046)/sendCtrlAltDel(:1048-1053)
 // (verified 2026-08-02, brief draft line numbers slightly off).

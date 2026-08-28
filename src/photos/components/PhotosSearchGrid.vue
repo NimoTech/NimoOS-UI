@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // SP7-P7a-T15: PhotosSearchGrid.vue — search results two-tier grid (best match + collapsed tail) +
 // infinite scroll sentinel.
-// Ported from Vue2 NimoOS-UI src/views/Photos/PhotosSearchView.vue:
+// Ported from the Vue 2 panel's src/views/Photos/PhotosSearchView.vue:
 //   :241-279 (template: results grid + collapse bar + sentinel)
 //   :405-415 (showLoadMoreSentinel, sentinel control — computed by host T16 based on store state,
 //             passed as showSentinel prop to this component, this component does not recompute)

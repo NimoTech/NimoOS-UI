@@ -59,13 +59,16 @@ export const DELETE = [
 
   // 文档 / AI 辅助开发痕迹 / 设计稿(E7/E8:用户拍板一份文档都不带)
   'docs',
-  'CLAUDE.md',
+  // 'CLAUDE.md' 2026-08-27 起已从版本控制里摘掉(见根 .gitignore),`git archive HEAD`
+  // 拿不到它,再列在这里会触发 applyDelete 的 stale 硬失败。产物侧不带它这一点由
+  // tree.test.mjs 的 exists('CLAUDE.md') === false 断言继续守着。
   // 'design-export' 已在 2ad712f8 从私有仓删除,这里不再需要(留着会触发 stale 硬失败)
 
-  // 各期台账(2026-08-05 起入库,见 .superpowers/.gitignore)。282 份报告里写满了
-  // 内部决策、后端接口实测、AI/相册/搜索的设计过程 —— 属于 E7「一份文档都不带」的范围,
-  // 只是它在 08-05 之前是 gitignore 的、git archive 拿不到,所以从前不用列。
-  '.superpowers',
+  // 各期台账:2026-08-05 起入库、2026-08-27 机主拍板又摘出版本控制(见根 .gitignore),
+  // `git archive HEAD` 因此再也拿不到它 —— 保留条目会触发 applyDelete 的 stale 硬失败,
+  // 所以这里删掉,和上面 CLAUDE.md 同一原因。产物侧不带台账这一点仍由 tree.test.mjs
+  // 的 exists('.superpowers') === false 断言守着(那条断言的存在理由本来就是「不依赖
+  // 词表、只看目录在不在」,与台账是否入库无关,现在照旧有效)。
 
   // SP9-P7:搜索面板的视图层纯函数模块 + composable。唯一消费方 SearchDialog.vue /
   // SearchDialog.test.ts 都在本表里,整目录零消费方。
@@ -250,13 +253,10 @@ export const SERVICE_DELETE = [
   'src/search.ts',
   'src/search.test.ts',
 
-  // SP8-P6-T8(2026-08-06):Service 仓自己的台账目录。
-  // 私有侧 2026-08-05 起把 .superpowers/ 从 gitignore 拿掉改成入库(台账丢过一次),
-  // New-UI 那份当时就进了上面的 DELETE 表(第 54 行),**Service 这份一直漏着** ——
-  // `git archive HEAD` 会把 32 份 SP7 期台账原样带进 packages/service/。
-  // 实测:产物树泄漏命中 977 处里有 437 处出自这一个目录。既有问题、不是本刀造成的,
-  // 但它就在 SERVICE_DELETE 的地盘上,一并补。
-  '.superpowers',
+  // packages/service/.superpowers(Service 侧 32 份 SP7 期台账)同样在 2026-08-27
+  // 摘出了版本控制,`git archive HEAD` 拿不到,条目留着会 stale 硬失败,故删除。
+  // 产物侧不带它由 tree.test.mjs 的 exists('packages/service/.superpowers') === false
+  // 断言守着 —— 那条断言当年正是为「词表可能全绿但目录还在」而立的,现在照旧有效。
 
   // SP8-P6-T8(2026-08-06):AI 域四个模块 + 各自的测试。
   // 开源版没有 AI 助手 / 知识库 / 笔记 / Wiki 导航。取证(见 p6-task-8-report.md):
@@ -409,6 +409,20 @@ function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
     replace: '' },
+  // 2026-08-27:#38 新增的 openInNewTab 头注释列举了 Photos / AI / Knowledge 三个开源版
+  // 不含的功能区,还引用了同样不在保留面里的 SearchDialog —— 在产物树里都是读者打不开的
+  // 引用(三处也都命中词表:knowledge 是 HARD、photo/search 是 SOFT)。函数本体属于保留面
+  // (files/appstore/terminal 都用它),这里只改措辞。
+  { path: 'src/home/composables/useOpenAction.ts',
+    find: `// Open an in-app hash route in a *new* browser tab (same URL shape SearchDialog
+// uses for file hits: \`<origin>/app/#/<path>\`). The "workspace" apps launched
+// from the home screen — Files / Photos / AI / AppStore / Knowledge / Terminal —
+// open this way so the desktop stays put in its own tab (2026-08-27 request);
+// the system panels (Storage / Settings / VM) still navigate in place.`,
+    replace: `// Open an in-app hash route in a *new* browser tab (\`<origin>/app/#/<path>\`).
+// The workspace apps launched from the home screen — Files / AppStore /
+// Terminal — open this way so the desktop stays put in its own tab; the
+// system panels (Storage / Settings / VM) still navigate in place.` },
   // SP14 T9(commit d4d3771)重抓锚点,03e6ba1 又把 knowledge 分支上方的解释性注释从
   // 3 行拉长到 7 行,同一个六行代码 + 注释 + knowledge 分支的大锚点两期内碎了两次——
   // 碎因都不是代码变了,是注释被改写/加长。原来这是一条从 appstore 到 tail 的单一
@@ -422,17 +436,20 @@ function cutoverDisabled(from: string): boolean {
   // 逐字匹配到被删的注释,做不到"锚点完全免疫于注释重写";能做的只是不让它
   // 拖着两侧的代码锚点一起碎。三条拼起来产出与拆分前逐字相同。
   { path: 'src/home/composables/useOpenAction.ts',
-    find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
+    // 2026-08-27 重抓锚点:新标签页那轮(#38)把 appstore / photos / ai 三行从
+    // router.push 改成 openInNewTab,并在 appstore 上方新增了 files 一行(files 是
+    // 保留面,原样留着不进锚点)。replace 侧只跟着改 appstore 的形态,取舍不变。
+    find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { openInNewTab('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
-      if (key === 'photos' && !cutoverDisabled('/photos')) { router.push('/photos'); return }
+      if (key === 'photos' && !cutoverDisabled('/photos')) { openInNewTab('/photos'); return }
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
-      if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }`,
+      if (key === 'ai' && !cutoverDisabled('/ai')) { openInNewTab('/ai/agent'); return }`,
     // 开源版没有任何 cutover flag(私有主干那几个分支全靠 cutoverDisabled 才存在),
     // 而 settings / vm 在开源版的 SYS_ROUTE 里已经指向应用内路由(/settings、/kvm)——
     // 所以这两个 key 由 B2 兜底的 router.push(SYS_ROUTE[key] || '/') 即可,不再重复
     // 写成两个 if(那只是一层无谓的间接)。photos / ai 在开源版整个不存在。
-    replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
+    replace: `      if (key === 'appstore') { openInNewTab('/apps/store'); return }
       if (key === 'storage') { router.push('/storage'); return }` },
   { path: 'src/home/composables/useOpenAction.ts',
     find: `      // Knowledge: an in-app route built at SP8 (eleven routes, nine-item rail);
@@ -450,16 +467,16 @@ function cutoverDisabled(from: string): boolean {
     // terminal(SP18)不属于这次摘除范围 —— 它是公开面功能(settings 那边的
     // terminal rail tab 一直留在 REPLACE 里),原样保留只是措辞去掉"knowledge above"
     // 这个在开源版不存在的指代。
-    find: `      if (key === 'knowledge') { router.push('/ai/knowledge'); return }
+    find: `      if (key === 'knowledge') { openInNewTab('/ai/knowledge'); return }
       // Terminal: SP18 in-app route. Like knowledge above, Vue2 no longer exists
       // on-device (retired 08-07), so there is no fallback target and no
       // strangler:disabled flag — the tile always routes into this app.
-      if (key === 'terminal') { router.push('/terminal'); return }
+      if (key === 'terminal') { openInNewTab('/terminal'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return`,
-    replace: `      // Terminal has no counterpart to fall back to, so it always routes
-      // into this app.
-      if (key === 'terminal') { router.push('/terminal'); return }
+    replace: `      // Terminal has no counterpart to fall back to, so it always opens
+      // in a new tab of this app.
+      if (key === 'terminal') { openInNewTab('/terminal'); return }
       router.push(SYS_ROUTE[key] || '/')
       return` },
   { path: 'src/home/composables/useOpenAction.ts',
@@ -684,11 +701,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   // 代码不动:当前扫描面本来就不含 .scss。
   { path: 'src/styles/color-guard.test.ts',
     find: `//
-// Registered exemption (owner's call 2026-08-11, see docs/superpowers/specs/2026-08-11-photos-vue2-parity-reskin-design.md §4):
+// Registered exemption:
 // src/photos/styles/vue2-parity/*.scss is the pixel source of truth from the old Vue2 repo, with its own .photos-root-scoped token system,
 // so the whole directory is exempt from this guard. The current scan surface (.vue style blocks + .css) doesn't include .scss anyway; if .scss is ever brought into scope,
-// this directory's exclusion must be kept.
-`,
+// this directory's exclusion must be kept.`,
     replace: '' },
   { path: 'src/apps/util/systemApp.ts',
     find: " *  If any service in compose has the label `nimoos.system == \"true\"`, it is a background component (AI agent runtime /\n *  Photos ML backend, etc.); the desktop appgrid already hides these. The app management page must also hide them,",
@@ -759,7 +775,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   // 2026-08-05 私有侧把 .superpowers/ 从 gitignore 拿掉改成入库(台账丢过一次),
   // 锚点跟着改。开源侧两行都不需要:.claude/ 本就不导出,.superpowers/ 已在 DELETE 表。
   { path: '.gitignore',
-    find: '\n# Claude Code local state (isolated worktrees, session config) — not committed\n.claude/\n# .superpowers/ IS committed — the ledgers are the only decision record per sprint. SP7 once\n# lost the whole directory with no git recovery, and SP9-P7 found the P5/P6 ledgers only\n# existed in gitignore. Rules live in .superpowers/.gitignore:\n# ledgers (.md) and self-check screenshots (.png) go in; review diffs / backups / snapshot-env machine artifacts stay out.\n',
+    find: "\n# Claude Code local state (isolated worktrees, session config) — not committed\n.claude/\n# Local collaboration guide — kept on each working copy, not versioned (2026-08-27)\nCLAUDE.md\n# Sprint ledgers and working design notes — kept on disk, not versioned (2026-08-27).\n# They were briefly versioned; the repository now keeps only the durable product docs\n# under docs/ (THEMING.md, nimoos-app-label-spec.md).\n# Note: with these untracked, git no longer backs them up — keep your own copy.\n.superpowers/\ndocs/superpowers/\n",
     replace: '' },
   { path: '.gitignore',
     find: '\n# Time-machine acceptance test bench (T12): fake backend + dedicated vite config, local acceptance only, not versioned\nscripts/tmlab/\nvite.config.tmlab.ts',
@@ -883,13 +899,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   // wording this rule used to target).
   { path: 'src/styles/theme.css',
     find: `  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
-     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
-     removed --place-thumb-active itself for the same reason (re-verified zero consumers
+     that used to sit here (confirmed zero consumers repo-wide). --place-thumb-active itself was
+     later removed for the same reason (re-verified zero consumers
      repo-wide, both theme blocks) -- the comment this replaces described it as PlacesRail.vue's
      selected-city row token, but that rule (\`.rail-place.is-active:hover\`, PlacesRail.vue's own
      \`<style scoped>\`) actually blends \`rgba(var(--accent-rgb), 0.10)\` directly rather than
-     reading a dedicated token; --place-thumb-active was never wired to anything. */
-`,
+     reading a dedicated token; --place-thumb-active was never wired to anything. */`,
     replace: '' },
   // --pin-* retirement note (PlacesMap 图钉,Fix-5 P6a overturned)
   // Fix-5 (owner acceptance, 2026-08-17): the seven --pin-* geo-pin token VALUES are long gone
@@ -976,13 +991,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   // --float-bg(PlacesZoomBar 浮动药丸底)
   { path: 'src/styles/theme.css',
     find: `  /* PlacesZoomBar.vue (P6a-T8) vertical zoom slider's floating pill background -- a new
-     token, an exact port of Vue2 photos.scss:49 (NimoOS-UI's shared global floating-bar/FAB
+     token, an exact port of Vue2 photos.scss:49 (the Vue 2 panel's shared global floating-bar/FAB
      background, not something photos-places.scss defines on its own). This repo had no
      equivalent "translucent floating toolbar background" token before -- --panel-bg (0.1),
      --popup-bg (a gradient, ~0.9-0.95), and --tool-bg (0.16, an opaque flat color) all miss
      this flat 0.85 magnitude, hence a new token rather than an approximation. */
-  --float-bg: rgba(20, 20, 28, 0.85);
-`,
+  --float-bg: rgba(20, 20, 28, 0.85);`,
     replace: '' },
   // --zb-hover-bg / --zb-track-bg / --zb-thumb-shadow retirement note (PR #13, Plan H Task 15,
   // 2026-08-17): same situation as the --place-row-* note above -- all three token VALUES
@@ -1082,10 +1096,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   // leftover comment (still naming the dark block's own note) needs stripping. Re-anchored.
   { path: 'src/styles/theme.css',
     find: `  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
-     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
-     removed --place-thumb-active itself -- see the dark \`:root\` block's own comment for why
-     (it was never actually consumed; re-verified zero consumers repo-wide in both blocks). */
-`,
+     that used to sit here (confirmed zero consumers repo-wide). --place-thumb-active itself was
+     later removed -- see the dark \`:root\` block's own comment for why
+     (it was never actually consumed; re-verified zero consumers repo-wide in both blocks). */`,
     replace: '' },
   // light:--place-current-trip
   { path: 'src/styles/theme.css',
@@ -1622,8 +1635,8 @@ describe('photosPlaces keys (SP7-P6a)', () => {
     const { openApp } = useOpenAction()
     openApp('settings'); expect(router.push).toHaveBeenCalledWith('/settings')
     openApp('storage'); expect(router.push).toHaveBeenCalledWith('/storage')
-    openApp('appstore'); expect(router.push).toHaveBeenCalledWith('/apps/store')
-    openApp('photos'); expect(router.push).toHaveBeenCalledWith('/photos')
+    openApp('appstore'); openApp('photos')
+    expect(opens).toEqual([tab('/apps/store'), tab('/photos')])
     expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/kvm')
   })
@@ -1679,10 +1692,10 @@ describe('photosPlaces keys (SP7-P6a)', () => {
   // SP7-P8b 新增的三条 photos 磁贴用例:开源版没有相册区,'photos' 不是系统应用,
   // 三条全删(前两条断言相册路由,第三条断言"photos 的 flag 不影响别人")。
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: `  it('photos tile should use in-app router.push /photos (SP7-P8b cutover)', () => {
+    find: `  it('photos tile opens /app/#/photos in a new tab (SP7-P8b cutover route)', () => {
     const { openApp } = useOpenAction()
     openApp('photos')
-    expect(router.push).toHaveBeenCalledWith('/photos')
+    expect(opens).toEqual([tab('/photos')])
     expect(hrefs.length).toBe(0)
   })
   it('when fallback flag strangler:disabled:/photos==1, photos should fall back to Vue2 /#/photos (not /#/legacy)', () => {
@@ -1699,7 +1712,7 @@ describe('photosPlaces keys (SP7-P6a)', () => {
     openApp('storage')
     expect(router.push).toHaveBeenCalledWith('/storage')
     openApp('appstore')
-    expect(router.push).toHaveBeenCalledWith('/apps/store')
+    expect(opens).toEqual([tab('/apps/store')])
     expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/photos')
   })
@@ -2452,9 +2465,42 @@ function mountHome() {
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: '// P8 cutover: the files entry now uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).',
     replace: '// The files entry uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).' },
+  // 2026-08-27:#38 新增的这条用例把 photos / ai / knowledge 三个开源版不存在的 key
+  // 和它们的新标签页断言写进了同一个 it 里 —— 整条删掉会连带丢掉 terminal 与三块系统
+  // 面板"留在应用内"的覆盖,所以改写而不是删除:只留 files/appstore/terminal 三个开源
+  // 保留面 + storage/settings/vm 的 router.push 断言。
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: "  it('appstore tile should use in-app router.push /apps/store (SP5-P8 cutover)', () => {",
-    replace: "  it('appstore tile should use in-app router.push /apps/store', () => {" },
+    find: `  it('workspace apps (files/photos/ai/appstore/knowledge/terminal) all open in a new tab; system panels (storage/settings/vm) stay in-app', () => {
+    // The terminal tile is adminOnly — it only exists in the apps store for an admin session.
+    useSessionStore().setUser({ role: 'admin' } as never)
+    useAppsStore().setApps([])
+    const { openApp } = useOpenAction()
+    openApp('files'); openApp('photos'); openApp('ai'); openApp('appstore'); openApp('knowledge'); openApp('terminal')
+    expect(opens).toEqual([
+      tab('/files'), tab('/photos'), tab('/ai/agent'), tab('/apps/store'), tab('/ai/knowledge'), tab('/terminal'),
+    ])
+    expect(router.push).not.toHaveBeenCalled()
+    openApp('storage'); openApp('settings'); openApp('vm')
+    expect(vi.mocked(router.push).mock.calls.map((c) => c[0])).toEqual(['/storage', '/settings', '/kvm'])
+    expect(opens).toHaveLength(6)
+    expect(hrefs.length).toBe(0)
+  })`,
+    replace: `  it('workspace apps (files/appstore/terminal) all open in a new tab; system panels (storage/settings/vm) stay in-app', () => {
+    // The terminal tile is adminOnly — it only exists in the apps store for an admin session.
+    useSessionStore().setUser({ role: 'admin' } as never)
+    useAppsStore().setApps([])
+    const { openApp } = useOpenAction()
+    openApp('files'); openApp('appstore'); openApp('terminal')
+    expect(opens).toEqual([tab('/files'), tab('/apps/store'), tab('/terminal')])
+    expect(router.push).not.toHaveBeenCalled()
+    openApp('storage'); openApp('settings'); openApp('vm')
+    expect(vi.mocked(router.push).mock.calls.map((c) => c[0])).toEqual(['/storage', '/settings', '/kvm'])
+    expect(opens).toHaveLength(3)
+    expect(hrefs.length).toBe(0)
+  })` },
+  { path: 'src/home/composables/useOpenAction.test.ts',
+    find: "  it('appstore tile opens /app/#/apps/store in a new tab (SP5-P8 cutover route)', () => {",
+    replace: "  it('appstore tile opens /app/#/apps/store in a new tab', () => {" },
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: "  it('storage tile should use in-app router.push /storage (SP6-P6 cutover)', () => {",
     replace: "  it('storage tile should use in-app router.push /storage', () => {" },
@@ -2469,20 +2515,12 @@ function mountHome() {
     replace: "    // Tool directories such as .claude/ may hold full repo copies on a developer machine;\n    // without the exclusion, vitest recurses into them, runs other sessions' tests,\n    // and fails en masse." },
 
   // ── I7a:注释里泄露内部 SDD 台账路径(.superpowers/sdd/sp9/...)与债务编号。──
-  { path: 'src/settings/util/ifaceForm.ts',
-    find: `// -> the write path's correctness can only be covered by the unit tests here (see ledger
-// .superpowers/sdd/sp9/03-p2.md, debt D18).`,
-    replace: `// -> the write path's correctness can only be covered by the unit tests here (there is no
-// safe way to verify this endpoint on a real machine).` },
 
   // ── M1:package.json 的 name 是私有仓名(new-ui 暗示存在一个 old UI)。────────
   { path: 'package.json',
     find: '  "name": "nimoos-new-ui",', replace: '  "name": "nimoos-web",' },
 
   // ── M2:scripts/deploy.sh 注释里写着私有仓名。──────────────────────────────
-  { path: 'scripts/deploy.sh',
-    find: "# Build NimoOS-New-UI and deploy to the Gateway's /app/ static directory.",
-    replace: "# Build this project and deploy to the Gateway's /app/ static directory." },
 
   // ═══════════════ SP8-P6-T7 合流(2026-08-06):AI 区剥离 ═══════════════════
   // src/ai 整域与两个 i18n 分片走 DELETE。下面收的是**域外**那些引用它的文件 ——
@@ -2492,15 +2530,17 @@ function mountHome() {
   // 后两个与 messageSyntax.test.ts 走 DELETE(理由见 DELETE 表),两个 i18n 出口在
   // 上面 T8 那节处理,余下 4 个在这里打补丁。
 
-  // ── src/router/index.ts:三个 import + 四条 /ai 路由 ───────────────────────
+  // ── src/router/index.ts:四个 import + 五条 /ai 路由 ───────────────────────
+  //    2026-08-27:AI 任务页(TasksView / `/ai/tasks`)并入后两处锚点各多一行,已按
+  //    「现场核对 hits=1 再写」的规矩重取锚点,不是照旧锚点猜改。
   //    /ai/skills 与 /ai/mcp 没有独立路由(T5 提交信息记明:REDIRECT_BEFORE_GUARD=true,
   //    Step 6 那两条 redirect 按实证结论跳过),所以这里只有 redirect + agent +
   //    settings + 展开的 knowledgeRoutes 四条。
   { path: 'src/router/index.ts',
-    find: "import AgentPage from '../ai/views/AgentPage.vue'\nimport SettingsPage from '../ai/views/SettingsPage.vue'\nimport { knowledgeRoutes } from '../ai/knowledge/knowledgeRoutes'\n",
+    find: "import AgentPage from '../ai/views/AgentPage.vue'\nimport SettingsPage from '../ai/views/SettingsPage.vue'\nimport TasksView from '../ai/tasks/TasksView.vue'\nimport { knowledgeRoutes } from '../ai/knowledge/knowledgeRoutes'\n",
     replace: '' },
   { path: 'src/router/index.ts',
-    find: "  { path: '/ai', redirect: '/ai/agent' },\n  { path: '/ai/agent', name: 'ai-agent', component: AgentPage },\n  { path: '/ai/settings', name: 'ai-settings', component: SettingsPage },\n  ...knowledgeRoutes,\n",
+    find: "  { path: '/ai', redirect: '/ai/agent' },\n  { path: '/ai/agent', name: 'ai-agent', component: AgentPage },\n  { path: '/ai/settings', name: 'ai-settings', component: SettingsPage },\n  { path: '/ai/tasks', name: 'ai-tasks', component: TasksView },\n  ...knowledgeRoutes,\n",
     replace: '' },
 
   // ── src/router/index.test.ts:knowledge 路由那条用例 ───────────────────────
@@ -2643,10 +2683,11 @@ describe('AppToast — AI area toast scoping', () => {
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: `
 describe('AI section cutover (SP8-P6)', () => {
-  it('ai tile should use in-app router.push /ai/agent', () => {
+  it('ai tile opens /app/#/ai/agent in a new tab', () => {
     const { openApp } = useOpenAction()
     openApp('ai')
-    expect(router.push).toHaveBeenCalledWith('/ai/agent')
+    expect(opens).toEqual([tab('/ai/agent')])
+    expect(router.push).not.toHaveBeenCalled()
     expect(hrefs.length).toBe(0)
   })
 
@@ -2686,10 +2727,10 @@ describe('AI section cutover (SP8-P6)', () => {
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
   })
 
-  it('knowledge tile should use in-app router /ai/knowledge (SP14 #98, no fallback target)', () => {
+  it('knowledge tile opens /app/#/ai/knowledge in a new tab (SP14 #98 route, no fallback target)', () => {
     const { openApp } = useOpenAction()
     openApp('knowledge')
-    expect(router.push).toHaveBeenCalledWith('/ai/knowledge')
+    expect(opens).toEqual([tab('/ai/knowledge')])
     expect(hrefs.length).toBe(0)
   })
 

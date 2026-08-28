@@ -3,7 +3,7 @@
 // 本期架构关键任务:证明 §7e-2 的核心修复(T2 store 的 byId(id))成立。
 //
 // ★★★ 与 Vue2 最重要的架构性差异,必须读完才能理解本文件为什么这么短 ★★★
-// Vue2 详情页(NimoOS-UI src/views/Photos/PhotosSmartViewDetail.vue)把整个 sv 对象当
+// Vue2 详情页(src/views/Photos/PhotosSmartViewDetail.vue)把整个 sv 对象当
 // **prop** 持有(:285 `props: { sv: { type: Object, required: true } }`),而列表侧
 // UPDATE_SMART_VIEW mutation 用 `splice(i, 1, {...})` 换成**新对象**——这意味着编辑/暂停/
 // 改名之后,Vue2 详情页手里那份 prop 引用已经过期,界面读不出变化,直到用户重新打开详情页。
@@ -20,7 +20,7 @@
 // "§7e-2 主守卫"那条用例专门钉住的行为(直接改 store 里的 sv.live,不重新 mount,pill 文案
 // 自动跟着变;删码验证①把 byId 换成本地 ref 缓存一份 sv 对象,这条用例就会变红)。
 //
-// 本文件范围(task-6-brief.md 结构规格 1-9):壳 + header(标题编辑 / live-paused pill /
+// 本文件范围(结构规格 1-9):壳 + header(标题编辑 / live-paused pill /
 // 统计四格)+ 操作栏三菜单(暂停恢复 / 在搜索中细化[T16 已接线,见 refineInSearch] /
 // 导出[ZIP 修 401 + 静态相册] / more[重命名/复制/删除])+ 删除确认弹窗 +
 // 两段照片网格(最近添加 / 全部匹配)。
@@ -38,7 +38,7 @@
 //     T16 已把搜索路由建好并接线(见下方 refineInSearch),按钮不再 disabled。
 //  5) `smartViewId` 死参数不迁:Vue2 `:520` 的 refineInSearch payload 是
 //     `{ q: sv.name, smartViewId: sv.id }`,但全 Vue2 仓库 grep `smartViewId` 只有这一处
-//     写入、零消费方(`grep -rn smartViewId NimoOS-UI/src/` 只命中这一行)。T16 接线只传
+//     写入、零消费方(`grep -rn smartViewId` 在 Vue2 全仓只命中这一行)。T16 接线只传
 //     `q`,不带这个死参数。
 //  6) SP15-P2a final review, finding 4 — an excluded tile is inert while selecting.
 //     Vue 2 :167 wires `restoreOne` onto the excluded tiles unconditionally, so in
@@ -100,7 +100,7 @@ const store = usePhotosSmartViews()
 const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
 const toast = useToast()
-// Fix-10 (owner acceptance, 2026-08-14): Vue2's duplicate-smart-view and convert-to-album
+// Vue2's duplicate-smart-view and convert-to-album
 // confirmations go through `window.PhotosToast` (photosToast.js), the photos-private
 // bottom-pill toast -- not the app-wide generic toast used everywhere else on this page.
 // `duplicateSv()`/`doConvertToAlbum()` below used the generic `toast` (useToast()) for these
@@ -112,7 +112,7 @@ const photosToast = usePhotosToast()
 const lb = useLightbox()
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// `toggle` wires the topbar's collapse button
 // (same as Photos.vue/PhotosAlbums.vue).
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 
@@ -122,7 +122,7 @@ const svId = computed(() => String(route.params.id))
 // Fix-1 item 1: PhotosTopbar's title/sub. This is the SMART ALBUM detail (saved search /
 // conds+threshold+live) -- Vue2 nests it inside PhotosAlbumsView, under activeNav==='albums',
 // the exact same nesting as the manual-album detail a few lines above it in that file
-// (NimoOS-UI PhotosAlbumsView.vue:3-45). So the topbar here is identical to
+// (the Vue 2 panel's PhotosAlbumsView.vue:3-45). So the topbar here is identical to
 // PhotosAlbums.vue/PhotosAlbumDetail.vue's own: title='Albums', sub=the aggregate across
 // every album (manual AND smart alike are irrelevant to which nav is active; the aggregate
 // itself only sums manual albums, matching Vue2's topbarSubContext exactly).
@@ -258,7 +258,7 @@ function refineInSearch(): void {
 }
 
 // ── T7 wiring, shrunk by SP15-P2c Task 8 (structure spec T7) ────────────────────
-// SP15-P2c Task 8, ported from Vue2 NimoOS-UI 33b05636 PhotosSmartViewDetail.vue:26-30 +
+// Ported from the Vue 2 panel's PhotosSmartViewDetail.vue:26-30 +
 // :700-710 ("用户追加需求" -- a deliberate product decision, not an oversight): the
 // "Add condition" entry (button + popover) is deleted along with the four Vue2 methods
 // that only served it, and this repo's equivalents inside the now-deleted, formerly
@@ -443,7 +443,7 @@ async function downloadZip(): Promise<void> {
   try {
     const url = service.photos.exportSmartViewUrl(String(s.id), 'zip')
     // ⚠ 不要加 'Bearer ' 前缀 —— 本仓存的是裸 token:共享包拦截器是
-    // `cfg.headers.Authorization = token`(NimoOS-Service/src/http.ts:59-60),token 来自
+    // `cfg.headers.Authorization = token`(shared service package src/http.ts:59-60),token 来自
     // `localStorage.getItem('access_token')`(main.ts:24 的 getToken 回调),全仓 grep 不到
     // 任何 'Bearer' 字面量。后端 `strings.TrimPrefix(auth, "Bearer ")` 对裸 token 是恒等的,
     // 两种都能过,但这里与共享包保持同一口径(删码验证⑤的主体)。
@@ -537,13 +537,13 @@ async function duplicateSv(): Promise<void> {
   if (!s) return
   try {
     await store.duplicateSmartView(s.id)
-    // Fix-10 (owner acceptance, 2026-08-14): was `toast.show(...)` (generic) -- Vue2's real call
+    // Was `toast.show(...)` (generic) -- Vue2's real call
     // here is `window.PhotosToast.show({ icon: 'sparkles', title: ... })`, same as
     // PhotosAlbumDetail.vue's `duplicateAlbum()`. See PhotosToastHost.vue's ICON_PATHS.
     photosToast.show({ text: t('photosSvDuplicatedNameOpenCopy', { name: s.name }), icon: 'sparkles' })
   } catch (e) {
     console.error('[photos-smartviews] duplicateSv', e)
-    // Fix-10: same switch as the success path -- Vue2's failure call is
+    // Same switch as the success path -- Vue2's failure call is
     // `window.PhotosToast.show({ icon: 'trash', accent: '#FF6B5C', title: ... })`.
     photosToast.show({ text: t('photosSvDuplicateFailed'), icon: 'trash' })
   }
@@ -574,7 +574,7 @@ async function doConvertToAlbum(): Promise<void> {
   try {
     const album = await albums.convertFromSmartView(s.id)
     convertToAlbumOpen.value = false
-    // Fix-10 (owner acceptance, 2026-08-14): was `toast.show(...)` (generic) -- Vue2's real call
+    // Was `toast.show(...)` (generic) -- Vue2's real call
     // here is `window.PhotosToast.show({ icon: 'album', title: 'Converted to regular album' })`.
     // The failure path just below is unaffected -- it is already an inline message by deliberate
     // design (see its own comment), not a toast, so there is no Vue2 toast to restore there.
@@ -624,7 +624,7 @@ function onTileClick(p: Photo, list: Photo[]): void {
   lb.openAt(p, list, 0)
 }
 
-// ── Fix-12 (owner acceptance, 2026-08-14): this page always called `lb.openAt` (above), but
+// ── This page always called `lb.openAt` (above), but
 // never mounted a `<PhotoLightbox>` of its own -- `useLightbox` is a module-level singleton, so
 // the state flipped open (its network calls fired) with nothing on THIS page's own tree to
 // render it; the previous page's own mounted lightbox (if any) would pick up the stale `open`
@@ -783,7 +783,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+      <!-- Same narrow-mode coordination as
            Photos.vue/PhotosAlbums.vue. -->
       <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
@@ -859,7 +859,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
               </h1>
 
               <!-- SP15-P2c Task 8: "Add condition" button + popover deleted here (ported from
-                   Vue2 NimoOS-UI 33b05636 PhotosSmartViewDetail.vue:26-30, "用户追加需求") --
+                   the Vue 2 panel's PhotosSmartViewDetail.vue:26-30, "用户追加需求") --
                    only the removable chips survive. This used to mount a dedicated
                    condition-editor component; once `add` was gone it was down to a
                    bare v-for with no local state, so it folded back in here (see
@@ -1190,7 +1190,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </main>
     </div>
 
-  <!-- Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): this whole tail section
+  <!-- Same lesson class as elsewhere: this whole tail section
        (export toast / edit-mode select bar / library picker / delete-confirm dialog /
        convert-to-album dialog) used to be a template-root SIBLING of `.photos-root` (a Vue 3
        multi-root fragment) rather than its DOM descendant. Every one of these elements' actual
@@ -1326,7 +1326,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </div>
     </div>
     </Transition>
-  <!-- Fix-12 (owner acceptance, 2026-08-14): add-to-album picker for the lightbox's
+  <!-- Add-to-album picker for the lightbox's
        `@add-to-album`, same shape as PhotosAlbumDetail.vue's own `AlbumPickerDialog` mount --
        nested inside `.photos-root` (its own panel background is `var(--surface-2)`, a
        `.photos-root`-local token with no fallback, per the F1/F4 lesson class); the lightbox
@@ -1343,7 +1343,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
          as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
     <AskNimoHost />
   </div>
-  <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/Convert/etc.)
+  <!-- Photos-private toast queue (Duplicate/Convert/etc.)
        -- mounted once per photos view, Teleports to <body> and re-applies photos-root +
        themeClass on its own portal target (see PhotosToastHost.vue's own header comment), so its
        position here relative to `.photos-root`'s closing tag makes no rendering difference --

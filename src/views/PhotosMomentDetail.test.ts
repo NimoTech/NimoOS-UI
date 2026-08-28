@@ -32,8 +32,8 @@ const svc = vi.hoisted(() => ({
     // this stub the settings store's fetchAiFeatures catches a TypeError and console.errors on
     // every single mount, which buries any real failure in the test output.
     getConfig: vi.fn(async (): Promise<unknown> => ({})),
-    // Fix-12 (owner acceptance, 2026-08-14): PhotoLightbox.vue's own render needs these once it
-    // actually mounts (v-if opens) -- this page never mounted a `<PhotoLightbox>` before.
+    // PhotoLightbox.vue's own render needs these once it actually mounts (v-if opens) --
+    // this page never mounted a `<PhotoLightbox>` before.
     originalUrl: vi.fn((id: string) => `mock://original/${id}`),
     liveUrl: vi.fn((id: string) => `mock://live/${id}`),
   },
@@ -48,8 +48,8 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 // invoked (established precedent: PhotosSmartViewDetail.test.ts:33-39 hit the exact same
 // trap first and mocks the whole module instead — same fix here).
 //
-// Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>`
-// (it never did before). That component's own internals call `useLightbox()` too and read
+// This page now also mounts a real `<PhotoLightbox>` (it never did before). That
+// component's own internals call `useLightbox()` too and read
 // `lb.open.value`/`lb.list.value`/etc directly in a `watch()` and its template's `v-if` -- the
 // original `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after this
 // fix crashed every existing test in this file. `vi.hoisted()` runs before `vue` itself is
@@ -641,8 +641,8 @@ describe('the two photo grids', () => {
     expect(list.map((p) => p.id)).toEqual(['f1'])
   })
 
-  // Fix-12 (owner acceptance, 2026-08-14): this page always called `lightbox.openAt` (the two
-  // cases above already cover that), but never mounted a `<PhotoLightbox>` of its own -- nothing
+  // This page always called `lightbox.openAt` (the two cases above already cover that), but
+  // never mounted a `<PhotoLightbox>` of its own -- nothing
   // on this page's own tree ever rendered the photo. These assert the DOM actually appears and
   // that the wired events invoke the right underlying store actions.
   it('clicking a tile renders the lightbox DOM (not just calling openAt)', async () => {
@@ -1175,9 +1175,9 @@ describe('delete moment', () => {
   })
 })
 
-// Fix-1 item 1 (owner acceptance, 2026-08-13): moment detail is nested inside
-// PhotosSmartViewsView in Vue2 (activeNav==='smart', "Moments dedicated page" comment,
-// NimoOS-UI PhotosTimeline.vue:1024-1033) -- same nav as the Moments · For You list page, so
+// Moment detail is nested inside PhotosSmartViewsView in Vue2 (activeNav==='smart',
+// "Moments dedicated page" comment, the Vue 2 page's PhotosTimeline.vue:1024-1033) --
+// same nav as the Moments · For You list page, so
 // title='For You' and sub=the topbar's own default full-library computation (no 'smart' entry
 // in topbarSubContext's navMap, PhotosTimeline.vue:229-234).
 describe('Fix-1 item 1: PhotosTopbar restored (title=For You, default full-library sub)', () => {

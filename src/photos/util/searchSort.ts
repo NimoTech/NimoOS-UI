@@ -1,5 +1,5 @@
 // Search result sorting + the "best match / more results" two-tier split. Ported from Vue2
-// NimoOS-UI src/views/Photos/PhotosSearchView.vue:374-391 (sortedResults), :397-404
+// the Vue 2 panel's src/views/Photos/PhotosSearchView.vue:374-391 (sortedResults), :397-404
 // (bestTierResults/moreTierResults), :675-678 (matchPct),
 // src/store/modules/photos.js:32-33 (searchStateMatchesQuery).
 

@@ -3,15 +3,15 @@
 // 兑现本期挂账的三件事:①T6「在搜索中细化」按钮的落点(见 PhotosSmartViewDetail.vue)
 // ②灯箱 OCR 高亮激活(@open 传 query 给 useLightbox().openAt 第四参)③D12「保存为
 // 智能视图」的宿主接线(.save-smart 按钮 + SearchSaveSmartView)。
-// Read-only 参考: Vue2 NimoOS-UI src/views/Photos/PhotosSearchView.vue 全文、
+// Read-only 参考: Vue2 的 src/views/Photos/PhotosSearchView.vue 全文、
 // PhotosTopbar.vue、PhotosTimeline.vue:208-215(searchActive/history)、:650-668
 // (onSearch + 历史写入)。
 //
 // Plan F Task 1 (D13 alignment + root-causing the dark-band bug, 2026-08-15): this page used to
 // pass `show-search=false` to the top bar and render its own separate `PhotosSearchBar.vue` input
 // instead -- a D13 deviation from Vue2 (Vue2 has exactly one search box: the shared top bar's own
-// `.search`, the same component on both the library page and the search page). Ruling 7 (binding)
-// has corrected this: the top bar's `showSearch` is left at its default (true), a new `query` prop
+// `.search`, the same component on both the library page and the search page). This has been
+// corrected: the top bar's `showSearch` is left at its default (true), a new `query` prop
 // echoes the route's `q` back into that one top-bar input, and submission routes back through
 // `@search-submit` into the existing `submitQuery()` -- reusing the exact same top-bar component
 // and the same echo/submit contract as Photos.vue's timeline page.
@@ -67,7 +67,7 @@ const router = useRouter()
 // :59-63 / SmartViewCard.vue:38 等既有先例)。
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): shell migration onto the
+// Shell migration onto the
 // `.app` CSS Grid + PhotosTopbar, matching the six pages already migrated (Photos.vue's Task 3/4,
 // PhotosAlbums.vue's Plan C Task 2). `collapsed`/`toggle` is the same shared module-singleton
 // composable every migrated page already consumes — this page is not a new instance of the
@@ -947,7 +947,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): shell migration onto the
+/* Shell migration onto the
    `.app` CSS Grid, matching the six pages already migrated (Photos.vue Task 3/4, PhotosAlbums.vue/
    PhotosAlbumDetail.vue/PhotosSmartViews.vue/PhotosSmartViewDetail.vue/PhotosMomentDetail.vue's
    Plan C Task 2). The transitional flex-row `.photos-layout` shell and its `.sidebar` width pin
@@ -958,7 +958,7 @@ onMounted(() => {
    contain the `.photos-layout` rule). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* 2026-08-13 rollback (owner acceptance, Fix-3 item 7 pull-forward — the same treatment
+/* 2026-08-13 rollback (the same treatment
    PhotosFilterChip.vue/PhotosFilterPopover.vue already went through on the same date): every
    selector that shared a name with a bare rule in vue2-parity/photos.scss has been deleted from
    here. The local scoped copies were reaching for New-UI's OWN global tokens (--fg/--fg-faint/

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Settings · Account. 1:1 mapped to Vue2 NimoOS-UI/src/components/account/AccountPanel.vue (1276 lines),
+// Settings · Account. 1:1 mapped to the Vue 2 panel's src/components/account/AccountPanel.vue (1276 lines),
 // the settings area uses `<AccountPanel :isInline="true"/>` (SettingsPanel.vue:59-61).
 //
 // Shape notes: under isInline, Vue2 **hides the header title, keeps the bottom footer**

@@ -55,6 +55,45 @@ export const HARD = [
   // unrelated disk functions; the word list's "wider is better" doesn't mean "so wide it dyes all
   // unrelated feature code red", so we don't collect it. If later someone sees "智能" in the list and
   // "smart" not in the list and wants to add it — read this comment first.
+  // ── 2026-08-27: references that do not resolve in the published tree ─────────────
+  // The list grew out of "strip the AI / photos / search feature areas", so it only ever
+  // collected *feature* vocabulary. A pipeline review added a second class: names of
+  // repositories and working documents that a reader of the published tree cannot open.
+  // These entries keep such references from going stale unnoticed.
+  //
+  // Only the repositories that are not themselves published are listed. The published
+  // siblings (NimoOS-Common / LocalStorage / KVM / AI / Photos / Gateway / Search / Wiki /
+  // MessageBus / UserService / AppManagement / CLI / AppStore) are deliberately absent:
+  // pointing a comment at a published repo's file is a normal cross-repo reference and
+  // resolves fine. Case-sensitive on purpose — the inlined package is
+  // `@nimotech/nimoos-service` (lowercase) and appears throughout package.json /
+  // lockfile / imports.
+  ['NimoOS-UI', /NimoOS-(New-)?UI/],
+  ['NimoOS-Service', /NimoOS-Service/],
+  ['NimoOS-Cloud', /NimoOS-Cloud/],
+  ['DEV-NimoOS-Photos', /DEV-NimoOS-Photos/],
+
+  // Working-document references: ledger paths, design-note pointers, the memory-slug
+  // convention, the fix-wave / ruling shorthand, and the local collaboration guide's
+  // filename. None of those files exist in the published tree, so a comment pointing at
+  // one is a dead link; the reasoning it refers to belongs in the comment itself.
+  ['superpowers', /superpowers/i],
+  ['CLAUDE.md', /CLAUDE\.md/i],
+  ['memory slug', /\b(per|see) memory [a-z0-9-]{6,}/i],
+  ['owner ruling', /owner-(confirmed|rejected|rejection|approved)|owner acceptance/i],
+  ['fix wave', /\bfix wave\b/i],
+  ['controller ruling', /controller ruling/i],
+
+  // Addresses of specific development machines, same shape as the 192.168.1.115 entry
+  // above: a sample value that is only meaningful on one machine tells a reader nothing
+  // and ages badly, so fixtures use synthetic values instead.
+  // Placeholders such as 192.168.1.1 / .10 / .250 stay legal on purpose: they are
+  // input-field placeholders and i18n examples, and banning the whole RFC1918 range would
+  // dye ~90 legitimate lines red — the "wider is better" rule stops where it starts
+  // dyeing unrelated feature code (same reasoning as the "smart" note above).
+  ['192.168.1.143', /192\.168\.1\.143/],
+  ['192.168.1.49', /192\.168\.1\.49/],
+  ['192.168.1.189', /192\.168\.1\.189/],
 ].map(([word, re]) => ({ word, re }))
 
 /**
@@ -497,7 +536,7 @@ export const SOFT = [
       // RaidDetailPanel.vue/raidUtils.js"),是文档意义上的"抄录/转写",
       // 与音频转录(AI)功能无关。已用 grep 核实:这三行是本仓 转录 出现
       // 在 zh_cn.ts 里唯二不属于 audio* 转录键的地方。逐行精确匹配,不是关键词。
-      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine('// 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)') },
+      { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine('// 逐字转录自 Vue2 面板的 RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)') },
       { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine('// read/write 为该表原始 1-5 评分(5、4),转录为评分文本。') },
       { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("// desc:raidUtils.js 源文件中 desc 字段本身即占位字符串(如 'RAID 0 Description'),逐字转录(非我方发明)") },
     ],

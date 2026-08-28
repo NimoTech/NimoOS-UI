@@ -1,5 +1,5 @@
 <!--
-  SP8-P4 Task 9 (wrap-up) — ported 1:1 from Vue2 `NimoOS-UI/src/views/AI/MCP/McpSection.vue`
+  SP8-P4 Task 9 (wrap-up) — ported 1:1 from the Vue 2 panel's `src/views/AI/MCP/McpSection.vue`
   (136 lines). Its twin sibling is `./SkillsSection.vue` (SP8-P3a/P3b, already reviewed and
   approved) — this file's `<script setup>` style, the structure of the four data methods
   (reload/toggle/delete/save), and the `+` button wiring are all copied from it; no third
@@ -240,7 +240,7 @@ async function onSave(payload: McpServerFormPayload) {
   let probeId: number | undefined
   try {
     // The shared package's parameter type is `Record<string, unknown>`
-    // (NimoOS-Service/dist/ai.d.ts:85-86) — `McpServerFormPayload` is a named interface
+    // (the shared HTTP client's `dist/ai.d.ts:85-86`) — `McpServerFormPayload` is a named interface
     // without an implicit index signature, so TS considers them incompatible (TS2345),
     // hence the one-off cast; the field values themselves are untouched (same note as
     // SkillsSection.vue's `onCreate`).

@@ -9,8 +9,8 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 const opts = { global: { plugins: [i18n] }, attachTo: document.body }
 
 // reka-ui Dialog teleports its content to <body> outside the mounted wrapper's
-// own DOM subtree, so `wrapper.find()` cannot see it (see Dialog.test.ts from
-// Task 4). Query via a DOMWrapper around document.body instead, after one
+// own DOM subtree, so `wrapper.find()` cannot see it (see Dialog.test.ts).
+// Query via a DOMWrapper around document.body instead, after one
 // nextTick for the teleported content to land in jsdom.
 const body = () => new DOMWrapper(document.body)
 

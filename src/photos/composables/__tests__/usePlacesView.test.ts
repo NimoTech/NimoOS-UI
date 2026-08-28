@@ -1,8 +1,8 @@
-// usePlacesView view transformation and gesture tests. Ported from Vue2 NimoOS-UI
+// usePlacesView view transformation and gesture tests. Ported from the Vue 2 panel's
 // src/views/Photos/PhotosPlacesView.vue:561-735(complete section).
 //
 // In jsdom, getBoundingClientRect always returns all zeros. Must explicitly mock
-// a controllable rectangle for each test (see mockSvg helper, from brief).
+// a controllable rectangle for each test (see mockSvg helper).
 // requestAnimationFrame is not a timer and cannot be driven by vi.useFakeTimers() —
 // use fake rAF instead (collect callbacks, flush manually, control now).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'

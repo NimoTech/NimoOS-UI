@@ -1,6 +1,6 @@
 <!-- Failure simulator deferred by P4 decision 2 -->
 <!--
-  Migrated from NimoOS-UI/src/components/Storage/raid/RaidMatrix.vue (:12-121, the matrix body).
+  Migrated from the Vue 2 panel's src/components/Storage/raid/RaidMatrix.vue (:12-121, the matrix body).
   Migrates only the matrix itself (the nine rows Layout/Min drives/Survives/Capacity/Read/Write/
   Cost/Best for/Actions x the 5 level columns).
   Deliberately does not migrate the Vue2 source's :123-200 failure-simulator modal

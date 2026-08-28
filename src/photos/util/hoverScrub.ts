@@ -1,4 +1,4 @@
-// Ported verbatim (logic unchanged, types added) from Vue2 NimoOS-UI
+// Ported verbatim (logic unchanged, types added) from the Vue 2 panel
 // src/views/Photos/hoverScrub.js (whole file, 36 lines).
 
 // Maps the pointer's horizontal position to a frame index [0, frameCount-1]

@@ -1,6 +1,5 @@
 <!--
-  Fix wave C (toolbar redesign, owner-confirmed mockup: .superpowers/sdd/
-  2026-08-25-files-time-machine-vue2-parity/files-toolbar-mock.html) -- collapses the four
+  Toolbar redesign: collapses the four
   standalone topbar chips (New folder / New file / Upload files / Upload folder) into ONE
   accent-purple "New" dropdown button. Follows the house reka-ui DropdownMenu pattern already
   established by ../components/AddMountMenu.vue (Root/Trigger/Portal/Content/Item/Separator used
@@ -13,11 +12,11 @@
   own -- every item just emits, and the caller (Files.vue) wires each emit to its OWN existing
   handler (openNew('folder'), openNew('file'), triggerFileSelect, triggerFolderSelect), unchanged.
 
-  Icons are hand-copied verbatim from the owner-approved mock's own inline SVG paths (stroke-based,
-  `stroke="currentColor"`) -- exact visual parity with what the owner said yes to, not a
+  Icons are hand-copied verbatim from the approved design mockup's own inline SVG paths
+  (stroke-based, `stroke="currentColor"`) -- exact visual parity with the approved design, not a
   reinterpretation. This is the same "plain monochrome glyph inheriting currentColor" UI-icon
   convention already established elsewhere in this app (e.g. TimeMachineStage.vue's own gear
-  button), just stroke-style (matching the mock) rather than MDI fill-style.
+  button), just stroke-style (matching the mockup) rather than MDI fill-style.
 -->
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -99,9 +98,9 @@ const open = ref(false)
 </template>
 
 <style scoped>
-/* Fix wave C re-review: repointed from the app's generic blue --accent onto the DEDICATED
+/* Repointed from the app's generic blue --accent onto the DEDICATED
    --purple-accent/--purple-accent-hover/--on-purple-accent triplet (theme.css) -- see that
-   token's own header comment for the exact owner-approved literal it pins. The mock's own
+   token's own header comment for the exact approved literal it pins. The mockup's own
    throwaway demo stylesheet just happens to name ITS OWN custom property "--accent" too; that is
    an unrelated coincidence, not an instruction to reuse this app's real (blue) --accent.
    `--on-purple-accent` (not `--on-accent`) is the correct foreground here -- see theme.css's own
@@ -120,10 +119,9 @@ const open = ref(false)
   background: var(--purple-accent);
   color: var(--on-purple-accent);
 }
-/* Mock's own `.pill.new:hover { background: var(--accent-hover) }`, now a direct 1:1 token
-   match -- `--purple-accent-hover` IS this button's own dedicated hover fill (fix wave C
-   re-review introduced it precisely for this need), so no `filter`-based approximation is
-   needed any more. */
+/* Mockup's own `.pill.new:hover { background: var(--accent-hover) }`, now a direct 1:1 token
+   match -- `--purple-accent-hover` IS this button's own dedicated hover fill, introduced
+   precisely for this need, so no `filter`-based approximation is needed any more. */
 .files-new-trigger:hover { background: var(--purple-accent-hover); }
 .files-new-icon { width: 13px; height: 13px; flex: none; }
 .files-new-caret { width: 11px; height: 11px; flex: none; transition: transform 0.15s var(--ease, ease); }
@@ -138,14 +136,14 @@ const open = ref(false)
 .files-new-content { min-width: 190px; }
 .files-new-item { gap: 10px; }
 .files-new-item-icon { width: 15px; height: 15px; opacity: 0.75; flex: none; }
-/* Mock's own purple-tinted hover (`.menu button:hover { background: var(--accent-soft); color:
+/* Mockup's own purple-tinted hover (`.menu button:hover { background: var(--accent-soft); color:
    var(--accent) }`, its OWN demo `--accent-soft` token -- a 12%-alpha purple tint), overriding
    ui-ctx-item's default neutral chip-bg-hi highlight -- two classes on the item
-   (`.ui-ctx-item.files-new-item`) beats the single-class base rule's specificity. Fix wave C
-   re-review: `color-mix` off the real `--purple-accent` token (not this app's generic
+   (`.ui-ctx-item.files-new-item`) beats the single-class base rule's specificity. `color-mix`
+   off the real `--purple-accent` token (not this app's generic
    `--accent-soft`, a DIFFERENT blue-tinted token with its own unrelated consumers) -- same
    "color-mix a soft tint straight off a fixed accent token" idiom Files.vue's own
-   `.tm-real-window-chip` already uses for `--tm-accent`, at the mock's own literal 12% alpha. */
+   `.tm-real-window-chip` already uses for `--tm-accent`, at the mockup's own literal 12% alpha. */
 .ui-ctx-item.files-new-item[data-highlighted] {
   background: color-mix(in srgb, var(--purple-accent) 12%, transparent);
   color: var(--purple-accent);

@@ -1,15 +1,14 @@
-// SP8-P2b Task 11 — 1:1 taken from Vue2 src/views/AI/Settings/sections/ChannelsSection.vue
+// 1:1 taken from Vue2 src/views/AI/Settings/sections/ChannelsSection.vue
 // bindingLabel (:304-307) and pairInstructions computed (:185-190), plus template
 // channelsBotTokenTail split/join fill (:29, `$t('channelsBotTokenTail').split('{tail}').join(inst.token_tail)`).
 //
 // Extracted to pure function same as Task 9 (mcpConnect.ts): Vue2's existing tests call
 // methods/computed directly via this, <script setup> has no methods object to borrow.
-// **But unlike Task 9**: NimoOS-UI's ChannelsSection.spec.js (read through 2026-07-28)
+// **But unlike Task 9**: the Vue 2 panel's ChannelsSection.spec.js (read through 2026-07-28)
 // has no direct assertions on bindingLabel/pairInstructions — genCode test comment
 // explicitly admits "{bot}/{code} substitution is not asserted here". So this file's 7 test
-// examples don't inherit from spec.js's existing assertions, but are newly written by brief
-// based on Vue2 source behavior (see Task 11 report "assertion inheritance" section,
-// honestly declared as 0/7).
+// examples don't inherit from spec.js's existing assertions; they are newly written directly
+// from the Vue2 source behavior (0/7 inherited from spec.js's existing assertions).
 //
 // Three functions all avoid touching i18n — copy template is t()'d by caller then passed in,
 // so pure function can test independently of vue-i18n. Task 12 (consumer) decided to use

@@ -1,5 +1,5 @@
 // Ported (optimistic-flip/rollback + view-throttle behavior, unchanged) from
-// Vue2 NimoOS-UI store/modules/photos.js:743-755 (toggleFav) and :727-734
+// the Vue 2 panel store/modules/photos.js:743-755 (toggleFav) and :727-734
 // (VIEW_THROTTLE_MS=60000 recordView throttle).
 //
 // Photos backend has NO standard {Success,Message,Data} envelope — listFavoriteIds

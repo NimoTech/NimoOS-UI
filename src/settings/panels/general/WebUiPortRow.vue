@@ -3,7 +3,7 @@
 // Flow: validate → PUT /v1/gateway/port → poll the new port's /v1/gateway/port →
 // once it responds, navigate over.
 // Changing the gateway port means "bring up the new port, confirm with /ping, then
-// gracefully close the old port" (top-level CLAUDE.md), so this page on the old port
+// gracefully close the old port", so this page on the old port
 // stays alive during the switchover window, long enough to complete the probe.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'

@@ -248,7 +248,7 @@ describe('Files.vue upload wiring', () => {
 
     // The user now starts a completely unrelated, ordinary folder upload via the
     // real toolbar dropdown item — this is the actual triggerFolderSelect() code path, not a
-    // stand-in. Fix wave C: Upload folder now lives inside the collapsed "New" dropdown
+    // stand-in. Upload folder now lives inside the collapsed "New" dropdown
     // (FilesNewMenu.vue), teleported to document.body via reka-ui's Portal, so it must be
     // opened first and then queried via `body()` (see the file-scope `body()` helper's own
     // comment above) rather than `w.find()`.
@@ -491,7 +491,7 @@ describe('Files.vue folder picker: empty folders', () => {
     router.push('/files'); await router.isReady()
     const w = mount(Files, { global: { plugins: [router, i18n] } })
     await flushPromises()
-    // Fix wave C: Upload folder now lives inside the collapsed "New" dropdown
+    // Upload folder now lives inside the collapsed "New" dropdown
     // (FilesNewMenu.vue), teleported to document.body via reka-ui's Portal and only rendered
     // once open (no `forceMount`) -- open it once here so every test below can query `body()`
     // for '.tb-upload-folder' without repeating the open step itself.

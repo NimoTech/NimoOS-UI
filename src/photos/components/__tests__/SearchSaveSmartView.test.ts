@@ -521,11 +521,11 @@ describe('.sv-switch 轨道过渡 + 拇指投影(C5 的 T8 M1 修复,别再丢�
     expect(onThumb?.body).toContain('left: 16px')
   })
 
-  // Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+  // Note: straight bug fix, not a deviation from Vue2 -- parity's
   // own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
   // moves the knob; it never overrides `background`, so Vue2's knob is the same colour in both
-  // states. This file's own copy used to add `background: var(--on-accent)` here (the C5 ruling
-  // pinned it to SmartViewCreateDialog.vue's then-buggy value), making the knob track state
+  // states. This file's own copy used to add `background: var(--on-accent)` here (pinned
+  // to SmartViewCreateDialog.vue's then-buggy value), making the knob track state
   // instead of staying constant.
   it('.sv-switch[data-on="true"]::after 不覆盖 background(knob 两态同色,不随 data-on 变色)', () => {
     const rules = parseCssRules(extractStyleBlock(searchSaveSmartViewRaw))

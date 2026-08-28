@@ -52,16 +52,15 @@
      default look); icons must stay square everywhere */
   --icon-radius: 31%;
 
-  /* Fix wave E (E2, owner acceptance 2026-08-26): shared, non-color structural metrics for the
+  /* Shared, non-color structural metrics for the
      Files topbar/list-head "chrome" row, pinned here ONCE and consumed by BOTH the real window
      (src/views/Files.vue's own `.files-topbar`/`.files-list-head`/`.files-item-count`) and its
      decorative Time Machine depth-stack replica (src/files/snapshot/SnapshotPreviewWindow.vue's
      own `.tm-preview-window__chrome`/`__row2`/`__count`) -- so a promoted back panel's chrome
      rows land at the EXACT same pixels as the just-revealed real window's, with nothing shifting
-     relative to anything else at the reveal instant (the owner's own binding rule for this fix
-     wave, see timeMachineMath.ts's own resolveSlotPose comment on Ruling E-1'). This is the
-     THIRD time this exact pair of files drifted on chrome metrics (Fix waves A1/B2/C each fixed a
-     different piece of it) -- a shared token makes a FOURTH drift a build-time impossibility for
+     relative to anything else at the reveal instant (see timeMachineMath.ts's own
+     resolveSlotPose comment for the binding rule). This exact pair of files has drifted on
+     chrome metrics before -- a shared token makes another drift a build-time impossibility for
      the values it covers, rather than another one-off audit. Breadcrumb.vue's own `.crumb` (the
      LIVE breadcrumb) also consumes `--tm-crumb-*` below, even though it has nothing to do with
      Time Machine by name -- it is simply the single real source of that geometry both TM chrome
@@ -93,7 +92,7 @@
   --accent2: #b79bff;
   --good: #5fe3b0;
   --on-accent: #16203a;
-  /* Fix wave C re-review (Files toolbar redesign, owner-confirmed mockup): a dedicated app-level
+  /* A dedicated app-level
      PURPLE accent for the "New" dropdown button + its dependents (select-all fill, view-capsule
      active half, dropdown-item hover tint) -- the mock's own literal `--accent: #7c3aed` /
      `--accent-hover: #6d28d9`, NOT this block's generic blue `--accent` (other app surfaces
@@ -143,8 +142,8 @@
   --accent-soft-2: rgba(138, 180, 255, 0.24);
   --accent-soft-bd: rgba(138, 180, 255, 0.36);
   /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
-     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
-     removed --place-thumb-active itself for the same reason (re-verified zero consumers
+     that used to sit here (confirmed zero consumers repo-wide). --place-thumb-active itself was
+     later removed for the same reason (re-verified zero consumers
      repo-wide, both theme blocks) -- the comment this replaces described it as PlacesRail.vue's
      selected-city row token, but that rule (`.rail-place.is-active:hover`, PlacesRail.vue's own
      `<style scoped>`) actually blends `rgba(var(--accent-rgb), 0.10)` directly rather than
@@ -199,7 +198,7 @@
      i.e. both fall through to this CSS fallback — not a rare branch). */
   --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
   /* PlacesZoomBar.vue (P6a-T8) vertical zoom slider's floating pill background -- a new
-     token, an exact port of Vue2 photos.scss:49 (NimoOS-UI's shared global floating-bar/FAB
+     token, an exact port of Vue2 photos.scss:49 (the Vue 2 panel's shared global floating-bar/FAB
      background, not something photos-places.scss defines on its own). This repo had no
      equivalent "translucent floating toolbar background" token before -- --panel-bg (0.1),
      --popup-bg (a gradient, ~0.9-0.95), and --tool-bg (0.16, an opaque flat color) all miss
@@ -321,8 +320,7 @@
   --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
   --tm-control-radius: 10px;
   --tm-panel-blur: blur(20px) saturate(1.2);
-  /* Fix wave A4 (deferred from A2's audit-stage.md #4, the clone-backdrop media-placeholder DOM
-     walk): Vue2's own `.tm-stage__clone-media-placeholder` literal (TimeMachineStage.vue:2936-2940,
+  /* The clone-backdrop media-placeholder DOM walk: Vue2's own `.tm-stage__clone-media-placeholder` literal (TimeMachineStage.vue:2936-2940,
      `background: rgba(255, 255, 255, 0.08)`) -- the stand-in box `sanitizeClonedNode` swaps in for
      every cloned `<video>`/`<canvas>` (a `cloneNode(true)` copy of either never preserves the
      decoded frame/drawn bitmap, so left alone it would render as a dead black box behind the glass
@@ -371,7 +369,7 @@
   /* Task 10 (entry pill): Vue2 FilePanel.vue's own entry button is Buefy's
      `<b-button type="is-success" rounded size="is-small">` (Snapshots pill). Pixel-pinned by
      resolving Buefy's own color pipeline for that repo's `$green: hsla(118, 70%, 45%, 1)` base
-     (see NimoOS-UI/src/assets/scss/common/_variables.scss): Bulma's own `.is-success` rule
+     (see the Vue 2 panel's src/assets/scss/common/_variables.scss): Bulma's own `.is-success` rule
      (bulma/sass/elements/button.sass) sets `background-color: $color`,
      `color: findColorInvert($color)`, and `&:hover background-color: bulmaDarken($color, 2.5%)`
      -- findColorInvert's own relative-luminance formula returns white for this green (luminance
@@ -418,7 +416,7 @@
      token needed there. */
   --tm-action-bar-bg: rgb(49, 49, 54);
   --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
-  /* Fix wave A2 (audit-stage.md #5/#6/#4/#10/#12): pixel-pinned to Vue2's own remaining
+  /* Pixel-pinned to Vue2's own remaining
      TimeMachineStage.vue literals the earlier waves left on `--card-shadow-hi`/`--tm-text`/a
      borrowed rail token instead of a dedicated one. `--tm-fwin-shadow` is `.tm-fwin--active`'s own
      single-layer `box-shadow` (3198), replacing the generic 3-layer `--card-shadow-hi` (with its
@@ -430,16 +428,14 @@
      `background` (3403) -- kept distinct from `--tm-rail-tick-sub` (0.2 alpha, the sub-tick's own
      resting color) since Vue2 pins a different alpha (0.28) for the loading placeholder than for
      any real tick.
-     Fix wave F (Ruling F'-1, owner acceptance 2026-08-26, shadow pop at the reveal swap): this
-     block used to ALSO define `--tm-depth-shadow: 0 6px 18px rgba(5,8,30,0.3)` -- Vue2's own,
+     This block used to ALSO define `--tm-depth-shadow: 0 6px 18px rgba(5,8,30,0.3)` -- Vue2's own,
      genuinely weaker, `.tm-stage__depth-strip` box-shadow (3042), distinct from this fwin shadow's
      `0 18px 50px @0.45`. Since the depth-0 strip sits pixel-for-pixel underneath the real window
      (D2's own geometry-parity tests) and is only ever exposed during a travel (the fwin is opaque
      the rest of the time, occluding it completely), that weaker shadow was visibly REPLACED by this
      stronger one the instant the fwin's opacity snapped back from 0 to 1 at reveal -- a "shadow
      suddenly appears" pop breaking the "this exact panel slid forward" illusion. The owner's
-     seamlessness directive outranks Vue2's own two-distinct-literals design here (same posture as
-     Ruling E-1' on scaleX/scaleY): retired outright, not aliased -- `--tm-depth-shadow` had exactly
+     seamlessness directive outranks Vue2's own two-distinct-literals design here: retired outright, not aliased -- `--tm-depth-shadow` had exactly
      ONE consumer (`.tm-depth-strip`, TimeMachineDepthStack.vue) and no reason to ever diverge from
      `--tm-fwin-shadow` again, so keeping a second token whose value must forever equal the first
      one's would only invite a FUTURE edit to one drifting from the other -- deleted instead, and
@@ -456,9 +452,9 @@
      `--tm-gear-text` above (0.75), not a reuse: title is fully opaque, sub is 0.7. */
   --tm-empty-title: #f1f5f9;
   --tm-empty-sub: rgba(241, 245, 249, 0.7);
-  /* Fix wave A3 (audit-modals.md): Vue2 uses TWO different purples across the three white-glass
+  /* Vue2 uses TWO different purples across the three white-glass
      modal dialogs (SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog) and the
-     always-live stage -- `$primary`/`$casablue = #8950F2` (NimoOS-UI common/_variables.scss:26,186,
+     always-live stage -- `$primary`/`$casablue = #8950F2` (the Vue 2 panel's common/_variables.scss:26,186,
      verified directly against node_modules/buefy's own `_switch.scss` which resolves
      `$switch-active-background-color: $primary`) for every INTERACTIVE FILL inside those three
      modals (switch-on track, Save/Create/Restore-here/Merge/Keep-both button fills, the manual
@@ -479,8 +475,8 @@
   --tm-primary: #8950f2;
   --tm-primary-hover: #8144f1;
   --tm-primary-text: #5d11e9;
-  /* Fix wave A3 (audit-modals.md #1): Buefy's own `.modal` background is a flat, unblurred
-     `rgba(0,0,0,.5)` (Bulma `$modal-background-background-color`, NimoOS-UI
+  /* Buefy's own `.modal` background is a flat, unblurred
+     `rgba(0,0,0,.5)` (Bulma `$modal-background-background-color`, the Vue 2 panel's
      common/_variables.scss:276) for all three white-glass TM dialogs -- a different scrim from
      this app's shared `--overlay-bg`/`--overlay-blur` (blurred, blue-tinted), which those three
      dialogs' own `<style scoped>` blocks used to reuse. Scoped to ONLY those three components
@@ -488,7 +484,7 @@
      `.rdm-overlay`/`.fc-overlay` rules) -- every other dialog in the app keeps the shared
      blurred overlay unchanged. */
   --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
-  /* Fix wave A3 (audit-modals.md #7/#14/#16/#18): SnapshotSettingsModal.vue's own remaining
+  /* SnapshotSettingsModal.vue's own remaining
      history-list literals not yet pinned to a token. `--tm-rail-connector` is
      `&__history-list::before`'s own literal `background: rgba(0,0,0,.1)` (own file:1218,1220) --
      the 1px vertical timeline connector line behind the history dots. `--tm-dot-ring` is
@@ -512,7 +508,7 @@
   --tm-history-header-hover-bg: rgba(242, 243, 245, 0.95);
   --tm-skeleton-shimmer-mid: rgba(0, 0, 0, 0.1);
   --tm-scroll-thumb-hover: rgba(0, 0, 0, 0.3);
-  /* Fix wave A3 (audit-modals.md §5): SnapshotBanner.vue's own component previously reused the
+  /* SnapshotBanner.vue's own component previously reused the
      app-wide `--dem-*` "noteworthy but not error" semantic tokens, which flips value per theme
      (translucent gold-on-dark-glass in the default theme) -- but Vue2's own SnapshotBanner.vue
      (own file:64-68) is a single hardcoded flat pale-yellow strip (`#fef9c3`/`#92400e`, Tailwind
@@ -789,8 +785,8 @@
   --accent-soft-2: rgba(59, 91, 219, 0.2);
   --accent-soft-bd: rgba(59, 91, 219, 0.3);
   /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
-     that used to sit here (confirmed zero consumers repo-wide). Fix wave (post-final-review)
-     removed --place-thumb-active itself -- see the dark `:root` block's own comment for why
+     that used to sit here (confirmed zero consumers repo-wide). --place-thumb-active itself was
+     later removed -- see the dark `:root` block's own comment for why
      (it was never actually consumed; re-verified zero consumers repo-wide in both blocks). */
   /* Fix-5: the seven --pin-* geo-pin tokens that used to be redefined here (blue-family
      light-mode values) are removed — see the dark `.photos-root` block's own Fix-5 comment
@@ -952,8 +948,8 @@
      full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
   --tm-action-bar-bg: rgb(49, 49, 54);
   --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
-  /* Fix wave A2 -- see the dark block's own comment on these tokens for the full Vue2 provenance;
-     values are identical here (owner ruling: same look in both themes). Fix wave F (Ruling F'-1):
+  /* See the dark block's own comment on these tokens for the full Vue2 provenance;
+     values are identical here (owner ruling: same look in both themes).
      `--tm-depth-shadow` retired here too -- see the dark block's own comment on this token's
      removal for the full trace. */
   --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
@@ -963,14 +959,14 @@
   --tm-rail-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
   --tm-empty-title: #f1f5f9;
   --tm-empty-sub: rgba(241, 245, 249, 0.7);
-  /* Fix wave A3 -- see the dark block's own comment on these three tokens for the full Vue2/Bulma
+  /* See the dark block's own comment on these three tokens for the full Vue2/Bulma
      provenance; values are identical here (owner ruling: same look in both themes). */
   --tm-primary: #8950f2;
   --tm-primary-hover: #8144f1;
   --tm-primary-text: #5d11e9;
-  /* Fix wave A3 -- see the dark block's own comment for the full Vue2 provenance. */
+  /* See the dark block's own comment for the full Vue2 provenance. */
   --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
-  /* Fix wave A3 -- see the dark block's own comment on these six tokens for the full Vue2
+  /* See the dark block's own comment on these six tokens for the full Vue2
      provenance; values are identical here (owner ruling: same look in both themes). */
   --tm-rail-connector: rgba(0, 0, 0, 0.1);
   --tm-dot-ring: rgba(0, 0, 0, 0.12);
@@ -978,7 +974,7 @@
   --tm-history-header-hover-bg: rgba(242, 243, 245, 0.95);
   --tm-skeleton-shimmer-mid: rgba(0, 0, 0, 0.1);
   --tm-scroll-thumb-hover: rgba(0, 0, 0, 0.3);
-  /* Fix wave A3 -- see the dark block's own comment for the full Vue2 provenance. */
+  /* See the dark block's own comment for the full Vue2 provenance. */
   --tm-banner-bg: #fef9c3;
   --tm-banner-fg: #92400e;
 }

@@ -1,5 +1,5 @@
 // SP8-P5f Task 3 —— 1:1 ported from Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/wikiViewHelpers.js`(95 lines).
+// the Vue 2 panel's `src/views/AI/Knowledge/wikiViewHelpers.js` (main@7a6ee6b7, 95 lines).
 //
 // Pure functions for the Wiki navigation page (`/ai/knowledge/wiki`). `GET /wiki/tree` returns
 // a **flat** directory node list; the tree is assembled on the frontend (as stated in the
@@ -11,14 +11,14 @@
 //
 // ① Flat node (element in `buildWikiTree` input) = shared package `WikiTreeNode`
 //    (`@nimotech/nimoos-service`, output shape of `store.loadWikiTree()`, camelCase,
-//     normalized at `NimoOS-Service/src/wiki.ts:102 normalizeTreeNode`, governance N46).
+//     normalized at the shared HTTP client's `src/wiki.ts:102 normalizeTreeNode`, governance N46).
 //    · `path`      —— this file `:20`(`typeof n.path === 'string' && n.path`), `:26`(`byPath[n.path]`),
 //                     `:28`(`baseName(n.path)`), `:34`(`t.name = n.path`)
 //    · `aiLabel`   —— original `WikiView.vue:191`(`selTreeNode.aiLabel`)
 //    · `lastModified` —— original `WikiView.vue:193`(`parseTs(selTreeNode.lastModified)`)
 //    · `level` / `userNotesUpdatedAt` —— both consumers this round **do not read**, but they are
-//      existing fields in the `/tree` response (see `p5f-fixtures/wiki-tree.CONSTRUCTED.json`
-//      `built_from`), carried as-is in tree nodes via `{ ...n }` ⇒ use shared package type
+//      existing fields in the `/tree` response (per the wiki-tree fixture's `built_from`),
+//      carried as-is in tree nodes via `{ ...n }` ⇒ use shared package type
 //      wholesale, do not drop fields in this file.
 //
 // ② Tree node (element in `buildWikiTree` output) = flat node + `name` + `children`

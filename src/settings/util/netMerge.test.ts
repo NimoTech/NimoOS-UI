@@ -8,7 +8,7 @@ import type { NetworkInterfaceConfig } from '@nimotech/nimoos-service'
 const HTTP_NET = [
   { name: 'enp2s0', bytesSent: 7285564882, bytesRecv: 5743660811, packetsSent: 9428871, packetsRecv: 9033514,
     errin: 0, errout: 0, dropin: 0, dropout: 0, fifoin: 0, fifoout: 0,
-    state: 'up', time: 1785507566, addr: '192.168.1.143', speed: 1000, max_speed: 1000 },
+    state: 'up', time: 1785507566, addr: '192.168.1.10', speed: 1000, max_speed: 1000 },
   { name: 'enp4s0', bytesSent: 0, bytesRecv: 0, packetsSent: 0, packetsRecv: 0,
     errin: 0, errout: 0, dropin: 0, dropout: 0, fifoin: 0, fifoout: 0,
     state: 'down', time: 1785507566, addr: '', speed: 0, max_speed: 1000 },
@@ -22,7 +22,7 @@ const HTTP_NET = [
 const SOCKET_NET = [
   { name: 'enp2s0', bytesSent: 7412676226, bytesRecv: 5750617476, packetsSent: 9538769, packetsRecv: 9103377,
     errin: 0, errout: 0, dropin: 0, dropout: 0, fifoin: 0, fifoout: 0,
-    state: 'up', time: 1785508147, addr: '192.168.1.143', speed: 1000, max_speed: 0 },
+    state: 'up', time: 1785508147, addr: '192.168.1.10', speed: 1000, max_speed: 0 },
 ]
 
 // ── fixture C: GET /v2/nimoos/network/interfaces (verified via curl, 2026-07-31) ──
@@ -65,7 +65,7 @@ describe('mergeInterfaces —— the list source is utilization, config only sup
 
   it('runtime addr / speed / maxSpeed come from utilization', () => {
     const [eth] = mergeInterfaces(HTTP_NET, CONFIGS)
-    expect(eth.addr).toBe('192.168.1.143')
+    expect(eth.addr).toBe('192.168.1.10')
     expect(eth.speed).toBe(1000)
     expect(eth.maxSpeed).toBe(1000)
   })
@@ -100,7 +100,7 @@ describe('mergeInterfaces —— the list source is utilization, config only sup
       ipv4: { method: 'static', address: '192.168.1.250', netmask: '255.255.255.0' },
     }]
     const [row] = mergeInterfaces(
-      [{ name: 'enp2s0', state: 'up', addr: '192.168.1.143', speed: 1000, max_speed: 1000 }], cfg)
+      [{ name: 'enp2s0', state: 'up', addr: '192.168.1.10', speed: 1000, max_speed: 1000 }], cfg)
     expect(row.addr).toBe('192.168.1.250')
     expect(row.dhcp).toBe(false)
   })
@@ -110,8 +110,8 @@ describe('mergeInterfaces —— the list source is utilization, config only sup
       { name: 'enp2s0', type: 'ethernet', is_virtual: false, mac: '', state: '', ipv4: { method: 'static' } },
     ]
     const [row] = mergeInterfaces(
-      [{ name: 'enp2s0', state: 'up', addr: '192.168.1.143', speed: 0, max_speed: 0 }], cfg)
-    expect(row.addr).toBe('192.168.1.143')
+      [{ name: 'enp2s0', state: 'up', addr: '192.168.1.10', speed: 0, max_speed: 0 }], cfg)
+    expect(row.addr).toBe('192.168.1.10')
   })
 
   it('concurrent mode does not override even when method=static (that static IP belongs to the virtual AP interface)', () => {

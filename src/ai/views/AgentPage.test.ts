@@ -219,7 +219,6 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenNthCalledWith(2, { path: '/ai/agent', query: {} })
   })
 
-  // Spec Testing item 7 (docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md):
   // skill is a one-shot handoff and gets stripped; session is a standing deep link and survives.
   it('spec Testing #7: ?skill=abc&session=s1 → skill stripped, session preserved throughout', async () => {
     routeQuery.skill = 'abc'

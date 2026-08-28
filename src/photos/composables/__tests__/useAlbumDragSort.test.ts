@@ -124,7 +124,7 @@ describe('useAlbumDragSort', () => {
     expect(onOrder).toHaveBeenCalledWith(['b', 'c', 'a'])
   })
 
-  // Fix-6 (owner acceptance, 2026-08-18): drag-reorder smoothness. See useAlbumDragSort.ts's
+  // Note: drag-reorder smoothness. See useAlbumDragSort.ts's
   // header comment for the full root-cause trace (forceFallback's real cursor sweeping across
   // sibling tiles while the ghost floats, firing their hover transitions for no visual purpose).
   it('onStart adds the is-dragging class to the container; onEnd removes it (synchronously, no nextTick needed)', () => {

@@ -1,4 +1,4 @@
-// Ported from Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:
+// Ported from the Vue 2 panel's src/views/Photos/PhotosPlacesView.vue:
 //   data()     :70-96    (view/activeId/theme/filter/collapsedRegions state)
 //   mounted    :339-357  (two localStorage reads: theme prefs + rail-collapsed)
 //   methods    :379-385  (persistTheme write), :386-389 (isRegionCollapsed),
@@ -395,9 +395,8 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 250ms debounce + flush-on-unmount,
-  // ported
-  // from Vue2 NimoOS-UI PR #106's own perf sub-commit (git show 78cf3335) persistTheme()/
+  // 250ms debounce + flush-on-unmount, ported
+  // from the Vue 2 panel's PR #106 perf sub-commit (git show 78cf3335) persistTheme()/
   // writeThemeNow()/beforeDestroy(). localStorage.setItem is synchronous, and dragging the
   // custom-colour picker fires an `input` event (and, before this task, a synchronous
   // setCustomColors() → persistTheme() call) per mouse-move — writing to disk on every one of

@@ -1,7 +1,7 @@
 // SP7-P7a-T8: SmartViewSidePanel.vue — smart view detail page right column three sections
 // (threshold / settings / stats).
-// Covers SmartViewSidePanel required test case list from task-8-brief.md "Step 1: write
-// failing tests", plus I1/I2/M1/M3/M4/M5 from fix round 1 (task-8-fix-1-findings.md).
+// Covers SmartViewSidePanel required test case list's "Step 1: write
+// failing tests", plus I1/I2/M1/M3/M4/M5 from fix round 1.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -324,7 +324,7 @@ describe('.sv-switch track transition + thumb shadow (fix round 1 · M1)', () =>
   })
 })
 
-// Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+// Note: straight bug fix, not a deviation from Vue2 -- parity's
 // own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
 // moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
 // same colour in both states. This file's own `[data-on="true"]::after` rule used to add

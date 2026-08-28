@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Task 3 (shell + sidebar re-skin): re-skinned to the Vue2 pixel baseline (NimoOS-UI
+// Task 3 (shell + sidebar re-skin): re-skinned to the Vue2 pixel baseline (the Vue 2 panel's
 // src/views/Photos/PhotosSidebar.vue:1-93). Structure/classes transcribed
 // verbatim (.sidebar/.sidebar-head/.nav-section/.nav-item/.nav-label/
 // .sidebar-foot/.storage-mini*, collapsed → centered brand-icon + icon-btn

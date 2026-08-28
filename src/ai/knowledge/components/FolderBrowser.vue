@@ -1,7 +1,7 @@
 <!--
-  SP8-P5c Task 3 (half two) — directory selector for "add root directory". 1:1 ported from Vue2
-  blueprint `NimoOS-UI` (main@7a6ee6b7) `src/components/common/FolderBrowser.vue` (143 lines,
-  via `git show main:` — governance §1: that repo's working tree is stale branch, not trustworthy).
+  SP8-P5c Task 3 (half two) — directory selector for "add root directory". 1:1 ported from the
+  Vue 2 panel's blueprint `src/components/common/FolderBrowser.vue` (143 lines,
+  read via `git show main:` rather than the on-disk working tree, which was a stale branch).
 
   Structure mapping (blueprint line → this file):
     :1-29   Template block (breadcrumbs + list 4 branches) — copied verbatim, including :5 String()

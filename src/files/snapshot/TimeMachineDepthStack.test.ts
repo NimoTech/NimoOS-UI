@@ -1,4 +1,4 @@
-// Task 7 (Files Time Machine Vue2-parity line): TimeMachineDepthStack.vue's own component test --
+// TimeMachineDepthStack.vue's own component test --
 // slot windowing/keying stability, switch-driven re-slotting, pin-during-travel presence,
 // reduced-motion synchronous completion, and gsap context cleanup on unmount. See
 // TimeMachineDepthStack.vue's own header comment for the full mechanism this exercises, and
@@ -179,21 +179,20 @@ describe('TimeMachineDepthStack — travel playback (mocked choreography, real g
     expect(targetNames).toEqual(expect.arrayContaining(['s1', 's4']))
   })
 
-  // Fix wave H (Ruling H-1, owner acceptance 2026-08-26): explicit regression pin -- a travel at or
-  // under TRAVEL_FLAT_STEPS (3) must call playTravelTimeline EXACTLY the way it always did, with
-  // none of the fly-through-specific options populated. The test above already proves this
-  // indirectly (unchanged since before wave H, still green); this one asserts it directly so a
-  // future change to the fly-through gating cannot silently start passing these for a short
-  // travel too. Fix wave I (Ruling I-1, owner acceptance 2026-08-26) SUPERSEDES the ORIGINAL
+  // Explicit regression pin -- a travel at or under TRAVEL_FLAT_STEPS (3) must call
+  // playTravelTimeline EXACTLY the way it always did, with none of the fly-through-specific
+  // options populated. The test above already proves this indirectly; this one asserts it
+  // directly so a future change to the fly-through gating cannot silently start passing these for
+  // a short travel too. This supersedes an earlier
   // version of this test's own `presetPoses` assertion: `delayOverridesMs`/`durationMsOverride`
-  // stay wave-H/fly-through-only (this wave's own explicit "1-position cascade is what it always
-  // did" contract), but `presetPoses` is no longer fly-through-exclusive -- ANY travel (short
+  // stay fly-through-only ("1-position cascade is what it always
+  // did"), but `presetPoses` is no longer fly-through-exclusive -- ANY travel (short
   // included) now presets strips newly entering the visible window to their edge-clamped implied
   // pre-travel pose (see TimeMachineDepthStack.vue's own `tmTravel` watcher and `runTravel`
   // comments for the full root-cause trace: without this, a newly-mounted entering strip's own
   // `v-tm-pose` `mounted` hook already set it to its FINAL pose, making its own tween a no-op --
-  // exactly the "pops in place" defect the owner's screenshot caught).
-  it('(fix wave H/I) a <= TRAVEL_FLAT_STEPS travel passes NO delayOverridesMs/durationMsOverride (fly-through-only, unchanged) but DOES preset entering strips (wave I, generalized)', async () => {
+  // exactly the "pops in place" defect a screenshot caught).
+  it('a <= TRAVEL_FLAT_STEPS travel passes NO delayOverridesMs/durationMsOverride (fly-through-only, unchanged) but DOES preset entering strips (generalized)', async () => {
     const spy = vi.spyOn(choreo, 'playTravelTimeline')
     // 15 names, well past the default 10-slot cap (stageHeight stays unmeasured/0 in jsdom, which
     // computeVisibleStripCap treats as "assume the uncapped ceiling", i.e. 10 -- same convention
@@ -223,13 +222,13 @@ describe('TimeMachineDepthStack — travel playback (mocked choreography, real g
   })
 })
 
-// Fix wave H (Ruling H-1, owner acceptance 2026-08-26): the long-jump fly-through's own wiring --
+// The long-jump fly-through's own wiring --
 // see TimeMachineDepthStack.vue's own header comment on the `tmTravel` watcher (pin timing) and
 // `buildFlyThroughOverrides` (delay/preset derivation) for the full mechanism this exercises.
 // timeMachineChoreo.test.ts covers flyThroughPlan/flyThroughDurationMs as PURE functions
 // exhaustively -- not re-proven here; this suite is scoped to "does the component actually wire a
 // plan into real strips/pins/GSAP calls/the reveal-gate correctly."
-describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ruling H-1)', () => {
+describe('TimeMachineDepthStack — long-jump fly-through wiring', () => {
   it('mounts (pins) every sampled intermediate from the plan as a real depth-stack strip, not just the two endpoints', async () => {
     const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
     const { browse, files } = await setup(names, 's0')
@@ -298,13 +297,13 @@ describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ru
     // Y offsets must differ (not every intermediate collapsed onto one shared pose).
     const ys = intermediates.map((s) => opts.presetPoses![s.name].y)
     expect(new Set(ys).size).toBeGreaterThan(1)
-    // Fix wave I (Ruling I-1, owner acceptance 2026-08-26) SUPERSEDES wave H's own "the target
-    // gets no preset" assumption: s20 (the target) was ALSO not naturally in the old window for
-    // this big a jump, so it is ALSO a newly-mounted "entering" strip whose own v-tm-pose mounted
-    // hook already set it to its final (identity) pose -- without a preset its own tween would be
-    // a no-op too, the exact "target pops in instead of decelerating into depth 0" gap wave I's
-    // own generic travelStackPlan-driven preset now closes (wave H's own buildFlyThroughOverrides
-    // deliberately never set one for the target -- travelStackPlan's more general pass does).
+    // Supersedes an earlier "the target gets no preset" assumption: s20 (the target) was ALSO not
+    // naturally in the old window for this big a jump, so it is ALSO a newly-mounted "entering"
+    // strip whose own v-tm-pose mounted hook already set it to its final (identity) pose --
+    // without a preset its own tween would be a no-op too, the exact "target pops in instead of
+    // decelerating into depth 0" gap the generic travelStackPlan-driven preset now closes
+    // (buildFlyThroughOverrides deliberately never set one for the target -- travelStackPlan's
+    // more general pass does).
     const targetName = expectedPlan[expectedPlan.length - 1].name
     expect(opts.presetPoses![targetName]).toBeDefined()
   })
@@ -326,7 +325,7 @@ describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ru
     const expectedPlan = choreo.flyThroughPlan(names, 20, 0, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
     const intermediates = expectedPlan.filter((s) => s.role === 'intermediate')
     expect(intermediates.length).toBeGreaterThan(1)
-    // Fix wave I follow-up (re-review, 2026-08-26): NOT every intermediate gets the exit-pose
+    // NOT every intermediate gets the exit-pose
     // preset any more -- only ones that were genuinely NOT in the old window (role 'entering'/
     // 'pinned' per travelStackPlan). This jump's own geometry has exactly one intermediate (s19)
     // that WAS a real old-window member (role 'leaving') -- see below for why skipping its preset
@@ -356,7 +355,7 @@ describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ru
     }
   })
 
-  // Fix wave I follow-up (re-review, 2026-08-26): the exact regression the re-review flagged --
+  // The exact regression this follow-up flagged --
   // a forward jump just PAST TRAVEL_FLAT_STEPS (steps=5, default window) where a sampled
   // intermediate is a genuine, already-visible OLD-window RESIDENT (role 'resident'/'leaving' per
   // travelStackPlan), not a new entrant. Every forward intermediate's own raw OLD depth is
@@ -419,7 +418,7 @@ describe('TimeMachineDepthStack — long-jump fly-through wiring (Fix wave H, Ru
   })
 })
 
-describe('TimeMachineDepthStack — long-jump fly-through: reveal-gate uses the PLAN\'s own total duration (Fix wave H, Ruling H-1)', () => {
+describe('TimeMachineDepthStack — long-jump fly-through: reveal-gate uses the PLAN\'s own total duration', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -442,10 +441,10 @@ describe('TimeMachineDepthStack — long-jump fly-through: reveal-gate uses the 
 
     const plan = choreo.flyThroughPlan(names, 0, 20, { maxIntermediates: choreo.TRAVEL_FLY_MAX_INTERMEDIATES })
     const planDurationMs = choreo.flyThroughDurationMs(plan)
-    const oldStyleDurationMs = choreo.travelDurationMs(20) // what it WOULD have been pre-wave-H
+    const oldStyleDurationMs = choreo.travelDurationMs(20) // what it WOULD have been without the fly-through
     expect(planDurationMs).toBeGreaterThan(oldStyleDurationMs) // sanity: the fly-through genuinely takes longer
 
-    // Advance PAST where the old (pre-wave-H) duration would have fired, but still short of the
+    // Advance PAST where the old (pre-fly-through) duration would have fired, but still short of the
     // plan's own real total -- must NOT have settled yet (proves the gate is using the plan's own
     // duration, not the old growth-curve one).
     await vi.advanceTimersByTimeAsync(oldStyleDurationMs + 50)
@@ -482,7 +481,7 @@ describe('TimeMachineDepthStack — long-jump fly-through: reveal-gate uses the 
   })
 })
 
-describe('TimeMachineDepthStack — long-jump fly-through: superseding kills cleanly (Fix wave H, Ruling H-1)', () => {
+describe('TimeMachineDepthStack — long-jump fly-through: superseding kills cleanly', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -498,7 +497,7 @@ describe('TimeMachineDepthStack — long-jump fly-through: superseding kills cle
     // A MIDDLE intermediate, not one that could coincidentally coincide with the second travel's
     // own endpoints or land inside its normal window by chance -- same "pick a name whose final
     // depth is nowhere near the surviving travel's own window" discipline the existing "pin leak
-    // on superseded travel" suite above already documents (its own re-review comment explains
+    // on superseded travel" suite above already documents (that suite's own comment explains
     // exactly this pitfall: a leaked name too close to the final selection can't prove a real
     // pin-clear happened, since it would render anyway).
     const someIntermediateA = planA.filter((s) => s.role === 'intermediate')[4].name // s11
@@ -537,7 +536,7 @@ describe('TimeMachineDepthStack — long-jump fly-through: superseding kills cle
   })
 })
 
-// Task 7 fix round (review finding 1 -- Vue2's own armReveal/reveal, ported): the reveal-gate is a
+// Vue2's own armReveal/reveal, ported: the reveal-gate is a
 // plain, independent `setTimeout` mechanism (deliberately NOT hooked to the GSAP timeline's own
 // onComplete -- see TimeMachineDepthStack.vue's own header comment), so it is exercised here with
 // fake timers rather than `tl.progress(1)` (the technique the OLD onComplete-driven design used,
@@ -546,7 +545,7 @@ describe('TimeMachineDepthStack — long-jump fly-through: superseding kills cle
 // what TimeMachineStage.vue's own `.tm-fwin--traveling` ultimately reads via `tmTravelActive` --
 // see that component's own test for the DOM-level assertion; this suite spies on the store action
 // directly since it is this component's own, more precise contract boundary).
-describe('TimeMachineDepthStack — reveal-gate (review finding 1: does not settle before the travel finishes)', () => {
+describe('TimeMachineDepthStack — reveal-gate (does not settle before the travel finishes)', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -663,9 +662,9 @@ describe('TimeMachineDepthStack — reveal-gate (review finding 1: does not sett
   })
 })
 
-// Fix wave D (D2, owner acceptance 2026-08-26 -- reveal-time scale stutter): regression coverage
+// Reveal-time scale stutter: regression coverage
 // for the exact race the fix addresses -- see TimeMachineDepthStack.vue's own `travelRunToken`
-// comment for the full mechanism and the Vue2 "Fix Round 15" precedent this ports. Wall-clock
+// comment for the full mechanism and the Vue2 precedent this ports. Wall-clock
 // (`Date.now()`) cannot distinguish the buggy ordering from the fixed one here: under fake timers
 // the virtual clock does not advance across a bare microtask/nextTick boundary, so a `setTimeout`
 // call made "one tick early" resolves to the SAME simulated fire time as one made "on time" --
@@ -679,7 +678,7 @@ describe('TimeMachineDepthStack — reveal-gate (review finding 1: does not sett
 // functions share one global `invocationCallOrder` counter across every mock, so comparing the two
 // calls' own order numbers proves which one actually ran first -- independent of any faked/real
 // wall-clock value.
-describe('TimeMachineDepthStack — reveal-gate timer starts from the same tick as the GSAP travel timeline (fix wave D, D2)', () => {
+describe('TimeMachineDepthStack — reveal-gate timer starts from the same tick as the GSAP travel timeline', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -713,7 +712,7 @@ describe('TimeMachineDepthStack — reveal-gate timer starts from the same tick 
   })
 })
 
-// Fix wave B (B3b, owner acceptance 2026-08-26): the reveal-gate used to wait only for the preview
+// The reveal-gate used to wait only for the preview
 // cache promise (feeding the decorative depth-stack layers) and the travel duration -- never for
 // the REAL window's own `files.load()` of the target path. In production `browse.currentSnapshotName`
 // (this suite's own `files.currentPath = ...` lines above already simulate its post-load value) is
@@ -722,7 +721,7 @@ describe('TimeMachineDepthStack — reveal-gate timer starts from the same tick 
 // loading`) rather than that coincidental ordering, so a future refactor that decouples the two
 // cannot silently reopen this gap without turning these red. See TimeMachineDepthStack.vue's own
 // `waitForFilesLoad` comment for the full rationale.
-describe('TimeMachineDepthStack — reveal-gate also waits for the real window\'s files-store load (fix wave B, B3b)', () => {
+describe('TimeMachineDepthStack — reveal-gate also waits for the real window\'s files-store load', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -776,7 +775,7 @@ describe('TimeMachineDepthStack — pin leak on superseded travel (review findin
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
-  // Fix round: pin-clearing moved OFF the GSAP timeline's own onComplete (which never fires for a
+  // Pin-clearing moved OFF the GSAP timeline's own onComplete (which never fires for a
   // `.kill()`ed, superseded timeline -- see TimeMachineDepthStack.vue's own header comment) and
   // onto the reveal-gate's own `settle()`, which fires for every travel exactly once (including a
   // superseded one, via the token-guard, as a safe no-op that still ran ITS OWN pin-cleanup path
@@ -814,14 +813,14 @@ describe('TimeMachineDepthStack — pin leak on superseded travel (review findin
     expect(w.find('[data-snapshot="s15"]').exists()).toBe(false)
   })
 
-  // Fix round 2 (re-review, finding 3 remained open): the test above (s0->s15->s1) happens to
+  // The test above (s0->s15->s1) happens to
   // land back close to s0's own original position -- s0's REAL depth relative to the FINAL
   // selection (s1, index 1) is -1, which is unconditionally in-window anyway (see
   // resolveDollySlots' own "depth -1 always included" rule), so it can't tell a real pin-clear
   // apart from "would have rendered regardless of any pin". This test's own geometry keeps the
   // leaked name FAR from the final selection's own normal window, so only an actual pin-clear
-  // (not incidental in-window membership) makes it disappear -- this is the exact repro the
-  // re-reviewer used to catch fix round 1's own filter()-only-the-winning-pair mistake (see
+  // (not incidental in-window membership) makes it disappear -- this is the exact repro that
+  // caught an earlier filter()-only-the-winning-pair mistake (see
   // settle()'s own comment in TimeMachineDepthStack.vue for the full account).
   it('a three-hop supersede (s0->s15 superseded by s15->s29) does not leave s0 pinned forever', async () => {
     const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
@@ -852,7 +851,7 @@ describe('TimeMachineDepthStack — pin leak on superseded travel (review findin
     await flushPromises()
 
     // s0's real depth relative to the final selection (s29, index 29) is -29 -- nowhere near the
-    // normal window. Only settle()'s own pinNames reset (fix round 2) clears it; the fix round 1
+    // normal window. Only settle()'s own pinNames reset clears it; an earlier
     // version (filter out only {s15,s29}, the WINNING travel's own pair) left s0 stuck here.
     expect(w.find('[data-snapshot="s0"]').exists()).toBe(false)
   })
@@ -894,14 +893,14 @@ describe('TimeMachineDepthStack — gsap context cleanup', () => {
   })
 })
 
-// Fix wave B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): this strip
-// hosts a real, full-size preview window whose content paints text in New-UI's theme tokens -- a
-// permanently-white background (TM chrome's own `--tm-panel-bg-solid`) made every label invisible
-// in dark theme. See TimeMachineStage.vue's own `.tm-fwin--active` <style> comment (Ruling B-1)
-// for the full rationale this mirrors. jsdom applies no CSS at all, so the only way to pin this is
-// reading the component's own source text, same technique this app's other TM components already
-// use for their own CSS-literal regression guards.
-describe('TimeMachineDepthStack — strip background follows the app theme (fix wave B, B1)', () => {
+// This strip hosts a real, full-size preview window whose content paints text in New-UI's theme
+// tokens -- a permanently-white background (TM chrome's own `--tm-panel-bg-solid`) made every
+// label invisible in dark theme, caught from a real-browser dark-theme screenshot. See
+// TimeMachineStage.vue's own `.tm-fwin--active` <style> comment for the full rationale this
+// mirrors. jsdom applies no CSS at all, so the only way to pin this is reading the component's own
+// source text, same technique this app's other TM components already use for their own
+// CSS-literal regression guards.
+describe('TimeMachineDepthStack — strip background follows the app theme', () => {
   it('.tm-depth-strip uses the global, theme-following --panel-bg-solid, not TM chrome\'s fixed-white --tm-panel-bg-solid', () => {
     const src = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './TimeMachineDepthStack.vue'),
@@ -919,13 +918,13 @@ describe('TimeMachineDepthStack — strip background follows the app theme (fix 
   })
 })
 
-// Fix wave I (Ruling I-1, owner acceptance 2026-08-26): linked-cascade travel -- see
+// Linked-cascade travel -- see
 // TimeMachineDepthStack.vue's own `tmTravel` watcher and `runTravel` comments for the full
 // root-cause trace and wiring, and timeMachineMath.test.ts's own `travelStackPlan` describe block
 // for that pure function's own exhaustive coverage (not re-proven here). This suite is scoped to
 // "does the component actually pin/preset/animate the WHOLE visible stack, not just the
 // travel's own endpoints or a fly-through's own intermediates."
-describe('TimeMachineDepthStack — linked-cascade travel (Fix wave I, Ruling I-1)', () => {
+describe('TimeMachineDepthStack — linked-cascade travel', () => {
   it('a short (1-step) travel: the entering deep-edge strip is pinned immediately and presets to travelStackPlan\'s own edge-clamped pose; the leaving shallow-edge strip is pinned with NO preset (its current position is already correct); a genuine resident also gets no preset', async () => {
     const spy = vi.spyOn(choreo, 'playTravelTimeline')
     const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
@@ -1074,20 +1073,16 @@ describe('TimeMachineDepthStack — linked-cascade travel (Fix wave I, Ruling I-
 
 })
 
-// Fix wave J (owner acceptance 2026-08-26): "flight integrity" -- required per the dispatch after
-// an owner screenshot of a far jump to a MUCH OLDER snapshot showed two hard defects (a giant
-// blank-chrome strip parked mid-screen never moving until settle, and the target appearing to fly
-// in from the camera side instead of from depth). This suite exists because those are exactly the
-// class of bug prior unit tests (pure-function-level, or single-name spot checks) could miss --
-// see this file's own "Fix wave J" section in final-fix-report.md for the full root-cause
-// narrative, including the extensive empirical probing (both directions, steps 4/8/40/100, maxSlots
-// 2/3/10, and a supersede scenario) that did NOT reproduce a structural name-set mismatch in THIS
-// jsdom environment before the fix below landed -- documented there honestly rather than
-// fabricated, alongside the real, confirmed issue this investigation DID find and fix (see
-// snapshotBrowse.ts's own switchTo() comment on its safety-ceiling duration).
+// "Flight integrity": a screenshot of a far jump to a MUCH OLDER snapshot showed two hard defects
+// (a giant blank-chrome strip parked mid-screen never moving until settle, and the target
+// appearing to fly in from the camera side instead of from depth). This suite exists because those
+// are exactly the class of bug prior unit tests (pure-function-level, or single-name spot checks)
+// could miss -- extensive empirical probing (both directions, steps 4/8/40/100, maxSlots 2/3/10,
+// and a supersede scenario) did NOT reproduce a structural name-set mismatch in THIS jsdom
+// environment before the fix below landed, but the investigation DID find and fix a real, confirmed
+// issue (see snapshotBrowse.ts's own switchTo() comment on its safety-ceiling duration).
 //
-// TRUTH TABLE (names newest-first; index increasing = OLDER; see the report's own fuller
-// derivation):
+// TRUTH TABLE (names newest-first; index increasing = OLDER):
 // - Target OLDER (toIdx > fromIdx): the old current AND every fly-through intermediate END at the
 //   EXIT pose (toPose.scaleX > 1, toPose.y > 0 -- "exit past the camera"); their own START (when
 //   they have a preset at all) is a receding, depth-side pose (fromPose.scaleX <= 1, fromPose.y <=
@@ -1101,7 +1096,7 @@ describe('TimeMachineDepthStack — linked-cascade travel (Fix wave I, Ruling I-
 // `scaleX` is the unambiguous sign carrier used below (receding poses are always < 1, the exit
 // pose is always exactly `EXIT_SCALE` = 1.2, identity is exactly 1 -- `y` can coincidentally be 0
 // at more than one pose, `scaleX` cannot).
-describe('TimeMachineDepthStack — flight integrity (Fix wave J)', () => {
+describe('TimeMachineDepthStack — flight integrity', () => {
   const N = 150
   const BASE = 50
 
@@ -1160,7 +1155,7 @@ describe('TimeMachineDepthStack — flight integrity (Fix wave J)', () => {
             expect(toPose.scaleX, `${step.name} (backward intermediate) should END at the exit pose (scaleX > 1)`).toBeGreaterThan(1)
           }
           const preset = opts.presetPoses?.[step.name]
-          if (!preset) continue // a genuine old-window resident/leaving intermediate legitimately gets none (fix wave I follow-up)
+          if (!preset) continue // a genuine old-window resident/leaving intermediate legitimately gets none
           if (forward) {
             expect(preset.scaleX, `${step.name} (forward intermediate) should START at the camera (scaleX > 1)`).toBeGreaterThan(1)
           }
@@ -1221,8 +1216,7 @@ describe('TimeMachineDepthStack — flight integrity (Fix wave J)', () => {
   }
 })
 
-// Fix wave J follow-up (re-review finding (a), owner acceptance 2026-08-26): the store's OWN
-// safety-ceiling timer (snapshotBrowse.ts's own `switchTo`, fixed in fix wave J to
+// The store's OWN safety-ceiling timer (snapshotBrowse.ts's own `switchTo`, set to
 // `Math.max(TRAVEL_MAX_DURATION_MS, TRAVEL_FLY_MAX_DURATION_MS) + TRAVEL_SAFETY_EXTRA_MS`) is
 // ARMED SYNCHRONOUSLY at click time, BEFORE the async navigation even starts. The depth-stack's
 // own LEGITIMATE reveal-gate (`armReveal`) is armed LATER -- only once `currentSnapshotName` has
@@ -1234,7 +1228,7 @@ describe('TimeMachineDepthStack — flight integrity (Fix wave J)', () => {
 // empirically by driving a REAL travel through `browse.switchTo()` itself (not by hand-setting
 // `browse.tmTravel`, which bypasses the store's own timer-arming code entirely) with BOTH timers
 // running through their real production paths.
-describe('TimeMachineDepthStack — store safety ceiling vs. legitimate settle race (Fix wave J follow-up)', () => {
+describe('TimeMachineDepthStack — store safety ceiling vs. legitimate settle race', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -1249,8 +1243,8 @@ describe('TimeMachineDepthStack — store safety ceiling vs. legitimate settle r
     // `navigateReal`'s own (mocked, near-instant) promise even settles. `s100` (100 steps, well
     // past TRAVEL_FLAT_STEPS) samples the maximum TRAVEL_FLY_MAX_INTERMEDIATES(10) intermediates,
     // the largest `flyThroughDurationMs` this codebase's own real `computeFlyThroughPlan` call site
-    // can EVER produce (see this describe block's own header comment, and final-fix-report.md's
-    // own "Fix wave J follow-up" section, for the exact math: 10*65 + 300 = 950ms -- notably BELOW
+    // can EVER produce (see this describe block's own header comment for the exact math:
+    // 10*65 + 300 = 950ms -- notably BELOW
     // `flyThroughDurationMs`'s own theoretical 1400ms cap, which the production code path can never
     // actually reach given today's TRAVEL_FLY_MAX_INTERMEDIATES/cadence/layer-duration constants).
     const switchPromise = browse.switchTo('s100')

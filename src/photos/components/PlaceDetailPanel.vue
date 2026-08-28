@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // P6b-T3: PlaceDetailPanel.vue —— 地点详情面板外壳 + hero + 三统计 + 两动作。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1058-1107(模板,
+// 逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue:1058-1107(模板,
 // v-if="activePlace" 的 .map-detail 整块)+ :1246-1249(相邻收尾),computed
 // activePlace/activeIsCurrentTrip/currentHero :204-212/:284-289;样式照
 // photos-places.scss:478-598(跳过 :491-494 的 `.map-detail.is-entering` 死 CSS——
@@ -334,7 +334,7 @@ function onSpotOpenPhoto(assetId: string): void {
    PlaceDetailPanel.test.ts pins to this file's own raw `<style>` text: the z-index invariant
    (`z-index 不变量` describe block) and the entrance transition (`.map-detail 进场 transition`).
 
-   Fix-1 item 6 (owner acceptance, 2026-08-16) correction: the opaque-panel background token
+   Correction: the opaque-panel background token
    this rule used to pin (`--panel-bg-solid`, a *global* New-UI token, src/styles/theme.css) is
    retired here. Its whole reason to exist — "the map-detail panel needs a fully OPAQUE
    background because `--panel-bg`/`--surface-1` are translucent glass and the map's grid dots

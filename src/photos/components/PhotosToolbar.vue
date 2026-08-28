@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Ported (Options API -> <script setup> Composition API, logic unchanged) from
-// Vue2 NimoOS-UI src/views/Photos/PhotosToolbar.vue (49 lines).
-// P1 scope cut (task-7-brief.md): no icon library — tabs/density buttons render as
+// the Vue 2 panel's src/views/Photos/PhotosToolbar.vue (49 lines).
+// P1 scope cut: no icon library — tabs/density buttons render as
 // plain text with i18n labels. (The `after-tabs` slot was later restored by SP7-P7b-T3.)
 //
 // Plan B Task 5 re-skin (2026-08-12, D19's sibling task "toolbar + FilterBar re-skin"):
@@ -23,7 +23,7 @@
 //    shared icon library exists in this repo" premise no longer held true by the time this
 //    was written; this is the component deliberately continuing to inline icons following an
 //    existing precedent, not a lack of a shared component to reach for). The glyphs are
-//    copied character-for-character from Vue2 NimoOS-UI src/views/Photos/PhotosIcon.vue's
+//    copied character-for-character from the Vue 2 panel's src/views/Photos/PhotosIcon.vue's
 //    corresponding name branches (album/ocr/video for the tabs, compact/comfort/loose for the
 //    three density levels); size/stroke follow Vue2's <photos-icon> call sites (12px for
 //    tabs, 14px for density, stroke-width defaulting to 1.6, fill none, color following
@@ -74,8 +74,8 @@ function setDensity(v: string) { emit('update:density', v) }
       </button>
     </div>
     <!-- P7b-T3: the EXIF filter bar (funnel icon + inline-expanding chips) sits after the
-         tabs -- position follows Vue2 NimoOS-UI src/views/Photos/PhotosToolbar.vue:15-16.
-         P1 task-7-brief explicitly dropped this slot back then; this task restores it per P7b. -->
+         tabs -- position follows the Vue 2 panel's src/views/Photos/PhotosToolbar.vue:15-16.
+         P1 explicitly dropped this slot back then; this task restores it per P7b. -->
     <slot name="after-tabs" />
     <div style="flex:1"></div>
     <span class="muted-text">{{ t('photosItemsCount', { count: props.count }) }}</span>

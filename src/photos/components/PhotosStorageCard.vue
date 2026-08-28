@@ -58,7 +58,7 @@ const RETENTION_OPTIONS = [7, 15, 30, 60, 90] as const
 // Vue2 PhotosSettings.vue:304-311's scanIntervalOptions: the four labels 6h/12h/24h/7d are bare
 // literals in source, never pass through $t (only the off tier goes through $t('scan_interval_off'))
 // — they are time-unit abbreviations (hours/days), not natural language sentences that need
-// language translation; copied as literals, no new i18n keys added/reused (task-3-brief.md ruling #1).
+// language translation; copied as literals, no new i18n keys added/reused.
 //
 // Final review Minor 7 (behavior unchanged, just registering): retention (:186,
 // photosSettingsRetentionDay) translates to '{n} days', but here the scan interval tiers keep

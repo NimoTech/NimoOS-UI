@@ -1,5 +1,5 @@
-// Pure path functions for snapshot browsing in the Files area. Ported verbatim from Vue2
-// NimoOS-UI/src/service/snapshot.js (6 functions) and components/filebrowser/snapshotBrowse.js (3) —
+// Pure path functions for snapshot browsing in the Files area. Ported verbatim from
+// the Vue 2 panel's src/service/snapshot.js (6 functions) and components/filebrowser/snapshotBrowse.js (3) —
 // decision logic, return shapes, and fail-safe direction all unchanged; only TS types added. These
 // functions know nothing about "volumes" (except the two lookup functions that explicitly take
 // volumes) and work purely on path segments, so every mount point is treated alike.

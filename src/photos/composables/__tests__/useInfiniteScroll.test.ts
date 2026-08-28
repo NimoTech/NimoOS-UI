@@ -1,5 +1,5 @@
 // SP7-P7a-T15: useInfiniteScroll — IntersectionObserver wrapper for infinite scroll sentinel.
-// Corresponds line-by-line to task-15-brief.md "required test checklist" section A + struct spec A.1-A.3.
+// Corresponds line-by-line to the "required test checklist" section A + struct spec A.1-A.3.
 //
 // Replicates Vue2 PhotosSearchView.vue :706-721 (observeLoadMoreSentinel/teardownLoadMoreObserver)
 // semantics as a generic composable: teardown first; if enabled is false or target/root is empty,

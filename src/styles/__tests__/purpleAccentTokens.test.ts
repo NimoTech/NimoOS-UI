@@ -1,4 +1,4 @@
-// Guards the `--purple-accent`/`--purple-accent-hover` pair (Files toolbar redesign, fix wave C
+// Guards the `--purple-accent`/`--purple-accent-hover` pair (Files toolbar redesign
 // re-review): a dedicated app-level purple accent for the "New" dropdown button and its
 // dependents (select-all fill, view-capsule active half, dropdown-item hover tint) -- the owner
 // approved this exact purple in the mockup (`--accent: #7c3aed` / `--accent-hover: #6d28d9`),
@@ -58,7 +58,7 @@ function valueIn(block: string, name: string): string {
 }
 
 describe('--purple-accent / --purple-accent-hover / --on-purple-accent (Files "New" dropdown + dependents)', () => {
-  it('is defined in both theme blocks with the owner-approved literal hex', () => {
+  it('is defined in both theme blocks with the agreed literal hex', () => {
     expect(valueIn(dark, '--purple-accent')).toBe('#7c3aed')
     expect(valueIn(dark, '--purple-accent-hover')).toBe('#6d28d9')
     expect(valueIn(dark, '--on-purple-accent')).toBe('#ffffff')

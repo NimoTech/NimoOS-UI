@@ -2,7 +2,7 @@
 // P6b-T4: PlaceSpotDialog.vue —— 地点详情面板里的「拍摄点」弹窗。注意它不是浮层
 // (无 Esc-document 监听/无遮罩)——是 PlaceDetailPanel.vue `.detail-body` 顶部的一张
 // 内嵌卡片,挂载/卸载由容器据 activeSpotKey 是否命中 spots 列表来控制。逐段照 Vue2
-// NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1109-1150(模板)、:290-303(watch(
+// src/views/Photos/PhotosPlacesView.vue:1109-1150(模板)、:290-303(watch(
 // spotDialog) 退出编辑态)、:486-516(startSpotRename/saveSpotName 的 nextTick focus +
 // trim)移植,样式照 photos-places.scss:620-654。
 //
@@ -194,7 +194,7 @@ function onThumbClick(): void {
    counterpart at all (Vue2 inline/global-utility-class origin, or genuine New-UI additions)
    plus the two hover-lock rules PlaceSpotDialog.test.ts pins to this file's own raw source. */
 
-/* Vue2 `.one-line` is a *global* utility class (NimoOS-UI src/assets/scss/common/_others.scss:55,
+/* Vue2 `.one-line` is a *global* utility class (the Vue 2 panel's src/assets/scss/common/_others.scss:55,
    -webkit-box + line-clamp:1) that this app's vue2-parity port never carries (out of this
    spec's scope) — no parity selector exists for it, so this stays a genuine local addition.
    Equivalent single-line ellipsis, white-space:nowrap variant (same precedent as

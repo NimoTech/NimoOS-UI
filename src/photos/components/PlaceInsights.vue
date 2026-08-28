@@ -1,13 +1,12 @@
 <script setup lang="ts">
 // P6b-T5: PlaceInsights.vue —— 地点详情面板的"Nimo 发现"洞察卡片段。逐段照 Vue2
-// NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1174-1184(模板)移植;样式照
+// src/views/Photos/PhotosPlacesView.vue:1174-1184(模板)移植;样式照
 // photos-places.scss:729-756(跳过 :756-762 的 `.insight-card .meta`——模板里
 // insight-card 内从未出现过 .meta 元素,是死 CSS,不迁)。
 //
-// spec §7c-4 硬要求:零 v-html。task-5-brief.md 原文引用的"P5-T13 先例"其实是反例——
+// spec §7c-4 硬要求:零 v-html。曾经参照的"P5-T13 先例"其实是反例——
 // PersonRelationsTab.vue:19-29 最终选择的是"转义参数 + v-html",不是 <i18n-t>。本组件
-// 按 spec 的**要求**(零 v-html)执行,不按它的**引证**;这条已在 plan 的 Self-Review
-// 里登记,详见 task-5-report.md。四种后端形状(mostPhotographed/topSpot/companions/home)
+// 按 spec 的**要求**(零 v-html)执行,不按它的**引证**。四种后端形状(mostPhotographed/topSpot/companions/home)
 // 各自的插值集合不同(有的要加粗某个参数、有的完全没有加粗参数),只能逐形状写死一条
 // <i18n-t keypath scope="global">,不存在能通用四种形状的单一模板。
 //

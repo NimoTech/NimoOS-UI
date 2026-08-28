@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// SP8-P5e Task 4 — 1:1 ported from blueprint `KFileViewer.vue`
-// (`NimoOS-UI@7a6ee6b7`, `src/views/AI/Knowledge/components/KFileViewer.vue:1-68`).
+// SP8-P5e Task 4 — 1:1 ported from the Vue 2 panel's blueprint `KFileViewer.vue`
+// (`src/views/AI/Knowledge/components/KFileViewer.vue:1-68`).
 //
 // 🔴 K44 (governance §3): `.vue` side zero `<style>` block — blueprint `<style scoped>`
 // (:70-120) content already moved to `src/ai/styles/knowledge.scss` (inside `.knowledge-app`

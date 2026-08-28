@@ -1,6 +1,6 @@
 <!--
   SP8-P5d Task 6 — "Notes" page (rail item 4), 1:1 port from Vue2 blueprint
-  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/NotesView.vue` (271 lines,
+  the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Knowledge/NotesView.vue` (271 lines,
   read via `git show 7a6ee6b7:`, governance §1: working tree of old branch is not
   trusted).
 
@@ -15,7 +15,7 @@
     :180-266 all script
 
   [K1 — single-level fetch, governance §4.1] `service.notes.list({limit:200})` returns
-  **normalized `Note[]`**, not a `{notes:[]}` envelope (`NimoOS-Service/src/notes.ts:211-215`);
+  **normalized `Note[]`**, not a `{notes:[]}` envelope (`the shared service package's src/notes.ts:211-215`);
   `service.notes.getSettings()` returns camelCase with only `{notesRoot, autoExtract}`
   two fields; `service.notes.remove(id)` return value not used on this page (blueprint `:261`
   just `await`).
@@ -65,7 +65,7 @@
   adds `views/NotesView.vue` to `KNOWLEDGE_VUE_FILES` list to be covered.
 
   [K41 family — tags type narrowing] `Note.tags` inside package is `unknown[]`
-  (`NimoOS-Service/src/notes.ts:25`), blueprint template treats it as string array, renders
+  (`the shared service package's src/notes.ts:25`), blueprint template treats it as string array, renders
   directly (`:124/:128`, `{{ t }}` / `:key="t"`), create/update both endpoints already have
   tags field as `string[]`, blueprint itself never does runtime validation. Consumer-side
   one-time assertion narrowing (`tagsOf()`), don't change package, don't use `any`. K41

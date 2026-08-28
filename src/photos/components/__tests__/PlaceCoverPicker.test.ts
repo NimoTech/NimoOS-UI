@@ -1,5 +1,5 @@
 // P6b-T7: PlaceCoverPicker.vue —— 地点详情"设置封面"全屏弹层(标签页/搜索/8 列候选
-// 网格/分页/恢复默认)。逐条对应 task-7-brief.md「必含测试清单」。纯展示 + emit,
+// 网格/分页/恢复默认)。逐条对应「必含测试清单」。纯展示 + emit,
 // 不碰 store——只 mock @nimotech/nimoos-service 的 thumbnailUrl(照 PlaceSpotDialog.test.ts
 // / PlacesRail.test.ts 的既有 mock 手法)。
 //

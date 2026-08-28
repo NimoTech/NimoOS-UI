@@ -6,7 +6,7 @@ import { useMessageBus } from '../../composables/useMessageBus'
 import { preserveSpice } from '../util/spicePreserve'
 
 // KVM list data layer. Pure state + data fetching + MessageBus wiring; unrelated to visuals/interactions.
-// Maps exactly to the Data Layer + sockets + power-action section of NimoOS-UI/src/components/KVM/KVMFullPage.vue.
+// Maps exactly to the Data Layer + sockets + power-action section of the Vue 2 panel's src/components/KVM/KVMFullPage.vue.
 // (Line numbers verified against current repo version; line numbers in brief drafts are typically a few lines earlier; comments below use verified line numbers.)
 
 /** Extract error message text from err. Mirrors Vue2 getErrMsg(KVMFullPage.vue:841-844) minus the step to strip the leading `[xxx] ` prefix.

@@ -8,7 +8,7 @@
 //     `/app/#/photos` route yet, so we temporarily use the old app's working landing point;
 //     after SP7 merges, these two should be replaced with New-UI's own Photos route.
 //   - Agent → New-UI's own Agent page (`/app/#/ai/agent?session=`, ticket A-8, 2026-08-19,
-//     see docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md), since AgentPage
+// see the design note), since AgentPage
 //     now reads and follows `?session=` itself.
 //
 // Helpers to open a search-result item in its dedicated app page, in a new tab.
@@ -119,7 +119,7 @@ function pruneStalePhotoSets(): void {
 // /ai/agent read no `?session=` at all, so an /app-prefixed link would have opened the Agent
 // page without selecting the session (a silent failure). Ticket A-8 closed that gap on
 // 2026-08-19 — AgentPage now mirrors, reads and follows `?session=`
-// (docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md) — so the landing point
+// — so the landing point
 // is New-UI's own route, and openInApp.test.ts's reverse assertions now guard against a
 // regression back to the old app.
 export function agentSessionUrl(sessionId: string | number): string {

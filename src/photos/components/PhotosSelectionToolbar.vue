@@ -3,7 +3,7 @@
 // (`.selection-toolbar`/`.sel-btn`, own <style scoped>); this task replaces that with
 // Vue2 pixel parity — a floating, top-anchored glass pill. Classes/values now come
 // entirely from src/photos/styles/vue2-parity/photos.scss:444-468 (`.photos-root
-// .selectbar`/`.selectbar-count`/`.selectbar-btn`), ported from Vue2 NimoOS-UI
+// .selectbar`/`.selectbar-count`/`.selectbar-btn`), ported from the Vue 2 panel's
 // src/views/Photos/PhotosGrid.vue:109-127 — this component therefore carries no
 // <style> block of its own (re-skin doctrine: component <style scoped> near zero).
 // The `bar-in` entrance keyframes + `backdrop-filter: blur(20px) saturate(160%)` glass
@@ -20,7 +20,7 @@
 // task's scope, so the close button keeps emitting `clear`.
 //
 // Plan G Task 17: adds Ask Nimo (`data-ai="true"`, emits `ask-nimo`). Vue2 source of
-// truth is NimoOS-UI src/views/Photos/PhotosGrid.vue:120-123 — button order there is
+// truth is the Vue 2 panel's src/views/Photos/PhotosGrid.vue:120-123 — button order there is
 // Favorite → Add to Album → Delete → **Ask Nimo** → close (Ask Nimo sits right before
 // close, not right after Favorite as an earlier draft of this task's brief claimed);
 // with Favorite already cut in this repo, Ask Nimo lands between Delete and close.

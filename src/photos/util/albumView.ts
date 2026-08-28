@@ -1,4 +1,4 @@
-// Ported (logic verbatim except three noted deviations) from Vue2 NimoOS-UI
+// Ported (logic verbatim except three noted deviations) from the Vue 2 panel
 // src/views/Photos/PhotosAlbumsView.vue:216-224 (userAlbums), :282-301
 // (parseYearMonth + formatAlbumSpan), :359-370 (applySort), and
 // src/views/Photos/PhotosAlbumDetail.vue:224-242 (photos computed sort).

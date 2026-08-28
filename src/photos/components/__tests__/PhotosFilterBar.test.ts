@@ -1,5 +1,5 @@
 // SP7-P7b-T2: PhotosFilterBar.vue — funnel + three-pill EXIF filter bar.
-// Reference source: Vue2 NimoOS-UI src/views/Photos/PhotosFilterBar.vue (312 lines).
+// Reference source: the Vue 2 panel's src/views/Photos/PhotosFilterBar.vue (312 lines).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PhotosFilterBar from '../PhotosFilterBar.vue'

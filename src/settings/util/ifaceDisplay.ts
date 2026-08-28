@@ -6,7 +6,7 @@
 import type { NetworkWirelessConfig } from '@nimotech/nimoos-service'
 import type { MergedIface } from './netMerge'
 
-/** Verbatim from NimoOS-UI/src/components/settings/signalBars.js */
+/** Verbatim from the Vue 2 panel's src/components/settings/signalBars.js */
 export const SIGNAL_BARS = ['▁', '▂', '▃', '▄', '▅'] as const
 
 type IfaceLike = Pick<MergedIface, 'name' | 'type' | 'isVirtual' | 'wireless'>

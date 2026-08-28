@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 8 (SP7-P4 albums): the album detail view -- the biggest single item this period.
-// Structure/sequencing ported section-by-section from Vue2 NimoOS-UI
+// Structure/sequencing ported section-by-section from the Vue 2 panel's
 // src/views/Photos/PhotosAlbumDetail.vue (419 lines): hero (cover/rename/edit toggle/⋯ menu
 // delete) + toolbar (bulk remove/add photos, or sort+density) + a hand-drawn grid (drag reorder/
 // cover star/multi-select) + delete confirm modal + PhotosLibraryPicker (T6, add photos) +
@@ -66,7 +66,7 @@ type SortBy = 'manual' | 'taken' | 'added'
 
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// `toggle` wires the topbar's collapse button
 // (same as Photos.vue/PhotosAlbums.vue).
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const route = useRoute()
@@ -75,7 +75,7 @@ const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
 const settings = usePhotosSettingsStore()
 const toast = useToast()
-// Fix-10 (owner acceptance, 2026-08-14): Vue2's duplicate-album confirmation goes through
+// Vue2's duplicate-album confirmation goes through
 // `window.PhotosToast` (photosToast.js), the photos-private bottom-pill toast whose surface
 // literals already carry both theme branches (light + dark) -- not the app-wide generic toast.
 // `duplicateAlbum()` below used the generic `toast` (useToast()) for this one flow, which is
@@ -149,9 +149,9 @@ const album = computed(() => {
 })
 const notFound = computed(() => albums.albumsLoaded && album.value === null)
 
-// Fix-1 item 1 (owner acceptance, 2026-08-13): PhotosTopbar's title/sub. Vue2 nests the album
+// PhotosTopbar's title/sub. Vue2 nests the album
 // detail layer inside PhotosAlbumsView while activeNav stays 'albums'
-// (NimoOS-UI PhotosAlbumsView.vue:12-21's <photos-album-detail>) -- topbarTitle/
+// (the Vue 2 panel's PhotosAlbumsView.vue:12-21's <photos-album-detail>) -- topbarTitle/
 // topbarSubContext are keyed purely by activeNav, unaffected by which album is open
 // (PhotosTimeline.vue:184-234), so the topbar here is byte-for-byte the same as the Albums
 // list page's own (see PhotosAlbums.vue's identical `topbarTitle`/`topbarSub` computeds):
@@ -440,7 +440,7 @@ async function duplicateAlbum(): Promise<void> {
     await albums.duplicateAlbum(albumId.value)
     // Target's own success copy (33b05636:PhotosAlbumDetail.vue:713-716) -- identical wording to
     // the smart-view sidebar's own duplicate toast, hence the shared key.
-    // Fix-10 (owner acceptance, 2026-08-14): was `toast.show(...)` (the generic app-wide toast) --
+    // Was `toast.show(...)` (the generic app-wide toast) --
     // Vue2's real call here is `window.PhotosToast.show({ icon: 'sparkles', title: ... })`
     // (photosToast.js), so this switches to the photos-private `photosToast` with the matching
     // icon (see PhotosToastHost.vue's ICON_PATHS, ported verbatim from Vue2's own svgIcon()).
@@ -707,7 +707,7 @@ watch(gridRef, () => {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+      <!-- Same narrow-mode coordination as
            Photos.vue/PhotosAlbums.vue -- the topbar's own collapse button now delegates to
            the sidebar drawer on narrow viewports. -->
       <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
@@ -1115,7 +1115,7 @@ watch(gridRef, () => {
       </main>
     </div>
 
-  <!-- Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): this whole tail section
+  <!-- Same lesson class as elsewhere: this whole tail section
        (select bar / delete-confirm / library picker / lightbox / album picker / convert dialog)
        used to be a template-root SIBLING of `.photos-root` (a Vue 3 multi-root fragment) rather
        than its DOM descendant. Every one of these elements' actual visual styling comes from
@@ -1264,7 +1264,7 @@ watch(gridRef, () => {
          as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
     <AskNimoHost />
   </div>
-  <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/etc.) --
+  <!-- Photos-private toast queue (Duplicate/etc.) --
        mounted once per photos view, Teleports to <body> and re-applies photos-root + themeClass
        on its own portal target (see PhotosToastHost.vue's own header comment), so its position
        here relative to `.photos-root`'s closing tag makes no rendering difference -- same
@@ -1352,7 +1352,7 @@ watch(gridRef, () => {
    reproduce the same way (a local `.sv-header h1 .sv-cond` here would out-specificity parity's
    own base `.sv-cond` regardless, same shadow risk as everything else deleted above, so the
    self-contained version is the only one that reliably renders right).
-   Fix-2 item 4/6 (owner acceptance, 2026-08-13): background corrected from `--chip-bg`
+   Background corrected from `--chip-bg`
    (a *global*, non-shadowed, glass-gradient token in dark mode, and one shade lighter than
    intended in light mode) to parity's own `--surface-3` -- Vue2's actual base `.sv-cond`
    background (photos-smartview.scss:91-97/:414). The old comment here even said so ("Vue2's

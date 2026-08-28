@@ -1,5 +1,5 @@
 // P6b-T2: Place detail panel "photos" tab one-time asset loading.
-// Ported from Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue:819-841 (_loadPlaceAssets).
+// Ported from the Vue 2 panel's src/views/Photos/PhotosTimeline.vue:819-841 (_loadPlaceAssets).
 import type { ComputedRef, Ref } from 'vue'
 import { computed, ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'

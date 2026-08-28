@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // SP7-P7b-T2: PhotosFilterBar.vue — EXIF filter bar (funnel + three pills: year/location/camera).
-// Line-for-line port of Vue2 NimoOS-UI src/views/Photos/PhotosFilterBar.vue (312 lines).
+// Line-for-line port of the Vue 2 panel's src/views/Photos/PhotosFilterBar.vue (312 lines).
 // The pill itself and the list-style popover reuse the two primitives built in P7a (D14): PhotosFilterChip / PhotosFilterPopover.
 //
 // Deviation log 1 (data source injected from outside): Vue2 reads
@@ -316,7 +316,7 @@ onBeforeUnmount(() => {
   transition: all 0.25s;
 }
 /* fix round 1 (review-mandatory 1, owner's call already made): Vue2's original
-   NimoOS-UI/src/views/Photos/PhotosFilterBar.vue:251 only changes color/border-color,
+   the Vue 2 panel's src/views/Photos/PhotosFilterBar.vue:251 only changes color/border-color,
    the background stays at --surface-2; a line `background: var(--chip-bg-hi)` had crept in here previously — a drift
    in the brief text itself, not a copying error — already removed per the "strictly 1:1 on visuals" hard rule, no
    deviation log added (this isn't an intentional deviation, it's a correction). */

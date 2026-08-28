@@ -1,1 +1,0 @@
-{"queue_depth":{"pending":339,"running":1,"failed":0,"done":9},"indexed_files":7,"total_vectors_text":5592,"total_vectors_visual":0,"last_cursor_ms":1784775953391,"models":[{"name":"bge-m3","version":"v1","modality":"text","dim":1024},{"name":"bge-reranker-v2-m3","version":"v1","modality":"rerank","dim":null}]}

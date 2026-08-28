@@ -163,3 +163,76 @@ Evaluation record: `.superpowers/sdd/2026-08-04-oss-web-ui-export/final-review-f
 **Regression protection: `oss/cli-args.test.mjs` (5 tests).** The two "without `--publish` don't init repo" and "with `--publish` init repo" **must exist as a pair** — either alone can't distinguish "default off" from "permanently off" (RED phase real test: the latter passed on unpatched code anyway, leaving it alone is no protection). Every test in that file explicitly passes `--out <temp dir>` because when the guard isn't in place, calling without `--out` would actually write to the public repo — **the test itself must never re-enact the accident it's meant to prevent.**
 
 **Generic shape of this class of accident** (worth applying to other scripts): a tool that causes irreversible external side effects, where the "most dangerous path" is the default, plus "unknown input = silent fail". Either alone isn't fatal, together they become "one typo means publish". Criterion is simple: **ask "what does it do when passed nothing" — the answer must be harmless.**
+
+---
+
+## 9. 2026-08-27 maintenance round: step 5 moved into `pnpm test`, word list widened
+
+A review of the pipeline on `origin/main` replayed the whole `DELETE → REPLACE → PATCH →
+step 5` sequence offline and compared the resulting tree against what the release is meant
+to contain. Two findings, both structural rather than one-off mistakes.
+
+### 9.1 Step 5 had no automated coverage
+
+`tree.test.mjs` passes `--skip-guard` when it calls `export.mjs`, so the suite covered the
+three manifest tables while the step 5 content check ran only when someone executed
+`node oss/export.mjs` by hand. Result: stale references could sit in the artifact tree with
+`pnpm test` fully green, and would surface only at release time. Four of them did.
+
+The fix reuses the tree `beforeAll` already builds and runs `scanTree` over it once more
+(`Content check over the real artifact tree`, at the end of `tree.test.mjs`) — step 5 inside
+`pnpm test`, at close to zero extra cost. **When that case goes red, the artifact tree really
+does contain the reported text; do not silence it with a whitelist** — look at what the hit
+is and decide whether it belongs in the release.
+
+### 9.2 The word list only described features, never references
+
+The list grew out of "strip the AI / photos / search areas", so it collected feature
+vocabulary only. It had no opinion about a second class: names of repositories and working
+documents that a reader of the published tree cannot open. Measured on `origin/main`: 86
+sibling-repository mentions across 58 files and 24 pointers into working documents, plus one
+fixture built from a specific machine's response.
+
+`forbidden.mjs`'s HARD list therefore gained three groups; the reasoning sits above each
+group in the file, and the essentials are:
+
+- **Sibling repositories that are not themselves published.** The published siblings (Common /
+  LocalStorage / KVM / AI / Photos / Gateway / Search / Wiki / MessageBus / UserService /
+  AppManagement / CLI / AppStore) are deliberately absent — a comment pointing at a published
+  repo's file resolves fine and is a normal cross-repo reference. The entries are
+  **case-sensitive**: the inlined package is the lowercase `@nimotech/nimoos-service`, which
+  appears throughout `package.json` / lockfile / imports.
+- **Working-document references**: ledger paths, design-note pointers, memory slugs, the
+  fix-wave / ruling shorthand, and the local collaboration guide's filename. All of them are
+  dead links in the published tree; the reasoning they point at belongs in the comment itself.
+- **Addresses of specific development machines** (matching the existing `192.168.1.115` entry).
+  The RFC1918 range as a whole is **not** collected: `192.168.1.1` / `.10` / `.250` are
+  input-field placeholders and i18n examples, and a blanket rule would dye ~90 legitimate
+  lines red. "Wider is better" stops where it starts dyeing unrelated feature code — the same
+  boundary as the `smart` note in §3.
+
+Corresponding source edits were made **in the private sources**, not as new `PATCH` entries:
+each `PATCH` is one more anchor that drifts the next time a comment is reworded. Reserve
+`PATCH` for content that must exist privately and must not exist publicly.
+
+### 9.3 Two DELETE entries removed (their targets are gone, not their purpose)
+
+`CLAUDE.md` and `.superpowers` (including the `SERVICE_DELETE` entry) left version control on
+2026-08-27, so `git archive HEAD` no longer produces them and a stale DELETE entry is a hard
+failure. The artifact tree still must not contain them, and `tree.test.mjs`'s
+`exists(...) === false` assertions continue to enforce that — those assertions were written to
+be independent of the word list, which is exactly why they still work here.
+
+### 9.4 Eight anchors repaired in one round
+
+Two came from the AI tasks page (`/ai/tasks` route plus the `TasksView` import) and six from
+the "workspace apps open in a new tab" round (`router.push` → `openInNewTab`). Every new
+anchor was verified on the spot to hit exactly once, per §3 — none was guessed from the old
+one. One `PATCH` was added for that round's new `openInNewTab` doc comment, which lists three
+feature areas the release does not contain.
+
+The lesson is the same as §7's I5-guard note: **anchor drift is the normal consequence of the
+private trunk moving, not someone breaking something.** The real problem is that it can sit
+unnoticed until release. The merge gate in the repository's collaboration guide —
+`pnpm exec vitest run oss/` before merging anything that touches `src/` — is what catches it,
+and it only works if a red result is investigated rather than assumed to be environmental.

@@ -50,7 +50,7 @@ describe('KIcon', () => {
   // six different-shapes), "all 22 names exist" only checks non-empty — remaining ~35 glyph
   // cross-position/coordinate write error untestable. This snapshot 【not】 to verify
   // "is port correct" — already done independently by implementer and review each byte-diff
-  // against blueprint (see p5a-task-3-report.md, both sides md5sum match, 0 difference),
+  // against blueprint (both sides md5sum match, 0 difference),
   // port correctness already proved. This snapshot locks 【that verified state】, guards
   // against 【future】 someone accidentally changing KIcon.vue coordinates or crossing glyph
   // paths — all 42 key names listed (not 22 subset used by T10/T12, those 22 already have

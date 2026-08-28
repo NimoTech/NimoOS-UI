@@ -1,7 +1,7 @@
 <!--
   SP8-P5f Task 5 — "Knowledge Roots" page (rail item 7, route `/ai/knowledge/roots`),
-  1:1 ported from Vue2 reference `NimoOS-UI` @ `7a6ee6b7`
-  `src/views/AI/Knowledge/RootsView.vue` (289 lines, fetch via `git -C ../../NimoOS-UI show 7a6ee6b7:`
+  1:1 ported from Vue2 reference the Vue 2 panel @ `7a6ee6b7`
+  `src/views/AI/Knowledge/RootsView.vue` (289 lines, fetch via `git -C ../../the Vue 2 panel show 7a6ee6b7:`
   — governance §0.4: that repo's working tree is on another branch, unreliable).
 
   Structure mapping (reference line ranges → this file):
@@ -93,7 +93,7 @@
   【N46 — 🔴 easiest mistake this round】Wiki's `WikiRoot` / `CreateArgs` **Go structs have no json tag**
     ⇒ HTTP response is **PascalCase**, POST body must use **Go field names** (Go decoder case-insensitive
     but **underscore doesn't match**, `watch_mode` gets **silently discarded**, no error on real device).
-    🔴 **bidirectional normalization already in shared package** (`NimoOS-Service/src/wiki.ts:85` `normalizeRoot` /
+    🔴 **bidirectional normalization already in shared package** (`the shared service package's src/wiki.ts:85` `normalizeRoot` /
     `:136` `createRootBody`) ⇒ **store exports all camelCase** (T0 real-world decision, established in
     `p5f-task-0-report.md` §4.4), this page only consumes `r.id` / `r.path` / `r.enabled` /
     `r.watchMode` / `r.scanIntervalS` / `r.lastScanAt`, **must not normalize again in page**.

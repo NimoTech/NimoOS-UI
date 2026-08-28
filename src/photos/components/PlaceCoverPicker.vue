@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // P6b-T7: PlaceCoverPicker.vue —— 地点详情面板的"设置封面"全屏弹层(标签页/搜索/
-// 8 列候选网格/分页/恢复默认)。逐段照 Vue2 NimoOS-UI
+// 8 列候选网格/分页/恢复默认)。逐段照 Vue2
 // src/views/Photos/PhotosPlacesView.vue:1253-1335(模板)、:296-312(watch,activeId
 // 切换重置 coverTab/coverSearch/coverPage——该重置属于容器状态管理,归 T8)、
 // :374-377(coverTabLabel 回落链)、:517-560(loadCoverCandidates/setCover/resetCover,

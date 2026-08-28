@@ -1,5 +1,5 @@
 // SP15-P1-T3: Moments store.
-// Ported from Vue2 NimoOS-UI 899af59b:src/views/Photos/PhotosSmartViewsView.vue:553-624
+// Ported from the Vue 2 panel's 899af59b:src/views/Photos/PhotosSmartViewsView.vue:553-624
 // (fetchMoments/persistMomentsOrder/onMomentDeleted/onMomentAssetCountChanged) and
 // PhotosMomentDetail.vue:307-338 (loadFeatured/loadAll).
 // Backend contract cross-checked against NimoOS-Photos/route/v1/moments.go:39-73

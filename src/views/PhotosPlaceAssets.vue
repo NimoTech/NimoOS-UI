@@ -8,7 +8,7 @@
 //  - 壳/route 参数归一/灯箱挂载位置:PhotosAlbumDetail.vue:1-80(AreaShell + .photos-layout +
 //    PhotosSidebar + .photos-main,P3/P4/P5 既定不抽公共)。
 //  - 三态门控体例:PhotosPersonDetail.vue:583-611(loading&&!loaded / failed / 空 / 正常)。
-//  - 面包屑信息层级:Vue2 NimoOS-UI PhotosTimeline.vue:1073-1090(地图图标 + 城市段(有 spot
+//  - 面包屑信息层级:Vue2 的 PhotosTimeline.vue:1073-1090(地图图标 + 城市段(有 spot
 //    时是按钮,点击回整城)+ 右尖角 + spot 段 + 右侧计数)。
 //  - spot 深链找不到时的静默降级语义:Vue2 PhotosTimeline.vue:547-551(`_applyPlaceFromQuery`:
 //    spotKey 传了但在详情 spots 里找不到 → 只清 spot 键,不弹 toast,按整城显示)。
@@ -98,9 +98,9 @@ const photosToast = usePhotosToast()
 const placeKey = computed(() => String(route.params.key))
 const spotKey = computed(() => String(route.query.spot ?? ''))
 // 评审 I1 修正:lat/lon 必须与 spotKey 挂钩,不能独立生效——回源 Vue2
-// `_applyPlaceFromQuery`(NimoOS-UI/src/views/Photos/PhotosTimeline.vue:538-545):只在 spot
+// `_applyPlaceFromQuery`(Vue2 的 src/views/Photos/PhotosTimeline.vue:538-545):只在 spot
 // 命中时才赋 spotLat/spotLon,否则强制 null。共享包 `listAssetsByPlace` 要求 lat/lon 与
-// spotKey 成对(见 `.sp7/NimoOS-Service/src/photos.ts` 该方法的注释)——没有 spotKey 时哪怕
+// spotKey 成对(见共享服务包 src/photos.ts 该方法的注释)——没有 spotKey 时哪怕
 // URL 上手工带了 `?lat=1&lon=2`,也必须传 null,否则违反这个不变量。应用内导航碰不到这条
 // (showWholeCity/spot 卡片都是三键一起清、一起带),但手改地址栏或旧书签会触发。
 const lat = computed(() => {

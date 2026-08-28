@@ -1,4 +1,4 @@
-// Ported from Vue2 NimoOS-UI src/store/modules/photos.js:272-274 (state),
+// Ported from the Vue 2 panel src/store/modules/photos.js:272-274 (state),
 // :455-473 (mutations), :756-761 + :900-994 (album actions).
 // Each action has different optimistic strategies, kept faithful one by one—see comments throughout the file.
 // Photos v1 backend has no envelope: all lists use `?? []`.

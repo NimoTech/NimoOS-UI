@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 13 (SP7-P5 people): PersonRelGraph.vue — relationship graph (SVG force-directed graph). Copied verbatim
-// all geometric values from Vue2 NimoOS-UI src/views/Photos/PhotosRelGraph.vue (94 lines):
+// all geometric values from the Vue 2 panel's src/views/Photos/PhotosRelGraph.vue (94 lines):
 // viewBox 0 0 760 400, center {x:380,y:200}, center circle r=34 (clip r=31, image
 // 62x62), center glow r=90, satellite angle (i/n)*2π-π/2, distance 100+(1-count/maxCount)*110,
 // node radius 18+strength*10 (outer ring +2), line width 1+strength*2.2, line opacity
@@ -20,7 +20,7 @@
 // entry is only in co-occurrence list/bar. Here we add click → emit
 // open-person to satellite nodes (excluding center), logged as proactive supplement not ported gap.
 //
-// Task 6 (Plan D, PR 137 gap-close): three behaviors ported from Vue2 NimoOS-UI commit
+// Task 6 (Plan D, PR 137 gap-close): three behaviors ported from the Vue 2 panel commit
 // 03245590 (PhotosRelGraph.vue) that were missing here —
 //  1) MAX_GRAPH_NODES = 12 cap on positions (Vue2 :64/:73 `.slice(0, MAX_GRAPH_NODES)`);
 //     the empty-state gate also switched from `relations.length > 0` to `positions.length > 0`

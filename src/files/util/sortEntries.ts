@@ -1,5 +1,5 @@
 // Single source of truth for the Files area's own folders-first, sort-field/order comparator --
-// extracted out of stores/files.ts's `sortedEntries` computed (fix round, Task 5 review finding 1)
+// extracted out of stores/files.ts's `sortedEntries` computed
 // so SnapshotPreviewWindow.vue's depth-stack previews can mirror the LIVE front window's current
 // sort/order instead of a fixed policy ("every stacked layer must look like a REAL window", same
 // reasoning Vue2's own SnapshotPreviewWindow.vue applies by reading $store.state.sort/order

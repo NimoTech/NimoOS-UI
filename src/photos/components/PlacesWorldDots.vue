@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 5 (Plan E #106 perf architecture port, 2026-08-15): the land-dot matrix of the
-// Places map — ~2500 <circle> nodes. Ported from Vue2 NimoOS-UI's own
+// Places map — ~2500 <circle> nodes. Ported from the Vue 2 panel's own
 // src/views/Photos/PlacesWorldDots.vue (git show 78cf3335, PR #106's perf sub-commit),
 // which extracted this exact same `<g><circle v-for>…</g>` block out of the monolithic
 // PhotosPlacesView.vue for the same reason.

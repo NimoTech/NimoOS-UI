@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // SP7-P7a-T15: SearchResultTile.vue —— 搜索结果单个瓦片。
-// Ported from Vue2 NimoOS-UI src/views/Photos/PhotosSearchView.vue:243-250(与:261-268
+// Ported from the Vue 2 panel's src/views/Photos/PhotosSearchView.vue:243-250(与:261-268
 // 逐字重复的第二份,New-UI 抽出为独立组件,两个网格共用——结构去重,视觉逐元素 1:1,
-// 偏离登记(结构规格 4,控制器裁定):Vue2 把同样 8 行标记写了两遍,本仓抽成这个文件,
+// 偏离登记(结构规格 4):Vue2 把同样 8 行标记写了两遍,本仓抽成这个文件,
 // 避免"两份标记漂"(P6b 教训:漏渲染是最高频缺陷,重复标记比单一组件更容易顾此失彼)。
 //
 // i18n 键(D1,已逐个 grep 核实存在,非 brief 写的名字):

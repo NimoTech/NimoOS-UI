@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Ported from NimoOS-UI/src/components/Storage/raid/RaidDriveCard.vue (whole-card click toggles,
+// Ported from the Vue 2 panel's src/components/Storage/raid/RaidDriveCard.vue (whole-card click toggles,
 // top-right checkmark-circle SVG √, capacity/type/risk badge, plus the health info display at
 // :23-46: capacity-row tiered health dot + hover tooltip model/temperature/power-on time/health-score
 // progress bar and percentage).

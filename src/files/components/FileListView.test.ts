@@ -20,7 +20,7 @@ function extractStyle(src: string): string {
   return m[1].replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
-// Cascade-aware guard, fix round 1 · F2: a source-text regex anchored on the
+// Cascade-aware guard: a source-text regex anchored on the
 // literal `.head-cell { ... cursor: pointer` string can be defeated by adding an
 // unrelated rule elsewhere in the same style block, e.g.
 // `.col-check, .col-star { cursor: pointer; }` — that rule never contains the

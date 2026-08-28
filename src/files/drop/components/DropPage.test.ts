@@ -8,7 +8,7 @@ import { useDropStore } from '../stores/drop'
 // NOTE: i18n is installed globally for every mount in vitest.setup.ts
 // (config.global.plugins). Passing the shared `i18n` instance here again used
 // to double-install it on top of that, emitting a hidden [Vue warn] on every
-// test in this file. Fixed while touching this file for Task 13 -- do not
+// test in this file. Fixed -- do not
 // re-add `i18n` to any `global.plugins` array below.
 
 vi.mock('../serverConnection', () => ({ ServerConnection: class { connect = vi.fn(); destroy = vi.fn(); send = vi.fn() } }))
@@ -32,7 +32,7 @@ describe('DropPage', () => {
     w.unmount()
     expect(destroySpy).toHaveBeenCalledOnce()
   })
-  // Task 13: the beforeunload half of the leave guard is unit-tested in
+  // The beforeunload half of the leave guard is unit-tested in
   // isolation in leaveGuard.test.ts, but nothing there proves DropPage
   // actually wires it up in onMounted/onBeforeUnmount. Drive a real
   // `beforeunload` event through `window` to prove it.
@@ -99,9 +99,9 @@ describe('DropPage', () => {
   })
 })
 
-// Task 13: leave-guard wiring. This suite drives a real navigation through a
-// dedicated memory-history router so onBeforeRouteLeave (a Task-13 first for
-// this repo) actually fires, rather than merely asserting it was registered.
+// Leave-guard wiring. This suite drives a real navigation through a
+// dedicated memory-history router so onBeforeRouteLeave (the first use of it
+// in this repo) actually fires, rather than merely asserting it was registered.
 describe('DropPage leave guard', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 

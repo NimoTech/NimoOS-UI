@@ -1,5 +1,5 @@
-/* Derives the four section lists from a folder-permissions snapshot. 1:1 port of Vue2
- * NimoOS-UI/src/components/settings/folderPermissionsView.js (65 lines).
+/* Derives the four section lists from a folder-permissions snapshot. 1:1 port of the Vue 2
+ * panel's src/components/settings/folderPermissionsView.js (65 lines).
  * Pure rendering derivation: all writes still go through the engine's planToggle.
  */
 import {

@@ -138,8 +138,8 @@ export class Peer {
 
   private onChunkReceived(chunk: ArrayBuffer): void {
     // Captured locally: on the final chunk, unchunk() synchronously invokes
-    // onFileReceived, which now clears this.digester (Fix Round 1 / Critical
-    // 1). Reading through `this.digester` after that call would crash.
+    // onFileReceived, which now clears this.digester. Reading through
+    // `this.digester` after that call would crash.
     const digester = this.digester
     if (!chunk.byteLength || !digester) return
     digester.unchunk(chunk)

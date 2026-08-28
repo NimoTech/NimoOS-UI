@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Ported (Options API -> <script setup> Composition API, logic unchanged unless
-// noted) from Vue2 NimoOS-UI src/views/Photos/PhotosGrid.vue (348 lines).
-// See .superpowers/sdd/task-7-brief.md for the full port-delta checklist:
+// noted) from the Vue 2 panel's src/views/Photos/PhotosGrid.vue (348 lines).
+// See a captured device response for the full port-delta checklist:
 //  1. thumbnailSrc/hoverVideoSrc go through `service.photos.thumbnailUrl/previewUrl`
 //     (shared package), never hand-built `/v1/...` strings.
 //  2. Hover sprite: `service.photos.spriteMeta(id)` resolves `{ frames, durationMs,
@@ -24,7 +24,7 @@
 //     top-right toggle button.
 //  6. Task 6 (grid rewrite): re-skinned wholesale to Vue2 pixel/DOM parity, superseding #5 —
 //     column/tile/scrubber/month-head CSS now comes ONLY from
-//     src/photos/styles/vue2-parity/photos.scss (ported verbatim from NimoOS-UI's
+//     src/photos/styles/vue2-parity/photos.scss (ported verbatim from the Vue 2 panel's
 //     photos.scss; this component's own style block shrinks to the handful of rules
 //     that stylesheet cannot cover — see that style block's own header comment). The
 //     checkbox is back to Vue2's `.tile-checkbox` div (click-to-toggle, no native
@@ -100,7 +100,7 @@ function setTickRef(el: Element | null, i: number) { tickRefs.value[i] = el as H
 // collects it as an ARRAY of instances, not a single instance — the type
 // must admit that shape or callers reading .value would be lying to
 // themselves. Normalized in onTileClick exactly like Vue2 did:
-// `[].concat(this.$refs.hoverPreview || [])[0]` (NimoOS-UI/src/views/Photos/PhotosGrid.vue:263).
+// `[].concat(this.$refs.hoverPreview || [])[0]` (the Vue 2 panel's src/views/Photos/PhotosGrid.vue:263).
 const hoverPreviewRef = ref<InstanceType<typeof VideoHoverPreview> | InstanceType<typeof VideoHoverPreview>[] | null>(null)
 
 // ─── month scrubber ──────────────────────────────────────────────────────
@@ -647,7 +647,7 @@ onBeforeUnmount(() => {
 <style scoped>
 /* Task 6 (grid rewrite): the column/tile/scrubber/month-head visual contract that
    used to live in this file now comes from ONE source of truth —
-   src/photos/styles/vue2-parity/photos.scss (ported verbatim from NimoOS-UI's
+   src/photos/styles/vue2-parity/photos.scss (ported verbatim from the Vue 2 panel's
    photos.scss, imported globally by every view that mounts this component
    under `.photos-root` — see gridMetricsCssParity.test.ts, which scans THAT
    file, not this one). What's left below is only what that stylesheet does

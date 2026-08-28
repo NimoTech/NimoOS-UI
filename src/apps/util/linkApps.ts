@@ -1,7 +1,7 @@
 import { service } from '@nimotech/nimoos-service'
 
 // External link App: pure frontend concept, stored in UserService custom storage (key='link'). The old Vue2 UI
-// reads/writes the same key (see NimoOS-UI/src/mixins/app/Business_LinkApp.js); field names/shape must stay compatible:
+// reads/writes the same key (see the Vue 2 panel's src/mixins/app/Business_LinkApp.js); field names/shape must stay compatible:
 // { name, hostname, icon, app_type: 'LinkApp', status: 'running' }.
 export interface LinkApp {
   name: string

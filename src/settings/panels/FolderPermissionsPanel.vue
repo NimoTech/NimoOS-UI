@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Settings · Folder permissions. 1:1 parity with Vue2
-// NimoOS-UI/src/components/settings/FolderPermissions.vue (337 lines).
+// Settings · Folder permissions. 1:1 parity with the Vue 2 panel's
+// src/components/settings/FolderPermissions.vue (337 lines).
 //
 // ⚠️ **spec §5.7 describes this as a "permission matrix" (header / rows / a toggle
 // column per subsystem), which doesn't match the source** — Vue2 is actually **four

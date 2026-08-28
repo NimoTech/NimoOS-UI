@@ -1,5 +1,5 @@
 <!--
-  SP8-P4 Task 8 — Ported from Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerModal.vue`
+  SP8-P4 Task 8 — Ported from the Vue 2 panel's `src/views/AI/MCP/McpServerModal.vue`
   (216 lines). Add/edit form modal with quick-paste parsing and headers/env KV editor.
 
   ===== Interface divergence (coordinator ruling 3, authorized) =====
@@ -16,7 +16,7 @@
 
   ===== Divergence D1 (public constraint §3.1, mandatory) =====
   `parsePaste()`: shared package `service.ai.parseMCPCommand` already `return res.data`
-  (`NimoOS-Service/src/ai.ts`), backend `mcp.go:137` is bare object `200`. Vue2 line 166's
+  (the shared HTTP client's `src/ai.ts`), backend `mcp.go:137` is bare object `200`. Vue2 line 166's
   `const p = (resp && resp.data) || {}` always resolves to `{}` here — quick-paste silently
   fails to fill any fields, no error (`{}` falls through to field defaults `|| ''`/`|| []`,
   appears “nothing happened”). This repo uses `await service.ai.parseMCPCommand(cmd)` return

@@ -4,7 +4,7 @@
   drill-in/pick/pop-segment/close — a later task (composer) is responsible for detecting
   "@" in the input and feeding query/segments, and for handling pick. This task doesn't wire it up.
 
-  Mechanical conversion checklist (matches .superpowers/sdd/p1c1-task-7-brief.md Step 3):
+  Mechanical conversion checklist:
   1. $set(loadingPaths,...)/$set(entriesByPath,...) (Vue2:215-234) → ref<Record<...>>
      direct assignment — Vue3 Proxy reactivity naturally tracks assignment to new keys, no $set needed.
   2. beforeDestroy (Vue2:195-197) → onBeforeUnmount, removes the window keydown capture listener;

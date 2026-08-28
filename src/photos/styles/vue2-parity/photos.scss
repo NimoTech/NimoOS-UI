@@ -110,15 +110,15 @@
   --nimo-ring-err-from: #FFB783;
   --nimo-ring-err-to: #FF9F43;
 
-  /* Fix-5 (owner acceptance, 2026-08-17, P6a formally overturned): the seven `--pin-bg`/
+  /* The seven `--pin-bg`/
      `--pin-stroke`/`--pin-active-bg`/`--pin-pulse`/`--pin-cluster-hover-bg`/`--pin-glow`/
      `--pin-cluster-stroke` geo-pin tokens that used to live here (migrated from global
-     `theme.css` during Plan E's final fix wave, Review I3) carried the app's BLUE accent family
+     `theme.css`) carried the app's BLUE accent family
      — a deviation from Vue2, which paints map pins with the PURPLE `--accent`/`--accent-rgb`
      family directly (photos-places.scss:367-437), theme-constant with no light-mode override at
-     all (grep-verified against NimoOS-UI's real source). PlacesMap.vue's own `<style scoped>`
-     rules that consumed these seven tokens have been deleted/trimmed (see that file's own Fix-5
-     comment) so parity's own `rgba(var(--accent-rgb), …)`/`var(--accent)` rules
+     all (grep-verified against the Vue 2 panel's real source). PlacesMap.vue's own `<style scoped>`
+     rules that consumed these seven tokens have been deleted/trimmed (see that file's own
+     comments) so parity's own `rgba(var(--accent-rgb), …)`/`var(--accent)` rules
      (photos-places.scss, same file) govern directly — restoring Vue2's purple. With that done,
      these seven tokens have ZERO remaining consumers anywhere in this repo (grep-confirmed:
      `/usr/bin/grep -rn 'pin-bg\|pin-stroke\|pin-active\|pin-pulse\|pin-cluster\|pin-glow' src/`
@@ -1181,7 +1181,7 @@
 
 /* New-UI annotation (Plan F Task 4, 2026-08-15): the `.lb-nav[data-disabled="true"]`/
    `.lb-nav.shake` pair below is transcribed verbatim from Vue2 (byte-identical) but is DORMANT
-   on both sides of the port -- grep-confirmed against NimoOS-UI's PhotosLightbox.vue: no Vue2 JS
+   on both sides of the port -- grep-confirmed against the Vue 2 panel's PhotosLightbox.vue: no Vue2 JS
    anywhere sets a `data-disabled` attribute or a `.shake` class on `.lb-nav` (the prev/next
    buttons only ever get the native `:disabled` boolean, which this rule's own selector doesn't
    even target). New-UI's PhotoLightbox.vue wires the same native `:disabled` attribute the same
@@ -4557,7 +4557,7 @@
 /* === NimoTaskBar expanded per-type breakdown -- the .nimo-tb-list / .nimo-tb-row family above
    is Vue2 photos.scss's OWN dead code, retained here only because that file was transcribed
    whole; the block below is the live style, ported byte-exact from
-   NimoTaskBar.vue's own <style scoped> (NimoOS-UI/src/views/Photos/NimoTaskBar.vue:111-157). === */
+   NimoTaskBar.vue's own <style scoped> (the Vue 2 panel's src/views/Photos/NimoTaskBar.vue:111-157). === */
 .photos-root .nimo-tb-types {
   display: flex;
   flex-direction: column;

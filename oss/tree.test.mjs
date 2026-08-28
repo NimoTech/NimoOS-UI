@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { REPLACE, PATCH } from './manifest.mjs'
+import { scanTree, isExpectedSkip } from './forbidden.mjs'
 
 const OSS = path.dirname(new URL(import.meta.url).pathname)
 let tree
@@ -98,6 +99,25 @@ describe('Class 1 · Wholesale removal', () => {
   })
 })
 
+// 2026-08-27:上面的 export 调用带 `--skip-guard`,所以这套自测此前只覆盖三张表,
+// 第 5 步的内容检查要等有人手跑 `node oss/export.mjs` 才会执行 —— 检查结果因此总是
+// 比测试晚一步。这里复用 beforeAll 已经建好的同一棵树再跑一遍 scanTree,把第 5 步
+// 纳入 `pnpm test`,额外开销接近零。
+describe('Content check over the real artifact tree', () => {
+  it('scanTree reports nothing (the export step 5 that --skip-guard above disables)', () => {
+    // `.export-report.txt` is written AFTER step 5 runs (so the export's own scan never sees it)
+    // and is gitignored in the output repo, i.e. `git push` never carries it — see README §5's
+    // "publish with git push, not by packing the directory". It records the upstream commit for
+    // local traceability, which is exactly the kind of reference the word list flags.
+    const findings = scanTree(tree)
+      .filter((f) => !isExpectedSkip(f.excerpt))
+      .filter((f) => f.file !== '.export-report.txt')
+    const shown = findings.slice(0, 20)
+      .map((f) => `${f.file}:${f.line} [${f.word}] ${String(f.excerpt).slice(0, 100)}`).join('\n')
+    expect(findings, `content check flagged ${findings.length} place(s) in the artifact tree:\n${shown}`).toEqual([])
+  })
+})
+
 describe('Embedded shared package', () => {
   it('Service lands in packages/service/, package.json file: points there', () => {
     expect(exists('packages/service/src/index.ts')).toBe(true)
@@ -133,7 +153,10 @@ describe('Class 3 · Desktop-side patches', () => {
     const s = read('src/home/composables/useOpenAction.ts')
     expect(s).toContain("vm: '/kvm', settings: '/settings'")
     expect(s).not.toMatch(/sendToAI|'#\/photos'|ai\/agent|strangler:disabled|cutoverDisabled/)
-    expect(s).toContain("if (key === 'appstore') { router.push('/apps/store'); return }")
+    // 2026-08-27: the private side moved the workspace apps (files / appstore / terminal) to
+    // "open in a new tab"; the OSS build keeps that behaviour, so this pins openInNewTab rather
+    // than the old in-place router.push.
+    expect(s).toContain("if (key === 'appstore') { openInNewTab('/apps/store'); return }")
     expect(s).toContain("if (key === 'storage') { router.push('/storage'); return }")
   })
 

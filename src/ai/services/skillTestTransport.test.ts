@@ -1,7 +1,7 @@
 // Mock skeleton copied from ./agentTransport.test.ts:1-19 (SP8-P1b, reviewed) — mocks
 // sseRequest itself (not fetch), matching the "follow its shape" instruction in
 // p3b-task-3-brief.md. sseRequest's own fetch/401/[DONE]/framing behavior is exercised by
-// .sp8/NimoOS-Service/src/sse.test.ts and is out of scope here.
+// `the shared service package's src/sse.test.ts` and is out of scope here.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const sseRequestMock = vi.fn()

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// SP8-P5e Task 5 — 1:1 ported from blueprint `FileDetailDrawer.vue`
-// (`NimoOS-UI@7a6ee6b7`, `src/views/AI/Knowledge/components/FileDetailDrawer.vue`, 220 lines,
+// SP8-P5e Task 5 — 1:1 ported from the Vue 2 panel's blueprint `FileDetailDrawer.vue`
+// (`src/views/AI/Knowledge/components/FileDetailDrawer.vue`, 220 lines,
 // template+script :1-220 all ported this round).
 //
 // 🔴 K44 (governance §3): `.vue` side zero `<style>` block — scss already moved to
@@ -24,7 +24,7 @@
 // passes `file.fullPath` (not `file.path`, that's dirname).
 //
 // 🔴 N44 — `canDistill` uses in-package `isDistillableName` (`@nimotech/nimoos-service`),
-// don't redefine extension table here (sole definition = `NimoOS-Service/src/notes.ts` `DISTILL_EXTS`).
+// don't redefine extension table here (sole definition = the shared HTTP client's `src/notes.ts` `DISTILL_EXTS`).
 //
 // 🔴 N41 — `created`/`beforeDestroy` → `onMounted`/`onBeforeUnmount` (lifecycle rewrite,
 // not divergence). With `KFileViewer.vue` each independently registers/unregisters `keydown`

@@ -30,8 +30,8 @@ const svc = vi.hoisted(() => ({
     excludeMomentAssets: vi.fn(async (): Promise<unknown> => ({})),
     getTimeline: vi.fn(async (): Promise<unknown> => []),
     getConfig: vi.fn(async (): Promise<unknown> => ({})),
-    // Fix-12 (owner acceptance, 2026-08-14): PhotoLightbox.vue's own render needs these once it
-    // actually mounts (v-if opens) -- this page never mounted a `<PhotoLightbox>` before. This
+    // PhotoLightbox.vue's own render needs these once it actually mounts (v-if opens) --
+    // this page never mounted a `<PhotoLightbox>` before. This
     // file's own cases never open it, but simply mounting the page now renders the (closed)
     // component, whose template already references these.
     originalUrl: vi.fn((id: string) => `mock://original/${id}`),
@@ -40,8 +40,8 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>` (it
-// never did before). That component's own internals call `useLightbox()` too and read
+// This page now also mounts a real `<PhotoLightbox>` (it never did before). That
+// component's own internals call `useLightbox()` too and read
 // `lb.open.value`/etc directly in a `watch()` and its template's `v-if` -- the original
 // `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after this fix
 // crashed every case in this file. See PhotosMomentDetail.test.ts's own copy of this same fix

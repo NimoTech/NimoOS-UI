@@ -64,7 +64,7 @@ function countIn(block: string, name: string): number {
 }
 
 // Task 1's full token set -- every later Time Machine component task is only allowed to
-// reference these names (see task-1-brief.md's Interfaces section).
+// reference these names.
 const TOKENS = [
   '--tm-glass-bg',
   '--tm-glass-blur',
@@ -85,11 +85,11 @@ const TOKENS = [
   '--tm-ghost-border-hover',
   '--tm-control-radius',
   '--tm-panel-blur',
-  // Fix wave A4 (deferred from A2's audit-stage.md #4): the clone-backdrop media-placeholder box
-  // -- pixel-pinned to Vue2's own `.tm-stage__clone-media-placeholder` literal, see theme.css's own
+  // The clone-backdrop media-placeholder box -- pixel-pinned to Vue2's own
+  // `.tm-stage__clone-media-placeholder` literal, see theme.css's own
   // comment on this token for the full provenance.
   '--tm-clone-media-placeholder-bg',
-  // Task 8 fix round: restored per controller ruling (pixel 1:1 to Vue2's own `.tm-tick:hover`
+  // Task 8 fix round: restored (pixel 1:1 to Vue2's own `.tm-tick:hover`
   // and `.tm-tick__badge` literal colors -- see theme.css's own comment on these two for the
   // exact Vue2 CSS rules each one pins).
   '--tm-rail-tick-hover',
@@ -136,11 +136,11 @@ const TOKENS = [
   // comment on these two for the full provenance.
   '--tm-action-bar-bg',
   '--tm-action-bar-item-hover-bg',
-  // Fix wave A2 (audit-stage.md #5/#6/#4/#10/#12): pixel-pinned to Vue2's own single-layer
+  // Pixel-pinned to Vue2's own single-layer
   // `.tm-fwin--active` box-shadow, `.tm-stage__depth-strip__dim`'s pure black, `.tm-stage__gear`'s
   // resting color, and `.tm-tick-skeleton`'s own distinct alpha -- see theme.css's own comment on
   // these four for the full per-token Vue2 provenance. (A former sibling here, `--tm-depth-shadow`,
-  // was retired by fix wave F's Ruling F'-1 -- see theme.css's own comment on `--tm-fwin-shadow`
+  // was retired -- see theme.css's own comment on `--tm-fwin-shadow`
   // for why: unifying the depth-strip's shadow onto this SAME token fixed a visible "shadow pop" at
   // the Time Machine reveal swap.)
   '--tm-fwin-shadow',
@@ -150,7 +150,7 @@ const TOKENS = [
   '--tm-rail-text-shadow',
   '--tm-empty-title',
   '--tm-empty-sub',
-  // Fix wave A3 (audit-modals.md): the accent-purple token split (`--tm-primary` family, pixel-
+  // The accent-purple token split (`--tm-primary` family, pixel-
   // pinned to Vue2's own $primary/$casablue = #8950F2, distinct from --tm-accent's #7c3aed which
   // stays correct for the read-only chip), the flat unblurred modal scrim (`--tm-modal-overlay-bg`),
   // and SnapshotSettingsModal's own remaining history-list/scrollbar/skeleton literals plus

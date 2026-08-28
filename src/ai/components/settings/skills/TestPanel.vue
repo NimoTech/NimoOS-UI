@@ -22,7 +22,7 @@
   reduceSandboxEvent already-written `sandbox.error` (backend human-readable text, like
   "sandbox timed out"), shown as-is, not showing backend JSON, no conflict.
 
-  [Failure state style deviation (coordinator pre-disambiguated, see p3b-task-4-brief.md main text)] Vue2 :92-98's
+  [Failure state style deviation] Vue2 :92-98's
   failure state relies on template inline styles: `.label` inline `color: var(--danger)`, `.bullet` inline
   background + about 18% opacity iOS red glow circle (hardcoded rgba literal, color is current --danger
   token color value) — latter violates this repo's color hard constraint (forbid rgba literal), inline color itself also violates

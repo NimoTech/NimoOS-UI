@@ -22,14 +22,14 @@ import { tmDebugLog } from '../util/tmDebug'
 
 // Time Machine's own snapshot-list item — a straight alias of the /v2/snapshot list's raw shape
 // (not the storage area's mapped SnapshotItemView): keeping `created_at` (not `createdAt`) lets a
-// future consumer (Task 7's rail) hand this array straight to the already-accepted
+// future consumer (the rail) hand this array straight to the already-accepted
 // storage/util/snapshotView.groupSnapshotsByDay without a second field-renaming map in between.
 export type SnapshotVM = SnapshotRaw
 
-// Function the picker's real call site (RestoreDestinationModal, mounted once by Files.vue per T13)
+// Function the picker's real call site (RestoreDestinationModal, mounted once by Files.vue)
 // is handed in as — the store cannot hold a component ref itself, so `restoreItems` below takes it
 // as a parameter instead, the same "store owns state/orchestration, caller supplies the one piece
-// it can't" split T6's own `navigateReal`/router-singleton precedent already set.
+// it can't" split the `navigateReal`/router-singleton precedent already set elsewhere.
 export type OpenRestorePicker = (mount: string, defaultDir: string) => Promise<{ destDir: string; withMarker: boolean } | null>
 
 // Shared state for snapshot browsing in the Files area: volume-list cache + read-only lock derived
@@ -42,13 +42,13 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   const status = ref<VolumesState['status']>('idle')
   const volumes = ref<SnapshotVolumeLike[]>([])
   const restoring = ref(false)
-  // Time Machine mode (Vue2-parity stage, Task 6+). tmActive drives TimeMachineStage.vue's own
+  // Time Machine mode (Vue2-parity stage). tmActive drives TimeMachineStage.vue's own
   // decorative shell (glass/clone/depth-stack/rail/bottom-bar); tmLoading covers the initial
   // snapshot-list fetch on entry; tmTravel is non-null exactly while switchTo() is navigating
   // between two snapshots (a pure "is a navigation in flight" signal — see switchTo's own
   // comment for why its lifecycle is deliberately narrower than tmTravelActive below).
   const tmActive = ref(false)
-  // Final review (Important 5, Ruling F-2): the "held chrome" flag -- Vue2's own
+  // The "held chrome" flag -- Vue2's own
   // isTimeMachineChromeVisible (FilePanel.vue). Entering flips it true in lockstep with tmActive
   // (nothing to wait for), but EXITING does NOT drop it in lockstep -- it stays true until the
   // exit navigation's target directory listing has actually landed (isExitTargetReady below),
@@ -61,14 +61,14 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   const snapshotList = ref<SnapshotVM[]>([])
   const tmLoading = ref(false)
   const tmTravel = ref<{ from: string | null; to: string | null } | null>(null)
-  // Task 7 fix round (review finding 1, Vue2's own travelActive, ported): whether the real,
+  // Vue2's own travelActive, ported: whether the real,
   // interactive window should stay hard-hidden (`.tm-fwin--traveling`, TimeMachineStage.vue) for
   // a switch currently in flight. Deliberately a SEPARATE flag from tmTravel, not a rename of it
   // — tmTravel's own "clears once the navigation settles" lifecycle (unchanged, still exactly
   // what switchTo's own router.replace await tracks) fires in single-digit milliseconds, long
   // before the depth-stack's own GSAP dolly sweep (420-900ms) or the target snapshot's own
   // preview listing have actually finished — releasing the hard-hide on THAT signal would reveal
-  // the real window mid-animation on essentially every switch (the exact defect this fix round
+  // the real window mid-animation on essentially every switch (the exact defect this
   // addresses). tmTravelActive instead stays true until TimeMachineDepthStack.vue's own
   // reveal-gate (armReveal/settle, ported from Vue2's own armReveal/reveal — see that
   // component's own header comment) calls settleTravel() below, which happens only once BOTH the
@@ -150,7 +150,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       && !isSnapshotView.value,
   )
 
-  // Task 10 (deep-link auto-enter): mirrors Vue2 FilePanel.vue's own shouldAutoEnterTimeMachine
+  // Deep-link auto-enter: mirrors Vue2 FilePanel.vue's own shouldAutoEnterTimeMachine
   // computed verbatim. `parsed.value` (not isSnapshotView) is the path-shape check deliberately —
   // isSnapshotView is a broader FAIL-SAFE flag (also true while status is idle/loading/error, or
   // while the volume match is merely unconfirmed), which is correct for the write-lock but wrong
@@ -175,7 +175,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       && currentVolume.value.supported === true,
   )
 
-  // Final review (Important 5, Ruling F-2): Vue2's own isExitTargetReady computed (FilePanel.vue)
+  // Vue2's own isExitTargetReady computed (FilePanel.vue)
   // -- true once it is actually safe to drop the Time Machine chrome: no longer inside guarded
   // snapshot content (isSnapshotView) AND the newly-targeted directory's own listing has actually
   // finished loading (files.loading false). Depending on isSnapshotView alone would release too
@@ -306,7 +306,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     }
   }
 
-  // Task 10: deep-link / bookmark / Storage-timeline-browse auto-enter. UNLIKE enterTimeMachine
+  // Deep-link / bookmark / Storage-timeline-browse auto-enter. UNLIKE enterTimeMachine
   // above, this never navigates — by the time shouldAutoEnter is true, files.currentPath is
   // ALREADY sitting on the exact `.snapshots/<name>/<rel>` path the caller asked for (a pasted
   // URL, a bookmark, or SnapshotTimeline.vue's own browse() link via Files.vue's sync()), so
@@ -343,7 +343,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     const info = browseInfo.value
     tmActive.value = false
     tmTravel.value = null
-    // Task 7 fix round: a stuck-true tmTravelActive (e.g. the depth-stack component was
+    // A stuck-true tmTravelActive (e.g. the depth-stack component was
     // unmounted mid-travel, so nothing was ever going to call settleTravel()) must not survive
     // past leaving Time Machine mode entirely — the next entry starts clean.
     tmTravelActive.value = false
@@ -358,14 +358,14 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // Switch the SAME window to another snapshot, preserving the current relative path inside it
   // (Vue2's handleTimeMachineSwitch/M2-F6 "tick switching preserves the current relative path").
   // tmTravel is set BEFORE navigating and cleared once the navigation settles — a pure
-  // "navigation in flight" signal, unchanged since Task 6. tmTravelActive (Task 7 fix round) is
+  // "navigation in flight" signal, unchanged from an earlier version of this store. tmTravelActive is
   // set true at the SAME instant (mirroring Vue2's own beginTravel, called synchronously at
   // click time, before the async navigation) but is NOT cleared here — TimeMachineStage.vue
   // reads it (not tmTravel) to hard-cut `.tm-fwin--traveling`, and only settleTravel() below
   // (called by TimeMachineDepthStack.vue's own reveal-gate, once the travel has actually finished
   // animating AND the target's own preview is ready) clears it. See tmTravelActive's own comment
   // (above, in this store) for why the two flags' lifecycles are deliberately different.
-  // Folded minor #7 (final review, Ruling F-3): a store-side safety ceiling for tmTravelActive,
+  // A store-side safety ceiling for tmTravelActive,
   // independent of TimeMachineDepthStack.vue's own reveal-gate safety timer. That component's own
   // timer only exists while the component itself is mounted (active/fadingOut) -- if it were ever
   // torn down mid-travel some other way (before calling settleTravel()), tmTravelActive would stay
@@ -375,10 +375,10 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // compute a tighter duration from), token-guarded the same way the exit-hold above is: a later
   // switchTo, or a legitimate settleTravel(), invalidates any still-pending earlier timer.
   //
-  // Fix wave J (owner acceptance 2026-08-26, found during a direction/root-cause audit of a
-  // reported stuck-strip defect): this ceiling used to be `TRAVEL_MAX_DURATION_MS +
-  // TRAVEL_SAFETY_EXTRA_MS` (900 + 800 = 1700ms) -- the OLD, pre-wave-H "single uniform stack
-  // slide" duration's own worst case. Wave H's own long-jump fly-through introduced a SEPARATE,
+  // Found during a root-cause investigation of a
+  // reported stuck-strip defect: this ceiling used to be `TRAVEL_MAX_DURATION_MS +
+  // TRAVEL_SAFETY_EXTRA_MS` (900 + 800 = 1700ms) -- the OLD, pre-fly-through "single uniform stack
+  // slide" duration's own worst case. The long-jump fly-through introduced a SEPARATE,
   // LARGER worst-case duration (`TRAVEL_FLY_MAX_DURATION_MS` = 1400ms, TimeMachineDepthStack.vue's
   // own `armReveal` safety timer already uses `flyThroughDurationMs(plan) + TRAVEL_SAFETY_EXTRA_MS`,
   // up to 1400 + 800 = 2200ms) but this store-side backstop was never updated to match -- for a
@@ -387,13 +387,13 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // `Math.max(...)` keeps this the genuine worst case across BOTH travel models, present and future,
   // rather than silently falling behind again the next time either duration changes.
   //
-  // Fix wave J follow-up (re-review finding (a), owner acceptance 2026-08-26): this timer is armed
+  // This timer is armed
   // SYNCHRONOUSLY right here, at click time -- STRICTLY EARLIER than `armReveal`'s own timer, which
   // only arms once `currentSnapshotName` has actually changed and a further `nextTick()` has run.
   // Sharing the IDENTICAL nominal worst-case duration with something armed strictly later is a
   // latent tie: an integration test driving a maximal fly-through through this exact function
-  // found a comfortable ~450ms margin under TODAY's real constants (see this wave's own
-  // final-fix-report.md for the measured numbers and the test itself), but nothing structurally
+  // found a comfortable ~450ms margin under TODAY's real constants (see the integration test that
+  // measured the numbers), but nothing structurally
   // guarantees that margin survives a future change to the fly-through duration formula's own
   // constants. `TRAVEL_STORE_SAFETY_MARGIN_MS` (timeMachineChoreo.ts) closes the tie outright,
   // independent of today's specific headroom.
@@ -443,7 +443,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
     tmTravelActive.value = false
   }
 
-  // Full Vue2-parity restore orchestration (Task 14) — the single funnel every entry point (context-menu
+  // Full Vue2-parity restore orchestration — the single funnel every entry point (context-menu
   // single item, banner/bottom-bar selection, whole-folder confirm) converges into after computing its
   // own `items`/`defaultDir`: destination picker -> (skipped when withMarker is on) same-name-conflict
   // queue via the shared FileConflictDialog -> serial execution -> aggregate toast(s). `restoring` is
@@ -451,7 +451,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   // phase must disable the other two entry points too, not just the network calls), and the three entry
   // points still share this one flag — any in-flight one disables the other two.
   //
-  // `opts.singleItemFlow` (controller ruling, fix round 1): purely a pass-through to
+  // `opts.singleItemFlow` is purely a pass-through to
   // buildRestoreToasts (see that function's own comment) so the CALLER (Files.vue's
   // `restoreSingleItem`, the context-menu entry point) decides the success-toast copy, not this
   // function inferring it from `items.length` — a selection of exactly one item (banner/bottom bar)

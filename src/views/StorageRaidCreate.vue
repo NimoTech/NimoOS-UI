@@ -1,5 +1,5 @@
 <!--
-  RAID creation wizard (P4 T5). Ported from NimoOS-UI RaidCreateWizard.vue (2 steps: choose
+  RAID creation wizard (P4 T5). Ported from the Vue 2 panel's RaidCreateWizard.vue (2 steps: choose
   drives + level / confirm), assembling the parts already completed by T1
   (RAID_LEVELS/recommendRaidLevel), T3 (RaidDriveBay), and T4 (RaidMatrix).
 

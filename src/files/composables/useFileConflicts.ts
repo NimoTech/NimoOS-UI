@@ -280,7 +280,7 @@ export function useFileConflicts(deps: FileConflictDeps = {}) {
   }
 
   /**
-   * Restore's counterpart to `resolvePaste()` above — Task 14. Shares this composable's dialog,
+   * Restore's counterpart to `resolvePaste()` above. Shares this composable's dialog,
    * resolver and serial chain (a Time Machine restore batch and an upload/paste can never both be
    * asking at once, same reasoning as resolvePaste's own header comment).
    *
