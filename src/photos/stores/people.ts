@@ -31,12 +31,17 @@ const PURGE_DELAY_MS = 5000
 // "createdAt"}]}]}, open-only, hidden persons excluded, groups ordered like ListPersons,
 // suggestions score ASC. createdAt isn't surfaced here — Task 2 (the UI) only needs faceId (for
 // the thumbnail) and the fields below.
+// T12c (suggestion-card face-locate box, 2026-08-28 addendum): bbox is a further additive field
+// on SuggestionItem, same contract/validation as MergeFacePreview.bbox above (backend T12a:
+// normalized [x1,y1,x2,y2], clamped to [0,1], omitted when the basis dimensions are unknown).
+// Absent/malformed -> undefined; the review wizard simply draws no locate-box (fail-open).
 export interface SuggestionItem {
   id: string
   faceId: string
   assetId: string
   kind: 'join' | 'review'
   score: number
+  bbox?: number[]
 }
 export interface SuggestionGroup {
   person: Person
@@ -144,13 +149,15 @@ function toMergeQuestion(raw: Record<string, unknown>): MergeQuestionPair {
 }
 
 function toSuggestionItem(raw: Record<string, unknown>): SuggestionItem {
-  return {
+  const item: SuggestionItem = {
     id: String(raw.id ?? ''),
     faceId: String(raw.faceId ?? ''),
     assetId: String(raw.assetId ?? ''),
     kind: raw.kind === 'review' ? 'review' : 'join',
     score: typeof raw.score === 'number' ? raw.score : Number(raw.score) || 0,
   }
+  if (isValidFaceBBox(raw.bbox)) item.bbox = raw.bbox
+  return item
 }
 
 // Defensive parse for SuggestionGroup.exemplarFaceIds (see its own declaration comment): only a

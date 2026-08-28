@@ -81,6 +81,15 @@ const lightboxFaceBox = ref<number[] | null>(null)
 // no box to draw, or the box/element geometry doesn't resolve to a content frame yet).
 const lightboxImgEl = ref<HTMLImageElement | null>(null)
 const faceBoxRect = ref<FaceRect | null>(null)
+// T12c (suggestion-card face-locate box, 2026-08-28 addendum): the SAME overlay mechanism, but
+// for the pattern-①/② body's own INLINE context photo (`.prw-context-img`), a separate <img>
+// element from the lightbox's -- own el ref / rect state, never shared with lightboxImgEl/
+// faceBoxRect above (independent geometry, independent lifecycle: this one can be visible while
+// the lightbox is closed). Note the fit mode: `.prw-context-img` is object-fit:cover (see its own
+// style rule), unlike the lightbox's object-fit:contain, so mapFaceBoxToRect's calls below pass
+// 'cover' explicitly rather than relying on the default.
+const contextImgEl = ref<HTMLImageElement | null>(null)
+const contextBoxRect = ref<FaceRect | null>(null)
 
 const current = computed<FlatItem | null>(() => flat.value.find((f) => !skippedIds.value.has(flatKey(f))) ?? null)
 const done = computed(() => current.value === null)
@@ -242,6 +251,43 @@ watch(lightboxUrl, async (url) => {
   }
 })
 
+// T12c (suggestion-card face-locate box, 2026-08-28 addendum): identical recompute/observer
+// pairing as recomputeFaceBox/faceBoxResizeObserver above, for the context photo's OWN <img> +
+// rect state -- see contextImgEl/contextBoxRect's declaration comment for why these stay separate
+// rather than reusing the lightbox's. Note the 'cover' fit argument (see the same comment).
+function recomputeContextBox(): void {
+  const el = contextImgEl.value
+  const box = current.value?.kind === 'face' ? (current.value.item.bbox ?? null) : null
+  contextBoxRect.value = el && box ? mapFaceBoxToRect(box, el.clientWidth, el.clientHeight, el.naturalWidth, el.naturalHeight, 'cover') : null
+}
+
+let contextBoxResizeObserver: ResizeObserver | undefined
+function teardownContextBoxObserver(): void {
+  contextBoxResizeObserver?.disconnect()
+  contextBoxResizeObserver = undefined
+}
+// Re-arm whenever the original view's context photo for a FACE item is showing -- keyed by
+// flatKey so a same-view suggestion-to-suggestion advance (Yes/No/Skip) re-observes cleanly too
+// (the <img> element itself persists across that transition since viewMode/kind don't change,
+// only its `src`/bbox do -- @load below still fires per src change and recomputes against
+// whatever bbox is current at that moment, but the observer itself only needs rearming when the
+// element mounts/unmounts, i.e. entering/leaving 'original' view or crossing the face/merge
+// boundary). Mirrors the lightboxUrl watcher above, just gated on this different condition.
+watch(
+  () => (viewMode.value === 'original' && current.value?.kind === 'face' ? flatKey(current.value) : null),
+  async (key) => {
+    teardownContextBoxObserver()
+    if (key === null) { contextBoxRect.value = null; return }
+    await nextTick()
+    recomputeContextBox()
+    if (contextImgEl.value && typeof ResizeObserver !== 'undefined') {
+      contextBoxResizeObserver = new ResizeObserver(recomputeContextBox)
+      contextBoxResizeObserver.observe(contextImgEl.value)
+    }
+  },
+  { immediate: true },
+)
+
 async function decide(accept: boolean): Promise<void> {
   if (busy.value || !current.value) return
   const cur = current.value
@@ -294,6 +340,7 @@ watch(
       viewMode.value = 'original'
       lightboxUrl.value = null
       lightboxFaceBox.value = null
+      contextBoxRect.value = null
       document.addEventListener('keydown', onDocumentKeydown)
     } else {
       document.removeEventListener('keydown', onDocumentKeydown)
@@ -312,6 +359,7 @@ watch(() => (current.value ? flatKey(current.value) : null), () => {
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocumentKeydown)
   teardownFaceBoxObserver()
+  teardownContextBoxObserver()
 })
 </script>
 
@@ -323,7 +371,9 @@ onUnmounted(() => {
       <template v-if="!done && current">
         <div class="prw-progress" data-test="prw-progress">{{ t('photosPeopleReviewProgress', { k: reviewedCount, n: totalAtOpen }) }}</div>
 
-        <!-- ── Face-suggestion body (pattern ① / ②, unchanged) ── -->
+        <!-- ── Face-suggestion body (pattern ① / ②; T12c 2026-08-28 addendum: the original view's
+             context photo now also draws a `.prw-face-box` locate overlay when the suggestion has
+             a bbox, same as the merge-card lightbox already did) ── -->
         <template v-if="current.kind === 'face'">
           <div class="prw-header" data-test="prw-header">
             <PersonAvatar :person-id="currentPerson?.id ?? null" :name="currentPerson?.name" :ver="currentPerson?.coverFaceId ?? null" :size="56" />
@@ -356,8 +406,24 @@ onUnmounted(() => {
           </div>
 
           <div v-if="viewMode === 'original'" class="prw-body-original" data-test="prw-body-original">
-            <div class="prw-context-wrap" data-test="prw-context-photo" @click="openLightbox(contextUrl)">
-              <img class="prw-context-img" :src="contextUrl" :alt="t('photosPeopleSuggestPeekAlt')">
+            <div
+              class="prw-context-wrap"
+              data-test="prw-context-photo"
+              @click="openLightbox(contextUrl, current.item.bbox ?? null)"
+            >
+              <img
+                ref="contextImgEl"
+                class="prw-context-img"
+                :src="contextUrl"
+                :alt="t('photosPeopleSuggestPeekAlt')"
+                @load="recomputeContextBox"
+              >
+              <div
+                v-if="contextBoxRect"
+                class="prw-face-box"
+                data-test="prw-context-face-box"
+                :style="{ left: `${contextBoxRect.left}px`, top: `${contextBoxRect.top}px`, width: `${contextBoxRect.width}px`, height: `${contextBoxRect.height}px` }"
+              ></div>
               <img class="prw-inset-img" data-test="prw-inset-face" :src="faceThumb(current.item.faceId)" alt="">
             </div>
           </div>
