@@ -205,8 +205,8 @@ describe('Legitimate Chinese usage zero false positives (T6.5 new)', () => {
   })
 
   it('photo whitelist: ImageViewer (generic image viewer) and --media-overlay-shadow comment don\'t hit', () => {
-    // 逐字摘自 src/files/viewers/ImageViewer.vue:207-209
-    const text = '     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */'
+    // 逐字摘自 src/files/viewers/ImageViewer.vue(2026-08-14 起该行已是英文)
+    const text = '     stretches stale tiles without repainting, and tile seams show as white hairline grids over the photo'
     expect(scanText('src/files/viewers/ImageViewer.vue', text)).toEqual([])
     // 换个文件就不再豁免(按文件限定,不是按文本全局豁免)
     expect(scanText('src/home/components/PhotoTile.vue', text).length).toBeGreaterThan(0)
@@ -214,11 +214,11 @@ describe('Legitimate Chinese usage zero false positives (T6.5 new)', () => {
 
   it('search whitelist: StorePage (app store filtering) and Files.vue (rename/search input focus) don\'t hit', () => {
     // 逐字摘自 src/apps/views/StorePage.vue:59
-    expect(scanText('src/apps/views/StorePage.vue', '// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框')).toEqual([])
+    expect(scanText('src/apps/views/StorePage.vue', '// Search input: write query after 250ms debounce (same as Vue2); external query changes (back navigation) flow back into the input')).toEqual([])
     // 逐字摘自 src/views/Files.vue:208
-    expect(scanText('src/views/Files.vue', '// 焦点在输入框(重命名/搜索等)时不抢浏览器默认粘贴;剪贴板只有文字时静默忽略。')).toEqual([])
+    expect(scanText('src/views/Files.vue', "// Don't steal the browser's default paste when focus is in an input (rename/search/etc.); silently ignore when the clipboard holds only text.")).toEqual([])
     // 白名单按文件限定:同一串文本出现在别的文件里仍然报
-    expect(scanText('src/home/components/SearchDialog.vue', '// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框').length).toBeGreaterThan(0)
+    expect(scanText('src/home/components/SearchDialog.vue', '// Search input: write query after 250ms debounce (same as Vue2); external query changes (back navigation) flow back into the input').length).toBeGreaterThan(0)
   })
 })
 
@@ -245,7 +245,7 @@ describe('Review fix: whitelist tightened to exact line match, no entire-line/fi
     const adversarial = '// 商店页新增语音搜索:识别用户说的话,自动填充搜索框(接入 Nimo 大模型做语义排序)'
     expect(scanText('src/apps/views/StorePage.vue', adversarial).length, adversarial).toBeGreaterThan(0)
     // 合法原文(逐字摘自 StorePage.vue:59)继续不受影响
-    expect(scanText('src/apps/views/StorePage.vue', '// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框')).toEqual([])
+    expect(scanText('src/apps/views/StorePage.vue', '// Search input: write query after 250ms debounce (same as Vue2); external query changes (back navigation) flow back into the input')).toEqual([])
   })
 
   it('transcript/photo/search all 13 whitelists self-check per line: legitimate original no false pos, leak appended on same line must hit', () => {
@@ -264,32 +264,32 @@ describe('Review fix: whitelist tightened to exact line match, no entire-line/fi
         "  raidLevel1Usecase: '照片库、个人 NAS、启动卷',",
         "  raidLevel1Usecase: '照片库、个人 NAS、启动卷(这里的照片会自动生成向量做相似检索)',"],
       ['src/files/viewers/ImageViewer.vue',
-        '     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */',
-        '     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。这些照片会喂给知识库做向量化。 */'],
+        '     stretches stale tiles without repainting, and tile seams show as white hairline grids over the photo',
+        '     stretches stale tiles without repainting, and tile seams show as white hairline grids over the photo (also indexed by Nimo AI for semantic ranking)'],
       ['src/styles/theme.css',
-        '  /* 媒体(照片/视频)上方浮层的投影:内容颜色不可控,白图上纯白浮层会隐形,',
-        '  /* 媒体(照片/视频)上方浮层的投影:内容颜色不可控,白图上纯白浮层会隐形,顺带给 AI 相册用,'],
+        "  /* Shadow for overlays sitting above media (photos/videos): content color can't be",
+        "  /* Shadow for overlays sitting above media (photos/videos): content color can't be (also indexed by Nimo AI for semantic ranking)"],
       ['src/i18n/zh_cn.base.ts',
         "  appsStoreSearch: '搜索应用…',",
         "  appsStoreSearch: '搜索应用…(基于语义搜索的应用推荐)',"],
       ['src/apps/views/StorePage.vue',
-        '// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框',
-        '// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框,并送 Nimo AI 做语义排序'],
+        '// Search input: write query after 250ms debounce (same as Vue2); external query changes (back navigation) flow back into the input',
+        '// Search input: write query after 250ms debounce (same as Vue2); external query changes (back navigation) flow back into the input (also indexed by Nimo AI for semantic ranking)'],
       ['src/apps/views/StorePage.vue',
-        '// 分类/作者是后端参数:query 变化即重拉;搜索纯前端不重拉',
-        '// 分类/作者是后端参数:query 变化即重拉;搜索纯前端不重拉(未来接知识库做语义搜索)'],
+        '// Category/author are backend parameters: refetch on query change; search is frontend-only, no refetch',
+        '// Category/author are backend parameters: refetch on query change; search is frontend-only, no refetch (also indexed by Nimo AI for semantic ranking)'],
       ['src/apps/views/StorePage.vue',
-        '// 推荐带只在「未过滤未搜索」的首屏语境显示——过滤/搜索时列表就是用户要的答案,带子是噪音',
-        '// 推荐带只在「未过滤未搜索」的首屏语境显示——过滤/搜索时列表就是用户要的答案,带子是噪音;新增语音搜索接入 Nimo AI'],
+        '// The featured strip only shows in the unfiltered, unsearched first-screen context -- when filtering/searching, the list is the answer the user wants and the strip is noise',
+        '// The featured strip only shows in the unfiltered, unsearched first-screen context -- when filtering/searching, the list is the answer the user wants and the strip is noise (also indexed by Nimo AI for semantic ranking)'],
       ['src/apps/views/StorePage.test.ts',
-        "  it('搜索输入 250ms 防抖后 replace 路由 query(前端过滤,深链)', async () => {",
-        "  it('搜索输入 250ms 防抖后 replace 路由 query(前端过滤,深链,语义搜索兜底)', async () => {"],
+        "  it('Search input debounced 250ms then replace route query (frontend filtering, deep link)', async () => {",
+        "  it('Search input debounced 250ms then replace route query (frontend filtering, deep link)', async () => { (also indexed by Nimo AI for semantic ranking)"],
       ['src/apps/views/StorePage.test.ts',
-        "  it('Featured 带只在 无搜索+全部分类+全部来源 时显示', async () => {",
-        "  it('Featured 带只在 无搜索+全部分类+全部来源 时显示(含 AI 相册联动)', async () => {"],
+        "  it('Featured strip only shows when there is no search + all categories + all sources', async () => {",
+        "  it('Featured strip only shows when there is no search + all categories + all sources', async () => { (also indexed by Nimo AI for semantic ranking)"],
       ['src/views/Files.vue',
-        '// 焦点在输入框(重命名/搜索等)时不抢浏览器默认粘贴;剪贴板只有文字时静默忽略。',
-        '// 焦点在输入框(重命名/搜索等)时不抢浏览器默认粘贴;剪贴板只有文字时静默忽略。(搜索接入知识库向量化)'],
+        "// Don't steal the browser's default paste when focus is in an input (rename/search/etc.); silently ignore when the clipboard holds only text.",
+        "// Don't steal the browser's default paste when focus is in an input (rename/search/etc.); silently ignore when the clipboard holds only text. (also indexed by Nimo AI for semantic ranking)"],
     ]
     expect(rows.length, '13 条白名单,一条不能漏自查').toBe(13)
     for (const [file, legit, adversarial] of rows) {

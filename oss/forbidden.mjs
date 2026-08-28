@@ -175,7 +175,6 @@ export const SOFT = [
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(s.browseInfo).toEqual({ mount: '/DATA', snapshotName: 'snap1', relPath: 'Photos' })") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })") },
-      { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("await s.restore([{ path: '/DATA/.snapshots/snap1/Photos/a.jpg' }])") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(useToast().msg).toContain('/DATA/Photos/a.jpg.restored-1')") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.restored-1' })") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(useToast().msg).toContain('/DATA/Photos/a.restored-1')") },
@@ -375,7 +374,6 @@ export const SOFT = [
       // translated, so the folder tile drawn as "[图库]" is now "[Gallery]". Same
       // system default folder as the entry above, drawn instead of written as a path.
       { file: /src\/home\/grid\/defaultLayout\.ts$/, re: exactLine('// r6  [                  ][Docs][Downloads][Media][Gallery][      ][    ][    ]') },
-      { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /Gallery/ },
       // E6:Vue2 逐字移植的路径归一(应用导入时的目录归一化),/DATA/Gallery 是
       // LocalStorage 开机自建的系统目录,与相册功能无关,是保留面。
       { file: /src\/apps\/util\/importNormalize\.ts$/, re: /\/DATA\/Gallery/ },
@@ -429,7 +427,6 @@ export const SOFT = [
       // 这里的 "search for" 是让用户在 Google Cloud 控制台里搜索 API 的普通英文动词,与
       // NimoOS-Search 服务无关。整行精确匹配,不给整个文件开洞。
       { file: /public\/guide\/google-drive\.html$/, re: exactLine('<p>In the left menu <span class="path">APIs &amp; Services → Library</span>, search for <b>Google Drive API</b>, open it → <b>Enable</b>.</p>') },
-      { file: /src\/apps\/stores\/installedApps\.ts$/, re: /filterStoreApps|searchInput/ },
       // 2026-08-05(SP7-P8b):两个 locale 主文件改名 *.base.ts,路径跟着改。
       { file: /src\/i18n\/(zh_cn|en_us)\.base\.ts$/, re: /appsStoreSearch/ },
       // composeSettings.ts:'DAC_READ_SEARCH' 是 Linux capability 常量名(compose
@@ -482,7 +479,6 @@ export const SOFT = [
       // this file off the Vue2 authority source instead of a research summary's paraphrase),
       // not a mention of the deleted NimoOS-Search service.
       { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.test\.ts$/, re: exactLine("// of an earlier version built off a research summary's inaccurate paraphrase. See") },
-      { file: /src\/files\/snapshot\/SnapshotPreviewWindow\.vue$/, re: exactLine('research summary\'s paraphrase ("window chrome, title bar with a snapshot time label, three-column') },
       // write-root-redirect.sh / writeRootRedirect.test.ts:这里的 'search' 是浏览器
       // Location 接口的 .search 属性(URL 查询串),根重定向页把它原样透传给 /app/
       // 目标应用(连同 .hash),与被剥离的 NimoOS-Search 服务/SearchDialog.vue 毫无关系。
@@ -550,8 +546,6 @@ export const SOFT = [
       { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("raidLevel1Usecase: '照片库、个人 NAS、启动卷',") },
       // ImageViewer 是通用图片文件查看器(Files 区),"照片"在这里是"图片内容"的泛称,
       // 不是被剥离的 Photos 相册 app。--media-overlay-shadow 同一 token 只被这里消费(已 grep 核实)。
-      { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: exactLine('瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */') },
-      { file: /src\/styles\/theme\.css$/, re: exactLine('/* 媒体(照片/视频)上方浮层的投影:内容颜色不可控,白图上纯白浮层会隐形,') },
       // 2026-08-07:SP11 壁纸功能——themePhoto 是顶栏主题菜单第三个入口的中文文案
       // ("照片…"),产品拷贝按计划固定如此,与相册 app 无关。已用 oss/export.mjs
       // 实测确认这条命中,逐行精确匹配登记(不是给整个文件的"照片"二字开洞)。
@@ -572,14 +566,8 @@ export const SOFT = [
       // 私有侧译成英文,产出树里不再出现中文原文;条目保留是因为守卫自检用它们当样本
       // (forbidden.test.mjs 逐条构造"合法原文 + 尾部追加泄漏"),等价的英文整行登记在
       // 上面 'search' 那条。
-      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框') },
-      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 分类/作者是后端参数:query 变化即重拉;搜索纯前端不重拉') },
-      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 推荐带只在「未过滤未搜索」的首屏语境显示——过滤/搜索时列表就是用户要的答案,带子是噪音') },
-      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('搜索输入 250ms 防抖后 replace 路由 query(前端过滤,深链)', async () => {") },
-      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('Featured 带只在 无搜索+全部分类+全部来源 时显示', async () => {") },
       // Files.vue:粘贴上传的"焦点在输入框(重命名/搜索等)"是 Files 区自己的文件名过滤输入框,
       // 不是被删除的 SearchDialog/NimoOS-Search。
-      { file: /src\/views\/Files\.vue$/, re: exactLine('// 焦点在输入框(重命名/搜索等)时不抢浏览器默认粘贴;剪贴板只有文字时静默忽略。') },
     ],
   },
   // 智能:brief 点名的候选软禁词,但全仓 grep 核实后目前没有找到非 AI 的合法用法
@@ -665,6 +653,13 @@ export const SOFT = [
       // "parser-independent" here. It describes the colour guard doing regex over raw
       // source text instead of jsdom's CSSOM -- nothing to do with NimoOS-Parser.
       { file: /src\/styles\/color-guard\.test\.ts$/, re: exactLine("// Detection method (parser-independent, so it doesn't rely on jsdom's CSSOM): strip `/* … */` **non-greedily** per CSS semantics") },
+      // 2026-08-28: the web terminal hooks OSC 52 through xterm.js's own `term.parser`
+      // (`registerOscHandler`) — a third-party API name, unrelated to the NimoOS-Parser
+      // service. Deliberately NOT an exactLine set: eight lines across three files, all of
+      // which reformat easily. The condition is a content one instead — a `parser` hit in
+      // src/terminal/** passes only if the same line also says `registerOscHandler` or
+      // `xterm`, so a line that actually mentions the private service is still caught.
+      { file: /src\/terminal\/[^/]+\.(ts|vue)$/, re: /registerOscHandler|xterm/ },
     ],
   },
   { word: 'wiki', re: /wiki/i, allow: [] },
