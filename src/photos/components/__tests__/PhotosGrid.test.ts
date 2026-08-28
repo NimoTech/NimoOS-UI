@@ -1,5 +1,5 @@
-// Ported from Vue2 NimoOS-UI src/views/Photos/PhotosGrid.vue (348 lines).
-// P1 scope cuts + URL-builder delta per task-7-brief.md:
+// Ported from the Vue 2 panel's src/views/Photos/PhotosGrid.vue (348 lines).
+// P1 scope cuts + URL-builder delta:
 //  - thumbnailSrc/hoverVideoSrc/spriteUrl go through the shared `service.photos.*`
 //    package (mocked below), never hand-built `/v1/...` strings.
 //  - spriteMeta resolves { frames, durationMs, frameW, frameH } directly (no

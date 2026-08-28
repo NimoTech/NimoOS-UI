@@ -16,7 +16,7 @@ const html = ref('')
 
 onMounted(async () => {
   try {
-    // Controller-verified (same as Task 6 CodeViewer): /v1/file/content is a
+    // Verified against the backend (same as CodeViewer): /v1/file/content is a
     // standard envelope whose `data` is the raw content STRING — but read
     // defensively in case the endpoint ever returns the typed `{content}` shape.
     const raw = await service.file.getContent(props.item.path)

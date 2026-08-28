@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // P6a-T6 (SP7-P6a 地点·地图主视图): PlacesMap.vue —— 地点页的 SVG 地图舞台。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:972-1011(模板)、
+// 逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue:972-1011(模板)、
 // photos-places.scss:333-436(样式,跳过死码 :340-345 的 .world-graticule/
 // .world-equator——Vue2 模板从没画过经纬线;也跳过 :437+ 的 .map-tip,那属于容器
 // 层,不在这段结构规格里)。
@@ -19,7 +19,7 @@
 //     同名不变)。照抄 Vue2 类名会让入场缩放动画静默失效——见样式块内该规则上方注释。
 //
 // Task 5 (Plan E #106 perf architecture port, 2026-08-15): two changes ported from
-// Vue2 NimoOS-UI PR #106's own perf sub-commit (git show 78cf3335) — this component's
+// the Vue 2 panel's PR #106's own perf sub-commit (git show 78cf3335) — this component's
 // share of the "dragging a color picker no longer repaints the whole map" fix (the other
 // share — the colour-input uncontrolled + debounced-persist half — lives in
 // PlacesThemeMenu.vue/places.ts):
@@ -153,7 +153,7 @@ defineExpose({ svgEl })
    declarations — the `.world-dot` fallback token this comment used to also cite has since moved
    to PlacesWorldDots.vue's own `<style scoped>`, see Task 5 note below).
 
-   Fix-5 (owner acceptance, 2026-08-17, P6a formally overturned): the seven `--pin-*` tokens this
+   P6a's original color choice was later formally overturned: the seven `--pin-*` tokens this
    comment used to describe (`--pin-bg`/`--pin-stroke`/`--pin-active-bg`/`--pin-cluster-stroke`/
    `--pin-cluster-hover-bg`/`--pin-pulse`/`--pin-glow`) carried BLUE values (migrated as-then-were
    during Plan E's final fix wave, see photos.scss's own now-removed comment on them) — a
@@ -175,7 +175,7 @@ defineExpose({ svgEl })
    keeps a live, same-block reference; the `fill` property alone now cascades from parity's
    identical selector (CSS resolves fill/other properties independently, per-property, not
    per-rule — a partial local rule is completely normal). Vue2 ground truth confirmed to have NO
-   light-theme-specific override for any of this (grep-verified against NimoOS-UI's
+   light-theme-specific override for any of this (grep-verified against the Vue 2 panel's
    photos-places.scss — accent purple is theme-constant there, no `.is-light` branch touches the
    pin family at all), matching this file's own dark/light-invariant `var(--accent)` usage below.
 

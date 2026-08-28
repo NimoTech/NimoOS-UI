@@ -6,8 +6,7 @@
 // can **never actually be sent** on this dev machine (NimoOS/route/v2/network.go:88
 // unconditionally calls ApplyGatewayConfig() at the end, rewriting dnsmasq / nftables /
 // ip_forward, and this machine's SSH lifeline enp2s0 is exactly the NIC being configured)
-// -> the write path's correctness can only be covered by the unit tests here (see ledger
-// .superpowers/sdd/sp9/03-p2.md, debt D18).
+// -> the write path's correctness can only be covered by the unit tests here.
 //
 // Porting discipline #1 (on record): Vue2's WifiForm / HotspotForm each hold their own
 // dnsString (child component data), initialized from formData.ipv4.dns in created();

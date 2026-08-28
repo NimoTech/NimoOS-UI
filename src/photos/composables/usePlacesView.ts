@@ -1,4 +1,4 @@
-// Map view transformations and gestures. Ported verbatim from Vue2 NimoOS-UI
+// Map view transformations and gestures. Ported verbatim from the Vue 2 panel
 // src/views/Photos/PhotosPlacesView.vue:561-735 (svgPoint / visibleCenterVb /
 // applyZoom / stopViewAnim / animateView / centerOn / zoomBy / setScale /
 // onWheel / zoomToCluster / screenToVbScale / onPointerDown|Move|Up /

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// SP15-P1-T4: MomentCard.vue — the mosaic card for the Moments band.
-// Ported piece-by-piece from Vue2 NimoOS-UI 899af59b:src/views/Photos/PhotosSmartViewsView.vue:367-433
+// MomentCard.vue — the mosaic card for the Moments band.
+// Ported piece-by-piece from the Vue 2 panel's 899af59b:src/views/Photos/PhotosSmartViewsView.vue:367-433
 // inline component MomentCard; styles ported from photos-smartview.scss:186-268.
 // The collage/meta structure is deliberately aligned with SmartViewCard.vue (same three-row
 // meta layout), so it reuses the .sv-card/.sv-collage/.sv-meta class names and only layers
@@ -25,14 +25,14 @@
 //     literal white on a solid fill, always legible regardless of theme. `.mo-span-mini`
 //     (below, near .sv-stats) originally reused the --warn-bg/--warn-fg *pair* the same way,
 //     but that one is a translucent tint sitting directly on the page background, not a solid
-//     fill -- Fix-2 item 6 (owner acceptance, 2026-08-13) found neither token is shadowed on
+//     fill -- neither token is shadowed on
 //     `.photos-root`, so under photos light mode (data-theme still dark) it kept the dark
 //     pairing: a faint wash under bright orange text on the parity light surface, low-contrast.
 //     Switched to `--warning` (declared directly on `.photos-root`, deliberately invariant by
 //     spec) + `color-mix` reproducing Vue2's own 0.15 alpha exactly -- see that rule's own
 //     comment for the full trace.
 //  5) .mo-card .sv-name's two-line clamp is copied as-is (scss:254-259).
-//  6) [registered by the SP15-P1 final review, deliberately not acted on] The badge star is
+//  6) [flagged during review, deliberately not acted on] The badge star is
 //     fill-only. Vue 2 renders it through <photos-icon name="star">, which both fills *and*
 //     strokes the same path (PhotosIcon.vue:193 `fillOverride` returns the colour for 'star'
 //     while `strokeOverride` returns it too, at stroke-width 1.6 with round caps and joins).

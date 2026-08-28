@@ -1,5 +1,5 @@
 // SP8-P5b Task 7 —— 1:1 ported from Vue2
-// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/IndexedFilesView.vue:396-444`.
+// the Vue 2 panel's `src/views/AI/Knowledge/IndexedFilesView.vue:396-444` (main@7a6ee6b7).
 //
 // These five functions (`fmtBytes`/`fmtRel`/`fmtAbs`/`simplifyMime`/`topSegment`) from the
 // "presentation helpers (pure, no side-effects)" section are pure display helpers, extracted

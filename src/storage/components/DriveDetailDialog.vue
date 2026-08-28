@@ -6,7 +6,7 @@ import { fmtSize } from '../../home/util/format'
 import { toFahrenheit, type PhysicalDrive } from '../util/storageMap'
 import { pohDisplay } from '../util/raidLevels'
 
-// Ported from NimoOS-UI/src/components/Storage/DiskDetailModal.vue (b6cffd6c): full disk
+// Ported from the Vue 2 panel's src/components/Storage/DiskDetailModal.vue (b6cffd6c): full disk
 // identity (model/path/serial/disk_by_id), health/temperature/power-on time, partition
 // table (including mount point and used bytes), RAID relationship (local member → neutral
 // note; foreign residue → warning box calling out the residual array + created/last-active

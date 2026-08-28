@@ -1,12 +1,12 @@
 // Restore-destination picker (Time Machine restore, "choose restore destination" feature):
-// pure/DI-style helpers backing RestoreDestinationModal.vue and the restore entry points T14
-// wires up in Files.vue/TimeMachineStage.vue (context-menu single-item restore, banner
+// pure/DI-style helpers backing RestoreDestinationModal.vue and the restore entry points wired
+// up in Files.vue/TimeMachineStage.vue (context-menu single-item restore, banner
 // selection/whole-directory restore -> performSnapshotRestore). Same convention already
 // established in this directory (snapshotPath.ts / snapshotRestore.ts): business/path logic
 // lives here as plain functions taking injected dependencies, so it is unit-testable without
 // mounting anything.
 //
-// Ported 1:1 from Vue2 NimoOS-UI's src/components/filebrowser/restoreDestination.js — same
+// Ported 1:1 from the Vue 2 panel's src/components/filebrowser/restoreDestination.js — same
 // function names/signatures/decision logic, only TS types added and the `listFolder`/
 // `fetchExistingNames` response shape adjusted to this codebase's unwrapped convention (see
 // below).
@@ -54,13 +54,13 @@ export function defaultDestDirForChildren(mount: string, browseRelPath: string):
  * picker (or that hits no same-name conflict at all — see computeRestoreConflicts below)
  * byte-for-byte unchanged. This is also exactly the shape
  * `src/files/util/snapshotRestore.ts::performSnapshotRestore` already builds by hand today
- * ({volume_uuid, snapshot, path} only) — T14 can swap that inline construction for this
+ * ({volume_uuid, snapshot, path} only) — that inline construction can swap for this
  * function with zero wire-shape change.
- * `onConflict` is only ever sent for an item the (future, T14-wired) conflict dialog actually
+ * `onConflict` is only ever sent for an item the conflict dialog actually
  * prompted the user about ("overwrite" or "keep_both" — "skip" never reaches here at all).
  */
 /** POST /v2/snapshot/restore's own request body shape — matches `packages/service/src/snapshot.ts`'s
- *  `restore()` param type exactly (Task 14 widened both together), so `buildRestoreBody`'s output can
+ *  `restore()` param type exactly, so `buildRestoreBody`'s output can
  *  be handed straight to `service.snapshot.restore()` with no cast anywhere along the chain. */
 export interface RestoreRequestBody {
   volume_uuid: string
@@ -97,7 +97,7 @@ export interface RestoreConflictItem {
  * `name`/`is_dir`) and the destDir/withMarker the user just chose in RestoreDestinationModal,
  * returns the subset that would collide with an existing name in destDir right now — as
  * `ConflictCandidate`s, ready to feed straight into `resolveConflictQueue`
- * (src/files/upload/fileConflict.ts) with no extra mapping. Per Ruling P4 this reuses that same
+ * (src/files/upload/fileConflict.ts) with no extra mapping. This reuses that same
  * module's `fetchExistingNames`/`findConflicts` — no parallel conflict-detection machinery.
  * `groupKey` is set to the item's own name: restore conflicts are always flat (a batch landing
  * directly in one destDir), so name is already a unique key within one call, exactly like

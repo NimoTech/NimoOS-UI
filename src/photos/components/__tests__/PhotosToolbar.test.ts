@@ -1,5 +1,5 @@
-// Ported from Vue2 NimoOS-UI src/views/Photos/PhotosToolbar.vue (49 lines).
-// P1 scope: no EXIF filter slot, no icon library (plain text tabs) — see task-7-brief.md.
+// Ported from the Vue 2 panel's src/views/Photos/PhotosToolbar.vue (49 lines).
+// P1 scope: no EXIF filter slot, no icon library (plain text tabs).
 // Plan B Task 5 re-skin (2026-08-12): root class ".photos-toolbar" -> ".toolbar" so the
 // already-ported vue2-parity/photos.scss `.photos-root .toolbar/.tabs/.tab/.density/
 // .muted-text` rules (photos.scss:266-289) apply verbatim; the P1 icon-library cut is

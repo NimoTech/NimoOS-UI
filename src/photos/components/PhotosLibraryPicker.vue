@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Task 6 (SP7-P4 albums): "pick photos from library to add to this album" picker — shared by
 // T7 (create album on album list page's "pick photos manually") and T8 (add photos button in album
-// detail Edit state). Structure per Vue2 NimoOS-UI src/views/Photos/PhotosAlbumLibraryPicker.vue
+// detail Edit state). Structure per the Vue 2 panel's src/views/Photos/PhotosAlbumLibraryPicker.vue
 // (142 lines).
 //
 // Difference from T5 AlbumPickerDialog.vue (pick albums): T5 adds a known set of assetIds to some

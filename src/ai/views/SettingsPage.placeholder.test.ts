@@ -24,8 +24,6 @@
 // (other exports preserved via `vi.importActual`). These two `vi.mock`s are file-level,
 // affect all cases in this file — so separate file, doesn't affect remaining 46+ cases in
 // `SettingsPage.test.ts` keep getting real `McpSection` + real empty `DEFERRED_SECTIONS`.
-//
-// RED→GREEN evidence see task report (.superpowers/sdd/p4-FINAL-fix-report.md §I2).
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'

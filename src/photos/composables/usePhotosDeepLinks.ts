@@ -1,5 +1,5 @@
 // SP7-P8a-T7/T8: Deep links ?asset / ?photoset / ?q / ?album / ?person —
-// Source: Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue:364-377 (dispatch in mounted),
+// Source: the Vue 2 panel's src/views/Photos/PhotosTimeline.vue:364-377 (dispatch in mounted),
 // :431-440 (_openAssetFromQuery), :441-465 (_openPhotoSetFromQuery), :491-494 (?q,
 // within _applyUrlDeepLinks), :509-523 (?person, _applyPersonFromQuery).
 // ?album source in Vue2 is not in this file — it is read by PhotosAlbumsView.vue:264 in its
@@ -114,7 +114,7 @@ const PHOTOSET_KEY_PREFIX = 'nimo:photoset:'
 // intentionally-postponed keys are all filled in here (key inventory gate at
 // __tests__/deepLinkCoverage.test.ts).
 
-// Source-verified NimoOS-UI src/views/Photos/PhotosTimeline.vue:477's NAV_KEYS,
+// Source-verified against the Vue 2 panel's src/views/Photos/PhotosTimeline.vue:477's NAV_KEYS,
 // matched value-by-value to New-UI's real routes. Vue2 is "switch activeNav panel within
 // page", New-UI has six separate routes — so what happens here is entry normalization
 // (change route), not "switch local state within same page".
@@ -162,7 +162,7 @@ export function usePhotosDeepLinks(hooks: PhotosDeepLinkHooks = {}): void {
   const toast = useToast()
 
   // Fetch details by id. Failure (network error / 404 / falsy response) all unified as
-  // "not found", no distinction by cause — per Vue2 fetchAssetDetail (NimoOS-UI
+  // "not found", no distinction by cause — per Vue2 fetchAssetDetail (the Vue 2 panel's
   // src/store/modules/photos.js:611-619): it catches, console.error, returns null;
   // caller treats as falsy.
   async function fetchPhoto(id: string): Promise<Photo | null> {

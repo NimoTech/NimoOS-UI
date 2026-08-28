@@ -1,11 +1,10 @@
-// Session-scoped cache backing Task 5's SnapshotPreviewWindow (a miniature Finder-style
-// listing of `.snapshots/<name>/<relPath>`). Ported from Vue2 NimoOS-UI's
+// Session-scoped cache backing SnapshotPreviewWindow (a miniature Finder-style
+// listing of `.snapshots/<name>/<relPath>`). Ported from the Vue 2 panel's
 // components/filebrowser/components/snapshotPreviewCache.js: cache the PROMISE itself (not
 // just the resolved value) so concurrent callers asking for the same key share one in-flight
 // `service.folder.getList` request instead of firing a second one.
 //
-// Failure semantics (controller ruling 2026-08-25: Vue2 source is authority over the task
-// brief's prose, which had it backwards). Verified against the Vue2 file: its cache module
+// Failure semantics: the Vue2 source is authority here. Verified against the Vue2 file: its cache module
 // never catches internally -- it just wraps whatever promise the consumer
 // (SnapshotPreviewWindow.vue) built from `$api.folder.getList`, which REJECTS on failure and
 // propagates that rejection straight through to the consumer's own `.catch()` (which then sets

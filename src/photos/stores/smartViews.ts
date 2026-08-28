@@ -1,4 +1,4 @@
-// Ported from Vue2 NimoOS-UI src/store/modules/photos.js:
+// Ported from the Vue 2 panel's src/store/modules/photos.js:
 //   mutations :487-501 (ADD_SMART_VIEW/UPDATE_SMART_VIEW/DELETE_SMART_VIEW/
 //              RESTORE_SMART_VIEW/SET_SMART_VIEWS)
 //   actions   :998-1075 (fetchSmartViews/createSmartView/updateSmartView/

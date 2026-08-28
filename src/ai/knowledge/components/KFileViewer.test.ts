@@ -1,4 +1,4 @@
-// SP8-P5e Task 4 — `KFileViewer.vue` unit test. Blueprint `NimoOS-UI@7a6ee6b7`
+// SP8-P5e Task 4 — `KFileViewer.vue` unit test. Blueprint: the Vue 2 panel's
 // `src/views/AI/Knowledge/components/KFileViewer.vue` (120 lines, template+script :1-68 ported this round).
 //
 // ═══ mock boundary (governance §9.12 / Appendix D §D.9, T0 on-device conclusion) ═══

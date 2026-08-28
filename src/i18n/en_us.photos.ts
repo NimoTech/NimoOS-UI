@@ -50,7 +50,7 @@ export default {
   photosUnfavorite: 'Unfavorite',
   photosDownload: 'Download',
   photosClose: 'Close',
-  // Fix-2 item 1 (owner acceptance, 2026-08-16): photosZoomIn/photosZoomOut/photosRotate/
+  // photosZoomIn/photosZoomOut/photosRotate/
   // photosReset were only ever used by the now-removed bottom zoom toolbar
   // (PhotoImageViewer.vue's `.img-toolbar`) -- deleted here (both locales) rather than left
   // orphaned, since nothing else in the app consumed them.
@@ -66,7 +66,7 @@ export default {
   photosInfoLocation: 'Location',
   photosInfoPeople: 'People',
   photosInfoNimoSees: 'Nimo sees',
-  // Fix-2 item 2 (owner acceptance, 2026-08-16): Vue2's exact label, PhotosLightbox.vue:86
+  // Vue2's exact label, PhotosLightbox.vue:86
   // `{{ $t('Hand off to Nimo') }}`.
   photosHandOffToNimo: 'Hand off to Nimo',
   photosInfoFile: 'File on NAS',
@@ -118,7 +118,7 @@ export default {
   photosFavSlidePrev: 'Previous (←)',
   photosFavSlideNext: 'Next (→)',
   // Review Minor 4: adds Vue2 :256's play/pause button title (value verbatim from
-  // NimoOS-UI/src/assets/lang/en_US.json:2168).
+  // the Vue 2 panel's src/assets/lang/en_US.json:2168).
   photosFavSlidePlayPause: 'Play/Pause (Space)',
   photosFavSlideSpeed: 'Speed',
   photosFavSlideFast: 'Fast',
@@ -126,7 +126,7 @@ export default {
   photosFavSlideSlow: 'Slow',
   // ── Photos: Trash view ──
   photosTrashTitle: 'Recently Deleted',
-  // Fix wave (post-final-review): topbar `sub` was previously left unbound, defaulting to the
+  // topbar `sub` was previously left unbound, defaulting to the
   // library-wide photo/video count string. Matches Vue2 PhotosTimeline.vue:231 navMap.trash
   // ('{count} items · auto-deletes in 30 days'), except {days} is dynamic here (ruled: reads
   // the live retention setting instead of Vue2's hardcoded 30).
@@ -504,7 +504,7 @@ export default {
   photosPersonBack: 'Back to People',
   photosPeopleEmptyTitle: 'No people yet', // ★
   // Task 6 (Plan D, PR#137 gap-close): replaces the old single `photosPeopleEmptyHint` —
-  // Vue2's #137 patch (NimoOS-UI commit 03245590, PhotosPeopleView.vue) branches this hint on
+  // Vue2's #137 patch (commit 03245590, PhotosPeopleView.vue) branches this hint on
   // whether face recognition is on, quoted verbatim from that commit's en_US.json.
   photosPeopleEmptyHintFaces: 'Faces are detected automatically while your photos are indexed. People will appear here soon.',
   photosPeopleEmptyHintNoFaces: 'Turn on face recognition to start finding people in your photos.',
@@ -559,7 +559,7 @@ export default {
   photosPersonCoappearTitle: 'Co-appearance',
   photosPersonPhotosTogether: '{n} photos together',
   // Task 6 (Plan D, PR#137 gap-close): relation-graph empty state, quoted verbatim from
-  // Vue2's #137 patch (NimoOS-UI commit 03245590's en_US.json).
+  // Vue2's #137 patch (commit 03245590's en_US.json).
   photosPersonRelGraphEmptyTitle: 'No co-appearances yet',
   photosPersonRelGraphEmptySub: 'When this person shows up in photos with others, the graph appears here.',
   // Task 14 (container + six dialogs): copy that the brief's key list did not
@@ -593,7 +593,7 @@ export default {
   photosPersonLoadFailed: 'Could not load this person',
   // Task 6 (Plan D, PR#137 gap-close): the load-failed / not-found fallback states were
   // missing their description line — Vue2's #137 patch added both (quoted verbatim from
-  // NimoOS-UI commit 03245590's en_US.json).
+  // commit 03245590's en_US.json).
   photosPersonLoadFailedHint: 'Please check your connection and try again.',
   photosPersonNotFoundHint: 'This person may have been deleted or merged.',
   photosPersonRetry: 'Retry',
@@ -645,16 +645,16 @@ export default {
   // The favorited branch keeps the existing photosUnfavorite key.
   photosPersonMarkFavorite: 'Mark as favorite',
   // ── SP7-P6a T4: Places domain (map view) i18n keys ─────────────────────────
-  // Source: task-4-brief.md; values verified against NimoOS-UI/src/assets/lang/en_US.json.
-  // English literals matched the brief for every row — only the zh side needed
-  // corrections; see zh_cn.ts comments and the task report for the full list.
+  // Values verified against the Vue 2 panel's src/assets/lang/en_US.json.
+  // English literals matched for every row — only the zh side needed
+  // corrections; see zh_cn.ts comments for the full list.
   photosPlaces: 'Places',
   photosPlacesCities: 'cities',
   photosPlacesCountries: 'countries',
   // Task 1 (Plan E re-shell): PhotosTopbar's `sub` line on the Places index page — value
-  // copied verbatim from Vue2 PhotosPlacesTopbar.vue's own subtitle computed (NimoOS-UI
+  // copied verbatim from Vue2 PhotosPlacesTopbar.vue's own subtitle computed (the Vue 2 panel's
   // src/views/Photos/PhotosPlacesTopbar.vue:34, which uses the English literal itself as the
-  // i18n key, English-source-as-key convention) and NimoOS-UI/src/assets/lang/en_US.json:2442.
+  // i18n key, English-source-as-key convention) and the Vue 2 panel's src/assets/lang/en_US.json:2442.
   photosPlacesTopbarSub: '{cities} cities · {countries} countries · indexed by Nimo',
   photosPlacesPhotos: 'photos',
   photosPlacesSearchPlaceholder: 'Search cities or countries',
@@ -712,7 +712,7 @@ export default {
   // the index is broken. Added a distinct copy for "empty after filtering".
   photosPlacesFilterEmpty: 'No cities match the current filters',
   // ── SP7-P6b T1: Places detail panel i18n keys ──────────────────────────────
-  // 42 sourced verbatim from NimoOS-UI/src/assets/lang/en_US.json (verified against
+  // 42 sourced verbatim from the Vue 2 panel's src/assets/lang/en_US.json (verified against
   // source, zero discrepancies); 3 authored (D8 + deviation-log 6, see inline notes).
   photosPlacesHomeBase: 'Home base',
   // Note: en_US.json has distinct singular/plural copy for trip/trips (zh has one
@@ -987,7 +987,7 @@ export default {
   photosSearchCountResultsSecondsS: '{count} results · {seconds}s',
   photosSearchNameSavedSmartView: '“{name}” saved as a Smart View',
   // fix round 1 · I3:PhotosSearchBar 的 placeholder 新键(追加,不重排)。原文见
-  // NimoOS-UI/src/assets/lang/en_US.json:2324。
+  // Vue2 面板的 src/assets/lang/en_US.json:2324。
   photosSearchSearchBarPlaceholder: 'Search photos, people, places, or describe in a sentence…',
   // ── SP7-P8a 相册设置页 + 深链 + 错误态 ──
   // zh 文案权威 = Vue2 src/assets/lang/zh_CN.json;json 里没有对应键的(Vue2
@@ -1177,7 +1177,7 @@ export default {
   // kvmToggleSidebar, but that key is namespaced to the KVM area per this repo's
   // per-area-prefix key convention — a new photos-prefixed key here, not a cross-area reuse.
   photosToggleSidebar: 'Toggle sidebar',
-  // ── Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): PhotosTopbar's
+  // ── PhotosTopbar's
   // search-mode back-button title, mapped from Vue2 PhotosTopbar.vue:8's $t('Back (Esc)') —
   // New-UI has no Esc semantics here (the search page is a real route, and Esc is already
   // owned by the unified overlay-dismiss handling), so the copy describes the real

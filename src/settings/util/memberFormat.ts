@@ -1,4 +1,4 @@
-/* Two pure functions for the account tab. Ported from Vue2 NimoOS-UI/src/components/account/AccountPanel.vue. */
+/* Two pure functions for the account tab. Ported from the Vue 2 panel's src/components/account/AccountPanel.vue. */
 
 /** Time formatting for member/authorization rows. 1:1 with Vue2 formatDate (:538-543):
  *  local timezone, `YYYY-MM-DD HH:mm:ss`, each segment zero-padded.

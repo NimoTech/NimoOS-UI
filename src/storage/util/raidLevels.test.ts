@@ -17,7 +17,7 @@ import {
 // ⚠️ health in avail is always the empty string "" —— neither 'true'/'false' nor undefined. The backend
 // NimoOS-LocalStorage/route/v1/disk.go:152-157 appends a **value copy** of disk into avail,
 // while disk.Health = strconv.FormatBool(...) runs after that → avail gets the zero value.
-// The old tests fed hand-written 'false'/'true'/undefined, covering none of the three real values (see memory newui-fixture-from-imagination-trap).
+// The old tests fed hand-written 'false'/'true'/undefined, covering none of the three real values.
 const LIVE_AVAIL_SDA: RaidDisk = {
   path: '/dev/sda', size: 536870912, model: 'scsi_debug',
   health: '', temperature: 38, power_on_time: 0, disk_type: 'SSD',

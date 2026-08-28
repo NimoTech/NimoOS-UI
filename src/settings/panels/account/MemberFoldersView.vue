@@ -6,7 +6,7 @@
 //    changes the permission) + a real setfacl on that directory's ACL (user.go:766-774);
 //    revoking = deletes the table row + setfacl -x (:806-816).
 // ⚠️ **NimoOS core opens this table read-only at startup to decide file-area permissions**
-//    (top-level CLAUDE.md) — granting the wrong thing affects file visibility.
+//    — granting the wrong thing affects file visibility.
 // ⚠️ The user decided on 2026-08-01 not to click through this on real hardware this cycle
 //    (debt D28); this device has zero members, so this screen is unreachable on real hardware
 //    (you'd first have to create a member, and creating a member is itself a write op we're

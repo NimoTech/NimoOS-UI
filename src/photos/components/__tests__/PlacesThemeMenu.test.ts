@@ -1,5 +1,5 @@
 // Task 10(SP7-P6a 地点·地图主视图):PlacesThemeMenu.vue —— 地图工具栏「地图主题」胶囊按钮 +
-// 下拉弹层(4 预设 + 自定义两取色器)。逐条对应 task-10-brief.md 的「必含测试清单」。
+// 下拉弹层(4 预设 + 自定义两取色器)。逐条对应「必含测试清单」。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -101,7 +101,7 @@ describe('预设列表', () => {
     expect(lightSwatch.get('.mtp-dot').attributes('style')).toContain('background: rgb(10, 132, 194)') // #0A84C2
   })
 
-  // Fix-1 item 3 (owner acceptance, 2026-08-16): `.mtp-dot` used to carry no geometry
+  // Note: `.mtp-dot` used to carry no geometry
   // anywhere in this repo — only its `background` was bound (asserted above) — so it
   // rendered as an invisible zero-size inline span: "preset swatches render as near-empty
   // dark squares (no visible dot)". Vue2 draws this dot via an inline style object

@@ -1,4 +1,4 @@
-// Ported verbatim from NimoOS-UI/src/utils/raidUtils.js (P4); the failure simulator survival()/rebuildable() is deferred.
+// Ported verbatim from the Vue 2 panel's src/utils/raidUtils.js (P4); the failure simulator survival()/rebuildable() is deferred.
 // Migration scope: RAID_LEVELS (min/tolerance/read/write/cost/desc/usecase/capacity()/layout(), raidUtils.js:1-76),
 // recommendRaidLevel (raidUtils.js:158-166), isDiskAtRisk (raidUtils.js:108-110).
 // Mixed-spec group coloring (groupDisksBySpec L148-156 + assignGroupColors/GROUP_COLOR_COUNT L168-178) is reworked into
@@ -131,13 +131,13 @@ export function recommendRaidLevel(n: number): number {
 //   · data.avail[*].health = ""       ← candidate-disk source for the RAID create wizard, always empty string
 //   · data.disks[*].health = "true"   ← SMART passed
 //   · same as above         "false"   ← SMART failed (strconv.FormatBool, always lowercase)
-// avail always being empty is a backend defect: NimoOS-LocalStorage/route/v1/disk.go:152-157 appends a
+// `avail[].health` arrives empty from this endpoint: NimoOS-LocalStorage/route/v1/disk.go:152-157 appends a
 // **value copy** of disk into avail, while disk.Health = strconv.FormatBool(...) runs after that, so avail gets the zero value.
 // The frontend therefore backfills health by path from the disks list in mapAvailDisks (see storageMap.ts),
 // so this code receives the real verdict; when backfilling fails it stays an empty string = verdict unknown.
 // ⚠️ Empty string is neither "healthy" nor "at risk": it means "the backend gave no verdict". Hence three states, not binary ——
 // Vue2 (raidUtils.js:108-110) has only the single `=== 'false'` check, silently treating empty as healthy; here the logic is split correctly
-// (UI appearance unchanged: neither unknown nor healthy draws the risk border), per memory vue2-port-visual-only-fix-logic.
+// (UI appearance unchanged: neither unknown nor healthy draws the risk border).
 // ⚠️ Do not "casually" mix in the service/disk.go representation (Health="OK" passed / "" failed): there the empty string
 // means the exact opposite, and it does not flow through /v1/disks, so it is outside this component's data contract.
 export type DiskHealthState = 'good' | 'bad' | 'unknown'

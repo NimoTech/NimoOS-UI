@@ -1,4 +1,4 @@
-<!-- Full-height chat drawer. Pixel source: Vue2 NimoOS-UI
+<!-- Full-height chat drawer. Pixel source: the Vue 2 panel's
      src/views/Photos/PhotosNimoChatDrawer.vue + photos.scss:2563-2572 (already ported).
      Note: unlike the popup, the drawer has no prefill path (matches Vue2's own TODO comment --
      only the popup supports prefill).

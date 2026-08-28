@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // SP7-P7a-T8: SmartViewSidePanel.vue — smart view detail panel right column, three sections
 // (threshold / settings / stats), mounted at data-test="sv-side-mount" in PhotosSmartViewDetail.vue
-// (T6 placeholder mount point). Ported section by section from Vue2 NimoOS-UI
+// (T6 placeholder mount point). Ported section by section from the Vue 2 panel's
 // src/views/Photos/PhotosSmartViewDetail.vue:152-209 (template), :288-291 + :345-371
 // (threshold debounce / paused derivation / syncingSv), :325-333 (threshHelp / dist / distMax),
 // :424 + :444 (formatMB / distStyle); styles photos-smartview.scss:528-658 (the slider itself
@@ -33,7 +33,7 @@
 // final emits to avoid concurrent PATCH races — button exposes visual state via data-busy,
 // not silently swallowing clicks.
 //
-// ── token mapping: correction record (Fix-2 item 4, owner acceptance, 2026-08-13) ────────
+// ── token mapping: correction record ────────
 // This section used to follow the spec table established in SmartViewCreateDialog.vue:436-438,
 // styling the switch/toggle rows here with New-UI's **global** tokens (--surface-1→--popup-bg /
 // --surface-2→--chip-bg / --surface-3→--chip-bg-hi; --line→--card-border; --text-1→--fg /
@@ -313,7 +313,7 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
   box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
-/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+/* Straight bug fix, not a deviation from Vue2 -- parity's
    own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
    moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
    same colour in both states. The `--on-accent` override this rule used to carry (justified at

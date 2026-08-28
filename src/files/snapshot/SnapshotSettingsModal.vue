@@ -1,8 +1,8 @@
 <!--
-  Task 11 (Files Time Machine Vue2-parity line): the white-glass snapshot settings modal,
+  The white-glass snapshot settings modal,
   opened by TimeMachineStage.vue's own gear button (@open-settings -> Files.vue's settingsOpen
-  ref, wired the same way the colleague's now-deleted SnapshotSettingsDialog.vue was). Ports
-  Vue2 NimoOS-UI's SnapshotSettingsModal.vue (src/components/filebrowser/components/) 1:1 in
+  ref, wired the same way the now-deleted SnapshotSettingsDialog.vue was). Ports
+  the Vue 2 panel's SnapshotSettingsModal.vue (src/components/filebrowser/components/) 1:1 in
   layout/copy/controls: a 760px/78vh white frosted-glass panel with three blocks --
   A) Protection & Schedule (enable switch, status line, paused warning, keep-count fields,
   pause threshold, Save), B) Manual Snapshot (optional label + Create), C) Snapshot History
@@ -14,26 +14,26 @@
   background, and CSS has no way for THIS component's scoped styles to reach up and override
   an ANCESTOR element rendered by a different component -- so a from-scratch 760px/78vh
   two-column white panel needs its own DialogContent, not the generic one. Still "house
-  style" per the task brief: same DialogRoot/Portal/Overlay/Content shape, same z-index tier
+  style": same DialogRoot/Portal/Overlay/Content shape, same z-index tier
   (1000 overlay / 1001 content) as components/ui/Dialog.vue, so the Esc/teleport guard
-  TimeMachineStage.vue's own `dialogOpen` prop already relies on (T6) keeps working
+  TimeMachineStage.vue's own `dialogOpen` prop already relies on keeps working
   unchanged -- that guard is driven by the `open` v-model this component receives from
   Files.vue's `settingsOpen` ref, not by which component renders the dialog chrome.
 
-  Colleague fix ④ preserved (no "volume unsupported" flash): the storage snapshot store's
+  No "volume unsupported" flash: the storage snapshot store's
   volumeLoading starts `true` and this template gates the whole unsupported/enabled tree
   behind `v-if="!store.volumeLoading"`, so the network round-trip never flashes the wrong
   conclusion before landing -- ported straight from SnapshotSettingsDialog.vue's own guard
-  (see that file's own "Review fix" comment for the original rationale, same store).
+  (see that file's own comment for the original rationale, same store).
 
-  Colleague fix ② preserved (Esc closes only this modal): reka-ui's DialogRoot handles its
+  Esc closes only this modal: reka-ui's DialogRoot handles its
   own Escape-to-close internally via `update:open`, entirely independent of
   TimeMachineStage.vue's own `window.addEventListener('keydown', ...)` handler -- that
   handler checks the SAME `dialogOpen`/`settingsOpen` ref this modal's `open` prop is bound
   to and returns early while it is true, so a single Escape keypress closes this modal
   without also exiting Time Machine. Nothing about that mechanism depends on which component
   renders the dialog, only on both sides sharing the one `settingsOpen` ref (Files.vue's own
-  wiring, unchanged by this task).
+  wiring, unchanged here).
 
   Data layer: reuses storage/stores/snapshot.ts (Pinia, singleton) verbatim for
   policy/toggle/create/remove/list -- no service calls are duplicated here. Toasts are the
@@ -157,7 +157,7 @@ function onToggle(): void {
   store.toggle(props.volumeUuid, !(store.volume?.enabled ?? false))
 }
 
-// Fix wave A3 (audit-modals.md #6, the largest control-shape gap in this modal): rebuilds the
+// Rebuilds the
 // bare `<input type="number">` fields as Vue2's own Buefy `b-numberinput controls-position="compact"`
 // [-][value][+] ghost stepper -- Buefy/Bulma have no JS logic of their own to port, just a bordered
 // `.field.has-addons` box with two ghost buttons flanking the input (SnapshotSettingsModal.vue:972-1013);
@@ -197,7 +197,7 @@ function onBrowse(item: SnapshotItemView): void {
 }
 
 // --- Delete (must confirm) -------------------------------------------------------------------
-// Fix round (found via TDD): `deleteOpen` (dialog visibility) and `pendingDelete` (which item
+// Found via TDD: `deleteOpen` (dialog visibility) and `pendingDelete` (which item
 // is being deleted) are DELIBERATELY two separate refs, not one derived from the other.
 // reka-ui's AlertDialogAction fires its own internal `update:open(false)` (auto-close-on-click,
 // same as Cancel) BEFORE it fires our `@confirm` listener -- confirmed empirically: a single
@@ -407,7 +407,7 @@ async function onDeleteConfirmed(): Promise<void> {
 </template>
 
 <style scoped>
-/* Fix wave A3 (audit-modals.md #1): Buefy's own `.modal` scrim is a flat, unblurred
+/* Buefy's own `.modal` scrim is a flat, unblurred
    rgba[0,0,0,.5] for all three white-glass TM dialogs -- see theme.css's own comment on
    `--tm-modal-overlay-bg` for the full Vue2/Bulma citation. Deliberately scoped to only this
    dialog's own overlay rule, not the shared `--overlay-bg`/`--overlay-blur` every other app
@@ -437,13 +437,12 @@ async function onDeleteConfirmed(): Promise<void> {
   padding: 24px 28px 16px; border-bottom: 1px solid var(--tm-hairline); flex-shrink: 0;
 }
 .ssm-head-text { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-/* Fix wave A3 (audit-modals.md #2): Vue2's own `.title.is-header` sets `line-height: 1.5rem`
+/* Vue2's own `.title.is-header` sets `line-height: 1.5rem`
    (24px, common/_title.scss:28) -- New-UI previously left it at the browser default (~1.2).
    Font-family is a deliberate, documented deviation: Vue2's `$family-sans-serif` starts with a
-   custom `BrittiSans` webfont (NimoOS-UI/src/assets/fonts/britti-sans-regular.woff, loaded via
+   custom `BrittiSans` webfont (the Vue 2 panel's src/assets/fonts/britti-sans-regular.woff, loaded via
    its own `@font-face` in common/_root.scss) that has no counterpart asset in this repo and no
-   `@font-face`/`--font` infra to bring one in without touching every heading app-wide (out of
-   this fix wave's file scope -- see the fix wave's own final report for the full citation). */
+   `@font-face`/`--font` infra to bring one in without touching every heading app-wide. */
 .ssm-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 24px; color: var(--tm-text); }
 .ssm-mount {
   display: inline-block; align-self: flex-start; max-width: 100%; word-break: break-all;
@@ -472,7 +471,7 @@ async function onDeleteConfirmed(): Promise<void> {
 .ssm-status-row { margin-top: 2px; }
 .ssm-paused-row { padding: 6px 0; margin: 0; font-size: 0.75rem; color: var(--tm-warn-text); }
 
-/* Fix wave A3 (audit-modals.md #3/#4/#5): rebuilt to Buefy's OWN em-based `_switch.scss` formula
+/* Rebuilt to Buefy's OWN em-based `_switch.scss` formula
    (`$switch-width: 2.75em`, `$switch-padding: 0.2em`, knob `($switch-width - $switch-padding*2)*0.5`)
    at `font-size: 12px` (Buefy's `is-small` control-small size) rather than New-UI's own
    hand-picked 38x21px/17px-thumb/2px-inset numbers -- using em units (not hand-rounded px)
@@ -486,7 +485,7 @@ async function onDeleteConfirmed(): Promise<void> {
   border-radius: 9999px; border: none; background: var(--tm-switch-off-bg);
   transition: background 0.15s var(--ease, ease);
 }
-/* Fix wave A3 (audit-modals.md #4): Vue2's switch-on fill is Buefy's own `type="is-primary"` ->
+/* Vue2's switch-on fill is Buefy's own `type="is-primary"` ->
    `$switch-active-background-color: $primary` -- `--tm-primary`, not `--tm-accent` (see
    theme.css's own comment on the token split for the full citation). */
 .ssm-switch--on { background: var(--tm-primary); }
@@ -497,7 +496,7 @@ async function onDeleteConfirmed(): Promise<void> {
 }
 .ssm-switch--on .ssm-switch-thumb { transform: translateX(1.175em); }
 
-/* Fix wave A3 (audit-modals.md, fields-footer gap): Vue2's own `&__fields { margin-top: 4px }`
+/* Vue2's own `&__fields { margin-top: 4px }`
    (SnapshotSettingsModal.vue:940-943), not 12px. */
 .ssm-fields { margin-top: 4px; }
 .ssm-fields-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 12px; }
@@ -509,7 +508,7 @@ async function onDeleteConfirmed(): Promise<void> {
   box-sizing: border-box; padding: 6px 10px; font-size: 12.5px; border-radius: 6px;
   border: 1px solid var(--tm-ghost-border); background: transparent; color: var(--tm-text); outline: none;
 }
-/* Fix wave A3 (audit-modals.md #6, the single largest control-shape gap in this modal): rebuilt
+/* Rebuilt
    as Vue2's own Buefy `b-numberinput controls-position="compact"` shape -- a bordered
    `.field.has-addons` box (own file:972-976: border 1px solid rgba[0,0,0,.15]; radius:6px;
    overflow:hidden`) containing a ghost [-] button / centered input / ghost [+] button, each
@@ -537,7 +536,7 @@ async function onDeleteConfirmed(): Promise<void> {
 .ssm-num-input { -moz-appearance: textfield; }
 .ssm-err { display: block; color: var(--tm-danger); font-size: 11px; margin-top: 2px; }
 
-/* Fix wave A3 (audit-modals.md #8, color only): Vue2's Save button is Bulma's own `.is-primary`
+/* Vue2's Save button is Bulma's own `.is-primary`
    solid fill = `$primary` -- `--tm-primary`/`--tm-primary-hover`, not `--tm-accent`. */
 .ssm-save, .ssm-create {
   padding: 8px 16px; height: 32px; border-radius: var(--tm-control-radius); font-size: 12.5px; font-weight: 600; cursor: pointer;
@@ -547,13 +546,13 @@ async function onDeleteConfirmed(): Promise<void> {
 .ssm-save:disabled, .ssm-create:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .ssm-manual-row { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-/* Fix wave A3 (audit-modals.md, manual-row layout): Vue2's own manual-row scoped override sets
+/* Vue2's own manual-row scoped override sets
    the Create button's font-size to `0.8125rem` (13px, SnapshotSettingsModal.vue:1042), distinct
    from Save's own is-small 12.5px -- split out of the shared `.ssm-save, .ssm-create` rule above. */
 .ssm-create { width: 100%; height: 40px; font-size: 13px; }
 .ssm-label-input { width: 100%; background: var(--tm-panel-bg-solid); }
 .ssm-label-input::placeholder { color: var(--tm-placeholder-text); }
-/* Fix wave A3 (audit-modals.md, manual label input): Vue2's own focus state adds a 2px accent
+/* Vue2's own focus state adds a 2px accent
    ring (box-shadow 0 0 0 2px rgba[$primary,.15], own file:1064) alongside the border-color
    change -- New-UI only had the border-color change. */
 .ssm-label-input:focus {
@@ -566,7 +565,7 @@ async function onDeleteConfirmed(): Promise<void> {
 .ssm-history-header { padding: 0 0 8px; flex-shrink: 0; }
 .ssm-history-header .ssm-key { font-size: 13px; font-weight: 600; color: var(--tm-text); }
 .ssm-history-scroll { max-height: 420px; overflow-y: auto; padding-right: 4px; }
-/* Fix wave A3 (audit-modals.md, history scroll box): Vue2's own thin 6px always-faint webkit
+/* Vue2's own thin 6px always-faint webkit
    scrollbar (SnapshotSettingsModal.vue:1108-1119), replacing the OS/browser default this box
    fell back to before. */
 .ssm-history-scroll::-webkit-scrollbar { width: 6px; }
@@ -574,7 +573,7 @@ async function onDeleteConfirmed(): Promise<void> {
 .ssm-history-scroll::-webkit-scrollbar-thumb { background: var(--tm-ghost-border); border-radius: 10px; }
 .ssm-history-scroll:hover::-webkit-scrollbar-thumb { background: var(--tm-scroll-thumb-hover); }
 .ssm-history-empty { padding: 12px 0; text-align: center; }
-/* Fix wave A3 (audit-modals.md, history skeleton row): Vue2's own animated shimmer gradient
+/* Vue2's own animated shimmer gradient
    (linear-gradient 90deg, rgba[0,0,0,.05] 25%, rgba[0,0,0,.1] 37%, rgba[0,0,0,.05] 63%,
    `background-size: 400% 100%`, `snapshot-settings-modal-history-shimmer 1.4s ease infinite`,
    own file:1130-1133) -- replacing the previous static flat tint. */
@@ -589,7 +588,7 @@ async function onDeleteConfirmed(): Promise<void> {
   100% { background-position: 0 0; }
 }
 .ssm-history-group:not(:last-child) { margin-bottom: 6px; }
-/* Fix wave A3 (audit-modals.md, history group header): Vue2's own sticky header background is
+/* Vue2's own sticky header background is
    rgba[255,255,255,.95] (95%-opaque, own file:1179), not a fully opaque solid -- and its hover
    tint is a distinct cool-grey rgba[242,243,245,.95] (own file:1185), not the panel's generic
    ghost-hover. */
@@ -607,7 +606,7 @@ async function onDeleteConfirmed(): Promise<void> {
   margin-left: auto; font-size: 10px; font-weight: 500; color: var(--tm-text-dim);
   background: var(--tm-chip-bg); border-radius: 980px; padding: 1px 7px; line-height: 14px;
 }
-/* Fix wave A3 (audit-modals.md, history timeline rail -- MISSING): Vue2's own
+/* Vue2's own
    `&__history-list::before`, a 1px vertical connector line running behind every dot in the
    group (own file:1212-1224). `left: 4px` lines up with the dot's own `left: 0`/8px-diameter
    below (both positioned relative to this same list's coordinate frame -- the list itself has
@@ -618,13 +617,13 @@ async function onDeleteConfirmed(): Promise<void> {
   content: ''; position: absolute; top: 0; bottom: 10px; left: 4px; width: 1px;
   background: var(--tm-rail-connector);
 }
-/* Fix wave A3 (audit-modals.md, history item padding/hover): Vue2's own `padding: 7px 6px 7px
+/* Vue2's own `padding: 7px 6px 7px
    22px` (22px left reserves room for the absolutely-positioned dot+rail, own file:1230) and
    (`&:hover { background: rgba[0,0,0,.035] }`, own file:1234) -- a lighter alpha than the panel's
    generic ghost-hover, hence its own token. */
 .ssm-history-item { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 7px 6px 7px 22px; border-radius: 6px; }
 .ssm-history-item:hover { background: var(--tm-history-item-hover); }
-/* Fix wave A3 (audit-modals.md, history dot position/ring): anchored to the rail
+/* Anchored to the rail
    (`position: absolute; left: 0; top: 12px`, own file:1237-1240) instead of floating in-flow,
    plus the secondary hairline ring (box-shadow 0 0 0 1px rgba[0,0,0,.12], own file:1247) around
    the existing white border. */
@@ -633,7 +632,7 @@ async function onDeleteConfirmed(): Promise<void> {
   border: 2px solid var(--tm-panel-bg-solid); box-shadow: 0 0 0 1px var(--tm-dot-ring);
 }
 .ssm-history-dot--auto { background: var(--tm-dot-auto); }
-/* Fix wave A3 (audit-modals.md, dot colors -- manual only): Vue2's manual dot is Buefy's own
+/* Vue2's manual dot is Buefy's own
    `$primary`, not the read-only chip's `--tm-accent` (see theme.css's token-split comment). */
 .ssm-history-dot--manual { background: var(--tm-primary); }
 .ssm-history-dot--preop { background: var(--tm-warn-dot); }
@@ -641,14 +640,14 @@ async function onDeleteConfirmed(): Promise<void> {
 .ssm-history-time { font-size: 12px; font-weight: 500; color: var(--tm-text); }
 .ssm-history-badge { display: inline-block; padding: 1px 7px; border-radius: 980px; font-size: 10px; font-weight: 500; }
 .ssm-history-badge--auto { background: var(--tm-chip-bg); color: var(--tm-text-dim); }
-/* Fix wave A3 (audit-modals.md, history badge -- manual only): Vue2's manual badge is
+/* Vue2's manual badge is
    rgba[$primary,.12] / darken[$primary,14%], not the chip's `--tm-accent` family -- see
    theme.css's own comment on `--tm-primary-text` for the distinct darken-percentage citation. */
 .ssm-history-badge--manual { background: color-mix(in srgb, var(--tm-primary) 12%, transparent); color: var(--tm-primary-text); }
 .ssm-history-badge--preop { background: var(--tm-warn-bg); color: var(--tm-warn-text); }
 .ssm-history-label { font-size: 12px; color: var(--tm-text-dim); overflow: hidden; text-overflow: ellipsis; }
 .ssm-history-actions { display: flex; flex-shrink: 0; gap: 6px; }
-/* Fix wave A3 (audit-modals.md, history action buttons): Vue2's own `min-width: 84px`
+/* Vue2's own `min-width: 84px`
    (SnapshotSettingsModal.vue:1297), not 68px. */
 .ssm-history-browse, .ssm-history-delete {
   min-width: 84px; height: 26px; padding: 0 10px; border-radius: var(--tm-control-radius);
@@ -665,7 +664,7 @@ async function onDeleteConfirmed(): Promise<void> {
 .ssm-history-delete:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .ssm-foot { padding: 14px 28px 20px; border-top: 1px solid var(--tm-hairline); flex-shrink: 0; display: flex; justify-content: flex-end; }
-/* Fix wave A3 (audit-modals.md, footer Close button): Vue2's own `<b-button>` here has no
+/* Vue2's own `<b-button>` here has no
    `size` prop, so it renders at Bulma's DEFAULT/medium size -- `font-size: 1rem`(16px), height
    `2.5em`≈40px (own file:1343-1354) -- not New-UI's previous 13px/~30px. `display: inline-flex`
    pins the height exactly regardless of line-height, same technique as the other footer buttons

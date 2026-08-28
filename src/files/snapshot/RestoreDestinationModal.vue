@@ -1,14 +1,14 @@
 <!--
   Restore-destination picker: the shared "choose where to restore into" step every Time Machine
-  restore entry point (T14's context-menu single-item restore, and the banner/action-bar's
+  restore entry point (context-menu single-item restore, and the banner/action-bar's
   selection / no-selection-whole-directory restore) goes through before any actual restore
   network call — Vue2's own FilePanel.vue opens this ONE modal via its own
   openRestoreDestinationPicker helper rather than forking three pickers; this rebuild keeps that
   "one modal, three call sites" shape by exposing a single Promise-based `open()` method (see
-  below) that T14 calls from wherever it wires up.
+  below) that each entry point calls from wherever it wires up.
 
-  Two jobs, both surfaced in one dialog (ported 1:1 from Vue2
-  NimoOS-UI/src/components/filebrowser/components/RestoreDestinationModal.vue):
+  Two jobs, both surfaced in one dialog (ported 1:1 from
+  the Vue 2 panel's src/components/filebrowser/components/RestoreDestinationModal.vue):
   1. A lightweight volume-scoped directory drill-down (breadcrumb down to the item's own mount
      root + a folder list to descend into) — defaulting to the item's own original-location
      directory (see restoreDestination.ts's defaultDestDirForItem/defaultDestDirForChildren,
@@ -19,31 +19,32 @@
      own `dest_dir` contract doesn't call out cross-volume moves either.
   2. The ".restored marker" on/off switch (`with_marker` in the request body) — a session-only
      preference (this component's own `withMarker` ref, deliberately NOT reset by `open()`, never
-     persisted to localStorage), since this modal is mounted once by T14 and reused across every
+     persisted to localStorage), since this modal is mounted once and reused across every
      restore entry point for the lifetime of the Files view (same "always mounted, only the
      dialog's own open/closed state toggles" convention as SnapshotSettingsModal.vue).
 
-  Promise API (T14 contract): a caller mounts this component once (e.g. `<RestoreDestinationModal
+  Promise API: a caller mounts this component once (e.g. `<RestoreDestinationModal
   ref="picker" />`) and calls `pickerRef.value.open(mount, defaultDir)`, which returns
   `Promise<{destDir: string; withMarker: boolean} | null>` — resolving with the chosen
   destination on "Restore here", or `null` on Cancel/Esc/outside-click. The component owns its
   own visibility internally (no `open`/`visible` prop) — unlike FileConflictDialog.vue (which is
   driven by an app-level Pinia store because its queue can span multiple sequential prompts),
   this modal is opened synchronously from a single call site per restore action, so a local
-  resolver closure is enough; no store needed (T14 does not need to compute conflicts THROUGH
+  resolver closure is enough; no store needed (there's no need to compute conflicts THROUGH
   this modal — Vue2's own RestoreDestinationModal.vue only ever emits {destDir, withMarker} and
   leaves conflict-checking to the caller, same split kept here: computeRestoreConflicts in
-  restoreDestination.ts is a separate step T14 runs AFTER this modal resolves).
+  restoreDestination.ts is a separate step the caller runs AFTER this modal resolves).
 
   Visual language + z-index tier: same white-glass `--tm-panel-*` token family and the SAME
-  1000/1001 shared dialog tier as SnapshotSettingsModal.vue (T11) — per the controller's binding
-  amendment, this sits BELOW FileConflictDialog's dedicated 1050/1051 tier (T12), so if T14 opens
-  the conflict dialog after this one resolves, it will already be closed (this modal fully
-  closes itself before resolving) — no simultaneous-stacking scenario actually occurs, but the
-  tier ordering is kept consistent with Vue2's own 4500 (this) vs 4550 (conflict dialog) +50 gap
-  regardless. Built directly on reka-ui's Dialog primitives (not the shared components/ui/Dialog.vue
-  wrapper), same reason T11/T12 forked off it: the generic wrapper's `.ui-dialog-content` carries
-  its own fixed min-width/padding/dark-glass background that scoped CSS here can't override.
+  1000/1001 shared dialog tier as SnapshotSettingsModal.vue — this sits BELOW FileConflictDialog's
+  dedicated 1050/1051 tier, so if the restore flow opens the conflict dialog after this one
+  resolves, it will already be closed (this modal fully closes itself before resolving) — no
+  simultaneous-stacking scenario actually occurs, but the tier ordering is kept consistent with
+  Vue2's own 4500 (this) vs 4550 (conflict dialog) +50 gap regardless. Built directly on reka-ui's
+  Dialog primitives (not the shared components/ui/Dialog.vue wrapper), same reason
+  SnapshotSettingsModal.vue/FileConflictDialog.vue forked off it: the generic wrapper's
+  `.ui-dialog-content` carries its own fixed min-width/padding/dark-glass background that scoped
+  CSS here can't override.
 -->
 <script setup lang="ts">
 import { computed, ref, getCurrentScope, onScopeDispose } from 'vue'
@@ -130,7 +131,7 @@ function onOpenChange(v: boolean): void {
   if (!v) handleCancel()
 }
 
-// The modal lives inside whichever component owns it (T14 mounts it once, e.g. Files.vue), but
+// The modal lives inside whichever component owns it (mounted once, e.g. Files.vue), but
 // the caller awaiting `open()`'s promise does not necessarily outlive that host — navigating
 // away (or the host being torn down) mid-prompt unmounts this component while `open()`'s
 // returned promise is still pending. Without this, that promise would never settle: the awaiting
@@ -225,7 +226,7 @@ defineExpose({ open })
 
 <style scoped>
 /* Shared 1000/1001 tier -- see file header: deliberately BELOW FileConflictDialog's 1050/1051.
-   Fix wave A3 (audit-modals.md #1): flat unblurred Buefy scrim, same as SnapshotSettingsModal's
+   Flat unblurred Buefy scrim, same as SnapshotSettingsModal's
    own `.ssm-overlay` -- see theme.css's own comment on `--tm-modal-overlay-bg`. */
 .rdm-overlay { position: fixed; inset: 0; background: var(--tm-modal-overlay-bg); z-index: 1000; }
 
@@ -251,7 +252,7 @@ defineExpose({ open })
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 20px 24px 12px; border-bottom: 1px solid var(--tm-hairline); flex-shrink: 0;
 }
-/* Fix wave A3 (audit-modals.md #2): Vue2's `.title.is-header` line-height -- see
+/* Vue2's `.title.is-header` line-height -- see
    SnapshotSettingsModal.vue's own `.ssm-title` comment for the full citation (font-family left
    as a documented deviation there, same reasoning applies here). */
 .rdm-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 24px; color: var(--tm-text); }
@@ -266,7 +267,7 @@ defineExpose({ open })
 .rdm-muted { font-size: 0.75rem; color: var(--tm-text-dim); margin: 0; }
 
 .rdm-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-bottom: 8px; }
-/* Fix wave A3 (audit-modals.md, crumb non-current color): Vue2's breadcrumb link is
+/* Vue2's breadcrumb link is
    `color: $primary`, not `--tm-accent` -- see theme.css's own token-split comment. */
 .rdm-crumb {
   background: transparent; border: none; padding: 2px 4px; border-radius: 6px; font-size: 12px;
@@ -293,10 +294,9 @@ defineExpose({ open })
 .rdm-key { font-size: 12px; color: var(--tm-text-dim); }
 .rdm-marker-note { margin-top: 6px; }
 
-/* Switch -- same hand-rolled pill idiom as SnapshotSettingsModal.vue's own .ssm-switch (T11).
-   Fix wave A3 (audit-modals.md, marker row + switch): rebuilt to Buefy's own em-based
-   `_switch.scss` formula -- see .ssm-switch's own comment (SnapshotSettingsModal.vue) for the
-   full derivation, identical geometry ported here verbatim. */
+/* Switch -- same hand-rolled pill idiom as SnapshotSettingsModal.vue's own .ssm-switch.
+   Rebuilt to Buefy's own em-based `_switch.scss` formula -- see .ssm-switch's own comment
+   (SnapshotSettingsModal.vue) for the full derivation, identical geometry ported here verbatim. */
 .rdm-switch {
   position: relative; width: 2.75em; height: 1.575em; font-size: 12px; flex: none; padding: 0; cursor: pointer;
   border-radius: 9999px; border: none; background: var(--tm-switch-off-bg);
@@ -318,7 +318,7 @@ defineExpose({ open })
   font-size: 11px; color: var(--tm-text-dim);
 }
 .rdm-foot-actions { display: flex; gap: 8px; flex-shrink: 0; }
-/* Fix wave A3 (audit-modals.md, Cancel/Restore-here buttons): Vue2's own `<b-button>`s here have
+/* Vue2's own `<b-button>`s here have
    no `size` prop -> Bulma default/medium: `font-size: 16px; height ≈ 40px` -- same fix as
    SnapshotSettingsModal.vue's own `.ssm-close` (see that rule's own comment for the full
    citation). Restore-here's fill is `is-primary` = `$primary`, not `--tm-accent`. */

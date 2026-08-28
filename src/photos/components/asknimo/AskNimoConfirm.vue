@@ -1,5 +1,5 @@
-<!-- Confirm / access_request card for Ask Nimo. Pixel source: Vue2 NimoOS-UI
-     src/views/Photos/PhotosAgentConfirm.vue (markup + logic) + Task 5's ported .pac-* rules.
+<!-- Confirm / access_request card for Ask Nimo. Pixel source: the Vue 2 panel's
+     src/views/Photos/PhotosAgentConfirm.vue (markup + logic) + ported .pac-* rules.
      No <style> block: pixel coverage comes entirely from parity scss (Constraints #12). -->
 <script lang="ts">
 // Preflight F-11: a plain (non-setup) <script> block so this interface is a real named export

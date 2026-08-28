@@ -130,9 +130,9 @@ describe('AppPathDialog', () => {
     await flushPromises()
     await (document.querySelector('.set-mig-next') as HTMLElement).click()
     await flushPromises()
-    // The brief's original text has a half-width comma+exclamation mark as a typo; the source
+    // The original text had a half-width comma+exclamation mark as a typo; the source
     // Vue2 zh_CN.json:605 uses full-width "，" -- Chinese copy must match Vue2 exactly
-    // (including punctuation, see CLAUDE.md/memory newui-zh-copy-source-of-truth),
+    // (including punctuation),
     // here changed back to full-width after character-by-character verification against
     // settingsMigNoteDocker in zh_cn.sp9.ts.
     expect(document.body.textContent).toContain('在此过程中，Docker 将暂时停止。')

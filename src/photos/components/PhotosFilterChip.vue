@@ -24,7 +24,7 @@
 // not go through the slot.
 //
 // Deviation log 2 (glyph values copied 1:1): the chevD `d="m6 9 6 6 6-6"` and x
-// `d="m6 6 12 12M18 6 6 18"` below are copied character-for-character from the Vue2 NimoOS-UI
+// `d="m6 6 12 12M18 6 6 18"` below are copied character-for-character from the the Vue 2 panel
 // src/views/Photos/PhotosIcon.vue corresponding name branch (the P6b final review caught 4
 // glyphs that were missed or copied wrong, none of which the three verification gates
 // caught), so the test pins this down with an exact assertion on the rendered <path d>.

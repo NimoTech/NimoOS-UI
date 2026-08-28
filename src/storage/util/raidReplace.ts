@@ -1,4 +1,4 @@
-// Ported byte-for-byte from NimoOS-UI/src/utils/raidUtils.js (2026-08-11, commit 0623ce20/69ea4798/b6cffd6c):
+// Ported byte-for-byte from the Vue 2 panel's src/utils/raidUtils.js (2026-08-11, commit 0623ce20/69ea4798/b6cffd6c):
 // findReplaceTarget (L190-213) + filterReplacementCandidates (L219-227). Behavior stays identical,
 // including the "no live member view → null" guard; only TS types were added, the decision logic is unchanged.
 //

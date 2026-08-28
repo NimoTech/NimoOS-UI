@@ -1,6 +1,6 @@
 <!--
   SP8-P5d Task 7 —— `NoteEditPane.vue` **upper half** (top bar + draft banner + main-column editor).
-  Ported 1:1 from the Vue2 blueprint `NimoOS-UI` (main@7a6ee6b7)
+  Ported 1:1 from the Vue 2 panel's blueprint
   `src/views/AI/Knowledge/NoteEditPane.vue` (338 lines, read via `git show 7a6ee6b7:`).
 
   🔴 [SCOPE BOUNDARY — plan doc §T7/§T8, T8 has since landed] T7 (everything above this section) wrote:
@@ -26,7 +26,7 @@
     (see the "task division decision" section below).
 
   ═══ K41 type narrowing (governance §3 / this pass's DoD 1, registering "package-side type → this repo's narrowing + field basis") ═══
-  The `Note` interface in `NimoOS-Service/src/notes.ts:21-34`:
+  The `Note` interface in the shared HTTP client's `src/notes.ts:21-34`:
     - `tags: unknown[]` → one-time `as string[]` on the consumer side (blueprint `:215` reads
       `[...this.note.tags]` and spreads it directly as a string array; this repo's `loadNote()`
       narrows at the same spot).
@@ -64,7 +64,7 @@
   what keeps the toolbar's `data-on` highlight in sync with the editor's selection/format state.
   Delete this half-clause and the toolbar's highlight state will never update after toggling
   bold/heading/etc.
-  🔴 **Ruling R5**: the tiptap testability probe in Appendix D §D.6.1 **doesn't mount the parent
+  🔴 The tiptap testability probe in Appendix D §D.6.1 **doesn't mount the parent
   component** (it only mounts the `NotesMarkdownEditor` editor SFC itself), so the causal chain
   "deleting `tbTick.value >= 0 &&` breaks the toolbar's `data-on` refresh" was **never actually
   proven** at the T0 stage. This pass may not cite §D.6.1 as proof — it must mount `NoteEditPane`
@@ -137,7 +137,7 @@
      by any of T7's own assertions, only covered by one save() test case for "conflict state being
      set", which asserts the value of `conflict`, not this function's name.**
 
-  ═══ Data contract (mock layering, governance §4.1 / p5d-fixtures/README.md §2) ═══
+  ═══ Data contract (mock layering, governance §4.1) ═══
   `service.notes.get(id)` returns an **already-normalized single Note** (camelCase).
   `service.notes.backlinks(id)` returns an **array**, `[]` when empty (not a `{backlinks:[]}`
   envelope, `notes.ts:247-250`) — T7's `loadNote()` fires it and stores it into the `backlinks` ref
@@ -197,7 +197,7 @@
   `@blur="addTag"`; the conflict modal's three buttons consuming the existing `conflict` state).
 
   ═══ K41 other half (DoD-1, `as any` forbidden) ═══
-  Both `Note.sourceRefs` (`NimoOS-Service/src/notes.ts:28`) and
+  Both `Note.sourceRefs` (the shared HTTP client's `src/notes.ts:28`) and
   `service.notes.backlinks()` (`:247-250`) return `unknown[]`. Local interfaces:
     interface SourceRef { path?: string; session_id?: string; label?: string }
     interface Backlink { id: string; title: string }

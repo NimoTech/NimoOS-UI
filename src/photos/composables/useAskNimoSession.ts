@@ -1,4 +1,4 @@
-// Vue3 port of Vue2 NimoOS-UI src/views/Photos/services/photosAgentSession.js (logic only,
+// Vue3 port of the Vue 2 panel's src/views/Photos/services/photosAgentSession.js (logic only,
 // read-only reference — nothing copied verbatim, this is a fresh TypeScript rewrite of the
 // same session-lifetime contract).
 //

@@ -25,8 +25,8 @@
 </template>
 
 <script setup lang="ts">
-// Ported verbatim (logic unchanged, Options API → Composition API) from Vue2
-// NimoOS-UI src/views/Photos/VideoHoverPreview.vue (288 lines). Pure presentational:
+// Ported verbatim (logic unchanged, Options API → Composition API) from the Vue 2 panel's
+// src/views/Photos/VideoHoverPreview.vue (288 lines). Pure presentational:
 // no requests, no i18n, no tokens — sprite URL / video src arrive via props.
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { computeWindowStyle, computeStripStyle } from '../util/hoverScrub'

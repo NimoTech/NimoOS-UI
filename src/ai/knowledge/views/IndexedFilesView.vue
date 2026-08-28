@@ -1,8 +1,8 @@
 <!--
   SP8-P5b Task 8 — "Indexed Files" page, cut 1: skeleton + filter bar + head meta +
-  error banner + skeleton screen + empty state. 1:1 ported from Vue2 reference
-  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/IndexedFilesView.vue`
-  (826 lines, read via `git show main:`; codebase review §1: worktree is an
+  error banner + skeleton screen + empty state. 1:1 ported from the Vue 2 panel's
+  reference `src/views/AI/Knowledge/IndexedFilesView.vue`
+  (main@7a6ee6b7, 826 lines, read via `git show main:`; codebase review §1: worktree is an
   old branch and untrustworthy).
 
   🔴 This file is built over three cuts (T8→T9→T10) and cannot be done in parallel.

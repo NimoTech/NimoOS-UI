@@ -15,7 +15,7 @@
 // PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。除此之外没有第二个
 // 合法场景 —— 所以下面第三组用**白名单**钉住它的消费方集合,多一个就红。
 //
-// Fix-1 item 6 订正(owner acceptance, 2026-08-16):当年那条"半透会把网格点透上来"的理由
+// 订正:当年那条"半透会把网格点透上来"的理由
 // 本身站不住脚——`--surface-1`(本仓 Photos 私有 token)在两套 Photos 主题下都是**完全不
 // 透明**的纯色(`#131318` 深色 / `oklch(0.975 0.004 80)` 浅色,均无 alpha 通道),从来不是
 // 半透明的。`--panel-bg-solid` 反而是个*全局* token,只跟随全站 `[data-theme]` 属性、不跟随
@@ -53,15 +53,15 @@ function ruleBody(text: string, selector: string): string {
 }
 
 describe('相册区表面用玻璃 token,不刷应用底色', () => {
-  // Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward) correction: this case's own
+  // Correction: this case's own
   // premise -- "this page still lives inside AreaShell's glass shell, so any background paints a
-  // visible band" -- is no longer true, same class of correction as Fix-2 item 6 below did for
-  // PhotosSmartViewDetail.vue's `.sv-detail-side`. This task un-wrapped PhotosSearch.vue from its
+  // visible band" -- is no longer true, same class of correction as the next case below did for
+  // PhotosSmartViewDetail.vue's `.sv-detail-side`. PhotosSearch.vue was un-wrapped from its
   // old flex-row `.photos-layout` shell into the SAME opaque `.photos-root > .app` grid every
   // other migrated page uses (`--bg: #0A0A0C`, a solid near-black page, not a translucent
   // wallpaper backdrop) -- the exact problem this case originally guarded against cannot recur
   // here. PhotosSearch.vue no longer carries its own local `.filterbar` rule at all: the
-  // 2026-08-13 rollback (see PhotosSearch.vue's own style-block header comment) deleted it along
+  // rollback (see PhotosSearch.vue's own style-block header comment) deleted it along
   // with every other selector name already covered by vue2-parity/photos.scss, letting THAT rule
   // (which does paint `background: var(--bg)`, matching Vue2 1:1, photos.scss:2610-2616) govern
   // directly.
@@ -80,10 +80,10 @@ describe('相册区表面用玻璃 token,不刷应用底色', () => {
     expect(body).toMatch(/z-index\s*:\s*6/)
   })
 
-  // Fix-2 item 6 (owner acceptance, 2026-08-13) correction: this case's own premise -- "this
+  // Correction: this case's own premise -- "this
   // page still lives inside AreaShell's glass shell, same as PhotosSidebar/PlacesRail" -- is no
-  // longer true. Plan C Task 2 (see PhotosSmartViewDetail.vue's own header comment) un-wrapped
-  // this exact page from AreaShell into Vue2's own single opaque `.photos-root > .app` shell
+  // longer true (see PhotosSmartViewDetail.vue's own header comment): it was un-wrapped
+  // from AreaShell into Vue2's own single opaque `.photos-root > .app` shell
   // (`--bg: #0A0A0C`, a solid near-black page, not a glass wallpaper backdrop) -- the same
   // migration Photos.vue's own shell went through earlier. PhotosSidebar, cited here as the
   // same-precedent glass surface, in fact no longer uses `--panel-bg` either: its real parity
@@ -109,7 +109,7 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
   // is-light-blind token. The whitelist was empty for a while: any future consumer must justify
   // itself from scratch, not point back at a precedent that turned out to be a bug.
   //
-  // Files Time Machine fix wave B (B1, owner acceptance 2026-08-26): a genuine new legitimate
+  // Files Time Machine added a genuine new legitimate
   // scenario. TimeMachineStage.vue's `.tm-fwin--active` (the real, scaled-down Files window) and
   // its preview clones (SnapshotPreviewWindow.vue's `.tm-preview-window`,
   // TimeMachineDepthStack.vue's `.tm-depth-strip`) all need a background that is (a) fully OPAQUE
@@ -120,9 +120,7 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
   // chrome (glass/rail/stepper/bars/white-glass modals), which stays pinned to the SAME literal in
   // both themes via its own `--tm-panel-bg-solid` token (unchanged, still used by the white-glass
   // modals). `--panel-bg-solid` is exactly this: a global, already-themed, always-opaque token --
-  // see this file's own header comment for its dark-gradient/white values. Root cause + full
-  // account: .superpowers/sdd/2026-08-25-files-time-machine-vue2-parity/final-fix-report.md,
-  // "Fix wave B" section.
+  // see this file's own header comment for its dark-gradient/white values.
   const ALLOW = new Set<string>([
     'files/snapshot/TimeMachineStage.vue',
     'files/snapshot/SnapshotPreviewWindow.vue',
@@ -156,7 +154,7 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
   })
 })
 
-// Fix-2 item 6b (owner acceptance, 2026-08-13): global body::before/after (theme.css) paint a
+// Global body::before/after (theme.css) paint a
 // fixed, viewport-covering "aurora" wash at z-index:0, meant to glow through AreaShell's own
 // glass shells. Photos opted out of that glass aesthetic entirely (`.photos-root .app` paints
 // its own fully opaque `--bg`, matching Vue2 1:1) -- but a plain, non-positioned block element
@@ -287,7 +285,7 @@ describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不�
     // comment in PhotoLightbox.vue) -- a deliberate one-off parity match, not a drift back toward
     // hardcoded colors generally.
     'photos/lightbox/PhotoLightbox.vue::<div class="lb-confirm-icon" style="color: #FF6B5C"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></div>',
-    // Fix-2 item 4 (owner acceptance, 2026-08-16): the solid-gold favorite star is a fixed
+    // The solid-gold favorite star is a fixed
     // semantic color across themes, matching Vue2's own inline hex literal
     // (PhotosLightbox.vue:11, `:color="photo.fav ? '#FFD60A' : 'currentColor'"`) -- same
     // one-off-parity-match precedent as the confirm-icon entry above.
@@ -311,8 +309,8 @@ describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不�
   })
 })
 
-// Fix-1 items 1/6 (owner acceptance, 2026-08-16): dark-theme light frame around `.map-shell`
-// (item 1) and light-theme popovers/detail-panel staying dark (item 6) traced to the same root
+// A dark-theme light frame around `.map-shell`
+// and light-theme popovers/detail-panel staying dark traced to the same root
 // cause across the whole Places area — rules using *global* New-UI tokens (`--fg`/`--fg-muted`/
 // `--fg-subtle`/`--card-border`/`--panel-bg`/`--panel-bg-solid`/`--popup-bg`/`--card-shadow-hi`/
 // `--chip-bg`/`--chip-bg-hi`/`--on-accent`/`--skeleton-bg`/`--accent-text`) instead of this
@@ -379,9 +377,9 @@ describe('Fix-1 items 1/6: Places 区不再消费全局玻璃/文本 token(只�
   })
 })
 
-// Fix-2 item 4 (owner acceptance, 2026-08-16): same defect class as the Places sweep above
-// (Fix-1 items 1/6), found independently in the lightbox family via the owner's acceptance
-// screenshot ("light-mode lightbox illegible -- buttons, text, arrows all washed out"). Root
+// Same defect class as the Places sweep above,
+// found independently in the lightbox family ("light-mode lightbox illegible -- buttons,
+// text, arrows all washed out"). Root
 // cause identical: rules consuming *global* New-UI theme.css tokens instead of this area's own
 // `.photos-root`/`.photos-root.is-light`-scoped equivalents. Global tokens only follow the
 // app-wide `[data-theme]` attribute; Photos has its own PRIVATE toggle
@@ -399,7 +397,7 @@ describe('Fix-2 item 4: 灯箱家族不再消费全局玻璃/文本 token(只跟
 
   // `--blur` is deliberately NOT banned here -- it's a shared structural token (blur radius, not a
   // color), consistent with this codebase's "structural values stay shared across themes"
-  // convention (CLAUDE.md's theming section); `.lb-live-btn`'s own Fix-2 comment explains this
+  // convention; `.lb-live-btn`'s own comment explains this
   // choice for its one remaining consumer.
   const BANNED_TOKENS = [
     '--fg\\b', '--fg-muted', '--fg-subtle', '--card-border', '--tool-bg-hi', '--star-fg',

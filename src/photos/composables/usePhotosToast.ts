@@ -1,5 +1,5 @@
 // Photos-private toast queue — Vue3 pixel counterpart of Vue2's body-mounted
-// `window.PhotosToast` (src/views/Photos/photosToast.js in NimoOS-UI). That
+// `window.PhotosToast` (src/views/Photos/photosToast.js in the Vue 2 panel). That
 // file is a visual reference only (fixed pill stack, accent border, undo
 // button, theme-aware surface) — nothing here is transcribed from it.
 //

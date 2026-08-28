@@ -3,7 +3,7 @@
 // (`repeat(10/7/4, 1fr)`), density-driven, not a viewport/container-width breakpoint. The
 // old SP15-P3 model (`repeat(auto-fill, minmax(Npx, 1fr))`, columns derived from container
 // width) is gone: PhotosGrid.vue no longer carries that CSS at all (single source of truth
-// is now src/photos/styles/vue2-parity/photos.scss, ported verbatim from NimoOS-UI's
+// is now src/photos/styles/vue2-parity/photos.scss, ported verbatim from the Vue 2 panel's
 // photos.scss — see gridMetricsCssParity.test.ts, which scans THAT file, not this
 // component's <style>, for the literal values below).
 //

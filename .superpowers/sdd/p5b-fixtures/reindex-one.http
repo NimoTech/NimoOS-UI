@@ -1,7 +1,0 @@
-HTTP/1.1 200 OK
-date: Sat, 01 Aug 2026 05:06:16 GMT
-server: uvicorn
-content-length: 56
-content-type: application/json
-
-{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}

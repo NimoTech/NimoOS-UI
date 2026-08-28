@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // SP8-P5e Task 6+7 — `SearchView.vue` (1:1 port from blueprint
-// `NimoOS-UI@7a6ee6b7` `src/views/AI/Knowledge/SearchView.vue`, 401 lines).
+// `the Vue 2 panel@7a6ee6b7` `src/views/AI/Knowledge/SearchView.vue`, 401 lines).
 //
 // T6 scope (governance `p5e-plan.md` §T6, `p5e-coordinator-rulings-T0.md` R25):
 //   Template `:1-119` (sticky search box + advanced panel + idle/loading/empty three states) +
@@ -29,7 +29,7 @@
 // `blob:` address, not `fileUrl()` itself — address bar/browser history/Referer contain no token.
 // Trade-off: token enters this single background XHR query (merged into existing backend ticket
 // "terminal WS token in access log"). `/v3/file` is not rewritten by `withVersion()` to
-// `/v1/v3/file` (`.sp8/NimoOS-Service/src/http.ts:6-10` the `/^\/v[1-9]/` pattern passes
+// `/v1/v3/file` (`the shared service package's src/http.ts:6-10` the `/^\/v[1-9]/` pattern passes
 // through unchanged, `v3` matches).
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

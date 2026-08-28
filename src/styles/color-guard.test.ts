@@ -1,4 +1,4 @@
-// Convention guard (see CLAUDE.md / docs/THEMING.md §0): every visible color in New-UI must go through a theme token.
+// Convention guard (see docs/THEMING.md §0): every visible color in New-UI must go through a theme token.
 // Scans every .vue <style> block and .css file (except theme.css — that's where tokens are defined),
 // and fails if it finds a bare color literal (#hex / rgb()/rgba()/hsl()) outside of var(--token, …).
 //
@@ -6,7 +6,7 @@
 // Allowed:  color: #fff /* theme-exception: icon overlaid on a thumbnail, skin-independent */  (comment on the value line or the line above)
 // Fails:  color: #fff               (bare literal, not routed through a token)
 //
-// Registered exemption (owner's call 2026-08-11, see docs/superpowers/specs/2026-08-11-photos-vue2-parity-reskin-design.md §4):
+// Registered exemption:
 // src/photos/styles/vue2-parity/*.scss is the pixel source of truth from the old Vue2 repo, with its own .photos-root-scoped token system,
 // so the whole directory is exempt from this guard. The current scan surface (.vue style blocks + .css) doesn't include .scss anyway; if .scss is ever brought into scope,
 // this directory's exclusion must be kept.

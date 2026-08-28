@@ -2,7 +2,7 @@
 // Task 6 (SP7-P5 People): people list view — banner + filter/sort row +
 // two warning banners + merge-suggestion banner + Pinned/Named/Unnamed three-section grid +
 // floating action menu + empty state.
-// Ported section-by-section against Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:2-235
+// Ported section-by-section against the Vue 2 panel's src/views/Photos/PhotosPeopleView.vue:2-235
 // and src/views/Photos/photos-people.scss:1-275; the Ask Nimo branch is not built, per the brief.
 // The shell was originally copied from PhotosAlbums.vue:185-188's AreaShell/.photos-layout/
 // PhotosSidebar/.photos-main (not extracted into anything shared, per P3/P4). Document-level
@@ -910,7 +910,7 @@ onUnmounted(() => {
 .people-hidden-head { cursor: pointer; }
 .people-hidden-title { display: flex; align-items: center; gap: 8px; }
 .people-hidden-count { color: var(--text-3); font-weight: 400; font-size: 13px; }
-/* Fix wave (post-final-review): hardened to a compound selector -- `.people-hidden-static`
+/* Hardened to a compound selector -- `.people-hidden-static`
    alone is a single-class rule, the same specificity as parity's own `.face-card { cursor:
    pointer; }` (photos-people.scss:109), so the two only avoided flip-flopping by import/injection
    order rather than by an actual specificity win. `.face-card.people-hidden-static` (both

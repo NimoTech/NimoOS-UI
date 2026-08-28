@@ -1,5 +1,5 @@
 // P6a-T5: PlacesRail.vue — Places page left sidebar city rail (continent group collapse + search + active state).
-// Corresponds item-by-item to task-5-brief.md "required test checklist", supplemented with coverage for structure specs 1–5 and delete-code checklist 6 items.
+// Corresponds item-by-item to the required test checklist, supplemented with coverage for structure specs 1–5 and delete-code checklist 6 items.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'

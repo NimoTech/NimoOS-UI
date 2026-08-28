@@ -252,8 +252,8 @@ describe('Photos.vue lightbox wiring', () => {
   })
 })
 
-// Fix-4 item 1 (owner acceptance, 2026-08-13; same F1/F2 lesson class, found here on the
-// timeline page): AlbumPickerDialog used to be a template-root SIBLING of `.photos-root` instead
+// AlbumPickerDialog (found here on the
+// timeline page) used to be a template-root SIBLING of `.photos-root` instead
 // of its DOM descendant, so `.photos-root .album-picker-panel`'s `background: var(--surface-2)`
 // (a `.photos-root`-local custom property with no global fallback, vue2-parity/
 // photos.scss:1072-1102) resolved to nothing outside it — the picker panel likely rendered with

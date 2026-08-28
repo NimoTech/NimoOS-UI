@@ -1,4 +1,4 @@
-// Ported from Vue2 NimoOS-UI src/store/modules/photos.js:
+// Ported from the Vue 2 panel's src/store/modules/photos.js:
 //   :19-22   (SEARCH_PAGE_LIMIT)
 //   :24-27   (smartSearchSeq declaration + doc comment; "any dispatch (including clear) makes in-flight
 //             old response void—sequence increment must precede early return branch" sentence verbatim from :655,

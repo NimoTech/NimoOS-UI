@@ -1,7 +1,7 @@
 // Task 10(SP7-P6a 地点·地图主视图):placesMapThemes.ts —— 地图主题预设表 + resolveMapTheme
 // 语义。逐条对应 task-10-brief.md 的「必含测试清单」+ 26 个色值逐字断言 + 5 处删码验证。
 //
-// Plan E Task 6 (2026-08-15): updated for Vue2 NimoOS-UI PR #106 sub-commits 1-3 (git show
+// Plan E Task 6 (2026-08-15): updated for the Vue 2 panel PR #106 sub-commits 1-3 (git show
 // 78cf3335) — the dotBg contrast finals (bumped twice: 0.10→0.20→0.30, plus the ocean/sand/mono
 // variants) and the custom-mode picker remap (Land dot color → dotBg via hexToRgba fixed-alpha
 // wash, City light color → dot solid, bg/grid following isLight). CUSTOM_GRID_DEFAULT is renamed

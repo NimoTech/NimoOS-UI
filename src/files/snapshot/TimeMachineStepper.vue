@@ -1,20 +1,19 @@
 <script setup lang="ts">
-// Task 9 (Files Time Machine Vue2-parity line): the Apple-style vertical stepper -- ⬆ / current-
+// The Apple-style vertical stepper -- ⬆ / current-
 // moment label / ⬇, floating outside the scaled real window's right edge. Ported from Vue2's
-// `.tm-stepper` region (NimoOS-UI/src/components/filebrowser/components/TimeMachineStage.vue,
-// M2-F7 point 5 + the 2026-07 up/down-swap fix round -- see that file's own header comment and its
+// `.tm-stepper` region (the Vue 2 panel's src/components/filebrowser/components/TimeMachineStage.vue,
+// including the up/down-swap fix described below) -- see that file's own header comment and its
 // template/style-block comments on `.tm-stepper` for the full derivation this file ports).
 //
 // This component owns ONLY the visible control (shape/geometry/disabled state) and its two emits --
 // it does NOT decide when stepping is possible or what "later"/"earlier" mean in terms of snapshot
-// index. TimeMachineStage.vue's own `stepLater`/`stepEarlier` (built in Task 7, preempting this
-// task's own "keyboard" file-list item -- see that file's own header comment) already own that
+// index. TimeMachineStage.vue's own `stepLater`/`stepEarlier` (which also drive its keyboard handler
+// -- see that file's own header comment) already own that
 // logic and the SAME `clampStepIndex`-derived boundary check the keyboard handler uses; this
 // component's `canLater`/`canEarlier` props are fed from two small computeds TimeMachineStage.vue
 // derives from that exact same call, so there is exactly one notion of "can we step" shared by the
 // keyboard, the stepper's own `:disabled`, and any future caller -- not three independently
-// maintained copies (see task-7-report.md's own "given to T9" section, which flagged this before
-// this task started).
+// maintained copies.
 //
 // Direction mapping is Vue2's OWN swapped-and-final state (2026-07 user report, "the up/down keys
 // are reversed" -- ported verbatim, not the pre-fix mapping): ⬆ emits `later` (steps to the next
@@ -50,7 +49,7 @@ const { t } = useI18n()
       :title="t('tmStepLater')"
       @click="emit('later')"
     >
-      <!-- Fix wave A4 (deferred from A2's audit-stage.md #10): Vue2's own `.tm-stepper__btn`
+      <!-- Vue2's own `.tm-stepper__btn`
            icons are MDI `chevron-up`/`chevron-down` (`<b-icon icon="chevron-up"/>`, own file:1361,
            1372) -- ported as hand-inlined SVGs reproducing those exact MDI paths (house convention,
            see TimeMachineStage.vue's own gear-icon comment for the same derivation), replacing the
@@ -79,7 +78,7 @@ const { t } = useI18n()
 /* Self-positioned (same convention TimeMachineRail.vue's own header comment already established
    for this stage's right-edge chrome): anchored to the SCALED window's own real right edge, not a
    fixed fraction of the reserved gutter band -- ported byte-for-byte from Vue2's own $tm-stepper
-   SCSS derivation (TimeMachineStage.vue, "Vertical stepper" <style> comment, M2-F9 Fix Round 5).
+   SCSS derivation (TimeMachineStage.vue, "Vertical stepper" <style> comment).
    `.tm-fwin--active`'s rendered right edge (after `transform: scale(TM_WINDOW_SCALE)`,
    timeMachineMath.ts) sits, measured from the stage's own right edge, at
      (1 - TM_WINDOW_SCALE) * 0.5 * 100%                              -- Vue2's $tm-shrink-pct
@@ -122,14 +121,14 @@ const { t } = useI18n()
   -webkit-backdrop-filter: blur(6px);
   color: var(--tm-chrome-text);
   cursor: pointer;
-  /* Fix wave A2 (audit-stage.md #10, priority list item 14): Vue2's own literal
+  /* Vue2's own literal
      (`background 0.15s ease, opacity 0.15s ease`, TimeMachineStage.vue:3309) -- plain `ease`, not
      `var(--ease)`'s custom cubic-bezier curve. */
   transition: background 0.15s ease, opacity 0.15s ease;
 }
 .tm-stepper-btn:hover:not(:disabled) { background: var(--tm-stepper-btn-hover-bg); }
 .tm-stepper-btn:disabled { opacity: 0.35; cursor: default; }
-/* Fix wave A4: the inline MDI chevron-up/chevron-down SVG's own intrinsic box -- 13px matches
+/* The inline MDI chevron-up/chevron-down SVG's own intrinsic box -- 13px matches
    this button's previous `font-size: 13px` (the Unicode triangle glyphs' own rendered size before
    this port). */
 .tm-stepper-icon { width: 13px; height: 13px; }

@@ -11,7 +11,7 @@ export default {
   filesEmpty: 'This folder is empty',
   filesViewList: 'List',
   filesViewGrid: 'Grid',
-  // Fix wave C (toolbar redesign, 2026-08-26): aria-label for the content-area header row's
+  // aria-label for the content-area header row's
   // grid/list capsule switcher (role="group") -- new key, no prior generic label existed.
   filesViewMode: 'View mode',
   filesColName: 'Name',
@@ -34,7 +34,7 @@ export default {
   filesProtectedRename: 'This item is protected and cannot be renamed',
   filesProtectedMove: 'This item is protected and cannot be moved',
   filesCopiedPath: 'Path copied',
-  // Fix wave C (toolbar redesign, 2026-08-26): the collapsed "New" dropdown trigger label
+  // The collapsed "New" dropdown trigger label
   // (FilesNewMenu.vue) -- New folder/New file/Upload files/Upload folder now live inside its
   // menu, each still reusing its own pre-existing key below.
   filesNewMenu: 'New',
@@ -757,7 +757,7 @@ export default {
   raidMembersTitleEmptySlots: 'Member Disks ({n} · {slots} empty slots)',
   raidBtrfsFreeEst: 'Estimated Free (Btrfs)',
   raidBtrfsCachedAt: 'Usage Cached At',
-  // Transcribed verbatim from NimoOS-UI RaidDetailPanel.vue L267-290 (levelFaultTolerance/levelReadSpeed/levelWriteSpeed, levels 0/1/5/6)
+  // Transcribed verbatim from the Vue 2 panel's RaidDetailPanel.vue L267-290 (levelFaultTolerance/levelReadSpeed/levelWriteSpeed, levels 0/1/5/6)
   raidLevel0Tolerance: 'None (0 disks)',
   raidLevel1Tolerance: 'n-1 disks',
   raidLevel5Tolerance: '1 disk',
@@ -770,7 +770,7 @@ export default {
   raidLevel1Write: 'Good',
   raidLevel5Write: 'Moderate',
   raidLevel6Write: 'Moderate',
-  // level 10: no branch in RaidDetailPanel — filled from NimoOS-UI utils/raidUtils.js RAID_LEVELS (id:10):
+  // level 10: no branch in RaidDetailPanel — filled from the Vue 2 panel's utils/raidUtils.js RAID_LEVELS (id:10):
   // tolerance:'half' mirrors the toleranceText() "up to N (1 per pair)" branch (static, disk-count-agnostic phrasing here);
   // read/write are that table's raw 1-5 ratings (5, 4), transcribed as rating text.
   raidLevel10Tolerance: 'Up to half the disks (1 per mirror pair)',
@@ -845,7 +845,7 @@ export default {
   snapDailyKeep: 'Daily keep count',
   snapWeeklyKeep: 'Weekly keep count',
   snapPauseThreshold: 'Pause when volume usage exceeds (%)',
-  // Fix wave A3 (audit-modals.md #6): aria-labels for the [-]/[+] ghost-stepper buttons rebuilt
+  // aria-labels for the [-]/[+] ghost-stepper buttons rebuilt
   // to Vue2's own Buefy `b-numberinput` shape (SnapshotSettingsModal.vue). Deliberately separate
   // keys from TimeMachineStepper.vue's `tmStepLater`/`tmStepEarlier` (those step between
   // snapshots in time; these increment/decrement a policy field's numeric value).
@@ -893,7 +893,7 @@ export default {
   tmItemCount: '{n} items',
   tmRailJumpTo: 'Jump to the snapshot from {time}',
   tmStepEarlier: 'Earlier snapshot',
-  // Task 1 additions below: copied verbatim from Vue2 NimoOS-UI's src/assets/lang/en_US.json
+  // Copied verbatim from the Vue 2 panel's src/assets/lang/en_US.json
   // (the Time Machine stage / snapshot settings modal / restore destination modal / file
   // conflict dialog strings for the Vue2-parity rebuild). Several of the brief's proposed
   // names turned out to duplicate an EXISTING key's exact English text -- those are reused,

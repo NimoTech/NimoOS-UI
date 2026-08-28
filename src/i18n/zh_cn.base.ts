@@ -11,7 +11,7 @@ export default {
   filesEmpty: '此文件夹为空',
   filesViewList: '列表',
   filesViewGrid: '网格',
-  // Fix wave C (toolbar redesign, 2026-08-26): aria-label for the content-area header row's
+  // aria-label for the content-area header row's
   // grid/list capsule switcher (role="group") -- new key, no prior generic label existed.
   filesViewMode: '视图模式',
   filesColName: '名称',
@@ -34,7 +34,7 @@ export default {
   filesProtectedRename: '此项目受保护,无法重命名',
   filesProtectedMove: '此项目受保护,无法移动',
   filesCopiedPath: '已复制路径',
-  // Fix wave C (toolbar redesign, 2026-08-26): the collapsed "New" dropdown trigger label
+  // The collapsed "New" dropdown trigger label
   // (FilesNewMenu.vue) -- New folder/New file/Upload files/Upload folder now live inside its
   // menu, each still reusing its own pre-existing key below.
   filesNewMenu: '新建',
@@ -759,7 +759,7 @@ export default {
   raidMembersTitleEmptySlots: '成员磁盘 ({n} 块 · {slots} 个空槽位)',
   raidBtrfsFreeEst: 'btrfs 估算可用',
   raidBtrfsCachedAt: '缓存于',
-  // 逐字转录自 NimoOS-UI RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)
+  // 逐字转录自 Vue2 面板的 RaidDetailPanel.vue L267-290(levelFaultTolerance/levelReadSpeed/levelWriteSpeed,按 level 0/1/5/6)
   raidLevel0Tolerance: '无(0 块盘)',
   raidLevel1Tolerance: 'n-1 块盘',
   raidLevel5Tolerance: '1 块盘',
@@ -772,7 +772,7 @@ export default {
   raidLevel1Write: '良好',
   raidLevel5Write: '中等',
   raidLevel6Write: '中等',
-  // level 10:RaidDetailPanel 无对应分支,按 NimoOS-UI utils/raidUtils.js RAID_LEVELS(id:10)补——
+  // level 10:RaidDetailPanel 无对应分支,按 Vue2 面板的 utils/raidUtils.js RAID_LEVELS(id:10)补——
   // tolerance:'half' 对应 toleranceText() 的 "up to N (1 per pair)" 分支(此处为通用静态文案,略去具体盘数 n);
   // read/write 为该表原始 1-5 评分(5、4),转录为评分文本。
   raidLevel10Tolerance: '至多一半磁盘(每镜像对 1 块)',

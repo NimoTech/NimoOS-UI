@@ -18,10 +18,10 @@
   asking about the rest of this batch"; the caller marks this and every
   remaining conflict as cancelled.
 
-  Task 12 (Files Time Machine Vue2-parity line): rebuilt directly on reka-ui's
-  Dialog primitives instead of the shared components/ui/Dialog.vue wrapper —
-  same reason SnapshotSettingsModal.vue (Task 11) forked off it: the generic
-  wrapper's `.ui-dialog-content` carries its own fixed min-width/padding and
+  Rebuilt directly on reka-ui's Dialog primitives instead of the shared
+  components/ui/Dialog.vue wrapper — same reason SnapshotSettingsModal.vue
+  forked off it: the generic wrapper's `.ui-dialog-content` carries its own
+  fixed min-width/padding and
   dark-glass background, and scoped CSS on THIS component cannot reach up to
   override an ancestor rendered by a different component. Vue2's own dialog is
   white-glass (same `--tm-panel-*` token family as SnapshotSettingsModal and
@@ -30,7 +30,7 @@
 
   z-index tier: this dialog can open ON TOP of another already-open Time
   Machine surface — SnapshotSettingsModal today, and RestoreDestinationModal's
-  own "Restore here" click will do the same once Task 13 lands (Vue2's
+  own "Restore here" click will do the same (Vue2's
   RestoreDestinationModal opens FileConflictDialog directly from its own
   button, per that file's header comment). Every other white-glass surface in
   this app renders through the shared 1000/1001 tier (components/ui/Dialog.vue
@@ -119,10 +119,9 @@ defineExpose({ choose })
             {{ allowMerge ? t('filesConflictDirNoteMerge') : t('filesConflictDirNote') }}
           </div>
 
-          <!-- Fix wave A3 (audit-modals.md, apply-all checkbox): custom-skinned box matching
-               Buefy's own `b-checkbox` geometry (`_checkbox.scss`: 1.25em box @ 12px font ≈ 15px,
-               2px border, $radius(3px) radius, $primary fill+checkmark when checked) instead of
-               an unstyled native control. -->
+          <!-- Apply-all checkbox: custom-skinned box matching Buefy's own `b-checkbox` geometry
+               (`_checkbox.scss`: 1.25em box @ 12px font ≈ 15px, 2px border, $radius(3px) radius,
+               $primary fill+checkmark when checked) instead of an unstyled native control. -->
           <label v-if="queueTotal > 1" class="fc-apply-all">
             <span class="fc-checkbox">
               <input v-model="applyToAll" type="checkbox" class="fc-checkbox-input" />
@@ -140,11 +139,11 @@ defineExpose({ choose })
           <button class="fc-btn" :class="(allowMerge && isDir) ? 'fc-ghost' : 'fc-primary'" @click="choose('keep_both')">
             {{ t('filesConflictKeepBoth') }}
           </button>
-          <!-- Fix wave A3 (audit-modals.md, Overwrite-disabled tooltip): reverted to Vue2's own
-               native `title` attribute mechanism (own file:96-97) -- the instant custom CSS
-               tooltip bubble this used to be was a deliberate New-UI-only UX improvement, but the
-               audit's own directive is pixel/behavior parity with Vue2, which uses the browser's
-               default `title` tooltip (no custom bubble, ~1s hover delay). -->
+          <!-- Overwrite-disabled tooltip: reverted to Vue2's own native `title` attribute
+               mechanism (own file:96-97) -- the instant custom CSS tooltip bubble this used to be
+               was a deliberate improvement over the ported behavior, but pixel/behavior parity
+               with Vue2 wins here, which uses the browser's default `title` tooltip (no custom
+               bubble, ~1s hover delay). -->
           <button class="fc-btn fc-danger" :disabled="isDir" :title="isDir ? t('filesConflictOverwriteDisabled') : undefined" @click="choose('overwrite')">
             {{ t('filesConflictOverwrite') }}
           </button>
@@ -156,10 +155,9 @@ defineExpose({ choose })
 
 <style scoped>
 /* Elevated tier — see file header comment for why this dialog does not share
-   the app's normal 1000/1001 dialog tier. Fix wave A3 (audit-modals.md #1):
-   flat unblurred Buefy scrim (same fix as the other two TM dialogs, still at
-   this dialog's own elevated 1050 z-index) -- see theme.css's own comment on
-   `--tm-modal-overlay-bg`. */
+   the app's normal 1000/1001 dialog tier. Flat unblurred Buefy scrim (same
+   fix as the other two TM dialogs, still at this dialog's own elevated 1050
+   z-index) -- see theme.css's own comment on `--tm-modal-overlay-bg`. */
 .fc-overlay { position: fixed; inset: 0; background: var(--tm-modal-overlay-bg); z-index: 1050; }
 .fc-content {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1051;
@@ -183,8 +181,8 @@ defineExpose({ choose })
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 20px 24px 12px; border-bottom: 1px solid var(--tm-hairline); flex-shrink: 0;
 }
-/* Fix wave A3 (audit-modals.md #2): see SnapshotSettingsModal.vue's own `.ssm-title` comment for
-   the full line-height/font-family citation. */
+/* See SnapshotSettingsModal.vue's own `.ssm-title` comment for the full
+   line-height/font-family citation. */
 .fc-title { margin: 0; font-size: 16px; font-weight: 600; line-height: 24px; color: var(--tm-text); }
 .fc-close-x {
   flex-shrink: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
@@ -219,9 +217,9 @@ defineExpose({ choose })
   display: flex; align-items: center; gap: 6px; margin-top: 14px;
   font-size: 12px; color: var(--tm-text-dim); cursor: pointer;
 }
-/* Fix wave A3 (audit-modals.md, apply-all checkbox): Buefy's own `b-checkbox` box geometry --
+/* Apply-all checkbox: Buefy's own `b-checkbox` box geometry --
    `$checkbox-size: 1.25em` (at is-small's 12px font ≈ 15px), `$checkbox-border-width: 2px`,
-   `$checkbox-border-radius: $radius`(3px) -- with a border-trick checkmark (avoids embedding an
+   `$checkbox-border-radius: $radius`(3px) -- with a border-trick checkmark (avoids inlining an
    SVG data-URI with a hardcoded fill color, keeping every color here token-driven). */
 .fc-checkbox { position: relative; display: inline-flex; width: 15px; height: 15px; flex-shrink: 0; font-size: 12px; }
 .fc-checkbox-input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
@@ -242,7 +240,7 @@ defineExpose({ choose })
   padding: 12px 24px 18px; border-top: 1px solid var(--tm-hairline); flex-shrink: 0;
 }
 
-/* Fix wave A3 (audit-modals.md, Merge/Skip/Keep-both/Overwrite buttons): Vue2's own `<b-button>`s
+/* Merge/Skip/Keep-both/Overwrite buttons: Vue2's own `<b-button>`s
    here have no `size` prop -> Bulma default/medium: `font-size: 16px; height ≈ 40px` -- same fix
    as the other two TM dialogs' footer buttons (see SnapshotSettingsModal.vue's own `.ssm-close`
    comment for the full citation). */
@@ -252,7 +250,7 @@ defineExpose({ choose })
 }
 .fc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Fix wave A3 (audit-modals.md, primary button color): Vue2's `is-primary` fill is `$primary`,
+/* Primary button color: Vue2's `is-primary` fill is `$primary`,
    not `--tm-accent` -- see theme.css's own token-split comment. */
 .fc-primary { background: var(--tm-primary); color: var(--tm-chrome-text); }
 .fc-primary:hover:not(:disabled) { background: var(--tm-primary-hover); }

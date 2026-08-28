@@ -21,7 +21,7 @@ const ItemStub = { emits: ['select'], template: '<div class="menu-item" @click="
 
 function row(p: Partial<MergedIface> = {}): MergedIface {
   return {
-    name: 'enp2s0', state: 'up', speed: 1000, maxSpeed: 1000, addr: '192.168.1.143', dhcp: true,
+    name: 'enp2s0', state: 'up', speed: 1000, maxSpeed: 1000, addr: '192.168.1.10', dhcp: true,
     isVirtual: false, zone: '', type: 'ethernet', ipv4: { method: 'dhcp' }, wireless: null, hybridCapable: false,
     ...p,
   }
@@ -49,7 +49,7 @@ describe('NetworkIfaceRow —— display (maps to Vue2 SettingsPanel.vue L500-57
     expect(tags[0]).toBe('enp2s0')
     expect(tags[1]).toBe('1 Gbps')
     expect(tags[2]).toContain('DHCP')
-    expect(tags[2]).toContain('192.168.1.143')
+    expect(tags[2]).toContain('192.168.1.10')
   })
 
   it('the static-IP tag prefix is Static (Vue2 hardcodes the English literal, kept as-is)', () => {

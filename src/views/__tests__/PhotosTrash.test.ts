@@ -145,7 +145,7 @@ describe('PhotosTrash.vue', () => {
     expect(w.findComponent({ name: 'AskNimoHost' }).exists()).toBe(true)
   })
 
-  // Fix wave (post-final-review): the topbar's `sub` used to be left unbound entirely, which
+  // The topbar's `sub` used to be left unbound entirely, which
   // falls back to PhotosTopbar's own default -- the library-wide photo/video count summary
   // (photosCountSummary), not this view's trash item count. Asserts the real trash.items.length
   // + trash.retentionDays render here instead (Vue2 PhotosTimeline.vue:231 navMap.trash shape).

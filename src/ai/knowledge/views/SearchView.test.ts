@@ -1,6 +1,6 @@
 // SP8-P5e Task 6+7 — `SearchView.vue` unit tests (T6: search box + advanced panel + `run()` +
 // four states; T7 continuation: result card list + two subcomponents wiring + `fetchBlobUrl`/
-// `openOriginal`/`downloadFile`/`onDrawerToast`). Blueprint `NimoOS-UI@7a6ee6b7`
+// `openOriginal`/`downloadFile`/`onDrawerToast`). Blueprint `the Vue 2 panel@7a6ee6b7`
 // `src/views/AI/Knowledge/SearchView.vue` (401 lines).
 //
 // === T7 scope (this continuation) ===
@@ -20,7 +20,7 @@
 // / `FileDetailDrawer.test.ts`'s `vi.hoisted` pattern.
 //
 // === fixture sources (three-level tags annotated per condition, decision R3 constraint 1 / R9) ===
-//   F1  — REAL, `.superpowers/sdd/p5e-fixtures/F1-search-text.empty.REAL.json`,
+// F1 — REAL, a captured device response,
 //         as-is (file already has zero `_`-prefixed keys; see README §3.3 PURE_REAL exception).
 //   F4  — REAL, `F4-search-text.no_accessible_roots.REAL.json`, as-is. Used for N38
 //         reverse assertion (non-empty `warnings` but not rerank_unavailable → should not assert true).

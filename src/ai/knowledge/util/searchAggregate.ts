@@ -1,5 +1,5 @@
 // SP8-P5e Task 3 — 1:1 port from Vue2
-// `NimoOS-UI`(main@7a6ee6b7) `src/views/AI/Knowledge/searchAggregate.js`(79 lines,
+// the Vue 2 panel's `src/views/AI/Knowledge/searchAggregate.js` (main@7a6ee6b7, 79 lines,
 // byte-identical, verified by P5c §4.4 comparison process — comment Chinese→English only,
 // zero functional change).
 //
@@ -12,8 +12,8 @@
 // 🔴 K48 — highlight / fmtMtime / relLevel / relLabel deduplicated from two
 // copy-pasted blueprint copies (`SearchView.vue:317-345` and `FileDetailDrawer.vue:199-217`)
 // into this file, imported by both components (T5/T6-T7), not written separately in each.
-// Equivalence programmatically proven by T0 (`p5e-fixtures/scripts/k48-equiv.mjs`,
-// `p5e-task-0-report.md` §9 DoD-9): 534 comparisons (highlight 16×29=464 + relLevel/relLabel
+// Equivalence programmatically proven by a dedicated comparison script (DoD-9):
+// 534 comparisons (highlight 16×29=464 + relLevel/relLabel
 // 27 inputs×2 + fmtMtime 16 inputs), **0 non-equivalent**. Side A uses `if` chain, B uses
 // ternary, numeric values identical (A uses `0.50`, B uses `0.5`) — pure syntax difference,
 // deduplicated zero behavior change. `relLabel` not in component setup context → use

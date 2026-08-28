@@ -1,5 +1,4 @@
 // Audio waveform module: synthetic placeholder (pure functions) + real decoding (browser orchestration) + session-level cache.
-// Design: docs/superpowers/specs/2026-07-10-new-ui-audio-real-waveform-design.md
 // Strategy: render the synthetic waveform immediately on open (0 latency), then seamlessly swap in the real audio decoded in the background;
 //           over 50MB / any failure → silently keep the synthetic one, never degrading the feature.
 

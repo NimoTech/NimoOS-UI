@@ -1,10 +1,10 @@
-// Task 14 (SP7-P5 people): PhotosPersonDetail.vue — the person-detail view container
+// PhotosPersonDetail.vue — the person-detail view container
 // (**four-state gate** + co-appearance strip + three tabs + selection floating bar +
-// **seven self-drawn dialogs** + lightbox wiring). Ported section by section from Vue2
-// NimoOS-UI src/views/Photos/PhotosPersonDetail.vue (1561 lines).
-// Four states = skeleton / load failed + retry / person not found / normal (state 4
-// was added by coordinator ruling 4, expanding from three states).
-// Seven dialogs = the six from the brief's checklist + Vue2 promptDialog's info mode
+// **seven self-drawn dialogs** + lightbox wiring). Ported section by section from
+// the Vue 2 page's src/views/Photos/PhotosPersonDetail.vue (1561 lines).
+// Four states = skeleton / load failed + retry / person not found / normal (the fourth
+// state was added later, expanding from three states).
+// Seven dialogs = six from the required checklist + Vue2 promptDialog's info mode
 // (:845-851 "No photos available").
 //
 // Test strategy (one deliberate strengthening over the brief's suggestion, recorded in

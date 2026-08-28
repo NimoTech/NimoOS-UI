@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 10 (SP7-P5 person details): PersonHero.vue —— person detail page hero section (cover + avatar + name/favorite +
-// edit menu + relation group dropdown + four stats + two action buttons). Port each section from Vue2 NimoOS-UI
+// edit menu + relation group dropdown + four stats + two action buttons). Port each section from the Vue 2 panel
 // src/views/Photos/PhotosPersonDetail.vue:3-91 (template), :492-529 (cover/heroBg/
 // heroIsFallback/firstYear/firstMonthShort), :586-590 (relationLabel), :782-840
 // (menu toggle and positioning logic); styles from photos-people.scss:277-460.
@@ -57,7 +57,7 @@
 // group triggers `.edit-btn`/`.relation-trigger`, and the two action buttons `.actions .btn`
 // (Ask about excepted) were wrongly grouped into the "pinned light" rule above — they all
 // actually carry a `var(--float-bg)` pill background (parity-supplied, a frosted
-// backdrop-filter surface), so they are not bare text over the photo. Vue2 itself (NimoOS-UI
+// backdrop-filter surface), so they are not bare text over the photo. Vue2 itself (the Vue 2 panel
 // src/views/Photos/photos-people.scss:320/327, 350/360, 406; PhotosPersonDetail.vue:1133,
 // 1175/1183, 1197) never pins a colour on these elements: it uses the themed tokens
 // `var(--text-2)`/`var(--text-1)` together with the equally themed `var(--float-bg)` pill, so

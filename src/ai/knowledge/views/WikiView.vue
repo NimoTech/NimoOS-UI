@@ -1,9 +1,9 @@
 <!--
   SP8-P5f Task 6 (first half) + **Task 7 (second half, this batch)** — "Wiki navigation" page
   (rail item 3, route `/ai/knowledge/wiki`),
-  1:1 ported from Vue 2 reference `NimoOS-UI` @ `7a6ee6b7`
+  1:1 ported from Vue 2 reference the Vue 2 panel @ `7a6ee6b7`
   `src/views/AI/Knowledge/WikiView.vue` (314 lines, read via
-  `git -C ../../NimoOS-UI show 7a6ee6b7:` — governance §0.4: that repo's working tree is
+  `git -C ../../the Vue 2 panel show 7a6ee6b7:` — governance §0.4: that repo's working tree is
   on a different branch, not trustworthy).
 
   ═══════════════════ 🔴 T6 / T7 batch boundary (read this first before next batch) ═══════════════════
@@ -74,7 +74,7 @@
     simplification, note it in report** (governance §3.5 N58 original mandate).
 
   【N49 — Go nil slice fallback】`node.childMap` / `node.recentChanges` `|| []` fallback
-    **lives in shared package's `normalizeNode`** (`NimoOS-Service/src/wiki.ts:113-114`) ⇒ page
+    **lives in shared package's `normalizeNode`** (`the shared service package's src/wiki.ts:113-114`) ⇒ page
     always receives arrays. This batch copies blueprint's `v-if="node && node.childMap.length"`
     — the "node is null" half still must be guarded by page itself (N48's 404→null business
     state). `changes` with `(node ? node.recentChanges : [])` same logic, copy as-is.
@@ -151,7 +151,7 @@
 
   【N46 — two naming styles, easiest mistake this cycle】Wiki's `WikiRoot` **has no json tag**
     ⇒ HTTP response is PascalCase; `/tree`, `/node`, `/raw` are snake_case. **Bidirectional
-    normalization already in shared package** (`NimoOS-Service/src/wiki.ts:85 normalizeRoot` /
+    normalization already in shared package** (`the shared service package's src/wiki.ts:85 normalizeRoot` /
     `:102 normalizeTreeNode` / `:112 normalizeNode`) ⇒ **store exit is camelCase throughout**
     (T0 determined by testing, `p5f-task-0-report.md` §4.4). This page only consumes camelCase
     `aiLabel` / `lastModified` / `r.path` / `r.id`, **must not normalize again in page**.

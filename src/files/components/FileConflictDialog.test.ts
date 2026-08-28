@@ -50,10 +50,10 @@ describe('FileConflictDialog', () => {
     expect(document.body.textContent).toContain('文件夹不支持覆盖')
   })
 
-  // Fix wave A3 (audit-modals.md, Overwrite-disabled tooltip): reverted to Vue2's own native
-  // `title` attribute mechanism -- the custom instant CSS tooltip bubble this used to be was a
-  // deliberate New-UI-only UX improvement, but the audit's own directive is pixel/behavior parity
-  // with Vue2, which relies on the browser's own default title tooltip.
+  // Overwrite-disabled tooltip: reverted to Vue2's own native `title` attribute mechanism -- the
+  // custom instant CSS tooltip bubble this used to be was a deliberate improvement over the
+  // ported behavior, but pixel/behavior parity with Vue2 wins here, which relies on the browser's
+  // own default title tooltip.
   it('carries the why-disabled tip for a directory conflict', async () => {
     await open({ isDir: true, allowMerge: true })
     expect(btn('覆盖')!.getAttribute('title')).toBe('文件夹不支持覆盖')

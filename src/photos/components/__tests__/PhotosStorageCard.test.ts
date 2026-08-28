@@ -1,5 +1,5 @@
 // SP7-P8a-T3: PhotosStorageCard.vue — Storage card on the settings page.
-// Source coordinates in task-3-brief.md; Vue2 PhotosSettings.vue:39-126(template)/:299-331(computed)/
+// Source coordinates: Vue2 PhotosSettings.vue:39-126(template)/:299-331(computed)/
 // :382(fmt)/:405-457(fmtBytes/five action methods).
 //
 // Test infrastructure deviation registry (brief vs. actual repo — follow actual test results):

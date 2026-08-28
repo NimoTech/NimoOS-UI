@@ -40,7 +40,7 @@ const CAPPED: string[] = [
   // PhotosMomentDetail.vue 五页同样换成 `.app` 网格壳,同样不再含 `.photos-layout {`
   // 字面量,同一条自动排除规则覆盖——已从下面的 CAPPED 名单摘掉(高度封顶职责转移给
   // `.app` 网格,不再是本文件锁的 `.photos-layout` 规则字符串)。
-  // Fix-3 item 7(owner acceptance,2026-08-13,Plan F pull-forward)起,PhotosSearch.vue 同样
+  // PhotosSearch.vue 同样
   // 换成 `.app` 网格壳,同理从下面摘掉——它已经不含 `.photos-layout {` 字面量,
   // `allPhotosLayoutViews()` 自动排除,不需要挪进 EXEMPT。
   // As of Plan D Task 2 (People re-shell), PhotosPeople.vue has likewise switched to the `.app`

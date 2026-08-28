@@ -1,7 +1,7 @@
 // Convention guard: the shared package @nimotech/nimoos-service must stay in vite's optimizeDeps.exclude.
 //
 // Since SP13 (2026-08-07) the package is inlined into this repo at `packages/service/`
-// (`package.json` says `file:packages/service`, no longer `file:../NimoOS-Service`) — but
+// (`package.json` says `file:packages/service`, no longer pointing at the old external service package) — but
 // this guard is still required; do not consider it obsolete just because "the package is
 // already in the repo". Reason: it is still a `file:` dependency, still resolved through
 // `node_modules` (pnpm hardlinks `packages/service/` into the `.pnpm` directory); to Vite

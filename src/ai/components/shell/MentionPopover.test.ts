@@ -1,4 +1,4 @@
-// 1:1 port of test; see .superpowers/sdd/p1c1-task-7-brief.md Step 1 (verbatim copy, assertions unchanged).
+// 1:1 port of test (verbatim copy, assertions unchanged).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'

@@ -1,6 +1,6 @@
 // SP8-P1c1 patch task 2 — SlashPopover: slash command panel in the same style as the @ panel.
-// Ten test cases are specified in .superpowers/sdd/p1c1-patch-task-2-brief.md "Test Requirements" section;
-// mount/keyboard assertion style copied from MentionPopover.test.ts (real i18n, attachTo document.body,
+// Ten test cases cover the "Test Requirements" section; mount/keyboard assertion style
+// copied from MentionPopover.test.ts (real i18n, attachTo document.body,
 // window.dispatchEvent triggering capture-phase keydown).
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'

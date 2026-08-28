@@ -8,7 +8,7 @@ import type { NetworkInterfaceConfig, NetworkInterfaceUpdate } from '@nimotech/n
 
 // ── real-device fixture (verified via curl, 2026-07-31; only the fields the UI uses are kept) ────────────────────
 const HTTP_NET = [
-  { name: 'enp2s0', state: 'up', addr: '192.168.1.143', speed: 1000, max_speed: 1000 },
+  { name: 'enp2s0', state: 'up', addr: '192.168.1.10', speed: 1000, max_speed: 1000 },
   { name: 'enp4s0', state: 'down', addr: '', speed: 0, max_speed: 1000 },
   { name: 'wlp1s0', state: 'down', addr: '', speed: 0, max_speed: 0 },
 ]
@@ -74,7 +74,7 @@ describe('NetworkPanel —— list assembly', () => {
     expect(rows).toHaveLength(3)
     expect(rows[0].text()).toContain('enp2s0')
     expect(rows[0].text()).toContain('1 Gbps')
-    expect(rows[0].text()).toContain('192.168.1.143')
+    expect(rows[0].text()).toContain('192.168.1.10')
     expect(rows[0].get('.set-net-dot').classes()).toContain('up')
     expect(rows[2].text()).toContain('wlp1s0')
     expect(rows[2].text()).toContain('Wi-Fi')
@@ -102,7 +102,7 @@ describe('NetworkPanel —— 5-second live stream (user signed off on wiring th
     expect(w.findAll('.set-net-row')[1].text()).not.toContain('10.0.0.9')
 
     busHandler!({ sys_net: JSON.stringify([
-      { name: 'enp2s0', state: 'up', addr: '192.168.1.143', speed: 1000, max_speed: 0 },
+      { name: 'enp2s0', state: 'up', addr: '192.168.1.10', speed: 1000, max_speed: 0 },
       { name: 'enp4s0', state: 'up', addr: '10.0.0.9', speed: 100, max_speed: 0 },
       { name: 'wlp1s0', state: 'down', addr: '', speed: 0, max_speed: 0 },
     ]) })
@@ -115,12 +115,12 @@ describe('NetworkPanel —— 5-second live stream (user signed off on wiring th
 
   it('⚠️ max_speed is always 0 in the push, the speed label **must not** distort (MaxSpeedMemo takes effect)', async () => {
     // Construct an interface with a 2.5G cap negotiated down to 1G — a shape this machine can't reveal but other machines will definitely flicker on
-    api.net = [{ name: 'enp2s0', state: 'up', addr: '192.168.1.143', speed: 1000, max_speed: 2500 }]
+    api.net = [{ name: 'enp2s0', state: 'up', addr: '192.168.1.10', speed: 1000, max_speed: 2500 }]
     const w = mountIt(); await flushPromises()
     expect(w.findAll('.set-net-row')[0].text()).toContain('1 Gbps / 2.5 Gbps')
 
     busHandler!({ sys_net: JSON.stringify([
-      { name: 'enp2s0', state: 'up', addr: '192.168.1.143', speed: 1000, max_speed: 0 },
+      { name: 'enp2s0', state: 'up', addr: '192.168.1.10', speed: 1000, max_speed: 0 },
     ]) })
     await flushPromises()
     expect(w.findAll('.set-net-row')[0].text()).toContain('1 Gbps / 2.5 Gbps')

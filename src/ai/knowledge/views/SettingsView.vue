@@ -1,6 +1,6 @@
 <!--
   SP8-P5c Task 8 — "System Settings" page (rail item 9, route `/ai/knowledge/settings`),
-  1:1 ported from Vue 2 reference `NimoOS-UI` (main@7a6ee6b7)
+  1:1 ported from Vue 2 reference the Vue 2 panel (main@7a6ee6b7)
   `src/views/AI/Knowledge/SettingsView.vue` (322 lines, read via `git show main:` —
   governance §1: the working tree in that repo is an old branch, not reliable).
 
@@ -184,7 +184,7 @@
   【K27 — all `notesApi.*` goes through shared package】Reference `notesApi.getSettings()` /
     `putSettings()` / `dirInfo()` (`@/service/notes.js`) → `service.notes.*`. Critical:
     **layer detail**: `service.notes.getSettings/putSettings` internally goes through
-    `normalizeSettings` (`NimoOS-Service/src/notes.ts:131-137`) → receives **camelCase with only
+    `normalizeSettings` (`the shared service package's src/notes.ts:131-137`) → receives **camelCase with only
     `{ notesRoot, autoExtract }` two fields**; HTTP layer `distill_roots` / `distill_daily_cap` /
     `background_model` dropped by that normalization. `dirInfo` internally normalizes to
     `{ exists: boolean, empty: boolean }`. Warning: `normalizeSettings` `autoExtract: r.auto_extract !== false`

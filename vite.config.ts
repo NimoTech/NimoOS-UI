@@ -81,7 +81,7 @@ export default defineConfig({
   // SP8-P6-T3 merge: **port unified back to 5273**. The 5286/5287/5288 set was an artifact
   // of the "three parallel lines each on its own port, none overwriting the on-device /app/
   // deploy" era; after SP8 merged back to mainline there is only one line, and the
-  // `pnpm dev → http://localhost:5273/app/` recorded in CLAUDE.md is the sole convention.
+  // `pnpm dev → http://localhost:5273/app/` is the sole convention.
   // The proxy rule takes master's DEV_PROXY — its `^/(?!app/)` is a **strict superset** of
   // sp8's four rules (/v1, /v2, ^/$, static dirs) and carries ws:true, so sp8's
   // "log in via Vue2 to get a token, then enter /app/#/ai/* for acceptance" ability is
@@ -101,8 +101,8 @@ export default defineConfig({
     // Claude Code's isolated worktrees appear under .claude/worktrees/ (each a full repo
     // copy); without the exclusion, vitest recurses into them, runs other sessions' tests,
     // and fails en masse.
-    // (Before the SP13 inlining, this also needed an extra symlink for NimoOS-Service to
-    // install dependencies — after inlining, `file:packages/service` is an in-repo relative
+    // (Before this package was inlined, this also needed an extra symlink for the old external
+    // service package to install dependencies — after inlining, `file:packages/service` is an in-repo relative
     // path that resolves naturally inside worktrees, so the symlink is no longer needed; a side benefit.)
     exclude: ['**/node_modules/**', '**/dist/**', '.claude/**'],
     setupFiles: ['./vitest.setup.ts'],

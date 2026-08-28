@@ -1,6 +1,6 @@
 // SP7-P7b-T1: EXIF / gallery filter predicates -- the timeline page and the jump-to-library
 // page share the same judgment logic so both sides filter consistently.
-// Ported from Vue2 NimoOS-UI src/views/Photos/photosFilterUtils.js (27 lines), logic mapped line-for-line.
+// Ported from the Vue 2 panel's src/views/Photos/photosFilterUtils.js (27 lines), logic mapped line-for-line.
 //
 // D17 / F2 deviation log: dropped Vue2's `archiveIds` parameter and its branch. Grepping back
 // to source confirms the whole archive chain is dead (PhotosGrid never emits batch-archive ->

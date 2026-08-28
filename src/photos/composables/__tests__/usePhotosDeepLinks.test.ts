@@ -1,5 +1,5 @@
 // SP7-P8a-T7/T8: usePhotosDeepLinks — ?asset / ?photoset / ?q / ?album / ?person deep links.
-// Source: Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue:364-377/:431-440/:441-465/
+// Source: the Vue 2 panel's src/views/Photos/PhotosTimeline.vue:364-377/:431-440/:441-465/
 // :491-523; ?album is read in PhotosAlbumsView.vue:264 mounted hook itself (New-UI unified into this composable).
 //
 // Mount pattern follows existing examples in Photos.lightbox.test.ts / PhotosPlaceAssets.test.ts:
@@ -15,13 +15,13 @@
 // this way, openAt assertions all missed — changed to assert real state, also better aligned
 // with review requirement of "test real behavior, not just mock calls"). T8 follows the same
 // discipline: ?album/?person assertions land on vue-router's real parsed route results
-// (fullPath/name/params/query), not on string form of mock call parameters — the brief skeleton
+// (fullPath/name/params/query), not on string form of mock call parameters — the original skeleton
 // gave `router.replace.mock.calls[0][0].path` assertion which only works for "hand-stitched
 // string path" implementations; this file uses vue-router named routes + params encoding
 // mechanism (see usePhotosDeepLinks.ts comments), under which replace call arguments have no
 // `.path` field, skeleton assertion doesn't hit, changed to assert real parsed route state.
 //
-// Intentional deviations from task-7-brief.md step 1 skeleton (logged in task-7-report.md):
+// Intentional deviations from the step 1 skeleton:
 //  1) Pagination assertions use real list.value / expect.objectContaining({id}), not literal
 //     `{ id: 'a' }` — implementation per coordinate notes uses assetToPhoto({id}) to populate
 //     Photo's 25+ mandatory fields (cannot `as unknown as Photo` cast), result is not bare
@@ -465,7 +465,7 @@ describe('usePhotosDeepLinks · query-only (already at /photos, query appears la
 
   // 🔴 Requirement 2 core test: after consuming one-time handoff, editing a completely
   // unrelated query key (?q) must never make photoset branch misclassify as "missing" and retake
-  // degrade path (shrink lightbox content to active single). This is why the original ruling
+  // degrade path (shrink lightbox content to active single). This is why the original constraint
   // "forbid watcher", now unblocked by "compare key-by-key, only process the one that actually
   // changed" — this test proves it works.
   it('After consuming handoff, edit unrelated ?q: no retrigger degrade, lightbox content unchanged', async () => {

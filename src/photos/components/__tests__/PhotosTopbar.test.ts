@@ -157,7 +157,7 @@ describe('搜索 submit', () => {
   })
 })
 
-// Fix-1 item 1 (owner acceptance, 2026-08-13): additive title/sub/showSearch prop overrides,
+// Additive title/sub/showSearch prop overrides,
 // used by the five re-shelled album/for-you pages (Vue2 truth: PhotosTimeline.vue mounts the
 // SAME <PhotosTopbar> for every non-people/places/upload nav, PhotosTimeline.vue:957-971, just
 // feeding it per-nav title/sub and show-search — it is not a library-exclusive component).
@@ -217,8 +217,8 @@ describe('sub="" 显式抑制副行(fix round 1 · Important 1,与"不传 sub"�
   })
 })
 
-// Fix-4 item 2 (owner acceptance, 2026-08-13): `back` prop had zero test coverage in Fix-3 —
-// every other prop added that wave (title/sub/showSearch, Fix-1 item 1) got one, this one didn't.
+// The `back` prop had zero test coverage until now —
+// every other prop added in that same round (title/sub/showSearch) got one, this one didn't.
 // Mirrors Vue2 PhotosTopbar.vue:6-12's searchMode swap: `v-if="back"` renders a second icon-btn
 // (chevL) in place of the title/sub block (`v-if="!back"`), emits `back` on click.
 describe('back prop(额外覆盖,Fix-4 item 2)', () => {
@@ -330,7 +330,7 @@ describe('back=true 时搜索框自动聚焦(Plan F Task 1,对齐 Vue2 searchMod
 // Plan G Task 16 (preflight F-06/F-17): additive `showAskNimo` prop (default false, non-breaking
 // for the 5 existing library/albums/smart-views/people/places callers) + `ask-nimo` emit. Vue2
 // truth: the topbar Ask button is a labeled pill (`class="btn btn-ai"` + 18px `.nimo-orb` +
-// visible "Ask Nimo" text, NimoOS-UI PhotosTopbar.vue:29-32) that opens the drawer directly, no
+// visible "Ask Nimo" text, the Vue 2 panel's PhotosTopbar.vue:29-32) that opens the drawer directly, no
 // prefill (baseline research report §2.1) — this component only emits, the caller (T2's
 // useAskNimo().openDrawer()) owns that behavior.
 //

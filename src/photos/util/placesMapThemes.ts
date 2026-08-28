@@ -1,5 +1,5 @@
 // Task 10(SP7-P6a 地点·地图主视图):地图主题预设表 + `resolveMapTheme` / `mapThemeStyleVars` /
-// `swatchColors`。逐条照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:
+// `swatchColors`。逐条照 the Vue 2 panel's src/views/Photos/PhotosPlacesView.vue:
 //   :85-113   (mapTheme/customDotColor/customCityColor/mapThemes initial values in data())
 //   :134-151  (currentTheme computed —— resolveMapTheme 的语义来源)
 //   :952/:974 (主题色怎么注入到 zoombar 的 --accent 与 <svg> 的 background/--map-*)

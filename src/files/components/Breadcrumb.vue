@@ -10,7 +10,7 @@ import { collapseCrumbs, maxCollapsible, type CrumbSeg } from '../util/breadcrum
 const props = defineProps<{
   virtualPath: string
   currentRealPath: string
-  // Fix wave D (D1, owner acceptance 2026-08-26): snapshots are read-only, and Vue2 gates the
+  // Snapshots are read-only, and Vue2 gates the
   // favorite-star affordance off while browsing one (GirdView.vue's own `isInSnapshot` computed --
   // "never while browsing a snapshot", see that file's header comment). The caller passes
   // `browse.isSnapshotView` here (not `tmActive`: plain snapshot browsing without Time Machine
@@ -165,7 +165,7 @@ function hiddenLabel(hidden: CrumbSeg[]): string {
       <button v-else class="crumb" @click="emit('navigate', item.seg.vpath)">{{ item.seg.label }}</button>
     </template>
     <FavoriteStar v-if="!props.hideFavorite && currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
-    <!-- Fix wave B (B2, owner acceptance 2026-08-26): an optional trailing slot, rendered as the
+    <!-- An optional trailing slot, rendered as the
          LAST item in this same flex-wrap row -- so whatever the caller puts here (Files.vue's own
          "Snapshot · Read-only" chip) hugs the breadcrumb's actual rendered content, the same way
          Vue2's FilePanel.vue puts its own `.tm-snap-chip` inside the SAME flex row as
@@ -186,7 +186,7 @@ function hiddenLabel(hidden: CrumbSeg[]): string {
    otherwise collapsing would shrink the box the ResizeObserver is watching.
    overflow:hidden is the backstop for the frame before the measuring loop settles
    and for a single label too long to ever fit. */
-/* Fix wave E (E2, owner acceptance 2026-08-26): gap is `var(--tm-crumb-gap)` -- shared with
+/* Gap is `var(--tm-crumb-gap)` -- shared with
    SnapshotPreviewWindow.vue's own hand-copied replica (theme.css's own comment on that token
    block explains why this LIVE component, not just the TM-specific ones, also draws from it). */
 .breadcrumb { display: flex; align-items: center; gap: var(--tm-crumb-gap); flex: 1 1 auto; flex-wrap: wrap; min-width: 0; overflow: hidden; }

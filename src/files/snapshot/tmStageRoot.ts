@@ -1,4 +1,4 @@
-// Task 7 fix round (review finding 2): TimeMachineDepthStack.vue's own resolveSlotPose/
+// TimeMachineDepthStack.vue's own resolveSlotPose/
 // computeVisibleStripCap calls both need the OUTER `.tm-stage` root's raw, un-reduced
 // clientHeight -- Vue2 measures its own `$refs.stage` (the SAME `.tm-stage` element these
 // functions' own bottomGap constant is defined relative to), and both functions already

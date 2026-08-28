@@ -33,8 +33,8 @@ let disposed = false
 const pathSegments = computed(() => props.item.path.replace(/^\/+/, '').split('/').filter(Boolean))
 
 async function readCode(): Promise<string> {
-  // Controller-verified: /v1/file/content is a standard envelope whose `data`
-  // is the raw content STRING (not {content}) — but read defensively in case
+  // Verified against the backend: /v1/file/content is a standard envelope
+  // whose `data` is the raw content STRING (not {content}) — but read defensively in case
   // the endpoint ever returns the typed `{content}` shape instead of a bare string.
   const raw = await service.file.getContent(props.item.path)
   return coerceContent(typeof raw === 'string' ? raw : (raw as { content?: unknown })?.content ?? raw)

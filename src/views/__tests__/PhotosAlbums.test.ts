@@ -1119,8 +1119,8 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
   })
 })
 
-// Fix-1 (owner acceptance, 2026-08-13) item 1: Plan C wrongly assumed Vue2's five re-shelled
-// pages had no topbar. Truth: Vue2 is a single-page shell — PhotosTimeline.vue mounts the same
+// It's easy to wrongly assume Vue2's five re-shelled pages had no topbar. Truth: Vue2 is a
+// single-page shell — PhotosTimeline.vue mounts the same
 // <PhotosTopbar> above every nav (PhotosTimeline.vue:957-971), including 'albums'
 // (topbarTitle's 'albums' branch = 'Albums', PhotosTimeline.vue:187; topbarSubContext's
 // 'albums' branch = album-aggregate '{photos} photos · {videos} videos',
@@ -1169,15 +1169,15 @@ describe('Fix-1 item 2: albums scroll container padding restored', () => {
   })
 })
 
-// Fix-7 (owner acceptance, 2026-08-14): owner screenshot shows the "Sort: Recently added ⌄"
-// pill rendering as bare text in photos light mode -- no border, no background (the "New
+// The "Sort: Recently added ⌄" pill was rendering as bare text in photos light mode -- no
+// border, no background (the "New
 // album" button next to it, and the same Sort pill on the album-detail/SV-detail pages, are
 // unaffected). Root cause: this button used `class="bar-btn"`, a *global* New-UI button class
 // (theme.css) whose chrome tokens (--chip-bg/--chip-border/--fg) are not shadowed on
 // `.photos-root`, so they don't follow the private photos-is-light toggle -- in photos light
 // mode `--chip-bg`'s dark-theme value (a translucent white glass gradient) sits on the parity
 // light page's own near-white background and disappears. Vue2's real class here
-// (NimoOS-UI PhotosAlbumsView.vue:60) is `.btn`, parity's own `.photos-root .btn`
+// (the Vue 2 page's PhotosAlbumsView.vue:60) is `.btn`, parity's own `.photos-root .btn`
 // (photos.scss:290-298, --surface-2/--line/--text-1, all correctly shadowed under
 // `.photos-root.is-light`) -- renamed to match.
 describe('Fix-7: albums-page Sort pill uses the parity .btn class, not the global .bar-btn', () => {
@@ -1198,8 +1198,7 @@ describe('Fix-7: albums-page Sort pill uses the parity .btn class, not the globa
   })
 })
 
-// Fix-11 (owner acceptance, 2026-08-14): three leading icons the owner reported missing.
-// Root cause per element:
+// Three leading icons were missing. Root cause per element:
 //  1) Sort pill: the button had no leading icon element at all (Vue2 PhotosAlbumsView.vue:60-61
 //     leads it with `<photos-icon name="filter" :size="13"/>`) -- 'filter' didn't exist in this
 //     repo's PhotosIcon.vue at all, so there was nothing to render even if a caller had asked

@@ -1,3 +1,0 @@
-HTTP/1.1 200 OK
-
-{"mime":"text/markdown","filename":"p5c-empty.md","size":0,"text_length":0,"chunk_count":0,"chunks":[],"params_used":{"target_tokens":600,"overlap_tokens":0,"min_tokens":2,"chunker":"markdown"}}

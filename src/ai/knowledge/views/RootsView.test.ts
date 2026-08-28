@@ -1,5 +1,5 @@
 // SP8-P5f Task 5 — Component test for `RootsView.vue`.
-// Blueprint: `NimoOS-UI` @ `7a6ee6b7` `src/views/AI/Knowledge/RootsView.vue` (289 lines).
+// Blueprint: the Vue 2 panel @ `7a6ee6b7` `src/views/AI/Knowledge/RootsView.vue` (289 lines).
 //
 // ═══ Mock strategy (governance §4.1 requires explicit documentation) ═══
 // 🔴 **Mock the six `service.wiki.*` methods of the shared package, use real `knowledgeStore`** — don't mock store.
@@ -8,7 +8,7 @@
 //   be tested by using a real store — if we mock `setRootEnabled`, `r.enabled` never changes,
 //   and those two guard tests degrade to "assert a value that never changes", with zero discriminative power.
 // 🔴 Shape (§4.1 table + `p5f-fixtures/README.md` §3):
-//   · `service.wiki.getRoots` — **shared package already normalized** (`NimoOS-Service/src/wiki.ts:85`
+//   · `service.wiki.getRoots` — **shared package already normalized** (`the shared service package's src/wiki.ts:85`
 //     `normalizeRoot`) ⇒ 🔴 **camelCase** (`id`/`path`/`watchMode`/`scanIntervalS`/
 //     `lastScanAt`/`enabled`), **not** HTTP raw's PascalCase (N46 / T0 §4.4 decision).
 //   · `service.wiki.getCandidates` — **pass-through as-is, no normalization** (`wiki.ts:154-157`) ⇒
@@ -21,7 +21,7 @@
 //
 // ═══ Fixtures are copies, not runtime reads (governance §4 / P5c §4.4) ═══
 // Data copied verbatim into the `FIXTURE-COPY-BEGIN/END` blocks below with **three-level source tags**
-// (decision R3 constraint 1), **don't use `node:fs` to read `.superpowers/`** — that directory is
+// (decision R3 constraint 1), **don't use `node:fs` to read the capture directory at runtime** — that directory is
 // gitignored (lost entirely in SP7 once).
 // 🔴 **Take only data fields, convert `__meta` to comments** (decision R14 / `p5f-fixtures/README.md` §0.2).
 // Copy equivalence confirmed by **byte-for-byte programmatic verification** (output pasted in T5 report §5),
@@ -80,7 +80,7 @@ vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
 //   · label     : .CONSTRUCTED
 //   · why       : same as wiki-roots.CONSTRUCTED.json — /roots times out on device (90 s / 0 bytes), no real-device sample.
 //   · built_from: pass each field of wiki-roots.CONSTRUCTED.json's raw_response through
-//                 NimoOS-Service/src/wiki.ts:85 normalizeRoot.
+//                 the shared service package's src/wiki.ts:85 normalizeRoot.
 //   · shape     : 🔴 camelCase — this is the shape of store.state.wikiRoots output;
 //                 RootsView / WikiView mocks all follow it (N46).
 //   · note      : enabled normalized to boolean via `!!r.Enabled`;
@@ -121,7 +121,7 @@ const ROOTS_NORMALIZED: WikiRoot[] = [
 //                  tested three times, 3 bytes each) ⇒ **no non-empty** sample available.
 //   · built_from : Candidate struct from NimoOS-Wiki/service/roots/candidates.go;
 //                  Path/Type always present (json tag has no omitempty), Size/Label are omitempty (entire key absent at zero value).
-//   · passthrough: 🔴 getCandidates **does not normalize** (NimoOS-Service/src/wiki.ts:154-157 pass-through as-is)
+//   · passthrough: 🔴 getCandidates **does not normalize** (the shared service package's src/wiki.ts:154-157 pass-through as-is)
 //                  ⇒ this is the shape seen by the page, **not camelCase normalized**.
 //   · consumer   : RootsView's browserRoots = pickerRoots(store.state.wikiCandidates).
 const CANDIDATES_CONSTRUCTED = [

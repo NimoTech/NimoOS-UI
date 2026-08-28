@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Task 11 (SP7-P6a 地点·地图主视图,本期收官): PhotosPlaces.vue —— 容器,把前 10 个任务的
 // 产物接成一个可用页面:壳 + 图例/统计/悬停卡片 + 五个子组件接线 + 路由与侧栏第 4 条目。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue :760-761+:827-828+:949-950+
+// 逐段照 Vue2 的 src/views/Photos/PhotosPlacesView.vue :760-761+:827-828+:949-950+
 // :1250-1251(容器骨架)、:1013-1028(悬停卡片)、:1030-1044(图例)、:1046-1056(统计)、
 // :70-132(state)、:290-322(watch)、:323-357(mounted,跳过封面弹层/文档 mousedown 部分——
 // 那些是 Vue2 封面选择器 + Filters/Theme 弹层的旧版点外部关闭逻辑,封面选择器归 P6b,
@@ -34,7 +34,7 @@
 // main.main > PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses
 // (PhotosPeople.vue/PhotosAlbums.vue's own Plan C/D Task 2 precedent), via the shared
 // `useSidebarCollapse` singleton. Topbar copy: `title = t('photosPlaces')`, `sub` mirrors Vue2
-// PhotosPlacesTopbar.vue's own subtitle computed (NimoOS-UI src/views/Photos/
+// PhotosPlacesTopbar.vue's own subtitle computed (the Vue 2 panel's src/views/Photos/
 // PhotosPlacesTopbar.vue:32-35) — no `back` (Plan D ruling: back affordances don't go in the
 // topbar), no Ask Nimo button (Vue2's own, registered as a Plan G input, not built here).
 // PlacesFilterMenu/PlacesThemeMenu were already rendered in-tree (inside the old
@@ -139,7 +139,7 @@ const activeDetail = computed(() =>
   (store.detail && String(store.detail.id) === String(activeId.value)) ? store.detail : null)
 const hasPanel = computed(() => activePlace.value != null || activeDetail.value != null)
 
-// Fix-1 item 2 (owner acceptance, 2026-08-16): mirrors Vue2's own `currentHero` computed
+// Mirrors Vue2's own `currentHero` computed
 // (PhotosPlacesView.vue:310-314) exactly — `coverAssetId || thumbs[0] || ''`. This container's
 // PlaceCoverPicker `current-asset-id` binding used to read only `activeDetail?.coverAssetId ??
 // ''`, missing the `thumbs[0]` fallback: most places have no *explicit* coverAssetId (only set
@@ -167,7 +167,7 @@ const totalPhotos = computed(() => countPhotos(filteredPlaces.value))
 const countryCount = computed(() => countCountries(filteredPlaces.value))
 
 // Task 1 (Plan E re-shell): PhotosTopbar's `sub` line mirrors Vue2 PhotosPlacesTopbar.vue's own
-// subtitle computed (NimoOS-UI src/views/Photos/PhotosPlacesTopbar.vue:32-35) — cities/countries
+// subtitle computed (the Vue 2 panel's src/views/Photos/PhotosPlacesTopbar.vue:32-35) — cities/countries
 // counts. Vue2 feeds that component from `placesStats`, itself fed by this same view's own
 // `update:visible-stats` emit off `visiblePlaces.length`/`countries` (PhotosPlacesView.vue:341/
 // 490) — i.e. the *filtered* set, not the raw fetch total. Reuses filteredPlaces/countryCount
@@ -367,7 +367,7 @@ async function onResetSpotName(): Promise<void> {
 }
 
 // ── P6b-T8: 相册与 toast ────────────────────────────────────────────────────
-// Fix-1 item 5 (owner acceptance, 2026-08-16): this used to call the GENERIC app-wide
+// This used to call the GENERIC app-wide
 // `useToast()` for the save-as-album success toast, rendering as a plain gray pill instead of
 // the photos-styled toast every other Places/library flow uses (delete/lightbox — see
 // `onLightboxDelete` above, which already calls `photosToast.show(...)`). Vue2's own
@@ -465,9 +465,9 @@ function openAlbumPicker(ids: Array<string | number>): void {
 function onAlbumPickerAdded(): void {}
 
 // ── P6b-T8: 跳库导航 ─────────────────────────────────────────────────────────
-// Fix-1 item 4 (owner acceptance, 2026-08-16): both handlers below used to push to the
-// standalone place-assets page (`/photos/places/:key`) — the owner's explicit, binding
-// instruction is that "Open in Library"/a spot row's "View in Library" must instead land in
+// Both handlers below used to push to the
+// standalone place-assets page (`/photos/places/:key`) — the explicit, binding
+// requirement is that "Open in Library"/a spot row's "View in Library" must instead land in
 // the actual PHOTO LIBRARY (`/photos`) with a place filter applied, matching Vue2's own
 // `onPlacesOpenLibrary`/`onPlacesOpenSpot` (PhotosTimeline.vue:767-793), which drive the
 // library's own client-side `places` EXIF facet with the place's city name rather than
@@ -774,7 +774,7 @@ async function retryLoad(): Promise<void> {
    theme-invariant Vue2 literal) under the same D3 "surface treatment is New-UI's to reshape"
    ruling `.map-canvas-wrap`'s own background uses just below, not a separate ad-hoc choice.
 
-   Fix-1 item 1 (owner acceptance, 2026-08-16) correction: the D3 reshape had picked the wrong
+   Correction: the D3 reshape had picked the wrong
    token family. `background: var(--panel-bg)` and `border: 1px solid var(--card-border)` are
    *global* New-UI glass tokens (src/styles/theme.css) — `--panel-bg` is a translucent WHITE
    glass overlay in BOTH of theme.css's own blocks (a low-alpha white wash, see that file's own

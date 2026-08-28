@@ -8,7 +8,7 @@ describe('ui/ContextMenu', () => {
     expect(w.find('.trigger').exists()).toBe(true)
   })
 
-  // Files Time Machine Task 15, controller ruling P3: does a right-click inside the scaled
+  // Files Time Machine Task 15: does a right-click inside the scaled
   // `.tm-fwin--active` window (`transform: scale(0.82)`, TimeMachineStage.vue) open this menu AT
   // the cursor, or offset -- the same class of bug Vue2's own ContextMenu.vue needed
   // `compensateFixedPosition` to fix (see that file's own header comment: Buefy's `append-to-body`

@@ -7,7 +7,7 @@
   1 (public constraint §3 divergence 1 / brief §6.2) — `reload()` no longer peels off `.data` again.
   Vue2 :133-134 wrote `const resp = await ai.listSkills(); this.skills = resp.data || []`,
   that's peeling off axios response layer's `.data` as backend payload. Shared package
-  `service.ai.listSkills()` (NimoOS-Service/dist/ai.d.ts:75) already internally `return res.data`
+  `service.ai.listSkills()` (the shared HTTP client's `dist/ai.d.ts:75`) already internally `return res.data`
   peeled axios layer once, while backend `NimoOS-AI/route/v2/skills.go:37` is `c.JSON(200, out)`
   bare array — peeling off `.data` again on bare array is always `undefined`, `this.skills` always
   `[]` (bare array fallback masks actually getting undefined), list forever empty. Same defect mold
@@ -258,7 +258,7 @@ async function onCreate(payload: SkillFormPayload) {
   createError.value = ''
   try {
     // `service.ai.createSkill`'s parameter type is `Record<string, unknown>` (shared
-    // package signature, see NimoOS-Service/src/ai.ts:337) — `SkillFormPayload` is a
+    // HTTP client signature, see `src/ai.ts:337`) — `SkillFormPayload` is a
     // named interface without an implicit index signature, so TS considers them
     // incompatible (TS2345), hence the one-off cast; the field values themselves are
     // untouched.

@@ -1,5 +1,5 @@
 <!-- Message list + composer for Ask Nimo, shared by the popup and the drawer. Pixel source:
-     Vue2 NimoOS-UI src/views/Photos/PhotosAgentChat.vue (markup + logic) + Task 5's ported
+     the Vue 2 panel's src/views/Photos/PhotosAgentChat.vue (markup + logic) + ported
      .nimo-md/.nimo-tool-line/.nimo-photo-grid/.nimo-typing/.nimo-ctx-chip rules.
      No <style> block: pixel coverage comes entirely from parity scss (Constraints #12). -->
 <script setup lang="ts">

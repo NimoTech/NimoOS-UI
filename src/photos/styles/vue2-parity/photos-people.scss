@@ -315,7 +315,7 @@
 }
 .detail-hero .back {
   position: absolute; top: 18px; left: 18px;
-  /* Task 5 (Plan D): transcribed from Vue2's own inline
+  /* Transcribed from Vue2's own inline
      `style="position:relative;z-index:5;cursor:pointer"` on this button
      (PhotosPersonDetail.vue:5) — this bare-selector rule previously omitted
      it, an accidental gap in the original transcription. */
@@ -417,11 +417,11 @@
   background: linear-gradient(135deg, var(--accent), #b46cff);
   border-color: transparent;
 }
-/* Plan H Task 15 ruling (2026-08-17): kept, not deleted. Dead in real Vue2 (this button's
+/* Kept, not deleted. Dead in real Vue2 (this button's
    inline `style` prop wins over these rules for every property it sets, including on hover —
-   see PersonHero.vue's own Fix round 1/2 comments on its `.fav-toggle` survivor rules), and
+   see PersonHero.vue's own comments on its `.fav-toggle` survivor rules), and
    still fully neutralized here by those PersonHero survivor rules. Unlike `.relation-select`
-   below (deleted by this same task — that class has zero DOM consumers anywhere in New-UI),
+   below (deleted in the same cleanup — that class has zero DOM consumers anywhere in New-UI),
    `.fav-toggle` DOES have a real consumer: PersonHero.vue's template renders
    `class="fav-toggle"` on its favorite-toggle button. A parity rule that could still match a
    real, existing DOM node isn't safe to delete just because it's currently shadowed by
@@ -497,7 +497,7 @@
   border-radius: 3px;
 }
 
-/* Task 5 (Plan D): tile hover-reveal controls (detach / multi-select check),
+/* Tile hover-reveal controls (detach / multi-select check),
    transcribed from Vue2's own PhotosPersonDetail.vue <style scoped> block
    (::v-deep stripped) at :1259-1337 — this family was missing from this
    shared file entirely (Vue2 kept it component-local). Colors here are
@@ -575,10 +575,9 @@
 .rel-graph-wrap svg .rg-name { fill: var(--text-1); }
 .rel-graph-wrap svg .rg-name-dim { fill: var(--text-2); }
 
-/* Task 6 (Plan D, PR#137 gap-close): relation-graph empty state (no co-appearances at all).
-   Transcribed verbatim from Vue2 NimoOS-UI commit 03245590's PhotosRelGraph.vue own scoped
-   <style> block — that commit is what introduced this rule, so it lands here with this task
-   rather than Task 1 (controller preflight ruling). */
+/* Relation-graph empty state (no co-appearances at all).
+   Transcribed verbatim from the Vue 2 panel's commit 03245590's PhotosRelGraph.vue own scoped
+   <style> block — that commit is what introduced this rule. */
 .rg-empty {
   display: flex;
   flex-direction: column;
@@ -601,7 +600,7 @@
   cursor: pointer;
 }
 .rel-row:hover { background: var(--surface-2); }
-/* Plan H Task 15 (2026-08-17): `.rel-row .av`/`.rel-row .av img` deleted here — confirmed
+/* `.rel-row .av`/`.rel-row .av img` deleted here — confirmed
    zero consumers. `PersonRelationsTab.vue` actually renders `<PersonAvatar>`, whose root class
    is `.person-avatar` (bordered ring is that component's own internal `.person-avatar-ring`),
    so `.rel-row .av` never matches any node in the current DOM. `.rel-row`/`.rel-row:hover`
@@ -814,7 +813,7 @@
 
 /* ===== Person Detail — dialogs, selection bar, avatar fallback =====
    Transcribed from Vue2 PhotosPersonDetail.vue's own <style lang="scss" scoped>
-   block (::v-deep stripped) — NimoOS-UI/src/views/Photos/PhotosPersonDetail.vue
+   block (::v-deep stripped) — the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue
    ~1092-1692. Vue2's own var(--surface-1/2, --line, --text-1/2/3, --accent*,
    --danger, --pop-bg, --ink, --r-md/--r-sm, --font-sans/--font-display) already
    match this parity file's private token names 1:1 — no swaps needed. No
@@ -823,7 +822,7 @@
 
 /* -- relation/edit menu trigger family (PhotosPersonDetail.vue:1169-1241) -- */
 .detail-hero .name .relation-picker { position: relative; display: inline-flex; align-items: center; }
-/* Fix round 1 (Important 1): Vue2 has two competing sources for .edit-btn —
+/* Vue2 has two competing sources for .edit-btn —
    a bare global rule (photos-people.scss:346-359: color var(--text-3), gap
    4px) and a ::v-deep scoped rule in PhotosPersonDetail.vue:1170-1177 (color
    var(--text-2), gap 6px, box-sizing/transition). In real Vue2 the scoped
@@ -1047,8 +1046,8 @@
   border-color: var(--accent-soft);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-/* Task 4 addition: no dedicated Vue2 class for this text block — Vue2's delete-person
-   dialog renders it as a plain <div> with an inline style (NimoOS-UI
+/* No dedicated Vue2 class for this text block — Vue2's delete-person
+   dialog renders it as a plain <div> with an inline style (the Vue 2 panel's
    PhotosPersonDetail.vue:337-339): padding 12px 0 14px, font-size 12.5px,
    color var(--text-2), line-height 1.6, with the "undo within 5 seconds" clause in its
    own nested <span style="color:var(--text-3)">. Named within the person-dialog-* family
@@ -1467,7 +1466,7 @@
   gap: 6px;
   box-shadow: 0 4px 14px rgba(255, 107, 92, 0.35);
 }
-/* Fix round 1: this rule used to redeclare only `filter`, relying on the deleted local
+/* This rule used to redeclare only `filter`, relying on the deleted local
    scoped `<style>` block's own `.cad-btn-danger:hover` (data-v-boosted to (0,3,0)) to have
    already re-asserted `background` and out-rank `.cad-btn:hover` (0,2,0). Now that the
    scoped block is gone, both `.cad-btn:hover` and this rule sit at equal specificity
@@ -1524,7 +1523,7 @@
 }
 .cad-warning-body { color: var(--text-3); font-size: 11.5px; }
 
-/* Task 7 (Plan D, duplicate-name dupconfirm): PhotosPeopleView.vue:396-419 (mode='dupconfirm', a
+/* Duplicate-name dupconfirm: PhotosPeopleView.vue:396-419 (mode='dupconfirm', a
    sub-state of the shared cluster-action dialog) — transcribed from its raw inline :style
    bindings (same situation as every .cad-* rule above: Vue2 builds this whole dialog from
    :style, no Vue2 CSS class to anchor to). Column stack of three buttons, distinct from
@@ -1663,7 +1662,7 @@
 .mrd-btn-primary:hover { background: var(--accent-hi); }
 
 /* ===== People index — filter dropdowns + misc chrome. =====
-   Fix round 1 (Important 2): the `.people-menu*` / `.people-pop-wrap` family
+   The `.people-menu*` / `.people-pop-wrap` family
    below is NOT "furniture with no Vue2 pixel source" — Vue2
    PhotosPeopleView.vue's confidence dropdown (~:15-39) and sort dropdown
    (~:61-82) build this exact menu from `:style` bindings, the same situation
@@ -1761,10 +1760,10 @@
   .person-skeleton-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
-/* Plan H Task 15 (2026-08-17): the folded-in `.relation-select` rule that used to live here
+/* The folded-in `.relation-select` rule that used to live here
    (Vue2 photos-people.scss:777-786, a bare top-level selector folded inside this file's
-   `.photos-root{}` wrapper per the Plan A precedent) has been deleted — confirmed zero
+   `.photos-root{}` wrapper) has been deleted — confirmed zero
    consumers repo-wide (New-UI uses `.relation-picker`/`.relation-trigger` instead; see
    PersonHero.vue's own template). The `.detail-hero .name .relation-select`/`:hover`/`option`
-   trio above was removed in the same task for the same reason. */
+   trio above was removed for the same reason. */
 }

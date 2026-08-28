@@ -1,5 +1,5 @@
 // SP8-P5a Task 10 — KnowledgeLayout shell test.
-// Test skeleton is copied verbatim from the task brief (`.superpowers/sdd/p5a-task-10-brief.md` Step 2),
+// Test skeleton is copied verbatim from the task brief (a captured device response Step 2),
 // with three classes of assertions strengthened per governance doc §9 "Test Quality" and
 // coordinator requests (marked "strengthened" at each location):
 //   1) rail [data-active] assertion expanded from "check current item + one reference" to

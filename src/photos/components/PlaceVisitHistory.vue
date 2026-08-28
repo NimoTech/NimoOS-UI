@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // P6b-T6: PlaceVisitHistory.vue —— 地点详情面板的"到访记录"时间线段。逐段照 Vue2
-// NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1204-1245(模板)移植;样式照
+// src/views/Photos/PhotosPlacesView.vue:1204-1245(模板)移植;样式照
 // photos-places.scss:599-618(时间线本体)+ :869-885(`.visit-save-btn`,在文件另一处,
 // 已回源核对行号——brief 给的 scss 行号只覆盖到 :618,`.visit-save-btn` 需要单独定位)。
 //

@@ -1,7 +1,7 @@
 // SP8-P5f Task 3 — guard for `wikiViewHelpers.ts`.
 //
-// Inherit all behavior from Vue2 `NimoOS-UI`(main@7a6ee6b7)
-// `src/views/AI/Knowledge/__tests__/wikiViewHelpers.spec.js`(119 lines / 9 cases)
+// Inherit all behavior from the Vue 2 panel's
+// `src/views/AI/Knowledge/__tests__/wikiViewHelpers.spec.js` (main@7a6ee6b7, 119 lines / 9 cases)
 // (governance §4.3 / ruling R10: only inherit this one Vue2 spec this period),
 // with additional refinement per governance §9.16.
 //
@@ -10,7 +10,7 @@
 // wrong implementations give **identical results** ("directly slice one level up
 // using `lastIndexOf('/')`" produces the same result on a well-leveled tree as
 // the correct implementation). Therefore, the four discriminative cases in this
-// file come from the four topologies in `p5f-fixtures/wiki-tree.CONSTRUCTED.json`:
+// file come from the four topologies in the wiki-tree fixture:
 // crossLevel / missingParent / duplicate / unsorted, with two RED probes in the
 // report:
 //   ① Replace `findParent` with "only slice one level" → crossLevel case must red;
@@ -52,13 +52,12 @@ import { renderMarkdown } from '../../markdown/renderMarkdown'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴 Fixture copy (governance P5c §4.4: copy into test + comment source + programmatically
-//    verify byte-for-byte equivalence; **don't read `.superpowers/` at runtime** — it's
-//    not in build artifacts, `?raw` is always empty under vitest).
-// 🔴 Ruling R14 / fixtures README §0.2: **take data fields only**, convert `__meta` to comments.
+//    verify byte-for-byte equivalence; fixtures are copied into this file verbatim rather
+//    than read from disk at runtime — `?raw` is always empty under vitest).
+// 🔴 **Take data fields only**, convert `__meta` to comments.
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // ── FIXTURE-COPY-BEGIN: wiki-tree ──────────────────────────────────────────
-// Source: `.superpowers/sdd/p5f-fixtures/wiki-tree.CONSTRUCTED.json`
 // 🔴 Three-level source label (`__meta.label`) = **`.CONSTRUCTED`** — **not real-device data**,
 //    don't use it to overturn naming conclusions from N46 (fixtures README §0 / governance §9.18-2).
 // `__meta.why`: "GET /v1/wiki/tree local test timeout after 90s, 0 bytes (D1) ⇒ no real-device sample."
@@ -66,7 +65,7 @@ import { renderMarkdown } from '../../markdown/renderMarkdown'
 //    (**snake_case json tag**): path / level / ai_label / user_notes_updated_at / last_modified"
 // `__meta.value_units`: "ai_label empty string is valid; last_modified is RFC3339 local
 //    timezone string, backend formatTS(ms<=0) returns **empty string**(wiki.go:47-52) — not '1970'"
-// `__meta.normalized_shape`: "After NimoOS-Service/src/wiki.ts:102 normalizeTreeNode →
+// `__meta.normalized_shape`: "After the shared HTTP client's src/wiki.ts:102 normalizeTreeNode →
 //    camelCase { path, level, aiLabel, userNotesUpdatedAt, lastModified }.
 //    store.loadWikiTree() produces **flat array**, that's what buildWikiTree consumes"
 // `__meta.topologies`: "Three samples per governance §9.16: normal(well-leveled tree)/
@@ -105,11 +104,10 @@ const WIKI_TREE_RAW: Record<string, WikiTreeNodeRaw[]> = {
 // ── FIXTURE-COPY-END: wiki-tree ────────────────────────────────────────────
 //
 // ── FIXTURE-COPY-BEGIN: wiki-roots-normalized ──────────────────────────────
-// Source: `.superpowers/sdd/p5f-fixtures/wiki-roots.normalized.CONSTRUCTED.json`
 // 🔴 Three-level source label (`__meta.label`) = **`.CONSTRUCTED`** — **not real-device data**.
 // `__meta.why`: "Same as wiki-roots.CONSTRUCTED.json — /roots timeout locally, no real-device sample."
 // `__meta.built_from`: "Pass each field of wiki-roots.CONSTRUCTED.json raw_response through
-//    NimoOS-Service/src/wiki.ts:85 normalizeRoot"
+//    the shared HTTP client's src/wiki.ts:85 normalizeRoot"
 // `__meta.shape`: "🔴 camelCase — this is the output shape of store.state.wikiRoots,
 //    RootsView / WikiView mocks all follow it (N46)"
 // `__meta.note`: "enabled normalized to boolean via `!!r.Enabled`;
@@ -144,7 +142,7 @@ const WIKI_ROOTS_NORMALIZED: WikiRoot[] = [
 
 /**
  * Fixture is **HTTP raw snake_case**; `buildWikiTree` consumes **store output camelCase**
- * (`store.loadWikiTree()`, normalization in shared package `NimoOS-Service/src/wiki.ts:102
+ * (`store.loadWikiTree()`, normalization in shared package `src/wiki.ts:102
  * normalizeTreeNode`). This function only does **key mapping**, doesn't re-implement
  * normalization logic (N46: the two naming styles are the easiest to get wrong this period).
  */
@@ -688,7 +686,7 @@ describe('T3 auto-prime guard — if views/WikiView.vue exists, it must import .
 //   `/DATA` vs `/DATA/Documents` are true parent-child; `/u/a` vs `/u/b` prefixes don't contain.
 //   "Longest string prefix" wrong implementation **same result as correct** on these five groups.
 //
-// [Sample source] 🔴 **locally constructed in this file** (not sample from `p5f-fixtures`) —
+// [Sample source] 🔴 **locally constructed in this file** (not sampled from a fixture) —
 //   paths specified by ruling R22 (`/DATA/Media` + `/DATA/MediaBackup`), constructed with this
 //   file's existing `flatNode()` per shared package `WikiTreeNode` shape, **explicitly declared in T6 report**.
 //   Precedent: `rootForPath` case above "root.path with trailing slash" also locally constructed variant.
@@ -703,7 +701,7 @@ describe('T3 auto-prime guard — if views/WikiView.vue exists, it must import .
 //     return best ? byPath[best] : null
 //   }
 //   ```
-//   (RED output and `md5sum` restore confirm in `p5f-task-6-report.md` §7.)
+//   (Confirmed via RED output and an md5sum restore.)
 // ═══════════════════════════════════════════════════════════════════════════
 describe('buildWikiTree — 🔴 sibling directories with same prefix must not be wrongly hung as parent-child (ruling R22)', () => {
   // `/DATA/MediaBackup` is **string prefix** of `/DATA/Media`, but **not** its subdirectory
@@ -786,7 +784,6 @@ describe('buildWikiTree — 🔴 sibling directories with same prefix must not b
 // `"/Backup///"` → `"/Backup"`).
 //   ⇒ `wikiRoots` can **never** have path with trailing slash, regardless of "what local
 // fixture looks like", and won't become invalid switching fixtures/devices in future.
-// 🔴 Original output from two independent measurements (per **R21**: not allowed single result)
-// in `p5f-task-6-report.md` §8.
+// 🔴 Original output from two independent measurements (per **R21**: not allowed single result).
 // 🔴 This block **comment-only**: above case's assertions unchanged, product code unchanged.
 // ═══════════════════════════════════════════════════════════════════════════

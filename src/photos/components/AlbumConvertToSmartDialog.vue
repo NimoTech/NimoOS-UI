@@ -192,14 +192,14 @@ async function submit(): Promise<void> {
    .sv-modal / .sv-modal-head / .icon-btn / .sv-modal-body / .sv-modal-form / .sv-field* /
    .sv-input* / .sv-thresh-val / .sv-modal-foot / .sv-btn-ghost / .sv-btn-primary /
    .act-modal-enter-* (there named .sv-modal-enter-*). ── */
-/* Fix-2 item 6 sweep (owner acceptance, 2026-08-13), registered decision: `--overlay-bg` is a
+/* Note: `--overlay-bg` is a
    *global*, non-`.photos-root`-shadowed token like the others this sweep replaced, but it is
    kept here deliberately, not swapped -- verified safe. It is a modal *scrim* (darkens whatever
    sits behind the dialog), not text: both of New-UI's own global values (theme.css:274/408) are
    a dark, semi-opaque tint, by design, since a scrim's job is to dim the page regardless of
    which theme (app-wide or photos-private) is active. There is no white-on-white/low-contrast
-   risk the way there is for a foreground colour, so this is the same category of exception the
-   task brief itself calls out for the approved glass search box (PhotosTopbar.vue's `.search`). */
+   risk the way there is for a foreground colour, so this is the same category of exception
+   already approved for the glass search box (PhotosTopbar.vue's `.search`). */
 .sv-modal-scrim {
   position: fixed;
   inset: 0;
@@ -315,7 +315,7 @@ async function submit(): Promise<void> {
    neither the removable (`x` button) nor mo-type-pill variants those other files also carry,
    so only the two base rules are restated here. ── */
 .sv-header-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; min-height: 4px; }
-/* Fix-2 item 4/6 (owner acceptance, 2026-08-13): background corrected from `--chip-bg`
+/* Note: background corrected from `--chip-bg`
    (global, non-shadowed, glass-gradient in dark mode) to parity's own `--surface-3` -- Vue2's
    real base `.sv-cond` background (photos-smartview.scss:91-97), one rung lighter than what was
    here (`--chip-bg`/--surface-2, not `--chip-bg-hi`/--surface-3). Same fix applied to this

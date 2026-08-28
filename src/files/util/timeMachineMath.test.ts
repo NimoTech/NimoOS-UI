@@ -19,26 +19,25 @@ import {
 } from './timeMachineMath'
 
 // --- Pruned kept-for-compat exports (history). DECK_WINDOW/buildVisibleStack/StackEntry/
-// stepSelectedIndex were removed from timeMachineMath.ts (and their own tests here) in Task 6
-// (Ruling P2) alongside TimeMachineDeck.vue/TimeMachineOverlay.vue, their only consumers.
+// stepSelectedIndex were removed from timeMachineMath.ts (and their own tests here) earlier
+// alongside TimeMachineDeck.vue/TimeMachineOverlay.vue, their only consumers.
 // computeFisheyeScales/buildRailNodes (and their own describe blocks that used to sit here) were
-// removed in Task 8: it rewrote TimeMachineRail.vue wholesale with a new props/emits contract and
+// removed later: TimeMachineRail.vue was rewritten wholesale with a new props/emits contract and
 // its own name-keyed day-grouping/node-building, confirmed by grep that nothing outside this
 // module (and this now-updated test file) referenced either export any longer. See
 // timeMachineMath.ts's own header comment on this same pruning for the full account.
 
-// --- Vue2-parity math (this task's real deliverable) -------------------
+// --- Vue2-parity math -------------------
 // Behavior assertions mined from Vue2's tests/timeMachineMath.test.js
 // (fisheyeScale / resolveDollySlots / resolveSlotPose describe blocks),
 // adapted to the new signatures (see timeMachineMath.ts's own header
 // comment for the exact deviations: no options bag, `names: string[]`,
 // `depth` instead of `slot`, `{x,y,scaleX,scaleY,dim,z}` pose shape).
-// Review round 1 restored pinNames (resolveDollySlots' 4th param) and
+// A later design review restored pinNames (resolveDollySlots' 4th param) and
 // stageHeight (resolveSlotPose's 2nd param) to Vue2's exact semantics --
 // both are exercised below, not omitted. compensateMenuPosition/
 // compensateFixedPosition and resolveStepperBoundaries are intentionally
-// not ported here -- see the controller ruling in this task's brief
-// (menu compensation deferred to a later task, empirically) and
+// not ported here (menu compensation deferred, empirically) and
 // clampStepIndex below (which fuses resolveStepperBoundaries' boolean
 // pair into one call).
 
@@ -186,11 +185,11 @@ describe('resolveDollySlots — name-keyed dolly-slot assignment for a newest-fi
     expect(resolveDollySlots(many, 0, 4).map((s) => s.depth)).toEqual([4, 3, 2, 1, 0])
   })
 
-  // Fix Round 11 (M2-F15, ported): pinNames is what fixes the "a multi-step
+  // pinNames (ported from Vue2) is what fixes the "a multi-step
   // jump beyond the visible window hard-cuts instead of animating" defect --
   // a real, previously-fixed Vue2 regression the fisheye rail encourages
   // (clicking a tick far from the current selection).
-  describe('pinNames (ported from Vue2 Fix Round 11/M2-F15): force-including specific names beyond the [-1, maxSlots] window', () => {
+  describe('pinNames (ported from Vue2): force-including specific names beyond the [-1, maxSlots] window', () => {
     it('force-includes a name far beyond maxSlots, at its OWN real (unclamped) depth', () => {
       const many = Array.from({ length: 20 }, (_, i) => 's' + i) // s0 newest .. s19 oldest
       const slots = resolveDollySlots(many, 0, 3, ['s15'])
@@ -234,11 +233,10 @@ describe('resolveDollySlots — name-keyed dolly-slot assignment for a newest-fi
 })
 
 describe('resolveSlotPose — unified per-depth pose, T(-1) through T(cap)', () => {
-  // Owner ruling E-1' (2026-08-26, supersedes an earlier same-day ruling
+  // Design rationale (supersedes an earlier variant
   // that flattened resting-depth scale to 1 -- see timeMachineMath.ts's own
-  // resolveSlotPose comment on this ruling and this task's fix-wave report
-  // for the full back-and-forth): per-depth SCALING is fine -- it IS the
-  // camera-dolly illusion -- what the owner actually ruled out is Vue2's
+  // resolveSlotPose comment for the full back-and-forth): per-depth SCALING is fine -- it IS the
+  // camera-dolly illusion -- what was actually ruled out is Vue2's
   // ANISOTROPIC scaleX-only narrowing ("thin peeking sliver"), which
   // distorts glyphs (squishes them horizontally without matching vertical
   // shrink). The tests below (mined from Vue2's own resolveSlotPose test,
@@ -251,7 +249,7 @@ describe('resolveSlotPose — unified per-depth pose, T(-1) through T(cap)', () 
     expect(p.y).toBeLessThan(0)
     expect(p.scaleX).toBeLessThan(1)
     expect(p.scaleX).toBeGreaterThan(0.9)
-    expect(p.scaleY).toBe(p.scaleX) // owner ruling E-1': uniform scale, no anisotropic narrowing
+    expect(p.scaleY).toBe(p.scaleX) // uniform scale, no anisotropic narrowing
     expect(p.dim).toBeGreaterThan(0)
     expect(p.dim).toBeLessThan(0.1)
   })
@@ -262,7 +260,7 @@ describe('resolveSlotPose — unified per-depth pose, T(-1) through T(cap)', () 
       const far = resolveSlotPose(depth + 1)
       expect(far.y).toBeLessThan(near.y) // more negative = higher
       expect(far.scaleX).toBeLessThanOrEqual(near.scaleX)
-      expect(far.scaleY).toBe(far.scaleX) // owner ruling E-1': never anisotropic
+      expect(far.scaleY).toBe(far.scaleX) // never anisotropic
       expect(near.scaleY).toBe(near.scaleX)
       expect(far.dim).toBeGreaterThanOrEqual(near.dim)
     }
@@ -365,10 +363,10 @@ describe('clampStepIndex — step target clamped into [0, count-1], null at a bo
   })
 })
 
-// Task 7 addition: ported from Vue2's own computeVisibleStripCap
+// Ported from Vue2's own computeVisibleStripCap
 // (timeMachineMath.js) -- see timeMachineMath.ts's own header comment on
 // this function for the full geometry derivation and the Vue2 defect
-// (Fix Round 7b) it fixes.
+// it fixes.
 describe('computeVisibleStripCap — how many depth-stack strips fit above the stage\'s own clip line', () => {
   it('assumes the historical, viewport-uncapped ceiling (maxSlots) when stageHeight is unmeasured/non-finite/non-positive', () => {
     expect(computeVisibleStripCap(0)).toBe(10)
@@ -412,7 +410,7 @@ describe('computeVisibleStripCap — how many depth-stack strips fit above the s
   })
 })
 
-// Fix wave G (Ruling G-1, owner acceptance 2026-08-26): the fisheye rail redesign -- see
+// The fisheye rail redesign -- see
 // timeMachineMath.ts's own header comment on this section for the full design rationale
 // (fixed-extent band, no scrollbar, Apple/macOS-dock-style displacement kernel). The "evenly
 // distribute every node across the fixed band" half of this redesign is plain CSS
@@ -509,14 +507,14 @@ describe('fisheyeDisplacement — Apple/macOS-dock-style push-apart-and-compress
   })
 })
 
-describe('TM_RAIL_LABEL_MIN_GAP — Fix wave G label-density threshold', () => {
+describe('TM_RAIL_LABEL_MIN_GAP — label-density threshold', () => {
   it('is a small positive px value, comfortably above the tick label\'s own font-size (11.5px)', () => {
     expect(TM_RAIL_LABEL_MIN_GAP).toBe(18)
     expect(TM_RAIL_LABEL_MIN_GAP).toBeGreaterThan(11.5)
   })
 })
 
-describe('shouldShowTickLabel — Fix wave G per-tick label-density rule (supersedes wave A2\'s "always visible")', () => {
+describe('shouldShowTickLabel — per-tick label-density rule (supersedes the earlier "always visible" rule)', () => {
   it('is always true when the rail is roomy enough at rest (spacing >= TM_RAIL_LABEL_MIN_GAP), regardless of selection/scale', () => {
     expect(shouldShowTickLabel({ mainCount: 5, bandHeight: 400, isSelected: false, scale: 1 })).toBe(true) // 100px/tick
     expect(shouldShowTickLabel({ mainCount: 21, bandHeight: 360, isSelected: false, scale: 1 })).toBe(true) // exactly 18px/tick
@@ -551,12 +549,12 @@ describe('shouldShowTickLabel — Fix wave G per-tick label-density rule (supers
   })
 })
 
-// Fix wave I (Ruling I-1, owner acceptance 2026-08-26): travelStackPlan -- the linked-cascade
+// travelStackPlan -- the linked-cascade
 // pose-transition layer. See timeMachineMath.ts's own header comment on this section for the full
 // root-cause trace (a big jump's new window recenters on a completely different neighborhood of
 // `names`, so old residents unmount with no animation and new ones pop in already at rest) and
 // TravelStackEntry's own field comments for exactly what each role means.
-describe('travelStackPlan — linked-cascade pose transitions for a travel from oldIndex to newIndex (Fix wave I, Ruling I-1)', () => {
+describe('travelStackPlan — linked-cascade pose transitions for a travel from oldIndex to newIndex', () => {
   const names = Array.from({ length: 30 }, (_, i) => `s${i}`) // s0 newest .. s29 oldest
 
   it('is empty for a degenerate/out-of-range input (no crash)', () => {

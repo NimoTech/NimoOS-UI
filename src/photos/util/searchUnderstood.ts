@@ -1,7 +1,7 @@
 // "Nimo understood" structured token extraction — extract three categories of information from natural language
 // search queries that can be mapped to real filter conditions (people / media type / time), to display chips in the
 // search bar and apply them as filter conditions with one click.
-// Ported from Vue2 NimoOS-UI src/views/Photos/PhotosSearchView.vue:474-497
+// Ported from the Vue 2 panel's src/views/Photos/PhotosSearchView.vue:474-497
 // (`understood` computed), but the criteria for name matching has been corrected; see hasWordBoundedMatch below.
 
 import type { QuickKey } from './dateRange'

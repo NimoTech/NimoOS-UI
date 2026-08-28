@@ -150,7 +150,7 @@ const snapshotSelection = computed(() => selectedEntries.value)
 // Vue2's own split: the banner component stays a pure `v-if="info"` presentational leaf (see that
 // component's own props comment), the caller decides what "should be visible right now" means.
 //
-// Final review (Important 5, Ruling F-2): gated on `browse.tmChromeVisible`, NOT `browse.tmActive`
+// Gated on `browse.tmChromeVisible`, NOT `browse.tmActive`
 // -- exactly matching Vue2's own `isTimeMachineChromeVisible` source. tmActive drops synchronously
 // the instant exitTimeMachine() is called, one statement before its own async navigation away even
 // starts; gating the banner on tmActive directly would show the OLD snapshot's banner (browseInfo
@@ -175,7 +175,7 @@ function openRestorePicker(mount: string, defaultDir: string) {
 
 // Entry point ① — context-menu "Restore to original location" (single item, FileContextMenu.vue's
 // own `showRestoreOriginal` already gates this to snapshot view + a single target).
-// `{ singleItemFlow: true }` (controller ruling, fix round 1): this is the ONE entry point that
+// `{ singleItemFlow: true }` (fix round 1): this is the ONE entry point that
 // shows Vue2's own `snapBrowseRestored` = "Restored to {path}" copy on success (Vue2's
 // restoreSnapshotItem) rather than the `tmRestoredCount` count-based copy every other entry point
 // uses (Vue2's executeSnapshotRestore) — see buildRestoreToasts' own comment for the full split.
@@ -929,7 +929,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
                      `.tm-preview-window__chip` already established for the identical Vue2 literal
                      (bg = accent purple at 10% alpha, text = the darker accent shade).
 
-                     Fix wave B (B2, owner acceptance 2026-08-26): passed through Breadcrumb.vue's
+                     Passed through Breadcrumb.vue's
                      own `#trailing` slot (not a sibling of <Breadcrumb> in `.files-topbar-left`
                      any more) -- see that slot's own comment for why: Breadcrumb's root grows to
                      fill `.files-topbar-left` for its two-line-collapse measuring loop, which was
@@ -941,7 +941,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
               </Breadcrumb>
             </div>
             <div class="files-topbar-right">
-              <!-- Fix wave A3 (audit-modals.md #4, entry pill icon -- MISSING): Vue2's own
+              <!-- Vue2's own
                    `<b-button icon-left="history">` precedes the label with a real mdi
                    clock/history glyph (FilePanel.vue:205-207) -- a UI glyph, not a file icon, so
                    in-scope per the owner's icon exception (New-UI's own established icon
@@ -951,7 +951,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
               <button v-if="browse.canShowEntry" class="chip tb-time-machine" @click="browse.enterTimeMachine()">
                 <span class="tb-time-machine-icon" aria-hidden="true">&#8635;</span>{{ t('tmEntry') }}
               </button>
-              <!-- Fix wave C (toolbar redesign, owner-confirmed mockup): New folder/New file/
+              <!-- New folder/New file/
                    Upload files/Upload folder collapse into ONE accent-purple "New" dropdown
                    (FilesNewMenu.vue) -- each item still calls the SAME pre-existing handler
                    (openNew/triggerFileSelect/triggerFolderSelect), only the chrome changed.
@@ -997,7 +997,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
             @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
             @share="onShare(null)"
           />
-          <!-- Important 4 (final review, Ruling F-1): Vue2's SnapshotActionBar (Restore + Download,
+          <!-- Vue2's SnapshotActionBar (Restore + Download,
                "{n} selected" -- see that component's own header comment for the full 1:1 rebuild
                rationale), the snapshot-view equivalent of SelectionToolbar above. Restore funnels
                into the SAME restoreSelectionFlow entry point ② SnapshotBanner's own restore button
@@ -1016,7 +1016,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
             @restore="restoreSelectionFlow(snapshotSelection)"
             @download="ops.download(snapshotSelection)"
           />
-          <!-- Fix wave C (toolbar redesign, owner-confirmed mockup): content-area header row --
+          <!-- Content-area header row --
                left = circular select-all toggle + item count, right = the grid/list capsule
                switcher that used to live in the topbar (`.files-viewtoggle`, now removed). This
                row is intentionally NOT gated on `browse.isSnapshotView` -- Vue2's own snapshot
@@ -1028,7 +1028,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
                buttons already use), not a separate local flag: clicking it selects every entry
                CURRENTLY LISTED (displayEntries, i.e. post-filter/upload-placeholder-merged, same
                set the grid/list views actually render) when not already all-selected, and clears
-               when it is. Fix wave C re-review (correctness): the two count branches read
+               when it is. The two count branches read
                DIFFERENT sources on purpose, not the same displayEntries length either way --
                "N items" (not-all-selected branch) uses displayEntries.length (post-filter,
                placeholders included, matching what's actually on screen), but "N selected"
@@ -1195,7 +1195,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
    overflow-y:auto finally engages. */
 .files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .files-main { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; align-self: stretch; display: flex; flex-direction: column; } /* Stretches to fill right-side height, so whitespace below the listing can be a right-click target */
-/* Fix wave E (E2, owner acceptance 2026-08-26): padding is `var(--tm-topbar-padding)` -- shared
+/* Padding is `var(--tm-topbar-padding)` -- shared
    with SnapshotPreviewWindow.vue's own `.tm-preview-window__chrome` replica (theme.css's own
    comment on that token explains why: the third drift between this row and its TM depth-stack
    clone, now closed with a shared source instead of a fourth one-off audit). */
@@ -1206,7 +1206,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
    purple at 10% alpha, text = the darker accent shade -- reproduced via color-mix rather than a
    new token, same pattern SnapshotPreviewWindow.vue's own `.tm-preview-window__chip` already
    uses for the identical Vue2 source.
-   Fix wave B (B2, owner acceptance 2026-08-26): now rendered inside Breadcrumb.vue's own `<nav
+   Now rendered inside Breadcrumb.vue's own `<nav
    class="breadcrumb">` flex row (via its `#trailing` slot, see the template above) rather than as
    a sibling of <Breadcrumb> in `.files-topbar-left` -- that row already applies its own
    `gap: 4px` between every child (crumbs/separators/the favorite star); `margin-left: 6px` on top
@@ -1230,28 +1230,28 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
    entry button) -- see theme.css's own comment on --tm-entry-* for the exact color derivation.
    Shape/size stay the shared `.chip` pill (already matches Vue2's own rounded/is-small look), so
    only color is overridden here; no border (Vue2's own is-success button has none either). */
-/* Fix wave A3 (audit-modals.md #4, entry pill shape): Vue2's own Buefy `is-small` pill computes to
+/* Vue2's own Buefy `is-small` pill computes to
    `font-size: .75rem`(12px), height `2.5em`≈30px, padding `1.25em`(15px) horizontal / `calc(.5em-1px)`
    (5px) vertical (FilePanel.vue:205-207) -- overriding the shared `.chip` rule's 13px/6px-14px,
    which the other (non-snapshot) toolbar chips keep unchanged. */
 .chip.tb-time-machine { background: var(--tm-entry-bg); border-color: transparent; color: var(--tm-entry-fg); font-size: 12px; padding: 5px 15px; display: inline-flex; align-items: center; }
 .chip.tb-time-machine:hover { background: var(--tm-entry-hover-bg); }
 .tb-time-machine-icon { margin-right: 6px; font-size: 13px; line-height: 1; }
-/* Fix wave C (toolbar redesign): the content-area header row -- left = select-all + count, right
+/* The content-area header row -- left = select-all + count, right
    = the grid/list capsule that used to be topbar chips (`.files-viewtoggle`, removed). Literal
-   values (padding/border/pill geometry) are the owner-approved mock's own literal CSS, translated
+   values (padding/border/pill geometry) are the approved mock's own literal CSS, translated
    1:1 from its `--hairline`/`--chip-border`/`--chip-bg` demo tokens to this app's real
    equivalents (`--card-border`/`--chip-border`/`--chip-bg`).
-   Fix wave C re-review: the filled states below (select-all's `.on`, the capsule's `.active` half)
+   The filled states below (select-all's `.on`, the capsule's `.active` half)
    were re-pointed from the app's generic blue `--accent`/`--on-accent` onto the DEDICATED
    `--purple-accent`/`--on-purple-accent` pair (theme.css) -- see that token's own header comment
-   for the exact owner-approved literal it pins; that mock's own throwaway demo stylesheet just
+   for the exact approved literal it pins; that mock's own throwaway demo stylesheet just
    happens to name ITS OWN custom property the same as this app's real (blue) --accent, an
    unrelated coincidence, not an instruction to reuse it. `--on-purple-accent` (not `--on-accent`)
    is the correct foreground here too -- see theme.css's own comment on it: `--on-accent` flips
    with `--accent`'s own per-theme luminance and would put unreadable dark-navy text/icon on this
    always-dark purple in the blue theme. */
-/* Fix wave E (E2, owner acceptance 2026-08-26): padding is `var(--tm-list-head-padding)` -- shared
+/* Padding is `var(--tm-list-head-padding)` -- shared
    with SnapshotPreviewWindow.vue's own `.tm-preview-window__row2` replica (see the `.files-topbar`
    rule above's own comment for the full rationale, same token block). */
 .files-list-head { display: flex; align-items: center; justify-content: space-between; padding: var(--tm-list-head-padding); border-top: 1px solid var(--card-border, rgba(255,255,255,0.1)); flex: 0 0 auto; }
@@ -1266,10 +1266,10 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
 .files-select-all svg { width: 11px; height: 11px; display: none; }
 .files-select-all.on { background: var(--purple-accent); border-color: var(--purple-accent); }
 .files-select-all.on svg { display: block; }
-/* Fix wave E (E2, owner acceptance 2026-08-26): font-size is `var(--tm-item-count-font-size)` --
+/* Font-size is `var(--tm-item-count-font-size)` --
    shared with SnapshotPreviewWindow.vue's own `.tm-preview-window__count` replica, which used to
    have no dedicated rule at all and silently inherited a DIFFERENT size (13px) from its own row2
-   container -- see this fix wave's own report for the exact before/after. */
+   container. */
 .files-item-count { font-size: var(--tm-item-count-font-size); color: var(--fg-muted); }
 .files-item-count strong { color: var(--fg); font-weight: 600; }
 .files-view-capsule { display: inline-flex; border: 1px solid var(--chip-border); border-radius: 999px; overflow: hidden; background: var(--chip-bg); flex: none; }
@@ -1277,8 +1277,7 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
 .files-view-capsule-btn svg { width: 15px; height: 15px; }
 .files-view-capsule-btn.active { background: var(--purple-accent); color: var(--on-purple-accent); }
 .files-view-capsule-btn:not(.active):hover { color: var(--fg); }
-/* Fix wave E (E2 follow-up, owner acceptance 2026-08-26, cross-file truncation mismatch):
-   `scrollbar-gutter: stable` reserves this container's classic-scrollbar gutter WHETHER OR NOT a
+/* `scrollbar-gutter: stable` reserves this container's classic-scrollbar gutter WHETHER OR NOT a
    scrollbar is actually showing right now -- without it, a folder short enough to fit had the
    FULL width available to `auto-fill`/flex-basis column math, while a longer folder (vertical
    scrollbar engaged) had that width reduced by the scrollbar's own px, so `.file-grid`'s tile
@@ -1293,8 +1292,8 @@ watch(() => browse.shouldAutoEnter, (val) => { if (val) browse.autoEnterTimeMach
    to its own but MUTUALLY CONSISTENT actual width). Minor visual change to the plain (non-Time-
    Machine) Files view: a folder that fits without scrolling now shows a small reserved blank strip
    on the right where the gutter would be, matching the app's own global `scrollbar-width: thin`
-   token (theme.css's own `*` rule) rather than a full classic-width gutter -- owner-approved per
-   this fix wave's own dispatch message. See timeMachineDepthStackGeometryParity.test.ts's own new
+   token (theme.css's own `*` rule) rather than a full classic-width gutter, deliberately.
+   See timeMachineDepthStackGeometryParity.test.ts's own new
    parity case for the CI guard pinning this declaration between the two files. */
 .files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text

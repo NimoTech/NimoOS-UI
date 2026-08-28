@@ -25,16 +25,16 @@ describe('validatePort (matches Vue2 L1387-1394)', () => {
 
 describe('buildProbeUrl', () => {
   it('builds /v1/gateway/port on the new port', () => {
-    expect(buildProbeUrl('8080', { protocol: 'http:', hostname: '192.168.1.143' }))
-      .toBe('http://192.168.1.143:8080/v1/gateway/port')
+    expect(buildProbeUrl('8080', { protocol: 'http:', hostname: '192.168.1.10' }))
+      .toBe('http://192.168.1.10:8080/v1/gateway/port')
   })
 })
 
 describe('buildRedirectUrl (porting discipline #5)', () => {
   it('preserves the current path and hash -- otherwise it dumps the user onto / (the old Vue2 UI)', () => {
     expect(buildRedirectUrl('8080', {
-      protocol: 'http:', hostname: '192.168.1.143', pathname: '/app/', hash: '#/settings/general',
-    })).toBe('http://192.168.1.143:8080/app/#/settings/general')
+      protocol: 'http:', hostname: '192.168.1.10', pathname: '/app/', hash: '#/settings/general',
+    })).toBe('http://192.168.1.10:8080/app/#/settings/general')
   })
   it('does not append a stray # when there is no hash', () => {
     expect(buildRedirectUrl('8080', {

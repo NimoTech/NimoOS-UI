@@ -5,7 +5,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 
-// SP8-P2b Task 7 — follows brief .superpowers/sdd/p2b-task-7-brief.md use case list (24 cases).
+// SP8-P2b Task 7 — covers a 24-case use case list.
 // Vue2 SearchSection.vue has no existing tests, this is newly written.
 
 const h = vi.hoisted(() => ({

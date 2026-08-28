@@ -1,21 +1,20 @@
 <!--
-  Task 7 (Files Time Machine Vue2-parity line): the Apple-style depth-stack cascade that sits
-  behind the real, live window while Time Machine mode is active -- one real, static
-  <snapshot-preview-window> per visible dolly slot (Task 2's resolveDollySlots/resolveSlotPose),
-  plus a separate `__dim` overlay per strip for the brightness falloff. See timeMachineMath.ts's
-  own header comment and TimeMachineStage.vue's own header comment (z-tier chart) for the model
-  this ports byte-for-byte from Vue2's TimeMachineStage.vue depth-stack region (Fix Rounds 5-13,
-  "single camera-dolly slot model" + GSAP migration -- see that file's own extensive header
-  comment for the full history this component's own comments below cite by fix-round name).
+  The Apple-style depth-stack cascade that sits behind the real, live window while Time Machine
+  mode is active -- one real, static <snapshot-preview-window> per visible dolly slot
+  (resolveDollySlots/resolveSlotPose), plus a separate `__dim` overlay per strip for the
+  brightness falloff. See timeMachineMath.ts's own header comment and TimeMachineStage.vue's own
+  header comment (z-tier chart) for the model this ports byte-for-byte from Vue2's
+  TimeMachineStage.vue depth-stack region ("single camera-dolly slot model" + GSAP migration --
+  see that file's own extensive header comment for the full history).
 
   Ownership split (deliberately mirrors Vue2's own module boundary): timeMachineMath.ts owns "what
-  pose should slot N have" (pure, DOM-free); timeMachineChoreo.ts (Task 3) owns "how long should
+  pose should slot N have" (pure, DOM-free); timeMachineChoreo.ts owns "how long should
   getting there take, with how much stagger" plus the actual GSAP calls; THIS component owns "which
   slots are visible right now, keyed by which snapshot name" (reactive, DOM-bound) and "when does a
   travel start" (the store's own tmTravel transition -> this component's own watcher, below).
 
-  Poses are applied two different ways, exactly matching Vue2's own Fix Round 13 split:
-  - On INSERT (a strip appearing in the DOM for the first time -- initial mount, or a Fix Round 11
+  Poses are applied two different ways, matching Vue2's own split:
+  - On INSERT (a strip appearing in the DOM for the first time -- initial mount, or a
     pinned travel endpoint that was not already part of the cascade): the two custom directives
     below (`v-tm-pose`/`v-tm-dim`, Vue3's `mounted` hook -- Vue2's own `inserted` hook under the
     same name) fire exactly once, `gsap.set()`-ing the element straight to its pose with NO
@@ -24,50 +23,49 @@
     newly-mounted decorative element.
   - On TRAVEL (an already-rendered strip's target slot changing because the selection moved): the
     watcher below builds and plays ONE `playTravelTimeline` covering every currently-rendered
-    layer at once (Task 3) -- see `runTravel` below for the full trigger chain.
+    layer at once -- see `runTravel` below for the full trigger chain.
 
-  Stage-height measurement (Task 7's own addition -- Vue2's own `measureStageHeight`/
-  `onWindowResize`/`ResizeObserver`-equivalent, ported as a REAL `ResizeObserver` rather than a
-  rAF-throttled `window resize` listener, since New-UI already has a same-shape precedent for this
-  exact pattern in FileGridView.vue: guard `typeof ResizeObserver !== 'undefined'`) feeds BOTH
-  `resolveSlotPose`'s T(-1) exit-offset formula and `computeVisibleStripCap`'s own strip-count
-  ceiling -- see timeMachineMath.ts's own header comments on each for why a stale/unmeasured
-  height degrades safely (fixed fallback / uncapped ceiling) rather than clipping everything to
-  nothing.
+  Stage-height measurement (Vue2's own `measureStageHeight`/`onWindowResize`/`ResizeObserver`-
+  equivalent, ported as a REAL `ResizeObserver` rather than a rAF-throttled `window resize`
+  listener, since New-UI already has a same-shape precedent for this exact pattern in
+  FileGridView.vue: guard `typeof ResizeObserver !== 'undefined'`) feeds BOTH `resolveSlotPose`'s
+  T(-1) exit-offset formula and `computeVisibleStripCap`'s own strip-count ceiling -- see
+  timeMachineMath.ts's own header comments on each for why a stale/unmeasured height degrades
+  safely (fixed fallback / uncapped ceiling) rather than clipping everything to nothing.
 
-  Fix round (review finding 2): the measured element is the STAGE ROOT (`.tm-stage`,
-  TimeMachineStage.vue's own element, injected via tmStageRoot.ts), NOT this component's own
-  `.tm-depth-stack` wrapper -- that wrapper's CSS already reserves the bottom 80px band
-  (`bottom: 80px`, matching computeVisibleStripCap's own bottomGap constant), so its OWN
-  clientHeight is already `stageHeight - 80`; feeding that into functions that subtract 80
-  internally themselves double-subtracts it. See tmStageRoot.ts's own header comment for the full
-  rationale and why provide/inject (not `offsetParent`) is the mechanism.
+  The measured element is the STAGE ROOT (`.tm-stage`, TimeMachineStage.vue's own element,
+  injected via tmStageRoot.ts), NOT this component's own `.tm-depth-stack` wrapper -- that
+  wrapper's CSS already reserves the bottom 80px band (`bottom: 80px`, matching
+  computeVisibleStripCap's own bottomGap constant), so its OWN clientHeight is already
+  `stageHeight - 80`; feeding that into functions that subtract 80 internally themselves
+  double-subtracts it. See tmStageRoot.ts's own header comment for the full rationale and why
+  provide/inject (not `offsetParent`) is the mechanism.
 
-  Reveal-gate (Task 7 fix round, review finding 1 -- Vue2's own armReveal/reveal, ported): the
-  REAL window's own `.tm-fwin--traveling` hard-hide (TimeMachineStage.vue) must not release just
-  because the store's own navigation settled (tmTravel clearing, milliseconds) -- it must wait for
-  the travel to actually finish. Deliberately NOT hooked to the GSAP timeline's own onComplete
-  (same posture Vue2 takes, see that file's own header comment on this exact point): a plain
-  `setTimeout(travelDurationMs(steps))` runs in parallel with the GSAP call, then checks the
-  target's own preview promise (`getSnapshotPreview`, Task 4) before calling `browse.settleTravel()`
-  -- which flips `tmTravelActive` back off, releasing the real window. A `travelSafetyTimer`
-  (Vue2's own TRAVEL_SAFETY_EXTRA_MS, 800ms beyond the travel duration) guarantees a reveal
-  regardless of a preview fetch that never appears, never settles, or rejects. A `travelToken`,
-  bumped every time a NEW travel is armed, guards `settle()` so a superseded travel's own
-  (eventually-firing) timers become safe no-ops rather than clobbering a NEWER travel's still
-  in-flight wait -- Vue2's own token guard, ported verbatim in spirit (object-identity-per-call
-  replaced with a plain incrementing counter, since JS closures already give each armed travel its
-  own captured `{from,to}`, unlike Vue2's single shared `this.travelPinNames`).
+  Reveal-gate (Vue2's own armReveal/reveal, ported): the REAL window's own `.tm-fwin--traveling`
+  hard-hide (TimeMachineStage.vue) must not release just because the store's own navigation
+  settled (tmTravel clearing, milliseconds) -- it must wait for the travel to actually finish.
+  Deliberately NOT hooked to the GSAP timeline's own onComplete (same posture Vue2 takes, see that
+  file's own header comment on this exact point): a plain `setTimeout(travelDurationMs(steps))`
+  runs in parallel with the GSAP call, then checks the target's own preview promise
+  (`getSnapshotPreview`) before calling `browse.settleTravel()` -- which flips `tmTravelActive`
+  back off, releasing the real window. A `travelSafetyTimer` (Vue2's own TRAVEL_SAFETY_EXTRA_MS,
+  800ms beyond the travel duration) guarantees a reveal regardless of a preview fetch that never
+  appears, never settles, or rejects. A `travelToken`, bumped every time a NEW travel is armed,
+  guards `settle()` so a superseded travel's own (eventually-firing) timers become safe no-ops
+  rather than clobbering a NEWER travel's still in-flight wait -- Vue2's own token guard, ported
+  verbatim in spirit (object-identity-per-call replaced with a plain incrementing counter, since JS
+  closures already give each armed travel its own captured `{from,to}`, unlike Vue2's single shared
+  `this.travelPinNames`).
 
   Simplification vs Vue2 (documented, not an oversight): Vue2's own armReveal polls
   (TRAVEL_READY_POLL_MS) because its cache module (snapshotPreviewCache.js) only wraps a promise
   the consumer already built -- there is nothing to look up until the target's own
   `<snapshot-preview-window>` has mounted and registered one. New-UI's own
-  `getSnapshotPreview(mount, name, relPath)` (Task 4) both looks up AND fetches atomically, so
-  calling it here either returns the SAME in-flight/settled promise the target's own preview
-  component already triggered (the common case, since pinning already mounted it), or triggers
-  the fetch itself if nothing has yet -- either way, one direct call replaces Vue2's whole
-  poll-until-cached loop, no separate TRAVEL_READY_POLL_MS timer needed.
+  `getSnapshotPreview(mount, name, relPath)` both looks up AND fetches atomically, so calling it
+  here either returns the SAME in-flight/settled promise the target's own preview component
+  already triggered (the common case, since pinning already mounted it), or triggers the fetch
+  itself if nothing has yet -- either way, one direct call replaces Vue2's whole poll-until-cached
+  loop, no separate TRAVEL_READY_POLL_MS timer needed.
 
   Vue2 also arms this SAME reveal-gate timer twice per switch (once at click time, in `switchTo`,
   BEFORE the async navigation even starts; a second time, re-arming/restarting it, once the
@@ -128,16 +126,16 @@ defineOptions({ name: 'TimeMachineDepthStack' })
 const browse = useSnapshotBrowseStore()
 const files = useFilesStore()
 
-// Fix round (review finding 2): the STAGE root (`.tm-stage`), not this component's own
-// `.tm-depth-stack` wrapper -- see tmStageRoot.ts's own header comment and this file's own
-// header comment for why. `rootEl` (this component's own root) stays -- it is still the correct
-// scale/transform-origin host for the cascade itself, just not the measurement source.
+// Measures the STAGE root (`.tm-stage`), not this component's own `.tm-depth-stack` wrapper --
+// see tmStageRoot.ts's own header comment and this file's own header comment for why. `rootEl`
+// (this component's own root) stays -- it is still the correct scale/transform-origin host for
+// the cascade itself, just not the measurement source.
 const stageRootRef = injectTmStageRoot()
 const rootEl = ref<HTMLElement | null>(null)
 const stageHeight = ref(0)
 
-// Task 7 addition, resolved here (not in SnapshotPreviewWindow -- see that file's own header
-// comment on `volumeLabel`): the volume's user-facing display name, when one exists.
+// Resolved here (not in SnapshotPreviewWindow -- see that file's own header comment on
+// `volumeLabel`): the volume's user-facing display name, when one exists.
 const mount = computed(() => browse.browseInfo?.mount ?? '')
 const relPath = computed(() => browse.browseInfo?.relPath ?? '')
 const volumeLabel = computed(() => (mount.value ? files.displayNames[mount.value] : undefined))
@@ -151,14 +149,14 @@ const currentIndex = computed(() => {
 })
 const visibleStripCap = computed(() => computeVisibleStripCap(stageHeight.value))
 
-// Fix Round 11 (M2-F15, ported, see resolveDollySlots' own header comment): force-includes the
+// (M2-F15, ported, see resolveDollySlots' own header comment): force-includes the
 // travel's two endpoints at their own real slot regardless of the normal window, so a distant
 // jump has a real "before" DOM node to animate from and a real "after" one to animate to, exactly
 // like a single-step switch already did. Set by the `browse.tmTravel` watcher below, cleared by
 // `settle()` (the reveal-gate below) once the travel actually lands OR is superseded -- NOT by
-// the GSAP timeline's own onComplete (fix round, review finding 3: a superseded travel's timeline
-// gets `.kill()`ed, which never fires onComplete, so a completion-driven clear would leak the
-// pin until this component remounts).
+// the GSAP timeline's own onComplete (a superseded travel's timeline gets `.kill()`ed, which
+// never fires onComplete, so a completion-driven clear would leak the pin until this component
+// remounts).
 const pinNames = ref<string[]>([])
 
 const dollySlots = computed(() =>
@@ -187,10 +185,10 @@ function syncDollyPosesInstant() {
   })
 }
 
-// Fix round (review finding 2): measures `stageRootRef.value` (the injected `.tm-stage` element),
-// NOT `rootEl.value` (this component's own `.tm-depth-stack` wrapper) -- see this file's own
-// header comment for why the wrapper's own clientHeight is already reduced by the bottom-gap
-// band `resolveSlotPose`/`computeVisibleStripCap` subtract themselves.
+// Measures `stageRootRef.value` (the injected `.tm-stage` element), NOT `rootEl.value` (this
+// component's own `.tm-depth-stack` wrapper) -- see this file's own header comment for why the
+// wrapper's own clientHeight is already reduced by the bottom-gap band `resolveSlotPose`/
+// `computeVisibleStripCap` subtract themselves.
 function measureHeight() {
   stageHeight.value = stageRootRef.value ? stageRootRef.value.clientHeight : 0
   syncDollyPosesInstant()
@@ -198,12 +196,11 @@ function measureHeight() {
 
 let resizeObserver: ResizeObserver | null = null
 
-// Fix Round 13 (GSAP migration, ported): one gsap.context() per component instance, opened
-// immediately (not in onMounted) so even a strip inserted during THIS component's own initial
-// mount patch already has a real context to route its v-tm-pose/v-tm-dim gsap.set() through --
-// see the Vue2 authority file's own header comment, Fix Round 13 section, "Cleanup", for why the
-// `scope` argument is unnecessary here (every lookup goes through the local ref Maps below, never
-// ctx.selector()).
+// GSAP migration, ported: one gsap.context() per component instance, opened immediately (not in
+// onMounted) so even a strip inserted during THIS component's own initial mount patch already has
+// a real context to route its v-tm-pose/v-tm-dim gsap.set() through -- see the Vue2 authority
+// file's own header comment, "Cleanup" section, for why the `scope` argument is unnecessary here
+// (every lookup goes through the local ref Maps below, never ctx.selector()).
 const gsapCtx = gsap.context(() => {})
 let travelTimeline: gsap.core.Timeline | null = null
 
@@ -219,10 +216,10 @@ function setDimRef(name: string, el: Element | null) {
   else dimRefs.delete(name)
 }
 
-// Fix Round 13 (GSAP migration, ported): each directive's `mounted` hook (Vue3's name for Vue2's
-// `inserted`) fires exactly once, the instant Vue inserts THAT specific node -- gsap.set()-ing it
-// straight to the pose bound at insert time, no animation. The ACTUAL travel tween is built
-// separately, once per switch, in `runTravel` below.
+// GSAP migration, ported: each directive's `mounted` hook (Vue3's name for Vue2's `inserted`)
+// fires exactly once, the instant Vue inserts THAT specific node -- gsap.set()-ing it straight to
+// the pose bound at insert time, no animation. The ACTUAL travel tween is built separately, once
+// per switch, in `runTravel` below.
 const vTmPose = {
   mounted(el: HTMLElement, binding: { value: SlotPose }) {
     const vars = poseToGsapVars(binding.value)
@@ -245,41 +242,41 @@ const stackStyle = computed(() => ({ transform: `scale(${TM_WINDOW_SCALE})` }))
 // lands", see resolveDollySlots' own header comment on pinNames for why that ordering matters).
 let pendingTravel: { from: string, to: string } | null = null
 
-// Fix wave D (D2, owner acceptance 2026-08-26 -- reveal-time scale stutter): a monotonic counter
-// bumped every time the `currentSnapshotName` watcher below starts processing a NEW travel.
-// `armReveal`'s own setTimeout used to arm SYNCHRONOUSLY, one tick before `runTravel`'s GSAP
-// timeline (deferred into `nextTick`, see that call's own comment) actually started ticking --
-// `travelDurationMs(steps)` being identical on both sides only guaranteed the two countdowns were
-// the same LENGTH, never that they started from the same INSTANT. That one-tick head start let the
-// reveal-gate's timer fire, and the real window swap in, strictly BEFORE the incoming depth-0
-// strip's tween had actually finished interpolating to its resting `{x:0,y:0,scale:1}` pose --
-// the promoted depth-0 layer and the just-revealed real window pop instead of coincide, exactly
-// the "whole view stutters and changes scale" symptom reported. This is Vue2's own Fix Round 15
-// regression (TimeMachineStage.vue's own header comment on `beginTravel`, "Fix Round 15 (2026-07,
-// problem 2c root cause)") reintroduced here -- ported the identical fix: `armReveal` is called
-// from the SAME `nextTick` callback `runTravel` already uses (not merely "the same Vue flush
-// batch" the way Vue2's two SEPARATE `$nextTick` calls rely on -- calling both from one shared
-// callback pins them to the exact same synchronous instant, tighter than Vue2's own two-call
-// arrangement), so both countdowns now start from the same zero point and finish together (mod
-// sub-frame GSAP/rAF quantization, the same residual Vue2's own comment accepts). `myToken` mirrors
-// Vue2's own `token !== this.travelToken` re-check inside its deferred callback: it guards the case
-// where a LATER travel supersedes this one before this deferred callback has even run.
+// Reveal-time scale stutter fix: a monotonic counter bumped every time the `currentSnapshotName`
+// watcher below starts processing a NEW travel. `armReveal`'s own setTimeout used to arm
+// SYNCHRONOUSLY, one tick before `runTravel`'s GSAP timeline (deferred into `nextTick`, see that
+// call's own comment) actually started ticking -- `travelDurationMs(steps)` being identical on
+// both sides only guaranteed the two countdowns were the same LENGTH, never that they started
+// from the same INSTANT. That one-tick head start let the reveal-gate's timer fire, and the real
+// window swap in, strictly BEFORE the incoming depth-0 strip's tween had actually finished
+// interpolating to its resting `{x:0,y:0,scale:1}` pose -- the promoted depth-0 layer and the
+// just-revealed real window pop instead of coincide, exactly the "whole view stutters and changes
+// scale" symptom reported. This is the same class of regression as Vue2's own history on
+// `beginTravel` (TimeMachineStage.vue's own header comment) -- ported the identical fix: `armReveal`
+// is called from the SAME `nextTick` callback `runTravel` already uses (not merely "the same Vue
+// flush batch" the way Vue2's two SEPARATE `$nextTick` calls rely on -- calling both from one
+// shared callback pins them to the exact same synchronous instant, tighter than Vue2's own
+// two-call arrangement), so both countdowns now start from the same zero point and finish
+// together (mod sub-frame GSAP/rAF quantization, the same residual Vue2's own comment accepts).
+// `myToken` mirrors Vue2's own `token !== this.travelToken` re-check inside its deferred callback:
+// it guards the case where a LATER travel supersedes this one before this deferred callback has
+// even run.
 let travelRunToken = 0
 
-// Fix wave H (Ruling H-1, owner acceptance 2026-08-26): long-jump fly-through. Owner design
-// change overriding Vue2's own "just slide the whole stack, stretched out longer" answer for a
-// jump of many steps -- see timeMachineChoreo.ts's own header comment on `travelDurationMs` for
-// the full ruling, and `flyThroughPlan`'s own comment there for the plan shape this pins. A jump
-// beyond `TRAVEL_FLAT_STEPS` (3) now flies SEQUENTIALLY through a sampled set of the intermediate
-// snapshots (Apple Time Machine's own model) instead of one uniform slide; below is how that plan
-// gets wired into THIS component's own pin/pose/timeline machinery:
+// Long-jump fly-through: a design change overriding Vue2's own "just slide the whole stack,
+// stretched out longer" answer for a jump of many steps -- see timeMachineChoreo.ts's own header
+// comment on `travelDurationMs` for the full rationale, and `flyThroughPlan`'s own comment there
+// for the plan shape this pins. A jump beyond `TRAVEL_FLAT_STEPS` (3) now flies SEQUENTIALLY
+// through a sampled set of the intermediate snapshots (Apple Time Machine's own model) instead of
+// one uniform slide; below is how that plan gets wired into THIS component's own pin/pose/timeline
+// machinery:
 // - `flyThroughPlan(...)`'s own names (intermediates + the target itself) are pinned here, in the
 //   SAME watcher and at the SAME click-time moment `val.from`/`val.to` already are (this function's
 //   own header comment on `pinNames` explains why that timing matters: a name must be pinned
 //   BEFORE the DOM patch that would otherwise exclude it from `dollySlots`, not after). `settle()`'s
 //   own unconditional `pinNames.value = []` (below) already covers unpinning every one of them once
-//   the travel lands -- no separate fly-through-specific unpin path needed (this wave's own
-//   dispatch: "the existing full pin reset covers it").
+//   the travel lands -- no separate fly-through-specific unpin path needed (the existing full pin
+//   reset already covers it).
 // - `runTravel`/`armReveal` (below) each independently recompute the SAME plan (pure, cheap, no
 //   extra state to keep in sync) from `names.value`/the resolved indices -- see `runTravel`'s own
 //   comment for how the plan turns into real per-name delay/preset overrides, and `armReveal`'s own
@@ -294,30 +291,29 @@ function computeFlyThroughPlan(fromName: string, toName: string): FlyThroughStep
   return flyThroughPlan(names.value, fromIdx, toIdx, { maxIntermediates: TRAVEL_FLY_MAX_INTERMEDIATES })
 }
 
-// Fix wave I (Ruling I-1, owner acceptance 2026-08-26): linked-cascade travel. Owner report on a
-// mid-flight screenshot of a big jump -- the fly-through intermediate itself moved, but the
-// RESIDENT stack of receding slivers behind it sat static, and strips newly entering the visible
-// window popped in already at their final pose. Root cause: `dollySlots` windows around the NEW
-// current index -- an OLD-window resident that falls outside the new window (near-certain for a
-// big jump) simply drops out of `dollySlots`' own v-for and unmounts with no animation at all,
-// while a name newly entering the new window mounts fresh, and `v-tm-pose`'s own `mounted` hook
-// (fires once, at insert, with NO animation by design) sets it directly to its FINAL resting pose.
-// Owner ruling: EVERY travel (short steps AND a wave-H fly-through alike) must move the WHOLE
-// visible stack as one linked cascade -- nothing pops or vanishes at rest mid-travel. See
-// timeMachineMath.ts's own header comment on `travelStackPlan` for the full pure-function design
-// this wires in, and `runTravel`'s own comment below for how the resulting `fromPose`s become real
-// `presetPoses` (generalizing wave H's own fly-through-only preset mechanism to every strip
-// entering the window during ANY travel, per the dispatch's own point 1).
+// Linked-cascade travel: fixes a bug found from a mid-flight screenshot of a big jump -- the
+// fly-through intermediate itself moved, but the RESIDENT stack of receding slivers behind it sat
+// static, and strips newly entering the visible window popped in already at their final pose.
+// Root cause: `dollySlots` windows around the NEW current index -- an OLD-window resident that
+// falls outside the new window (near-certain for a big jump) simply drops out of `dollySlots`'
+// own v-for and unmounts with no animation at all, while a name newly entering the new window
+// mounts fresh, and `v-tm-pose`'s own `mounted` hook (fires once, at insert, with NO animation by
+// design) sets it directly to its FINAL resting pose. The fix: EVERY travel (short steps AND a
+// long-jump fly-through alike) must move the WHOLE visible stack as one linked cascade -- nothing
+// pops or vanishes at rest mid-travel. See timeMachineMath.ts's own header comment on
+// `travelStackPlan` for the full pure-function design this wires in, and `runTravel`'s own comment
+// below for how the resulting `fromPose`s become real `presetPoses` (generalizing the
+// fly-through-only preset mechanism to every strip entering the window during ANY travel).
 //
-// This watcher's own job (dispatch point 3): pin the UNION of the OLD window, the NEW window, and
-// the fly-through plan's own names (when one exists) -- computed HERE, at the SAME click-time
-// moment `val.from`/`val.to` themselves get pinned (pinNames' own header comment explains why that
-// timing matters: a name must be pinned BEFORE the DOM patch that would otherwise exclude it).
-// Without this, an OLD-window resident whose real NEW depth falls outside the natural window would
-// unmount the instant `currentSnapshotName` changes -- before `runTravel` even gets a chance to
-// animate it leaving. `settle()`'s own existing unconditional `pinNames.value = []` (below) already
-// covers unpinning this whole (now larger) union once the travel lands -- no separate wave-I unpin
-// path needed, same "the existing full pin reset covers it" reasoning wave H's own pinning already
+// This watcher's own job: pin the UNION of the OLD window, the NEW window, and the fly-through
+// plan's own names (when one exists) -- computed HERE, at the SAME click-time moment
+// `val.from`/`val.to` themselves get pinned (pinNames' own header comment explains why that timing
+// matters: a name must be pinned BEFORE the DOM patch that would otherwise exclude it). Without
+// this, an OLD-window resident whose real NEW depth falls outside the natural window would unmount
+// the instant `currentSnapshotName` changes -- before `runTravel` even gets a chance to animate it
+// leaving. `settle()`'s own existing unconditional `pinNames.value = []` (below) already covers
+// unpinning this whole (now larger) union once the travel lands -- no separate unpin path needed,
+// the same "the existing full pin reset covers it" reasoning the fly-through pinning already
 // relies on.
 function windowNames(atIndex: number): string[] {
   return atIndex >= 0 ? resolveDollySlots(names.value, atIndex, visibleStripCap.value).map((s) => s.name) : []
@@ -344,13 +340,12 @@ watch(
 watch(
   () => browse.currentSnapshotName,
   (newName, oldName) => {
-    // Fix wave K (owner acceptance 2026-08-26): traced end to end -- see the guard immediately
-    // below for the exact fix (files.ts's own load() epoch guard, snapshotBrowse.ts's stores/
-    // files.ts) that keeps this watcher from ever observing a STALE, out-of-order value in the
-    // first place; the `pendingTravel.to` comparison here is the second, independent line of
-    // defense this dispatch asked for -- any fire whose value is null/transient, or does not match
-    // the travel this component is actually waiting on, is ignored rather than treated as a new
-    // travel (which would otherwise bump travelRunToken and kill an in-flight timeline for nothing).
+    // Traced end to end -- see the guard immediately below for the exact fix (files.ts's own
+    // load() epoch guard, stores/files.ts) that keeps this watcher from ever observing a STALE,
+    // out-of-order value in the first place; the `pendingTravel.to` comparison here is a second,
+    // independent line of defense -- any fire whose value is null/transient, or does not match the
+    // travel this component is actually waiting on, is ignored rather than treated as a new travel
+    // (which would otherwise bump travelRunToken and kill an in-flight timeline for nothing).
     tmDebugLog('watcher currentSnapshotName:', oldName, '->', newName, 'pendingTravel=', pendingTravel)
     if (!pendingTravel || newName !== pendingTravel.to) {
       tmDebugLog('watcher currentSnapshotName: ignored (no matching pending travel -- not a genuinely new travel)')
@@ -361,11 +356,11 @@ watch(
     const fromIdx = names.value.indexOf(travel.from)
     const toIdx = names.value.indexOf(travel.to)
     const steps = fromIdx >= 0 && toIdx >= 0 ? Math.abs(toIdx - fromIdx) || 1 : 1
-    // Fix wave H (Ruling H-1): recomputed here (same pure inputs as the `tmTravel` watcher's own
-    // call, above) rather than threaded through as extra mutable state -- see that watcher's own
-    // comment for why recomputing is safe/cheap. `durationMs` feeds BOTH `runTravel` (the GSAP
-    // side) and `armReveal` (the reveal-gate) from this ONE shared value, so the two can never
-    // disagree the way a `steps`-vs-recomputed-duration split could.
+    // Recomputed here (same pure inputs as the `tmTravel` watcher's own call, above) rather than
+    // threaded through as extra mutable state -- see that watcher's own comment for why
+    // recomputing is safe/cheap. `durationMs` feeds BOTH `runTravel` (the GSAP side) and
+    // `armReveal` (the reveal-gate) from this ONE shared value, so the two can never disagree the
+    // way a `steps`-vs-recomputed-duration split could.
     const plan = computeFlyThroughPlan(travel.from, travel.to)
     const durationMs = plan.length ? flyThroughDurationMs(plan) : travelDurationMs(steps)
     const myToken = ++travelRunToken
@@ -387,7 +382,7 @@ watch(
   },
 )
 
-// Fix wave H (Ruling H-1): builds the per-name `delayOverridesMs`/`presetPoses` a non-empty `plan`
+// Builds the per-name `delayOverridesMs`/`presetPoses` a non-empty `plan`
 // needs -- see `playTravelTimeline`'s own comment (timeMachineChoreo.ts) for what each one does
 // mechanically. Every plan member (intermediates AND the target) gets its own launch delay
 // (`step.launchDelayMs`, the plan's own sequential cadence, overriding the default position-based
@@ -417,13 +412,13 @@ watch(
 //   no-op). The preset for a new entrant is the exit pose -- "arrives already at the camera, then
 //   glides to its natural resting spot".
 //
-//   Fix wave I follow-up (re-review, 2026-08-26): the FORWARD branch used to apply that exit-pose
+//   A follow-up fix: the FORWARD branch used to apply that exit-pose
 //   preset to EVERY sampled intermediate unconditionally -- wrong for a jump just past
 //   `TRAVEL_FLAT_STEPS` (e.g. 4-5 steps at the default window), where a sampled intermediate can
 //   be a genuine, ALREADY-VISIBLE RESIDENT of the OLD window (or already leaving it), not a new
 //   entrant -- for that strip, the unconditional preset SNAPS it from its own correct current
-//   pose to the exit pose right before its tween begins, a visible pop of exactly the kind Ruling
-//   I-1 exists to eliminate. The BACKWARD branch (below) never had this problem: it recomputes the
+//   pose to the exit pose right before its tween begins, a visible pop of exactly the kind this
+//   fix exists to eliminate. The BACKWARD branch (below) never had this problem: it recomputes the
 //   real old-relative pose directly, which is IDEMPOTENT for an already-resident intermediate (its
 //   "preset" and its actual current pose are the same value, so nothing visibly snaps). The fix:
 //   reuse `travelStackPlan`'s own per-name role (`stackPlan`, computed once in `runTravel` and
@@ -448,7 +443,7 @@ function buildFlyThroughOverrides(
     delayOverridesMs[step.name] = step.launchDelayMs
     if (step.role !== 'intermediate') continue
     if (forward) {
-      // Fix wave I follow-up: only a genuinely NEW entrant (not naturally in the old window) needs
+      // Only a genuinely NEW entrant (not naturally in the old window) needs
       // the "arrives from the camera" preset -- see this function's own header comment above.
       const role = roleByName.get(step.name)
       if (role !== 'resident' && role !== 'leaving') presetPoses[step.name] = exitPose
@@ -461,19 +456,17 @@ function buildFlyThroughOverrides(
   return { delayOverridesMs, presetPoses }
 }
 
-// Fix wave J (owner acceptance 2026-08-26): single source of truth for BOTH the timeline's own
-// `targets` (what actually gets a tween) and `presetPoses` (what gets a corrective starting
-// `gsap.set()`). Before this wave, the two were built from TWO INDEPENDENTLY-COMPUTED lists --
-// `targets` from `dollySlots.value` (natural window around the new current index, unioned with
-// whatever `pinNames.value` happens to force-include), `presetPoses` from a SEPARATE
-// `travelStackPlan(...)` call whose own `extraNames` only covered THIS travel's own fly-through
-// plan (not the full, possibly-larger accumulated `pinNames.value`, e.g. leftover pins from a
-// just-superseded travel). Nothing in this codebase's own tests ever forced these two lists to
-// actually disagree (see this file's own extensive "Fix wave J" root-cause investigation in
-// final-fix-report.md -- an owner screenshot reported a strip stuck mid-flight with no tween, a
-// symptom this exact "two parallel lists" shape is the textbook way to produce), but relying on
-// two independently-derived lists staying in sync by coincidence is exactly the kind of
-// architectural risk the dispatch asked to close STRUCTURALLY, not just patch around. Fixed by
+// Single source of truth for BOTH the timeline's own `targets` (what actually gets a tween) and
+// `presetPoses` (what gets a corrective starting `gsap.set()`). Previously the two were built from
+// TWO INDEPENDENTLY-COMPUTED lists -- `targets` from `dollySlots.value` (natural window around the
+// new current index, unioned with whatever `pinNames.value` happens to force-include),
+// `presetPoses` from a SEPARATE `travelStackPlan(...)` call whose own `extraNames` only covered
+// THIS travel's own fly-through plan (not the full, possibly-larger accumulated `pinNames.value`,
+// e.g. leftover pins from a just-superseded travel). Nothing in this codebase's own tests ever
+// forced these two lists to actually disagree, but a screenshot caught a strip stuck mid-flight
+// with no tween -- a symptom this exact "two parallel lists" shape is the textbook way to produce,
+// since relying on two independently-derived lists staying in sync by coincidence is an
+// architectural risk worth closing STRUCTURALLY, not just patching around. Fixed by
 // computing `stackPlan` ONCE, with `extraNames: pinNames.value` (the FULL, accumulated pin set,
 // not just this one travel's own old∪new∪plan names) -- this makes `stackPlan`'s own union a
 // PROVABLE superset of `dollySlots.value`'s own rendered set (natural-new-window ∪ pinNames.value,
@@ -500,12 +493,12 @@ function runTravel(steps: number, travel: { from: string, to: string }, plan: Fl
     travelTimeline.kill()
     travelTimeline = null
   }
-  // Fix round (review finding 1/3): no `onComplete` here any more -- the GSAP timeline's own
-  // completion no longer drives anything observable (not the real window's reveal, not pin
-  // clearing). See this file's own header comment for why that gate is a SEPARATE, plain-timer
-  // mechanism (`armReveal`/`settle` below) rather than hooked to this timeline.
+  // No `onComplete` here any more -- the GSAP timeline's own completion no longer drives anything
+  // observable (not the real window's reveal, not pin clearing). See this file's own header
+  // comment for why that gate is a SEPARATE, plain-timer mechanism (`armReveal`/`settle` below)
+  // rather than hooked to this timeline.
 
-  // Fix wave I (Ruling I-1, owner acceptance 2026-08-26): linked-cascade preset poses -- see the
+  // Linked-cascade preset poses -- see the
   // `tmTravel` watcher's own header comment above for the full root-cause trace and
   // `travelStackPlan`'s own comment (timeMachineMath.ts) for the role/pose derivation. Every strip
   // whose role is 'entering' or 'pinned' (not naturally in the OLD window -- it was just newly
@@ -521,16 +514,16 @@ function runTravel(steps: number, travel: { from: string, to: string }, plan: Fl
     if (entry.role === 'entering' || entry.role === 'pinned') presetPoses[entry.name] = entry.fromPose
   }
 
-  // Fix wave H (Ruling H-1): a non-empty `plan` (steps > TRAVEL_FLAT_STEPS) ALSO switches this call
-  // to fly-through mode -- see `buildFlyThroughOverrides`' own comment for the full backward/
-  // forward derivation. Its own per-intermediate presets are MORE SPECIFIC than travelStackPlan's
-  // generic edge-clamped ones (they encode the real backward/forward exit-trajectory pose, not
-  // just "just past the window edge") and therefore WIN via `Object.assign` running after the
-  // generic map above -- every other field (delayOverridesMs, durationMsOverride) stays exactly
-  // as wave H left it. An EMPTY plan (steps <= TRAVEL_FLAT_STEPS) leaves delayOverridesMs/
-  // durationMsOverride unset -- unchanged, "1-position cascade is what it always did" (this wave's
-  // own explicit regression contract) -- `presetPoses` is the ONLY thing that can now be non-empty
-  // for a short travel, exactly the generalization the dispatch's own point 1 asks for.
+  // A non-empty `plan` (steps > TRAVEL_FLAT_STEPS) ALSO switches this call to fly-through mode --
+  // see `buildFlyThroughOverrides`' own comment for the full backward/forward derivation. Its own
+  // per-intermediate presets are MORE SPECIFIC than travelStackPlan's generic edge-clamped ones
+  // (they encode the real backward/forward exit-trajectory pose, not just "just past the window
+  // edge") and therefore WIN via `Object.assign` running after the generic map above -- every
+  // other field (delayOverridesMs, durationMsOverride) stays exactly as the fly-through path left
+  // it. An EMPTY plan (steps <= TRAVEL_FLAT_STEPS) leaves delayOverridesMs/durationMsOverride
+  // unset -- unchanged, "1-position cascade is what it always did" -- `presetPoses` is the ONLY
+  // thing that can now be non-empty for a short travel, exactly the generalization to every strip
+  // entering the window during ANY travel.
   let delayOverridesMs: Record<string, number> | undefined
   let durationMsOverride: number | undefined
   if (plan.length) {
@@ -545,14 +538,13 @@ function runTravel(steps: number, travel: { from: string, to: string }, plan: Fl
   travelTimeline = gsapCtx.add(build)
 }
 
-// --- Reveal-gate (Task 7 fix round, review finding 1 -- Vue2's own armReveal/reveal) ------------
+// --- Reveal-gate (Vue2's own armReveal/reveal) ----------------------------------------------
 // Ported verbatim in mechanism (see this file's own header comment for the full model and the
 // one deliberate simplification vs Vue2's own poll-based cache lookup).
-// Final review (folded minor #7): TRAVEL_SAFETY_EXTRA_MS now lives in timeMachineChoreo.ts (single
-// shared source, same "so the two never drift apart" reasoning EXIT_FADE_MS's own comment there
-// already established) -- snapshotBrowse.ts's own switchTo() safety backstop for tmTravelActive
-// reuses the identical constant, rather than each maintaining its own copy of "Vue2's own literal,
-// same value".
+// TRAVEL_SAFETY_EXTRA_MS lives in timeMachineChoreo.ts (single shared source, same "so the two
+// never drift apart" reasoning EXIT_FADE_MS's own comment there already established) --
+// snapshotBrowse.ts's own switchTo() safety backstop for tmTravelActive reuses the identical
+// constant, rather than each maintaining its own copy of "Vue2's own literal, same value".
 
 let travelToken = 0
 let travelTimer: ReturnType<typeof setTimeout> | null = null
@@ -561,7 +553,7 @@ let travelSafetyTimer: ReturnType<typeof setTimeout> | null = null
 function clearTravelTimers() {
   if (travelTimer !== null) { clearTimeout(travelTimer); travelTimer = null }
   if (travelSafetyTimer !== null) { clearTimeout(travelSafetyTimer); travelSafetyTimer = null }
-  // Fix wave B (B3b): a still-pending waitForFilesLoad() watcher (armed by an EARLIER travel,
+  // A still-pending waitForFilesLoad() watcher (armed by an EARLIER travel,
   // superseded before the files-store load it was waiting on ever completed) must stop here too --
   // clearTravelTimers() already runs on every new armReveal() call and on settle(), the same two
   // places that already retire the timers above; leaving this watcher running would keep it
@@ -569,7 +561,7 @@ function clearTravelTimers() {
   if (pendingFilesLoadStop) { pendingFilesLoadStop(); pendingFilesLoadStop = null }
 }
 
-// Fix wave B (B3b, owner acceptance 2026-08-26): armReveal's own preview-cache wait (below) says
+// armReveal's own preview-cache wait (below) says
 // nothing about whether the REAL window's own listing for the target path has actually loaded --
 // only that a `getSnapshotPreview` promise (feeding the DECORATIVE preview layers, not the real
 // window) has settled. The real window's own data comes from `useFilesStore().load()` (see
@@ -613,9 +605,9 @@ function settle(token: number, path: 'legit' | 'depthstack-safety' = 'legit') {
   if (token !== travelToken) return
   tmDebugLog('settle (path:', path, ')')
   clearTravelTimers()
-  // Fix round 2 (review finding 3, re-review): resets the WHOLE pin array unconditionally, not
-  // just the settling travel's own {from,to} (that was fix round 1's own mistake -- see this
-  // function's git history/PR for the filter() version this replaced). pinNames accumulates via
+  // Resets the WHOLE pin array unconditionally, not just the settling travel's own {from,to} (an
+  // earlier version filtered just the pair, which was a mistake -- see this function's git
+  // history/PR for the filter() version this replaced). pinNames accumulates via
   // Set-union across EVERY travel whose `tmTravel` watcher fired (see that watcher, above), but
   // only the ONE winning travel's settle() ever runs (a superseded travel's own settle() is the
   // token-guard no-op right above) -- filtering only the winner's own pair left every OTHER
@@ -636,7 +628,7 @@ function settle(token: number, path: 'legit' | 'depthstack-safety' = 'legit') {
 // a no-op once its own timer/promise eventually fires. `durationMs` is computed ONCE by the
 // `currentSnapshotName` watcher (above) and passed to BOTH this function and `runTravel` -- the
 // SAME `travelDurationMs(steps)` the GSAP timeline itself uses for an ordinary (<= TRAVEL_FLAT_STEPS)
-// travel, or `flyThroughDurationMs(plan)` (Fix wave H, Ruling H-1) for a long-jump fly-through, so
+// travel, or `flyThroughDurationMs(plan)` for a long-jump fly-through, so
 // the reveal-gate's own timing floor can never disagree with what the timeline is actually doing --
 // see that watcher's own comment for why a single shared value (not two independent computations)
 // is what makes that guarantee real. Deliberately NOT collapsed under `prefers-reduced-motion`
@@ -656,7 +648,7 @@ function armReveal(travel: { from: string, to: string }, durationMs: number) {
   }, durationMs + TRAVEL_SAFETY_EXTRA_MS)
   travelTimer = setTimeout(() => {
     travelTimer = null
-    // Fix wave B (B3b): reveal now waits for BOTH the preview cache promise (decorative layers)
+    // Reveal now waits for BOTH the preview cache promise (decorative layers)
     // AND the real window's own files-store load of the target path (waitForFilesLoad, above) --
     // see that function's own comment for the full rationale. root = snapshotBrowsePath(mount,
     // name) [+ '/' + relPath] mirrors snapshotBrowse.ts's own switchTo() target-path construction
@@ -680,8 +672,8 @@ function armReveal(travel: { from: string, to: string }, durationMs: number) {
 onMounted(() => {
   nextTick(() => measureHeight())
   if (typeof ResizeObserver !== 'undefined') {
-    // Fix round (review finding 2): observes `stageRootRef.value` (the injected `.tm-stage`
-    // element), not this component's own root -- see measureHeight's own comment.
+    // Observes `stageRootRef.value` (the injected `.tm-stage` element), not this component's own
+    // root -- see measureHeight's own comment.
     resizeObserver = new ResizeObserver(() => measureHeight())
     if (stageRootRef.value) resizeObserver.observe(stageRootRef.value)
   }
@@ -695,7 +687,7 @@ onUnmounted(() => {
     travelTimeline.kill()
     travelTimeline = null
   }
-  // Fix Round 13 (GSAP migration, ported): kills every tween/timeline this component ever tracked
+  // GSAP migration, ported: kills every tween/timeline this component ever tracked
   // (both directives' gsap.set() calls and every travel timeline) and restores the touched
   // elements' pre-GSAP inline styles.
   gsapCtx.revert()
@@ -723,31 +715,31 @@ onUnmounted(() => {
 
 /* Full window-sized box hosting one real <snapshot-preview-window> per dolly slot -- this rule
    only carries the shared, slot-INDEPENDENT geometry; transform/z-index are GSAP-driven (see
-   v-tm-pose above), never a CSS transition (Fix Round 13 -- GSAP is the only writer). */
+   v-tm-pose above), never a CSS transition (GSAP is the only writer). */
 .tm-depth-strip {
   position: absolute;
   inset: 0;
   border-radius: 12px;
   overflow: hidden;
-  /* Fix wave B (B1, Ruling B-1): was `var(--tm-panel-bg-solid)` (TM chrome's own literal white,
+  /* Was `var(--tm-panel-bg-solid)` (TM chrome's own literal white,
      same-in-both-themes token) -- this strip hosts a real, full-size clone of the New-UI Files
      window (SnapshotPreviewWindow.vue), which paints its own text in New-UI's theme tokens. See
      TimeMachineStage.vue's own `.tm-fwin--active` comment for the full rationale this mirrors:
      the WINDOW must follow the app's theme, not TM's own fixed-white chrome literal. */
   background: var(--panel-bg-solid);
-  /* Fix wave A2 (audit-stage.md #5): Vue2's own `.tm-stage__depth-strip` box-shadow is a single
-     layer (TimeMachineStage.vue:3042) -- `--card-shadow-hi`'s 3-layer shadow (with an inset
+  /* Vue2's own `.tm-stage__depth-strip` box-shadow is a single
+     layer -- `--card-shadow-hi`'s 3-layer shadow (with an inset
      highlight Vue2 never has on this element) was a substitution error, not an approved token
      reuse.
-     Fix wave F (Ruling F'-1, owner acceptance 2026-08-26, shadow pop at the reveal swap): this
+     Shadow pop at the reveal swap: this
      used to be a DEDICATED `--tm-depth-shadow` token pinning Vue2's own (weaker) literal for this
      element specifically -- now retired in favor of `--tm-fwin-shadow`, the SAME token
-     `.tm-fwin--active` (TimeMachineStage.vue) uses for the real window's own shadow. The owner
-     reported the shadow visibly SNAPPING from weak to strong the instant a promoted strip becomes
-     the real window: this strip sits pixel-for-pixel underneath the fwin (D2's own geometry-parity
+     `.tm-fwin--active` (TimeMachineStage.vue) uses for the real window's own shadow. A screenshot
+     showed the shadow visibly SNAPPING from weak to strong the instant a promoted strip becomes
+     the real window: this strip sits pixel-for-pixel underneath the fwin (see the geometry-parity
      tests) and is only ever exposed while the fwin is hidden mid-travel, so at depth 0 the strip's
      shadow must already read as the fwin's own for the swap to be paint-invisible. See theme.css's
-     own comment on `--tm-fwin-shadow` for the full Ruling F'-1 trace (why retiring the token
+     own comment on `--tm-fwin-shadow` for the full trace (why retiring the token
      outright, not aliasing it, was the right call) and timeMachineDepthStackGeometryParity.test.ts
      for the CI guard pinning this exact reference. */
   box-shadow: var(--tm-fwin-shadow);
@@ -757,9 +749,9 @@ onUnmounted(() => {
 
 /* The per-slot "dimmer with depth" falloff lives on this separate overlay (rather than a `filter`
    on the strip itself) -- a `filter` on a box wrapping a real DOM subtree can force a repaint of
-   it on every value change; an overlay's own `opacity` never does (Vue2's own M2-F12 perf
-   rationale). Fix wave A2 (audit-stage.md #6): Vue2's own literal is PURE black
-   (`.tm-stage__depth-strip__dim`'s own `background`, TimeMachineStage.vue:3081) -- the previous
+   it on every value change; an overlay's own `opacity` never does (Vue2's own perf
+   rationale). Vue2's own literal is PURE black
+   (`.tm-stage__depth-strip__dim`'s own `background`) -- the previous
    `--tm-text` token (a navy-grey ink color, see theme.css) was a substitution error that tinted
    every strip in the receding stack blue-grey instead of neutrally darkening it; `--tm-depth-dim`
    pins the exact Vue2 literal instead (see theme.css's own comment on that token for the value,

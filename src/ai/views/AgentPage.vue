@@ -251,7 +251,7 @@ async function refreshContextUsage() {
   }
 }
 
-// A-8 — `?session=` deep link (spec docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md).
+// `?session=` deep link.
 // This page keeps its own mirror of the URL query and every write goes through writeQuery().
 // Reason: router.replace resolves asynchronously, so a writer that rebuilt its query from
 // route.query could resurrect a key another writer had just deleted — concretely, the session

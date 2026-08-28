@@ -4,7 +4,7 @@ import { service } from '@nimotech/nimoos-service'
 import type { KvmSnapshot } from '@nimotech/nimoos-service'
 
 // Snapshot data layer. Visuals/interactions omitted; pure state + data fetching. Mirrors
-// NimoOS-UI/src/components/KVM/KVMFullPage.vue Snapshot Methods section (:1223-1320):
+// the Vue 2 panel's src/components/KVM/KVMFullPage.vue Snapshot Methods section (:1223-1320):
 // fetchSnapshots/createSnapshot/restoreSnapshot/deleteSnapshot/formatDate word-for-word.
 // Confirmation UI (pendingConfirmAction/Id) and progress overlay bridging belongs to the
 // view layer (SnapshotsTab.vue / KvmPage.vue); this composable handles only "send request

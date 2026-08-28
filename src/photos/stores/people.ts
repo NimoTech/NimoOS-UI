@@ -1,4 +1,4 @@
-// Ported from Vue2 NimoOS-UI src/store/modules/photos.js:
+// Ported from the Vue 2 panel's src/store/modules/photos.js:
 //   state      :277-292   (people / peopleLoaded / facesIndexedUpTo / peopleFilter)
 //   mutations  :350-361, :503-529
 //   actions    :1079-1099 (fetch/filter), :1100-1120 (rename/relation/fav),
@@ -52,8 +52,7 @@ export interface SuggestionGroup {
 }
 
 // Merge-cards feature (2026-08-21): cluster-merge questions from the HAC gray band, served by
-// NimoOS-Photos' feat/cluster-merge-questions branch (PR #6, unmerged at the time of writing —
-// see .superpowers/sdd/cluster-merge-questions-report.md in that repo for the full contract).
+// NimoOS-Photos' feat/cluster-merge-questions branch (unmerged at the time of writing).
 // A whole pair of already-clustered persons, not a single face — the review queue's "is this the
 // same person as that OTHER cluster" question, joining the review wizard AFTER the per-face
 // suggestions above. Backend contract: GET /photos/persons/merge-suggestions/v2 ->

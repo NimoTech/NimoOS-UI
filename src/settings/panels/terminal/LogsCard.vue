@@ -4,7 +4,7 @@
 //   an injection surface when the log contains user-controllable content (filenames/paths).
 //   Here we use text interpolation + white-space: pre-wrap instead, with the same visual result.
 //
-// 2026-08 owner acceptance SP9-P3: switched to the same display shell as apps/console/LogsPane.vue
+// Switched to the same display shell as apps/console/LogsPane.vue
 // (components/ui/LogConsole.vue) instead of maintaining its own look -- the dark console
 // background + rounded corners + floating toolbar in the top-right corner + auto-scroll-to-bottom
 // now all match the app console. The old hardcoded .set-logs padding-top: 52px spacer is gone,

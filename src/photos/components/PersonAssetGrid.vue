@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Task 11 (SP7-P5 people): PersonAssetGrid.vue — person detail page monthly asset grid
 // (multi-select / detach / expand all per month). Ported section-by-section from Vue2
-// NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:132-154 (grid template), :760-763
+// the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue:132-154 (grid template), :760-763
 // (assetThumb, size=large), :868-883 (selection logic); styles from photos-people.scss:474-500
 // (.person-month / .person-grid, 8 columns + 3px radius).
 //

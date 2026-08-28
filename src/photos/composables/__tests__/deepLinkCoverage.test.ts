@@ -21,7 +21,7 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 
-// All query keys supported by Vue2 `/photos`, each with source coordinates (NimoOS-UI repo).
+// All query keys supported by Vue2 `/photos`, each with source coordinates (the Vue 2 panel).
 // Verify source: PhotosTimeline.vue:368-374 (mounted dispatch) + :475-506 (_applyUrlDeepLinks)
 // + PhotosAlbumsView.vue:264 + PhotosSmartViewsView.vue:337-348.
 const VUE2_QUERY_KEYS: Array<[key: string, source: string]> = [

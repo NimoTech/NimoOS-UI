@@ -1,5 +1,5 @@
 // SP8-P5f Task 4 — `AllowlistView.vue` component test.
-// Blueprint `NimoOS-UI` @ `7a6ee6b7` `src/views/AI/Knowledge/AllowlistView.vue` (249 lines).
+// Blueprint: the Vue 2 panel's `src/views/AI/Knowledge/AllowlistView.vue` (main@7a6ee6b7, 249 lines).
 //
 // ═══ mock strategy (governance §4.1 requires explicit statement) ═══
 // 🔴 **mock shared package `service.ai.parserAllowlist*` four methods, use real `knowledgeStore`**,
@@ -11,7 +11,7 @@
 //      these two failure-prone things entirely; using real store makes every render assertion
 //      naturally an integration assertion — miss one layer or the normalization,
 //      that cell immediately goes blank / chip never flips.
-// 🔴 Shape (§4.1 table + `p5f-fixtures/README.md` §3):
+// 🔴 Shape (§4.1 table):
 //   · `service.ai.parserAllowlistExtensions` → **HTTP as-is**, `enabled` is **SQLite integer 0/1**
 //     (zero conversion in package; normalization happens in store).
 //   · `service.ai.parserAllowlistFolders` → **HTTP as-is** `{ rules: [...] }`, `rules` elements are
@@ -24,12 +24,9 @@
 //
 // ═══ fixture is copy, not runtime read (governance §4 / P5c §4.4) ═══
 // Data copied verbatim into the `FIXTURE-COPY-BEGIN/END` block below with **three-level
-// source tag** (ruling R3 constraint 1), **do not read `.superpowers/` with `node:fs`** —
-// that directory is gitignore'd (lost once in SP7), and when this branch merges to master,
-// tests under `src/` with cross-boundary dependencies will mysteriously hang with
-// "file not found".
-// 🔴 **only take data fields, convert `__meta` to comments** (ruling R14 /
-// `p5f-fixtures/README.md` §0.2) — `__meta` is not part of the backend API shape,
+// source tag**, not read from disk at runtime — fixtures live outside this file's
+// dependency graph, so tests that stay self-contained don't risk "file not found" surprises.
+// 🔴 **only take data fields, convert `__meta` to comments** — `__meta` is not part of the backend API shape,
 // copying it whole into the mock adds a field that doesn't exist in the backend.
 // Copy equivalence confirmed by **programmatic byte-by-byte validation** (output in T4
 // report §5), not visual inspection.
@@ -77,7 +74,7 @@ const ai = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FIXTURE-COPY-BEGIN  p5f-fixtures/allowlist-extensions.REAL.json  (take `extensions` array only)
+// FIXTURE-COPY-BEGIN  allowlist-extensions.REAL.json  (take `extensions` array only)
 // Three-level source tag: **`.REAL`** — raw response from this machine's real
 // `GET http://127.0.0.1:8283/v1/parser/allowlist/extensions` (JSON indented for readability
 // only, field names / values / order unchanged; see README §0.1 correction block).
@@ -86,7 +83,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 // 🔴 Verified (README §2): **45 items**; `enabled` value set = `{1}`, type set = `{int}`
 //   ⇒ **cannot get `enabled: 0` from real machine**, chip flip must rely on `.REPLAYED`
 //   sample below.
-// 🔴 Ruling R6: this machine's `.wps` (`enabled: 1`) **does not match any of the three groups**
+// 🔴 this machine's `.wps` (`enabled: 1`) **does not match any of the three groups**
 //   ⇒ page shows only 44/45. **This is blueprint behavior (N54), not a defect this cycle**
 //   (ruling §4 vote E).
 const EXT_REAL: RawAllowlistExtension[] = [
@@ -138,7 +135,7 @@ const EXT_REAL: RawAllowlistExtension[] = [
 ]
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5f-fixtures/allowlist-extensions.REPLAYED.json  (take `extensions` array only)
+// FIXTURE-COPY-BEGIN  allowlist-extensions.REPLAYED.json  (take `extensions` array only)
 // Three-level source tag: **`.REPLAYED`** — shape of real machine response, only values
 // changed (field names / types / enums unchanged).
 // `__meta` converted to this comment (ruling R14), original key points:
@@ -162,7 +159,7 @@ const EXT_REPLAYED: RawAllowlistExtension[] = [
 ]
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5f-fixtures/allowlist-folders.REAL.json  (whole file)
+// FIXTURE-COPY-BEGIN  allowlist-folders.REAL.json  (whole file)
 // Three-level source tag: **`.REAL`** — raw response from this machine's real
 // `GET .../allowlist/folders` (2026-08-06 actual test = empty rules table; 07-31 same form).
 // This file's top level has no `__meta`, can be used whole.
@@ -187,7 +184,7 @@ const FOLDER_RULES_CONSTRUCTED = [
 // source comparison) ──
 // 🔴 **N54 / corrigendum E-74**: **12 + 13 + 25 = 50** items. Verbatim equivalence between
 // copy and blueprint confirmed by programmatic comparison in T4 report §6
-// (`git -C ../../NimoOS-UI show 7a6ee6b7:...` raw output, not visual inspection).
+// (diffed against the Vue 2 panel's source at that commit, not visual inspection).
 const DOCS_BLUEPRINT = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.odt', '.html', '.htm', '.xml', '.epub']
 const TEXT_BLUEPRINT = ['.md', '.markdown', '.txt', '.rst', '.csv', '.tsv', '.json', '.yaml', '.yml', '.toml', '.ini', '.env', '.log']
 const CODE_BLUEPRINT = ['.py', '.go', '.js', '.ts', '.jsx', '.tsx', '.java', '.c', '.cc', '.cpp', '.h', '.hpp', '.cs', '.rb', '.rs', '.php', '.sh', '.bash', '.zsh', '.fish', '.sql', '.lua', '.kt', '.scala', '.swift']
@@ -355,7 +352,7 @@ describe('AllowlistView — K55: GROUPS_TEMPLATE three bg contain only var(--…
     const values = bgValues(SRC)
     expect(values.length).toBe(3)
     // Named color list same as the fixed 8-word list in `knowledgeStyles.test.ts` (consistent basis).
-    // 🔴 Ruling R11: **forbid `\bwhite\b`** — use `(?<![\w-])X(?![\w-])`, compound words with
+    // 🔴 **forbid `\bwhite\b`** — use `(?<![\w-])X(?![\w-])`, compound words with
     //    hyphens like `white-space` are naturally excluded.
     const NAMED = ['white', 'black', 'red', 'green', 'blue', 'orange', 'gray', 'grey']
     for (const v of values) {
@@ -1101,7 +1098,7 @@ describe('AllowlistView — saveRule (blueprint :224-238)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 Ruling R27 / corrigendum E-62 — toast always via `store.toast(...)` (internal 2400ms),
+// 🔴 toast always via `store.toast(...)` (internal 2400ms),
 // direct call to `useToast()` loses blueprint's own 2400ms (global `show()` default only 1500ms).
 // 🔴 **T5 quick correction (ruling R24 Minor M-1)**: touch point count originally **9**,
 //   actually **10** (5 success + **5** catch, not 4 — `toggle`'s catch was miscounted).

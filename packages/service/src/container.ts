@@ -12,7 +12,7 @@ export function createContainer(http: AxiosInstance) {
     },
 
     /** POST /v1/container/prune (v1 standard envelope).
-     *  ⚠️ Not the same as the identically named prune() in NimoOS-UI/src/service/sys.js:154 — that one hits /v1/sys/prune.
+     *  ⚠️ Not the same as the identically named prune() in the Vue 2 panel's src/service/sys.js:154 — that one hits /v1/sys/prune.
      *  ⚠️ The backend runs ContainersPrune (empty filter) + ImagesPrune (empty filter):
      *     **deletes ALL stopped containers** + dangling images. Callers must have a second confirmation. */
     async prune(): Promise<PruneReport> {

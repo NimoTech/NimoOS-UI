@@ -1,5 +1,5 @@
 // SP7-P7a-T8: SmartViewActivityFeed.vue — activity feed, right panel segment 4 of smart view details page.
-// Covers test suite checklist for SmartViewActivityFeed in task-8-brief.md "Step 1: Write failing tests".
+// Covers the test suite checklist for SmartViewActivityFeed's "Step 1: Write failing tests".
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'

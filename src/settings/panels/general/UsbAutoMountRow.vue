@@ -3,7 +3,7 @@
 // Porting discipline: Vue2's usbAutoMount() is fire-and-forget (no await, no result check) —
 // when the request fails, the switch stays in its new position and the UI lies. Changed here to snap back on failure.
 // Raspberry Pi warning: Vue2 checks whether hardwareInfo().drive_model contains "raspberry"
-// (the LocalStorage service silently force-disables USB auto-mount on Raspberry Pi — see top-level CLAUDE.md).
+// (the LocalStorage service silently force-disables USB auto-mount on Raspberry Pi).
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'

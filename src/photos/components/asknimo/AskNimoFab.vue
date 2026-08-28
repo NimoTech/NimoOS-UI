@@ -1,6 +1,6 @@
 <!-- Floating orb FAB + mini edge-tab, with a per-instance SVG progress ring. Pixel source:
-     Vue2 NimoOS-UI src/views/Photos/PhotosAskNimo.vue's FAB half (:1-96, :113-243) + photos.scss:784-951,
-     4325-4353 (already ported) + this plan's Task 5 ring-transition/token additions.
+     the Vue 2 panel's src/views/Photos/PhotosAskNimo.vue's FAB half (:1-96, :113-243) + photos.scss:784-951,
+     4325-4353 (already ported) + ring-transition/token additions.
      No <style> block: every visual is already governed by parity scss (Constraints #12). -->
 <script lang="ts">
 // Preflight F-02: this counter MUST live in a plain (non-setup) <script> block. A `<script
@@ -32,8 +32,8 @@ const nimo = useAskNimo()
 const tasks = computed(() => timeline.tasks as TaskBusPayload[])
 const hasTasks = computed(() => tasks.value.length > 0)
 const hasError = computed(() => tasks.value.some((task) => !!task.error))
-// Preflight F-10: colors resolve through .photos-root private tokens (T5 adds these), never
-// literal hex in the .vue file -- CLAUDE.md's theme rule applies to <style> blocks AND inline
+// Preflight F-10: colors resolve through .photos-root private tokens, never
+// literal hex in the .vue file -- the repo's theme-token rule applies to <style> blocks AND inline
 // SVG presentation attributes alike, so these are set via `style` (which participates in the
 // CSS cascade and resolves custom properties) rather than the `stop-color`/`stroke` XML
 // attributes (which do not). The track color is Vue2's literal `rgba(255,255,255,0.08)`

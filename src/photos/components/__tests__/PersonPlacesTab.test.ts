@@ -1,6 +1,6 @@
 // Task 12 (SP7-P5 people): PersonPlacesTab.vue — places tab of person detail page
 // (mini map + Top5 legend + all places chip strip). Pure display, no emits, no store mutations.
-// Follows Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:157-183 section by section.
+// Follows the Vue 2 panel's src/views/Photos/PhotosPersonDetail.vue:157-183 section by section.
 import { describe, it, expect, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'

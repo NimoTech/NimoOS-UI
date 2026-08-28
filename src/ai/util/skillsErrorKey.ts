@@ -44,8 +44,8 @@ function extractErrorString(e: unknown): string {
 }
 
 /**
- * Backend error → i18n key. Aligns with p3b-task-2-brief.md §2.2 table.
- * Already cross-referenced error string literals from NimoOS-AI/service/skills_store.go (see task report).
+ * Backend error → i18n key.
+ * Already cross-referenced error string literals from NimoOS-AI/service/skills_store.go.
  */
 export function createSkillErrorKey(e: unknown): string {
   const s = extractErrorString(e)

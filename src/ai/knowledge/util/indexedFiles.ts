@@ -1,5 +1,5 @@
 // SP8-P5a Task 6 —— 1:1 ported from Vue2
-// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/indexedFiles.js`.
+// the Vue 2 panel's `src/views/AI/Knowledge/indexedFiles.js` (main@7a6ee6b7).
 //
 // Original file has 5 pure functions (`buildListParams`/`rowStatusLabel`/`formatSize`/
 // `anyIndexing`/`rootsFromFolderRules`); T6 brief only names `buildListParams` and

@@ -76,13 +76,13 @@ function setZoom(effective: number) {
 }
 function zoomIn() { setZoom(committedZoom.value * scale.value + 0.1) }
 function zoomOut() { setZoom(committedZoom.value * scale.value - 0.1) }
-// Fix-2 item 1 (owner acceptance, 2026-08-16): the bottom zoom toolbar (both themes) is removed
-// below -- rotate() loses its only UI entry point along with it (acceptable per owner ruling:
+// Note: the bottom zoom toolbar (both themes) is removed
+// below -- rotate() loses its only UI entry point along with it (acceptable since
 // zoom was the one feature explicitly named for preservation). Kept live and reachable, not
 // deleted -- still exposed via defineExpose for any future programmatic/keyboard trigger.
 function rotate() { rotation.value += 90 }
 function onWheel(e: WheelEvent) { e.deltaY < 0 ? zoomIn() : zoomOut() }
-// Fix-2 item 1: double-click companion gesture (cheap addition alongside wheel-zoom, which
+// Double-click companion gesture (cheap addition alongside wheel-zoom, which
 // already covers "zoom in/out must remain reachable" without any button). Toggles between the
 // current effective zoom and a fixed 2x, reusing the exact same setZoom/resetTransform mechanics
 // the (now-removed) toolbar buttons drove.
@@ -178,7 +178,7 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   >
     <div class="img-wrap">
       <!-- Plan F Task 3: `class="img-el"` keeps its name (the zoom family's own hook -- net
-           addition over Vue2, kept per controller ruling 4) and gains parity's anchor
+           addition over Vue2, intentionally kept) and gains parity's anchor
            `.lb-photo` alongside it (Vue2 PhotosLightbox.vue:38-45 `<img class="lb-photo">`,
            parity photos.scss:593-598). Both classes coexist: `.img-el` still drives the zoom/
            pan transform + cursor rules above, `.lb-photo` is the anchor Task 4/5 will target
@@ -276,8 +276,8 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
    component actually renders inside `.photos-root`, parity's copies alone govern; keeping the
    local duplicates would only be the identical same-specificity tie flagged across this whole
    file family. */
-/* Fix-2 item 1 (owner acceptance, 2026-08-16): `.img-toolbar`/`.tb-item` (the Zoom in/Zoom out/
-   Rotate/Reset button row) are removed outright, both themes -- the owner's acceptance screenshot
+/* Note: `.img-toolbar`/`.tb-item` (the Zoom in/Zoom out/
+   Rotate/Reset button row) are removed outright, both themes -- review
    flagged this floating box as visual clutter that also read as unreadably dark-on-light in the
    light theme (it never had a light-mode variant of its own, only global dark-glass tokens). Zoom
    remains reachable via wheel (onWheel, pre-existing) and the new double-click toggle (onDblClick,

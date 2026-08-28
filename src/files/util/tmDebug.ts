@@ -1,5 +1,4 @@
-// Fix wave K (Files Time Machine Vue2-parity line, owner acceptance 2026-08-26): owner-facing
-// diagnostics for the travel lifecycle (TimeMachineDepthStack.vue's own watcher fires/token
+// Owner-facing diagnostics for the travel lifecycle (TimeMachineDepthStack.vue's own watcher fires/token
 // bumps/runTravel calls/timeline kills/settle paths, and snapshotBrowse.ts's own store-side
 // safety ceiling), gated behind `localStorage.getItem('tmDebug')` so it costs nothing in normal
 // operation and can be switched on live in DevTools without a rebuild -- exactly the kind of

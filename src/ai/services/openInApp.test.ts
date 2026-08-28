@@ -194,7 +194,7 @@ describe('openPhotoSetInNewTab', () => {
 })
 
 // SP8-P5d Task 5 / A-8 closed 2026-08-19: New-UI's /ai/agent now honours ?session=
-// (see docs/superpowers/specs/2026-08-19-agent-session-deeplink-design.md), so these two
+// , so these two
 // functions land inside New-UI at /app.
 // 🔴 Forward assertion: URL verbatim + reverse assertion "does not equal the root-mounted
 // old Vue2 URL" — the reverse assertion is what discriminates: if someone reverts the landing

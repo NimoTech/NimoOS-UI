@@ -54,7 +54,7 @@ const body = () => new DOMWrapper(document.body)
 
 function iface(p: Partial<MergedIface> = {}): MergedIface {
   return {
-    name: 'enp2s0', state: 'up', speed: 1000, maxSpeed: 1000, addr: '192.168.1.143', dhcp: true,
+    name: 'enp2s0', state: 'up', speed: 1000, maxSpeed: 1000, addr: '192.168.1.10', dhcp: true,
     isVirtual: false, zone: '', type: 'ethernet', ipv4: { method: 'dhcp' }, wireless: null, hybridCapable: false,
     ...p,
   }

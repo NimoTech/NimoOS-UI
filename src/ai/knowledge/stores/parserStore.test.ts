@@ -5,13 +5,13 @@
 // doesn't overwrite later) ② guard variable scope (must be store instance local, not module-level).
 //
 // 🔴 **mock level** (governance §4.1): `service.ai.parser*` six methods in shared package
-// only `return res.data` (`NimoOS-Service/src/ai.ts:591-620`, zero transformation) → here
+// only `return res.data` (`the shared service package's src/ai.ts:591-620`, zero transformation) → here
 // all mocked as **bare HTTP snake_case**, fixture verbatim, not a byte changed.
 //
 // 🔴 **fixtures are copies, not runtime reads** (governance §4.4; following P5b/T3
 // established practice):
 // data copied verbatim into this file's `FIXTURE-COPY-BEGIN/END` blocks with sources, **don't
-// use `node:fs` to read `.superpowers/`** —— that directory is gitignored (lost once in SP7),
+// use `node:fs` to read the capture directory at runtime** —— that directory is gitignored (lost once in SP7),
 // this branch will merge to master, tests in `src/` with cross-repo dependency would
 // mysteriously fail with "file not found".
 // Copy-to-fixture **byte-for-byte equivalence verified by one-shot script** (see T5 report §5),
@@ -34,7 +34,7 @@ import type { ParserStatsBody, ParserControlStateBody, ParserFoldersBody, Parser
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIXTURE-COPY-BEGIN  p5c-fixtures/parser-stats.json  (complete, GET /v1/parser/stats)
-// from `.superpowers/sdd/p5c-fixtures/parser-stats.json` (2026-08-03 13:22 live capture).
+// from a captured device response (2026-08-03 13:22 live capture).
 // Copy inserted by script from fixture, zero manual rewriting; equivalence check in report §5.
 const STATS_NOW: ParserStatsBody = {
   "queue_depth": {
@@ -65,7 +65,7 @@ const STATS_NOW: ParserStatsBody = {
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5b-fixtures/stats.json  (complete, **earlier capture** of same endpoint)
-// from `.superpowers/sdd/p5b-fixtures/stats.json` (P5b era live capture).
+// from a captured device response (P5b era live capture).
 // 🔴 Purpose: interleaving tests need two **distinguishable** real response bodies. These are the
 // same `GET /v1/parser/stats` at two time points (`pending` 338→339 / `indexed_files` 8→7,
 // drift logged in governance §12.1), exactly the real scenario of "two polling requests in flight,
@@ -99,7 +99,7 @@ const STATS_EARLIER: ParserStatsBody = {
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (complete, GET /v1/parser/state)
-// from `.superpowers/sdd/p5c-fixtures/parser-control-state.json` (2026-08-03 13:22).
+// from a captured device response (2026-08-03 13:22).
 // 🔴 Live test shows exactly 5 fields; this machine is currently in **paused state** (governance §4.3).
 const STATE: ParserControlStateBody = {
   "paused": true,
@@ -111,7 +111,7 @@ const STATE: ParserControlStateBody = {
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/parser-folders-pending-20.json  (complete 20 items + total_groups)
-// from `.superpowers/sdd/p5c-fixtures/parser-folders-pending-20.json` (2026-08-03 13:22,
+// from a captured device response (2026-08-03 13:22,
 // `GET /v1/parser/folders?limit=20`). 🔴 **all 20 items copied**, fields (`root_id`/`folder`/`count`)
 // none simplified, order unchanged; relationship between `total_groups: 119` and list length 20 has dedicated test.
 const FOLDERS: ParserFoldersBody = {
@@ -142,7 +142,7 @@ const FOLDERS: ParserFoldersBody = {
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/parser-jobs-failed-5.json  (complete, GET /v1/parser/jobs?status=failed&limit=5)
-// from `.superpowers/sdd/p5c-fixtures/parser-jobs-failed-5.json` (2026-08-03 13:22).
+// from a captured device response (2026-08-03 13:22).
 // 🔴 This machine's failed bucket **is empty** → can't alone distinguish "actually read `.jobs`" from
 // "took `|| []` fallback", so borrow a real row from next block for confirmation.
 const FAILED_EMPTY: { jobs: ParserFailedJob[] } = {
@@ -151,7 +151,7 @@ const FAILED_EMPTY: { jobs: ParserFailedJob[] } = {
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5b-fixtures/jobs-pending.json  jobs[0]  (one real row, copied verbatim)
-// from `.superpowers/sdd/p5b-fixtures/jobs-pending.json`'s `jobs[0]` (id 348).
+// from a captured device response's `jobs[0]` (id 348).
 // 🔴 Why borrow a pending bucket row: this machine's failed bucket is live-test empty
 // (`parser-jobs-failed-5.json` and P5b's `jobs-failed.json` both `{"jobs":[]}`), but
 // `/v1/parser/jobs` is one table, one serializer, row shape independent of status → borrow as

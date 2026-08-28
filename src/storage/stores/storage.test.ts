@@ -423,7 +423,7 @@ describe('RAID write actions', () => {
   })
 
   // Caught during on-device acceptance 07-28: for POST /v2/raid the backend returns bare {task_id,status} (no .data envelope,
-  // see the NimoOS-Service src/raid.ts create() comment + route/v2/raid.go:187-190).
+  // see the shared service package's src/raid.ts create() comment + route/v2/raid.go:187-190).
   // Previously the store read one extra layer, res?.data?.task_id, got undefined → taskId became an empty string,
   // and the progress modal/polling watched an empty task id forever. This proves the bare shape also yields taskId correctly.
   it('createRaid also extracts taskId from the bare {task_id,status} shape (no .data)', async () => {

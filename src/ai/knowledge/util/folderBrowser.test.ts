@@ -1,12 +1,10 @@
 // SP8-P5c Task 3 (part 1) — unit tests for `util/folderBrowser.ts` three pure functions.
-// Blueprint `NimoOS-UI` (main@7a6ee6b7) `src/components/common/folderBrowser.js:3-34`.
+// Blueprint: the Vue 2 panel's `src/components/common/folderBrowser.js:3-34` (main@7a6ee6b7).
 //
 // [Data source for end-to-end test case] `data.content` layer of `folder-list-DATA.json`
 // (18 items) **copied verbatim into this file** (see FIXTURE-COPY block below),
-// not reading that directory at runtime — coordinator ruling (see T3 report §8):
-// `.superpowers/` covered by gitignore, enters repo only via `git add -f`, SP7 lost
-// entire directory once; tests under `src/` cross-depend on it, once merged without it
-// or someone runs `git clean -X`, mysteriously dies with "file not found". Governance §4
+// not reading that directory at runtime — fixtures are copied into this file verbatim
+// so tests don't depend on files outside the repo tree. Governance §4
 // "forbid hand-written" means "don't invent data by imagination" (memory
 // `newui-fixture-from-imagination-trap`), copy + cite source also satisfies + test
 // self-contained. Copy-blueprint original equivalence verified programmatically by
@@ -19,8 +17,7 @@ import { crumbsFor, dirEntries, pickerRoots } from './folderBrowser'
 
 /**
  * The verbatim shape of each item from `GET /v1/folder?path=/DATA` (11 fields, in the same
- * order as the backend). Copied verbatim from `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`
- * (captured on a real device, 2026-08-03).
+ * order as the backend). Captured verbatim from a real device response (2026-08-03).
  */
 interface RawFolderItem {
   name: string
@@ -38,9 +35,8 @@ interface RawFolderItem {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FIXTURE-COPY-BEGIN  ——  the data.content layer of folder-list-DATA.json (18 items)
-// Taken from `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json` (real-device capture,
-// 2026-08-03), copied verbatim so the test doesn't cross-depend on a gitignored directory —
-// coordinator ruling, see T3 report §8.
+// Captured on a real device (2026-08-03), copied verbatim so this test doesn't
+// depend on a directory outside the repo tree.
 // 🔴 That fixture is a **three-layer envelope of the raw HTTP response**:
 //   `{success,message,data:{content:[…18 items…],total,index,size}}`;
 //   what's copied here is **just the `data.content` layer** (= the array itself inside the

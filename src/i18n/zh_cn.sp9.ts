@@ -341,8 +341,8 @@ export default {
   settingsAccNoFoldersGranted: '未授权任何文件夹——仅数据盘(/DATA、/mnt、/media)可访问。',  // 🟡全语言缺译→补中文(用户 2026-08-01 拍板)
   settingsAccFoldersLoadFailed: '加载文件夹授权失败',  // 🆕本期新增
 
-  // ── P5 KVM ── 中文以 Vue2 src/assets/lang/zh_CN.json 为准(逐条核对,与 task-2-brief 草稿
-  // 有出入处已按 zh_CN.json 改正,详见 task-2-report.md「i18n 核对」表)。
+  // ── P5 KVM ── 中文以 Vue2 src/assets/lang/zh_CN.json 为准(逐条核对,与草稿
+  // 有出入处已按 zh_CN.json 改正)。
   kvmTitle: 'NIMO 虚拟机',
   kvmRunningSuffix: '运行中',
   kvmNoVms: '暂无虚拟机',

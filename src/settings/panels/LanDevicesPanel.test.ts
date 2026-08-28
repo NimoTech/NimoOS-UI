@@ -7,12 +7,12 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { sys: { getLanDiscovery: () => getLanDiscovery() } },
 }))
 
-// Real response captured on the device 2026-08-09.
+// Shape matches the endpoint's response.
 const FIXTURE = {
   devices: [
-    { ip: '192.168.1.49', hostname: 'NimoOS', version: 'dev', self: false },
-    { ip: '192.168.1.143', hostname: 'NimoOS', version: '1.9.3-alpha1+28.g0dc16d6', self: true },
-    { ip: '192.168.1.189', hostname: '', version: '', self: false },
+    { ip: '192.168.1.11', hostname: 'NimoOS', version: 'dev', self: false },
+    { ip: '192.168.1.10', hostname: 'NimoOS', version: '1.0.0', self: true },
+    { ip: '192.168.1.12', hostname: '', version: '', self: false },
   ],
   truncated: false,
 }
@@ -47,7 +47,7 @@ describe('LanDevicesPanel', () => {
     await rows[1].trigger('click')
     expect(open).not.toHaveBeenCalled()
     await rows[0].trigger('click')
-    expect(open).toHaveBeenCalledWith('http://192.168.1.49/', '_blank', 'noopener')
+    expect(open).toHaveBeenCalledWith('http://192.168.1.11/', '_blank', 'noopener')
     open.mockRestore()
   })
 

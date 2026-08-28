@@ -1,5 +1,5 @@
 // SP8-P5c Task 8 + Task 9 — component test for `SettingsView.vue`.
-// Blueprint: `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/SettingsView.vue` (322 lines).
+// Blueprint: the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Knowledge/SettingsView.vue` (322 lines).
 // **T8** covers upper half: service card · three config rows (concurrency/device/OCR) · sandbox
 //   entry · danger zone + corresponding script functions
 //   (`controlState` / `deviceLabel` / `togglePause` / `setConcurrency` / `setDevice` /
@@ -35,7 +35,7 @@
 //   T9's `browserRoots` (K1's second layer reduction point, reads `store.wikiCandidates`) and
 //   `store.loadCandidates()` also use real store + real `service.wiki.getCandidates` mock.
 // 🔴 Shape: `service.ai.parserStats` / `parserState` both only `return res.data`
-//   (`NimoOS-Service/src/ai.ts:591-596`, no transformation) → mock as **raw HTTP snake_case**,
+//   (`the shared service package's src/ai.ts:591-596`, no transformation) → mock as **raw HTTP snake_case**,
 //   the fixture verbatim. `parserControl` response body not consumed on this page, mock as `{}`,
 //   matching verbatim `parserStore.test.ts:207` / `knowledgeStore.parser.test.ts:136` /
 //   `ParserStatus.test.ts:182` (governance §4.1 red-flag self-check: same method different shapes
@@ -43,7 +43,7 @@
 // 🔴 **T9's four new mock layers, each aligned with §4.1 table**:
 //   · `service.notes.getSettings` / `putSettings` → **camelCase with exactly two fields
 //     `{ notesRoot, autoExtract }`** (package-internal `normalizeSettings`,
-//     `NimoOS-Service/src/notes.ts:131-137`). **HTTP layer is `notes_root` / `auto_extract`,
+//     `the shared service package's src/notes.ts:131-137`). **HTTP layer is `notes_root` / `auto_extract`,
 //     plus three extra fields `distill_roots` / `distill_daily_cap` / `background_model` —
 //     that normalization function discards all three**. Writing snake_case or including extra
 //     fields is wrong.
@@ -56,7 +56,7 @@
 //
 // ═══ fixtures are copies, not read at runtime (governance §4.4) ═══
 // Data copied verbatim into `FIXTURE-COPY-BEGIN/END` blocks below with attribution, **do not use
-// `node:fs` to read `.superpowers/`** — that directory is gitignored (entire loss in SP7 once),
+// `node:fs` to read the capture directory at runtime** — that directory is gitignored (entire loss in SP7 once),
 // this branch will merge to master, tests under `src/` crossing into it mysteriously fail as
 // "file not found".
 // Copy equivalence confirmed via **programmatic byte-for-byte verification** (output in T8 report
@@ -111,7 +111,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai, notes, wiki, folder 
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (entire, GET /v1/parser/state)
-// From `.superpowers/sdd/p5c-fixtures/parser-control-state.json` (2026-08-03 13:22 captured on device).
+// From a captured device response (2026-08-03 13:22 captured on device).
 // 🔴 current device is **paused state** (governance §4.3) → service card is orange light
 // `[data-state="paused"]` + `⏸ Paused` + "Resume" button in `primary` style; `device:"auto"` +
 // `resolved_device:"cpu"` → deviceLabel renders "Auto (currently CPU)"; `ocr_enabled:false` →
@@ -127,7 +127,7 @@ const STATE: ParserControlState = {
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/parser-stats.json  (entire, GET /v1/parser/stats)
-// From `.superpowers/sdd/p5c-fixtures/parser-stats.json` (2026-08-03 13:22).
+// From a captured device response (2026-08-03 13:22).
 // This page **does not render any field from stats**, but `store.loadOverview()` is a
 // `Promise.all` of two calls (stats + state); missing either causes whole flow to go to catch
 // branch setting `unreachable` → controlState stays at default. Thus this fixture is a prerequisite
@@ -168,10 +168,10 @@ const STATS = {
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/notes-settings.json  (GET /v1/notes/settings)
 // HTTP raw (byte-for-byte):{"notes_root":"/DATA/Notes","auto_extract":true,"distill_roots":[],"distill_daily_cap":50,"background_model":""}
-// From `.superpowers/sdd/p5c-fixtures/notes-settings.json` (2026-08-03 13:22 captured on device).
+// From a captured device response (2026-08-03 13:22 captured on device).
 // 🔴 **layer reduction action (governance §4.1 / §4.4: document reduction in comments)**:
 //   `service.notes.getSettings` package-internal goes through `normalizeSettings`
-//   (`NimoOS-Service/src/notes.ts:131-137`):
+//   (`the shared service package's src/notes.ts:131-137`):
 //       notesRoot   = (r.notes_root as string) || ''
 //       autoExtract = r.auto_extract !== false        ← undefined also normalizes to true
 //   → component receives **camelCase with exactly these two fields**; the three `distill_*` /
@@ -1097,7 +1097,7 @@ const dangerFootBtn = (host: HTMLElement) =>
 describe('SettingsView/T9 — §4.1: fixture copy mock layer (key set equality)', () => {
   it('🔴 notes two copies are **after layer reduction** shape: key set exactly equal, not one more or less', () => {
     // `service.notes.getSettings/putSettings` package-internal goes through `normalizeSettings`
-    // (`NimoOS-Service/src/notes.ts:131-137`) → **camelCase with exactly these two keys**;
+    // (`the shared service package's src/notes.ts:131-137`) → **camelCase with exactly these two keys**;
     // the three HTTP-layer `distill_roots` / `distill_daily_cap` / `background_model` are discarded.
     expect(Object.keys(NOTES_SETTINGS)).toEqual(['notesRoot', 'autoExtract'])
     // `dirInfo` (`notes.ts:264-267`) only does `!!` normalization, keys/layer unchanged.
@@ -1203,7 +1203,7 @@ describe('SettingsView/T9 — auto-capture row two states (blueprint :104-116)',
     //   original case name "backend omits `auto_extract` → package `r.auto_extract !== false` normalizes to true"
     //   **zero discrimination** — mock hits **package boundary**, `normalizeSettings` doesn't enter loop, this case
     //   and previous have identical pass/fail behavior).
-    //   that invariant **belongs to upstream guard**: `NimoOS-Service/src/notes.test.ts:198-203`; review mutation test
+    //   that invariant **belongs to upstream guard**: `the shared service package's src/notes.test.ts:198-203`; review mutation test
     //   "modify Service `normalizeSettings` → New-UI 112/112 pass, upstream fails".
     //   this repo literally can't supplement it: `normalizeSettings` not exported from package index.
     //   → component side can only verify "receives `true` renders open", this case just asserts that.

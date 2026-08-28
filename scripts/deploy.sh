@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build NimoOS-New-UI and deploy to the Gateway's /app/ static directory.
+# Build the app and deploy to the Gateway's /app/ static directory.
 # Note: on first use, make sure /var/lib/nimoos/www/app/ exists and is writable by nimo
 #   sudo mkdir -p /var/lib/nimoos/www/app && sudo chown nimo:nimo /var/lib/nimoos/www /var/lib/nimoos/www/app
 set -euo pipefail

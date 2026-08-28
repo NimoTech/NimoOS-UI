@@ -6,7 +6,7 @@ import { memberRow, mirrorPairs, mergeVacatedSlot, type MemberRowView } from '..
 
 // The backend attaches rebuild_pct to some members during a rebuild (RaidDetailPanel.vue L163),
 // but the shared package's RaidMemberDisk hasn't declared this optional field yet (see
-// NimoOS-Service/src/raid.ts) — just extending the type locally is enough, no need to change the shared package.
+// the shared service package's src/raid.ts) — just extending the type locally is enough, no need to change the shared package.
 export type RaidMember = RaidMemberDisk & { rebuild_pct?: number }
 
 // isDegraded: reuse the parent view's (StorageRaidDetail.vue) existing resolveRaidState().isDegraded

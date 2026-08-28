@@ -8,7 +8,7 @@ import zh from '../../../../i18n/zh_cn'
 // SP8-P2b Task 6 — follows Vue2 sections/__tests__/MemorySection.spec.js (13 cases, using
 // `MemorySection.methods.load.call(ctx)` to directly call methods). `<script setup>` has no
 // methods object to borrow, so here we mount component + spy service, keep assertion content
-// as-is, just change the driving approach. Reference table in .superpowers/sdd/p2b-task-6-report.md.
+// as-is, just change the driving approach.
 
 const h = vi.hoisted(() => ({
   getMemorySettings: vi.fn(),

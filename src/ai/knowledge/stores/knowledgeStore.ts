@@ -1,5 +1,5 @@
 // SP8-P5a Task 6 —— 1:1 port from Vue2
-// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/store/knowledgeStore.js` (363 lines).
+// the Vue 2 panel (main@7a6ee6b7) `src/views/AI/Knowledge/store/knowledgeStore.js` (363 lines).
 // This file carries only the **Parser group** (Dashboard/topbar, Jobs queue, Allowlist,
 // Control, Indexed Files five state blocks + corresponding actions + `toast`/`fmtAgo`).
 // The three groups notes/wiki/distill (state: distillJobs/wikiRoots/wikiCandidates/

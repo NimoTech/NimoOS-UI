@@ -1,4 +1,4 @@
-// Byte-compat port of Vue2 NimoOS-UI's tests/restoreDestination.test.js — same case names/values
+// Byte-compat port of the Vue 2 panel's tests/restoreDestination.test.js — same case names/values
 // where the logic is identical, adapted only for TS types and this codebase's already-unwrapped
 // `service.folder.getList`-shaped listFolder response (`{content: [...]}` directly, not Vue2's
 // axios-raw `{data:{data:{content:[...]}}}`).

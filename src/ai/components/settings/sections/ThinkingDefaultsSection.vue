@@ -10,7 +10,7 @@
   [Data fetching protocol, not a behavior change] Vue2 `mounted()` reads
   `const d = await ai.getThinkingDefaults(); this.enabled = d.enabled` — note it
   **has no** `.data`. The shared package `service.ai.getThinkingDefaults()` returns the same
-  body-level (see NimoOS-Service/src/ai.ts `getThinkingDefaults`: internally already does
+  body-level (see the shared HTTP client's `src/ai.ts` `getThinkingDefaults`: internally already does
   `return res.data`, unwrapped once, no need to unwrap again here). Data fetching protocol
   aligns with `agentStore.ts:744-748` `loadThinkingDefaults()` — same endpoint, same
   approach, same error-swallowing strategy, no DIY.

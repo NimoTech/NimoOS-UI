@@ -1,8 +1,8 @@
-// Fix-8 round 2 (owner acceptance, 2026-08-14): guard against a class of bug that turned out NOT
-// to be the cause of Fix-8's reported symptom, but is a real risk worth locking down anyway.
+// Guard against a class of bug that turned out NOT
+// to be the cause of a previously reported symptom, but is a real risk worth locking down anyway.
 //
-// Controller hypothesis (disproven by this same investigation, see acceptance-fix-report.md
-// §F8-r2): `.photos-root .app` gained `position: relative; z-index: 1` (Fix-6b, the aurora
+// Hypothesis (disproven by investigation): `.photos-root .app` gained
+// `position: relative; z-index: 1` (the aurora
 // bleed-through fix). Every `position: fixed` overlay that renders as a *sibling* of `.app`
 // inside `.photos-root` (the lightbox, confirm/create/picker scrims, the edit-mode select bar,
 // the export toast) must carry its own explicit `z-index` well above that `1`, or it would stack

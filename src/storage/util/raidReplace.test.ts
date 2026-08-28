@@ -1,4 +1,4 @@
-// Test cases ported from NimoOS-UI/tests/raidReplaceTarget.test.js (2026-08-11); behavior must match Vue2 verbatim.
+// Test cases ported from the Vue 2 panel's tests/raidReplaceTarget.test.js (2026-08-11); behavior must match Vue2 verbatim.
 import { describe, it, expect } from 'vitest'
 import { findReplaceTarget, filterReplacementCandidates } from './raidReplace'
 import type { RaidMemberDiskRow, DiskRaidInfo } from '@nimotech/nimoos-service'

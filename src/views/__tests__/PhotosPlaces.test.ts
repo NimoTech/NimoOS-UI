@@ -1,5 +1,4 @@
-// Task 11(SP7-P6a 地点·地图主视图,本期收官): PhotosPlaces.vue —— 容器,把前 10 个任务的
-// 产物接成一个可用页面。逐条对应 task-11-brief.md 的「必含测试清单」+ 6 处删码验证。
+// PhotosPlaces.vue —— 容器,把地点·地图主视图相关的产物接成一个可用页面。逐条覆盖「必含测试清单」+ 6 处删码验证。
 //
 // 挂 Pinia + i18n + 真实 router(spy push 不需要,AreaShell/PhotosSidebar 都用 useRouter(),
 // 照 PhotosAlbums.test.ts/PhotosPeople.test.ts 的既有挂载套路),mock 共享包 photos 方法。
@@ -650,8 +649,8 @@ describe('P6b-T8: 面板显隐', () => {
   })
 })
 
-// Fix-1 item 2 (owner acceptance, 2026-08-16): the cover picker's head thumbnail
-// (`.cp-head-thumb`) rendered empty. Root cause: this container's `current-asset-id` prop
+// The cover picker's head thumbnail (`.cp-head-thumb`) rendered empty. Root cause: this
+// container's `current-asset-id` prop
 // binding only read `activeDetail?.coverAssetId ?? ''` — missing the `thumbs[0]` fallback
 // Vue2's own `currentHero` computed applies (PhotosPlacesView.vue:310-314: `this.activeDetail.
 // coverAssetId || (this.activeDetail.thumbs || [])[0] || ''`). Most places have no *explicit*
@@ -914,7 +913,7 @@ describe('P6b-T8: 相册与 toast', () => {
     expect(svc.photos.createPlaceAlbum).toHaveBeenCalledWith(1, { name: 'Tokyo · 2026 春', from: '2026-01-01', to: '2026-01-10' })
   })
 
-  // Fix-1 item 5 (owner acceptance, 2026-08-16): switched from the generic app-wide
+  // Switched from the generic app-wide
   // `useToast()` (a plain gray pill) to `usePhotosToast()` (the photos-styled toast every
   // other Places/library flow already uses) — see createAlbum()'s own comment in
   // PhotosPlaces.vue for the full account. These two tests replace (not merely rename) the
@@ -981,10 +980,10 @@ describe('P6b-T8: 灯箱(D9)', () => {
   })
 })
 
-// Fix-1 item 4 (owner acceptance, 2026-08-16): both handlers now navigate to the actual photo
+// Both handlers now navigate to the actual photo
 // library (`/photos`) with the place's city name carried through a `?libraryPlace=` query key
 // (consumed once by Photos.vue's own `onMounted`, see that file's comment) instead of the
-// standalone place-assets page — owner's explicit, binding instruction, matching Vue2's own
+// standalone place-assets page — matching Vue2's own
 // `onPlacesOpenLibrary`/`onPlacesOpenSpot` city-level EXIF-facet jump (PhotosTimeline.vue:
 // 767-793). The old `/photos/places/:key` assertions below are replaced, not merely renamed —
 // this is a genuine navigation-target change, not a refactor.

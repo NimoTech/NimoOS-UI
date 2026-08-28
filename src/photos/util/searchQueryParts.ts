@@ -1,6 +1,6 @@
 // Splits the search query into segments by the keywords extracted from understood(), and marks
 // which parts need highlighting, so the search bar's input echo can apply a highlight style to
-// matched fragments. Ported from Vue2 NimoOS-UI
+// matched fragments. Ported from the Vue 2 panel
 // src/views/Photos/PhotosSearchView.vue:416-433 (`queryParts` computed) —
 // the main segmentation logic is copied verbatim, but there are two defensive deviations not
 // present in Vue2 (logged inline below): the keywords.filter(Boolean) empty-string guard, and the

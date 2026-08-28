@@ -1,5 +1,5 @@
 // SP8-P5d Task 3 —— 1:1 ported from Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/notesViewHelpers.js`(50 lines).
+// the Vue 2 panel's `src/views/AI/Knowledge/notesViewHelpers.js` (main@7a6ee6b7, 50 lines).
 //
 // 🔴 K40: `NOTE_TYPES[*].color` changed from original color-literal gradients to
 // `var(--grad-note-*)` strings —— these four tokens already declared in T2's `knowledge.scss`

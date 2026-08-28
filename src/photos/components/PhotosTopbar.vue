@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 4(顶栏重刻,D13:搜索框入顶栏;副行恒全库计数)。
-// 结构对应 Vue2 NimoOS-UI src/views/Photos/PhotosTopbar.vue:1-34 —— `.topbar`(52px,
+// 结构对应 Vue2 src/views/Photos/PhotosTopbar.vue:1-34 —— `.topbar`(52px,
 // border-bottom)→ 折叠 icon-btn(panelLeft 图标)→ 标题块(`.topbar-title`+`.topbar-sub`)
 // → flex:1 居中 `.search`(放大镜图标 + input + `⏎` .kbd 提示)。样式对应
 // photos.scss:204-264(`.topbar`/`.topbar-title`/`.topbar-sub`/`.icon-btn`/`.search`/
@@ -23,11 +23,10 @@
 // timeline.ts:131-145),不随 Photos.vue 自己的 tab/EXIF 筛选变化,toLocaleString 千分位
 // 格式化(brief 明示)。
 //
-// Search submit semantics (fix round 1 · Important, owner ruling ledger-六-2): empty Enter =
-// no-op, matching Vue2's own submitSearch (:65-69) — trim to empty, return, don't emit. The
-// first version of this component had copied the now-retired PhotosSearchBar.vue's own
-// "empty string also emits" convention (structural spec 3); owner ruling ledger-六-2
-// overrode that for the timeline topbar with "empty Enter here is a no-op" instead.
+// Search submit semantics: empty Enter = no-op, matching Vue2's own submitSearch
+// (:65-69) — trim to empty, return, don't emit. The first version of this component had
+// copied the now-retired PhotosSearchBar.vue's own "empty string also emits" convention;
+// that was overridden for the timeline topbar with "empty Enter here is a no-op" instead.
 //
 // Plan F Task 1 (2026-08-15) update: PhotosSearchBar.vue has since been retired outright (no
 // consumer left — grep-confirmed) and PhotosSearch.vue's own search page now shares THIS
@@ -45,9 +44,9 @@ import { useI18n } from 'vue-i18n'
 import PhotosIcon from './PhotosIcon.vue'
 import { useTimelineStore } from '../stores/timeline'
 
-// Fix-1 item 1 (owner acceptance, 2026-08-13): the four re-shelled album/for-you pages need
+// The four re-shelled album/for-you pages need
 // this same topbar but with a different title/sub and (per Vue2) no search box — Vue2's own
-// PhotosTopbar.vue (NimoOS-UI src/views/Photos/PhotosTopbar.vue:42-51) takes title/sub/
+// PhotosTopbar.vue (src/views/Photos/PhotosTopbar.vue:42-51) takes title/sub/
 // showSearch as props with defaults, and PhotosTimeline.vue:957-971 feeds it per-nav strings
 // computed from topbarTitle/topbarSubContext. This component originally hard-coded the
 // library-only values (see the header comment above, still accurate for the no-prop case);
@@ -55,8 +54,8 @@ import { useTimelineStore } from '../stores/timeline'
 // passed) is byte-for-byte unchanged — see PhotosTopbar.test.ts's pre-existing default-mount
 // assertions, none of which pass title/sub/showSearch.
 //
-// Fix-3 item 7 (owner acceptance, 2026-08-13 pull-forward of Plan F): PhotosSearch.vue's own
-// shell migration needs the `searchMode` half of Vue2 PhotosTopbar.vue:6-12 — a second
+// PhotosSearch.vue's own shell migration (pulled forward from Plan F) needs the `searchMode`
+// half of Vue2 PhotosTopbar.vue:6-12 — a second
 // `icon-btn` (chevL) rendered as a sibling of the collapse toggle, replacing the title/sub
 // block entirely (Vue2's `v-if="searchMode"` / `v-if="!searchMode"` pair). `back` is the
 // New-UI prop name for that state (Vue2's `searchMode`); the emitted event is `back` rather
@@ -170,7 +169,7 @@ onMounted(() => {
       <PhotosIcon name="panelLeft" :size="17" />
     </button>
     <!-- Fix-3 item 7: Vue2 PhotosTopbar.vue:6-8 (searchMode's back button, chevL glyph
-         copied verbatim from NimoOS-UI PhotosIcon.vue's chevL branch — same path already
+         copied verbatim from the Vue 2 panel's PhotosIcon.vue chevL branch — same path already
          used by SearchDatePopover.vue's cal-nav "previous month" button). -->
     <button v-if="back" class="icon-btn" :title="t('photosSearchBackToLibrary')" @click="emit('back')">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6" /></svg>
@@ -184,7 +183,7 @@ onMounted(() => {
     </div>
     <div style="flex:1;display:flex;justify-content:center">
       <!-- Vue2 keeps this outer centering wrapper unconditional and only gates the inner
-           `.search` div itself (NimoOS-UI PhotosTopbar.vue:13-14) — same shape here. -->
+           `.search` div itself (the Vue 2 panel's PhotosTopbar.vue:13-14) — same shape here. -->
       <div v-if="showSearch" class="search">
         <PhotosIcon name="search" :size="14" />
         <input

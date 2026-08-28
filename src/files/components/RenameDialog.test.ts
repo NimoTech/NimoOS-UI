@@ -9,8 +9,8 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 const opts = { global: { plugins: [i18n] }, attachTo: document.body }
 
 // reka-ui Dialog teleports its content to <body>, outside the mounted
-// wrapper's own DOM subtree (see NewItemDialog.test.ts / Task 4's
-// Dialog.test.ts) — query via a DOMWrapper around document.body.
+// wrapper's own DOM subtree (see NewItemDialog.test.ts / Dialog.test.ts) —
+// query via a DOMWrapper around document.body.
 const body = () => new DOMWrapper(document.body)
 
 // Each mount (attachTo: document.body) teleports fresh markup into <body>

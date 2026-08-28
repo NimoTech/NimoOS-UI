@@ -26,7 +26,7 @@ describe('canBeWallpaper', () => {
     // inside the "rejects ..." case above (name/behaviour mismatch). Documented
     // here rather than silently fixed, because it is arguably correct given the
     // implementation (lastIndexOf, not a real basename/extension parse) -- a
-    // policy call, not a bug this fix wave is asked to change.
+    // policy call, not a bug this change is meant to fix.
     expect(canBeWallpaper({ name: '.jpg', is_dir: false })).toBe(true)
   })
 })

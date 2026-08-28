@@ -1,6 +1,6 @@
 <!--
-  web_search / web_fetch 的设置分区,1:1 对应 Vue2 的
-  `NimoOS-UI/src/views/AI/Settings/sections/WebSection.vue`——两侧行为必须保持一致。
+  web_search / web_fetch 的设置分区,1:1 对应 Vue2 面板的
+  `src/views/AI/Settings/sections/WebSection.vue`——两侧行为必须保持一致。
 
   改这个组件前要知道的两件事:
 

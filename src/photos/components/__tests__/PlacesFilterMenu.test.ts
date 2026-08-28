@@ -1,5 +1,5 @@
 // Task 9(SP7-P6a Places - map main view): PlacesFilterMenu.vue — Map toolbar Filters popup.
-// Each item corresponds to the required test checklist in task-9-brief.md + six delete-code verification checks.
+// Each item corresponds to the required test checklist + six delete-code verification checks.
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'

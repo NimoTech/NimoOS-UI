@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Ported from NimoOS-UI/src/components/Storage/raid/RaidDriveBay.vue (:16-21 filter/action
+// Ported from the Vue 2 panel's src/components/Storage/raid/RaidDriveBay.vue (:16-21 filter/action
 // section, :80-83 filteredDisks, :120-130 toggle/selectAllHealthy/clear, bottom summary bar).
 // Selection state is now purely controlled via v-model (modelValue), instead of maintaining
 // an internal selectedDisks + watch forwarder like Vue2 did.

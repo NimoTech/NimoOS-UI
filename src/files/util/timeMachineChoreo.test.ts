@@ -274,12 +274,12 @@ describe('playTravelTimeline — the one gsap-touching function, exercised again
     tl.kill()
   })
 
-  // Fix wave H (Ruling H-1, owner acceptance 2026-08-26): the long-jump fly-through's own OPTIONAL
+  // The long-jump fly-through's own OPTIONAL
   // additions to this function -- delayOverridesMs / presetPoses / durationMsOverride. Every
-  // pre-wave-H call site (every test ABOVE this describe block) never passes any of these, and all
-  // of them still pass unmodified -- that IS this wave's own "byte-identical when omitted"
+  // call site before this addition (every test ABOVE this describe block) never passes any of these, and all
+  // of them still pass unmodified -- that IS the "byte-identical when omitted"
   // regression contract, already proven by the untouched suite above continuing to pass.
-  describe('Fix wave H (Ruling H-1): delayOverridesMs / presetPoses / durationMsOverride', () => {
+  describe('delayOverridesMs / presetPoses / durationMsOverride', () => {
     it('delayOverridesMs overrides the position-based stagger for a NAMED target, leaving un-named/un-overridden targets on the default', () => {
       const named = { ...target(), name: 'intermediate-1' }
       const plain = target() // no name -- must fall back to position-based stagger, unaffected
@@ -330,13 +330,13 @@ describe('playTravelTimeline — the one gsap-touching function, exercised again
   })
 })
 
-// Fix wave H (Ruling H-1, owner acceptance 2026-08-26): flyThroughPlan/flyThroughDurationMs --
+// flyThroughPlan/flyThroughDurationMs --
 // the pure "who launches when" planning layer for a long jump's own fly-through. See
 // timeMachineChoreo.ts's own header comment on this section, and travelDurationMs's own comment,
-// for the full ruling/rationale this ports; TimeMachineDepthStack.test.ts covers how a real
+// for the full rationale this ports; TimeMachineDepthStack.test.ts covers how a real
 // TimeMachineDepthStack.vue instance actually WIRES a plan into DOM/GSAP execution -- not
 // re-tested here, this file stays scoped to the pure function.
-describe('flyThroughPlan — long-jump fly-through sequencing (Fix wave H, Ruling H-1)', () => {
+describe('flyThroughPlan — long-jump fly-through sequencing', () => {
   const names = Array.from({ length: 50 }, (_, i) => `s${i}`) // s0 newest .. s49 oldest
 
   it('is empty for a degenerate/out-of-range/equal from-to input (no crash)', () => {
@@ -424,7 +424,7 @@ describe('flyThroughPlan — long-jump fly-through sequencing (Fix wave H, Rulin
   })
 })
 
-describe('flyThroughDurationMs — a plan\'s own total duration (Fix wave H, Ruling H-1)', () => {
+describe('flyThroughDurationMs — a plan\'s own total duration', () => {
   const names = Array.from({ length: 250 }, (_, i) => `s${i}`)
 
   it('is 0 for an empty plan', () => {

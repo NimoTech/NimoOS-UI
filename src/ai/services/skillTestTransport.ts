@@ -1,7 +1,7 @@
 // Thin SSE transport for the sandbox skill-test runner (independent test panel outside of "try in conversation").
 // Shape copied from ./agentTransport.ts:21-39 (SP8-P1b, reviewed) — sseRequest already owns
 // Authorization injection, 401→refresh→reconnect-once, [DONE], 204, and AbortError semantics
-// (@nimotech/nimoos-service, see .sp8/NimoOS-Service/src/sse.ts). This file re-implements
+// (@nimotech/nimoos-service; see the shared service package's src/sse.ts). This file re-implements
 // none of that: it only builds the endpoint/body, calls sseRequest, and forwards each parsed
 // event verbatim to onEvent. Event semantics (accumulating text deltas, step reduction, i18n
 // error text) belong to the consumer (Task 4 TestPanel.vue via sandboxRun.ts), not here.

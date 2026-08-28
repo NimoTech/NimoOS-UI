@@ -1,5 +1,5 @@
 // Task 13 (SP7-P5 Person): PersonRelGraph.vue — SVG force-directed relation graph. Copied character-by-character
-// geometric values from Vue2 NimoOS-UI src/views/Photos/PhotosRelGraph.vue (94 lines), colors changed to use
+// geometric values from the Vue 2 panel's src/views/Photos/PhotosRelGraph.vue (94 lines), colors changed to use
 // scoped CSS class (SVG presentation attributes don't recognize var(), see component top comment).
 //
 // Add affordance (explicitly required by brief, Vue2 relation graph nodes not clickable): clicking satellite nodes
@@ -192,7 +192,7 @@ describe('PersonRelGraph.vue', () => {
   })
 })
 
-// Task 6 (Plan D, PR#137 gap-close): three cases ported from Vue2 NimoOS-UI
+// Task 6 (Plan D, PR#137 gap-close): three cases ported from the Vue 2 panel's
 // tests/photosRelGraph.test.js (commit 03245590) — MAX_GRAPH_NODES cap, avatar-fallback
 // initial letter under every avatar, and the co-appearances empty state. All three behaviors
 // were entirely missing from this component before this task (verified RED before

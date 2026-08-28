@@ -1,4 +1,4 @@
-// Pure formatting for the rebuild ETA (ported verbatim from Vue2 NimoOS-UI
+// Pure formatting for the rebuild ETA (ported verbatim from the Vue 2 panel's
 // src/utils/raidUtils.js etaDurationParts / etaCompletionParts, commit 028837e8;
 // behavior is kept identical, only TS types were added).
 // The input is the backend status's rebuild_eta_seconds: remaining seconds estimated

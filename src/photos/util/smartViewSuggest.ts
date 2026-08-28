@@ -81,6 +81,6 @@ export const SV_QUICK_TEMPLATES: readonly QuickTemplate[] = [
 ]
 
 // COND_SUGGESTIONS / condSuggestionsFor (the "Add condition" popover's suggestion chips)
-// were removed here in SP15-P2c Task 8, ported from Vue2 NimoOS-UI 33b05636
+// were removed here in SP15-P2c Task 8, ported from the Vue 2 panel 33b05636
 // PhotosSmartViewDetail.vue:26-30 ("user-appended requirements") -- the popover they fed is gone and
 // they had no other caller (grep confirmed zero remaining references before deletion).

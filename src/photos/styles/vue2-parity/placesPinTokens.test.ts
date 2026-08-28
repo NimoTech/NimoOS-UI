@@ -6,7 +6,7 @@
 // themselves a standing deviation from Vue2 — flagged at the time as "P6a", left for the owner to
 // judge at acceptance. The owner has now overturned it: Vue2 paints map pins with the PURPLE
 // `--accent`/`--accent-rgb` family directly (photos-places.scss:367-437), theme-constant with NO
-// light-mode override at all (grep-verified against NimoOS-UI's real source — confirmed before
+// light-mode override at all (grep-verified against the Vue 2 panel's real source — confirmed before
 // assuming). PlacesMap.vue's own `<style scoped>` rules that consumed the seven `--pin-*` tokens
 // (and so shadowed parity's already-correct, byte-transcribed purple rules at a cascade tie) have
 // been deleted/trimmed — see that file's own Fix-5 comment. With that done, the seven tokens have

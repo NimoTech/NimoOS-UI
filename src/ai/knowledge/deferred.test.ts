@@ -125,7 +125,7 @@ describe('Placeholder mechanism (K7)', () => {
   // generation convention of "only add, never change existing assertions" + §9.10 "only allowed to
   // strengthen"): its discriminative power is now taken over by the **temporary non-empty list** in the
   // "mechanism nail" case below; and once a new tab is ever added back to DEFERRED_TABS in the future,
-  // this line will **automatically re-arm itself**. Already declared explicitly in p5f-task-8-report.md.
+  // this line will **automatically re-arm itself**.
   it('isDeferred returns true for every tab in the list', () => {
     for (const id of DEFERRED_TABS) expect(isDeferred(id)).toBe(true)
   })
@@ -136,8 +136,7 @@ describe('Placeholder mechanism (K7)', () => {
   // [SP8-P5f Task 8, 2026-08-06] 🔴 **This move's brief required "the mechanism nail case must not be
   // touched at all" — empirically this doesn't hold**, handled per governance §10 declaration
   // discipline 3 (ruling R18: the brief's criterion is only a hint) + ruling R21 (overturning an
-  // existing conclusion requires two independent methods), both raw outputs pasted in
-  // p5f-task-8-report.md:
+  // existing conclusion requires two independent methods), both raw outputs pasted below:
   //   Method ① `pnpm exec vue-tsc --noEmit`:
   //     deferred.test.ts(109,34): error TS2493: Tuple type 'readonly []' of length '0'
   //                               has no element at index '0'.

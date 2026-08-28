@@ -1,6 +1,6 @@
 // SP8-P5c Task 3 (part 1) —— three pure functions for folder picker.
-// 1:1 ported from Vue2 `NimoOS-UI` (main@7a6ee6b7)
-// `src/components/common/folderBrowser.js` (34 lines, read via `git show main:` ——
+// 1:1 ported from the Vue 2 panel's `src/components/common/folderBrowser.js`
+// (main@7a6ee6b7, 34 lines, read via `git show main:` ——
 // governance §1: that repo's working tree is unreliable old branch).
 //
 // Point-by-point alignment:
@@ -10,7 +10,7 @@
 //
 // 【Verbatim port rationale】Original reads `e.is_dir` / `e.name` / `e.path`, and shared
 // package `FolderEntry = { name: string; path: string; is_dir: boolean }`
-// (`NimoOS-Service/src/types.ts:26-30`) matches word-for-word → don't change any field
+// (the shared HTTP client's `src/types.ts:26-30`) matches word-for-word → don't change any field
 // names, **never change to camelCase `isDir`** (governance §12.1 C-5 verified: `GET /v1/folder`
 // response field is snake_case `is_dir`).
 //

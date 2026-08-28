@@ -1,6 +1,6 @@
 // Test doubles for the shared HTTP package. Photos v1 backend has no standard
 // envelope, so `service.photos.*` already resolve to bare bodies (see
-// ../../../../../NimoOS-Service/src/photos.ts) — mocks below mirror that.
+// the shared HTTP client's src/photos.ts) — mocks below mirror that.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { usePhotosSettingsStore } from '../settings'

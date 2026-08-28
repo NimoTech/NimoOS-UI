@@ -185,13 +185,13 @@
   }
   .rail-place.is-active .count { background: rgba(var(--accent-rgb), 0.22); color: var(--accent-ink); }
 
-  /* New-UI additions (Plan E Task 3, shadowing cleanup, 2026-08-15): relocated verbatim
+  /* New-UI additions (shadowing cleanup): relocated verbatim
      (same selectors, same values) from PlacesRail.vue's own `<style scoped>` — Vue2 has no
      loaded-gate or skeleton-loading concept anywhere in this view (it assumes places are
      already loaded by the time the view renders), so there is no Vue2-derived rule for
      these three empty/skeleton states to be transcribed *into*; this section only relocates
      what PlacesRail.vue already had, it does not redesign it.
-     Fix-1 item 6 (owner acceptance, 2026-08-16): `--fg-muted`/`--fg`/`--skeleton-bg` were
+     Note: `--fg-muted`/`--fg`/`--skeleton-bg` were
      *global* New-UI tokens — only following the app-wide `[data-theme]` attribute, never
      Photos' own private `.photos-root.is-light` toggle — corrected to local `--text-2`/
      `--text-1`/`--surface-2` (same tokens this same `.photos-root` block already defines for
@@ -801,15 +801,15 @@
   .trip-row .body .name { font-size: 12.5px; font-weight: 500; color: var(--text-1); }
   .trip-row .body .meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
-  /* New-UI annotation (Plan E Task 7, 2026-08-15): the `.app[data-map-mode="atlas"/"heatmap"]`
+  /* New-UI annotation: the `.app[data-map-mode="atlas"/"heatmap"]`
      block below is transcribed verbatim from Vue2 (byte-identical, grep-confirmed against
-     NimoOS-UI's photos-places.scss) but is DORMANT on both sides of the port — no Vue2 JS
-     anywhere sets a `data-map-mode` attribute on `.app` (grep-confirmed across NimoOS-UI's
+     the Vue 2 panel's photos-places.scss) but is DORMANT on both sides of the port — no Vue2 JS
+     anywhere sets a `data-map-mode` attribute on `.app` (grep-confirmed across the Vue 2 panel's
      src/), and New-UI never sets it either. It is not the same feature as the "map theme"
      picker (default/ocean/sand/mono + custom, see placesMapThemes.ts) — that's a live,
      user-facing preset switch; this `data-map-mode` selector family looks like leftover
      scaffolding for a "tweaks" mode switch that was never wired to any UI in either codebase.
-     Per this task's preflight ruling: transcribe-only, keep dormant, do not add any UI to
+     Transcribe-only, keep dormant, do not add any UI to
      drive `data-map-mode` — this comment only documents that dormancy, it changes no rule. */
   /* ============================================================
      Tweaks-driven mode (style switch)
@@ -915,8 +915,8 @@
     border-radius: 6px;
     color: var(--text-1);
     font: inherit; font-size: 11.5px;
-    /* `color-scheme: dark` deliberately dropped (Plan E Task 3 fix, superseding PlacesFilterMenu.vue's
-       own former scoped override of this exact rule — review I1): Vue2 photos-places.scss:882 hardcodes
+    /* `color-scheme: dark` deliberately dropped (superseding PlacesFilterMenu.vue's
+       own former scoped override of this exact rule): Vue2 photos-places.scss:882 hardcodes
        this, forcing native <input type="date"> chrome (calendar glyph, unfilled placeholder text) into
        dark styling always. This app's root node already sets `color-scheme` per-theme (theme.css's
        `:root` / `:root[data-theme="light"]` blocks) — that cascades down correctly for both of
@@ -1226,14 +1226,14 @@
   opacity: 0.4; cursor: not-allowed; color: var(--text-3);
 }
 
-/* New-UI additions (Task 2, Plan E — cover picker Teleport-to-body task, 2026-08-15): the
+/* New-UI additions (cover picker Teleport-to-body): the
    properties below have no Vue2 counterpart in this file's own `.places-cover-portal`
-   family above (grep-confirmed against NimoOS-UI's photos-places.scss). PlaceCoverPicker.vue
+   family above (grep-confirmed against the Vue 2 panel's photos-places.scss). PlaceCoverPicker.vue
    used to carry these as its own local `<style scoped>` overrides; that whole block was
    deleted in favor of this shared file governing 100% of `.places-cover-portal`'s rules
    once the component started teleporting there — these survive here since there is
    nowhere else left for them to live.
-   Fix-1 item 6 (owner acceptance, 2026-08-16) correction: the original addition's choice of
+   Note: the original addition's choice of
    global New-UI theme tokens (`--chip-bg`/`--chip-bg-hi`) is retired — those only follow the
    app-wide `[data-theme]` attribute, not Photos' own private `.photos-root.is-light` toggle,
    which this exact portal root also carries (PlaceCoverPicker.vue's own template applies both
@@ -1245,7 +1245,7 @@
    already reasoned through in that rule's own comment, a different situation from the
    is-light-following surfaces this fix corrects. */
 
-/* Placeholder background visible before a thumbnail image finishes loading (D3 ruling,
+/* Placeholder background visible before a thumbnail image finishes loading (following
    PlacesRail.vue's own precedent: surface treatment is New-UI's to reshape, not a precise
    port of a Vue2 literal — Vue2's `.cp-head-thumb` has no background at all). */
 .places-cover-portal .cp-head-thumb { background: var(--surface-2); }

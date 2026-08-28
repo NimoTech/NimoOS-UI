@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // SP15-P1-T7/T8: PhotosMomentDetail.vue — the moment detail page (route /photos/moments/:id).
-// Ported section by section from Vue 2 NimoOS-UI 899af59b:src/views/Photos/PhotosMomentDetail.vue
+// Ported section by section from the Vue 2 panel's src/views/Photos/PhotosMomentDetail.vue
 // (template :1-121, computed :203-291, distStyle :418-421) and photos-smartview.scss.
 // It reuses the sv-detail-* two-column skeleton already established by
 // PhotosSmartViewDetail.vue — Vue 2 did the same, its top bar is literally commented
@@ -192,7 +192,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// `toggle` wires the topbar's collapse button
 // (same as Photos.vue/PhotosAlbums.vue). Vue2 nests moment detail inside PhotosSmartViewsView
 // under activeNav==='smart' ("Moments dedicated page", PhotosTimeline.vue:1024-1033) -- same
 // nav as the Moments · For You list page, so title='For You' and sub is left to PhotosTopbar's
@@ -439,7 +439,7 @@ function onTileClick(p: Photo, list: Photo[]): void {
   else lightbox.openAt(p, list)
 }
 
-// ── Fix-12 (owner acceptance, 2026-08-14): this page always called `lightbox.openAt` (above),
+// ── This page always called `lightbox.openAt` (above),
 // but never mounted a `<PhotoLightbox>` of its own -- `useLightbox` is a module-level singleton,
 // so the state flipped open (its network calls fired) with nothing on THIS page's own tree to
 // render it; the previous page's own mounted lightbox (if any) would pick up the stale `open`
@@ -617,7 +617,7 @@ async function doDelete(): Promise<void> {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+      <!-- Same narrow-mode coordination as
            Photos.vue/PhotosAlbums.vue. -->
       <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
@@ -885,7 +885,7 @@ async function doDelete(): Promise<void> {
             @confirm="onPickPhotos"
           />
 
-          <!-- Fix-12 (owner acceptance, 2026-08-14): add-to-album picker for the lightbox's
+          <!-- Add-to-album picker for the lightbox's
                `@add-to-album`, same shape as PhotosAlbumDetail.vue's own `AlbumPickerDialog`
                mount -- nested inside `.photos-root` (its own panel background is
                `var(--surface-2)`, a `.photos-root`-local token with no fallback, per the F1/F4
@@ -973,7 +973,7 @@ async function doDelete(): Promise<void> {
 /* ── Top bar (scss:298-313, globally imported) ──
    Task 6: `.sv-detail-bar` deleted -- parity's own `.photos-root .sv-detail-bar` already
    matches (token names differ only). The back button's class is renamed from the invented
-   `.sv-back-btn` to Vue2's actual `.back` (verified against NimoOS-UI's real source,
+   `.sv-back-btn` to Vue2's actual `.back` (verified against the Vue 2 panel's real source,
    PhotosMomentDetail.vue:4 `<button class="back" ...>`) -- same naming-drift correction
    T5 already made for the sibling SmartViewDetail page's own back button: the old name never
    matched parity's nested `.sv-detail-bar .back`(+:hover) selector at all, so this is the
@@ -1011,7 +1011,7 @@ async function doDelete(): Promise<void> {
    plus its `.sv-header-conds .sv-cond` contextual size-bump override into one rule -- same
    "consolidation, not a raw duplicate" precedent T4/T5 already established for this exact
    selector on the sibling pages.
-   Fix-2 item 4/6 (owner acceptance, 2026-08-13): background corrected from `--chip-bg` (global,
+   Background corrected from `--chip-bg` (global,
    non-shadowed, glass-gradient in dark mode) to parity's own `--surface-3` -- Vue2's real base
    `.sv-cond` background (photos-smartview.scss:91-97), one rung lighter than what was here
    (`--chip-bg`/--surface-2, not `--chip-bg-hi`/--surface-3). Same fix applied to this chip's
@@ -1020,7 +1020,7 @@ async function doDelete(): Promise<void> {
 .sv-cond { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: var(--surface-3); color: var(--text-2); font-size: 11.5px; }
 /* Amber type pill (scss:264-268). Vue 2 wrote an amber literal for both the tint and the text;
    this repo forbids bare colour literals.
-   Fix-2 item 6 (owner acceptance, 2026-08-13): this used to reuse the global --warn-bg/--warn-fg
+   This used to reuse the global --warn-bg/--warn-fg
    pair (T4's original substitution) -- neither is shadowed on `.photos-root`, so in photos light
    mode (data-theme still dark) it stayed the dark pairing, a faint 8%-alpha wash under the same
    bright orange text sitting directly on the parity light surface -- low-contrast
@@ -1050,7 +1050,7 @@ async function doDelete(): Promise<void> {
    the two properties the local base rule was restating on top of that). `:disabled` survives
    unchanged (New-UI addition, no parity equivalent). ── */
 .sv-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-/* `.sv-action-btn-icon`'s 32px verified against NimoOS-UI's real source for *this* page
+/* `.sv-action-btn-icon`'s 32px verified against the Vue 2 panel's real source for *this* page
    (PhotosMomentDetail.vue:36, inline `min-width:32px`) -- unlike the sibling SmartViewDetail
    page, whose own real Vue2 inline value is 36px (T5's fix), this page's own value really is
    32px, so no correction is needed here. No parity CSS class exists for it either way (Vue2
@@ -1081,7 +1081,7 @@ async function doDelete(): Promise<void> {
    differ only; `.sv-export-item`'s local `width: 100%` was also redundant, same finding T5
    already made for the sibling page's identical copy: `.sv-export-menu`'s flex-column parent
    stretches its children by default, so the explicit width did nothing). ──
-   `.sv-more-menu`'s min-width corrected from 220px to **210px**: verified against NimoOS-UI's
+   `.sv-more-menu`'s min-width corrected from 220px to **210px**: verified against the Vue 2 panel's
    real source for *this specific page* (PhotosMomentDetail.vue:40, inline
    `style="min-width:210px"`) -- 220px was this page's own value for the sibling
    SmartViewDetail page's dropdown, copied here by mistake (the two pages restate the same
@@ -1102,7 +1102,7 @@ async function doDelete(): Promise<void> {
 /* ── Task 8 cross-page sweep: delete confirmation ──
    This used to restate PhotosSmartViewDetail.vue's own then-invented `.sv-confirm-*` rules
    verbatim (task instruction at the time: reuse the existing dialog idiom, don't invent a
-   second one) -- but verified against NimoOS-UI's real source, *this specific page's* Vue2
+   second one) -- but verified against the Vue 2 panel's real source, *this specific page's* Vue2
    delete dialog actually spells its classes `.lb-confirm-scrim`/`.lb-confirm`/`.lb-confirm-icon`/
    `.lb-confirm-title`/`.lb-confirm-body`/`.lb-confirm-foot`/`.trash-btn-ghost`/`.trash-btn-cta`
    (+`.trash-btn-cta-danger`) -- PhotosMomentDetail.vue:127-141, not `.sv-confirm-*` at all. Same

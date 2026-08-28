@@ -1,7 +1,7 @@
 // Merge-cards feature (2026-08-21): service wrappers + store state for the cluster-merge
-// question cards in the People review wizard. Backend contract (verified against the backend's
-// own report — DEV-NimoOS-Photos .superpowers/sdd/cluster-merge-questions-report.md, branch
-// feat/cluster-merge-questions, PR #6, unmerged): GET /photos/persons/merge-suggestions/v2 ->
+// question cards in the People review wizard. Backend contract (verified against the
+// DEV-NimoOS-Photos branch feat/cluster-merge-questions, unmerged at the time of writing):
+// GET /photos/persons/merge-suggestions/v2 ->
 // {pairs:[{id,dist,from,into,fromFaceIds,intoFaceIds}]}, open only, hidden excluded, dist ASC.
 // POST .../v2/:id/accept|reject -> {id,status,decidedAt}, idempotent. Old backend (no v2 route)
 // 404s -> feature-detected and hidden silently, mirroring suggestionsSupported's own convention.

@@ -1,6 +1,6 @@
-// Task 5 (Plan E #106 perf architecture port, 2026-08-15): semantic port of Vue2 NimoOS-UI's
-// own `tests/photosPlacesMapPerf.test.js` (8 cases, git show 78cf3335 — PR #106's perf
-// sub-commit). NOT a line-for-line copy: Vue2 mounted one monolithic `PhotosPlacesView`
+// Semantic port of the Vue 2 panel's own `tests/photosPlacesMapPerf.test.js` (8 cases, git show
+// 78cf3335 — PR #106's perf sub-commit). NOT a line-for-line copy: Vue2 mounted one monolithic
+// `PhotosPlacesView`
 // component and measured re-renders via `$on('hook:beforeUpdate')`; New-UI already splits that
 // same view into PlacesMap/PlacesThemeMenu/PlacesZoomBar/PhotosPlaces (container) + a Pinia
 // store, and Vue3's `<script setup>` compiled output has no static `.render` method to spy on

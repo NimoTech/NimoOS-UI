@@ -1,4 +1,4 @@
-// Ported (behavior unchanged, types added) from Vue2 NimoOS-UI
+// Ported (behavior unchanged, types added) from the Vue 2 panel's
 // views/Photos/PhotosSettings.vue:234-297 (data + two watchers), :387-486
 // (five actions + loadStorage/loadAbout), :500-526 (mounted initial fetches)
 // and store/modules/photos.js:1249-1306 (setAiFaces/setAiFeatures/
@@ -8,17 +8,16 @@
 // This store is the shared config/storage/about cache for the settings page
 // (Tasks 3-6). It also folds in retention/scanInterval — duplicated on
 // purpose against trash.ts's own fetchRetention/setRetention (that copy
-// stays; the trash view is out of scope here, see task report "concerns").
+// stays; the trash view is out of scope here).
 //
 // rebuildIndex()'s 409 branch reads timeline.ts's existing `tasks` list (via
 // its fetchTasks() action) rather than taking a caller-supplied lookup
-// callback — see the comment at rebuildIndex() below and the task report's
-// fix-up log for why an earlier revision used a callback instead.
+// callback — see the comment at rebuildIndex() below for why an earlier
+// revision used a callback instead.
 //
-// IMPORTANT (brief-vs-shared-package discrepancy, resolved in favor of the
-// shared package's actual signature — see task report): the shared package's
-// `updateConfig` is NOT `updateConfig(patch: object)`. Its real signature
-// (.sp7/NimoOS-Service/src/photos.ts:48-62) is positional:
+// IMPORTANT: the shared package's `updateConfig` is NOT
+// `updateConfig(patch: object)`. Its real signature
+// (the shared HTTP client's src/photos.ts:48-62) is positional:
 //   updateConfig(watchDirs: string[], retentionDays?, facesEnabled?, extra?)
 // `watchDirs` is unconditionally included in the request body (no way to
 // omit it), and the backend rejects an empty watchDirs list. Vue2 handles

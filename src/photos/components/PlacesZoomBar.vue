@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // P6a-T8 (SP7-P6a 地点·地图主视图): PlacesZoomBar.vue —— 地图左侧垂直缩放滑杆。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:952-970(模板)、
+// 逐段照 Vue2 src/views/Photos/PhotosPlacesView.vue:952-970(模板)、
 // :666-692(zoombarSetFromEvent / onZoombarDown|Move|Up 拖拽换算与 pointer capture)、
 // photos-places.scss:234-284(样式)。
 //

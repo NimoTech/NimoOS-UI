@@ -79,10 +79,9 @@ describe('mention text rewrite and caret (AgentComposer.vue:355-428)', () => {
   })
 })
 
-// P1c1 acceptance patch task 4 — @ mention changed to "state tracking" instead of
-// reverse-engineering from text, fixing the bug where the panel disappears when mount
-// point display name (like `System (/DATA)`) contains both space and slash. See
-// .superpowers/sdd/p1c1-patch-task-4-brief.md "root cause" and "pure function" sections.
+// @ mention changed to "state tracking" instead of reverse-engineering from text, fixing
+// the bug where the panel disappears when mount point display name (like `System (/DATA)`)
+// contains both space and slash.
 describe('mentionPrefix (AgentComposer.vue drillIn/popSegment prefix concatenation, unique source after dedup)', () => {
   it('no segments → just bare "@"', () => {
     expect(mentionPrefix([])).toBe('@')

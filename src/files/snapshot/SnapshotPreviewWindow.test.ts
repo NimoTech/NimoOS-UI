@@ -1,9 +1,9 @@
-// Task 5 (Files Time Machine Vue2-parity line): a static, read-only, non-interactive miniature of
+// A static, read-only, non-interactive miniature of
 // ONE older snapshot's directory listing at the Files area's CURRENT relative path -- the layer
-// TimeMachineStage.vue (Task 7) stacks up to ~10 of behind the real, live window.
+// TimeMachineStage.vue stacks up to ~10 of behind the real, live window.
 //
-// Fix round 1 (controller ruling): rewritten to assert against the ACTUAL Vue2 authority
-// (NimoOS-UI src/components/filebrowser/components/SnapshotPreviewWindow.vue, 673 lines) instead
+// Rewritten to assert against the ACTUAL Vue2 authority
+// (the Vue 2 panel's src/components/filebrowser/components/SnapshotPreviewWindow.vue, 673 lines) instead
 // of an earlier version built off a research summary's inaccurate paraphrase. See
 // SnapshotPreviewWindow.vue's own header comment for the full structure trace this file asserts.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -46,7 +46,7 @@ beforeEach(() => {
   localStorage.clear() // useFilesStore's sort/order read localStorage on init -- keep default name/asc per test
 })
 
-describe('SnapshotPreviewWindow — fetch wiring (Task 4 contract, unchanged)', () => {
+describe('SnapshotPreviewWindow — fetch wiring (contract unchanged)', () => {
   it('requests the listing via getSnapshotPreview(mount, snapshotName, relPath)', async () => {
     resolved({ entries: [], error: false })
     mountPreview({ mount: '/media/RAID_0', snapshotName: 'snap-a', relPath: 'Documents/Q3' })
@@ -91,7 +91,7 @@ describe('SnapshotPreviewWindow — chrome Row 1: breadcrumb + read-only chip (V
     expect(w.find('.tm-preview-window__chip').text()).toBe('快照 · 只读') // snapReadOnlyBanner, zh (global test locale)
   })
 
-  // Fix wave B (B2, owner acceptance 2026-08-26): the chip used to be a sibling of
+  // The chip used to be a sibling of
   // `.tm-preview-window__crumbs` inside `.tm-preview-window__chrome`, whose own
   // `justify-content: space-between` plus the crumbs row's `flex: 1 1 auto` pushed it to the far
   // right of the chrome row -- Vue2's own `.tm-snap-chip` sits immediately after the breadcrumb in
@@ -109,14 +109,14 @@ describe('SnapshotPreviewWindow — chrome Row 1: breadcrumb + read-only chip (V
   })
 })
 
-describe('SnapshotPreviewWindow — chrome Row 2: select-all + count + view capsule (fix wave C, mirrors the real .files-list-head)', () => {
-  // Fix wave D (D2, owner acceptance 2026-08-26 -- reveal-time scale stutter): this used to assert
+describe('SnapshotPreviewWindow — chrome Row 2: select-all + count + view capsule (mirrors the real .files-list-head)', () => {
+  // This used to assert
   // the OPPOSITE (`.toBe(false)`, "hides Row 2 entirely ... mirroring Vue2's v-if=totalCount>0") --
-  // that was stale Vue2 parity left over from BEFORE Fix wave C made the real window's own
+  // that was stale Vue2 parity left over from BEFORE the toolbar redesign made the real window's own
   // `.files-list-head` unconditional (`Files.vue` renders it with no `v-if` at all). An empty
   // target directory's preview strip was silently shorter than the real window it is meant to
   // mirror, causing a vertical content-height mismatch at the exact reveal instant. See
-  // SnapshotPreviewWindow.vue's own header comment (FIX WAVE D section) for the full trace.
+  // SnapshotPreviewWindow.vue's own header comment for the full trace.
   it('shows Row 2 even when the listing is empty, matching the real .files-list-head\'s unconditional render', async () => {
     resolved({ entries: [], error: false })
     const w = mountPreview()
@@ -133,7 +133,7 @@ describe('SnapshotPreviewWindow — chrome Row 2: select-all + count + view caps
     expect(w.find('.tm-preview-window__count').text()).toBe('30 项') // tmItemCount, zh
   })
 
-  // Fix wave C (toolbar redesign): the real window now HAS a persistent select-all + capsule
+  // The real window now HAS a persistent select-all + capsule
   // header row (Files.vue's own `.files-list-head`) -- this preview mirrors its shape at the
   // same literal dimensions (see this component's own header comment). The select-all circle is
   // decorative/static only: no `.on` state, no click handler, no checkbox -- a stacked preview
@@ -193,7 +193,7 @@ describe('SnapshotPreviewWindow — viewMode prop (Vue2 parity: grid default, li
     const w = mountPreview({ viewMode: 'list' })
     await flushPromises()
     expect(w.find('.tm-preview-window__card').exists()).toBe(false)
-    // Fix wave A1: header columns now mirror FileListView.vue's own real column chain verbatim --
+    // Header columns now mirror FileListView.vue's own real column chain verbatim --
     // a leading empty 28px check-spacer, the four sortable columns, and a trailing empty 32px
     // star-spacer (both real FileRow.vue column widths, kept as spacers since the checkbox/star
     // themselves are interactive-only decorations this decorative preview omits).
@@ -236,7 +236,7 @@ describe('SnapshotPreviewWindow — viewMode prop (Vue2 parity: grid default, li
   })
 })
 
-describe('SnapshotPreviewWindow — fix wave A1: real-clone structure (audit-preview.md fix targets)', () => {
+describe('SnapshotPreviewWindow — real-clone structure', () => {
   const entries = [{ name: 'Report.pdf', isDir: false, size: 2048, mtime: 0 }]
 
   it('grid mode: cards use the real FileTile.vue-shaped icon box (--tile modifier) and no bespoke checkbox/star markup', async () => {
@@ -338,7 +338,7 @@ describe('SnapshotPreviewWindow — sort mirrors the live front window (review f
 })
 
 describe('SnapshotPreviewWindow — loading/error/empty all render as empty chrome (Vue2 parity: no spinner, no error text, no toast)', () => {
-  // Fix wave D (D2): Row 2 itself is no longer gated on totalCount/loading/error at all (see the
+  // Row 2 itself is no longer gated on totalCount/loading/error at all (see the
   // describe block above) -- it stays visible through every one of these states, matching the real
   // window's own `.files-list-head`, which likewise never hides while its own directory listing is
   // loading, erroring, or empty. Only the CARD/ROW content (the actual file listing) is empty here.
@@ -402,13 +402,13 @@ describe('SnapshotPreviewWindow — presentational contract', () => {
   })
 })
 
-// Fix wave B (B1, owner acceptance 2026-08-26, real-browser dark-theme screenshot): this preview
+// This preview
 // clones the real window's own markup/classes, which paint text in New-UI's theme tokens -- a
 // permanently-white background (TM chrome's own `--tm-panel-bg-solid`) made every label invisible
-// in dark theme. See this file's own header comment (Ruling B-1) for the full rationale. jsdom
+// in dark theme. See this file's own header comment for the full rationale. jsdom
 // applies no CSS at all, so the only way to pin this is reading the component's own source text,
 // same technique TimeMachineStepper.test.ts/TimeMachineRail.test.ts already use.
-describe('SnapshotPreviewWindow — content follows the app theme, not TM chrome (fix wave B, B1)', () => {
+describe('SnapshotPreviewWindow — content follows the app theme, not TM chrome', () => {
   it('.tm-preview-window uses the global, theme-following --panel-bg-solid/--fg, not TM chrome\'s --tm-panel-bg-solid/--tm-text', () => {
     const src = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SnapshotPreviewWindow.vue'),
@@ -424,11 +424,11 @@ describe('SnapshotPreviewWindow — content follows the app theme, not TM chrome
   })
 })
 
-// Fix wave B (B2, owner acceptance 2026-08-26): the chrome row no longer has any
+// The chrome row no longer has any
 // `justify-content: space-between`/auto-margin left that could shove the chip to the row's far
 // end -- see the DOM-order test above (chrome Row 1 describe block) for the render-side half of
 // this same fix. jsdom applies no CSS at all, so this half is pinned via source text.
-describe('SnapshotPreviewWindow — chrome row layout no longer flex-pushes the chip (fix wave B, B2)', () => {
+describe('SnapshotPreviewWindow — chrome row layout no longer flex-pushes the chip', () => {
   it('.tm-preview-window__chrome has no justify-content: space-between', () => {
     const src = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SnapshotPreviewWindow.vue'),
@@ -452,7 +452,7 @@ describe('SnapshotPreviewWindow — chrome row layout no longer flex-pushes the 
   })
 })
 
-// Fix wave B (B3a, owner acceptance 2026-08-26): the real window's grid (once Time Machine is
+// The real window's grid (once Time Machine is
 // active, TimeMachineStage.vue's own fixed/absolute positioning escapes .files-layout's sidebar +
 // AreaShell padding entirely) and this preview's own grid must resolve CSS auto-fill against the
 // SAME available width for their column counts to match -- see this file's own <style>-block
@@ -461,15 +461,15 @@ describe('SnapshotPreviewWindow — chrome row layout no longer flex-pushes the 
 // FileGridView.vue's own grid container carries NO padding of its own (confirms the premise), and
 // this preview's grid carries no padding at all to match.
 //
-// Fix wave E (E2, owner acceptance 2026-08-26): B3a's own original assertion here only checked
+// An earlier version of this assertion only checked
 // "zero HORIZONTAL padding" and accepted a `12px 0` (vertical-only) padding as intentional
-// "breathing room from Row 2" -- this fix wave's own row-by-row static-mismatch audit found that
+// "breathing room from Row 2" -- a later row-by-row static-mismatch review found that
 // reasoning wrong: the real `.file-grid`/`.file-grid-root` chain has NO vertical padding either
 // (row2's own bottom padding is the only real gap before the first row/tile), so the 12px vertical
 // padding here was a second, independent offset mismatch (see SnapshotPreviewWindow.vue's own
 // `.tm-preview-window__grid` comment for the full before/after). The assertion below is updated
 // to require padding 0 outright, not just "no horizontal component".
-describe('SnapshotPreviewWindow — grid width basis matches the real window (fix wave B, B3a; fix wave E, E2)', () => {
+describe('SnapshotPreviewWindow — grid width basis matches the real window', () => {
   it('FileGridView.vue\'s own .file-grid/.file-grid-root declare no padding of their own', () => {
     const realSrc = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../components/FileGridView.vue'),
@@ -479,7 +479,7 @@ describe('SnapshotPreviewWindow — grid width basis matches the real window (fi
     expect(realStyle).not.toMatch(/\.file-grid(-root)?\s*\{[^}]*padding/)
   })
 
-  it('.tm-preview-window__grid has ZERO padding on every side, matching the real grid\'s edge-to-edge box exactly (fix wave E, E2)', () => {
+  it('.tm-preview-window__grid has ZERO padding on every side, matching the real grid\'s edge-to-edge box exactly', () => {
     const src = readFileSync(
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SnapshotPreviewWindow.vue'),
       'utf8',

@@ -1,6 +1,4 @@
 // Shared type contracts for the AI Agent stream family (SP8-P1b).
-// 1:1 with the plan's "Shared type contracts" block
-// (docs/superpowers/plans/2026-07-23-vue3-migration-sp8-p1b-agent-streaming.md).
 // No imports — earliest consumer is the mapper family (searchMapper/streamMappers).
 
 export interface AgentBlock { type: string; [k: string]: unknown }        // spread via v-bind="block"

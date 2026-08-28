@@ -27,16 +27,16 @@ const svc = vi.hoisted(() => ({
     // caught TypeError, and a noisy baseline is how a real error goes unnoticed.
     getConfig: vi.fn(async () => ({})),
     getTimeline: vi.fn(async () => []),
-    // Fix-12 (owner acceptance, 2026-08-14): PhotoLightbox.vue's own render needs these once it
-    // actually mounts (v-if opens) -- this page never mounted a `<PhotoLightbox>` before.
+    // PhotoLightbox.vue's own render needs these once it actually mounts (v-if opens) --
+    // this page never mounted a `<PhotoLightbox>` before.
     originalUrl: vi.fn((id: string) => `mock://original/${id}`),
     liveUrl: vi.fn((id: string) => `mock://live/${id}`),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>` (it
-// never did before). That component's own internals call `useLightbox()` too and read
+// This page now also mounts a real `<PhotoLightbox>` (it never did before). That
+// component's own internals call `useLightbox()` too and read
 // `lb.open.value`/etc directly in a `watch()` and its template's `v-if` -- the original
 // `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after this fix
 // crashed every case in this file. See PhotosSmartViewDetail.test.ts's own copy of this same fix

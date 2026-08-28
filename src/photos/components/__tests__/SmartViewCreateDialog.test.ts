@@ -1,5 +1,5 @@
 // SP7-P7a-T5: SmartViewCreateDialog.vue — Smart view creation dialog tests. Each case
-// corresponds to the 'required cases' list in task-5-brief.md. Mounts Pinia + i18n
+// corresponds to the 'required cases' list. Mounts Pinia + i18n
 // (real zh_cn/en_us entries), mocks @nimotech/nimoos-service (only uses thumbnailUrl),
 // uses real usePhotosSmartViews() store — directly reads/writes store.preview /
 // store.createBusy to drive the right panel and button states; createSmartView is
@@ -457,11 +457,10 @@ describe('narrow screen rules', () => {
 
 // ── I2: Template row sparkles icon color ────────────────────────────────────────────
 describe('template row icon color (fix round 1 · I2)', () => {
-  // Fix-2 item 6 (owner acceptance, 2026-08-13): the token family this file's whole style
+  // Note: the token family this file's whole style
   // block uses switched from New-UI's global tokens (--accent-text/--fg/--chip-bg/etc, none
   // shadowed on `.photos-root`, so none followed the private photos-is-light toggle) to
-  // parity's own (--accent-hi/--text-1/--surface-*/etc) -- see the acceptance-fix-report.md
-  // §F2 sweep table. This spot-check follows suit.
+  // parity's own (--accent-hi/--text-1/--surface-*/etc). This spot-check follows suit.
   it('.sv-template-row svg uses --accent-hi, not the inherited container foreground (the container itself is --text-1)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-template-row svg')
@@ -471,7 +470,7 @@ describe('template row icon color (fix round 1 · I2)', () => {
 })
 
 // ── I3: the other --on-accent positive assertion (.sv-modal-icon is covered in the "foreground color compliance" describe) ──
-// Fix-5 (owner acceptance, 2026-08-14): the `.sv-switch[data-on="true"]::after` case below this
+// Note: the `.sv-switch[data-on="true"]::after` case below this
 // comment used to assert the knob turns `--on-accent` when on -- that was the bug itself
 // (the knob picked up the accent tone on toggle-on in this repo's dark theme, contradicting
 // Vue2's own invariant knob colour and the owner's explicit "the knob keeps one colour in both
@@ -487,7 +486,7 @@ describe('foreground color compliance supplementary (fix round 1 · I3: the othe
   })
 })
 
-// ── Fix-5 (owner acceptance, 2026-08-14): the switch knob keeps one colour in both states, it
+// ── Fix-5: the switch knob keeps one colour in both states, it
 //    does not change with on/off ──────────
 // Root cause: parity's own `.photos-root .sv-switch[data-on="true"]::after`
 // (photos-smartview.scss:786-789) only moves the knob (`left: 16px`) -- it never overrides
@@ -637,7 +636,7 @@ describe('embedded mode (SP15-P2b Task 4)', () => {
     expect(w.find('[data-test="sv-name-input"]').exists()).toBe(false)
   })
 
-  // Final fix wave: focus went to nameInputRef unconditionally, and in embedded mode
+  // Note: focus went to nameInputRef unconditionally, and in embedded mode
   // that ref is null (the name field is v-if="!embedded"), so opening the fused panel
   // focused nothing.
   it('focuses the description in embedded mode, the name field otherwise', async () => {

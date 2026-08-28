@@ -312,7 +312,7 @@ describe('resolvePaste', () => {
     await Promise.all([first, second])
   })
 
-  // Fix-wave I2: the test above only proves two PASTES never overlap. The
+  // The test above only proves two PASTES never overlap. The
   // actual invariant this composable exists to guarantee is that an upload
   // batch (resolveEntries) and a paste (resolvePaste) never have a dialog
   // open at the same time either -- they are two different call sites sharing
@@ -363,7 +363,7 @@ describe('resolvePaste', () => {
     await uploadP
   })
 
-  // Fix-wave I4 (B8 sibling): resolvePaste had no degradation symmetric to
+  // resolvePaste had no degradation symmetric to
   // run()'s "a failing listing degrades to accepting everything as-is" --  a
   // network blip on the target-directory listing must not throw the whole
   // paste away.
@@ -381,9 +381,9 @@ describe('resolvePaste', () => {
   })
 })
 
-// Task 14: restore's own counterpart to resolvePaste above -- same shared dialog/resolver/chain,
+// Restore's own counterpart to resolvePaste above -- same shared dialog/resolver/chain,
 // same "conflict candidates carry only {name, isDir, groupKey}, match back to the original item by
-// .name" contract T13's computeRestoreConflicts already established (restoreDestination.test.ts
+// .name" contract computeRestoreConflicts already established (restoreDestination.test.ts
 // covers that function itself; this only exercises the wiring resolveRestore adds on top of it).
 describe('resolveRestore', () => {
   beforeEach(() => { vi.restoreAllMocks() })

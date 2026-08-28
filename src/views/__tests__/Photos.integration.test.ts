@@ -1,8 +1,8 @@
-// Task 8: timeline integration — Photos.vue populated data + socket task events + completion toast + batch delete.
-// Ports the socket connect-resync / task-done semantics from Vue2 NimoOS-UI
+// Timeline integration — Photos.vue populated data + socket task events + completion toast + batch delete.
+// Ports the socket connect-resync / task-done semantics from the Vue 2 page's
 // src/views/Photos/PhotosTimeline.vue:78-91 (sockets{connect,'nimoos.photos.task.progress'})
-// and :315-335 (mounted: createTaskDoneCoalescer wiring), simplified per
-// task-8-brief.md P1 scope cut: non-'index' task types render a generic
+// and :315-335 (mounted: createTaskDoneCoalescer wiring), simplified as a scope cut:
+// non-'index' task types render a generic
 // `{label} completed` toast (photosTaskCompletedToast) instead of Vue2's
 // per-type messages (face/embedding), and there is no 5s pre-removal delay —
 // a status:'done' transition observed at ingest time goes straight into the

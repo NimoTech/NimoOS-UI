@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Pixel counterpart of Vue2's body-mounted `window.PhotosToast`
-// (src/views/Photos/photosToast.js in NimoOS-UI, read only for the visual
+// (src/views/Photos/photosToast.js in the Vue 2 panel, read only for the visual
 // parameters below — nothing in that file is transcribed here). Mount this
 // once per photos view; it Teleports to <body> so toasts float above any
 // view's own scroll/overflow, exactly like the Vue2 portal did.

@@ -2,8 +2,8 @@
 // Task 8 (SP7-P3): favorites view -- reuses the PhotosGrid base to render favorited items
 // (Task 1's usePhotosFavorites supplies data/actions), wires up zip export + empty state +
 // tab filter + lightbox (P2's useLightbox singleton). The shell was originally copied from
-// Photos.vue's (timeline view, src/views/Photos.vue) AreaShell/photos-layout/photos-main
-// (see task-8-brief.md). Route registration is left to T10.
+// Photos.vue's (timeline view, src/views/Photos.vue) AreaShell/photos-layout/photos-main.
+// Route registration is left to T10.
 //
 // Plan H Task 1 (re-shell): the transitional AreaShell/.photos-layout shell has been swapped
 // for Photos.vue/PhotosPeople.vue's own `.photos-root > .app[data-collapsed][data-selecting] >
@@ -943,7 +943,7 @@ function onSlideKey(e: KeyboardEvent): void {
    value-divergent flex layout -- deleted so parity governs; .fav-stat-sub (the "in {year}"
    caption) has no parity counterpart (Vue2 uses an inline style, not a class) and stays, values
    aligned exactly to Vue2 PhotosFavoritesView.vue :77's inline style
-   (`font-size:11px;color:var(--text-3);font-weight:400`). Fix wave (post-final-review): the
+   (`font-size:11px;color:var(--text-3);font-weight:400`). The
    old --fg-muted mapping rationale predates this view's Plan H re-shell into `.photos-root`'s
    scope -- --fg-muted resolves fine (it's a real global New-UI token), but it's the wrong
    shade for pixel parity: Vue2's inline style literally names --text-3, and photos.scss's

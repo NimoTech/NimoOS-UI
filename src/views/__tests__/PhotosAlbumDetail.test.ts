@@ -1,5 +1,5 @@
-// Task 8 (SP7-P4 albums): PhotosAlbumDetail.vue — the album detail view. Ported section by
-// section from Vue2 NimoOS-UI src/views/Photos/PhotosAlbumDetail.vue (419 lines) (hero
+// PhotosAlbumDetail.vue — the album detail view. Ported section by
+// section from the Vue 2 page's src/views/Photos/PhotosAlbumDetail.vue (419 lines) (hero
 // rename/delete/cover + edit multi-select remove + add photos + drag-to-reorder + lightbox).
 // Mounts Pinia + i18n + router (with /photos/albums/:id), mocks the shared package + the whole
 // useAlbumDragSort composable (not sortablejs itself — useAlbumDragSort's own Sortable
@@ -1100,11 +1100,11 @@ describe('P2c detail skeleton', () => {
     expect(w.find('.sv-select-bar').text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
   })
 
-  // Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): this whole tail section used
+  // This whole tail section used
   // to be a template-root SIBLING of `.photos-root` rather than its DOM descendant, so none of
   // parity's `.photos-root .sv-select-bar` / `.photos-root .lb-confirm-scrim` descendant
   // selectors (photos-smartview.scss:675 / photos.scss:620) could match -- the exact same root
-  // cause as Fix-1 item 3's "New album" modal bug (acceptance-fix-report.md §F1), now found in
+  // cause as the "New album" modal bug elsewhere, now found in
   // this page's own edit-mode bar, delete-confirm dialog, library picker, lightbox, album
   // picker, and convert-to-smart dialog. Same fix: nest them back inside `.photos-root`.
   describe('Fix-2 item 5: the edit-mode tail section is a real descendant of .photos-root', () => {
@@ -1387,7 +1387,7 @@ describe('P2c album more menu', () => {
     expect(actionsIndex).toBeLessThan(aboutIndex)
   })
 
-  // Fix-10 (owner acceptance, 2026-08-14): was asserted against the generic `useToast()` --
+  // Was asserted against the generic `useToast()` --
   // Vue2's real duplicate-success confirmation is `window.PhotosToast.show({ icon: 'sparkles',
   // ... })`, the photos-private bottom-pill toast, not the app-wide generic one. Updated to
   // assert against `usePhotosToast()`'s queue instead, including the icon.
@@ -1546,9 +1546,9 @@ describe('P2c whole-branch review fixes', () => {
   })
 })
 
-// Fix-1 item 1 (owner acceptance, 2026-08-13): plan-premise correction — Vue2 nests the album
+// Vue2 nests the album
 // detail state inside PhotosAlbumsView while activeNav stays 'albums'
-// (NimoOS-UI src/views/Photos/PhotosAlbumsView.vue:1016-1022 `v-else-if="activeNav==='albums'"`
+// (the Vue 2 page's src/views/Photos/PhotosAlbumsView.vue:1016-1022 `v-else-if="activeNav==='albums'"`
 // wraps both the list AND the detail-layer <photos-album-detail>, PhotosAlbumsView.vue:12-21).
 // PhotosTimeline's topbar therefore never changes while a detail is open under this nav: same
 // title ('Albums') and same album-aggregate sub as the list page.

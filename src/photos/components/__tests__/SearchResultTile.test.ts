@@ -1,7 +1,7 @@
 // SP7-P7a-T15: SearchResultTile.vue —— 搜索结果单个瓦片(照片/长尾两个网格共用)。
-// 结构去重(brief 结构规格 4 的裁定):Vue2 PhotosSearchView.vue 把同样 8 行标记重复
+// 结构去重:Vue2 PhotosSearchView.vue 把同样 8 行标记重复
 // 写了两遍(:243-250 与 :261-268),New-UI 抽成独立文件,视觉逐元素 1:1、结构去重。
-// 逐条对应 task-15-brief.md「必含测试清单」B 段的 tile 部分 + 两条腿审计(scss :2711-2770,
+// 逐条对应「必含测试清单」B 段的 tile 部分 + 两条腿审计(scss :2711-2770,
 // 跳过 :2728-2738 死 CSS)。只 mock @nimotech/nimoos-service 的 thumbnailUrl。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -205,7 +205,7 @@ describe('样式:徽标前景色合规 + theme-exception 三禁 + 死 CSS 未迁
     }
   })
 
-  // Plan F Task 2 (2026-08-15): the fix round 1 · M-5 ruling this test used to pin ("8px to
+  // Note: this test used to pin ("8px to
   // match PhotosGrid.vue, not Vue2's 3px, so search tiles aren't sharper-cornered than library
   // tiles") stopped being true once PhotosGrid.vue's own Task 6 网格重刻 re-skin reverted ITS
   // tiles back to Vue2 parity's 3px (predating this task; `grep -n "border-radius"

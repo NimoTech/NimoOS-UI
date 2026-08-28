@@ -1,10 +1,10 @@
 // SP8-P5d Task 6 — `NotesView.vue` Notes View test.
-// Blueprint from `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/NotesView.vue`
+// Blueprint from the Vue 2 panel(main@7a6ee6b7)`src/views/AI/Knowledge/NotesView.vue`
 // (271 lines).
 //
 // ═══ mock strategy (governance §4.1 requires explicit documentation) ═══
 // 🔴 `service.notes.list(p?)` mocked to **normalized `Note[]`** (camelCase), not
-//   `{notes:[]}` envelope — `NimoOS-Service/src/notes.ts:211-215` already maps it
+//   `{notes:[]}` envelope — `the shared service package's src/notes.ts:211-215` already maps it
 //   inside the package. `getSettings()` mocked to camelCase with only
 //   `{notesRoot, autoExtract}` two fields (`notes.ts:252-255`). `remove(id)`
 //   mocked to `{status:'deleted', id}` (governance §4.1's "do not strip return
@@ -12,7 +12,7 @@
 //   — this page also does not read this return value, blueprint `:261` only
 //   `await`).
 // 🔴 mock data sourced from true entries in
-//   `.superpowers/sdd/p5d-fixtures/notes-list-200.json`
+// a captured device response
 //   (id/title/description/type/createdBy/revision/updatedAt/path/tags/sourceRefs
 //   each field copied verbatim from the fixture, converted to camelCase). Real
 //   device has 23 notes **all with status draft, type insight, source pipeline**

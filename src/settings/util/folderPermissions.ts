@@ -1,5 +1,5 @@
-/* Pure aggregation engine for folder-permissions. 1:1 port of Vue2
- * NimoOS-UI/src/components/settings/folderPermissions.js (157 lines, zero I/O).
+/* Pure aggregation engine for folder-permissions. 1:1 port of the Vue 2
+ * panel's src/components/settings/folderPermissions.js (157 lines, zero I/O).
  *
  * There is no I/O here: the snapshot is assembled by folderPermissionsSnapshot.ts,
  * and write plans are just plain action-descriptor objects, executed by that side's

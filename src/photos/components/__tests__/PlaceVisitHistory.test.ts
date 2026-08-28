@@ -1,5 +1,5 @@
 // P6b-T6: PlaceVisitHistory.vue — Visit history timeline on the place detail panel.
-// Covers task-6-brief.md "Step 1: write failing tests" required list: structure audit / current branching /
+// Covers the "write failing tests" required list: structure audit / current branching /
 // three visit-stats v-if semantics / save-trip non-bubbling (@click.stop) / open-photo D9 main guard
 // (list = that visit's own thumbs) / section header .more singular/plural / last vertical line hidden (programmatic) /
 // keyframes pulseDot exists (programmatic) / color compliance (three current rules use only --place-current-trip,

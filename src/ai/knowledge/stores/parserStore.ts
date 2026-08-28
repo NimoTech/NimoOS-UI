@@ -1,5 +1,5 @@
 // SP8-P5c Task 5 —— 1:1 port from Vue2
-// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Parser/store/parserStore.js` (65 lines, full port).
+// the Vue 2 panel's `src/views/AI/Parser/store/parserStore.js` (main@7a6ee6b7, 65 lines, full port).
 //
 // Consumers are two Parser pages (`ParserStatus.vue` / `ParserTest.vue`, belong to T6/T7) ——
 // **zero imports in full repo when this lands is expected**, not built `.vue` or routed
@@ -21,7 +21,7 @@
 //   `'/ai/parser/state'` / `'/ai/parser/folders'` / `'/ai/parser/jobs'` and
 //   `api.post('/ai/parser/control')` (five actions once each) → `service.ai.parserStats()` /
 //   `parserState()` / `parserFolders({limit:20})` / `parserJobs({status:'failed',limit:5})` /
-//   `parserControl({...})` (`NimoOS-Service/src/ai.ts:591-620`).
+//   `parserControl({...})` (the shared HTTP client's `src/ai.ts:591-620`).
 //
 // 【K1 —— Single-layer extraction】In Vue2 `api.*()` returns raw axios response, everywhere writes
 //   `.data`; six `service.ai.parser*` in shared package all only `return res.data`
@@ -58,8 +58,7 @@ import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 
 // ── Types: return values of `service.ai.parser*` in shared package are all `unknown`,
-//    narrowed here per **live-tested response bodies** (`.superpowers/sdd/p5c-fixtures/`,
-//    live capture 2026-08-03).
+//    narrowed here per live-tested response bodies (live capture 2026-08-03).
 //    Blueprint is JS untyped —— initial values still copied exactly from blueprint :5-19,
 //    server-provided fields not in blueprint initial values (`total_vectors_visual` / `models`)
 //    marked optional, **not added to initial values**.

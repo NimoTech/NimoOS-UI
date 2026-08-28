@@ -1,9 +1,9 @@
 // SP8-P5c Task 3(half two) — `FolderBrowser.vue` component test.
-// Blueprint `NimoOS-UI` (main@7a6ee6b7) `src/components/common/FolderBrowser.vue` (143 lines).
+// Blueprint: the Vue 2 panel's `src/components/common/FolderBrowser.vue` (143 lines).
 //
 // 🔴 【mock layering — governance §4.1 five-row table, easiest place to crash in this task】
 //   `service.folder.getList` in shared package is `unwrap<FolderListing>(res.data)`
-//   (`NimoOS-Service/src/folder.ts:7-10`) → it resolves to **single layer**
+//   (the shared HTTP client's `src/folder.ts:7-10`) → it resolves to **single layer**
 //   `{ content: FolderEntry[] }`.
 //   fixture `folder-list-DATA.json` is **three-layer HTTP envelope**
 //   `{success,message,data:{content:[…18 items…],total,index,size}}`.
@@ -12,9 +12,8 @@
 //   `listing.content` would be undefined, K28 would be wasted). This unwrapping action is
 //   the proof of K28, the reverse test case below nails it ("stuff three-layer envelope into
 //   mock → list must be empty").
-// 🔴 Fixture copy (not runtime read from `.superpowers/`) — coordinator's ruling, rationale
-//   in this file's FIXTURE-COPY block comment and T3 report §8; equivalence validated by
-//   one-shot script (report §9).
+// 🔴 Fixture copied into this file verbatim, not read from disk at runtime — rationale
+//   in this file's FIXTURE-COPY block comment; equivalence validated by a one-shot script.
 // Read `.vue` source files (guard gaps ③ those two) still exclusively via `node:fs`, not
 //   Vite's `?raw` (vitest's CSSEnablerPlugin turns style source into empty string → assertion
 //   against empty string "false passes"; precedent in `knowledgeStyles.test.ts` head comment ③).
@@ -40,7 +39,7 @@ interface RawEntry { name: string; path: string; is_dir: boolean }
 
 /**
  * Raw shape of each item from `GET /v1/folder?path=/DATA` (11 fields, order matches backend).
- * Copied verbatim from `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json` (captured on device 2026-08-03).
+ * Copied verbatim from a folder-list fixture captured on a real device (2026-08-03).
  */
 interface RawFolderItem {
   name: string
@@ -58,9 +57,8 @@ interface RawFolderItem {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FIXTURE-COPY-BEGIN — folder-list-DATA.json's data.content (18 items)
-// Taken from `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json` (captured on device 2026-08-03),
-// copied verbatim to avoid test cross-boundary dependency on gitignore directory —
-// coordinator's ruling, see T3 report §8.
+// Taken from a folder-list fixture captured on a real device (2026-08-03),
+// copied verbatim to avoid a test-time dependency on an external fixture directory.
 // 🔴 Copying the **`data.content` layer** from the three-layer envelope (= K28's unwrapping action).
 // 🔴 No fields trimmed, no order changed; equivalence validated by one-shot script (report §9).
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,12 +1,12 @@
 // Write-blocking and restoration orchestration in snapshot browsing mode. Maintains zero Vue dependency (toast / network calls injected),
 // so both can be unit-tested directly without mounting any components — same boundary as Vue2 snapshotBrowse.js.
 //
-// Task 14 (full Vue2 restore orchestration): this file now covers the SHARED execution engine every
-// restore entry point (context-menu single item, banner/bottom-bar selection, whole-folder confirm)
-// funnels through AFTER the destination picker (T13's RestoreDestinationModal) and the conflict queue
-// (useFileConflicts.ts's own resolveRestore, T14 addition — mirrors the shared app-wide dialog/chain
-// resolvePaste already uses, see that file) have both settled. Ported 1:1 from Vue2 NimoOS-UI's
-// FilePanel.vue executeSnapshotRestore/resolveRestoreConflicts and snapshotBrowse.js's
+// This file covers the SHARED execution engine every restore entry point (context-menu single
+// item, banner/bottom-bar selection, whole-folder confirm) funnels through AFTER the destination
+// picker (RestoreDestinationModal) and the conflict queue (useFileConflicts.ts's own
+// resolveRestore — mirrors the shared app-wide dialog/chain resolvePaste already uses, see that
+// file) have both settled. Ported 1:1 from the Vue 2 panel's FilePanel.vue
+// executeSnapshotRestore/resolveRestoreConflicts and snapshotBrowse.js's
 // performSnapshotRestore — same decision logic, split along this codebase's existing seams instead
 // of one 3000-line component method.
 
@@ -126,8 +126,8 @@ export interface RestoreOutcome {
 /**
  * Shared restore-execution loop (Vue2's own executeSnapshotRestore, minus its per-item toast
  * emission — this codebase aggregates instead, see buildRestoreToasts): submits every resolved
- * entry ONE AT A TIME (the backend accepts a single path per call — Task 11's own colleague fix,
- * kept: `listVolumes` is called by `performSnapshotRestore` per item, but the caller is expected to
+ * entry ONE AT A TIME (the backend accepts a single path per call, kept:
+ * `listVolumes` is called by `performSnapshotRestore` per item, but the caller is expected to
  * inject a synchronous `() => volumes.value` reader once volumes are already loaded, NOT a fresh
  * network fetch per item — see snapshotBrowse.ts's own `restoreItems` for why). `onProgress` fires
  * after each item settles (done/total) — the caller seeds the initial `{done: 0, total}` itself
@@ -164,14 +164,14 @@ export interface RestoreToastMsg {
 /**
  * Aggregates a finished batch's outcomes (+ items the conflict queue dropped via Skip/Cancel) into
  * the toast(s) to show — Vue2 parity (executeSnapshotRestore's own success/skipped/failure trio),
- * but collapsed to ONE toast per category instead of one-per-item (this codebase's own colleague fix
- * ⑦: mixed results must not swallow the success count, and a 40-item batch spamming 40 toasts is
- * its own UX bug Vue2 never had to deal with at that scale). Order: skipped, then restored/failed.
- * - `skippedCount` > 0 → `filesUploadSkipped` (T1's own re-used key for Vue2's "Skipped {count}
- *   item(s)" copy — see task-1-report.md's brief-name -> existing-key mapping table).
+ * but collapsed to ONE toast per category instead of one-per-item (mixed results must not swallow
+ * the success count, and a 40-item batch spamming 40 toasts is its own UX bug Vue2 never had to
+ * deal with at that scale). Order: skipped, then restored/failed.
+ * - `skippedCount` > 0 → `filesUploadSkipped` (re-used key for Vue2's "Skipped {count} item(s)"
+ *   copy).
  * - Every entry restored (no failures) → the ENTRY POINT decides the copy, not the item count
- *   (controller ruling, fix round 1: the task-1 key list was planning shorthand, not a copy
- *   ruling — visible copy follows Vue2 exactly). Vue2 has two genuinely different call sites here:
+ *   (the key list was planning shorthand, not a copy ruling — visible copy follows Vue2 exactly).
+ *   Vue2 has two genuinely different call sites here:
  *   `restoreSnapshotItem` (context-menu single item) always shows `snapBrowseRestored` = "Restored
  *   to {path}" (no count, since there is only ever one item on that path); `executeSnapshotRestore`
  *   (banner/bottom-bar selection AND the whole-folder-confirm branch) always shows `tmRestoredCount`

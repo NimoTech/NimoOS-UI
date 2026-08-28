@@ -43,7 +43,7 @@ export function initSandboxState(): SandboxState {
 
 /**
  * Align with Vue2 TestPanel.vue run() onEvent callback (:158-172).
- * Event selection/rejection see table in p3b-task-2-brief.md §2.1; ignore thinking/tool_result/confirmation_required
+ * Event selection/rejection: ignores thinking/tool_result/confirmation_required
  * and other event types. Returns a new SandboxState, does not modify input s or s.steps.
  */
 export function reduceSandboxEvent(

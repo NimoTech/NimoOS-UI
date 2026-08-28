@@ -351,7 +351,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
     <div class="app" :data-collapsed="collapsed">
       <PhotosSidebar :collapsed="collapsed" />
       <main class="main">
-        <!-- Fix wave (post-final-review): `sub` was left unbound before, so the topbar fell
+        <!-- `sub` was left unbound before, so the topbar fell
              back to its default library-wide photo/video count -- wrong for this view. Matches
              Vue2 PhotosTimeline.vue:231 navMap.trash ('{count} items · auto-deletes in 30
              days'), except {days} reads the live trash.retentionDays (fetched via
@@ -418,7 +418,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               <button type="button" data-test="trash-bulk-cancel" @click="clearSelection"><PhotosIcon name="x" :size="11" /> {{ t('photosCancel') }}</button>
             </div>
 
-            <!-- Fix wave (post-final-review): renamed to parity's own `.lib-filters`/`.lib-chip`/
+            <!-- Renamed to parity's own `.lib-filters`/`.lib-chip`/
                  `.lib-sort` anchors (photos.scss:1294-1327) -- this page's own bespoke
                  `.trash-filters`/`.trash-chip`/`.trash-sort` rules are deleted below now that
                  the template uses parity's exact selectors, same convention as the
@@ -610,7 +610,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-modal-icon { color: var(--trash-confirm-fg); }
 .trash-modal[data-danger="true"] .trash-modal-icon { color: var(--trash-danger-fg); }
 
-/* ── Filters / sort: Fix wave (post-final-review) renamed the template to parity's own
+/* ── Filters / sort: renamed the template to parity's own
      `.lib-filters`/`.lib-chip`/`.lib-sort` anchors (photos.scss:1294-1327, which already carry
      the 12px 32px padding + border-bottom this page's own bespoke copy below used to hand-roll
      with a divergent 8px/32px value) -- this page's own `.trash-filters`/`.trash-chip`/

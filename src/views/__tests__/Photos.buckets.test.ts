@@ -1,7 +1,7 @@
-// SP15-P3-T8: Photos.vue's bucket-mode wiring. Ported test scaffolding (mock
+// Photos.vue's bucket-mode wiring. Ported test scaffolding (mock
 // set, mountPhotos harness) from Photos.integration.test.ts — see that file for
-// the full non-bucket integration coverage; this file only covers the three
-// things task-8-brief.md's Step 1 calls out:
+// the full non-bucket integration coverage; this file only covers three
+// things:
 //  1. an unloaded bucket month must survive `gridMonths` (Photos.vue:75-79's
 //     filter used to drop every month with photos.length === 0, which in
 //     bucket mode is every month the user has not scrolled to yet — the grid

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // SP7-P7a-T5: SmartViewCreateDialog.vue — Smart view creation dialog (largest single
 // component this sprint).
-// Ported section-by-section from Vue2 NimoOS-UI src/views/Photos/PhotosSmartViewsView.vue:42-182
+// Ported section-by-section from the Vue 2 panel's src/views/Photos/PhotosSmartViewsView.vue:42-182
 // (template), :359-436 (methods, SV_QUICK_TEMPLATES/inferChips moved to smartViewSuggest.ts in T1),
 // photos-smartview.scss:659-1013 + 574-605 (.sv-toggle-row/.sv-switch, brief didn't cover
 // these ranges, went back to source to read actual definitions). Host mount point:
@@ -807,11 +807,11 @@ function thumbUrl(seed: string): string {
   box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
-/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+/* Straight bug fix, not a deviation from Vue2 -- parity's
    own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
    moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
-   same colour in both states. The `--on-accent` override this rule used to carry (the file
-   header's own "legal use 3a", justified at the time as "legal atop a solid --accent fill", same
+   same colour in both states. The `--on-accent` override this rule used to carry (justified at
+   the time as "legal atop a solid --accent fill", same
    reasoning as `.sv-btn-primary`) was wrong for this element specifically: it made the knob track
    the on/off *state* instead of staying constant like Vue2's -- the owner's screenshot ("Keep it
    live" toggled on) is exactly that dark-navy-on-purple knob. Deleted; the knob now always uses

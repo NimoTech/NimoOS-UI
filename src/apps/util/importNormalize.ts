@@ -89,7 +89,7 @@ export function ensureComposeMeta(yamlText: string): { yaml: string; name: strin
 
 /**
  * Verbatim port of the Vue2 keyword mapping; the actual call site is
- * `NimoOS-UI/src/components/Apps/ComposeConfig.vue:585-608` (ImportPanel.vue has an identical copy).
+ * the Vue 2 panel's `src/components/Apps/ComposeConfig.vue:585-608` (ImportPanel.vue has an identical copy).
  * **Verbatim** includes casing: apart from config/download/pictures/photo/media, the original only
  * lists a few case variants for the tv series and the movie/music series (`['tvshows','TV','tv']`,
  * `['movies','Movie','movie']`, `['Music','music']`) — it is not globally case-insensitive.

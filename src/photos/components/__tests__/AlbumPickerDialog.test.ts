@@ -305,7 +305,7 @@ describe('AlbumPickerDialog.vue', () => {
   })
 })
 
-// Fix-2 item 3 (owner acceptance, 2026-08-16): enlarge the dialog + make it viewport-responsive
+// Enlarge the dialog + make it viewport-responsive
 // (screenshot showed a small fixed 280px/360px box that no longer fits real cover thumbnails +
 // title/count rows). jsdom doesn't compute cascade/specificity, so this is a raw-source assertion
 // (same idiom as color-guard.test.ts/photosGlassSurfaces.test.ts's own rule-body reads) rather
@@ -344,7 +344,7 @@ describe('AlbumPickerDialog.vue 尺寸(Fix-2 item 3:放大 + 视口响应)', () 
     expect(body).toMatch(/flex:\s*1/)
   })
 
-  // Fix-3 (owner acceptance, 2026-08-17, screenshot image copy 77.png): "Add to album" header
+  // "Add to album" header
   // title rendered white-on-light in Photos' private light theme -- invisible. Root cause: this
   // dialog mounts as a SIBLING of `.app` (not inside it, see e.g. PhotosSearch.vue's template),
   // and `.photos-root .app` is the only ancestor that explicitly sets `color: var(--text-1)`

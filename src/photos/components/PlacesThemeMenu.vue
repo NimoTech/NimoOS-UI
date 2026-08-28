@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Task 10(SP7-P6a 地点·地图主视图):PlacesThemeMenu.vue —— 地图工具栏「地图主题」胶囊
-// 按钮 + 下拉弹层(4 预设 + 自定义两取色器)。逐段照 Vue2 NimoOS-UI src/views/Photos/
+// 按钮 + 下拉弹层(4 预设 + 自定义两取色器)。逐段照 Vue2 src/views/Photos/
 // PhotosPlacesView.vue:907-947(模板)移植;色值/resolveMapTheme 语义已在同任务落到
 // src/photos/util/placesMapThemes.ts,本组件只消费 MAP_THEME_PRESETS + swatchColors,
 // 不重复定义色值、也不需要 resolveMapTheme/mapThemeStyleVars(那两个是 PlacesMap.vue 用
@@ -211,13 +211,13 @@ onUnmounted(() => {
 .mtm-anchor { position: relative; }
 .mtm-chip-icon { vertical-align: -1px; }
 
-/* Fix-1 item 3 (owner acceptance, 2026-08-16): `.mtp-dot` had NO geometry at all anywhere in
+/* `.mtp-dot` had NO geometry at all anywhere in
    this repo (grep-confirmed against parity's own photos-places.scss, which only styles
    `.mtp-swatch` itself) — only its `background` was ever bound (`:style="{ background:
    swatchColors(...).dot }"` in the template above), so with no width/height/shape it rendered
    as an invisible zero-size inline span: the owner's exact "preset swatches render as
    near-empty dark squares (no visible dot)" report. Vue2 draws this same dot via an INLINE
-   style object, not a CSS class at all (NimoOS-UI PhotosPlacesView.vue:1005, `<span :style="{
+   style object, not a CSS class at all (the Vue 2 panel's PhotosPlacesView.vue:1005, `<span :style="{
    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width:
    '4px', height: '4px', borderRadius: '99px', background: ... }" />`) — no parity selector
    exists for New-UI's own `.mtp-dot` class to fall back to, so every non-color geometry
@@ -234,7 +234,7 @@ onUnmounted(() => {
   border-radius: 99px;
 }
 
-/* D3 surface-treatment ruling — REVERSED (Fix-1 item 6, owner acceptance, 2026-08-16), same
+/* D3 surface-treatment ruling — REVERSED, same
    reversal as PlacesFilterMenu.vue's `.map-filter-pop` (see that file's full citation for the
    complete account): --popup-bg/--card-border/--card-shadow-hi are *global* New-UI tokens
    that only follow the app-wide `[data-theme]` attribute, never Photos' own private

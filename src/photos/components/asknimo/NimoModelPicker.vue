@@ -1,4 +1,4 @@
-<!-- Model dropdown for Ask Nimo. Pixel source: Vue2 NimoOS-UI src/views/Photos/NimoModelPicker.vue
+<!-- Model dropdown for Ask Nimo. Pixel source: the Vue 2 panel's src/views/Photos/NimoModelPicker.vue
      + Vue2 photos.scss:4034-4084 -> this repo vue2-parity/photos.scss:4178-4230 (already
      ported, this component only supplies markup/logic; both ranges grep-verified).
      No props/emits: reads useAgentStore('photos') directly, same self-contained pattern Vue2

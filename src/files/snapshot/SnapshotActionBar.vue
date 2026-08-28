@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Final review (Important 4, Ruling F-1): rebuilds Vue2's SnapshotActionBar.vue 1:1 --
-// NimoOS-UI/src/components/filebrowser/components/SnapshotActionBar.vue -- deleted in Task 6
-// (per Ruling P2, which retired the whole colleague component set) and never rebuilt, leaving
+// Rebuilds Vue2's SnapshotActionBar.vue 1:1 --
+// the Vue 2 panel's src/components/filebrowser/components/SnapshotActionBar.vue -- deleted
+// (retired as part of an earlier component cleanup) and never rebuilt, leaving
 // multi-select inside snapshot view with no count/Download affordance (New-UI's generic
 // SelectionToolbar is hidden there, Files.vue's own `v-if="!browse.isSnapshotView"`).
 //
@@ -28,10 +28,10 @@
 // whether the Time Machine stage's own chrome is up, exactly what this component's own Files.vue
 // call site does. No hiding-while-TM-chrome-is-up special case exists in Vue2 to port.
 //
-// Fix wave A2 (audit-stage.md #14, priority list items 8/9/16): two changes verified against the
+// Two changes verified against the
 // real Vue2 authority (SnapshotActionBar.vue + _filebrowser.scss + _animate.scss):
 //
-// 1. Enter/leave transition (priority list item 8, "the bar pops in/out instantly"). Vue2 wraps
+// 1. Enter/leave transition ("the bar pops in/out instantly"). Vue2 wraps
 //    its own root in `<transition name="up-fade">` (own file:16), whose classes live in
 //    `_animate.scss` (L105-117): `up-fade-enter-active`/`up-fade-leave-active { transform-origin:
 //    top; transition: opacity $speed-slow $easing, transform $speed-slow $easing }` and
@@ -41,7 +41,7 @@
 //    real, fully-resolved transition is `opacity 150ms ease-out, transform 150ms ease-out`. Ported
 //    below as `tm-up-fade-*` (Vue2's own `up-fade-enter`/`-leave-to` pair, with the `-from` alias
 //    Vue3's `<Transition>` requires for the enter-state class Vue2 spelled without one).
-// 2. Icon-only buttons (priority list item 9), not text labels -- Vue2's own two `<b-icon>`s
+// 2. Icon-only buttons, not text labels -- Vue2's own two `<b-icon>`s
 //    (`backup-restore` / `downloads-outline`, own file:20-33) replaced with plain inline SVGs
 //    (Feather Icons' own free/MIT `rotate-ccw`/`download` glyphs -- this codebase has no shared
 //    action-icon component yet to reuse, so these are hand-inlined the same way every other
@@ -78,8 +78,7 @@ const { t } = useI18n()
         :title="t('tmRestoreSelection')"
         @click="emit('restore')"
       >
-        <!-- Fix wave A3 (audit-modals.md §6, busy/disabled state -- MISSING the spinner glyph
-             swap): Vue2's own icon swaps to a spinning `mdi-spin loading` glyph while restoring
+        <!-- Vue2's own icon swaps to a spinning `mdi-spin loading` glyph while restoring
              (own file:48-52,82-86) -- previously this button only dimmed via `:disabled{opacity}`,
              with no spin animation at all. Swapped for a plain rotating ring (same idiom as
              SnapshotBanner.vue's own `.snap-banner-spin`, no icon library dependency) rather than
@@ -126,14 +125,14 @@ const { t } = useI18n()
   color: var(--tm-chrome-text);
   font-size: 13px;
 }
-/* Fix wave A2 (audit-stage.md #14, priority list item 16): Vue2's own literal `margin-right: 0.5rem`
+/* Vue2's own literal `margin-right: 0.5rem`
    = 8px (`.snapshot-action-bar__label`'s own `mr-2` bulma utility class -- own file:19), not 4px. */
 .tm-action-bar-label { white-space: nowrap; margin-right: 8px; }
 .tm-action-bar-btn {
   border: none;
   background: none;
   color: var(--tm-chrome-text);
-  /* Fix wave A2 (audit-stage.md #14, priority list item 16): Vue2's own literal `0.25rem 0.5rem` =
+  /* Vue2's own literal `0.25rem 0.5rem` =
      4px 8px (`.toolbar-item`, _filebrowser.scss:242), not 4px 10px. */
   padding: 4px 8px;
   border-radius: 5px;
@@ -141,7 +140,7 @@ const { t } = useI18n()
   display: grid;
   place-items: center;
   cursor: pointer;
-  /* Fix wave A2 (audit-stage.md #14, priority list item 16): Vue2's own literal
+  /* Vue2's own literal
      (`.toolbar-item { transition: background 0.3s }`, _filebrowser.scss:245) -- 0.3s plain (no
      easing keyword declared there, so the browser default `ease` applies), not the port's own
      0.15s `var(--ease)` substitution. */
@@ -149,7 +148,7 @@ const { t } = useI18n()
 }
 .tm-action-bar-btn:hover:not(:disabled) { background: var(--tm-action-bar-item-hover-bg); }
 .tm-action-bar-btn:disabled { opacity: 0.6; cursor: default; }
-/* Fix wave A3 (audit-modals.md §6, busy/disabled state): the spinning-ring swap itself -- see
+/* The spinning-ring swap itself -- see
    this file's own template comment. Uses `currentColor` (already `--tm-chrome-text`, white) so
    no new token is needed. */
 .tm-action-bar-spin {
@@ -160,7 +159,7 @@ const { t } = useI18n()
 }
 @keyframes tm-action-bar-spin { to { transform: rotate(360deg); } }
 
-/* Fix wave A2 (audit-stage.md #14, priority list item 8): Vue2's own `up-fade` transition
+/* Vue2's own `up-fade` transition
    (_animate.scss:105-117), fully resolved to `opacity 150ms ease-out, transform 150ms ease-out`
    with a 50px slide -- see this file's own header comment for the full derivation. Vue3's
    `<Transition>` requires an explicit `-from` suffix for the enter starting-state class; Vue2 spells

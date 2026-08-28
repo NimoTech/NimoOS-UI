@@ -5,7 +5,7 @@ import Dialog from '../../components/ui/Dialog.vue'
 import { fmtSize } from '../../home/util/format'
 import { filterReplacementCandidates, type ReplaceTarget, type CandidateDiskLike } from '../util/raidReplace'
 
-// Migrated from NimoOS-UI/src/components/Storage/raid/RaidReplaceDisk.vue (2026-08-11 serial-semantics version).
+// Migrated from the Vue 2 panel's src/components/Storage/raid/RaidReplaceDisk.vue (2026-08-11 serial-semantics version).
 // Differences from the first version (which passed disks by path):
 // - The faulty-disk display uses target.label (an in-place faulty disk shows the live path;
 //   a pulled disk shows the serial — its cached path may already belong to a different physical

@@ -108,7 +108,7 @@ export default {
   photosFavSlidePrev: '上一张 (←)',
   photosFavSlideNext: '下一张 (→)',
   // Review Minor 4: adds Vue2 :256's play/pause button title (value taken from
-  // NimoOS-UI/src/assets/lang/zh_CN.json:2244).
+  // Vue2 面板的 src/assets/lang/zh_CN.json:2244).
   photosFavSlidePlayPause: '播放/暂停 (空格)',
   photosFavSlideSpeed: '速度',
   photosFavSlideFast: '快',
@@ -116,11 +116,11 @@ export default {
   photosFavSlideSlow: '慢',
   // ── 相册:最近删除视图 ──
   photosTrashTitle: '最近删除',
-  // Fix wave (post-final-review): topbar `sub` was previously left unbound, defaulting to the
+  // topbar `sub` was previously left unbound, defaulting to the
   // library-wide photo/video count string (wrong content for this view). Matches Vue2
   // PhotosTimeline.vue:231 navMap.trash ('{count} items · auto-deletes in 30 days'), except
   // {days} is dynamic here (ruled: reads the live retention setting instead of Vue2's
-  // hardcoded 30). zh wording reused verbatim from NimoOS-UI/src/assets/lang/zh_CN.json's
+  // hardcoded 30). zh wording reused verbatim from the Vue 2 panel's src/assets/lang/zh_CN.json's
   // existing translation of that exact Vue2 string ('{count} 项 · 30 天后自动删除'), just with
   // {days} substituted in for the literal 30.
   photosTrashSubtitle: '{count} 项 · {days} 天后自动删除',
@@ -315,19 +315,19 @@ export default {
   photosAddToAlbumNew: '+ 新建相册',
   // ── 相册:收藏视图 Save as Album ──
   // Acceptance Fix-2(owner finding):Vue2 PhotosFavoritesView.vue 的 hero 按钮(:22)与弹窗标题
-  // (:282)用的是同一句 $t('Save as Album'),值对齐 Vue2(NimoOS-UI zh_CN.json:2269)后两处复用
+  // (:282)用的是同一句 $t('Save as Album'),值对齐 Vue2(zh_CN.json:2269)后两处复用
   // 同一个 key(旧的、值不一致的 photosFavSaveAlbumTitle 废弃,不与已对齐的 key 并存)。
   photosFavSaveAlbum: '保存为相册',
   photosFavSaveAlbumDefault: '收藏 · {year}',
   // Vue2 :291 的输入框 placeholder —— 字面硬编码字符串(不像上面的默认值那样按当前年份模板化),逐字转录。
   photosFavSaveAlbumPlaceholder: '如 收藏 · 2026',
   // 评审 Important 2:补 Vue2 PhotosFavoritesView.vue:267-268/279-281 的副标题+脚注(T3
-  // 键清单漏列)。中文值取自 NimoOS-UI/src/assets/lang/zh_CN.json:2187/2231。
+  // 键清单漏列)。中文值取自 Vue2 面板的 src/assets/lang/zh_CN.json:2187/2231。
   photosFavSaveAlbumSub: '将 {count} 张收藏的照片快照保存为新相册',
   photosFavSavedToast: '「{name}」已保存 · {count} 张照片',
   photosFavSaveFailed: '保存失败',
   photosFavSaveAlbumNote: '相册会成为静态快照 —— 收藏新照片时不会自动更新。你可以随时再新建一个。',
-  // ── 相册:人物(SP7-P5,task-3)。中文值逐字取自 NimoOS-UI/src/assets/lang/zh_CN.json,
+  // ── 相册:人物。中文值逐字取自 Vue2 面板的 src/assets/lang/zh_CN.json,
   // 用同句英文原文当 key 查出。术语统一:Unnamed clusters→"未命名人物",不用"簇/聚类"
   // (下方标注 [聚类→人物] 的几条为按此规则改写,原查得译文含"聚类" 二字)。
   photosPeople: '人物',
@@ -628,8 +628,7 @@ export default {
   // photosUnfavorite("取消收藏"),与 zh_CN.json 的 `Remove favorite`→"取消收藏" 一致。
   photosPersonMarkFavorite: '标记为收藏',
   // ── SP7-P6a T4:地点域(地图主视图)i18n 键 ──────────────────────────────────
-  // 键表来源:task-4-brief.md;译文一律回源核对 NimoOS-UI/src/assets/lang/zh_CN.json,
-  // 出入已在任务报告里列出(brief 快照与 json 实际值不一致的几处按 json 为准更正)。
+  // 译文一律回源核对 Vue2 面板的 src/assets/lang/zh_CN.json,以其实际值为准更正。
   photosPlaces: '地点',
   photosPlacesCities: '城市', // json 实际值(zh_CN.json:1990),非 brief 快照的"座城市"
   photosPlacesCountries: '国家', // json 实际值(:2002),非 brief 快照的"个国家"
@@ -696,7 +695,7 @@ export default {
   // 区分"过滤后为空"与"本来就没有位置数据"的文案。
   photosPlacesFilterEmpty: '没有符合当前筛选条件的城市',
   // ── SP7-P6b T1: Places detail panel i18n keys ──────────────────────────────
-  // 42 条取自 NimoOS-UI/src/assets/lang/zh_CN.json 原文(逐条回源核对,零出入);
+  // 42 条取自 Vue2 面板的 src/assets/lang/zh_CN.json 原文(逐条回源核对,零出入);
   // 3 条自拟(D8 + 偏离登记 6,见下方各自的行内注释)。
   photosPlacesHomeBase: '常驻地',
   // 注:zh_CN.json 里 trip/trips 两个 key 的中文译文同为"次旅行"(单复数在中文不体现),
@@ -992,7 +991,7 @@ export default {
   photosSearchCountResultsSecondsS: '{count} 条结果 · {seconds}秒',
   photosSearchNameSavedSmartView: '“{name}”已保存为智能视图',
   // fix round 1 · I3:PhotosSearchBar 的 placeholder 新键(追加,不重排)。回源
-  // NimoOS-UI/src/assets/lang/zh_CN.json:2405 的英文原文 "Search photos, people,
+  // Vue2 面板的 src/assets/lang/zh_CN.json:2405 的英文原文 "Search photos, people,
   // places, or describe in a sentence…" 对应译文(文案回源铁律,不自己译)。
   photosSearchSearchBarPlaceholder: '搜索照片、人物、地点，或用一句话描述…',
   // ── SP7-P8a 相册设置页 + 深链 + 错误态 ──
@@ -1198,7 +1197,7 @@ export default {
   // 约定专属 KVM 区,本区另起 photos 前缀键而非跨区复用,与本仓"键名按区前缀"的既有惯例
   // 一致(不是漏查复用)。
   photosToggleSidebar: '切换侧边栏',
-  // ── Fix-3 item 7(owner acceptance,2026-08-13,Plan F pull-forward):PhotosTopbar 的
+  // ── PhotosTopbar 的
   // 搜索模式返回键 title,对应 Vue2 PhotosTopbar.vue:8 的 $t('Back (Esc)')——New-UI 这里
   // 没有 Esc 语义(搜索页是真路由,Esc 已被浮层统一治理占用),故文案改成描述真实去向
   // (返回照片库),不照抄带 "(Esc)" 字样的原文。

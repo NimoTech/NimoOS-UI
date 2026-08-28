@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Task 7 (SP7-P5 people): ClusterActionDialog.vue — unnamed person tri-state action dialog (name / merge /
-// delete). Migrate segment by segment from Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:237-361 (template) and
+// ClusterActionDialog.vue — unnamed person tri-state action dialog (name / merge /
+// delete). Migrated segment by segment from the Vue 2 panel's src/views/Photos/PhotosPeopleView.vue:237-361 (template) and
 // :624-643 (nextTick focus in openXxxDialog); photos-people.scss itself contains no modal styles
 // (Vue2 modals rely entirely on inline style), here converted to this repo's convention of scoped style blocks + theme tokens.
 // (Note: deliberately not writing literal style opening tag in the comment — color-guard.test.ts's style-block extraction regex uses
