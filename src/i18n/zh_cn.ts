@@ -3,12 +3,9 @@
 //   zh_cn.photos.ts — the 702 photos* keys of the Photos area
 //   zh_cn.ai.ts     — the 1207 ai* keys of the AI area (added during the SP8-P6 merge)
 //
-// Why split: the OSS edition has no Photos area and no AI area; `oss/manifest.mjs` must
-// strip those two blocks of copy. Those keys used to be scattered across 90+ sections of
-// the main file; stripping them meant hundreds of anchor patches × 2 languages — and PATCH
-// requires each anchor to match exactly once, so **any future edit to a photos/AI string
-// would break the OSS export**. After the split, the OSS side only needs to delete
-// zh_cn.photos.ts / zh_cn.ai.ts and patch away the two spread lines below.
+// Why split: those keys used to be scattered across 90+ sections of one very large file,
+// which made the main table hard to maintain and made parallel lines collide in it
+// constantly. Each area now owns its own slice, and this file is only the merge outlet.
 //
 // Why keep this file as the outlet (instead of having consumers import the pieces
 // themselves): 40+ tests across the repo do `import zh from '…/i18n/zh_cn'` and build their
