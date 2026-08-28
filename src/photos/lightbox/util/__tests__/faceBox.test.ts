@@ -50,4 +50,30 @@ describe('mapFaceBoxToRect', () => {
     expect(mapFaceBoxToRect([0.1, 0.2, 0.5, 0.6], 0, 200, 100, 50)).toBeNull()
     expect(mapFaceBoxToRect([0.1, 0.2, 0.5, 0.6], 200, 200, 0, 50)).toBeNull()
   })
+
+  // ── cover-fit clipping edge (T12c review follow-up): with object-fit: cover the
+  // content extends past the element and gets center-cropped, so a face near an
+  // edge can map PARTLY or ENTIRELY outside the visible box. The mapper's contract
+  // is to return the geometrically true rect either way -- the overlay's
+  // overflow:hidden wrapper is what clips it visually -- so these pin that the
+  // math stays truthful instead of clamping or nulling a crop-zone face. ──
+  it('cover: a box that sticks out of the cropped viewport keeps its true (partly negative) rect', () => {
+    // elem 300x300, nat 300x600 -> scale = max(1, 0.5) = 1, offsetY = (300-600)/2 = -150
+    const r = mapFaceBoxToRect([0.1, 0.6, 0.4, 0.9], 300, 300, 300, 600, 'cover')!
+    expect(r.left).toBeCloseTo(30, 6)
+    expect(r.top).toBeCloseTo(210, 6)
+    expect(r.width).toBeCloseTo(90, 6)
+    expect(r.height).toBeCloseTo(180, 6)
+    // bottom edge (top + height = 390) lies 90px past the 300px viewport: clipped by CSS, not by math
+  })
+
+  it('cover: a box that falls ENTIRELY inside the cropped-away strip still returns its true off-screen rect', () => {
+    // same geometry; the face lives in the bottom strip that cover cropped away
+    const r = mapFaceBoxToRect([0.1, 0.8, 0.4, 0.95], 300, 300, 300, 600, 'cover')!
+    expect(r.left).toBeCloseTo(30, 6)
+    expect(r.top).toBeCloseTo(330, 6)
+    expect(r.width).toBeCloseTo(90, 6)
+    expect(r.height).toBeCloseTo(90, 6)
+    expect(r.top).toBeGreaterThan(300) // fully below the viewport: invisible, never misplaced
+  })
 })
