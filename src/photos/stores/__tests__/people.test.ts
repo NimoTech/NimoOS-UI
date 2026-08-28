@@ -12,6 +12,8 @@ vi.mock('@nimotech/nimoos-service', () => ({
       hidePerson: vi.fn(() => Promise.resolve({})),
       listHiddenPersons: vi.fn(() => Promise.resolve([])),
       restorePerson: vi.fn(() => Promise.resolve({})),
+      listStaticPersons: vi.fn(() => Promise.resolve([])),
+      unstaticPerson: vi.fn(() => Promise.resolve({})),
     },
   },
 }))
@@ -583,6 +585,68 @@ describe('photosPeople store', () => {
     })
   })
 
+  // Task 10 (detector-gen6-static-faces): staticPeople / fetchStaticPeople / unstaticPerson —
+  // the static-face counterpart of the hiddenPeople / fetchHiddenPeople / unhidePerson block
+  // above. No "make static" action exists on the frontend (the backend flags clusters as static
+  // automatically at clustering time), so unlike hidePerson there is no optimistic-removal path
+  // to test here — only fetch + feature detection + unstatic (which mirrors unhidePerson exactly).
+  describe('staticPeople / fetchStaticPeople / unstaticPerson', () => {
+    it('fetchStaticPeople success → staticPeople is filled with Person[], and staticPeopleLoaded/staticPeopleSupported are both true', async () => {
+      ;(service.photos.listStaticPersons as any).mockResolvedValueOnce([rawPerson({ id: 's1', name: 'Poster' })])
+      const s = usePhotosPeople()
+      await s.fetchStaticPeople()
+      expect(s.staticPeople).toHaveLength(1)
+      expect(s.staticPeople[0]).toMatchObject({ id: 's1', name: 'Poster' })
+      expect(s.staticPeopleLoaded).toBe(true)
+      expect(s.staticPeopleSupported).toBe(true)
+    })
+
+    it('staticPeopleSupported defaults to true (assume supported until a real 404 disproves it)', () => {
+      const s = usePhotosPeople()
+      expect(s.staticPeopleSupported).toBe(true)
+    })
+
+    it('fetchStaticPeople 404 → staticPeopleSupported flips to false (feature detection, not an error, no console.error)', async () => {
+      const err = Object.assign(new Error('not found'), { response: { status: 404 } })
+      ;(service.photos.listStaticPersons as any).mockRejectedValueOnce(err)
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.fetchStaticPeople()
+      expect(s.staticPeopleSupported).toBe(false)
+      expect(consoleSpy).not.toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('fetchStaticPeople failing with a non-404 → staticPeopleSupported is unchanged and console.error is called', async () => {
+      ;(service.photos.listStaticPersons as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.fetchStaticPeople()
+      expect(s.staticPeopleSupported).toBe(true)
+      expect(consoleSpy).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('unstaticPerson success → calls unstaticPerson(id) and re-fetches both people and staticPeople in finally', async () => {
+      const s = usePhotosPeople()
+      await s.unstaticPerson('s1')
+      expect(service.photos.unstaticPerson).toHaveBeenCalledWith('s1')
+      expect(service.photos.listPersons).toHaveBeenCalled()
+      expect(service.photos.listStaticPersons).toHaveBeenCalled()
+    })
+
+    it('unstaticPerson failure → still re-fetches both lists (per the unhidePerson unconditional finally precedent) and console.error is called', async () => {
+      ;(service.photos.unstaticPerson as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.unstaticPerson('s1')
+      expect(consoleSpy).toHaveBeenCalled()
+      expect(service.photos.listPersons).toHaveBeenCalled()
+      expect(service.photos.listStaticPersons).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+  })
+
   describe('__resetForTest', () => {
     // Style cleanup: use describe-level beforeEach/afterEach to toggle fake timers, not inline in it() —
     // vi.useFakeTimers()/vi.useRealTimers() — consistent with other fake-timer describe blocks in this file.
@@ -615,6 +679,18 @@ describe('photosPeople store', () => {
       expect(s.hiddenPeople).toEqual([])
       expect(s.hiddenPeopleLoaded).toBe(false)
       expect(s.hiddenPeopleSupported).toBe(true)
+    })
+
+    // Task 10 (detector-gen6-static-faces): same precedent as the Hidden people state clear above.
+    it('clears the Static faces state', async () => {
+      const s = usePhotosPeople()
+      ;(service.photos.listStaticPersons as any).mockResolvedValueOnce([rawPerson({ id: 's1' })])
+      await s.fetchStaticPeople()
+      expect(s.staticPeople).toHaveLength(1)
+      s.__resetForTest()
+      expect(s.staticPeople).toEqual([])
+      expect(s.staticPeopleLoaded).toBe(false)
+      expect(s.staticPeopleSupported).toBe(true)
     })
   })
 })

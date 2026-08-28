@@ -246,6 +246,18 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get('/photos/persons/hidden')
       return body<unknown[]>(res.data)
     },
+    // Task 10 (detector-gen6-static-faces): the static-face counterpart of the hide/restore pair
+    // just above — listStaticPersons fetches the list of clusters the backend auto-flagged as
+    // static (posters/portraits/statues/screens), unstaticPerson cancels that flag and returns the
+    // cluster to the normal People list. Same bare-array response convention as listHiddenPersons.
+    async listStaticPersons(): Promise<unknown[]> {
+      const res = await http.get('/photos/persons/static')
+      return body<unknown[]>(res.data)
+    },
+    async unstaticPerson(id: string | number): Promise<unknown> {
+      const res = await http.post(`/photos/persons/${id}/unstatic`, {})
+      return body<unknown>(res.data)
+    },
     async getPersonAssets(id: string | number, limit = 100, offset = 0): Promise<unknown> {
       const res = await http.get(`/photos/persons/${id}/assets`, { params: { limit, offset } })
       return body<unknown>(res.data)

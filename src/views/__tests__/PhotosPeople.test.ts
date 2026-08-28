@@ -33,6 +33,11 @@ const svc = vi.hoisted(() => ({
     listHiddenPersons: vi.fn().mockResolvedValue([]),
     hidePerson: vi.fn().mockResolvedValue(undefined),
     restorePerson: vi.fn().mockResolvedValue(undefined),
+    // Task 10 (detector-gen6-static-faces): the Static faces section + unstatic action. No
+    // "make static" action exists on the frontend (the backend flags clusters automatically),
+    // so there is no "staticPerson"-mock counterpart to hidePerson above.
+    listStaticPersons: vi.fn().mockResolvedValue([]),
+    unstaticPerson: vi.fn().mockResolvedValue(undefined),
     // Merge-cards feature (2026-08-21): onMounted also probes this endpoint now (same
     // eager-fetch/404-feature-detection convention as listPersonSuggestions, which this file
     // already tolerates unmocked) — mocked here to keep this file's own console output quiet;
@@ -111,6 +116,8 @@ beforeEach(() => {
   svc.photos.listHiddenPersons.mockClear().mockResolvedValue([])
   svc.photos.hidePerson.mockClear().mockResolvedValue(undefined)
   svc.photos.restorePerson.mockClear().mockResolvedValue(undefined)
+  svc.photos.listStaticPersons.mockClear().mockResolvedValue([])
+  svc.photos.unstaticPerson.mockClear().mockResolvedValue(undefined)
 })
 // Critical isolation (same lesson as people.test.ts:46-54): _purgeTimers is a module-scoped
 // singleton on the people store, not reset by setActivePinia(createPinia()). T7's delete
@@ -834,6 +841,65 @@ describe('PhotosPeople.vue — T7 Hidden people section', () => {
     expect(svc.photos.restorePerson).toHaveBeenCalledWith('h1')
     expect(svc.photos.listPersons).toHaveBeenCalled()
     expect(svc.photos.listHiddenPersons).toHaveBeenCalled()
+  })
+})
+
+// Task 10 (detector-gen6-static-faces): the Static faces section — a verbatim copy of the
+// Hidden people section's paradigm just above (feature-detection via 404, collapsed by
+// default, per-card "Not static" button). Unlike Hidden people, there is no "make it static"
+// menu item to gate — the backend flags clusters static automatically at clustering time, so
+// this section only ever needs a fetch + an unstatic action.
+const STATIC1 = { id: 'st1', name: 'Poster', count: 11, confidence: 0.9, coverFaceId: 'f1' }
+const STATIC2 = { id: 'st2', name: '', count: 12, confidence: 0.8, coverFaceId: null }
+
+describe('PhotosPeople.vue — T10 Static faces section', () => {
+  it('staticPeopleSupported with static people present → the Static faces section appears, collapsed by default (no static-grid)', async () => {
+    svc.photos.listStaticPersons.mockResolvedValue([STATIC1])
+    const { w } = await mountView()
+    expect(w.find('[data-test="section-static"]').exists()).toBe(true)
+    expect(w.find('[data-test="static-grid"]').exists()).toBe(false)
+  })
+
+  it('no static people (an empty array) → the section does not appear, even when staticPeopleSupported is true', async () => {
+    svc.photos.listStaticPersons.mockResolvedValue([])
+    const { w } = await mountView()
+    expect(w.find('[data-test="section-static"]').exists()).toBe(false)
+  })
+
+  it('a backend 404 (an older backend without the static-face feature) → staticPeopleSupported is false and the section does not appear', async () => {
+    svc.photos.listStaticPersons.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    const { w } = await mountView()
+    expect(w.find('[data-test="section-static"]').exists()).toBe(false)
+  })
+
+  it('clicking the section title expands static-grid, showing cards with a "Not static" button; unnamed static people fall back to the placeholder copy', async () => {
+    svc.photos.listStaticPersons.mockResolvedValue([STATIC1, STATIC2])
+    const { w } = await mountView()
+    await w.find('[data-test="section-static"]').trigger('click')
+    const cards = w.findAll('[data-test="static-card"]')
+    expect(cards).toHaveLength(2)
+    expect(cards[0]!.text()).toContain('Poster')
+    expect(cards[1]!.text()).toContain(zh.photosPersonUnnamedTitle)
+    expect(w.findAll('[data-test="unstatic-btn"]')).toHaveLength(2)
+
+    // clicking again collapses it back
+    await w.find('[data-test="section-static"]').trigger('click')
+    expect(w.find('[data-test="static-grid"]').exists()).toBe(false)
+  })
+
+  it('clicking "Not static" calls unstaticPerson(id), re-fetches both people and staticPeople, and shows a success toast', async () => {
+    svc.photos.listStaticPersons.mockResolvedValue([STATIC1])
+    const { w } = await mountView()
+    const toast = useToast()
+    await w.find('[data-test="section-static"]').trigger('click')
+    svc.photos.listPersons.mockClear()
+    svc.photos.listStaticPersons.mockClear().mockResolvedValue([])
+    await w.find('[data-test="unstatic-btn"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.unstaticPerson).toHaveBeenCalledWith('st1')
+    expect(svc.photos.listPersons).toHaveBeenCalled()
+    expect(svc.photos.listStaticPersons).toHaveBeenCalled()
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonUnstaticToast.replace('{label}', '"Poster"'))
   })
 })
 
