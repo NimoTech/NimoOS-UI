@@ -135,9 +135,6 @@ const sortOpen = ref(false)
 const clusterMenu = ref<{ person: Person; x: number; y: number } | null>(null)
 // T7 (Plan D): the "Hidden people" section, collapsed by default (mirroring Vue2 hiddenExpanded :559).
 const hiddenExpanded = ref(false)
-// Task 10 (detector-gen6-static-faces): the "Static faces" section, collapsed by default —
-// verbatim copy of hiddenExpanded's shape just above.
-const staticExpanded = ref(false)
 // T7 three-mode dialog state.
 const dialog = ref<{ mode: DialogMode; person: Person } | null>(null)
 // Independent in-flight guards for naming/merging (hard constraint from the brief: this class
@@ -287,19 +284,6 @@ function onUnhide(p: Person): void {
 // Vue2 toggleHiddenSection :765-767 — doesn't re-fetch on expand (mounted already fetched once, see below).
 function toggleHidden(): void {
   hiddenExpanded.value = !hiddenExpanded.value
-}
-// Task 10: forwards to the store (mirroring onUnhide just above), and additionally toasts on
-// completion — store.unstaticPerson never rejects (its errors are swallowed and logged, same
-// contract as unhidePerson), so this always toasts once the call settles. Label follows
-// onHideCluster's quoting convention above: quoted name, or the unnamed-person fallback.
-async function onUnstatic(p: Person): Promise<void> {
-  await people.unstaticPerson(p.id)
-  const label = p.name && p.name.trim() ? `"${p.name.trim()}"` : t('photosPersonUnnamedLabel')
-  toast.show(t('photosPersonUnstaticToast', { label }))
-}
-// Task 10: same non-refetching toggle shape as toggleHidden above.
-function toggleStatic(): void {
-  staticExpanded.value = !staticExpanded.value
 }
 
 // ── Suggestion confirmation entry card (people-confirm-polish, 2026-08-21 rework) ──
@@ -451,11 +435,6 @@ onMounted(() => {
   // and then make it disappear. The section itself is still collapsed by default; only the count
   // is no longer lazy.
   void people.fetchHiddenPeople()
-  // Task 10 (detector-gen6-static-faces): eager fetch (not lazy), same rationale as
-  // fetchHiddenPeople right above — this GET also doubles as the 404 feature-detection probe
-  // for staticPeopleSupported, so a legacy backend without the static-face feature never
-  // flashes the section before hiding it.
-  void people.fetchStaticPeople()
   // Plan C Task 2: eager fetch (not lazy), same rationale as fetchHiddenPeople right above —
   // this GET also doubles as the 404 feature-detection probe for suggestionsSupported, so a
   // legacy backend without the endpoint never flashes the section before hiding it.
@@ -746,38 +725,6 @@ onUnmounted(() => {
                 <button type="button" class="more people-unhide-btn" data-test="unhide-btn" @click="onUnhide(p)">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
                   {{ t('photosPeopleUnhide') }}
-                </button>
-              </div>
-            </div>
-          </template>
-
-          <!-- Task 10 (detector-gen6-static-faces): Static faces section, a verbatim copy of
-               the Hidden people section directly above it — same gating (feature-supported +
-               non-empty), same default-collapsed behavior, same face-grid-md/face-card shape.
-               Placed after Hidden people, at the same nesting level. -->
-          <template v-if="people.staticPeopleSupported && people.staticPeople.length > 0">
-            <div class="section-head people-hidden-head" data-test="section-static" @click="toggleStatic">
-              <h2 class="people-hidden-title">
-                <svg v-if="staticExpanded" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-                <svg v-else viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-                {{ t('photosPeopleStaticSection') }}
-                <span class="people-hidden-count">({{ people.staticPeople.length }})</span>
-              </h2>
-            </div>
-            <div v-if="staticExpanded" class="face-grid-md" data-test="static-grid">
-              <div
-                v-for="p in people.staticPeople" :key="p.id"
-                class="face-card people-hidden-static"
-                data-test="static-card"
-                :data-id="p.id"
-              >
-                <PersonAvatar :person-id="p.id" :name="p.name" :ver="p.coverFaceId" :size="84" />
-                <div class="name-row">
-                  <span class="name">{{ p.name || t('photosPersonUnnamedTitle') }}</span>
-                </div>
-                <button type="button" class="more people-unhide-btn" data-test="unstatic-btn" @click="onUnstatic(p)">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                  {{ t('photosPeopleUnstatic') }}
                 </button>
               </div>
             </div>

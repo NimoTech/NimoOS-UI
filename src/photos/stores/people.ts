@@ -218,14 +218,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // and "Hide person" menu item, without popping an error toast (mirroring Vue2 :396-399).
   const hiddenPeopleSupported = ref(true)
 
-  // Task 10 (detector-gen6-static-faces): Static faces section state — the same shape as
-  // Hidden people above, but populated by a backend feature that flags clusters as static
-  // (posters/portraits/statues/screens) automatically at clustering time, rather than by a
-  // user-driven "hide" action. Same "assume supported until a real 404 disproves it" convention.
-  const staticPeople = ref<Person[]>([])
-  const staticPeopleLoaded = ref(false)
-  const staticPeopleSupported = ref(true)
-
   // Plan C Task 1: suggestion groups state. Same "assume supported until a real 404 disproves
   // it" convention as hiddenPeopleSupported above.
   const suggestionGroups = ref<SuggestionGroup[]>([])
@@ -544,43 +536,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // ── Static faces (Task 10, detector-gen6-static-faces). Mirrors fetchHiddenPeople/
-  // unhidePerson above one-for-one — the only difference from Hidden people is that there is
-  // no user-driven "make static" action to pair with it (the backend flags clusters static on
-  // its own), so this section only needs a fetch and an unstatic action.
-
-  // Fetches the static-face list. Feature detection: a legacy backend without the static-face
-  // feature makes GET /persons/static 404 — a hit flips staticPeopleSupported to false, letting
-  // the view hide the whole "Static faces" section without popping an error toast (mirroring
-  // fetchHiddenPeople's own convention).
-  async function fetchStaticPeople(): Promise<void> {
-    try {
-      const list = (await service.photos.listStaticPersons()) as Record<string, unknown>[] | undefined
-      staticPeople.value = Array.isArray(list) ? list.map(toPerson) : []
-      staticPeopleLoaded.value = true
-      staticPeopleSupported.value = true
-    } catch (e) {
-      if (isNotFound(e)) {
-        staticPeopleSupported.value = false
-      } else {
-        console.error('[photos-people] fetchStaticPeople', e)
-      }
-    }
-  }
-
-  // Both lists are re-fetched to reconcile regardless of success/failure (mirroring
-  // unhidePerson's own unconditional finally dispatch).
-  async function unstaticPerson(id: string | number): Promise<void> {
-    try {
-      await service.photos.unstaticPerson(id)
-    } catch (e) {
-      console.error('[photos-people] unstaticPerson', e)
-    } finally {
-      void fetchPeople()
-      void fetchStaticPeople()
-    }
-  }
-
   // ── Person suggestions (Plan C Task 1, suggestion-confirmation UI). Called on People mount.
   // Feature detection mirrors fetchHiddenPeople above (isNotFound → not an error, no console.error).
 
@@ -768,9 +723,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     hiddenPeople.value = []
     hiddenPeopleLoaded.value = false
     hiddenPeopleSupported.value = true
-    staticPeople.value = []
-    staticPeopleLoaded.value = false
-    staticPeopleSupported.value = true
     suggestionGroups.value = []
     suggestionsSupported.value = true
     mergeQuestions.value = []
@@ -780,7 +732,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   return {
     people, peopleLoaded, facesIndexedUpTo,
     hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
-    staticPeople, staticPeopleLoaded, staticPeopleSupported,
     suggestionGroups, suggestionsSupported,
     mergeQuestions, mergeQuestionsSupported,
     named, unnamed, visibleUnnamed, namedCount, unnamedCount, suggestionCount,
@@ -790,7 +741,6 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     fetchHiddenPeople, hidePerson, unhidePerson,
-    fetchStaticPeople, unstaticPerson,
     fetchSuggestions, decideSuggestion, decideGroup,
     fetchMergeQuestions, decideMergeQuestion,
     __resetForTest,

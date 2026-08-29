@@ -50,16 +50,6 @@ describe('photos persons', () => {
     expect(calls[0]).toMatchObject({ method: 'post', url: '/photos/persons/p1/hide', body: {} })
     expect(calls[1]).toMatchObject({ method: 'get', url: '/photos/persons/hidden' })
   })
-  // Task 10 (detector-gen6-static-faces): unstaticPerson/listStaticPersons — the static-face
-  // counterpart of the hide/restore pair above.
-  it('fetch the static-person list / cancel static on a person', async () => {
-    const { http, calls } = capture()
-    const p = createPhotos(http, noToken)
-    await p.listStaticPersons()
-    await p.unstaticPerson('p1')
-    expect(calls[0]).toMatchObject({ method: 'get', url: '/photos/persons/static' })
-    expect(calls[1]).toMatchObject({ method: 'post', url: '/photos/persons/p1/unstatic', body: {} })
-  })
   it('asset paging / relations / places', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)

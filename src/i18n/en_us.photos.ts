@@ -1198,11 +1198,6 @@ export default {
   // Vue2 hideClusterPerson/hideCurrentPerson's success toast, same literal string at both
   // call sites (PhotosPeopleView.vue:759 / PhotosPersonDetail.vue:923): $t('{label} hidden').
   photosPersonHiddenToast: '{label} hidden',
-  // Task 10 (detector-gen6-static-faces): the Static faces section + unstatic action — a
-  // verbatim copy of the Hidden people group's three keys just above.
-  photosPeopleStaticSection: 'Static faces',
-  photosPeopleUnstatic: 'Not static',
-  photosPersonUnstaticToast: '{label} restored',
   // Vue2 PhotosPeopleView.vue:317 / PhotosPersonDetail.vue:299 — same literal dupconfirm
   // dialog title at both call sites: $t('A person named "{name}" already exists.').
   photosPersonDupExistsTitle: 'A person named "{name}" already exists.',

@@ -1218,11 +1218,6 @@ export default {
   // Vue2's hideClusterPerson/hideCurrentPerson success toasts are both literally the same
   // $t('{label} hidden') (PhotosPeopleView.vue:759 / PhotosPersonDetail.vue:923).
   photosPersonHiddenToast: '{label} 已隐藏',
-  // Task 10 (detector-gen6-static-faces): the Static faces section + unstatic action — a
-  // verbatim copy of the Hidden people group's three keys just above.
-  photosPeopleStaticSection: '静态人脸',
-  photosPeopleUnstatic: '取消静态',
-  photosPersonUnstaticToast: '{label} 已恢复为人物',
   // Vue2 PhotosPeopleView.vue:317 / PhotosPersonDetail.vue:299 — both dupconfirm dialog titles
   // are literally the same $t('A person named "{name}" already exists.').
   photosPersonDupExistsTitle: '已存在名为「{name}」的人物。',
