@@ -202,7 +202,7 @@ function folderOf(realPath: string): string {
   const dir = realPath.slice(0, realPath.lastIndexOf('/')) || '/'
   return toVirtualPath(dir, files.displayNames)
 }
-// New window jump to corresponding directory on frontend file page (/app/#/files/...).
+// New window jump to corresponding directory on frontend file page (/#/files/...).
 // ⚠️ Declared deviation 4 (fixing real defect, not changing UI): path must go through virtualPathToRouteParam
 //    (per-segment encodeURIComponent), consistent with all other /files jumps in the repo (Files.vue / SharesPage.vue /
 //    DropPage.vue goVirtual). Raw string concatenation lets `#` in directory names truncate the hash (jump to parent),
@@ -292,10 +292,10 @@ watch(query, () => {
   if (state.value !== 'idle') reset()
 })
 
-// ── Deep link ?q= (SP9-P8 cutover) ──────────────────────────────────────────────────────
-// Vue2's /search?q=… was strangled to /app/#/?q=… (passQuery entry in strangler.js): new app
-// has no search page, search is this panel on the desktop, so deep link param lands on desktop route '/',
-// consumed by this component itself. "q key exists" opens panel (even if empty — mirrors Vue2 bare /search empty page);
+// ── Deep link ?q= ──────────────────────────────────────────────────────
+// This app has no dedicated search page; search is this panel on the desktop, so the
+// ?q= deep link param lands on the desktop route '/', consumed by this component itself.
+// "q key exists" opens panel (even if empty — mirrors Vue2's old bare /search empty page);
 // non-empty word auto-searches once.
 //
 // ⚠️ Two await nextTick() each wait for an **already-present watcher** above to flush; order cannot be combined or skipped:

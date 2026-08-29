@@ -12,7 +12,7 @@ describe('buildAuthUrl', () => {
 })
 
 describe('driverIconUrl', () => {
-  const base = import.meta.env.BASE_URL // build/test use the same vite config ⇒ '/app/'
+  const base = import.meta.env.BASE_URL // build/test use the same vite config ⇒ '/'
 
   it('repoint backend\'s site-root path to this app\'s base (no longer depends on img/ left in site root by Vue2)', () => {
     expect(driverIconUrl('./img/driver/Dropbox.svg', 'http://h')).toBe(`http://h${base}img/driver/Dropbox.svg`)

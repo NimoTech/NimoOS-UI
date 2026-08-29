@@ -118,7 +118,7 @@ const filterbarRef = ref<HTMLElement | null>(null)
 const saveBtnRef = ref<HTMLElement | null>(null)
 
 // ── 搜索历史(结构规格 16,与 Vue2 同 localStorage key)──────────────────────
-const HISTORY_KEY = 'nimo_search_history' // 与 Vue2 同键:cutover 期间两边历史互通是好事。
+const HISTORY_KEY = 'nimo_search_history' // Same key Vue2 used, kept for continuity with existing stored history.
 function readHistory(): string[] {
   try {
     const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')

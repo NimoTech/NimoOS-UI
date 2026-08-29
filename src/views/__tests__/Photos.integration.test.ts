@@ -67,7 +67,7 @@ const lb = useLightbox()
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [{ path: '/photos', name: 'photos', component: Photos }],
   })
 }

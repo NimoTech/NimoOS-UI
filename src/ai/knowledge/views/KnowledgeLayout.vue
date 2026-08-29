@@ -185,12 +185,12 @@ const userLabel = computed<string>(
 
 /** Mirrors AgentSidebar.goBack: the knowledge app is opened in a new tab from
  * the home launcher, so the tab's history may not include `/`. Push first;
- * with no history fall back to a hard navigation to the new app's entry. */
+ * with no history fall back to a hard navigation to the site root. */
 function goBack(): void {
   if (window.history.length > 1 && route.path !== '/') {
-    router.push('/').catch(() => { window.location.href = '/app/' })
+    router.push('/').catch(() => { window.location.href = '/' })
   } else {
-    window.location.href = '/app/'
+    window.location.href = '/'
   }
 }
 

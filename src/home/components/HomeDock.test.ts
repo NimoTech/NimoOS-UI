@@ -5,7 +5,7 @@ import { useAppsStore } from '../stores/apps'
 import { useDock, __resetDockForTest } from '../composables/useDock'
 import HomeDock from './HomeDock.vue'
 
-// P8 cutover: dock's files icon changed to in-app router.push, need to mock router singleton (vi.mock is hoisted before imports).
+// The dock's files icon uses in-app router.push, need to mock router singleton (vi.mock is hoisted before imports).
 vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
 import { router } from '../../router'
 
@@ -70,7 +70,7 @@ describe('HomeDock', () => {
     window.dispatchEvent(up)
   })
 
-  // SP9-P8 cutover: settings changed from full-page jump /#/legacy to in-app router.push('/settings').
+  // Settings navigates in-app via router.push('/settings').
   // Assertion pattern same as useOpenAction.test.ts (that's unit level, this is dock click flow level).
   it('expanded: clicking an app opens it and auto-collapses the dock', async () => {
     useAppsStore()
@@ -82,20 +82,6 @@ describe('HomeDock', () => {
     await w.get('.dock-app[data-app="settings"]').trigger('click')
     expect(router.push).toHaveBeenCalledWith('/settings')
     expect(hrefs.length).toBe(0)
-    expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
-  })
-
-  // Fallback reversibility also needs one verification on dock's path: when flag is hit, still full-page jump to old desktop, dock collapses normally.
-  it('expanded: fallback flag strangler:disabled:/settings==1 still full-page jumps settings to /#/legacy', async () => {
-    useAppsStore()
-    localStorage.setItem('strangler:disabled:/settings', '1')
-    const hrefs: string[] = []
-    Object.defineProperty(window, 'location', { configurable: true, value: { hostname: 'h', set href(v: string) { hrefs.push(v) }, get href() { return '' } } })
-    const w = mount(HomeDock)
-    await w.get('.dock-toggle').trigger('click')
-    await w.get('.dock-app[data-app="settings"]').trigger('click')
-    expect(hrefs[0]).toBe('/#/legacy')
-    expect(router.push).not.toHaveBeenCalled()
     expect(w.get('.dock-toggle').attributes('aria-expanded')).toBe('false')
   })
 

@@ -457,7 +457,7 @@ describe('SearchDialog', () => {
   })
 })
 
-describe('deep link ?q= (SP9-P8 cutover: Vue2 /search strangled to desktop)', () => {
+describe('deep link ?q= (desktop search panel)', () => {
   beforeEach(() => { setActivePinia(createPinia()); agentTool.mockReset() })
   afterEach(() => { wrapper?.unmount(); wrapper = null; document.body.innerHTML = '' })
 
@@ -492,7 +492,7 @@ describe('deep link ?q= (SP9-P8 cutover: Vue2 /search strangled to desktop)', ()
     expect(agentTool).toHaveBeenCalledTimes(1) // removing query doesn't trigger second round
   })
 
-  it('?q= empty value (from bare /search being strangled): open panel but don\'t send request', async () => {
+  it('?q= empty value (mirrors Vue2\'s old bare /search): open panel but don\'t send request', async () => {
     await deepLink('/?q=')
     expect(document.body.querySelector('.searchbox')).not.toBeNull()
     expect(agentTool).not.toHaveBeenCalled()
@@ -517,7 +517,7 @@ describe('deep link ?q= (SP9-P8 cutover: Vue2 /search strangled to desktop)', ()
   })
 
   // ⚠️ `?q` (key present but no equals sign) — vue-router gives **null**, not ''.
-  //    Not theoretical: Vue2 side, anyone typing /search?q gets strangled to /app/#/?q.
+  //    Not theoretical: a user typing /?q by hand hits exactly this shape.
   //    Early implementation only blocked undefined; seed got null → seed.trim() throws TypeError.
   //    vue-tsc caught it first (TS18047 / TS2322), this test pins it at runtime.
   // ⚠️ Reverting to old way, failure looks like **Unhandled Errors** from vitest

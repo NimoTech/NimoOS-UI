@@ -1,6 +1,6 @@
 // Drop P2P protocol constants and message shapes: word-for-word aligned with Vue2 Network.js.
-// Hard constraint: before P8 strangler flip, old and new pages coexist and interoperate;
-// any shape/value changes break compatibility.
+// Hard constraint: peers running different builds must still interoperate; any shape/value
+// changes break compatibility.
 
 export const CHUNK_SIZE = 64000 // 64 KB(Vue2 _chunkSize)
 export const MAX_PARTITION_SIZE = 1e6 // 1 MB(Vue2 _maxPartitionSize)

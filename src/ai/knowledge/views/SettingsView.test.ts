@@ -230,7 +230,7 @@ const mountedWrappers: Array<ReturnType<typeof mount>> = []
 
 function makeRouter() {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/ai/knowledge/settings', name: 'KnowledgeSettings', component: SettingsView },
       // [Correction, SP8-P5d Task 9, governance §15.2] Blueprint `:318` target of `goSandbox()`;

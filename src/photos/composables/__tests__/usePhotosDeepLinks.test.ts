@@ -94,7 +94,7 @@ function makeRouter(host: Component): ReturnType<typeof createRouter> {
     { path: '/photos/trash', name: 'photos-trash', component: Blank },
     { path: '/photos/settings', name: 'photos-settings', component: Blank },
   ]
-  return createRouter({ history: createWebHashHistory('/app/'), routes })
+  return createRouter({ history: createWebHashHistory('/'), routes })
 }
 
 // assets: id -> detail response (bare asset shape, resolve immediately when found); any id not
@@ -530,8 +530,8 @@ describe('usePhotosDeepLinks · query-only (already at /photos, query appears la
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// P8b: after cutover, Vue2 `/photos` is strangler-redirected entirely to `/app/#/photos`, its
-// query keys will never be caught by Vue2's own components again — each key must land here,
+// P8b: Vue2 has been retired, so its `/photos` query keys will never be caught by Vue2's own
+// components again — each key must land here,
 // else old bookmarks all become dumb. This section covers navigation keys (?view / ?tab /
 // ?settings), source: Vue2 PhotosTimeline.vue:475-489.
 // ═══════════════════════════════════════════════════════════════════════════

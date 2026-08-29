@@ -98,7 +98,7 @@ function makeDeferred<T>() {
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [{ path: '/ai/knowledge/notes', name: 'KnowledgeNotes', component: { template: '<div/>' } }],
   })
 }

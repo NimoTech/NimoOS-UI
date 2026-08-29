@@ -74,7 +74,7 @@ const ContextMenuItemStub = {
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/', name: 'home', component: { template: '<div/>' } },
       { path: '/files', name: 'files', component: Files },

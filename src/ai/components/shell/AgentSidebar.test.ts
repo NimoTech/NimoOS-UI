@@ -137,7 +137,7 @@ describe('AgentSidebar', () => {
     historySpy.mockRestore()
   })
 
-  it('goBack: hard-navigates to /app/ when the tab has no history (opened fresh from the launcher)', async () => {
+  it('goBack: hard-navigates to / when the tab has no history (opened fresh from the launcher)', async () => {
     const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(1)
     const original = window.location
     const loc = { ...original, href: '' } as unknown as Location
@@ -149,7 +149,7 @@ describe('AgentSidebar', () => {
       })
       await w.find('[data-test="back"]').trigger('click')
       expect(push).not.toHaveBeenCalled()
-      expect(loc.href).toBe('/app/')
+      expect(loc.href).toBe('/')
     } finally {
       Object.defineProperty(window, 'location', { value: original, writable: true, configurable: true })
       historySpy.mockRestore()

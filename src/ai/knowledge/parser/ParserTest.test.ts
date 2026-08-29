@@ -171,7 +171,7 @@ function makeFile(name: string, size: number, type = 'text/markdown'): File {
 
 function makeRouter() {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/ai/parser/test', name: 'AIParserTest', component: ParserTest },
       // Blueprint :5's `router-link to="/ai/parser"` needs target route to exist to resolve href.
@@ -281,7 +281,7 @@ describe('ParserTest — page header + help card (blueprint :3-18)', () => {
     expect(w.find('.page-header h2').text()).toBe('Parser 测试沙盒')
     const link = w.find('a.back-link')
     expect(link.text()).toBe('← 返回详情')
-    // hash router: href resolved in jsdom is pure hash (production is `…/app/#/ai/parser`)
+    // hash router: href resolved in jsdom is pure hash (production is `…/#/ai/parser`)
     expect(link.attributes('href')).toBe('#/ai/parser')
     // 🔴 brief §4.3 says page title has `🧪` — source verification shows wrong (E-15): `🧪` is at
     //    `ParserStatus.vue:6` and `SettingsView.vue:162`, this page's h2 is pure translation.

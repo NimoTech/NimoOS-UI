@@ -54,7 +54,7 @@ onMounted(async () => {
       ? await service.file.getPreviewBytes(props.item.path)
       : await service.file.getBytes(props.item.path)
     if (disposed) return
-    // cMapUrl/standardFontDataUrl point to pdfjs resources copied at build time (base=/app/),
+    // cMapUrl/standardFontDataUrl point to pdfjs resources copied at build time (base=BASE_URL),
     // ensures CJK and other non-Latin encoded + non-embedded-font PDFs don't show boxes/garbled text.
     loadingTask = pdfjsLib.getDocument({
       data: new Uint8Array(buf),

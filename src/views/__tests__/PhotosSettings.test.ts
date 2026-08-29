@@ -57,7 +57,7 @@ const AiStub = {
 
 function makeRouter(path: string) {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/', name: 'home', component: { template: '<div/>' } },
       { path: '/photos/settings', name: 'photos-settings', component: PhotosSettings },

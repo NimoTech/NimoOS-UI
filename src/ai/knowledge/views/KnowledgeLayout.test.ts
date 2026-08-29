@@ -70,7 +70,7 @@ import { useKnowledgeStore } from '../stores/knowledgeStore'
 const Stub = { template: '<div class="stub-child"/>' }
 function makeRouter(path = '/ai/knowledge') {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/ai/knowledge', name: 'KnowledgeDashboard', component: Stub },
       { path: '/ai/knowledge/wiki', name: 'KnowledgeWiki', component: Stub },
@@ -183,7 +183,7 @@ describe('KnowledgeLayout — rail back button (replaces the former title / "RAG
     historySpy.mockRestore()
   })
 
-  it('click → hard-navigates to /app/ when the tab has no history (opened fresh from the launcher)', async () => {
+  it('click → hard-navigates to / when the tab has no history (opened fresh from the launcher)', async () => {
     const historySpy = vi.spyOn(window.history, 'length', 'get').mockReturnValue(1)
     const original = window.location
     const loc = { ...original, href: '' } as unknown as Location
@@ -193,7 +193,7 @@ describe('KnowledgeLayout — rail back button (replaces the former title / "RAG
       const push = vi.spyOn(router, 'push')
       await w.find('[data-test="back"]').trigger('click')
       expect(push).not.toHaveBeenCalled()
-      expect(loc.href).toBe('/app/')
+      expect(loc.href).toBe('/')
     } finally {
       Object.defineProperty(window, 'location', { value: original, writable: true, configurable: true })
       historySpy.mockRestore()

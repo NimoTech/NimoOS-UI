@@ -10,9 +10,9 @@
   - `$store.state.user` → New-UI has no reactive user store, directly reads
     `localStorage['user']` (same persistence method as access_token), consistent with AgentSidebar.vue.
   - Avatar URL prefix `/v1/users/avatar?token=` (with leading slash). Vue2 source file
-    (:51) has no slash: `'v1/users/avatar?token='`; this repo sits under `/app/` base,
-    without slash the request would be parsed relative to current route and 404 — this is a bug
-    that P1a final review already fixed, follow AgentSidebar.vue version, not reverting to Vue2.
+    (:51) has no slash: `'v1/users/avatar?token='`; with hash routing, without the leading
+    slash the request would be parsed relative to the current hash route and 404 — this is
+    a bug that P1a final review already fixed, follow AgentSidebar.vue version, not reverting to Vue2.
 -->
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'

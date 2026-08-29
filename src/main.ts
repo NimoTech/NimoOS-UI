@@ -27,12 +27,12 @@ initService({
   getToken: () => localStorage.getItem('access_token'),
   getRefresh: () => localStorage.getItem('refresh_token'),
   setTokens: (a, r, expiresAt) => session.setTokens(a, r, expiresAt),
-  // Before jumping to the in-app New-UI login (hash route /app/#/login), the dead token
-  // must be cleared first; otherwise the guard sees /login with a token → redirects to / →
+  // Before jumping to the in-app login (hash route /#/login), the dead token must be
+  // cleared first; otherwise the guard sees /login with a token → redirects to / →
   // home APIs 401 again → back to login, an infinite in-app ping-pong.
   onAuthFail: makeAuthFailHandler(
     () => session.clear(),
-    () => { window.location.href = '/app/#/login' },
+    () => { window.location.href = '/#/login' },
   ),
   // Same resolution as the UI's own locale, so the language we ask the backend for
   // is the language on screen. It used to forward navigator.language raw (en_gb,

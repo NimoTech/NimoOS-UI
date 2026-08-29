@@ -4,7 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import GridItem from './GridItem.vue'
 import type { LayoutItem } from '../grid/types'
 
-// P8 cutover: folder tiles changed to in-app router.push, need to mock router singleton (vi.mock gets hoisted before import).
+// Folder tiles use in-app router.push, need to mock router singleton (vi.mock gets hoisted before import).
 vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
 import { router } from '../../router'
 
@@ -24,7 +24,7 @@ describe('GridItem click', () => {
     expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })
     expect(hrefs.length).toBe(0)
   })
-  it('clicking a photo pushes /photos(SP7-P8b cutover)', async () => {
+  it('clicking a photo pushes /photos', async () => {
     const item: LayoutItem = { id: 'p', kind: 'photo', key: 'linear-gradient(0,#000)', c: 1, r: 1, w: 2, h: 2 }
     const w = mount(GridItem, { props: { item } })
     await w.get('[data-id="p"]').trigger('click')

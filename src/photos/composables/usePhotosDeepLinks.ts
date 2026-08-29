@@ -15,8 +15,7 @@
 //   _applyUrlDeepLinks) + album (PhotosAlbumsView.vue:264, read in its own mounted())
 //   + smartview (PhotosSmartViewsView.vue:340, read in smart-views page's own mounted()).
 //   P8a implements: asset / photoset / active / q / album / person — 6 keys.
-//   **P8b additions (after cutover, old Vue2 /photos is entirely redirected; legacy
-//   bookmarks can only land here)**:
+//   **P8b additions (Vue2 has been retired; legacy bookmarks can only land here)**:
 //     - view — six Vue2 NAV_KEYS values, each normalized to one of New-UI's six real routes
 //       (VIEW_ROUTES).
 //     - tab — the only key needing host page cooperation, goes via
@@ -107,10 +106,9 @@ import { assetToPhoto, type Photo } from '../util/assetToPhoto'
 
 const PHOTOSET_KEY_PREFIX = 'nimo:photoset:'
 
-// ── P8b cutover ────────────────────────────────────────────────────────────
-// After flip, Vue2 `/photos` is entirely redirected by strangler.js to `/app/#/photos`;
-// its supported query keys will never be caught by Vue2's own components again — each
-// key either lands in this file, or becomes a dead link on cutover day. So P8a's
+// ── P8b ────────────────────────────────────────────────────────────────────
+// Vue2 has been retired, so its `/photos` query keys will never be caught by Vue2's own
+// components again — each key either lands in this file, or becomes a dead link. So P8a's
 // intentionally-postponed keys are all filled in here (key inventory gate at
 // __tests__/deepLinkCoverage.test.ts).
 

@@ -56,7 +56,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 
 function makeRouter(initial = '/photos/search') {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [{ path: '/photos/search', name: 'photos-search', component: PhotosSearch }],
   })
   router.push(initial)

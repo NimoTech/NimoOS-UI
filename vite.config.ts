@@ -7,7 +7,7 @@ import vue from '@vitejs/plugin-vue'
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 // pdfjs needs the cMap (CJK and other non-Latin encodings) and standard_fonts (non-embedded fonts) asset directories to render correctly.
-// After the build, copy both directories into the output root; referenced via base /app/ by PdfViewer's cMapUrl/standardFontDataUrl.
+// After the build, copy both directories into the output root; referenced via the app base by PdfViewer's cMapUrl/standardFontDataUrl.
 function copyPdfjsAssets(): Plugin {
   let outDir = 'dist'
   return {
@@ -26,14 +26,43 @@ function copyPdfjsAssets(): Plugin {
   }
 }
 
-// `^/(?!app/)` = everything except /app/ frontend assets, forwarded verbatim to the on-device gateway (incl. WS upgrades).
+// The gateway's component health probe (probeUI) reads <www root>/version.json — a contract
+// the Vue 2 panel used to satisfy via its gen-version.js. Same semantics here: a release
+// build (NimoOS-Build) overrides via NIMOOS_VERSION(+NIMOOS_BUILD); a plain local build
+// falls back to package.json's version. Emitted into the output root at closeBundle, so the
+// working tree stays clean (the Vue 2 approach wrote into public/ and needed gitignoring).
+function emitVersionJson(): Plugin {
+  let outDir = 'dist'
+  return {
+    name: 'emit-version-json',
+    apply: 'build',
+    configResolved(config) { outDir = config.build.outDir },
+    closeBundle() {
+      const envVer = process.env.NIMOOS_VERSION
+      const version = envVer
+        ? `${envVer}${process.env.NIMOOS_BUILD ? '+' + process.env.NIMOOS_BUILD : ''}`
+        : (JSON.parse(fs.readFileSync(path.resolve(rootDir, 'package.json'), 'utf8')).version as string)
+      fs.writeFileSync(path.resolve(rootDir, outDir, 'version.json'), JSON.stringify({ version }) + '\n')
+    },
+  }
+}
+
+// Serving at root (base '/', 2026-08-29) means the old blanket rule `^/(?!app/)` would
+// swallow the app's own module requests, so the proxy is now an explicit allow-list of
+// backend prefixes: /v1 /v2 /v3 covers every REST call the shared service package makes,
+// and /v2/message_bus carries the MessageBus socket.io upgrade (ws: true). Anything else
+// is the app itself and stays with the dev server.
+const BACKEND = { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true }
 const DEV_PROXY = {
-  '^/(?!app/)': { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true },
+  '^/v[123]/': BACKEND,
 }
 
 export default defineConfig({
-  base: '/app/',
-  plugins: [vue(), copyPdfjsAssets()],
+  // Served at the site root since 2026-08-29 — the Vue 2 panel is retired and this app
+  // owns `/`. Hash routing stays (the gateway's StaticFS has no SPA fallback, so
+  // /files-style history URLs would 404 on refresh).
+  base: '/',
+  plugins: [vue(), copyPdfjsAssets(), emitVersionJson()],
   // ⚠️ The shared package @nimotech/nimoos-service must be excluded from dependency
   // pre-bundling (hit during SP9-P1 acceptance; mistakenly deleted once during the SP13
   // inlining, proven still broken in practice, and restored — see "SP13 lesson" below).
@@ -74,21 +103,16 @@ export default defineConfig({
     exclude: ['@nimotech/nimoos-service'],
     include: ['axios'], // the excluded package above imports it internally; register explicitly to avoid "new dependency discovered → full page reload"
   },
-  // dev and preview share the same proxy rule: everything outside /app/ (APIs /v1|/v2|/v3,
-  // MessageBus WS, the Vue2 login page) is forwarded to the on-device gateway on port 80.
-  // SP9-P0 added the dev copy — previously only preview had it, so login on the dev server always 404'd (been there).
+  // dev and preview share the same proxy rule (APIs /v1|/v2|/v3 incl. the MessageBus WS,
+  // forwarded to the on-device gateway on port 80). SP9-P0 added the dev copy — previously
+  // only preview had it, so login on the dev server always 404'd (been there).
   //
-  // SP8-P6-T3 merge: **port unified back to 5273**. The 5286/5287/5288 set was an artifact
-  // of the "three parallel lines each on its own port, none overwriting the on-device /app/
-  // deploy" era; after SP8 merged back to mainline there is only one line, and the
-  // `pnpm dev → http://localhost:5273/app/` is the sole convention.
-  // The proxy rule takes master's DEV_PROXY — its `^/(?!app/)` is a **strict superset** of
-  // sp8's four rules (/v1, /v2, ^/$, static dirs) and carries ws:true, so sp8's
-  // "log in via Vue2 to get a token, then enter /app/#/ai/* for acceptance" ability is
-  // fully preserved, plus /v3 and MessageBus WS coverage.
-  // host: true comes from sp8 (needed for acceptance on LAN devices), kept.
+  // SP8-P6-T3 merge: **port unified back to 5273** — `pnpm dev → http://localhost:5273/`
+  // is the sole convention. The proxy forwards only the /v1 /v2 /v3 backend prefixes
+  // (ws:true carries the MessageBus socket.io upgrade); everything else is the app itself.
+  // host: true is needed for acceptance on LAN devices, kept.
   server: { port: 5273, host: true, proxy: DEV_PROXY },
-  // SP6 parallel acceptance (spec §5): serves only the /app/ build output. Real deploys still go through scripts/deploy.sh.
+  // SP6 parallel acceptance (spec §5): serves only the build output. Real deploys still go through scripts/deploy.sh.
   preview: {
     port: 5273,
     host: true,

@@ -144,7 +144,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh,
 
 function makeRouter(initial = '/photos/smart-views/7') {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },

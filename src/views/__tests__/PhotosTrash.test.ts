@@ -61,7 +61,7 @@ const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { en_us: e
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [{ path: '/photos/trash', name: 'photos-trash', component: PhotosTrash }],
   })
 }

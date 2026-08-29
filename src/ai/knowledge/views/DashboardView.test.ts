@@ -61,7 +61,7 @@ const ROOTS_MIXED = [
 
 function mountDash() {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/ai/knowledge', component: DashboardView },
       { path: '/ai/knowledge/:tab', component: { template: '<div/>' } },

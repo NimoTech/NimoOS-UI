@@ -53,7 +53,7 @@ import { useLightbox } from '../../photos/lightbox/useLightbox'
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/', name: 'home', component: { template: '<div/>' } },
       { path: '/photos/places', name: 'photos-places', component: PhotosPlaces },

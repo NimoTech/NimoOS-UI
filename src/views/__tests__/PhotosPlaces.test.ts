@@ -62,7 +62,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/', name: 'home', component: { template: '<div/>' } },
       { path: '/photos/places', name: 'photos-places', component: PhotosPlaces },

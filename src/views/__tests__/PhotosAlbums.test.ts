@@ -85,7 +85,7 @@ function notFound() {
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/photos/albums', name: 'photos-albums', component: PhotosAlbums },
       { path: '/photos/albums/:id', name: 'photos-album-detail', component: { template: '<div/>' } },

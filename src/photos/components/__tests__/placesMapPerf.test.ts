@@ -314,7 +314,7 @@ describe('自定义配色的命令式写入在亮/暗两种 photos 私有主题�
   async function mountContainer() {
     const i18n = makeI18n()
     const router = createRouter({
-      history: createWebHashHistory('/app/'),
+      history: createWebHashHistory('/'),
       routes: [{ path: '/', name: 'home', component: PhotosPlaces }],
     })
     await router.push('/')

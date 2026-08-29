@@ -117,7 +117,7 @@ function sleep(ms: number) {
 // not an ordering only fake-timer bookkeeping happens to produce.
 function makeRouter(routerDelayMs: number) {
   const r = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/', name: 'home', component: { template: '<div/>' } },
       { path: '/files', name: 'files', component: Files },

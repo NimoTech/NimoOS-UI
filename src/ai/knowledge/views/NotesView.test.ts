@@ -166,7 +166,7 @@ function withHost(): HTMLElement {
 
 function makeRouter(query: Record<string, string> = {}) {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [{ path: '/ai/knowledge/notes', name: 'KnowledgeNotes', component: NotesView }],
   })
   router.push({ path: '/ai/knowledge/notes', query })

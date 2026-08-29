@@ -262,7 +262,7 @@ function withPinia() {
 
 function makeRouter(query: Record<string, string> = {}) {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [{ path: '/ai/knowledge/search', name: 'KnowledgeSearch', component: SearchView }],
   })
   router.push({ path: '/ai/knowledge/search', query })

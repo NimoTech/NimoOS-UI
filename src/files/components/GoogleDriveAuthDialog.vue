@@ -15,7 +15,7 @@ const toast = useToast()
 const clientId = ref('')
 const clientSecret = ref('')
 const connecting = ref(false)
-// Guide page is now shipped with this app (public/guide/, lands in /app/guide/ after build), no longer depends on the one Vue2 left at the site root
+// Guide page is shipped with this app (public/guide/, served from the site root after build)
 const guideUrl = window.location.origin + import.meta.env.BASE_URL + 'guide/google-drive.html'
 
 watch(() => props.open, (o) => {

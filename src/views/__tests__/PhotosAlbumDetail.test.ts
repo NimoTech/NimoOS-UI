@@ -90,7 +90,7 @@ const originalWindowLocation = window.location
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/photos/albums', name: 'photos-albums', component: { template: '<div/>' } },
       { path: '/photos/albums/:id', name: 'photos-album-detail', component: PhotosAlbumDetail },

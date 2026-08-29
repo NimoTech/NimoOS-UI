@@ -1,16 +1,13 @@
 // 1:1 port target: Vue2 src/views/AI/Agent/services/openInApp.js's
 // __tests__/openInApp.spec.js. Assertions copied verbatim, adjusted per openInApp.ts top
-// comments for two landing point differences (New-UI's actual behavior relative to Vue2,
-// not file changes):
-//   - Files: Vue2 lands at `/#/files?...` (root-mounted), New-UI lands at
-//     `/app/#/files?...` (New-UI's own Files page, SP4 complete).
-//   - Photos: both land at `/#/photos?...` — New-UI temporarily uses old Vue2 Photos page
-//     (SP7 photo gallery not yet merged to this branch), unchanged.
+// comments: this app now owns the site root (Vue2 has been retired), so every landing
+// point below is a plain hash route with no path prefix:
+//   - Files lands at `/#/files?...` (this app's own Files page, SP4 complete).
+//   - Photos lands at `/#/photos?...` (this app's own Photos page).
 //
 // SP8-P5d Task 5 (governance §16): add openDirInNewTab / agentSessionUrl /
-// openAgentSessionInNewTab test cases for three new exports. agentSessionUrl group **has
-// no** landing point differences — decision A-8 requires pointing verbatim to old Vue2 app
-// `/#/ai/agent?session=…` (no `/app` prefix), see corresponding note in openInApp.ts.
+// openAgentSessionInNewTab test cases for three new exports. agentSessionUrl group lands at
+// `/#/ai/agent?session=…`, see corresponding note in openInApp.ts (decision A-8).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   fileDirAndName,
@@ -60,8 +57,8 @@ describe('photosAssetUrl / filesPathUrl', () => {
   it('builds a photos asset url with encoding (still root-mounted /#/photos)', () => {
     expect(photosAssetUrl('abc 123')).toBe('/#/photos?asset=abc%20123')
   })
-  it('builds a files url encoding dir and name, under New-UI /app/ mount', () => {
-    expect(filesPathUrl('/DATA/a b', 'c&d.txt')).toBe('/app/#/files?path=%2FDATA%2Fa%20b&highlight=c%26d.txt')
+  it("builds a files url encoding dir and name, under this app's own route", () => {
+    expect(filesPathUrl('/DATA/a b', 'c&d.txt')).toBe('/#/files?path=%2FDATA%2Fa%20b&highlight=c%26d.txt')
   })
 })
 
@@ -84,10 +81,10 @@ describe('openPhotoInNewTab / openFileInNewTab', () => {
     openPhotoInNewTab(undefined)
     expect(spy).not.toHaveBeenCalled()
   })
-  it('opens the files url in a new tab, under New-UI /app/ mount', () => {
+  it("opens the files url in a new tab, under this app's own route", () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
     openFileInNewTab('/DATA/docs/report.pdf')
-    expect(spy).toHaveBeenCalledWith('/app/#/files?path=%2FDATA%2Fdocs&highlight=report.pdf', '_blank')
+    expect(spy).toHaveBeenCalledWith('/#/files?path=%2FDATA%2Fdocs&highlight=report.pdf', '_blank')
   })
   it('does nothing when the file path is empty', () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
@@ -103,15 +100,15 @@ describe('openPhotoInNewTab / openFileInNewTab', () => {
 })
 
 // SP8-P5d Task 5: openDirInNewTab (governance §16 item 1) — verbatim copy from blueprint
-// openInApp.js:52-55, reuses existing filesPathUrl from repo (/app/ mount point),
+// openInApp.js:52-55, reuses existing filesPathUrl from repo (this app's own route),
 // highlight segment always passes empty string.
 describe('openDirInNewTab', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('opens the directory url (no highlight) in a new tab, under New-UI /app/ mount', () => {
+  it("opens the directory url (no highlight) in a new tab, under this app's own route", () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
     openDirInNewTab('/DATA/Notes')
-    expect(spy).toHaveBeenCalledWith('/app/#/files?path=%2FDATA%2FNotes&highlight=', '_blank')
+    expect(spy).toHaveBeenCalledWith('/#/files?path=%2FDATA%2FNotes&highlight=', '_blank')
   })
   it('does nothing when the dir path is empty', () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
@@ -193,37 +190,22 @@ describe('openPhotoSetInNewTab', () => {
   })
 })
 
-// SP8-P5d Task 5 / A-8 closed 2026-08-19: New-UI's /ai/agent now honours ?session=
-// , so these two
-// functions land inside New-UI at /app.
-// 🔴 Forward assertion: URL verbatim + reverse assertion "does not equal the root-mounted
-// old Vue2 URL" — the reverse assertion is what discriminates: if someone reverts the landing
-// point to /#/ai/agent, users leave New-UI on every "open source conversation" click, which
-// the forward assertion alone could miss by string coincidence. And vice versa: the reverse
-// assertion alone would pass vacuously on any other wrong URL, which only the forward
-// assertion's exact match catches.
+// SP8-P5d Task 5 / A-8 closed 2026-08-19: this app's own /ai/agent now honours ?session=,
+// so these two functions land on this app's own route.
 describe('agentSessionUrl / openAgentSessionInNewTab', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('builds a URL pointing at New-UI (mounted at /app)', () => {
-    expect(agentSessionUrl('sess 1')).toBe('/app/#/ai/agent?session=sess%201')
-  })
-  it('does NOT point at the root-mounted old Vue2 app (reverse assertion, guards against a silent regression)', () => {
-    expect(agentSessionUrl('sess 1')).not.toBe('/#/ai/agent?session=sess%201')
+  it('builds a URL pointing at this app\'s own Agent page', () => {
+    expect(agentSessionUrl('sess 1')).toBe('/#/ai/agent?session=sess%201')
   })
   it('encodes special characters in the session id', () => {
-    expect(agentSessionUrl('a&b c')).toBe('/app/#/ai/agent?session=a%26b%20c')
+    expect(agentSessionUrl('a&b c')).toBe('/#/ai/agent?session=a%26b%20c')
   })
 
   it('opens the agent session url in a new tab', () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
     openAgentSessionInNewTab('sess-1')
-    expect(spy).toHaveBeenCalledWith('/app/#/ai/agent?session=sess-1', '_blank')
-  })
-  it('the opened url is NOT the root-mounted old Vue2 route (reverse assertion)', () => {
-    const spy = vi.spyOn(window, 'open').mockImplementation(() => null)
-    openAgentSessionInNewTab('sess-1')
-    expect(spy.mock.calls[0][0]).not.toBe('/#/ai/agent?session=sess-1')
+    expect(spy).toHaveBeenCalledWith('/#/ai/agent?session=sess-1', '_blank')
   })
   it('does nothing when the session id is empty', () => {
     const spy = vi.spyOn(window, 'open').mockImplementation(() => null)

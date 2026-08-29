@@ -1,7 +1,7 @@
 // SP7-P8b: deep link key coverage gate.
 //
-// Why it's needed: after cutover, Vue2 `/photos` is redirected to `/app/#/photos` by strangler.js,
-// Vue2's 13 query keys will never be caught by their own components again — missing even one
+// Why it's needed: Vue2 has been retired, so its `/photos` query keys will never be caught by
+// their own components again — missing even one
 // silently breaks old bookmarks. These missing items **cannot be caught by the three-door review**:
 // no behavior test will "fail because a key is missing". SP9-T9 hit the same pattern of pit
 // (whitelist only did one-way check, missed CSS blocks got through all three doors), so we're

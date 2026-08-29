@@ -92,7 +92,7 @@ const routes: RouteRecordRaw[] = [
 ]
 
 export const router = createRouter({
-  history: createWebHashHistory('/app/'),
+  history: createWebHashHistory('/'),
   routes,
 })
 

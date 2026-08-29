@@ -111,10 +111,11 @@ function onAvatarError() {
 // point) fall back to a hard navigation so the back button always works.
 function goBack() {
   if (window.history.length > 1 && router.currentRoute.value.path !== '/') {
-    router.push('/').catch(() => { window.location.href = '/app/' })
+    router.push('/').catch(() => { window.location.href = '/' })
   } else {
-    // In the strangler-fig context, '/' is the old Vue2 app; the new app's entry point is '/app/'
-    window.location.href = '/app/'
+    // No history to pop (opened fresh from the launcher in a new tab): hard-navigate
+    // to the site root, which this app now owns directly.
+    window.location.href = '/'
   }
 }
 

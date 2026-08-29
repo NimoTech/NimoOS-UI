@@ -31,15 +31,15 @@ describe('buildProbeUrl', () => {
 })
 
 describe('buildRedirectUrl (porting discipline #5)', () => {
-  it('preserves the current path and hash -- otherwise it dumps the user onto / (the old Vue2 UI)', () => {
+  it('preserves the current path and hash -- otherwise it dumps the user onto a bare root, dropping the in-app route', () => {
     expect(buildRedirectUrl('8080', {
-      protocol: 'http:', hostname: '192.168.1.10', pathname: '/app/', hash: '#/settings/general',
-    })).toBe('http://192.168.1.10:8080/app/#/settings/general')
+      protocol: 'http:', hostname: '192.168.1.10', pathname: '/', hash: '#/settings/general',
+    })).toBe('http://192.168.1.10:8080/#/settings/general')
   })
   it('does not append a stray # when there is no hash', () => {
     expect(buildRedirectUrl('8080', {
-      protocol: 'http:', hostname: 'h', pathname: '/app/', hash: '',
-    })).toBe('http://h:8080/app/')
+      protocol: 'http:', hostname: 'h', pathname: '/', hash: '',
+    })).toBe('http://h:8080/')
   })
 })
 

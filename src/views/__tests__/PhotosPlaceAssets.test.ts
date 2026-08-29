@@ -85,7 +85,7 @@ function asset(id: string | number, takenAt = '2026-05-01T10:00:00Z') {
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/photos/places', name: 'photos-places', component: { template: '<div/>' } },
       { path: '/photos/places/:key', name: 'photos-place-assets', component: PhotosPlaceAssets },

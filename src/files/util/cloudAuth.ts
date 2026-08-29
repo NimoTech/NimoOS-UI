@@ -4,9 +4,9 @@ export function buildAuthUrl(authUrl: string, origin: string): string {
   return authUrl.replace('${HOST}', encodeURI(origin)).replace('redirect_uri=http%', 'redirect_uri=https%')
 }
 
-// Driver icons are now served by this app itself (public/img/driver/**, deployed to /app/img/driver/** on build).
+// Driver icons are served by this app itself (public/img/driver/**, deployed to this app's base + img/driver/** on build).
 // The backend returns **site-root**-relative paths (`./img/driver/GoogleDrive.svg`, see NimoOS `drivers/*/meta.go`
-// 's ICONURL); that file originally came from Vue2's build output; after Vue2 was taken offline from the device, img/ is no longer at site root,
+// 's ICONURL); that file originally came from Vue2's build output, now retired,
 // so here we only take the **filename** from the backend path and re-mount it under this app's base (same pattern as PdfViewer references cmaps/).
 // When new drivers are added to the backend in the future, just place the corresponding svg in public/img/driver/ as well.
 export function driverIconUrl(icon: string, origin: string): string {

@@ -10,7 +10,7 @@ vi.mock('../composables/useAuth', () => ({ useAuth: () => ({ login: loginFn }) }
 import Login from './Login.vue'
 
 function makeRouter() {
-  return createRouter({ history: createWebHashHistory('/app/'), routes: [
+  return createRouter({ history: createWebHashHistory('/'), routes: [
     { path: '/', component: { template: '<div/>' } },
     { path: '/login', component: Login },
   ] })

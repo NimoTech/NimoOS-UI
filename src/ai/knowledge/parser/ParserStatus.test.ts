@@ -194,7 +194,7 @@ const mountedWrappers: Array<ReturnType<typeof mount>> = []
 
 function makeRouter() {
   const router = createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/ai/parser', name: 'AIParser', component: ParserStatus },
       // Blueprint `:6`'s `router-link to="/ai/parser/test"` needs the target route to
@@ -275,8 +275,8 @@ describe('ParserStatus — page header (blueprint :3-9)', () => {
     // N16: 🧪 sits outside t() — renders as "🧪 测试沙盒" (emoji + space + translation)
     expect(link.text()).toBe('🧪 测试沙盒')
     // Hash routing: in jsdom, location is `http://localhost:3000/`, and the href resolved
-    // via `createWebHashHistory('/app/')` is a bare hash (in production the browser address
-    // bar shows `…/app/#/ai/parser/test`)
+    // via `createWebHashHistory('/')` is a bare hash (in production the browser address
+    // bar shows `…/#/ai/parser/test`)
     expect(link.attributes('href')).toBe('#/ai/parser/test')
     expect(w.find('.refresh-btn').text()).toBe('刷新')
   })

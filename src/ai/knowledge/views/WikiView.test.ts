@@ -342,7 +342,7 @@ const flush = async (): Promise<void> => {
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [
       { path: '/ai/knowledge/wiki', name: 'KnowledgeWiki', component: WikiView },
       // Target pushed by "Manage knowledge roots" button — if not registered, vue-router logs "No match found" warning.

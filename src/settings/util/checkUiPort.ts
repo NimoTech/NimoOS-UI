@@ -35,9 +35,9 @@ export function buildProbeUrl(port: string, loc: Loc = window.location): string 
 }
 
 /**
- * Porting discipline #5: Vue2 redirects to `${protocol}//${host}:${port}` (root path =
- * the old Vue2 app). New-UI is mounted under /app/, so copying that would throw the
- * user out of the new UI; keep the current pathname + hash instead.
+ * Porting discipline #5: Vue2 redirects to `${protocol}//${host}:${port}` (bare root path).
+ * This app owns the site root and uses hash routing, so a bare root redirect would drop
+ * the user's current in-app route; keep the current pathname + hash instead.
  */
 export function buildRedirectUrl(port: string, loc: FullLoc = window.location): string {
   return `${loc.protocol}//${loc.hostname}:${port}${loc.pathname}${loc.hash}`

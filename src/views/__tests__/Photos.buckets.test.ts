@@ -59,7 +59,7 @@ import { useTimelineStore, __resetBucketProbeForTest } from '../../photos/stores
 
 function makeRouter() {
   return createRouter({
-    history: createWebHashHistory('/app/'),
+    history: createWebHashHistory('/'),
     routes: [{ path: '/photos', name: 'photos', component: Photos }],
   })
 }

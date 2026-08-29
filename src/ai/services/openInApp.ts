@@ -1,13 +1,9 @@
-// 1:1 port from Vue2 src/views/AI/Agent/services/openInApp.js, adjusted for two coexisting
-// apps in the new repository (Vue2 mounted at `/`, New-UI at `/app/`), landing points:
-//   - Files → New-UI's own Files page (`/app/#/files?path=&highlight=`, SP4 complete,
+// 1:1 port from Vue2 src/views/AI/Agent/services/openInApp.js, adjusted now that this app
+// owns the site root (Vue2 has been retired) and uses hash routing throughout. Landing points:
+//   - Files → this app's own Files page (`/#/files?path=&highlight=`, SP4 complete,
 //     exists and accepts these query parameters, see src/views/Files.vue).
-//   - Photos → still point to old Vue2 Photos page (`/#/photos?...`, root-mounted, hash router).
-//     New-UI's own photo gallery is being developed in another unmerged worktree (SP7, see
-//     memory sp7-photos-migration-progress); this branch (sp8-ai) doesn't have the
-//     `/app/#/photos` route yet, so we temporarily use the old app's working landing point;
-//     after SP7 merges, these two should be replaced with New-UI's own Photos route.
-//   - Agent → New-UI's own Agent page (`/app/#/ai/agent?session=`, ticket A-8, 2026-08-19,
+//   - Photos → this app's own Photos page (`/#/photos?...`, see src/router/index.ts).
+//   - Agent → this app's own Agent page (`/#/ai/agent?session=`, ticket A-8, 2026-08-19,
 // see the design note), since AgentPage
 //     now reads and follows `?session=` itself.
 //
@@ -42,7 +38,7 @@ export function photosAssetUrl(id: string | number): string {
 }
 
 export function filesPathUrl(dir: string, name: string): string {
-  return '/app/#/files?path=' + encodeURIComponent(dir) + '&highlight=' + encodeURIComponent(name)
+  return '/#/files?path=' + encodeURIComponent(dir) + '&highlight=' + encodeURIComponent(name)
 }
 
 export function openPhotoInNewTab(id: string | number | null | undefined): void {
@@ -58,8 +54,7 @@ export function openFileInNewTab(filePath: string | null | undefined): void {
 
 // Open a directory itself (no file highlight) in the Files app.
 // 1:1 port from Vue2 openInApp.js:52-55 — reuses the existing filesPathUrl from the
-// repository with openFileInNewTab (New-UI /app/ mount point), not the blueprint's own
-// virtual path implementation.
+// repository with openFileInNewTab, not the blueprint's own virtual path implementation.
 export function openDirInNewTab(dirPath: string | null | undefined): void {
   if (!dirPath) return
   window.open(filesPathUrl(dirPath, ''), '_blank')
@@ -114,16 +109,13 @@ function pruneStalePhotoSets(): void {
 
 // Ported from Vue2 openInApp.js:117-124 (`agentSessionUrl` / `openAgentSessionInNewTab`),
 // no longer byte-identical: the landing URL below deliberately differs from Vue2's, per the
-// A-8 history explained next. Originally these deliberately landed on the root-mounted old
-// Vue2 app because New-UI's
-// /ai/agent read no `?session=` at all, so an /app-prefixed link would have opened the Agent
-// page without selecting the session (a silent failure). Ticket A-8 closed that gap on
-// 2026-08-19 — AgentPage now mirrors, reads and follows `?session=`
-// — so the landing point
-// is New-UI's own route, and openInApp.test.ts's reverse assertions now guard against a
-// regression back to the old app.
+// A-8 history explained next. Originally these deliberately landed on Vue2's Agent page
+// because this app's own /ai/agent read no `?session=` at all, so linking here would have
+// opened the Agent page without selecting the session (a silent failure). Ticket A-8 closed
+// that gap on 2026-08-19 — AgentPage now reads and follows `?session=` itself — so the
+// landing point is this app's own route.
 export function agentSessionUrl(sessionId: string | number): string {
-  return '/app/#/ai/agent?session=' + encodeURIComponent(String(sessionId))
+  return '/#/ai/agent?session=' + encodeURIComponent(String(sessionId))
 }
 
 export function openAgentSessionInNewTab(sessionId: string | number | null | undefined): void {

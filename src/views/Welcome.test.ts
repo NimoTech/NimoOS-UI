@@ -20,7 +20,7 @@ import Welcome from './Welcome.vue'
 async function mountWelcome() {
   const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
   const pinia = createPinia()
-  const router = createRouter({ history: createWebHashHistory('/app/'), routes: [
+  const router = createRouter({ history: createWebHashHistory('/'), routes: [
     { path: '/', component: { template: '<div/>' } },
     { path: '/welcome', component: Welcome },
   ] })
