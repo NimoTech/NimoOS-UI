@@ -367,6 +367,98 @@ describe('PeopleReviewWizard.vue — zoom lightbox (pattern ① photo click)', (
   })
 })
 
+// T12c (suggestion-card face-locate box, 2026-08-28 addendum): a suggestion item's own bbox
+// (T12a backend field) drives a `.prw-face-box`-styled overlay drawn directly on the pattern-①
+// body's INLINE context photo, in addition to the lightbox it opens (already covered by the
+// merge-card cases in the "face-locate box on the lightbox" describe block below). The context
+// photo uses object-fit:cover (unlike the lightbox's object-fit:contain), so the mapped rect uses
+// different content-frame math -- see faceBox.ts's own coverContentRect.
+describe('PeopleReviewWizard.vue — face-locate box on the inline context photo (T12c, 2026-08-28 addendum)', () => {
+  function setContextImgDims(w: VueWrapper) {
+    const img = w.get('[data-test="prw-context-photo"] img').element as HTMLImageElement
+    Object.defineProperty(img, 'clientWidth', { value: 200, configurable: true })
+    Object.defineProperty(img, 'clientHeight', { value: 200, configurable: true })
+    Object.defineProperty(img, 'naturalWidth', { value: 100, configurable: true })
+    Object.defineProperty(img, 'naturalHeight', { value: 50, configurable: true })
+  }
+
+  it('a suggestion with a bbox: loading the context photo renders .prw-context-face-box at the cover-mapped rect', async () => {
+    await seed([rawGroup(rawPerson(), [rawSuggestion({ bbox: [0.1, 0.2, 0.5, 0.6] })])])
+    const w = mountWizard(true)
+
+    setContextImgDims(w)
+    await w.get('[data-test="prw-context-photo"] img').trigger('load')
+
+    const box = w.find('[data-test="prw-context-face-box"]')
+    expect(box.exists()).toBe(true)
+    const style = box.attributes('style')!
+    // cover fit: scale=max(200/100,200/50)=4, content frame x=-100,y=0,w=400,h=200.
+    expect(style).toContain('left: -60px')
+    expect(style).toContain('top: 40px')
+    expect(style).toContain('width: 160px')
+    expect(style).toContain('height: 80px')
+  })
+
+  it('a suggestion without a bbox: loading the context photo never renders .prw-context-face-box', async () => {
+    await seed([rawGroup(rawPerson(), [rawSuggestion()])])
+    const w = mountWizard(true)
+
+    setContextImgDims(w)
+    await w.get('[data-test="prw-context-photo"] img').trigger('load')
+
+    expect(w.find('[data-test="prw-context-face-box"]').exists()).toBe(false)
+  })
+
+  it('clicking the context photo opens the lightbox WITH the suggestion\'s bbox, rendering .prw-face-box there too', async () => {
+    await seed([rawGroup(rawPerson(), [rawSuggestion({ assetId: 'a1', bbox: [0.1, 0.2, 0.5, 0.6] })])])
+    const w = mountWizard(true)
+
+    await w.find('[data-test="prw-context-photo"]').trigger('click')
+    const lbImg = w.get('[data-test="prw-lightbox-img"]').element as HTMLImageElement
+    Object.defineProperty(lbImg, 'clientWidth', { value: 200, configurable: true })
+    Object.defineProperty(lbImg, 'clientHeight', { value: 200, configurable: true })
+    Object.defineProperty(lbImg, 'naturalWidth', { value: 100, configurable: true })
+    Object.defineProperty(lbImg, 'naturalHeight', { value: 50, configurable: true })
+    await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+    expect(w.find('[data-test="prw-face-box"]').exists()).toBe(true)
+  })
+
+  it('switching to the next suggestion (Skip) recomputes: bbox item shows a box, bbox-less item does not', async () => {
+    await seed([rawGroup(rawPerson(), [
+      rawSuggestion({ id: 's1', faceId: 'f1', bbox: [0.1, 0.2, 0.5, 0.6] }),
+      rawSuggestion({ id: 's2', faceId: 'f2' }),
+    ])])
+    const w = mountWizard(true)
+    setContextImgDims(w)
+    await w.get('[data-test="prw-context-photo"] img').trigger('load')
+    expect(w.find('[data-test="prw-context-face-box"]').exists()).toBe(true)
+
+    await w.find('[data-test="prw-skip"]').trigger('click')
+    setContextImgDims(w)
+    await w.get('[data-test="prw-context-photo"] img').trigger('load')
+
+    expect(w.find('[data-test="prw-context-face-box"]').exists()).toBe(false)
+  })
+
+  it('switching view to compare and back to original does not leak a stale box before the new load fires', async () => {
+    await seed([rawGroup(rawPerson(), [rawSuggestion({ bbox: [0.1, 0.2, 0.5, 0.6] })])])
+    const w = mountWizard(true)
+    setContextImgDims(w)
+    await w.get('[data-test="prw-context-photo"] img').trigger('load')
+    expect(w.find('[data-test="prw-context-face-box"]').exists()).toBe(true)
+
+    await w.find('[data-test="prw-view-compare"]').trigger('click')
+    expect(w.find('[data-test="prw-context-face-box"]').exists()).toBe(false)
+
+    await w.find('[data-test="prw-view-original"]').trigger('click')
+    expect(w.find('[data-test="prw-context-face-box"]').exists()).toBe(false) // not yet re-loaded
+    setContextImgDims(w)
+    await w.get('[data-test="prw-context-photo"] img').trigger('load')
+    expect(w.find('[data-test="prw-context-face-box"]').exists()).toBe(true)
+  })
+})
+
 describe('PeopleReviewWizard.vue — busy state', () => {
   it('while a decision is in flight, Yes/No/Skip stay disabled even after auto-advancing to the next suggestion', async () => {
     // Two items: after Yes on s1, the store's optimistic removal (synchronous, before the
@@ -473,6 +565,93 @@ describe('PeopleReviewWizard.vue — merge cards (merge-cards feature, 2026-08-2
       await w.vm.$nextTick()
       expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(false)
       expect(w.emitted('update:open')).toBeUndefined() // Escape closed the lightbox, not the wizard
+    })
+  })
+
+  // T12b (face-locate box, 2026-08-27 addendum to the detector-gen6 plan): a merge tile's
+  // fromFaces/intoFaces entry may carry a normalized bbox (backend T12a) -- the review wizard
+  // draws it as an overlay on the opened lightbox's ORIGINAL photo (not on the small tile itself).
+  describe('face-locate box on the lightbox (T12b, 2026-08-27 addendum)', () => {
+    function setImgDims(w: VueWrapper) {
+      const img = w.get('[data-test="prw-lightbox-img"]').element as HTMLImageElement
+      Object.defineProperty(img, 'clientWidth', { value: 200, configurable: true })
+      Object.defineProperty(img, 'clientHeight', { value: 200, configurable: true })
+      Object.defineProperty(img, 'naturalWidth', { value: 100, configurable: true })
+      Object.defineProperty(img, 'naturalHeight', { value: 50, configurable: true })
+    }
+
+    it('a tile with a bbox: opening the lightbox and loading the image renders .prw-face-box at the mapped rect', async () => {
+      await seedMerge([rawPair({ fromFaces: [{ faceId: 'ff1', assetId: 'a1', bbox: [0.1, 0.2, 0.5, 0.6] }] })])
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+      const box = w.find('[data-test="prw-face-box"]')
+      expect(box.exists()).toBe(true)
+      const style = box.attributes('style')!
+      expect(style).toContain('left: 20px')
+      expect(style).toContain('top: 70px')
+      expect(style).toContain('width: 80px')
+      expect(style).toContain('height: 40px')
+    })
+
+    it('a tile without a bbox: opening the lightbox never renders .prw-face-box', async () => {
+      await seedMerge([rawPair({ fromFaces: [{ faceId: 'ff1', assetId: 'a1' }] })])
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(false)
+    })
+
+    it('fallback tiles (no fromFaces at all, id-only arrays) never render .prw-face-box', async () => {
+      await seedMerge([rawPair({ fromFaceIds: ['ff1', 'ff2'] })]) // no fromFaces field
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-merge-side-from"] img').trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(false)
+    })
+
+    it('the face-suggestion context-photo lightbox (no tile involved) never renders .prw-face-box', async () => {
+      await seed([rawGroup(rawPerson(), [rawSuggestion({ assetId: 'a1' })])])
+      const w = mountWizard(true)
+
+      await w.find('[data-test="prw-context-photo"]').trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(false)
+    })
+
+    it('closing the lightbox and opening a different (bbox-less) tile does not leak the previous box', async () => {
+      await seedMerge([rawPair({
+        fromFaces: [
+          { faceId: 'ff1', assetId: 'a1', bbox: [0.1, 0.2, 0.5, 0.6] },
+          { faceId: 'ff2', assetId: 'a2' },
+        ],
+      })])
+      const w = mountWizard(true)
+      const tiles = w.find('[data-test="prw-merge-side-from"]').findAll('img')
+
+      await tiles[0]!.trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(true)
+
+      await w.find('[data-test="prw-lightbox-close"]').trigger('click')
+      expect(w.find('[data-test="prw-lightbox"]').exists()).toBe(false)
+
+      await tiles[1]!.trigger('click')
+      setImgDims(w)
+      await w.get('[data-test="prw-lightbox-img"]').trigger('load')
+      expect(w.find('[data-test="prw-face-box"]').exists()).toBe(false)
     })
   })
 

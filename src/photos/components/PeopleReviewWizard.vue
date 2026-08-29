@@ -27,12 +27,13 @@
 // component. `skippedIds`/`current`/`totalAtOpen`/progress all operate on the union uniformly
 // (keyed by `flatKey`, a `"face:<id>" | "merge:<id>"` composite — the two id namespaces are
 // otherwise unrelated backend ids that could theoretically collide).
-import { computed, ref, watch, onUnmounted } from 'vue'
+import { computed, ref, watch, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import PersonAvatar from './PersonAvatar.vue'
 import { usePhotosPeople, type SuggestionGroup, type SuggestionItem, type MergeQuestionPair } from '../stores/people'
 import { mergeConfidencePct, pluralWord, type Person } from '../util/peopleView'
+import { mapFaceBoxToRect, type FaceRect } from '../lightbox/util/faceBox'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
@@ -71,6 +72,24 @@ const viewMode = ref<'original' | 'compare'>('original')
 // lightboxUrl directly outside them, so every open path is traceable to one of the two callers
 // below (the face body's context-photo click, or a merge-card tile click).
 const lightboxUrl = ref<string | null>(null)
+// T12b (face-locate box, 2026-08-27 addendum): the currently-opened tile's normalized bbox, if
+// any -- a merge tile's own preview data (fromFaces/intoFaces[i].bbox), or null for every other
+// lightbox-opening path (face-suggestion context photo, a face-crop-only fallback tile). Paired
+// 1:1 with lightboxUrl through openLightbox/closeLightbox; nothing else mutates it.
+const lightboxFaceBox = ref<number[] | null>(null)
+// The lightbox <img> element and the rect mapFaceBoxToRect computes for it (null whenever there's
+// no box to draw, or the box/element geometry doesn't resolve to a content frame yet).
+const lightboxImgEl = ref<HTMLImageElement | null>(null)
+const faceBoxRect = ref<FaceRect | null>(null)
+// T12c (suggestion-card face-locate box, 2026-08-28 addendum): the SAME overlay mechanism, but
+// for the pattern-①/② body's own INLINE context photo (`.prw-context-img`), a separate <img>
+// element from the lightbox's -- own el ref / rect state, never shared with lightboxImgEl/
+// faceBoxRect above (independent geometry, independent lifecycle: this one can be visible while
+// the lightbox is closed). Note the fit mode: `.prw-context-img` is object-fit:cover (see its own
+// style rule), unlike the lightbox's object-fit:contain, so mapFaceBoxToRect's calls below pass
+// 'cover' explicitly rather than relying on the default.
+const contextImgEl = ref<HTMLImageElement | null>(null)
+const contextBoxRect = ref<FaceRect | null>(null)
 
 const current = computed<FlatItem | null>(() => flat.value.find((f) => !skippedIds.value.has(flatKey(f))) ?? null)
 const done = computed(() => current.value === null)
@@ -134,14 +153,17 @@ function sidePhotosCount(p: Person | undefined): string {
 // suggestion's candidate face does), and OPTIONALLY an assetId (present only when the backend's
 // new fromFaces/intoFaces field is there). assetId is what the click handler below needs to zoom
 // to the full original photo instead of just the face crop.
-interface MergeTile { faceId: string; assetId?: string }
+// T12b (face-locate box, 2026-08-27 addendum): bbox rides along with faceId/assetId -- only
+// ever present when the tile ALSO has an assetId (fromFaces/intoFaces entries), since the
+// fallback id-only path has nowhere to draw a box (no full-photo lightbox target either).
+interface MergeTile { faceId: string; assetId?: string; bbox?: number[] }
 // Up to 4 preview faces per side (brief: "≤4"). Feature-detected by presence of the NEW
 // fromFaces/intoFaces field (an array, even if empty, means the backend has it) -- falls back to
 // the older bare fromFaceIds/intoFaceIds (id-only, no assetId) so a not-yet-upgraded backend still
 // renders a usable, just degraded, grid (see MergeTile's own comment).
 function sideTiles(pair: MergeQuestionPair, side: 'from' | 'into'): MergeTile[] {
   const faces = side === 'from' ? pair.fromFaces : pair.intoFaces
-  if (faces) return faces.slice(0, 4).map((f) => ({ faceId: f.faceId, assetId: f.assetId }))
+  if (faces) return faces.slice(0, 4).map((f) => ({ faceId: f.faceId, assetId: f.assetId, bbox: f.bbox }))
   const ids = side === 'from' ? pair.fromFaceIds : pair.intoFaceIds
   return ids.slice(0, 4).map((faceId) => ({ faceId }))
 }
@@ -173,20 +195,98 @@ function close(): void {
 
 // Merge-card legibility fix (2026-08-21): the shared zoom-lightbox mutators (see lightboxUrl's
 // own declaration comment above for why this is generic rather than face-body-specific now).
-function openLightbox(url: string): void {
+// T12b (2026-08-27 addendum): bbox is an explicit, optional second argument -- every call site
+// states its own intent (a merge tile passes its own bbox; every other opener omits it, which
+// defaults to null) rather than some callers relying on a previous call's leftover value.
+function openLightbox(url: string, bbox: number[] | null = null): void {
   lightboxUrl.value = url
+  lightboxFaceBox.value = bbox
 }
 function closeLightbox(): void {
   lightboxUrl.value = null
+  lightboxFaceBox.value = null
 }
 // A merge tile's click target: the FULL original photo (service.photos.thumbnailUrl(assetId,
 // 'large') -- same precedent as contextUrl above re: thumbnailUrl over originalUrl, video-safe)
 // when the backend's new fromFaces/intoFaces gave this tile an assetId; degrades to the enlarged
 // face crop (faceThumb) when it didn't (old backend, id-only arrays) -- "degraded but usable" per
-// the brief, not a broken click.
+// the brief, not a broken click. The bbox overlay only ever accompanies the full-photo path (a
+// face-crop-only fallback tile has nowhere sensible to draw a locate-box).
 function onMergeTileClick(tile: MergeTile): void {
-  openLightbox(tile.assetId ? service.photos.thumbnailUrl(tile.assetId, 'large') : faceThumb(tile.faceId))
+  if (tile.assetId) {
+    openLightbox(service.photos.thumbnailUrl(tile.assetId, 'large'), tile.bbox ?? null)
+  } else {
+    openLightbox(faceThumb(tile.faceId))
+  }
 }
+
+// T12b (face-locate box, 2026-08-27 addendum): recomputes the mapped rect from the CURRENT
+// lightbox image element + bbox. Called on the <img>'s @load (first paint) and by the
+// ResizeObserver below (window resize / lightbox re-layout) -- same two triggers
+// PhotoImageViewer.vue's own OCR-highlight overlay uses for the identical reason (naturalWidth/
+// naturalHeight are only known once the image has actually loaded).
+function recomputeFaceBox(): void {
+  const el = lightboxImgEl.value
+  const box = lightboxFaceBox.value
+  faceBoxRect.value = el && box ? mapFaceBoxToRect(box, el.clientWidth, el.clientHeight, el.naturalWidth, el.naturalHeight) : null
+}
+
+let faceBoxResizeObserver: ResizeObserver | undefined
+function teardownFaceBoxObserver(): void {
+  faceBoxResizeObserver?.disconnect()
+  faceBoxResizeObserver = undefined
+}
+// Re-arm the observer every time the lightbox opens/closes (the <img> it needs to observe only
+// exists while lightboxUrl !== null, per the template's v-if) -- mirrors PhotoImageViewer.vue's
+// onMounted/onBeforeUnmount pairing, just re-triggered on lightboxUrl instead of component mount
+// since this overlay's host element itself mounts/unmounts with the lightbox.
+watch(lightboxUrl, async (url) => {
+  teardownFaceBoxObserver()
+  if (url === null) { faceBoxRect.value = null; return }
+  await nextTick()
+  recomputeFaceBox()
+  if (lightboxImgEl.value && typeof ResizeObserver !== 'undefined') {
+    faceBoxResizeObserver = new ResizeObserver(recomputeFaceBox)
+    faceBoxResizeObserver.observe(lightboxImgEl.value)
+  }
+})
+
+// T12c (suggestion-card face-locate box, 2026-08-28 addendum): identical recompute/observer
+// pairing as recomputeFaceBox/faceBoxResizeObserver above, for the context photo's OWN <img> +
+// rect state -- see contextImgEl/contextBoxRect's declaration comment for why these stay separate
+// rather than reusing the lightbox's. Note the 'cover' fit argument (see the same comment).
+function recomputeContextBox(): void {
+  const el = contextImgEl.value
+  const box = current.value?.kind === 'face' ? (current.value.item.bbox ?? null) : null
+  contextBoxRect.value = el && box ? mapFaceBoxToRect(box, el.clientWidth, el.clientHeight, el.naturalWidth, el.naturalHeight, 'cover') : null
+}
+
+let contextBoxResizeObserver: ResizeObserver | undefined
+function teardownContextBoxObserver(): void {
+  contextBoxResizeObserver?.disconnect()
+  contextBoxResizeObserver = undefined
+}
+// Re-arm whenever the original view's context photo for a FACE item is showing -- keyed by
+// flatKey so a same-view suggestion-to-suggestion advance (Yes/No/Skip) re-observes cleanly too
+// (the <img> element itself persists across that transition since viewMode/kind don't change,
+// only its `src`/bbox do -- @load below still fires per src change and recomputes against
+// whatever bbox is current at that moment, but the observer itself only needs rearming when the
+// element mounts/unmounts, i.e. entering/leaving 'original' view or crossing the face/merge
+// boundary). Mirrors the lightboxUrl watcher above, just gated on this different condition.
+watch(
+  () => (viewMode.value === 'original' && current.value?.kind === 'face' ? flatKey(current.value) : null),
+  async (key) => {
+    teardownContextBoxObserver()
+    if (key === null) { contextBoxRect.value = null; return }
+    await nextTick()
+    recomputeContextBox()
+    if (contextImgEl.value && typeof ResizeObserver !== 'undefined') {
+      contextBoxResizeObserver = new ResizeObserver(recomputeContextBox)
+      contextBoxResizeObserver.observe(contextImgEl.value)
+    }
+  },
+  { immediate: true },
+)
 
 async function decide(accept: boolean): Promise<void> {
   if (busy.value || !current.value) return
@@ -239,6 +339,8 @@ watch(
       totalAtOpen.value = flat.value.length
       viewMode.value = 'original'
       lightboxUrl.value = null
+      lightboxFaceBox.value = null
+      contextBoxRect.value = null
       document.addEventListener('keydown', onDocumentKeydown)
     } else {
       document.removeEventListener('keydown', onDocumentKeydown)
@@ -252,8 +354,13 @@ watch(
 watch(() => (current.value ? flatKey(current.value) : null), () => {
   viewMode.value = 'original'
   lightboxUrl.value = null
+  lightboxFaceBox.value = null
 })
-onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDocumentKeydown)
+  teardownFaceBoxObserver()
+  teardownContextBoxObserver()
+})
 </script>
 
 <template>
@@ -264,7 +371,9 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
       <template v-if="!done && current">
         <div class="prw-progress" data-test="prw-progress">{{ t('photosPeopleReviewProgress', { k: reviewedCount, n: totalAtOpen }) }}</div>
 
-        <!-- ── Face-suggestion body (pattern ① / ②, unchanged) ── -->
+        <!-- ── Face-suggestion body (pattern ① / ②; T12c 2026-08-28 addendum: the original view's
+             context photo now also draws a `.prw-face-box` locate overlay when the suggestion has
+             a bbox, same as the merge-card lightbox already did) ── -->
         <template v-if="current.kind === 'face'">
           <div class="prw-header" data-test="prw-header">
             <PersonAvatar :person-id="currentPerson?.id ?? null" :name="currentPerson?.name" :ver="currentPerson?.coverFaceId ?? null" :size="56" />
@@ -297,8 +406,24 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
           </div>
 
           <div v-if="viewMode === 'original'" class="prw-body-original" data-test="prw-body-original">
-            <div class="prw-context-wrap" data-test="prw-context-photo" @click="openLightbox(contextUrl)">
-              <img class="prw-context-img" :src="contextUrl" :alt="t('photosPeopleSuggestPeekAlt')">
+            <div
+              class="prw-context-wrap"
+              data-test="prw-context-photo"
+              @click="openLightbox(contextUrl, current.item.bbox ?? null)"
+            >
+              <img
+                ref="contextImgEl"
+                class="prw-context-img"
+                :src="contextUrl"
+                :alt="t('photosPeopleSuggestPeekAlt')"
+                @load="recomputeContextBox"
+              >
+              <div
+                v-if="contextBoxRect"
+                class="prw-face-box"
+                data-test="prw-context-face-box"
+                :style="{ left: `${contextBoxRect.left}px`, top: `${contextBoxRect.top}px`, width: `${contextBoxRect.width}px`, height: `${contextBoxRect.height}px` }"
+              ></div>
               <img class="prw-inset-img" data-test="prw-inset-face" :src="faceThumb(current.item.faceId)" alt="">
             </div>
           </div>
@@ -375,7 +500,28 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
       </div>
 
       <div v-if="lightboxUrl !== null" class="prw-lightbox" data-test="prw-lightbox" @click.self="closeLightbox">
-        <img class="prw-lightbox-img" data-test="prw-lightbox-img" :src="lightboxUrl" :alt="t('photosPeopleSuggestPeekAlt')">
+        <!-- T12b (face-locate box, 2026-08-27 addendum): `.prw-lightbox-frame` shrink-wraps
+             tightly around the <img> (display:inline-flex, no width/height of its own -- same
+             role PhotoImageViewer.vue's `.img-wrap` plays for its OCR overlay), so the box
+             overlay's absolute inset:0 origin coincides exactly with the <img>'s own rendered
+             box and mapFaceBoxToRect's left/top/width/height (computed against that box's
+             clientWidth/clientHeight) land in the right place without any extra offset math. -->
+        <div class="prw-lightbox-frame" data-test="prw-lightbox-frame">
+          <img
+            ref="lightboxImgEl"
+            class="prw-lightbox-img"
+            data-test="prw-lightbox-img"
+            :src="lightboxUrl"
+            :alt="t('photosPeopleSuggestPeekAlt')"
+            @load="recomputeFaceBox"
+          >
+          <div
+            v-if="faceBoxRect"
+            class="prw-face-box"
+            data-test="prw-face-box"
+            :style="{ left: `${faceBoxRect.left}px`, top: `${faceBoxRect.top}px`, width: `${faceBoxRect.width}px`, height: `${faceBoxRect.height}px` }"
+          ></div>
+        </div>
         <button
           type="button"
           class="prw-lightbox-close"
@@ -618,12 +764,35 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   background: var(--overlay-bg);
   backdrop-filter: var(--overlay-blur);
 }
+/* T12b (face-locate box, 2026-08-27 addendum): shrink-to-fit wrap around just the <img> (not the
+   close button) -- see the template comment above for why this has to be the overlay's
+   positioning parent rather than `.prw-lightbox` itself (a definite-size, padded flex box the
+   image never actually fills edge-to-edge once object-fit:contain letterboxes it). */
+.prw-lightbox-frame {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  max-height: 100%;
+}
 .prw-lightbox-img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   border-radius: var(--r-md);
   box-shadow: var(--card-shadow-hi);
+}
+/* Face-locate box (T12b, 2026-08-27 addendum): deliberately NOT a copy of `.lb-ocr-hit` (that one
+   is a yellow filled hit-highlight for OCR text regions) -- this is a face-rectangle affordance,
+   so a rounded outline + a soft dark halo for contrast against any photo background, no fill. */
+.prw-face-box {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 6px;
+  /* theme-exception: sits directly over an unpredictable photo, not app chrome -- needs a
+     constant white outline + dark halo for contrast regardless of theme, same reasoning as
+     PersonHero.vue's cover-photo overlays. */
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 12px 1px rgba(0, 0, 0, 0.45); /* theme-exception */
 }
 .prw-lightbox-close {
   position: fixed;

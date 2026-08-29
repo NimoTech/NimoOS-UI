@@ -147,6 +147,62 @@ describe('photosPeople store — merge questions (merge-cards feature)', () => {
           { faceId: 'f5', assetId: 'a5' },
         ])
       })
+
+      // T12b (2026-08-27 addendum): each fromFaces/intoFaces entry may additionally carry a
+      // normalized bbox [x1,y1,x2,y2] (backend T12a) for the review wizard's lightbox overlay.
+      // Additive + independently validated per-entry: a bad bbox drops only its own bbox field
+      // (to undefined), never the whole face-preview entry.
+      describe('bbox (T12b, additive)', () => {
+        it('a valid bbox passes through unchanged', async () => {
+          ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
+            pairs: [rawPair({
+              fromFaces: [{ faceId: 'f1', assetId: 'a1', bbox: [0.12, 0.3, 0.25, 0.52] }],
+            })],
+          })
+          const s = usePhotosPeople()
+          await s.fetchMergeQuestions()
+          expect(s.mergeQuestions[0].fromFaces).toEqual([
+            { faceId: 'f1', assetId: 'a1', bbox: [0.12, 0.3, 0.25, 0.52] },
+          ])
+        })
+
+        it('absent bbox (older backend) -- entry has no bbox key, not undefined-valued one', async () => {
+          ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
+            pairs: [rawPair({ fromFaces: [{ faceId: 'f1', assetId: 'a1' }] })],
+          })
+          const s = usePhotosPeople()
+          await s.fetchMergeQuestions()
+          expect(s.mergeQuestions[0].fromFaces![0]).toEqual({ faceId: 'f1', assetId: 'a1' })
+          expect('bbox' in s.mergeQuestions[0].fromFaces![0]).toBe(false)
+        })
+
+        it('wrong length (3 numbers) -- bbox dropped, faceId/assetId still survive', async () => {
+          ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
+            pairs: [rawPair({ fromFaces: [{ faceId: 'f1', assetId: 'a1', bbox: [0.1, 0.2, 0.3] }] })],
+          })
+          const s = usePhotosPeople()
+          await s.fetchMergeQuestions()
+          expect(s.mergeQuestions[0].fromFaces![0]).toEqual({ faceId: 'f1', assetId: 'a1' })
+        })
+
+        it('a NaN coordinate -- bbox dropped', async () => {
+          ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
+            pairs: [rawPair({ fromFaces: [{ faceId: 'f1', assetId: 'a1', bbox: [0.1, Number.NaN, 0.3, 0.4] }] })],
+          })
+          const s = usePhotosPeople()
+          await s.fetchMergeQuestions()
+          expect(s.mergeQuestions[0].fromFaces![0].bbox).toBeUndefined()
+        })
+
+        it('reversed coordinates (x1 >= x2) -- bbox dropped', async () => {
+          ;(service.photos.listMergeQuestions as any).mockResolvedValueOnce({
+            pairs: [rawPair({ fromFaces: [{ faceId: 'f1', assetId: 'a1', bbox: [0.5, 0.2, 0.1, 0.4] }] })],
+          })
+          const s = usePhotosPeople()
+          await s.fetchMergeQuestions()
+          expect(s.mergeQuestions[0].fromFaces![0].bbox).toBeUndefined()
+        })
+      })
     })
 
     it('404 (old backend, endpoint missing) — mergeQuestionsSupported flips to false, list ends up empty, does not throw', async () => {

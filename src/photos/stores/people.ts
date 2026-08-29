@@ -31,12 +31,17 @@ const PURGE_DELAY_MS = 5000
 // "createdAt"}]}]}, open-only, hidden persons excluded, groups ordered like ListPersons,
 // suggestions score ASC. createdAt isn't surfaced here — Task 2 (the UI) only needs faceId (for
 // the thumbnail) and the fields below.
+// T12c (suggestion-card face-locate box, 2026-08-28 addendum): bbox is a further additive field
+// on SuggestionItem, same contract/validation as MergeFacePreview.bbox above (backend T12a:
+// normalized [x1,y1,x2,y2], clamped to [0,1], omitted when the basis dimensions are unknown).
+// Absent/malformed -> undefined; the review wizard simply draws no locate-box (fail-open).
 export interface SuggestionItem {
   id: string
   faceId: string
   assetId: string
   kind: 'join' | 'review'
   score: number
+  bbox?: number[]
 }
 export interface SuggestionGroup {
   person: Person
@@ -68,9 +73,15 @@ export interface SuggestionGroup {
 // the cropped face. Purely additive: an older backend that hasn't shipped this yet omits the
 // fields entirely, and the wizard feature-detects by presence, falling back to the bare
 // fromFaceIds/intoFaceIds (face-crop-only zoom) below.
+// T12b (2026-08-27 addendum): bbox is a further additive, per-entry field on top of
+// fromFaces/intoFaces itself (backend T12a: normalized [x1,y1,x2,y2], clamped to [0,1] of the
+// displayed image's aspect space, omitted whenever the basis dimensions can't be determined).
+// Same feature-detect-by-presence philosophy: absent/malformed -> undefined, and the review
+// wizard's lightbox simply draws no locate-box (fail-open, never a crash).
 export interface MergeFacePreview {
   faceId: string
   assetId: string
+  bbox?: number[]
 }
 export interface MergeQuestionPair {
   id: string
@@ -88,22 +99,38 @@ function toFaceIdArray(raw: unknown): string[] {
   return raw.map((x) => String(x))
 }
 
+// T12b (2026-08-27 addendum): a bbox is usable only if it's exactly 4 finite numbers describing
+// a non-degenerate, correctly-ordered rectangle (x1<x2, y1<y2) -- anything else (wrong length,
+// NaN/Infinity, reversed/zero-area) is silently dropped to undefined rather than reaching
+// mapFaceBoxToRect with garbage. faceBox.ts's own mapFaceBoxToRect re-validates independently
+// (defense in depth, and needed for its own unit tests), but rejecting here too means a bad
+// value never even round-trips through the store as a truthy-looking array.
+function isValidFaceBBox(v: unknown): v is number[] {
+  if (!Array.isArray(v) || v.length !== 4) return false
+  if (!v.every((n) => typeof n === 'number' && Number.isFinite(n))) return false
+  const [x1, y1, x2, y2] = v as number[]
+  return x1 < x2 && y1 < y2
+}
+
 // Defensive parse for fromFaces/intoFaces (see MergeQuestionPair's own comment): a non-array
 // input (including entirely absent) -> undefined, so the wizard can feature-detect by presence.
 // Each entry needs both a faceId and an assetId to be usable (the whole point of this field is
 // the assetId) -- an entry missing either, or not an object at all, is skipped rather than
-// letting a partially-malformed entry through and crashing the zoom lightbox later.
+// letting a partially-malformed entry through and crashing the zoom lightbox later. bbox is
+// independently optional per entry (see isValidFaceBBox above).
 function toMergeFacePreviews(raw: unknown): MergeFacePreview[] | undefined {
   if (!Array.isArray(raw)) return undefined
   const out: MergeFacePreview[] = []
   for (const entry of raw) {
     if (!entry || typeof entry !== 'object') continue
     const rec = entry as Record<string, unknown>
-    const { faceId, assetId } = rec
+    const { faceId, assetId, bbox } = rec
     if (faceId == null || assetId == null) continue
     if (typeof faceId !== 'string' && typeof faceId !== 'number') continue
     if (typeof assetId !== 'string' && typeof assetId !== 'number') continue
-    out.push({ faceId: String(faceId), assetId: String(assetId) })
+    const preview: MergeFacePreview = { faceId: String(faceId), assetId: String(assetId) }
+    if (isValidFaceBBox(bbox)) preview.bbox = bbox
+    out.push(preview)
   }
   return out
 }
@@ -122,13 +149,15 @@ function toMergeQuestion(raw: Record<string, unknown>): MergeQuestionPair {
 }
 
 function toSuggestionItem(raw: Record<string, unknown>): SuggestionItem {
-  return {
+  const item: SuggestionItem = {
     id: String(raw.id ?? ''),
     faceId: String(raw.faceId ?? ''),
     assetId: String(raw.assetId ?? ''),
     kind: raw.kind === 'review' ? 'review' : 'join',
     score: typeof raw.score === 'number' ? raw.score : Number(raw.score) || 0,
   }
+  if (isValidFaceBBox(raw.bbox)) item.bbox = raw.bbox
+  return item
 }
 
 // Defensive parse for SuggestionGroup.exemplarFaceIds (see its own declaration comment): only a

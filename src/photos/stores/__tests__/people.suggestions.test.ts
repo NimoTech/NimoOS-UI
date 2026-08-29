@@ -47,6 +47,7 @@ function rawSuggestion(over: Record<string, unknown> = {}): Record<string, unkno
   }
 }
 
+
 function rawGroup(personOver: Record<string, unknown> = {}, suggestions: Array<Record<string, unknown>> = [rawSuggestion()]): Record<string, unknown> {
   return { person: rawPerson(personOver), suggestions }
 }
@@ -100,6 +101,58 @@ describe('photosPeople store — suggestions (Plan C Task 1)', () => {
       const s = usePhotosPeople()
       await s.fetchSuggestions()
       expect(s.suggestionGroups[0].exemplarFaceIds).toEqual([])
+    })
+  })
+
+  // T12c (suggestion-card face-locate box, 2026-08-28 addendum): each suggestion item may carry a
+  // normalized bbox [x1,y1,x2,y2] (backend T12a) for the review wizard's inline context-photo +
+  // lightbox overlay. Same validation contract/mirrored test cases as
+  // people.mergeQuestions.test.ts's own "bbox (T12b, additive)" block (isValidFaceBBox is the
+  // shared implementation both call sites use).
+  describe('fetchSuggestions — bbox (T12c, additive)', () => {
+    it('a valid bbox passes through unchanged', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup(rawPerson(), [rawSuggestion({ bbox: [0.12, 0.3, 0.25, 0.52] })])],
+      })
+      const s = usePhotosPeople()
+      await s.fetchSuggestions()
+      expect(s.suggestionGroups[0].suggestions[0].bbox).toEqual([0.12, 0.3, 0.25, 0.52])
+    })
+
+    it('absent bbox (older backend) — item has no bbox key, not an undefined-valued one', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup(rawPerson(), [rawSuggestion()])],
+      })
+      const s = usePhotosPeople()
+      await s.fetchSuggestions()
+      expect('bbox' in s.suggestionGroups[0].suggestions[0]).toBe(false)
+    })
+
+    it('wrong length (3 numbers) — bbox dropped, the rest of the item still survives', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup(rawPerson(), [rawSuggestion({ bbox: [0.1, 0.2, 0.3] })])],
+      })
+      const s = usePhotosPeople()
+      await s.fetchSuggestions()
+      expect(s.suggestionGroups[0].suggestions[0]).toEqual({ id: 's1', faceId: 'f1', assetId: 'a1', kind: 'join', score: 0.5 })
+    })
+
+    it('a NaN coordinate — bbox dropped', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup(rawPerson(), [rawSuggestion({ bbox: [0.1, Number.NaN, 0.3, 0.4] })])],
+      })
+      const s = usePhotosPeople()
+      await s.fetchSuggestions()
+      expect(s.suggestionGroups[0].suggestions[0].bbox).toBeUndefined()
+    })
+
+    it('reversed coordinates (x1 >= x2) — bbox dropped', async () => {
+      ;(service.photos.listPersonSuggestions as any).mockResolvedValueOnce({
+        groups: [rawGroup(rawPerson(), [rawSuggestion({ bbox: [0.5, 0.2, 0.1, 0.4] })])],
+      })
+      const s = usePhotosPeople()
+      await s.fetchSuggestions()
+      expect(s.suggestionGroups[0].suggestions[0].bbox).toBeUndefined()
     })
   })
 
