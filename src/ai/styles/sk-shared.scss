@@ -1,0 +1,188 @@
+// SP8-P2a Task 2 — Common card/button classes extracted from Vue2 `src/views/AI/Skills/skills-styles.scss`.
+// Settings section (P2a/P2b) and future Skills section (P3) share the same set; therefore independent file,
+// not merged into settings-styles.scss.
+//
+// Source line-by-line mapping:
+//   .sk-section / -head / -title / -hint / -body → skills-styles.scss:338-353
+//   .sk-btn(+ ghost / primary / danger)          → skills-styles.scss:698-726
+//
+// Bare color exception: this file retains Vue2 original values (see exception registration explanation in
+// settings-styles.scss header). No new bare colors may be added to this file.
+
+.sk-section { display: flex; flex-direction: column; gap: 10px; }
+.sk-section-head { display: flex; align-items: baseline; gap: 8px; }
+.sk-section-title {
+  font-size: 12px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+.sk-section-hint { font-size: 11px; color: var(--text-quaternary); }
+.sk-section-body {
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.sk-btn {
+  padding: 8px 16px;
+  border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 120ms ease;
+  cursor: pointer;
+  border: 0;
+  &.ghost { background: var(--bg-chip); color: var(--text-primary); &:hover { background: var(--line); } }
+  &.primary {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,122,255,0.22);
+    &:hover { background: var(--accent-hover); }
+    &[disabled] {
+      background: var(--bg-chip);
+      color: var(--text-quaternary);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+  }
+  &.danger {
+    background: var(--danger);
+    color: white;
+    &:hover { background: #e6342a; }
+  }
+}
+
+// iOS-style switch (used by SetSwitch.vue).
+// Source: the Vue 2 panel's `src/views/AI/Skills/skills-styles.scss:235-249`.
+// The original extraction pass used line ranges 338-353, 698-726 and missed this section; a later
+// grep verification pass found it; adding here, appending without reordering
+// existing content. Bare color handling: Vue2 original `background: white` and `box-shadow: 0 2px 4px
+// rgba(0,0,0,0.18)` are slider color; replaced with newly-added tokens.scss --switch-thumb/--switch-thumb-shadow
+// (same value in both themes; see that file's comment); --line-strong / --success tokens already in use in
+// Vue2 source; reuse directly, no changes needed.
+.sw {
+  position: relative;
+  width: 42px; height: 25px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background 200ms ease;
+  flex-shrink: 0;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 21px; height: 21px;
+    border-radius: 50%;
+    background: var(--switch-thumb);
+    box-shadow: var(--switch-thumb-shadow);
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  &[data-on="true"] {
+    background: var(--success);
+    &::after { transform: translateX(17px); }
+  }
+}
+
+// ===== SP8-P2b Task 1 — Dialog shell =====
+// 1:1 ported from Vue2 src/views/AI/Skills/skills-styles.scss:575-613.
+// Vue2's three dialogs (token plaintext / add bot / pairing code) were hand-written bare divs using
+// these classes; this repo uses reka Dialog instead (see SkModal.vue), but visual rules kept as-is,
+// so these classes ported as-is. .sk-modal-bg scrim color is dark-blue-gray semi-transparent literal;
+// part of "file-level portage exception" exemption (registered in tokens.scss header exception list);
+// not converted to token.
+.sk-modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(15, 20, 30, 0.32);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid; place-items: center;
+  z-index: 1100;
+  padding: 40px;
+  animation: sk-fade-in 180ms ease;
+}
+@keyframes sk-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.sk-modal {
+  width: min(560px, 100%);
+  max-height: min(90vh, 720px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: sk-pop 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sk-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+.sk-modal-head {
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--line-faint);
+}
+.sk-modal-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; flex: 1; }
+
+.sk-modal-body {
+  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  overflow-y: auto;
+}
+
+// 1:1 ported from Vue2 skills-styles.scss:686-694.
+.sk-modal-foot {
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 8px;
+  border-top: 1px solid var(--line-faint);
+  background: var(--bg-canvas);
+  .save-note {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .right { margin-left: auto; display: flex; gap: 8px; }
+}
+
+// ===== SP8-P2b Task 1 — Form fields in dialogs =====
+// 1:1 ported from Vue2 skills-styles.scss:617-646. Used by Task 12 "add bot" form.
+.sk-field { display: flex; flex-direction: column; gap: 6px; }
+.sk-field-label {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: -0.005em;
+  .sk-field-optional {
+    color: var(--text-tertiary);
+    font-weight: 400;
+  }
+}
+.sk-field-hint { font-size: 11px; color: var(--text-tertiary); }
+// SP8-P3b Task 5 — Inline validation error bar (used when AddSkillModal pre-submit local validation hits;
+// sits atop .sk-modal-body). Precedent is ChannelsSection add-bot failure .chan-field-err (settings-styles.scss:234);
+// values match verbatim; new .sk-field-err created here with same values, not reusing the chan-prefixed one
+// (that is channels section's own class; reusing would be cross-section reuse).
+.sk-field-err { margin: 0 0 6px; font-size: 12px; color: var(--danger); line-height: 1.5; }
+.sk-field input[type="text"],
+.sk-field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  outline: none;
+  transition: all 120ms ease;
+  font-family: var(--font-sans);
+  &:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-softer);
+    background: var(--bg-elevated);
+  }
+}
+.sk-field textarea { min-height: 88px; resize: vertical; line-height: 1.5; }

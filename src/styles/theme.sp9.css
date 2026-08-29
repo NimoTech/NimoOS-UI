@@ -1,0 +1,208 @@
+/*
+ * SP9 (final views) theme token shard (spec §4.3).
+ * Imported by main.ts after theme.css — this cannot be written as an @import at the end of
+ * theme.css, since CSS requires @import to come before every other rule.
+ * Hard constraint: every color token must have a value in both :root and
+ * :root[data-theme="light"].
+ * This file is a token-definition file, so bare color literals are allowed here (same case as
+ * theme.css, already on color-guard's skip list).
+ */
+:root {
+  --set-rail-bg: rgba(255, 255, 255, 0.06);
+  --set-rail-border: rgba(255, 255, 255, 0.12);
+  --set-warn-fg: #f0b429;
+  /* P3: alias to an existing semantic token instead of minting a new literal (avoids drifting
+   * away from the --success/--console-* values).
+   * --set-ok-fg maps to Vue2 SystemStatus.vue's online-status accent — its meaning fully
+   * overlaps with the existing --success.
+   * --set-logs-bg/--set-logs-fg map to Vue2 LogsCard.vue's fixed dark log background — same
+   * value as the existing --console-bg/--console-fg (the same dark console palette used by the
+   * Terminal component), so reuse them directly. */
+  --set-ok-fg: var(--success);
+  --set-logs-bg: var(--console-bg);
+  --set-logs-fg: var(--console-fg);
+
+  /* ── P5 KVM ──
+   * ⚠️ The KVM area is **fixed to a dark palette, independent of the global theme** — Vue2
+   * KVMFullPage.vue hardcodes a dark console palette (#0d1117 / #161b22 / #21262d / #30363d)
+   * and stays dark even under the light theme. So every token below has **the same value**
+   * in both the :root and :root[data-theme='light'] blocks.
+   * Precedent: --console-bg / --console-fg (terminal and log panel) share the same value across
+   * both themes the same way.
+   * The one exception is the install banner (--kvm-banner-*) — that block in Vue2 genuinely has
+   * a light, cool-toned background, ported as-is. */
+  --kvm-bg: #0d1117;
+  --kvm-panel: #161b22;
+  --kvm-elev: #21262d;
+  --kvm-border: #30363d;
+  --kvm-fg: #c9d1d9;
+  --kvm-fg-dim: #8b949e;
+  --kvm-fg-faint: #6e7681;
+  --kvm-accent: #8950f2;
+  --kvm-accent-soft: rgba(137, 80, 242, 0.15);
+  --kvm-on-accent: #ffffff;
+  --kvm-ok: #76b32d;
+  --kvm-ok-glow: rgba(118, 179, 45, 0.5);
+  --kvm-ok-glow-weak: rgba(118, 179, 45, 0.3);
+  --kvm-ok-glow-strong: rgba(118, 179, 45, 0.8);
+  --kvm-warn: #e0a800;
+  --kvm-warn-glow-weak: rgba(224, 168, 0, 0.3);
+  --kvm-warn-glow-strong: rgba(224, 168, 0, 0.8);
+  --kvm-warn-border: rgba(224, 168, 0, 0.3);
+  --kvm-danger: #f85149;
+  --kvm-danger-soft: rgba(248, 81, 73, 0.15);
+  --kvm-danger-glow-weak: rgba(248, 81, 73, 0.3);
+  --kvm-danger-glow-strong: rgba(248, 81, 73, 0.8);
+  --kvm-toggle-off: #484f58;
+  --kvm-overlay: rgba(22, 27, 34, 0.92);
+  --kvm-shadow: rgba(0, 0, 0, 0.4);
+  --kvm-shadow-soft: rgba(0, 0, 0, 0.2);
+  --kvm-banner-bg: #e3f2fd;
+  --kvm-banner-border: #bbdefb;
+  --kvm-banner-fg: #0d47a1;
+  --kvm-banner-btn: #1976d2;
+  --kvm-banner-btn-hover: #1565c0;
+  /* Task 8 review-fix (2026-08-02): --kvm-danger (#f85149) was designed as a danger accent for a
+   * dark-background console — every other consumer (dropdown-item.is-danger /
+   * confirm-text-danger) sits on a dark dropdown-menu background. Applying it directly to the
+   * light, cool-toned banner background (--kvm-banner-bg #e3f2fd) yields a contrast ratio of only
+   * about 2.94:1, far below the WCAG AA body-text threshold of 4.5:1 (measured during review,
+   * double-checked with a script: 2.935). This defines a separate, deeper danger accent for the
+   * light banner: #b3261e against #e3f2fd gives a contrast ratio of 5.723:1 (computed by script,
+   * comfortably over 4.5:1), chosen from Material Design 3's error palette (the deep tone near
+   * on-error-container in the light theme). */
+  --kvm-banner-error-fg: #b3261e;
+
+  /* ── P6 dialogs/snapshots (create dialog, VM settings, snapshot panel, global settings,
+   * OSSelector) ──
+   * Same as above: the KVM area is fixed dark, values unchanged under the light theme.
+   * ⚠️ --kvm-accent-hover and --kvm-accent-hover-alt are **two distinct accent shades** —
+   * Vue2's primary button hover uses the former, OSSelector's
+   * download-button hover uses the latter. This is Vue2's own palette being inconsistent; kept
+   * as two separate tokens for a 1:1 port rather than unifying them into one value. */
+  --kvm-modal-bg: #1e1e1e;
+  --kvm-modal-fg: #e1e1e1;
+  --kvm-field-bg: #2a2a2a;
+  --kvm-field-border: #3a3a3a;
+  --kvm-field-elev: #333;
+  --kvm-accent-light: #a78bfa;
+  --kvm-accent-hover: #6d41d9;
+  --kvm-accent-hover-alt: #7c3aed;
+  --kvm-accent-ring: rgba(137, 80, 242, 0.25);
+  --kvm-accent-faint: rgba(137, 80, 242, 0.1);
+  --kvm-accent-muted: rgba(137, 80, 242, 0.3);
+  --kvm-ok-hover: #69a129;
+  --kvm-ok-faint: rgba(118, 179, 45, 0.1);
+  --kvm-overlay-strong: rgba(0, 0, 0, 0.6);
+  --kvm-shadow-mid: rgba(0, 0, 0, 0.3);
+  --kvm-snapshot-bg: #1c1c1c;
+  --kvm-snapshot-hover: #222;
+  --kvm-snapshot-desc-fg: #999;
+  --kvm-snapshot-date-fg: #666;
+  /* Task 11 wrap-up addition (review Minor b): Vue2's `.cv-snapshot-name` text color is the
+   * literal `#fff` — not borrowed from --kvm-on-accent (whose meaning is "the foreground color on
+   * a solid accent background"; this is ordinary text on a muted dark card background, so the
+   * meaning does not fit), so a dedicated semantic token is added, named to match the same family
+   * as --kvm-snapshot-desc-fg/--kvm-snapshot-date-fg. */
+  --kvm-snapshot-name-fg: #fff;
+  --kvm-restore-bg: #dc3545;
+  --kvm-restore-bg-hover: #c82333;
+  --kvm-restore-disabled-bg: #6c757d;
+  --kvm-delete-bg-hover: #da3633;
+
+  /* ── P8: native <select> popup list ──
+   * Exposed by 2026-08-05 P8 acceptance testing: under the dark theme, every dropdown on the
+   * settings page collapsed to an unreadable pale-on-pale result.
+   * The root cause is not a missing color-scheme (theme.css's root already has
+   * `color-scheme: dark`) — it is that `.set-select` sets its own
+   * `background: var(--chip-bg)` (a translucent glass effect). The moment an author assigns a
+   * background to a <select>, Chrome carries it over to the popup list: an 8%–26% pale tint
+   * stacked on the list's default pale background lands close enough to pure pale, and paired
+   * with a --fg that is itself nearly the same pale tone, it collapses to unreadable pale-on-pale.
+   * ⚠️ Must be a **solid color**: native option only honors a solid background-color and does not
+   *    render gradients, so --chip-bg / --card-bg / --popup-bg / --panel-bg-solid cannot be
+   *    reused (they are all gradients).
+   * Value = the solid color at the dark end of the --panel-bg-solid gradient, matching the look
+   * of the popup layer. */
+  --set-option-bg: #1e2234;
+  --set-option-fg: #e9edf7;
+}
+
+:root[data-theme='light'] {
+  --set-rail-bg: rgba(0, 0, 0, 0.03);
+  --set-rail-border: rgba(0, 0, 0, 0.08);
+  --set-warn-fg: #b7791f;
+  --set-ok-fg: var(--success);
+  --set-logs-bg: var(--console-bg);
+  --set-logs-fg: var(--console-fg);
+
+  /* P5 KVM: same values as the :root block, see the comment above (fixed dark, does not follow the theme). */
+  --kvm-bg: #0d1117;
+  --kvm-panel: #161b22;
+  --kvm-elev: #21262d;
+  --kvm-border: #30363d;
+  --kvm-fg: #c9d1d9;
+  --kvm-fg-dim: #8b949e;
+  --kvm-fg-faint: #6e7681;
+  --kvm-accent: #8950f2;
+  --kvm-accent-soft: rgba(137, 80, 242, 0.15);
+  --kvm-on-accent: #ffffff;
+  --kvm-ok: #76b32d;
+  --kvm-ok-glow: rgba(118, 179, 45, 0.5);
+  --kvm-ok-glow-weak: rgba(118, 179, 45, 0.3);
+  --kvm-ok-glow-strong: rgba(118, 179, 45, 0.8);
+  --kvm-warn: #e0a800;
+  --kvm-warn-glow-weak: rgba(224, 168, 0, 0.3);
+  --kvm-warn-glow-strong: rgba(224, 168, 0, 0.8);
+  --kvm-warn-border: rgba(224, 168, 0, 0.3);
+  --kvm-danger: #f85149;
+  --kvm-danger-soft: rgba(248, 81, 73, 0.15);
+  --kvm-danger-glow-weak: rgba(248, 81, 73, 0.3);
+  --kvm-danger-glow-strong: rgba(248, 81, 73, 0.8);
+  --kvm-toggle-off: #484f58;
+  --kvm-overlay: rgba(22, 27, 34, 0.92);
+  --kvm-shadow: rgba(0, 0, 0, 0.4);
+  --kvm-shadow-soft: rgba(0, 0, 0, 0.2);
+  --kvm-banner-bg: #e3f2fd;
+  --kvm-banner-border: #bbdefb;
+  --kvm-banner-fg: #0d47a1;
+  --kvm-banner-btn: #1976d2;
+  --kvm-banner-btn-hover: #1565c0;
+  /* Same value as the :root block, see the comment above (the computed contrast ratio still applies unchanged since neither the background nor the text color changed). */
+  --kvm-banner-error-fg: #b3261e;
+
+  /* P6 dialogs/snapshots: same values as the :root block, see the comment above (fixed dark, does not follow the theme). */
+  --kvm-modal-bg: #1e1e1e;
+  --kvm-modal-fg: #e1e1e1;
+  --kvm-field-bg: #2a2a2a;
+  --kvm-field-border: #3a3a3a;
+  --kvm-field-elev: #333;
+  --kvm-accent-light: #a78bfa;
+  --kvm-accent-hover: #6d41d9;
+  --kvm-accent-hover-alt: #7c3aed;
+  --kvm-accent-ring: rgba(137, 80, 242, 0.25);
+  --kvm-accent-faint: rgba(137, 80, 242, 0.1);
+  --kvm-accent-muted: rgba(137, 80, 242, 0.3);
+  --kvm-ok-hover: #69a129;
+  --kvm-ok-faint: rgba(118, 179, 45, 0.1);
+  --kvm-overlay-strong: rgba(0, 0, 0, 0.6);
+  --kvm-shadow-mid: rgba(0, 0, 0, 0.3);
+  --kvm-snapshot-bg: #1c1c1c;
+  --kvm-snapshot-hover: #222;
+  --kvm-snapshot-desc-fg: #999;
+  --kvm-snapshot-date-fg: #666;
+  /* Same value as the :root block, see the comment above (fixed dark, does not follow the theme). */
+  --kvm-snapshot-name-fg: #fff;
+  --kvm-restore-bg: #dc3545;
+  --kvm-restore-bg-hover: #c82333;
+  --kvm-restore-disabled-bg: #6c757d;
+  --kvm-delete-bg-hover: #da3633;
+
+  /* P8: native <select> popup list. Under the paper theme, .set-select's --chip-bg is already
+   * a solid paper tone, so the popup list will not collapse to pale-on-pale; but the token still
+   * must have a value in both themes (this file's hard constraint), and explicitly pinning down
+   * "a paper background + dark text" avoids trouble the day --chip-bg changes.
+   * Value matches the paper theme's --card-bg / --popup-bg (#ffffff) and --fg (#1c1b19). */
+  --set-option-bg: #ffffff;
+  --set-option-fg: #1c1b19;
+}

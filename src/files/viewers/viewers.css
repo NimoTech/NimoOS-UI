@@ -1,0 +1,27 @@
+.c-zoom-in-enter-active, .c-zoom-in-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.c-zoom-in-enter-from, .c-zoom-in-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.office-body { width: 100%; height: 100%; position: relative; }
+/* Canvas is transparent, revealing the floating layer background consistent with the homepage; the document paper itself remains white, readability unchanged */
+.office-scroll { width: 100%; height: 100%; overflow: auto; background: transparent; }
+
+/* DOCX preview: remove the library default gray wrapper background, let the white paper float on the homepage background only */
+.vue-office-docx,
+.vue-office-docx .docx-wrapper { background: transparent !important; }
+.viewer-status {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  color: var(--fg, #fff);
+}
+.viewer-status .chip {
+  padding: 6px 14px; border: none; border-radius: 999px; cursor: pointer;
+  background: var(--tool-bg); color: var(--fg, #fff);
+}
+.viewer-status .detail {
+  font-size: 12px; opacity: 0.7; max-width: 80%; text-align: center; word-break: break-all;
+}

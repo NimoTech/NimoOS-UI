@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="selfg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7b95ff"/>
+      <stop offset="1" stop-color="#4a63d8"/>
+    </linearGradient>
+    <clipPath id="selfc"><circle cx="24" cy="24" r="21"/></clipPath>
+  </defs>
+  <circle cx="24" cy="24" r="21" fill="url(#selfg)"/>
+  <g clip-path="url(#selfc)" fill="#ffffff">
+    <circle cx="24" cy="19" r="6.5"/>
+    <path d="M24 28.5c-7.6 0-12.4 4.6-13.6 11l-.4 5.5h28l-.4-5.5c-1.2-6.4-6-11-13.6-11z"/>
+  </g>
+</svg>

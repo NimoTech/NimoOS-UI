@@ -1,0 +1,56 @@
+import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import PhotosIcon from '../PhotosIcon.vue'
+
+describe('PhotosIcon — Plan G additions', () => {
+  it('renders panelRight as a rect+path pair (byte-identical to Vue2 PhotosIcon.vue:130-132)', () => {
+    const wrapper = mount(PhotosIcon, { props: { name: 'panelRight' } })
+    expect(wrapper.find('rect').attributes()).toMatchObject({ x: '3', y: '4', width: '18', height: '16', rx: '2' })
+    expect(wrapper.find('path').attributes('d')).toBe('M15 4v16')
+  })
+
+  it('renders chevL as a single path (byte-identical to Vue2 PhotosIcon.vue:57-59)', () => {
+    const wrapper = mount(PhotosIcon, { props: { name: 'chevL' } })
+    expect(wrapper.find('path').attributes('d')).toBe('m15 6-6 6 6 6')
+  })
+})
+
+describe('PhotosIcon — Plan H additions', () => {
+  it('renders two filled rects for name="pause"', () => {
+    const w = mount(PhotosIcon, { props: { name: 'pause' } })
+    expect(w.findAll('rect')).toHaveLength(2)
+  })
+
+  it('renders the circular-arrow paths for name="refresh"', () => {
+    const w = mount(PhotosIcon, { props: { name: 'refresh' } })
+    expect(w.findAll('path')).toHaveLength(4)
+  })
+
+  it('falls back to an empty <g> for an unknown name (existing behavior, unaffected)', () => {
+    const w = mount(PhotosIcon, { props: { name: 'not-a-real-icon' } })
+    expect(w.find('g').exists()).toBe(true)
+  })
+
+  // Task 3 review fix: Favorites hero's Export button needs this leading icon
+  // (Vue2 PhotosFavoritesView.vue:27's `<photos-icon name="download" :size="13"/>`).
+  it('renders a single path for name="download" (byte-identical to Vue2 PhotosIcon.vue)', () => {
+    const w = mount(PhotosIcon, { props: { name: 'download' } })
+    expect(w.find('path').attributes('d')).toBe('M12 4v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2')
+  })
+
+  // Task 8 review fix: PhotosTrashView.vue's hero "Restore all" button (:17), bulk-bar
+  // "Restore" (:37), and the confirm modal's non-danger icon/CTA (:101/:109) all need this
+  // leading icon (Vue2 PhotosIcon.vue:42-44).
+  it('renders a single path for name="upload" (byte-identical to Vue2 PhotosIcon.vue)', () => {
+    const w = mount(PhotosIcon, { props: { name: 'upload' } })
+    expect(w.find('path').attributes('d')).toBe('M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2')
+  })
+
+  // PhotosTrashView.vue's filters row "Videos" chip (:51) needs
+  // this leading icon (Vue2 PhotosIcon.vue's 'video' branch).
+  it('renders a rect+path pair for name="video" (byte-identical to Vue2 PhotosIcon.vue)', () => {
+    const w = mount(PhotosIcon, { props: { name: 'video' } })
+    expect(w.find('rect').attributes()).toMatchObject({ x: '3', y: '6', width: '13', height: '12', rx: '2' })
+    expect(w.find('path').attributes('d')).toBe('m16 10 5-3v10l-5-3z')
+  })
+})

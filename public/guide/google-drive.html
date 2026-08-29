@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect Google Drive — Use Your Own Google Credentials</title>
+<style>
+  :root{
+    --ink:#16212e; --paper:#f6f8f9; --card:#ffffff; --border:#e3e8ec;
+    --muted:#5d6b78; --teal:#0f766e; --teal-soft:#e7f2f0;
+    --amber:#a8560c; --amber-soft:#fbf1e2; --amber-line:#ecd6b0;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0}
+  [hidden]{display:none !important}
+  .lang-toggle{
+    position:absolute; top:16px; right:16px; z-index:10;
+    font-family:var(--sans); font-size:13px; font-weight:700; letter-spacing:.02em;
+    color:var(--teal); background:var(--card); border:1px solid var(--teal);
+    border-radius:20px; padding:7px 15px; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.06);
+  }
+  .lang-toggle:hover{background:var(--teal-soft)}
+  .lang-toggle:focus-visible{outline:2px solid var(--teal); outline-offset:2px}
+  .page{ max-width:760px; margin:0 auto; position:relative; }
+  .wrap{
+    padding:clamp(22px,4vw,52px) clamp(18px,4vw,38px) 80px;
+    font-family:var(--sans); color:var(--ink); background:var(--paper);
+    font-size:15.5px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .eyebrow{font-size:11.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--teal); font-weight:700; margin:0 0 10px}
+  h1{font-size:clamp(24px,4.2vw,31px); line-height:1.2; font-weight:800; letter-spacing:-.015em; margin:0 0 12px; text-wrap:balance}
+  .lede{font-size:16px; color:var(--muted); margin:0; max-width:62ch}
+  .why{margin-top:22px; background:var(--card); border:1px solid var(--border); border-left:4px solid var(--teal); border-radius:12px; padding:16px 20px; font-size:14.5px}
+  .why b{color:var(--ink)}
+  .prep{margin-top:20px; background:var(--teal-soft); border-radius:12px; padding:14px 20px; font-size:14.5px}
+  .prep h2{font-size:14px; margin:0 0 6px; text-transform:uppercase; letter-spacing:.06em; color:var(--teal)}
+  .prep ul{margin:0; padding-left:20px}
+  ol.steps{list-style:none; counter-reset:s; margin:32px 0 0; padding:0; display:flex; flex-direction:column; gap:16px}
+  ol.steps > li{counter-increment:s; position:relative; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 20px 18px 62px}
+  ol.steps > li::before{content:counter(s); position:absolute; left:16px; top:16px; width:32px; height:32px; border-radius:50%; background:var(--teal); color:#fff; font-family:var(--mono); font-weight:700; font-size:15px; display:flex; align-items:center; justify-content:center}
+  ol.steps h3{margin:2px 0 8px; font-size:16.5px; font-weight:800}
+  ol.steps p{margin:0 0 8px}
+  ol.steps p:last-child{margin-bottom:0}
+  ol.steps ul{margin:6px 0; padding-left:20px}
+  ol.steps li li{margin:3px 0}
+  .path{font-family:var(--mono); font-size:12.5px; background:#eef1f3; padding:.08em .4em; border-radius:5px; color:var(--ink); white-space:nowrap}
+  .copy{display:block; font-family:var(--mono); font-size:13.5px; background:#0f1b26; color:#8fe3d6; padding:10px 14px; border-radius:8px; margin:8px 0; word-break:break-all; user-select:all}
+  .copy .lbl{display:block; font-family:var(--sans); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:#6f8794; margin-bottom:3px; user-select:none}
+  .warn{margin:10px 0 0; background:var(--amber-soft); border:1px solid var(--amber-line); border-radius:9px; padding:11px 14px; font-size:13.8px; color:#5a3a12}
+  .warn b{color:var(--amber)}
+  .faq{margin-top:36px}
+  .faq h2{font-size:19px; font-weight:800; margin:0 0 14px}
+  .qa{background:var(--card); border:1px solid var(--border); border-radius:11px; padding:14px 18px; margin-bottom:10px}
+  .qa .q{font-weight:700; margin:0 0 5px}
+  .qa .a{margin:0; color:var(--muted); font-size:14.5px}
+  .qa code{font-family:var(--mono); font-size:12.5px; background:#eef1f3; padding:.06em .32em; border-radius:4px; color:var(--ink)}
+  .foot{margin-top:34px; padding-top:16px; border-top:1px solid var(--border); color:var(--muted); font-size:12.5px}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<button class="lang-toggle" id="langBtn" type="button" aria-label="Switch language">中文</button>
+
+<!-- ==================== ENGLISH ==================== -->
+<div class="wrap" id="lang-en">
+  <header>
+    <p class="eyebrow">NimoOS · Connect Cloud Storage</p>
+    <h1>Connect Google Drive (using your own Google credentials)</h1>
+    <p class="lede">Follow the steps below to create a set of authorization credentials under your own Google account, then enter them into NimoOS to connect your Google Drive. Takes about 10 minutes, and it's free.</p>
+  </header>
+
+  <div class="why">
+    <b>Why create your own?</b> This way the authorization uses <b>your own</b> Google app — access stays strictly between you and your device, and never passes through any shared third-party account. More private, and more stable. You only need to create the credentials once.
+  </div>
+
+  <div class="prep">
+    <h2>Before you start</h2>
+    <ul>
+      <li>A Google account (the one that owns the Drive you want to connect).</li>
+      <li>It's easiest on a desktop browser.</li>
+    </ul>
+  </div>
+
+  <ol class="steps">
+    <li>
+      <h3>Create a Google Cloud project</h3>
+      <p>Open <span class="path">console.cloud.google.com</span> and sign in. Click the project dropdown at the top → <b>New Project</b>, any name (e.g. <span class="path">NimoOS</span>) → after it's created, <b>switch to that project</b>.</p>
+    </li>
+    <li>
+      <h3>Enable the Google Drive API</h3>
+      <p>In the left menu <span class="path">APIs &amp; Services → Library</span>, search for <b>Google Drive API</b>, open it → <b>Enable</b>.</p>
+    </li>
+    <li>
+      <h3>Configure the OAuth consent screen (“Google Auth Platform”)</h3>
+      <p>Left menu <span class="path">APIs &amp; Services → OAuth consent screen</span>. The current UI opens “<b>Google Auth Platform</b>” as a short wizard — fill it step by step:</p>
+      <ul>
+        <li><b>App Information</b>: app name (e.g. <span class="path">NimoOS</span>) + a user support email → Next;</li>
+        <li><b>Audience</b>: choose <b>External</b> → Next;</li>
+        <li><b>Contact Information</b>: developer contact email — use <b>your own</b> email (this app is entirely yours; nothing here is NimoOS's) → Next;</li>
+        <li><b>Finish</b>: agree, then Create.</li>
+      </ul>
+      <p>After creating, set two more things from the left menu:</p>
+      <ul>
+        <li><span class="path">Data Access</span> → Add scope:</li>
+      </ul>
+      <span class="copy"><span class="lbl">Scope to add</span>https://www.googleapis.com/auth/drive</span>
+      <ul>
+        <li><span class="path">Audience</span> → “Test users” → <b>add your own Google email address</b>.</li>
+      </ul>
+      <div class="warn"><b>You must add a test user!</b> Otherwise Google will reject the authorization (<code>access_denied</code>). Note: the developer contact email is on the wizard's “Contact Information” step, not the first screen.</div>
+    </li>
+    <li>
+      <h3>Create an OAuth client ID</h3>
+      <p>Left menu <span class="path">Clients</span> → <b>Create client</b> (older UI: <span class="path">APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</span>):</p>
+      <ul>
+        <li>Application type: <b>Web application</b>;</li>
+        <li>Under “<b>Authorized redirect URIs</b>”, add this line (<b>exactly</b>):</li>
+      </ul>
+      <span class="copy"><span class="lbl">Authorized redirect URI</span>https://cloudoauth.nimopc.com</span>
+      <p>Click <b>Create</b>.</p>
+      <div class="warn">This URI must match <b>exactly</b> (no trailing slash, no spaces), or authorization will fail with <code>redirect_uri_mismatch</code>.</div>
+    </li>
+    <li>
+      <h3>Copy the client ID and secret</h3>
+      <p>After creation, the <b>Client ID</b> and <b>Client secret</b> are shown. Copy both (the secret is only shown here, so save it now).</p>
+    </li>
+    <li>
+      <h3>Back in NimoOS, enter them and authorize</h3>
+      <p>In NimoOS, choose <b>Connect Google Drive</b>, paste the <b>Client ID</b> and <b>Client secret</b> from the previous step, then click authorize.</p>
+      <p>After being redirected to Google, sign in with your account and <b>approve</b>; you'll be sent back to NimoOS automatically.</p>
+      <div class="warn">If you see “<b>Google hasn't verified this app</b>”, that's expected — because this is the app <b>you just created</b>. Click <b>“Advanced” → “Go to … (unsafe)”</b> to continue; it is safe for your own app.</div>
+    </li>
+  </ol>
+
+  <div class="faq">
+    <h2>Troubleshooting</h2>
+    <div class="qa">
+      <p class="q">Authorization rejected with access_denied?</p>
+      <p class="a">Go back to “Test users” in Step 3 and make sure <b>the Google email you're using has been added</b>.</p>
+    </div>
+    <div class="qa">
+      <p class="q">Getting redirect_uri_mismatch?</p>
+      <p class="a">The redirect URI in Step 4 is wrong. It must be <code>https://cloudoauth.nimopc.com</code> — no trailing slash or spaces.</p>
+    </div>
+    <div class="qa">
+      <p class="q">Disconnects after about a week and asks to re-authorize?</p>
+      <p class="a">This happens while the app is in “Testing” status (tokens expire in ~7 days). For long-term use, set the app's publishing status to <b>“In production”</b> back in Step 3 — you'll still see the “unverified” prompt (just click continue), but tokens will no longer expire every 7 days.</p>
+    </div>
+    <div class="qa">
+      <p class="q">Is this safe? Could my files leak?</p>
+      <p class="a">Yes, it's safe. The credentials live under <b>your own account</b> and only authorize your own NimoOS device; files transfer directly between your device and Google, never through any third-party server.</p>
+    </div>
+  </div>
+
+  <p class="foot">NimoOS · Connect Google Drive · Using your own Google Cloud credentials (BYO)</p>
+</div>
+
+<!-- ==================== Chinese ==================== -->
+<div class="wrap" id="lang-zh" hidden>
+  <header>
+    <p class="eyebrow">NimoOS · 连接云盘</p>
+    <h1>连接 Google Drive(使用你自己的 Google 凭据)</h1>
+    <p class="lede">按下面的步骤,在你自己的 Google 账号下创建一组授权凭据,再填进 NimoOS,就能把 Google Drive 接入你的设备。全程约 10 分钟,无需付费。</p>
+  </header>
+
+  <div class="why">
+    <b>为什么要自己创建?</b> 这样授权用的是<b>你自己的</b> Google 应用,权限只在你和你的设备之间,不经过任何第三方共享账号,更私密、也更稳定。凭据只需创建一次。
+  </div>
+
+  <div class="prep">
+    <h2>开始前</h2>
+    <ul>
+      <li>一个 Google 账号(就是你要连接的那个 Drive 所属的账号)。</li>
+      <li>用电脑浏览器操作更顺手。</li>
+    </ul>
+  </div>
+
+  <ol class="steps">
+    <li>
+      <h3>新建一个 Google Cloud 项目</h3>
+      <p>打开 <span class="path">console.cloud.google.com</span> 并登录。点顶部的项目下拉菜单 → <b>新建项目</b>,名字随意(如 <span class="path">NimoOS</span>)→ 创建后<b>切换到该项目</b>。</p>
+    </li>
+    <li>
+      <h3>启用 Google Drive API</h3>
+      <p>左侧菜单 <span class="path">API 和服务 → 库</span>,搜索 <b>Google Drive API</b>,点进去 → <b>启用</b>。</p>
+    </li>
+    <li>
+      <h3>配置 OAuth 同意屏幕(“Google Auth Platform”)</h3>
+      <p>左侧 <span class="path">API 和服务 → OAuth 同意屏幕</span>。当前新版会打开 “<b>Google Auth Platform</b>” 分步向导,逐步填:</p>
+      <ul>
+        <li><b>应用信息</b>:应用名称(如 <span class="path">NimoOS</span>)+ 用户支持邮箱 → 下一步;</li>
+        <li><b>受众群体</b>:选 <b>外部(External)</b> → 下一步;</li>
+        <li><b>联系信息</b>:开发者联系邮箱 —— 填<b>你自己的</b>邮箱(这个应用完全是你自己的,与 NimoOS 无关)→ 下一步;</li>
+        <li><b>完成</b>:勾选同意 → 创建。</li>
+      </ul>
+      <p>创建后,再从左侧菜单配置两处:</p>
+      <ul>
+        <li><span class="path">数据访问</span> → 添加范围(Scope):</li>
+      </ul>
+      <span class="copy"><span class="lbl">要添加的权限范围</span>https://www.googleapis.com/auth/drive</span>
+      <ul>
+        <li><span class="path">目标对象(受众群体)</span> → “测试用户 (Test users)” → <b>把你自己的 Google 邮箱加进去</b>。</li>
+      </ul>
+      <div class="warn"><b>务必添加测试用户!</b> 不加的话授权会被 Google 拒绝(<code>access_denied</code>)。注意:开发者联系邮箱在向导的“联系信息”那一步,不在第一屏。</div>
+    </li>
+    <li>
+      <h3>创建 OAuth 客户端 ID</h3>
+      <p>左侧 <span class="path">客户端(Clients)</span> → <b>创建客户端</b>(旧版界面:<span class="path">API 和服务 → 凭据 → 创建凭据 → OAuth 客户端 ID</span>):</p>
+      <ul>
+        <li>应用类型选 <b>Web 应用(Web application)</b>;</li>
+        <li>在“<b>已获授权的重定向 URI</b>”里,添加下面这一条(<b>一字不差</b>):</li>
+      </ul>
+      <span class="copy"><span class="lbl">已获授权的重定向 URI</span>https://cloudoauth.nimopc.com</span>
+      <p>点 <b>创建</b>。</p>
+      <div class="warn">这条地址必须<b>完全一致</b>(结尾不要多斜杠、不要空格),否则授权会报 <code>redirect_uri_mismatch</code>。</div>
+    </li>
+    <li>
+      <h3>复制客户端 ID 和密钥</h3>
+      <p>创建成功后会弹出 <b>客户端 ID</b> 和 <b>客户端密钥</b>。把这两串复制下来(客户端密钥只在这里能看到,建议先存好)。</p>
+    </li>
+    <li>
+      <h3>回到 NimoOS 填入并授权</h3>
+      <p>在 NimoOS 里选择<b>连接 Google Drive</b>,把上一步的 <b>客户端 ID</b> 和 <b>客户端密钥</b> 填进去,然后点授权。</p>
+      <p>跳转到 Google 后,用你的账号登录并<b>同意授权</b>即可,授权完成会自动跳回 NimoOS。</p>
+      <div class="warn">授权时若看到 “<b>Google 尚未验证此应用</b>” 的提示,这是正常的 —— 因为这是<b>你自己刚创建的</b>应用。点 <b>“高级 / Advanced” → “继续前往(不安全)”</b> 即可,对你自己的应用是安全的。</div>
+    </li>
+  </ol>
+
+  <div class="faq">
+    <h2>常见问题</h2>
+    <div class="qa">
+      <p class="q">授权被拒,提示 access_denied?</p>
+      <p class="a">回到第 3 步的“测试用户”,确认<b>已把你正在用的这个 Google 邮箱加进去</b>了。</p>
+    </div>
+    <div class="qa">
+      <p class="q">提示 redirect_uri_mismatch?</p>
+      <p class="a">第 4 步的重定向 URI 没填对。必须是 <code>https://cloudoauth.nimopc.com</code>,结尾不能多斜杠或空格。</p>
+    </div>
+    <div class="qa">
+      <p class="q">连过一阵子(约一周)后又断了、要重新授权?</p>
+      <p class="a">这是应用处于“测试”状态的特性(令牌约 7 天过期)。想长期稳定使用,可到第 3 步那里把应用的<b>发布状态改为“正式版 / In production”</b>——授权时仍会有“未验证”提示(点“继续”即可),但令牌不再每 7 天过期。</p>
+    </div>
+    <div class="qa">
+      <p class="q">这样安全吗?会不会泄露我的文件?</p>
+      <p class="a">安全。凭据是<b>你自己账号下</b>的,只授权给你自己的 NimoOS 设备;文件在你的设备和 Google 之间直接传输,不经过任何第三方服务器。</p>
+    </div>
+  </div>
+
+  <p class="foot">NimoOS · 连接 Google Drive · 使用你自己的 Google Cloud 凭据(BYO)</p>
+</div>
+
+</div>
+
+<script>
+  (function () {
+    var LANGS = ["en", "zh"];
+    var LABEL = { en: "中文", zh: "EN" }; // Button shows the target language to switch to
+    var TITLE = {
+      en: "Connect Google Drive — Use Your Own Google Credentials",
+      zh: "连接 Google Drive — 使用你自己的 Google 凭据"
+    };
+    var btn = document.getElementById("langBtn");
+    function apply(lang) {
+      if (LANGS.indexOf(lang) === -1) lang = "en";
+      document.getElementById("lang-en").hidden = (lang !== "en");
+      document.getElementById("lang-zh").hidden = (lang !== "zh");
+      document.documentElement.lang = (lang === "zh") ? "zh-CN" : "en";
+      document.title = TITLE[lang];
+      btn.textContent = LABEL[lang];
+      try { localStorage.setItem("nimoos_guide_lang", lang); } catch (e) {}
+    }
+    var saved;
+    try { saved = localStorage.getItem("nimoos_guide_lang"); } catch (e) {}
+    apply(saved || "en"); // Default: English
+    btn.addEventListener("click", function () {
+      var cur = document.getElementById("lang-zh").hidden ? "en" : "zh";
+      apply(cur === "en" ? "zh" : "en");
+    });
+  })();
+</script>
+
+</body>
+</html>

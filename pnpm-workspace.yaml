@@ -1,0 +1,24 @@
+# Approves postinstall scripts that pnpm 11 blocks by default. Tracked in git
+# (policy change 2026-08-21): every checkout/worktree needs it, and its untracked
+# status kept tripping the oss export dirty-tree guard.
+#
+# `packages` is REQUIRED, not decoration: once this file exists, pnpm (9 and 11
+# alike) treats the directory as a workspace and refuses to install at all
+# without it (ERR_PNPM_INVALID_WORKSPACE_CONFIGURATION). That broken install is
+# what kept the node_modules copy of @nimotech/nimoos-service frozen at its
+# last good link — an atomic-write edit to packages/service/src/* breaks the
+# file: hardlink (see the local dev notes on the hardlink trap), and the documented remedy,
+# `pnpm install`, was the very thing this file's missing field had disabled
+# (2026-08-21: vue-tsc/deploy failed on stale service types until fixed here).
+# The dependency stays `file:packages/service` in package.json, so resolution
+# semantics (hardlink into .pnpm, no workspace: linking) are unchanged.
+packages:
+  - 'packages/*'
+
+allowBuilds:
+  '@parcel/watcher': true
+  '@vue-office/docx': true
+  '@vue-office/excel': true
+  core-js: true
+  esbuild: true
+  vue-demi: true

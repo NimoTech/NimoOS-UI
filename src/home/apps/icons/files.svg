@@ -1,0 +1,23 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="64" height="64" rx="12" fill="url(#paint0_linear_files)"/>
+  <g filter="url(#filter0_f_files)">
+    <rect x="8" y="8" width="48" height="48" rx="8" fill="white" fill-opacity="0.2"/>
+  </g>
+  <!-- Folder back flap (with tab) -->
+  <path d="M13 21.5c0-2.2 1.8-4 4-4h8.6c1.13 0 2.2.47 2.97 1.3l1.93 2.1c.38.41.92.65 1.48.65H47c2.2 0 4 1.8 4 4V42H13Z" fill="white" fill-opacity="0.45"/>
+  <!-- Paper peeking out -->
+  <rect x="17.5" y="23.5" width="29" height="10" rx="1.5" fill="white" fill-opacity="0.7"/>
+  <!-- Folder front panel -->
+  <rect x="13" y="28" width="38" height="18.5" rx="4" fill="white" fill-opacity="0.93"/>
+  <defs>
+    <filter id="filter0_f_files" x="0" y="0" width="64" height="64" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur stdDeviation="4" result="effect1_foregroundBlur"/>
+    </filter>
+    <linearGradient id="paint0_linear_files" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+</svg>

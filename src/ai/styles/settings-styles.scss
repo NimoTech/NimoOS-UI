@@ -1,0 +1,413 @@
+// ===== Nimo AI Settings Section Styles =====
+// SP8-P2a Task 2 — 1:1 file-level port from Vue2
+// `src/views/AI/Settings/settings-styles.scss` (316 lines).
+//
+// [Token base] Vue2 hangs :data-theme on `.set-app` and provides tokens via its own tokens.scss.
+// This repo's `src/ai/styles/tokens.scss` defines tokens only in `.agent-app` scope; thus
+// SettingsPage.vue root has both `.agent-app` and `.set-app` classes; tokens come from `.agent-app`,
+// light/dark switches via root's data-theme attribute. This file does not redefine any tokens.
+//
+// [Bare color exception registration] This file retains Vue2's original color values (~ 20
+// semi-transparent literals, mostly --success / --danger / --accent / --warning / --purple transparency
+// variants); same "1:1 file-level portage exception" category as `agent-styles.scss`; rationale in exception
+// list at head of tokens.scss. **No new bare colors may be added to this file**; new .vue component
+// <style> blocks remain under full color-guard constraint.
+
+.set-app {
+  display: grid;
+  grid-template-columns: 258px 1fr;
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--bg-app);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+}
+
+/* ---------- Left rail ---------- */
+.set-rail { background: var(--bg-sunken); border-right: 1px solid var(--line-faint); display: flex; flex-direction: column; min-height: 0; }
+.set-rail-head { height: 60px; flex-shrink: 0; padding: 0 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line-faint); }
+.set-rail-back { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--text-secondary); background: var(--bg-elevated); border: 1px solid var(--line-faint); transition: all 120ms ease; text-decoration: none; flex-shrink: 0; cursor: pointer; }
+.set-rail-back:hover { background: var(--bg-chip); color: var(--text-primary); }
+.set-rail-title { font-size: 15px; font-weight: 650; letter-spacing: -0.015em; }
+.set-rail-sub { font-size: 11px; color: var(--text-tertiary); margin-top: -2px; }
+.set-nav { flex: 1; overflow-y: auto; padding: 10px 8px 14px; display: flex; flex-direction: column; gap: 1px; min-height: 0; }
+.set-nav-item { display: flex; align-items: center; gap: 11px; padding: 8px 11px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: background 100ms ease, color 100ms ease; text-decoration: none; position: relative; }
+.set-nav-item:hover { background: var(--bg-chip); color: var(--text-primary); }
+.set-nav-item[data-active="true"] { background: var(--bg-elevated); color: var(--text-primary); box-shadow: var(--shadow-xs); }
+.set-nav-item .ico { width: 18px; flex-shrink: 0; display: grid; place-items: center; color: var(--text-tertiary); }
+.set-nav-item[data-active="true"] .ico { color: var(--accent); }
+.set-nav-item .set-nav-badge { margin-left: auto; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--bg-chip); color: var(--text-tertiary); }
+.set-nav-item[data-active="true"] .set-nav-badge { background: var(--accent-soft); color: var(--accent); }
+
+/* ---------- Rail groups (collapsible) ---------- */
+.set-nav-group { display: flex; flex-direction: column; }
+.set-nav-group + .set-nav-group { margin-top: 6px; }
+.set-nav-grouphead { display: flex; align-items: center; width: 100%; padding: 7px 11px 5px; background: transparent; border: 0; cursor: pointer; text-align: left; }
+.set-nav-grouptt { flex: 1; min-width: 0; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); transition: color 100ms ease; }
+.set-nav-chev { display: inline-flex; color: var(--text-quaternary); transition: transform 160ms ease, color 100ms ease; }
+.set-nav-grouphead[data-open="true"] .set-nav-chev { transform: rotate(90deg); }
+.set-nav-grouphead:hover .set-nav-grouptt, .set-nav-grouphead:hover .set-nav-chev { color: var(--text-secondary); }
+.set-nav-groupbody { display: flex; flex-direction: column; gap: 1px; }
+
+.set-foot { flex-shrink: 0; padding: 10px 14px; border-top: 1px solid var(--line-faint); display: flex; align-items: center; gap: 9px; }
+.set-foot .ava { width: 28px; height: 28px; border-radius: 9px; background: var(--grad-iri); color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; flex-shrink: 0; box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.2); text-transform: uppercase; overflow: hidden; }
+.set-foot .ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.set-foot .nm { font-size: 12.5px; font-weight: 550; }
+.set-foot .sub { font-size: 11px; color: var(--text-tertiary); }
+
+/* ---------- Main ---------- */
+.set-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-canvas); }
+.set-topbar { height: 60px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 22px; border-bottom: 1px solid var(--line-faint); background: var(--glass-strong); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); position: sticky; top: 0; z-index: 6; }
+.set-topbar .tt { font-size: 16px; font-weight: 650; letter-spacing: -0.015em; white-space: nowrap; flex-shrink: 0; }
+.set-status { display: flex; align-items: center; gap: 6px; margin-left: auto; overflow: hidden; }
+.set-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 500; background: var(--bg-chip); color: var(--text-secondary); border: 1px solid var(--line-faint); white-space: nowrap; }
+.set-pill .d { width: 6px; height: 6px; border-radius: 50%; background: var(--text-quaternary); flex-shrink: 0; }
+.set-pill[data-s="ok"] .d { background: var(--success); box-shadow: 0 0 0 3px rgba(52,199,89,0.16); }
+.set-pill[data-s="warn"] .d { background: var(--warning); box-shadow: 0 0 0 3px rgba(255,149,0,0.16); }
+.set-pill[data-s="off"] .d { background: var(--danger); box-shadow: 0 0 0 3px rgba(255,59,48,0.14); }
+.set-pill .badge-count { min-width: 16px; padding: 0 4px; margin-left: 2px; background: var(--danger); color: #fff; border-radius: 9px; font-size: 10px; line-height: 14px; text-align: center; }
+.set-pill .badge-pause { margin-left: 2px; font-size: 10px; }
+.set-detail-link { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; font-weight: 500; color: var(--accent); padding: 5px 8px; border-radius: 8px; transition: background 120ms ease; white-space: nowrap; flex-shrink: 0; text-decoration: none; }
+.set-detail-link:hover { background: var(--accent-softer); }
+.set-ibtn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; color: var(--text-secondary); transition: all 120ms ease; flex-shrink: 0; cursor: pointer; background: transparent; border: 0; }
+.set-ibtn:hover { background: var(--bg-chip); color: var(--text-primary); }
+.set-body { flex: 1; overflow-y: auto; min-height: 0; padding: 30px 22px 90px; scroll-padding-top: 14px; }
+.set-inner { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+/* ---------- Stacked group page (scroll-to-navigate) ---------- */
+.set-stack-item { scroll-margin-top: 14px; }
+.set-stack-item + .set-stack-item { margin-top: 44px; padding-top: 44px; border-top: 1px solid var(--line-faint); }
+
+/* ---------- Split sections (Skills / MCP servers: list + detail) ---------- */
+.set-body.set-body-split { padding: 0; display: flex; overflow: hidden; }
+.set-split { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.set-split .sk-col { flex: 0 0 320px; }
+.set-split .sk-detail { flex: 1; }
+.sk-col-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.set-h1 { font-size: 25px; font-weight: 680; letter-spacing: -0.022em; margin: 0; }
+.set-desc { font-size: 13.5px; color: var(--text-secondary); margin-top: 8px; line-height: 1.55; max-width: 660px; }
+
+/* ---------- Config rows ---------- */
+.set-rows { padding: 2px 0; }
+.set-row { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-top: 1px solid var(--line-faint); }
+.set-row:first-child { border-top: 0; }
+.set-row.top { align-items: flex-start; }
+.set-row .lbl { width: 168px; flex-shrink: 0; font-size: 13px; font-weight: 550; color: var(--text-primary); }
+.set-row .lbl .sub { display: block; font-size: 11px; font-weight: 400; color: var(--text-tertiary); margin-top: 2px; line-height: 1.4; }
+.set-row .val { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.set-row .val.end { justify-content: flex-end; }
+
+/* ---------- Inputs ---------- */
+.set-input { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 12px; font-size: 13px; background: var(--bg-canvas); color: var(--text-primary); outline: none; transition: all 120ms ease; font-family: var(--font-sans); }
+.set-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-softer); background: var(--bg-elevated); }
+.set-input.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.set-input.num { width: 92px; text-align: left; font-variant-numeric: tabular-nums; }
+.set-input.full { width: 100%; }
+textarea.set-input { resize: vertical; line-height: 1.6; min-height: 80px; display: block; width: 100%; }
+textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-height: 1.65; background: var(--bg-sunken); color: var(--text-primary); }
+.set-copy { display: flex; gap: 8px; width: 100%; }
+.set-copy .set-input { flex: 1; min-width: 0; }
+.set-copybtn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 500; background: var(--bg-chip); color: var(--text-primary); border: 1px solid var(--line-faint); flex-shrink: 0; transition: all 120ms ease; align-self: flex-start; cursor: pointer; }
+.set-copybtn:hover { background: var(--line); }
+.set-copybtn.done { color: var(--success); border-color: rgba(52,199,89,0.3); background: rgba(52,199,89,0.1); }
+
+/* ---------- Chips (multi-select) ---------- */
+.set-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.set-chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px 7px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; border: 1px solid var(--line); background: var(--bg-canvas); color: var(--text-secondary); transition: all 120ms ease; white-space: nowrap; cursor: pointer; }
+.set-chip .box { width: 15px; height: 15px; border-radius: 5px; border: 1.5px solid var(--line-strong); display: grid; place-items: center; color: transparent; transition: all 120ms ease; flex-shrink: 0; }
+.set-chip[data-on="true"] { border-color: var(--accent); background: var(--accent-softer); color: var(--accent); }
+.set-chip[data-on="true"] .box { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ---------- Actions row ---------- */
+.set-actions { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--line-faint); flex-wrap: wrap; }
+.set-actions .hint { font-size: 11.5px; color: var(--text-tertiary); line-height: 1.4; }
+
+/* ---------- Token list ---------- */
+.tok-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-top: 1px solid var(--line-faint); }
+.tok-row:first-child { border-top: 0; }
+.tok-ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: var(--bg-sunken); border: 1px solid var(--line-faint); color: var(--text-secondary); flex-shrink: 0; }
+.tok-body { flex: 1; min-width: 0; }
+.tok-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary); font-family: var(--font-mono); letter-spacing: -0.01em; }
+.tok-meta { font-size: 11.5px; color: var(--text-tertiary); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.tok-meta .sep { width: 2px; height: 2px; border-radius: 50%; background: var(--text-quaternary); align-self: center; }
+.tok-meta .never { color: var(--text-quaternary); }
+.tok-del { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 500; color: var(--danger); background: rgba(255,59,48,0.08); transition: all 120ms ease; cursor: pointer; border: 0; }
+.tok-del:hover { background: rgba(255,59,48,0.14); }
+
+/* ---------- Memory facts ---------- */
+.mem-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-top: 1px solid var(--line-faint); }
+.mem-row:first-child { border-top: 0; }
+.mem-body { flex: 1; min-width: 0; }
+.mem-text { font-size: 14px; color: var(--text-primary); font-weight: 450; }
+.mem-tags { display: flex; align-items: center; gap: 7px; margin-top: 7px; flex-wrap: wrap; }
+.mem-tag { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--bg-chip); color: var(--text-tertiary); letter-spacing: 0.02em; }
+.mem-tag[data-k="fact"] { background: var(--accent-soft); color: var(--accent); }
+.mem-tag[data-k="pref"] { background: rgba(175,82,222,0.12); color: var(--purple); }
+.mem-tag.recall { color: var(--text-quaternary); background: transparent; padding-left: 0; font-weight: 400; }
+.mem-del { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--text-tertiary); flex-shrink: 0; transition: all 120ms ease; cursor: pointer; border: 0; background: transparent; }
+.mem-del:hover { background: rgba(255,59,48,0.1); color: var(--danger); }
+
+/* ---------- Root dir rows ---------- */
+.dir-row { display: flex; align-items: center; gap: 10px; padding: 8px 18px; }
+.dir-row:first-of-type { padding-top: 14px; }
+.dir-row .set-input { flex: 1; }
+.dir-del { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--text-tertiary); border: 1px solid var(--line-faint); background: var(--bg-canvas); flex-shrink: 0; transition: all 120ms ease; cursor: pointer; }
+.dir-del:hover { background: rgba(255,59,48,0.1); color: var(--danger); border-color: transparent; }
+.dir-add { margin: 4px 18px 4px; display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 500; color: var(--text-secondary); border: 1px dashed var(--line-strong); background: transparent; align-self: flex-start; transition: all 120ms ease; cursor: pointer; }
+.dir-add:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- Diagnostics ---------- */
+.diag { padding: 4px 0; }
+.diag-row { display: flex; align-items: center; gap: 12px; padding: 13px 18px; border-top: 1px solid var(--line-faint); font-size: 13px; }
+.diag-row:first-child { border-top: 0; }
+.diag-row .k { color: var(--text-secondary); }
+.diag-row .v { margin-left: auto; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 7px; }
+.diag-row .v .rec { font-weight: 400; color: var(--text-tertiary); font-size: 12px; }
+.diag-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgba(52,199,89,0.18); }
+
+/* ---------- Inline info banner ---------- */
+.set-banner { display: flex; align-items: flex-start; gap: 10px; padding: 12px 15px; border-radius: var(--r-md); background: var(--bg-sunken); border: 1px solid var(--line-faint); font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; }
+.set-banner .ico { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; color: var(--accent); background: var(--accent-soft); margin-top: 1px; }
+.set-banner.warn { background: rgba(200,134,10,0.08); border-color: rgba(200,134,10,0.25); }
+.set-banner.warn .ico { color: var(--warning); background: rgba(200,134,10,0.14); }
+
+/* Phoenix status line */
+.px-status { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--line-faint); font-size: 13px; }
+.px-status .k { color: var(--text-secondary); }
+.px-status .state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-primary); }
+.px-status .state .d { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgba(52,199,89,0.18); }
+// [Declared deviation from Vue2 visual 1:1; user decided 2026-07-30] Vue2 settings-styles.scss:168 is
+// ultra-light button with `color: var(--accent)` + `background: var(--accent-softer)`; in light theme users
+// "cannot see there is a button". Changed to solid accent bg + white text (--text-on-accent only works on solid
+// accent bg, which is this case). Hover uses existing --accent-hover, has values in both themes.
+// See comment at button in ObservabilitySection.vue and pinned test case in settingsStyles.test.ts.
+.px-open { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--text-on-accent); padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent); cursor: pointer; border: 0; }
+.px-open:hover { background: var(--accent-hover); }
+// SP8-P2b Task 8 — during Task 2 file-level port, missed Vue2 ObservabilitySection.vue:208-211 scoped
+// `<style>` (`.status` / `.status.err`, installing/error inline hints) (same type of omission as
+// sk-shared.scss mentioned in SetSwitch.vue header comment). Adding here, but renamed to `.px-msg` —
+// Vue2's was `scoped`, bare `.status` wouldn't escape component; here is global shared file; bare `.status`
+// too easily collides elsewhere, added `px-` prefix to avoid pollution; visual and selector structure
+// unchanged (name-only change, not visual change). Vue2's original `color: var(--danger, #d33)` bare-color
+// fallback stripped per this repo convention; only token remains.
+.px-msg { font-size: 13px; color: var(--text-secondary); margin: 8px 18px; }
+.px-msg.err { color: var(--danger); }
+
+// SP8-P2b Task 10 review fix — McpTokensSection.vue component follows zero-<style> convention, but Vue2
+// McpTokensSection.vue:245/246 (scoped) does define `.mcp-label`/`.mcp-reveal-warn` styles (`.mcp-x` already
+// adopted by SkModal's `.sk-x`, no need to supplement). Missing these would render explanation labels and
+// warning text in plaintext modal as unstyled default font/black text — undeclared 1:1 visual regression;
+// added here after review discovered it; follows Task 8 `.px-msg` precedent: placed in global settings style
+// file rather than add <style> block to component (**scope expansion, declared**: this is second time this
+// file moves Vue2 scoped styles here due to component zero-<style> convention). `mcp-` prefix already avoids
+// collision; class names preserved as-is, not renamed (unlike `.px-msg` case where Vue2's bare `.status` was
+// too easy to collide so it was renamed; here Vue2 already had `mcp-` prefix, no rename needed). Values
+// preserved verbatim; Vue2 both lines already pure tokens (`var(--text-secondary)`/`var(--danger)`),
+// no bare-color fallback to strip.
+.mcp-label { display: block; margin: 0; color: var(--text-secondary); font-size: 13px; }
+.mcp-reveal-warn { color: var(--danger); font-size: 13px; line-height: 1.5; margin: 0; }
+
+// SP8-P2b Task 12 — ChannelsSection.vue (Vue2 sections/ChannelsSection.vue:387-410, scoped <style>).
+// Brief Step 3 literally said keep these rules in component's own <style scoped>, but phase-wide convention
+// (constraints §4, already applied twice above for .px-msg / .mcp-label+.mcp-reveal-warn) is zero-<style>
+// component; per constraints §0 the constraints doc overrides a brief written before reconciliation.
+// Deviation declared here + in component header. `.chan-x`/`.chan-x:hover` (close button) intentionally
+// NOT ported — folded into SkModal's own `.sk-x` (same precedent as `.mcp-x`). Values kept verbatim:
+// Vue2's rules already token-only (var(...)); nothing to strip.
+.chan-bot { color: var(--text-tertiary); margin-left: 6px; }
+.chan-model-lbl { color: var(--text-secondary); }
+.chan-switch { display: inline-flex; align-items: center; gap: 6px; margin: 0 12px; font-size: 13px; color: var(--text-secondary); }
+.chan-modal-warn { color: var(--danger); font-size: 13px; line-height: 1.5; margin: 0; }
+.chan-modal-hint { color: var(--text-secondary); font-size: 13px; line-height: 1.55; margin: 0; }
+.chan-type-row { display: flex; gap: 8px; }
+.chan-type-opt { padding: 7px 14px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-canvas); color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all 120ms ease; }
+.chan-type-opt[data-active="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-softer); }
+.chan-field-hint { margin: 6px 0 0; font-size: 12px; color: var(--text-tertiary); line-height: 1.5; }
+// [Declared deviation from Vue2 1:1; user decided 2026-07-30] Add-bot failure inline error, replacing
+// Vue2's danger toast. Rendered before token <input>, so margin on bottom. Font size/line height match
+// field's .chan-field-hint; only color changed to --danger (has values in both themes).
+.chan-field-err { margin: 0 0 6px; font-size: 12px; color: var(--danger); line-height: 1.5; }
+.chan-invite { margin-left: 10px; font-size: 12.5px; color: var(--accent); }
+// Feishu channel card status lines (settings parity 2026-08-24, Vue2 :510-511).
+.chan-lark-degraded { color: var(--danger); }
+.chan-lark-connecting { color: var(--text-secondary); }
+
+/* ---------- Card with internal toolbar ---------- */
+.set-cardhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px 14px 18px; border-bottom: 1px solid var(--line-faint); }
+.set-cardhead .t { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.set-cardhead .ct { font-size: 12px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.set-cardhead .sp { flex: 1; }
+.set-minibtn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 500; color: var(--text-secondary); background: var(--bg-chip); border: 1px solid var(--line-faint); transition: all 120ms ease; cursor: pointer; }
+.set-minibtn:hover { background: var(--line); color: var(--text-primary); }
+
+/* ---------- Table ---------- */
+.set-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.set-table thead th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); padding: 10px 16px; background: var(--bg-sunken); border-bottom: 1px solid var(--line-faint); }
+.set-table tbody td { padding: 13px 16px; border-top: 1px solid var(--line-faint); vertical-align: middle; color: var(--text-primary); }
+.set-table tbody tr:first-child td { border-top: 0; }
+.set-table tbody tr:hover td { background: var(--bg-chip); }
+.set-table .mono { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: -0.01em; word-break: break-all; }
+.set-table .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
+.set-table th.num { text-align: right; }
+.set-table .act, .set-table th.act { text-align: right; white-space: nowrap; }
+.set-table .row-actions { display: inline-flex; gap: 6px; justify-content: flex-end; }
+.set-proto { font-size: 10.5px; font-weight: 600; font-family: var(--font-mono); padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.set-tbtn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: var(--r-sm); font-size: 12px; font-weight: 500; border: 1px solid var(--line); background: var(--bg-elevated); color: var(--text-secondary); transition: all 120ms ease; cursor: pointer; }
+.set-tbtn:hover { border-color: var(--accent); color: var(--accent); }
+.set-tbtn.danger { color: var(--danger); border-color: rgba(255,59,48,0.28); background: rgba(255,59,48,0.06); }
+.set-tbtn.danger:hover { background: rgba(255,59,48,0.13); border-color: rgba(255,59,48,0.4); }
+
+/* ---------- Select ---------- */
+.set-select { appearance: none; -webkit-appearance: none; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 34px 8px 12px; font-size: 13px; font-family: var(--font-sans); background-color: var(--bg-canvas); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20' fill='none' stroke='%239C988E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 7l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 11px center; color: var(--text-primary); cursor: pointer; outline: none; transition: all 120ms ease; }
+.set-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-softer); }
+.set-row .val .set-select { min-width: 200px; }
+
+/* ---------- Inline add field ---------- */
+.set-addrow { display: flex; gap: 8px; padding: 14px 18px; align-items: flex-start; }
+.set-addrow .set-input { flex: 1; }
+.set-addbtn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 500; background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgba(0,122,255,0.22); flex-shrink: 0; transition: all 120ms ease; cursor: pointer; border: 0; }
+.set-addbtn:hover { background: var(--accent-hover); }
+.set-addbtn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.set-addbtn.ghost { background: var(--bg-chip); color: var(--text-secondary); box-shadow: none; border: 1px solid var(--line-faint); }
+.set-addbtn.ghost:hover { background: var(--line); color: var(--text-primary); }
+
+/* ---------- Read-only pattern chips (filesystem) ---------- */
+.fs-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 16px 18px; }
+.fs-chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11.5px; padding: 5px 10px; border-radius: 8px; background: var(--bg-sunken); border: 1px solid var(--line-faint); color: var(--text-secondary); white-space: nowrap; }
+.fs-chip .lk { color: var(--text-quaternary); flex-shrink: 0; }
+.fs-empty { padding: 18px; font-size: 13px; color: var(--text-tertiary); }
+.fs-userrow { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--line-faint); }
+.fs-userrow:first-child { border-top: 0; }
+.fs-userrow .pat { flex: 1; font-family: var(--font-mono); font-size: 12.5px; color: var(--text-primary); }
+
+/* ---------- Download progress banner (Models import) ---------- */
+.dl-banner { padding: 12px 16px; background: var(--accent-softer); border-bottom: 1px solid var(--line-faint); }
+.dl-banner.error { background: rgba(215,73,59,0.06); border-bottom-color: rgba(215,73,59,0.15); }
+.dl-banner.success { background: rgba(46,158,84,0.06); border-bottom-color: rgba(46,158,84,0.15); }
+.dl-banner-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.dl-banner-title { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--accent); }
+.dl-banner.error .dl-banner-title { color: var(--danger); }
+.dl-banner.success .dl-banner-title { color: var(--success); }
+.dl-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: dlPulse 1.4s ease-in-out infinite; }
+.dl-banner.error .dl-dot, .dl-banner.success .dl-dot { animation: none; }
+@keyframes dlPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.dl-filename { font-size: 12px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; margin-bottom: 6px; }
+.dl-prog-track { background: var(--bg-chip); border-radius: 99px; height: 4px; overflow: hidden; margin-bottom: 5px; }
+.dl-prog-fill { background: var(--accent); border-radius: 99px; height: 4px; transition: width 0.6s ease; }
+.dl-stats { font-size: 11px; color: var(--text-tertiary); display: flex; gap: 10px; flex-wrap: wrap; }
+.dl-stats b { color: var(--accent); font-weight: 600; }
+.dl-warn { display: flex; align-items: center; gap: 6px; margin-top: 7px; padding: 5px 9px; border-radius: 6px; background: rgba(200,134,10,0.09); font-size: 11px; color: var(--warning); font-weight: 500; }
+.dl-cancel-btn { font-size: 11px; color: var(--danger); background: rgba(215,73,59,0.07); border: 1px solid rgba(215,73,59,0.2); border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+.dl-cancel-btn:hover { background: rgba(215,73,59,0.13); }
+
+/* ---------- HF results (Models) ---------- */
+.hf-results { display: flex; flex-direction: column; gap: 4px; padding: 8px 18px 14px; max-height: 240px; overflow-y: auto; }
+.hf-repo { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-elevated); border: 1px solid var(--line-faint); border-radius: var(--r-sm); font-size: 13px; cursor: pointer; text-align: left; color: var(--text-primary); }
+.hf-repo:hover { background: var(--bg-chip); }
+.hf-repo[data-active="true"] { border-color: var(--accent); background: var(--accent-softer); }
+.hf-repo > :first-child { flex: 1; font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+.hf-meta { color: var(--text-tertiary); font-size: 11px; white-space: nowrap; }
+.hf-files-area { padding: 0 18px 14px; }
+.hf-files-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; color: var(--text-secondary); }
+.hf-files-header > :first-child { flex: 1; font-family: var(--font-mono); word-break: break-all; }
+.hf-file { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line-faint); font-family: var(--font-mono); font-size: 12px; }
+.hf-file:last-child { border-bottom: 0; }
+.hf-file > :first-child { flex: 1; word-break: break-all; }
+
+/* loading/empty inside cards */
+.set-note { padding: 22px 18px; font-size: 13px; color: var(--text-tertiary); text-align: center; }
+
+/* ---------- Provider inline form ---------- */
+.set-form { padding: 16px 18px; }
+.set-form .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.set-form .preset-chip { padding: 5px 12px; border-radius: 999px; background: var(--bg-chip); border: 0; font-size: 12px; color: var(--text-secondary); cursor: pointer; transition: all 120ms ease; }
+.set-form .preset-chip:hover { background: var(--accent-soft); color: var(--accent); }
+.set-form .field { margin-bottom: 14px; }
+.set-form .field label { display: block; font-size: 12px; font-weight: 550; color: var(--text-secondary); margin-bottom: 5px; }
+.set-form .field .help { font-size: 11px; color: var(--text-tertiary); margin-top: 5px; }
+.set-form .radio-row { display: flex; gap: 16px; }
+.set-form .radio-option { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+
+/* ---------- Provider expandable model panel ---------- */
+.pm-panel { padding: 6px 16px 14px; background: var(--bg-sunken); }
+.pm-head { display: flex; align-items: center; gap: 8px; padding: 8px 2px; font-size: 12px; color: var(--text-secondary); }
+.pm-head .sp { flex: 1; }
+.pm-list { list-style: none; margin: 0; padding: 0; }
+.pm-item { display: flex; align-items: center; gap: 8px; padding: 8px 6px; border-top: 1px solid var(--line-faint); font-size: 13px; }
+.pm-item .nm { flex: 1; font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+.pm-item .src { font-size: 10.5px; color: var(--text-tertiary); background: var(--bg-chip); padding: 1px 7px; border-radius: 999px; }
+
+/* ===== Scoped overrides — keep confined to .set-app ===== */
+.set-app {
+  button { background: transparent; border: 0; color: inherit; cursor: pointer; font: inherit; }
+
+  .icon-btn {
+    width: 32px; height: 32px;
+    display: inline-grid; place-items: center;
+    border-radius: 9px;
+    color: var(--text-secondary);
+    transition: background 100ms ease, color 100ms ease;
+    &:hover { background: var(--bg-chip); color: var(--text-primary); }
+  }
+
+  // Vue2 original comment said this suppresses Bulma global `code` style (white bg red text; in dark mode
+  // shows white frame). This repo has no Bulma, that motivation gone; rule kept because it gives <code> a
+  // design-system-consistent look; deleting would let future <code> run in browser default styles bare.
+  code { background: var(--bg-chip); color: var(--text-primary); font-family: var(--font-mono); border-radius: 5px; padding: 1px 6px; }
+
+  // Raw inputs that don't carry a .set-* class still need theming, or the
+  // browser-default white background shows through in dark mode.
+  input[type="text"]:not(.set-input), input[type="number"]:not(.set-input),
+  input[type="password"]:not(.set-input), input[type="search"]:not(.set-input),
+  input[type="url"]:not(.set-input), input:not([type]):not(.set-input),
+  textarea:not(.set-input) {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border: 1px solid var(--line); border-radius: var(--r-sm);
+    padding: 6px 10px; font-size: 13px; outline: none;
+  }
+}
+
+/* responsive */
+@media (max-width: 720px) {
+  .set-app { grid-template-columns: 60px 1fr; }
+  .set-rail-title, .set-rail-sub, .set-nav-item span:not(.set-nav-badge), .set-foot .txt { display: none; }
+  .set-nav-item { justify-content: center; padding: 9px; }
+  .set-nav-item .set-nav-badge { display: none; }
+  /* Icon-only rail: drop group headers, always show every item. */
+  .set-nav-grouphead { display: none; }
+  .set-nav-group + .set-nav-group { margin-top: 2px; }
+  .set-nav-groupbody { display: flex !important; }
+  .set-status { display: none; }
+}
+
+/* ── Toolbox section (ported from Vue2 ToolboxSection <style scoped>) ── */
+.tok-row.unmanaged { opacity: 0.65; }
+/* `.set-app`-prefixed: it is a BUTTON and must outrank the `.set-app button`
+   reset above (0,1,1) — bare `.tok-noop` (0,1,0) would lose its chip look.
+   Guarded in settingsStyles.test.ts. */
+.set-app .tok-noop { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 500;
+  color: var(--text-tertiary); background: var(--bg-chip); border: 0; cursor: default; }
+.tox-err { font-size: 11.5px; color: var(--danger); margin-top: 2px; }
+.tox-spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--text-quaternary);
+  border-top-color: var(--text-secondary); display: inline-block; animation: tox-spin 0.7s linear infinite; }
+@keyframes tox-spin { to { transform: rotate(360deg); } }
+
+/* ── Lark (Feishu) binding section (ported from Vue2 LarkSection <style scoped>) ── */
+.lark-cta { padding: 22px 18px; }
+.lark-flow { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.lark-waiting { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.lark-spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--text-quaternary);
+  border-top-color: var(--text-secondary); display: inline-block; animation: lark-spin 0.7s linear infinite; flex-shrink: 0; }
+@keyframes lark-spin { to { transform: rotate(360deg); } }
+.lark-open { display: flex; }
+.lark-failed { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.lark-tb-link { color: var(--accent); margin-left: 4px; }
+.lark-log { margin: 0 18px 16px; font-size: 12px; color: var(--text-tertiary); }
+.lark-log summary { cursor: pointer; }
+.lark-log pre { white-space: pre-wrap; word-break: break-word; background: var(--bg-sunken);
+  border: 1px solid var(--line-faint); border-radius: var(--r-sm); padding: 10px 12px; margin-top: 8px; }
+.lark-status { font-size: 13px; color: var(--text-secondary); margin: 0; }
+.lark-status.err { color: var(--danger, #d33); }

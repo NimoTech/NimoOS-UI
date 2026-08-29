@@ -1,0 +1,764 @@
+// SP8-P3a Task 1 — Read-only section, 1:1 extracted from Vue2 `src/views/AI/Skills/skills-styles.scss`
+// (782 lines). This file only contains classes used in the "read-only half"; dialogs/toggles/menus/test panel/
+// confirm boxes/toasts and other interactive elements are assigned elsewhere or left for P3b (see task spec
+// §1.1 row-by-row selection table; brief has verified which classes belong to `sk-shared.scss`/
+// `settings-styles.scss`; this file does not duplicate those definitions).
+//
+// [Token base] Same as sk-shared.scss/settings-styles.scss: tokens are provided by the `.agent-app` root
+// element of SettingsPage.vue; this file does not duplicate token definitions.
+//
+// [Bare color handling] This file is a **new file**, not on the "file-level portage exemption list" registered
+// in the tokens.scss header (that list only registers settings-styles.scss / sk-shared.scss), so all bare colors
+// are replaced with existing tokens in this repo. When no semantic match is found and a direct copy would
+// violate the color-guard convention, use `color-mix(in srgb, var(--X) N%, transparent)` to derive
+// semi-transparent colors from existing semantic tokens. This is not creating new literals; it reuses the
+// approach already established in tokens.scss itself at `--icon-tile-glow`
+// (`color-mix(in srgb, var(--accent) 22%, transparent)`). The benefit is that the original transparency ratio
+// from Vue2 is preserved exactly, while substituting this repo's revised semantic hues (this repo's
+// --success/--warning have shifted from old iOS colors to warm palette; the values no longer match Vue2
+// digit-for-digit, but the semantics are the same). Bare color mappings for each rule are documented in
+// inline comments next to the rules below.
+
+// ----- Middle: skill list column -----
+// Vue2 skills-styles.scss:5-12
+.sk-col {
+  background: var(--bg-canvas);
+  border-right: 1px solid var(--line-faint);
+  display: flex; flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+// Vue2 skills-styles.scss:13-25
+.sk-col-head {
+  height: 60px;
+  padding: 0 22px;
+  display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--line-faint);
+  background: var(--glass-strong);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  flex-shrink: 0;
+}
+// `.sk-col-title` (Vue2:26-31) not ported — zero repo references, Vue2 dead CSS (brief §1.1).
+
+// Vue2 skills-styles.scss:32-45
+.sk-col-search {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
+  margin: 10px 12px 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-sm);
+  input {
+    border: 0; outline: none; background: transparent;
+    font-size: 13px; width: 100%;
+    color: var(--text-primary);
+  }
+}
+
+// Vue2 skills-styles.scss:46-60
+.sk-group-label {
+  display: flex; align-items: center; gap: 6px;
+  padding: 14px 18px 6px;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  cursor: pointer; user-select: none;
+}
+.sk-group-chev {
+  transition: transform 160ms ease;
+  color: var(--text-quaternary);
+  display: inline-flex;
+}
+.sk-group-label[data-collapsed="true"] .sk-group-chev { transform: rotate(-90deg); }
+// Vue2 skills-styles.scss:61-70
+.sk-group-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-quaternary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 500;
+}
+
+// Vue2 skills-styles.scss:71-76
+.sk-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 16px;
+  min-height: 0;
+}
+// Vue2 skills-styles.scss:77-92
+.sk-item {
+  position: relative;
+  padding: 9px 12px 10px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-bottom: 1px;
+  transition: background 100ms ease;
+  &:hover { background: var(--bg-chip); }
+  &[data-active="true"] {
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-xs);
+  }
+  &[data-disabled="true"] { opacity: 0.55; }
+}
+
+// Vue2 skills-styles.scss:93-102
+.sk-tile {
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  display: grid; place-items: center;
+  // Vue2 skills-styles.scss:97 originally pure white foreground (icon text color on colored gradient bg).
+  color: var(--text-on-accent);
+  flex-shrink: 0;
+  margin-top: 1px;
+  // Vue2 skills-styles.scss:100 originally semi-transparent white inner stroke glow — exactly matches
+  // existing --gloss-inset token values (colored tile + white inner stroke precedent in McpCallCard.vue
+  // `.mcc-call-tile`); reuse directly.
+  box-shadow: var(--gloss-inset);
+}
+
+// Vue2 skills-styles.scss:103-152
+.sk-item-body { flex: 1; min-width: 0; }
+.sk-item-head { display: flex; align-items: center; gap: 6px; }
+.sk-item-name {
+  font-size: 13px; font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  letter-spacing: -0.005em;
+}
+.sk-item-tag {
+  font-size: 10px; font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-chip);
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  &[data-kind="auto"] { background: var(--accent-soft); color: var(--accent); }
+  // Vue2 skills-styles.scss:120 originally purple semi-transparent background (~ 12% transparency) —
+  // that color is exactly this repo's --purple itself (color values match precisely); use color-mix to
+  // reproduce the same transparency exactly without creating new literals.
+  &[data-kind="slash"] { background: color-mix(in srgb, var(--purple) 12%, transparent); color: var(--purple); }
+  // Vue2 skills-styles.scss:121 originally iOS orange semi-transparent background (~ 14% transparency) —
+  // this repo's --warning has shifted from old iOS orange to warm palette orange; the hue is different.
+  // Per this repo's established convention of "use current semantic color while preserving original
+  // transparency ratio" (see tokens.scss --purple-soft series explanation), derive via color-mix.
+  &[data-kind="manual"] { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+}
+.sk-item-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sk-item-meta {
+  margin-top: 6px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11px;
+  color: var(--text-quaternary);
+  .sep { width: 2px; height: 2px; border-radius: 50%; background: var(--text-quaternary); }
+}
+.sk-item-off {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-chip);
+  color: var(--text-tertiary);
+}
+
+// Vue2 skills-styles.scss:153-163 — in-place implementation (scoped to `.set-app` for same reason as Vue2:
+// override `.set-app button { background: transparent }` reset; see this repo's settings-styles.scss:344;
+// specificity (0,1,1) < here (0,2,0)).
+.set-app .sk-add-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: var(--accent);
+  // [Coordinator pre-disambiguates ①] Vue2 skills-styles.scss:158 original already has pure white foreground
+  // declaration (not missing; this repo bans color literals, so it needs to be de-colored into a token) —
+  // white text on solid accent button; reuse existing `--text-on-accent` (has values in both themes;
+  // tokens.scss:59,267); same handling as .sk-pill-try:hover(:246) in this file. Task 8 will place AgentIcon
+  // in this button and not pass an explicit color (uses currentColor inheritance); this color declaration
+  // is its foreground-color source.
+  color: var(--text-on-accent);
+  cursor: pointer;
+  transition: all 120ms ease;
+  box-shadow: var(--shadow-sm);
+  &:hover { background: var(--accent-hover); transform: translateY(-1px); }
+}
+
+// Vue2 skills-styles.scss:164-177
+.sk-col-empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  code {
+    background: var(--bg-chip);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+}
+
+// ----- Right: skill detail -----
+// Vue2 skills-styles.scss:178-185
+.sk-detail {
+  display: flex; flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-canvas);
+  position: relative;
+}
+// Vue2 skills-styles.scss:186-210
+.sk-detail-bar {
+  height: 56px;
+  padding: 0 18px;
+  display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--line-faint);
+  background: var(--bg-canvas);
+  flex-shrink: 0;
+  position: sticky; top: 0;
+  z-index: 5;
+}
+.sk-name {
+  font-size: 17px; font-weight: 600;
+  letter-spacing: -0.015em;
+  display: flex; align-items: center; gap: 8px;
+  flex: 1; min-width: 0;
+  code {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    background: var(--bg-chip);
+    padding: 2px 7px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+}
+// Vue2 skills-styles.scss:211-224
+.sk-pill-try {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px; font-weight: 500;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-soft);
+  transition: all 120ms ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  // Vue2 skills-styles.scss:223 originally pure white (hover inverts to white text on solid --accent bg).
+  &:hover { background: var(--accent); color: var(--text-on-accent); }
+}
+
+// Vue2 skills-styles.scss:225-234 — no color literals; ported as-is.
+.sk-pill-more {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  &:hover { background: var(--bg-chip); color: var(--text-primary); }
+}
+
+// `.sw` (Vue2:235-259) first work step grep verification: confirmed already exists in sk-shared.scss:66-88
+// (SP8-P2a Task 6 already ported, including color handling for --switch-thumb/--switch-thumb-shadow tokens);
+// not redefining.
+
+// Vue2 skills-styles.scss:260-288
+.sk-menu {
+  position: absolute;
+  top: 38px; right: 0;
+  width: 220px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  z-index: 10;
+  transform-origin: top right;
+  button {
+    width: 100%;
+    text-align: left;
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    font-size: 13px; font-weight: 500;
+    color: var(--text-primary);
+    transition: background 100ms ease;
+    &:hover { background: var(--bg-chip); }
+    &[data-danger="true"] {
+      color: var(--danger);
+      // Vue2 skills-styles.scss:283 originally iOS red ~ 8% transparency background literal —
+      // this file's unified convention (header explanation + .sk-item-tag data-kind="manual"/"slash"
+      // precedent, this file :146,151): derive equal-ratio transparency from current semantic color --danger
+      // via color-mix; do not create new literals.
+      &:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+    }
+  }
+  hr { border: 0; border-top: 1px solid var(--line-faint); margin: 4px 0; }
+}
+
+// Vue2 skills-styles.scss:289-301
+.sk-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 22px 80px;
+  min-height: 0;
+}
+.sk-detail-inner {
+  max-width: 820px;
+  margin: 0 auto;
+  display: flex; flex-direction: column;
+  gap: 22px;
+}
+
+// Vue2 skills-styles.scss:302-337
+.sk-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+}
+@media (max-width: 1100px) {
+  .sk-meta-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.sk-meta-cell {
+  .lbl {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    font-weight: 600;
+  }
+  .val {
+    margin-top: 4px;
+    font-size: 14px; font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: -0.005em;
+    display: flex; align-items: center; gap: 6px;
+    // [Non-Vue2 CSS original; new in this task] Vue2's `.dot` has no base color rules — enabled state's
+    // green dot + glow is built on-the-fly in SkillDetail.vue:67-72 via inline `:style` (bg uses --success
+    // token, glow ring is old iOS green semi-transparent literal); only disabled state has corresponding
+    // `[data-disabled="true"] .dot` static rule in Vue2 CSS (see below). Task 5 will replace inline style
+    // with this repo's `data-` attribute approach; here we first add enabled state as static rule too, so
+    // both states can use same CSS overrides without waiting for Task 5 to build inline styles. Glow ring
+    // color: Vue2's inline literal is old iOS green (~ 18% transparency); this repo has no byte-identical
+    // token; per this file's convention use color-mix to derive equal-ratio transparency from current
+    // semantic color --success.
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
+    }
+    &[data-disabled="true"] {
+      color: var(--text-tertiary);
+      // Vue2 skills-styles.scss:332 originally quaternary-gray solid dot + gray glow ring (~ 12% transparency) —
+      // this repo has no "quaternary-gray semi-transparent" token; similarly derive from --text-quaternary via
+      // color-mix; do not create new literals or tokens.
+      .dot { background: var(--text-quaternary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-quaternary) 12%, transparent); }
+    }
+    .total { color: var(--text-tertiary); font-size: 12px; font-weight: 400; }
+  }
+}
+
+// `.sk-section*` (338-354) already exists in sk-shared.scss:12-27; not redefining.
+
+// Vue2 skills-styles.scss:355-361
+.sk-description {
+  padding: 16px 18px;
+  font-size: 14px; line-height: 1.6;
+  color: var(--text-primary);
+}
+
+// Files list
+// Vue2 skills-styles.scss:362-391
+.sk-file-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line-faint);
+  font-size: 13px;
+  &:first-child { border-top: 0; }
+  .ico {
+    width: 24px; height: 28px;
+    border-radius: 4px;
+    // Vue2 skills-styles.scss:371 originally pure white bg (file icon "paper" sheet bg) — exactly matches
+    // existing --paper-surface token (exception token registered specifically for this type of "white sheet"
+    // file icon); reuse directly.
+    background: var(--paper-surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-xs);
+    flex-shrink: 0;
+    position: relative;
+    &::after {
+      content: ""; position: absolute; top: 0; right: 0;
+      width: 7px; height: 7px;
+      border-bottom-left-radius: 2px;
+      background: linear-gradient(225deg, transparent 50%, var(--line) 50%);
+    }
+  }
+  .name { flex: 1; font-weight: 500; }
+  .size {
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+}
+
+// Test panel
+// Vue2 skills-styles.scss:392-398
+.sk-test {
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+// Vue2 skills-styles.scss:399-404
+.sk-test-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-faint);
+  background: var(--bg-canvas);
+}
+// Vue2 skills-styles.scss:405-413
+.sk-test-pill {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+// Vue2 skills-styles.scss:414-415
+.sk-test-title { font-size: 13px; font-weight: 600; }
+.sk-test-sub { font-size: 11px; color: var(--text-tertiary); }
+
+// Vue2 skills-styles.scss:417-444
+.sk-test-body { padding: 14px; }
+.sk-test-input {
+  display: flex; gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-canvas);
+  border: 1px solid var(--line);
+  textarea {
+    flex: 1;
+    border: 0; outline: none; background: transparent; resize: none;
+    font-family: var(--font-sans);
+    font-size: 13px; line-height: 1.5;
+    color: var(--text-primary);
+    min-height: 36px;
+  }
+  button {
+    align-self: flex-end;
+    padding: 6px 12px;
+    font-size: 12px; font-weight: 500;
+    border-radius: var(--r-sm);
+    background: var(--accent);
+    // Vue2 skills-styles.scss:438 originally pure white foreground (white text on solid accent button;
+    // same scenario as .sk-add-btn/.sk-pill-try:hover). Reuse existing --text-on-accent.
+    color: var(--text-on-accent);
+    display: inline-flex; align-items: center; gap: 5px;
+    flex-shrink: 0;
+    cursor: pointer;
+    &[disabled] { background: var(--bg-chip); color: var(--text-quaternary); cursor: not-allowed; }
+  }
+}
+// Vue2 skills-styles.scss:445-479
+.sk-test-result {
+  margin-top: 12px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  .label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    font-weight: 600;
+    margin-bottom: 8px;
+    .bullet {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--success);
+      // Vue2 skills-styles.scss:465 originally iOS green ~ 18% transparency glow ring literal —
+      // exactly the same family and ratio as .sk-meta-cell "enabled" state glow ring (this file :302-306);
+      // similarly derive from --success via color-mix.
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
+    }
+    &[data-state="running"] .bullet {
+      background: var(--accent);
+      animation: skill-pulse 1.4s ease-in-out infinite;
+    }
+    // SP8-P3b Task 4 — failed state. Vue2 TestPanel.vue:92-98 implemented via inline template styles:
+    // inline `color: var(--danger)` on `.label`, inline background + ~ 18% opacity iOS red glow ring on
+    // `.bullet` (literal rgba hardcoded; color is --danger token's current value) — the latter is literal
+    // rgba() and inline color itself violates this repo's color-constraint hard rule (public constraint §6);
+    // switch to static CSS branch: derive glow ring from --danger via color-mix; same family and ratio
+    // (18% opacity) as success state glow ring above :506-509.
+    &[data-state="failed"] {
+      color: var(--danger);
+      .bullet {
+        background: var(--danger);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+      }
+    }
+  }
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-faint);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .step-row {
+    display: flex; gap: 8px; align-items: flex-start;
+    margin: 4px 0;
+  }
+  .ex {
+    margin-top: 8px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+    button {
+      font-size: 11.5px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--line);
+      color: var(--text-secondary);
+      transition: all 120ms ease;
+      cursor: pointer;
+      &:hover { border-color: var(--accent); color: var(--accent); }
+    }
+  }
+  .footer-note {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-faint);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+}
+// Vue2 skills-styles.scss:508-511
+@keyframes skill-pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%     { opacity: 0.6; transform: scale(0.85); }
+}
+
+// SKILL.md preview
+// Vue2 skills-styles.scss:514-547
+.sk-md {
+  padding: 16px 18px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  pre {
+    background: var(--bg-sunken);
+    border: 1px solid var(--line-faint);
+    border-radius: var(--r-sm);
+    padding: 10px 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    overflow-x: auto;
+  }
+  h2, h3 {
+    font-size: 14px; font-weight: 600;
+    margin: 1.1em 0 0.3em;
+    letter-spacing: -0.005em;
+    &:first-child { margin-top: 0; }
+  }
+  code:not(pre code) {
+    background: var(--bg-chip);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  ul, ol { padding-left: 1.3em; margin: 0.4em 0; }
+  li { margin: 0.2em 0; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+  p { margin: 0.4em 0; }
+}
+
+// Empty detail
+// Vue2 skills-styles.scss:548-574
+.sk-detail-empty {
+  flex: 1;
+  display: grid; place-items: center;
+}
+.sk-detail-empty-inner {
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: var(--text-tertiary);
+  .orb {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: var(--grad-iri);
+    position: relative;
+    opacity: 0.6;
+    margin-bottom: 10px;
+    &::after {
+      content: "";
+      position: absolute; inset: 10px;
+      border-radius: 50%;
+      background: var(--bg-canvas);
+    }
+  }
+}
+
+// [SP8-P3a Full Review I1 — New-UI-specific regression, not Vue2 copy-paste drift; three-part explanation]
+// ① Vue2 original: `skills-styles.scss:570-571` (i.e., `.empty-title`/`.empty-sub` inside the
+//    `.sk-detail-empty-inner` block above; this file copied those two lines as-is from Vue2; selector
+//    `.sk-detail-empty-inner .empty-title` has specificity (0,2,0)). Vue2 template `Settings/Settings.vue:2`
+//    root node has only `class="set-app"`, no `agent-app`, so in Vue2 these two never collide with other
+//    rules at the same specificity.
+// ② New-UI `SettingsPage.vue:371` root node is `class="agent-app set-app"` (this repo's tokens defined
+//    in `.agent-app` scope; see header comment of this file); thus `agent-styles.scss:496-497`
+//    (Agent page empty state's own rules, P1 approved, cannot modify) `.agent-app .empty-title` /
+//    `.agent-app .empty-sub` are also (0,2,0), both firing at the same skill section empty-state elements.
+//    Same specificity can only win by luck based on `router/index.ts` import order; additionally, properties
+//    not declared in agent-styles (`letter-spacing`/`.empty-title`'s `margin`/`.empty-sub`'s `color`/`margin`)
+//    leak through directly, inconsistent with Vue2 visuals.
+// ③ Fix here: wrap selector with `.sk-detail` prefix, raising specificity to (0,3,0), **definitely**
+//    overriding agent-styles' (0,2,0) (no longer depends on import order); simultaneously neutralize the
+//    4 properties that would leak with Vue2's authoritative values — `.empty-title` has no letter-spacing/
+//    margin, reset to defaults `normal`/`0`; `.empty-sub` has no own color (inherits parent
+//    `.sk-detail-empty-inner`'s `--text-tertiary`; explicitly use `color: inherit` to ensure agent-styles'
+//    direct color declaration on this element doesn't steal it), margin resets to `0`.
+.sk-detail .sk-detail-empty-inner {
+  .empty-title {
+    font-size: 15px; font-weight: 600; color: var(--text-primary);
+    letter-spacing: normal; margin: 0;
+  }
+  .empty-sub {
+    font-size: 13px; max-width: 320px;
+    color: inherit; margin: 0;
+  }
+}
+
+// `.sk-modal*` (575-616) already exists in sk-shared.scss:96-136, `.sk-field*` (617-647) already exists
+// in sk-shared.scss:154-183, `.sk-modal-foot` (686-697) already exists in sk-shared.scss:139-150,
+// `.sk-btn` (698-726) already exists in sk-shared.scss:29-55; none are redefining here.
+
+// Vue2 skills-styles.scss:648-669 — no color literals; ported as-is.
+.sk-trig-options {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.sk-trig-option {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-canvas);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 120ms ease;
+  text-align: left;
+  &:hover { border-color: var(--line-strong); }
+  &[data-active="true"] {
+    border-color: var(--accent);
+    background: var(--accent-softer);
+    box-shadow: 0 0 0 3px var(--accent-softer);
+  }
+  .name { font-size: 13px; font-weight: 600; }
+  .desc { font-size: 11px; color: var(--text-tertiary); line-height: 1.35; }
+}
+
+// Vue2 skills-styles.scss:670-685
+.sk-color-row { display: flex; gap: 8px; align-items: center; }
+.sk-color-dot {
+  width: 28px; height: 28px;
+  border-radius: 9px;
+  cursor: pointer;
+  position: relative;
+  transition: transform 100ms ease;
+  // Vue2 skills-styles.scss:677 originally white ~ 20% transparency inner-stroke glow literal —
+  // same family as .sk-tile (this file :123) --gloss-inset (colored tile + white inner stroke glow);
+  // but Vue2's two literals have different opacity (~ 20% vs ~ 18%). Per this repo's existing convention
+  // (same family, different value → separate token to preserve exact original; precedent: tokens.scss:175-180
+  // --modal-scrim-soft relative to --modal-scrim) add --gloss-inset-dot; don't merge/reuse with --gloss-inset
+  // (would introduce visible opacity drift). See tokens.scss additions.
+  box-shadow: var(--gloss-inset-dot), var(--shadow-xs);
+  &:hover { transform: translateY(-1px); }
+  &[data-active="true"]::after {
+    content: ""; position: absolute; inset: -3px;
+    border-radius: 11px;
+    border: 2px solid var(--accent);
+  }
+  // [Deviation (public constraint §3 deviation 8, brief §1.2 second item)] Vue2 AddSkillModal.vue:61
+  // uses `:style="{ background: c.bg }"` inline to pass background literals (gradient strings) — this repo
+  // bans inline colors. Changed to `data-color` attribute + 7 static rules below; values from 7 `--grad-sk-*`
+  // tokens already created in P3a Task 1 (tokens.scss:228-234; grep verified existence and spelling).
+  // 7 IDs (blue/purple/pink/orange/green/teal/slate) from Vue2 SkillTile.vue:18-26 COLORS keys; one-to-one
+  // matching against this repo's SkillTile.vue SKILL_COLOR_IDS. Task 5 (AddSkillModal component) responsible
+  // for writing `:data-color="c.id"` on dot element.
+  &[data-color="blue"]   { background: var(--grad-sk-blue); }
+  &[data-color="purple"] { background: var(--grad-sk-purple); }
+  &[data-color="pink"]   { background: var(--grad-sk-pink); }
+  &[data-color="orange"] { background: var(--grad-sk-orange); }
+  &[data-color="green"]  { background: var(--grad-sk-green); }
+  &[data-color="teal"]   { background: var(--grad-sk-teal); }
+  &[data-color="slate"]  { background: var(--grad-sk-slate); }
+}
+
+// `.sk-toast` + `@keyframes sk-toast-rise` (727-753) never port — use global AppToast instead
+// (public constraint §3 deviation 3).
+
+// Vue2 skills-styles.scss:754-773 — no color literals; ported as-is.
+.sk-confirm { width: min(420px, 100%); }
+.sk-confirm-body {
+  padding: 22px 22px 8px;
+  text-align: left;
+  h3 { font-size: 16px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  p { font-size: 13px; color: var(--text-secondary); margin: 0; line-height: 1.5; }
+}
+.sk-confirm-skill {
+  margin-top: 12px;
+  padding: 10px 12px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-canvas);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  .skill-line { flex: 1; min-width: 0; }
+  .name { font-size: 13px; font-weight: 600; }
+  .runs { font-size: 11px; color: var(--text-tertiary); }
+}
+
+// Spinner (for list loading)
+// Vue2 skills-styles.scss:774-781
+.sk-spinner {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: sk-spin 700ms linear infinite;
+}
+@keyframes sk-spin { to { transform: rotate(360deg); } }

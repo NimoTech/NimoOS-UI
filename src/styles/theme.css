@@ -1,0 +1,1288 @@
+/* Global scrollbar: transparent track, translucent pale thumb, matching the dark glass UI
+   (reused wherever there's a scroll region -- search, file preview, Welcome, and more).
+   No longer relying on the browser's default dark-backed scrollbar. Only the WebKit and
+   Firefox (scrollbar-*) rule sets are needed to cover the target browsers. */
+/* Warning: the thumb color must be written as var(--scrollbar-thumb), never a literal --
+   this `*` rule pins the value explicitly on every element, and an element's own
+   declaration overrides the flipped value inherited from :root -- hardcoding a literal
+   would leave every internal scroll container in the light theme with a pale thumb sitting
+   on an equally pale track (invisible); and once an element sets scrollbar-color, Chrome
+   121+ ignores its ::-webkit-scrollbar-* pseudo-element styles entirely, so a WebKit-side
+   theme override can't rescue it either.
+   Guarded by: src/styles/scrollbarTheme.test.ts. */
+/* Critical: the thumb colour must be var(--scrollbar-thumb), never a literal. This `*` rule pins
+   the value explicitly onto every single element, and an element's own declaration beats the
+   flipped value inherited from :root — a hardcoded literal would leave every inner scroll
+   container in the light theme with a pale thumb on an equally pale track (invisible). On top of
+   that, once an element sets scrollbar-color, Chrome 121+ ignores its ::-webkit-scrollbar-*
+   pseudo-element styling entirely, so the webkit theme override cannot rescue it either.
+   Guard: src/styles/scrollbarTheme.test.ts. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; }
+*::-webkit-scrollbar-corner { background: transparent; }
+
+:root {
+  color-scheme: dark;
+  /* Global scrollbar thumb (referenced by the top `*` rule; the light theme block must
+     give it a value too, see THEMING.md §2.11) */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.28);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --num-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --stroke: 1.9;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --gap: clamp(12px, 1vw, 16px);
+  --blur: blur(44px) saturate(1.7) brightness(1.08);
+
+  --radius: 28px;
+  --radius-sm: 18px;
+  --radius-xs: 6px;
+  /* Percentage radius: scales proportionally to the element's own size (~22px/70px is the
+     default look); icons must stay square everywhere */
+  --icon-radius: 31%;
+
+  /* Shared, non-color structural metrics for the
+     Files topbar/list-head "chrome" row, pinned here ONCE and consumed by BOTH the real window
+     (src/views/Files.vue's own `.files-topbar`/`.files-list-head`/`.files-item-count`) and its
+     decorative Time Machine depth-stack replica (src/files/snapshot/SnapshotPreviewWindow.vue's
+     own `.tm-preview-window__chrome`/`__row2`/`__count`) -- so a promoted back panel's chrome
+     rows land at the EXACT same pixels as the just-revealed real window's, with nothing shifting
+     relative to anything else at the reveal instant (see timeMachineMath.ts's own
+     resolveSlotPose comment for the binding rule). This exact pair of files has drifted on
+     chrome metrics before -- a shared token makes another drift a build-time impossibility for
+     the values it covers, rather than another one-off audit. Breadcrumb.vue's own `.crumb` (the
+     LIVE breadcrumb) also consumes `--tm-crumb-*` below, even though it has nothing to do with
+     Time Machine by name -- it is simply the single real source of that geometry both TM chrome
+     and this token block describe; folding it in here (rather than leaving it as a fourth
+     un-pinned literal) closes the loop completely. See timeMachineDepthStackGeometryParity.test.ts
+     for the CI guard that fails if either consumer stops referencing these tokens. */
+  --tm-topbar-padding: 4px 0 14px; /* Files.vue `.files-topbar`, byte-for-byte */
+  --tm-crumb-font-size: 14px;
+  --tm-crumb-padding: 2px 4px;
+  --tm-crumb-gap: 4px;
+  --tm-crumb-sep-font-size: 12px;
+  --tm-list-head-padding: 10px 2px; /* Files.vue `.files-list-head`, byte-for-byte */
+  --tm-item-count-font-size: 12.5px;
+
+  /* One-step-up shadow while dragging (more "afloat") + folder glass + edit-mode grid dots */
+  --card-shadow-drag:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 10px 20px rgba(8, 12, 28, 0.3),
+    0 60px 90px -28px rgba(6, 10, 26, 0.85);
+  --folder-glass: linear-gradient(157deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.075));
+  --folder-mini: linear-gradient(150deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.22));
+  --grid-dot: rgba(255, 255, 255, 0.17);
+
+  --bg: #1a2138;
+  --fg: #ffffff;
+  --fg-muted: rgba(255, 255, 255, 0.74);
+  --fg-faint: rgba(255, 255, 255, 0.52);
+  --accent: #8ab4ff;
+  --accent2: #b79bff;
+  --good: #5fe3b0;
+  --on-accent: #16203a;
+  /* A dedicated app-level
+     PURPLE accent for the "New" dropdown button + its dependents (select-all fill, view-capsule
+     active half, dropdown-item hover tint) -- the mock's own literal `--accent: #7c3aed` /
+     `--accent-hover: #6d28d9`, NOT this block's generic blue `--accent` (other app surfaces
+     depend on that staying blue) and NOT `--tm-accent`/`--tm-accent-hover` below (that pair is
+     Time Machine chrome's own scoped token, semantically "TM subsystem accent" -- reusing it on a
+     plain toolbar button outside TM would blur that boundary, even though the literal hex happens
+     to match). Theme-invariant by owner ruling (same purple in both themes), same "identical
+     value in every theme block" convention `--tm-accent` already established just below.
+     `--on-purple-accent` (NOT `--on-accent`) is the text/icon color painted on top of
+     `--purple-accent` fills -- `--on-accent` is deliberately coupled to `--accent`'s own
+     per-theme luminance flip (dark navy text on the blue theme's pale accent, white text on the
+     light theme's deep accent) and would put unreadable dark-navy text on this always-dark
+     purple in the blue theme; `--purple-accent` is theme-invariant, so its own foreground token
+     is too -- same "own dedicated fg token, not the generic on-accent" precedent this file's
+     `--tm-entry-bg`/`--tm-entry-fg`/`--tm-entry-hover-bg` triplet below already sets for the
+     Snapshots entry pill (another theme-invariant filled pill outside the normal accent flip).
+     Guard: src/styles/__tests__/purpleAccentTokens.test.ts. */
+  --purple-accent: #7c3aed;
+  --purple-accent-hover: #6d28d9;
+  --on-purple-accent: #ffffff;
+
+  /* Extended/semantic tokens (promoted to global from SearchDialog/MediaViewer; every theme
+     gives these a value). See THEMING.md §2.12 */
+  --card: #232a45;
+  --border: rgba(255, 255, 255, 0.14);
+  --fg-subtle: rgba(255, 255, 255, 0.4);
+  --divider: rgba(255, 255, 255, 0.1);
+  --hover: rgba(255, 255, 255, 0.08);
+  --accent-text: #a9c6ff;
+  --grad-a: #7a98ff;
+  --grad-b: #b79bff;
+  /* Album no-cover gradient placeholder (PhotosAlbums.vue / PhotosAlbumDetail.vue each used
+     to have their own byte-for-byte copy of
+     linear-gradient(135deg, color-mix(accent 35%, panel-bg), accent); lifted into a token
+     to kill the duplication -- both sites now use this, see THEMING.md's plain semantic-token
+     usage outside the exceptions list). */
+  --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
+  /* Person avatar's third-tier fallback gradient fill (PersonAvatar.vue, SP7-P5). Aims to
+     match Vue2's five duplicated copies of
+     linear-gradient(135deg,#6E5BFF,#4A3BD1)/(135deg,#8950F2,#6c3bcd) (the two variants
+     already disagreed with each other; unified into a single token here). Mixes --accent
+     with darkening instead of hardcoding a fixed accent hue, keeping the "colors always go
+     through a token" line intact; the actual contrast math lives in PersonAvatar.vue's
+     top-of-file comment and the task report. */
+  --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
+  --accent-soft: rgba(138, 180, 255, 0.14);
+  --accent-soft-2: rgba(138, 180, 255, 0.24);
+  --accent-soft-bd: rgba(138, 180, 255, 0.36);
+  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
+     that used to sit here (confirmed zero consumers repo-wide). --place-thumb-active itself was
+     later removed for the same reason (re-verified zero consumers
+     repo-wide, both theme blocks) -- the comment this replaces described it as PlacesRail.vue's
+     selected-city row token, but that rule (`.rail-place.is-active:hover`, PlacesRail.vue's own
+     `<style scoped>`) actually blends `rgba(var(--accent-rgb), 0.10)` directly rather than
+     reading a dedicated token; --place-thumb-active was never wired to anything. */
+  /* Review I3 (Plan E final-fix): the seven --pin-* geo-pin tokens that used to live here have
+     moved to `src/photos/styles/vue2-parity/photos.scss`'s `.photos-root { }`/
+     `.photos-root.is-light { }` blocks — see that file for the values and rationale. They were
+     following this app's *global* light/dark theme while the map canvas/dots they sit on top of
+     follow Photos' own *private* theme, a dual-signal split that made "global light + photos
+     dark" (the default for light-app users, since photos defaults to dark) render pins in the
+     wrong palette. Confirmed via `/usr/bin/grep -rn 'pin-bg\|pin-stroke\|pin-active-bg\|
+     pin-pulse\|pin-cluster\|pin-glow' src/` that nothing outside Photos consumed these tokens,
+     so they were moved wholesale rather than left duplicated here. */
+  /* Vue2's original value #34c759 (the current-trip color, also used by the legend's fourth
+     group), the same value in both themes -- not reusing this repo's --good (that's a
+     teal-leaning #5fe3b0/#15754c, distinct from the iOS hue, an approximation rather than
+     an exact port). */
+  --place-current-trip: #34c759;
+  /* PlaceDetailPanel.vue (P6b-T3) "home base" marker color -- a new token, an exact port
+     of Vue2 photos-places.scss's inline `style="color:#c4b8ff"` (:1078). Deviation on
+     record (the brief literally asks for different values per theme: dark stays light
+     violet, light shifts toward a deeper tone, the same approach as --accent-text): here
+     it's changed to **the same value in both themes**, not following the app theme's
+     light/dark split -- it sits in exactly the same context as its neighbor
+     --place-current-trip (inside .ttl-region, layered over the hero's darkened cover
+     photo, and that scrim is itself pinned permanently dark regardless of whether the app
+     skin is dark or paper-toned); giving the light theme a deeper-violet version as the
+     brief literally asks would push that deep-violet text onto a permanently dark photo
+     gradient in the light app theme, a direct violation of this task's "hero foreground
+     color line". Not settling for --accent-text either: that token's semantics are
+     "lighter/more readable than accent" (an azure-leaning hue), while this one needs to be
+     the second status color paired alongside "current trip" (a violet-leaning hue) --
+     following the same swap-the-base-hue-but-not-the-semantics precedent as
+     --pin-cluster-stroke, except here even the alpha/exact color value is copied straight
+     from the Vue2 literal (theme-invariant, the same precedent as --place-current-trip). */
+  --place-home-base: #c4b8ff;
+  /* PlacesMap.vue (P6a-T6) land-dot-lattice CSS fallback color — theme-invariant, same value in
+     both theme blocks. Task 6 (Plan E, 2026-08-15) updated the literal from
+     rgba(255,255,255,0.10) to 0.30: Vue2 PR #106 (git show 78cf3335) raised this contrast twice
+     (0.10→0.20→0.30); this had been left stuck at the pre-#106 initial value and is now brought
+     up to the final value, an exact reproduction of Vue2 photos-places.scss:349's literal
+     `rgba(255,255,255,0.30)` (this view deliberately doesn't route through the --ink/text-color
+     family here, since this layer sits over the map preset's own dark canvas, independent of the
+     app theme).
+     Can't substitute this repo's --fg-faint: the dark --fg-faint is rgba(255,255,255,0.52)
+     (0.52 vs 0.30 — the land-dot lattice would then be bright enough to wash out --map-dot's
+     already-visited dots, whose dark final value is 0.32; 0.30 vs 0.32 is a deliberately narrow
+     but still-perceptible gap, and 0.52 would swamp it instead), and the light --fg-faint is an
+     opaque warm grey #9a958a (which would turn into an opaque grey block over the custom mode's
+     solid-black map canvas) — review I1 confirmed by hands-on testing that this failure path is
+     actually reachable (Vue2 :150/:137, the two most common paths, both have dotBg === null,
+     i.e. both fall through to this CSS fallback — not a rare branch). */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
+  /* PlacesZoomBar.vue (P6a-T8) vertical zoom slider's floating pill background -- a new
+     token, an exact port of Vue2 photos.scss:49 (the Vue 2 panel's shared global floating-bar/FAB
+     background, not something photos-places.scss defines on its own). This repo had no
+     equivalent "translucent floating toolbar background" token before -- --panel-bg (0.1),
+     --popup-bg (a gradient, ~0.9-0.95), and --tool-bg (0.16, an opaque flat color) all miss
+     this flat 0.85 magnitude, hence a new token rather than an approximation. */
+  --float-bg: rgba(20, 20, 28, 0.85);
+  /* Plan H Task 15 (2026-08-17): --zb-hover-bg/--zb-track-bg/--zb-thumb-shadow that used to be
+     defined here (PlacesZoomBar.vue's now-deleted local `<style scoped>` block; see that
+     file's own history comment) were removed as confirmed zero consumers repo-wide —
+     PlacesZoomBar.vue's `.map-zoombar` family is fully governed by
+     photos-places.scss:234-284 and its local `--ink`-based tokens instead. */
+  --sem-bg: rgba(95, 227, 176, 0.14); --sem-fg: #5fe3b0; --sem-bd: rgba(95, 227, 176, 0.35);
+  --dem-bg: rgba(240, 200, 120, 0.14); --dem-fg: #f0c878; --dem-bd: rgba(240, 200, 120, 0.32);
+  --nrm-bg: rgba(255, 255, 255, 0.08); --nrm-fg: rgba(255, 255, 255, 0.7); --nrm-bd: rgba(255, 255, 255, 0.16);
+  --hit-bg: rgba(255, 224, 138, 0.3); --hit-fg: #ffe08a;
+  --success: #5fe3b0;
+  --hl-star: #e8c06a;
+  /* Speaker palette (audio transcript/waveform, cycles through up to 5 hues; dark theme
+     uses the brighter set; avoids gold so it doesn't get confused with the star highlight) */
+  --spk-1: oklch(0.74 0.13 250);   /* azure */
+  --spk-2: oklch(0.72 0.13 305);   /* violet */
+  --spk-3: oklch(0.77 0.12 190);   /* cyan */
+  --spk-4: oklch(0.73 0.15 18);    /* coral */
+  --spk-5: oklch(0.79 0.14 150);   /* emerald */
+  --wave-none: var(--fg-subtle);   /* waveform: bars during silence/no speech */
+  --wave-dim: var(--fg-faint);     /* waveform: bars dimmed while filtering */
+  --remove-fg: #ff8a8a; --drop-bad: rgba(255, 80, 100, 0.12); --skeleton-bg: rgba(255, 255, 255, 0.06);
+  /* Usage bar's track background (SP12-T9 sidebar usage flyout). Not reusing --chip-bg:
+     in the paper theme it's a fully opaque #ffffff, which paints invisibly over an
+     equally pale-backed overlay. */
+  --usage-track: rgba(255, 255, 255, 0.16);
+  /* Warning/degraded semantics (SP7-P5: the face-recognition-disabled and Photos AI
+     backend-offline banners). Aligned with Vue2's #FF9F0A family; the dark theme takes
+     the original value directly, the light theme darkens the foreground for contrast
+     following this repo's existing --dem-* approach. */
+  --warn-fg: #ff9f0a;
+  --warn-bg: rgba(255, 159, 10, 0.08);
+  --warn-border: rgba(255, 159, 10, 0.32);
+
+  /* SP7-P7a-T15: the three colors for the search result card's top-left media-category
+     badge (.type-badge[data-type]) -- data-visualization category colors (a variant of
+     THEMING.md §0's third exception category: the same result set needs to tell "photo /
+     video / OCR hit" categories apart from each other, so the color semantics are "which
+     category" rather than "theme accent"). An exact port of Vue2 photos.scss:2768-2770's
+     literals, same value in both theme blocks -- doesn't follow the skin's light/dark
+     state, the same precedent as --place-current-trip/--console-bg (see THEMING.md §6 for
+     the same category of precedent). Not settling for --accent/--danger: those three are
+     parallel category labels, not an "emphasis" or "danger" semantic. */
+  --badge-photo: rgba(50, 190, 230, 0.9);   /* cyan */
+  --badge-video: rgba(255, 149, 10, 0.92);  /* amber */
+  --badge-ocr: rgba(16, 185, 129, 0.92);    /* emerald */
+
+  /* SP7-P8a-T3: settings page storage card's capacity bar segment colors
+     (PhotosStorageCard.vue, consumed by src/photos/util/storagePalette.ts's
+     STORAGE_SEG_COLORS) -- like the previous group, these are **data-visualization
+     category colors**: the same capacity bar needs to tell the four distinct data
+     segments videos/raw/ai/other apart, so the color semantics are "which data category"
+     rather than "theme accent". The photos segment reuses --accent, the thumbs segment
+     reuses --success (existing semantic tokens reused as-is, no new ones needed); these
+     four are Vue2-inline literals with no matching semantic token in this repo, hence new
+     ones. Dark theme is an exact port of Vue2 PhotosSettings.vue:320/321/323's literals;
+     light theme can't just copy the dark values -- videos' mid-tone and raw's soft pale
+     tint both wash out and blur the segment boundaries against this theme's fully opaque
+     --card-bg (#ffffff), so each is darkened/saturated to stay legible on a pale
+     background (the same established technique as --warn-fg's light-theme handling,
+     which darkens #FF9F0A to #96610a for contrast -- but these are three parallel
+     category labels rather than a single warning semantic, so each gets its own
+     independent value instead of borrowing --warn-fg). */
+  --photos-seg-video: #5e94ff;
+  --photos-seg-raw: #ff9ac2;
+  --photos-seg-ai: #ff9f0a;
+  /* The other segment's Vue2 original value is rgba(var(--ink),0.25) (an "alpha ramp that
+     follows the text color"), and this repo has no --ink RGB-triple token -- following the
+     same established base-hue-swap technique used elsewhere in this file: alpha is an
+     exact port of 0.25, RGB is swapped for this repo's --fg's actual decomposed value
+     (dark theme #ffffff -> 255,255,255). */
+  --photos-seg-other: rgba(255, 255, 255, 0.25);
+
+  /* P6 terminal/log console (terminal semantics are pinned dark, don't flip with the
+     theme; same value in both theme blocks, matching the old Vue2 implementation) */
+  --console-bg: #1e1e1e;
+  --console-fg: #d4d4d4;
+  /* Scrollbar thumb for permanently-dark-backed areas (monokai editor/logs/terminal): the
+     global scrollbar color flips with the theme, and in the light theme it would become a
+     dark thumb sitting on these permanently-dark backdrops (invisible) -- hence a
+     dedicated bright thumb here, same value in both themes */
+  --console-scroll-thumb: rgba(255, 255, 255, 0.32);
+  --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
+
+  /* Task 1 (Vue2-parity Time Machine rebuild): the full new token set, pixel-pinned to
+     Vue2's TimeMachineStage.vue scoped styles + the SnapshotSettingsModal/
+     RestoreDestinationModal/FileConflictDialog white-glass panel tokens (identical values
+     in all three files, confirmed by reading each). Owner ruling: Time Machine looks the
+     SAME in dark and light themes -- every token below carries the identical literal value
+     in both this block and the light block.
+     Guard: src/styles/__tests__/tmTokens.test.ts.
+     Final-review sweep (C2): the nine colleague-era --tm-bg/--tm-fg/--tm-fg-muted/
+     --tm-card-bg/--tm-card-bd/--tm-card-divider/--tm-card-shadow/--tm-rail/--tm-rail-sub
+     tokens that used to live here (each with a DIFFERENT value per theme block, unlike this
+     whole block's own rule) were deleted -- the colleague components that consumed them
+     (TimeMachineOverlay.vue, TimeMachineBar.vue, TimeMachineCrumbs.vue, TimeMachineCard.vue,
+     the colleague's own TimeMachineRail.vue) were themselves deleted in Task 6, and a
+     grep across src/ confirmed zero remaining references before removal. */
+  --tm-glass-bg: rgba(8, 10, 22, 0.35);
+  --tm-glass-blur: blur(24px) saturate(1.05);
+  --tm-rail-text: rgba(255, 255, 255, 0.62);
+  --tm-rail-text-dim: rgba(255, 255, 255, 0.55);
+  --tm-accent: #7c3aed;
+  --tm-accent-hover: #6d28d9;
+  --tm-accent-glow: rgba(124, 58, 237, 0.9);
+  --tm-bar-scrim: linear-gradient(to top, rgba(6, 9, 26, 0.75), rgba(6, 9, 26, 0.25), transparent);
+  --tm-panel-bg: rgba(255, 255, 255, 0.9);
+  --tm-panel-bg-solid: #ffffff;
+  --tm-panel-border: rgba(0, 0, 0, 0.06);
+  --tm-hairline: rgba(0, 0, 0, 0.06);
+  --tm-text: #1f2430;
+  --tm-text-dim: #6b7280;
+  --tm-ghost-border: rgba(0, 0, 0, 0.15);
+  --tm-ghost-hover-bg: rgba(0, 0, 0, 0.05);
+  --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
+  --tm-control-radius: 10px;
+  --tm-panel-blur: blur(20px) saturate(1.2);
+  /* The clone-backdrop media-placeholder DOM walk: Vue2's own `.tm-stage__clone-media-placeholder` literal (TimeMachineStage.vue:2936-2940,
+     `background: rgba(255, 255, 255, 0.08)`) -- the stand-in box `sanitizeClonedNode` swaps in for
+     every cloned `<video>`/`<canvas>` (a `cloneNode(true)` copy of either never preserves the
+     decoded frame/drawn bitmap, so left alone it would render as a dead black box behind the glass
+     -- see TimeMachineStage.vue's own `sanitizeClonedNode`/`captureClone` for the port this token
+     feeds). */
+  --tm-clone-media-placeholder-bg: rgba(255, 255, 255, 0.08);
+  /* Task 8 fix round: two more tokens, same "identical in both themes" rule as the rest of this
+     block. Pixel-pinned to Vue2 TimeMachineStage.vue's own literal `.tm-tick:hover` colors:
+     `--tm-rail-tick-hover` is the exact value `.tm-tick:hover .tm-tick__label { color }` and
+     `.tm-tick:hover .tm-tick__line { background }` both share; `--tm-rail-tick-manual` is
+     `.tm-tick__badge`'s own literal `color` (shown only on manual-type ticks -- Vue2 has no
+     equivalent auto/preop tick coloring to pin: `tm-tick--auto`/`tm-tick--preop` carry no CSS
+     rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
+  --tm-rail-tick-hover: #ffffff;
+  --tm-rail-tick-manual: #f6c760;
+  /* Final review (C2): the rail's resting tick colors used to read the colleague-era
+     --tm-rail/--tm-rail-sub tokens (deleted above), whose LIGHT block values were dark ink
+     (rgba(28,27,25,...)) -- near-invisible against the always-dark TM glass backdrop
+     (--tm-glass-bg/--tm-bar-scrim etc. are the same literal in both theme blocks, so the rail
+     sits on a dark surface regardless of app theme). `--tm-rail-tick` is Vue2's own EXACT
+     resting `.tm-tick__line` literal (`.tm-tick__line { background: rgba(255, 255, 255, 0.4) }`,
+     TimeMachineStage.vue). Sub-ticks are a New-UI-only decorative addition (Vue2 renders no
+     ticks between real snapshots -- see TimeMachineRail.vue's own header comment), so there is
+     no Vue2 literal to pin for `--tm-rail-tick-sub`; it is set to half `--tm-rail-tick`'s own
+     alpha (0.4 -> 0.2) so sub-ticks read as visibly fainter than main ticks without inventing an
+     unrelated color, and -- like every token in this block -- carries the identical value in
+     both theme blocks. */
+  --tm-rail-tick: rgba(255, 255, 255, 0.4);
+  --tm-rail-tick-sub: rgba(255, 255, 255, 0.2);
+  /* Task 9 (stepper + bottom bar): pixel-pinned to Vue2 TimeMachineStage.vue's own literal
+     `.tm-stepper__btn`/`.tm-stepper__time`/`.tm-bottom-bar__exit` colors (the `.tm-bottom-bar__restore`
+     button reuses --tm-accent/--tm-accent-hover above, already pinned -- no new token needed there).
+     `--tm-stepper-btn-bg`/`--tm-stepper-btn-hover-bg` are `.tm-stepper__btn`'s own literal
+     `background`/`&:hover:not(:disabled) background`. `--tm-chrome-text` is the plain white text/icon
+     color shared by `.tm-stepper__time`, `.tm-stepper__btn`'s icon, and both `.tm-bottom-bar__exit`/
+     `__restore` button text -- all four Vue2 rules declare the identical literal `color: #fff`.
+     `--tm-stepper-time-shadow` is `.tm-stepper__time`'s own literal `text-shadow`.
+     `--tm-bottom-bar-exit-bg`/`--tm-bottom-bar-exit-hover-bg` are `.tm-bottom-bar__exit`'s own literal
+     `background`/`&:hover background`. */
+  --tm-stepper-btn-bg: rgba(255, 255, 255, 0.16);
+  --tm-stepper-btn-hover-bg: rgba(255, 255, 255, 0.28);
+  --tm-chrome-text: #ffffff;
+  --tm-stepper-time-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+  --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
+  --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
+  /* Task 10 (entry pill): Vue2 FilePanel.vue's own entry button is Buefy's
+     `<b-button type="is-success" rounded size="is-small">` (Snapshots pill). Pixel-pinned by
+     resolving Buefy's own color pipeline for that repo's `$green: hsla(118, 70%, 45%, 1)` base
+     (see the Vue 2 panel's src/assets/scss/common/_variables.scss): Bulma's own `.is-success` rule
+     (bulma/sass/elements/button.sass) sets `background-color: $color`,
+     `color: findColorInvert($color)`, and `&:hover background-color: bulmaDarken($color, 2.5%)`
+     -- findColorInvert's own relative-luminance formula returns white for this green (luminance
+     ~0.396, below its 0.55 threshold), and bulmaDarken subtracts 2.5 percentage points of HSL
+     lightness (45% -> 42.5%). All three literal values below were computed from those exact
+     formulas, not eyeballed. */
+  --tm-entry-bg: #28c322;
+  --tm-entry-fg: #ffffff;
+  --tm-entry-hover-bg: #26b821;
+  /* Task 11 (SnapshotSettingsModal): pixel-pinned to Vue2 SnapshotSettingsModal.vue's own
+     $tm-chip-bg / paused-row+preop-badge amber / auto+preop history-dot / danger-button
+     literal SCSS values (that file's own <style> header comment). `--tm-chip-bg` is the mount
+     pill / group-count badge / auto-type badge shared translucent-black chip background.
+     `--tm-warn-text` is the paused-row warning text AND the preop badge text color (both
+     `#92400e`, amber-800, in Vue2). `--tm-warn-bg` is the preop badge background.
+     `--tm-warn-dot` is the preop history-dot fill. `--tm-dot-auto` is the auto history-dot
+     fill (deliberately its own token, not a reuse of --tm-text-dim, since Vue2 pins a
+     distinct #9ca3af there). `--tm-danger`/`--tm-danger-hover` are the ghost-red Delete
+     button's resting/hover text+border colors (`#dc2626`/`#b91c1c`); alpha variants (border,
+     hover fill) are derived from these two via `color-mix()` in the component itself rather
+     than adding more tokens. `--tm-switch-off-bg` is the pill switch's off-state track.
+     `--tm-panel-shadow` is the panel's own drop shadow. `--tm-switch-thumb-shadow` is the
+     switch knob's own drop shadow. `--tm-placeholder-text` is the manual-label input's
+     `::placeholder` color (Vue2 pins `#9ca3af` there too, same literal as --tm-dot-auto by
+     coincidence, but kept as its own token since the two serve unrelated elements). */
+  --tm-chip-bg: rgba(0, 0, 0, 0.05);
+  --tm-warn-text: #92400e;
+  --tm-warn-bg: rgba(245, 158, 11, 0.14);
+  --tm-warn-dot: #f59e0b;
+  --tm-dot-auto: #9ca3af;
+  --tm-danger: #dc2626;
+  --tm-danger-hover: #b91c1c;
+  --tm-switch-off-bg: rgba(0, 0, 0, 0.18);
+  --tm-panel-shadow: 0 24px 80px rgba(15, 20, 40, 0.28);
+  --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --tm-placeholder-text: #9ca3af;
+  /* Final review (Important 4, SnapshotActionBar rebuild): pixel-pinned to Vue2's own
+     `.operation-toolbar`/`.toolbar-item` literal SCSS values (_filebrowser.scss) --
+     `.snapshot-action-bar` reuses that same shared floating-pill toolbar look, unstyled itself
+     beyond its own `&__label`/`&__item--busy` rules. `--tm-action-bar-bg` is `.operation-toolbar`'s
+     own literal `background-color: rgb(49, 49, 54)`; `--tm-action-bar-item-hover-bg` is
+     `.toolbar-item:hover`'s own literal `background-color: rgb(86, 86, 90)`. Text/icon color
+     reuses `--tm-chrome-text` (already `#fff`, matching Vue2's own `has-text-white`) -- no new
+     token needed there. */
+  --tm-action-bar-bg: rgb(49, 49, 54);
+  --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
+  /* Pixel-pinned to Vue2's own remaining
+     TimeMachineStage.vue literals the earlier waves left on `--card-shadow-hi`/`--tm-text`/a
+     borrowed rail token instead of a dedicated one. `--tm-fwin-shadow` is `.tm-fwin--active`'s own
+     single-layer `box-shadow` (3198), replacing the generic 3-layer `--card-shadow-hi` (with its
+     inset highlight Vue2 never has on this element). `--tm-depth-dim` is `.tm-stage__depth-strip__
+     dim`'s own literal `background: #000` (3081, pure black, not `--tm-text`'s navy-grey).
+     `--tm-gear-text` is `.tm-stage__gear`'s own resting `color` (3260) -- hover reuses the existing
+     `--tm-chrome-text` (#fff), same literal as Vue2's own hover `color: #ffffff` (3262), so no
+     separate hover token was needed. `--tm-rail-skeleton` is `.tm-tick-skeleton`'s own literal
+     `background` (3403) -- kept distinct from `--tm-rail-tick-sub` (0.2 alpha, the sub-tick's own
+     resting color) since Vue2 pins a different alpha (0.28) for the loading placeholder than for
+     any real tick.
+     This block used to ALSO define `--tm-depth-shadow: 0 6px 18px rgba(5,8,30,0.3)` -- Vue2's own,
+     genuinely weaker, `.tm-stage__depth-strip` box-shadow (3042), distinct from this fwin shadow's
+     `0 18px 50px @0.45`. Since the depth-0 strip sits pixel-for-pixel underneath the real window
+     (D2's own geometry-parity tests) and is only ever exposed during a travel (the fwin is opaque
+     the rest of the time, occluding it completely), that weaker shadow was visibly REPLACED by this
+     stronger one the instant the fwin's opacity snapped back from 0 to 1 at reveal -- a "shadow
+     suddenly appears" pop breaking the "this exact panel slid forward" illusion. The owner's
+     seamlessness directive outranks Vue2's own two-distinct-literals design here: retired outright, not aliased -- `--tm-depth-shadow` had exactly
+     ONE consumer (`.tm-depth-strip`, TimeMachineDepthStack.vue) and no reason to ever diverge from
+     `--tm-fwin-shadow` again, so keeping a second token whose value must forever equal the first
+     one's would only invite a FUTURE edit to one drifting from the other -- deleted instead, and
+     `.tm-depth-strip` now references `--tm-fwin-shadow` directly. See timeMachineDepthStackGeometry
+     Parity.test.ts's own new case pinning that reference. */
+  --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
+  --tm-depth-dim: #000;
+  --tm-gear-text: rgba(241, 245, 249, 0.75);
+  --tm-rail-skeleton: rgba(255, 255, 255, 0.28);
+  /* `.tm-tick__label`/`.tm-tick__badge`/`.tm-rail__day` all share this ONE literal text-shadow in
+     Vue2 (3442, 3455, 3422) -- one shared token, not three duplicated ones. */
+  --tm-rail-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  /* `.tm-stage__empty-title`/`-sub`'s own literal colors (3355-3356) -- distinct alphas from
+     `--tm-gear-text` above (0.75), not a reuse: title is fully opaque, sub is 0.7. */
+  --tm-empty-title: #f1f5f9;
+  --tm-empty-sub: rgba(241, 245, 249, 0.7);
+  /* Vue2 uses TWO different purples across the three white-glass
+     modal dialogs (SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog) and the
+     always-live stage -- `$primary`/`$casablue = #8950F2` (the Vue 2 panel's common/_variables.scss:26,186,
+     verified directly against node_modules/buefy's own `_switch.scss` which resolves
+     `$switch-active-background-color: $primary`) for every INTERACTIVE FILL inside those three
+     modals (switch-on track, Save/Create/Restore-here/Merge/Keep-both button fills, the manual
+     history dot, and the breadcrumb link text), vs the separate hardcoded `#7c3aed`/`#6d28d9`
+     (Tailwind violet-600/700, `--tm-accent`/`--tm-accent-hover` above) used ONLY by the read-only
+     `.tm-snap-chip` (FilePanel.vue:3825-3833) and the always-dark TM stage/rail chrome that never
+     touches Buefy's `is-primary` at all. New-UI had collapsed both into the one `--tm-accent`
+     token, which was correct for the chip/stage but wrong everywhere it leaked into these three
+     modals -- `--tm-primary` is the fix: Vue2's exact `$primary` literal, consumed ONLY by
+     SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog. `--tm-primary-hover` is
+     Bulma's own `bulmaDarken($primary, 2.5%)` (button.sass's `.is-primary:hover` rule -- HSL
+     lightness minus 2.5 percentage points, computed and verified via a Python HSL round-trip, not
+     eyeballed), used by every Buefy default-hover fill (Save/Create/Restore-here/Merge/Keep-both).
+     `--tm-primary-text` is the DIFFERENT literal `darken($primary, 14%)` SnapshotSettingsModal.vue
+     itself authors by hand for the manual-type history badge's text color only (own file:1275,
+     `&--manual { color: darken($primary, 14%) }`) -- a distinct SCSS darken call from the Bulma
+     hover one above, so it needed its own token rather than reusing `--tm-primary-hover`. */
+  --tm-primary: #8950f2;
+  --tm-primary-hover: #8144f1;
+  --tm-primary-text: #5d11e9;
+  /* Buefy's own `.modal` background is a flat, unblurred
+     `rgba(0,0,0,.5)` (Bulma `$modal-background-background-color`, the Vue 2 panel's
+     common/_variables.scss:276) for all three white-glass TM dialogs -- a different scrim from
+     this app's shared `--overlay-bg`/`--overlay-blur` (blurred, blue-tinted), which those three
+     dialogs' own `<style scoped>` blocks used to reuse. Scoped to ONLY those three components
+     (SnapshotSettingsModal/RestoreDestinationModal/FileConflictDialog's own `.ssm-overlay`/
+     `.rdm-overlay`/`.fc-overlay` rules) -- every other dialog in the app keeps the shared
+     blurred overlay unchanged. */
+  --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
+  /* SnapshotSettingsModal.vue's own remaining
+     history-list literals not yet pinned to a token. `--tm-rail-connector` is
+     `&__history-list::before`'s own literal `background: rgba(0,0,0,.1)` (own file:1218,1220) --
+     the 1px vertical timeline connector line behind the history dots. `--tm-dot-ring` is
+     `&__history-dot`'s own literal `box-shadow: 0 0 0 1px rgba(0,0,0,.12)` (own file:1247) -- the
+     secondary hairline ring around the white dot border. `--tm-history-item-hover` is
+     `&__history-item:hover`'s own literal `rgba(0,0,0,.035)` (own file:1234) -- deliberately its
+     own token, NOT a reuse of `--tm-ghost-hover-bg` (`rgba(0,0,0,.05)`), since Vue2 pins a visibly
+     lighter alpha here than the panel's generic ghost-hover tint. `--tm-history-header-hover-bg`
+     is `&__history-group-header:hover`'s own literal `rgba(242,243,245,.95)` (own file:1185) -- a
+     distinct cool-grey swatch, not derivable from any existing token. `--tm-skeleton-shimmer-mid`
+     is the shimmer gradient's own middle stop `rgba(0,0,0,.1)` (own file:1131,
+     `linear-gradient(90deg, rgba(0,0,0,.05) 25%, rgba(0,0,0,.1) 37%, rgba(0,0,0,.05) 63%)`) -- the
+     gradient's two outer stops are exactly `--tm-chip-bg` (already `rgba(0,0,0,.05)`, reused
+     rather than duplicated) so only the mid-stop needed a new token. `--tm-scroll-thumb-hover` is
+     the history scroll box's own webkit scrollbar-thumb hover rule's literal `rgba(0,0,0,.3)`
+     (`&__history-scroll:hover`, own file:1119) -- the resting thumb color is exactly `--tm-ghost-border` (already
+     `rgba(0,0,0,.15)`, reused), only the hover-darken needed a new token. */
+  --tm-rail-connector: rgba(0, 0, 0, 0.1);
+  --tm-dot-ring: rgba(0, 0, 0, 0.12);
+  --tm-history-item-hover: rgba(0, 0, 0, 0.035);
+  --tm-history-header-hover-bg: rgba(242, 243, 245, 0.95);
+  --tm-skeleton-shimmer-mid: rgba(0, 0, 0, 0.1);
+  --tm-scroll-thumb-hover: rgba(0, 0, 0, 0.3);
+  /* SnapshotBanner.vue's own component previously reused the
+     app-wide `--dem-*` "noteworthy but not error" semantic tokens, which flips value per theme
+     (translucent gold-on-dark-glass in the default theme) -- but Vue2's own SnapshotBanner.vue
+     (own file:64-68) is a single hardcoded flat pale-yellow strip (`#fef9c3`/`#92400e`, Tailwind
+     yellow-100/amber-800) that never changes look, matching every other `--tm-*` token's "same in
+     both themes" rule, not `--dem-*`'s per-theme rule. Dedicated tokens instead of changing
+     `--dem-bg`/`--dem-fg` themselves, since those are still correctly reused elsewhere (preop
+     badge, storage snapshot timeline) and changing their literal would regress those unrelated
+     consumers. */
+  --tm-banner-bg: #fef9c3;
+  --tm-banner-fg: #92400e;
+
+  --brand-bg: linear-gradient(150deg, #a8c6ff, #7a98ff 55%, #b79bff);
+  --brand-shadow: 0 12px 30px rgba(120, 150, 255, 0.45);
+
+  /* Translucent glass chip / button */
+  --chip-border: rgba(255, 255, 255, 0.4);
+  --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1));
+  --chip-bg-hi: linear-gradient(160deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.16));
+  --chip-radius: 999px;
+  --dot: rgba(255, 255, 255, 0.45);
+  --dot-on: #fff;
+
+  /* Floating glass panel: a highlighted top edge + a large soft shadow, as if hovering
+     in mid-air */
+  --card-bg: linear-gradient(157deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.085) 62%);
+  /* Dark glass background for popup layers (Dialog / AlertDialog / ContextMenu, etc.),
+     deeper than the light card so light-colored text stays steady against it */
+  --popup-bg: linear-gradient(157deg, rgba(30, 34, 52, 0.9), rgba(16, 19, 30, 0.95) 62%);
+  /* Shadow for overlays sitting above media (photos/videos): content color can't be
+     controlled, and a pale overlay over a pale image would go invisible, so both themes
+     use an outward-fading dark soft shadow (a tight ring plus a wide diffuse spread) to
+     carve out the silhouette */
+  --media-overlay-shadow: 0 0 5px rgba(0, 0, 0, 0.4), 0 3px 12px rgba(0, 0, 0, 0.45);
+  --card-border: rgba(255, 255, 255, 0.36);
+  --card-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    0 2px 6px rgba(8, 12, 28, 0.18),
+    0 26px 50px -20px rgba(6, 10, 26, 0.7);
+  --card-shadow-hi:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 4px 10px rgba(8, 12, 28, 0.2),
+    0 40px 70px -22px rgba(6, 10, 26, 0.8);
+  --card-hover: translateY(-6px) scale(1.012);
+  --clock-bg: linear-gradient(157deg, rgba(168, 198, 255, 0.34), rgba(255, 255, 255, 0.08) 60%);
+  --clock-weight: 250;
+
+  --tool-bg: rgba(255, 255, 255, 0.16);
+  --tool-bg-hi: rgba(255, 255, 255, 0.3);
+  --inner-bg: rgba(255, 255, 255, 0.12);
+  --inner-bg-hi: rgba(255, 255, 255, 0.22);
+  --inner-border: rgba(255, 255, 255, 0.2);
+  --ring-hole: rgba(26, 33, 56, 0.55);
+  --ring-track: rgba(255, 255, 255, 0.18);
+  --spark-fill: rgba(138, 180, 255, 0.3);
+  --spark-grid: rgba(255, 255, 255, 0.08);
+  --num-color: #fff;
+  --orb-core: #2a3566;
+  --orb-glow: rgba(138, 180, 255, 0.5);
+
+  --folder-bg: linear-gradient(180deg, #8fd0ff, #5a8bf0);
+  --icon-shadow: 0 14px 30px -8px rgba(6, 10, 26, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  --label-color: rgba(255, 255, 255, 0.92);
+  --label-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+
+  --dock-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.09));
+  --dock-border: rgba(255, 255, 255, 0.38);
+  --dock-radius: 32px;
+  --dock-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 30px 60px -18px rgba(6, 10, 26, 0.75);
+  --all-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.12));
+  --all-fg: #fff;
+  --all-border: rgba(255, 255, 255, 0.4);
+
+  --overlay-bg: rgba(20, 26, 46, 0.46);
+  --overlay-blur: blur(50px) saturate(1.5) brightness(1.05);
+  /* Large sidebar panel glass (more translucent than --card-bg, more restrained shadow;
+     used by the files area's sidebar) */
+  --panel-bg: rgba(255, 255, 255, 0.1);
+  /* Fully opaque large sidebar panel background (real-device acceptance feedback: the
+     place-detail panel sits over the map, and --panel-bg's 10% pale tint let the map's
+     grid dots show through underneath, blurring the body text). Value = --popup-bg with
+     alpha stripped, the same hue at full opacity (rgba(30,34,52)=#1e2234 /
+     rgba(16,19,30)=#10131e), keeping the same look as the popup layer. */
+  --panel-bg-solid: linear-gradient(157deg, #1e2234, #10131e 62%);
+  --panel-shadow: 0 2px 6px rgba(8, 12, 28, 0.12), 0 10px 24px -12px rgba(8, 12, 28, 0.25);
+  --remove-bg: #ff708a;
+  --drop-bg: rgba(138, 180, 255, 0.22);
+  --toast-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.12));
+  /* SP8-P1c2 Task 6: toast severity tiers (warning/danger; 'info' keeps using
+     --toast-bg/--toast-fg above, unchanged). Tinted translucent bg + a readable
+     saturated fg, mirroring this file's existing tint+fg pairs for the same
+     hues (--dem-bg/--dem-fg for amber, --remove-fg/--drop-bad for red) so the
+     new toast tiers read as the same design language, not a one-off color. */
+  --toast-warn-bg: rgba(240, 200, 120, 0.22);
+  --toast-warn-fg: #f0c878;
+  --toast-danger-bg: rgba(255, 80, 100, 0.22);
+  --toast-danger-fg: #ff8a8a;
+
+  /* SP12 Plan B: ghost-red destructive button (conflict dialog's Overwrite).
+     Distinct from --toast-danger-* which is a filled toast surface. */
+  --danger-fg: #ff8a8a;
+  --danger-bg: rgba(255, 80, 100, 0.10);
+  --danger-border: rgba(255, 80, 100, 0.40);
+
+  --app-size: 64px;
+
+  /* Home page's dark depth background (shared by body and the file preview overlay to
+     keep a consistent look) */
+  --app-bg:
+    radial-gradient(62% 52% at 18% 16%, #4a5d92 0%, transparent 60%),
+    radial-gradient(58% 50% at 84% 10%, #6a5aa0 0%, transparent 60%),
+    radial-gradient(64% 58% at 62% 96%, #356f86 0%, transparent 62%),
+    linear-gradient(180deg, #2a3354 0%, #1c2339 58%, #141a2b 100%);
+
+  /* SP11: overlay for body::after when a wallpaper is on. Dark theme keeps the
+     existing sheen + vignette shape so white text stays readable on any photo. */
+  --wallpaper-scrim:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 20%),
+    radial-gradient(130% 90% at 50% 118%, rgba(0, 0, 0, 0.5), transparent 58%);
+
+  /* SP11: preset tiles in the wallpaper picker must show each base's REAL look
+     regardless of the theme in effect, so they cannot read --app-bg. */
+  --app-bg-preview-blue: linear-gradient(160deg, #4a5d92, #2a3354 55%, #141a2b);
+  --app-bg-preview-light: linear-gradient(160deg, #ffffff, #f7f5ef);
+  --wallpaper-tile-label-bg: rgba(0, 0, 0, 0.45);
+  --wallpaper-tile-label-fg: #ffffff;
+}
+
+/* ═══ Light / ecru paper theme: overrides every color token (structural tokens stay on
+   :root). See docs/THEMING.md §2 for the authoritative values ═══ */
+:root[data-theme="light"] {
+  color-scheme: light;
+  /* Scrollbar thumb switches to dark against the pale background (see THEMING.md §2.11) */
+  --scrollbar-thumb: rgba(28, 27, 25, 0.22);
+  --scrollbar-thumb-hover: rgba(28, 27, 25, 0.4);
+
+  /* 2.1 Base colors */
+  --bg: #f7f5ef;
+  --fg: #1c1b19;
+  --fg-muted: #6e6a61;
+  --fg-faint: #9a958a;
+  --accent: #3b5bdb;
+  --accent2: #6e5ae0;
+  --good: #15754c;
+  --on-accent: #ffffff;
+  /* Same literal purple as the dark block above -- see that block's own comment. */
+  --purple-accent: #7c3aed;
+  --purple-accent-hover: #6d28d9;
+  --on-purple-accent: #ffffff;
+
+  /* 2.2 Brand gradient */
+  --brand-bg: linear-gradient(135deg, #4c6fe8, #6e5ae0);
+  --brand-shadow: 0 12px 30px rgba(59, 91, 219, 0.3);
+
+  /* 2.3 chip / translucent button */
+  --chip-border: #e7e3d9;
+  --chip-bg: #ffffff;
+  --chip-bg-hi: #f2efe7;
+  --dot: rgba(28, 27, 25, 0.35);
+  --dot-on: #1c1b19;
+
+  /* 2.4 Card / overlay */
+  --card-bg: #ffffff;
+  --popup-bg: #ffffff;
+  /* Media overlay shadow: same as the dark theme, must stay visible over a pale image */
+  --media-overlay-shadow: 0 0 5px rgba(0, 0, 0, 0.4), 0 3px 12px rgba(0, 0, 0, 0.45);
+  --card-border: #e7e3d9;
+  --card-shadow: 0 2px 6px rgba(60, 50, 30, 0.06), 0 26px 50px -20px rgba(60, 50, 30, 0.3);
+  --card-shadow-hi: 0 4px 10px rgba(60, 50, 30, 0.08), 0 40px 70px -22px rgba(60, 50, 30, 0.34);
+  --card-shadow-drag: 0 10px 20px rgba(60, 50, 30, 0.12), 0 60px 90px -28px rgba(60, 50, 30, 0.4);
+  --clock-bg: linear-gradient(157deg, rgba(59, 91, 219, 0.1), #ffffff 60%);
+  --folder-glass: linear-gradient(157deg, #ffffff, #f4f1e9);
+  --folder-mini: linear-gradient(150deg, #ece7dc, #dcd6c8);
+  --toast-bg: #ffffff;
+  /* SP8-P1c2 Task 6: same tiers as :root above, re-tinted for the paper theme
+     (opaque pale tint + a darker saturated fg, matching --dem-bg/--dem-fg and
+     --remove-fg's light-theme values so these read consistently with the
+     rest of this theme rather than introducing a new hue). */
+  --toast-warn-bg: #fbefd9;
+  --toast-warn-fg: #92600c;
+  --toast-danger-bg: #fbe4e4;
+  --toast-danger-fg: #c0392b;
+
+  --danger-fg: #c0392b;
+  --danger-bg: rgba(192, 57, 43, 0.08);
+  --danger-border: rgba(192, 57, 43, 0.35);
+
+  /* 2.5 Tool / inset surface */
+  --tool-bg: #f0eee8;
+  --tool-bg-hi: #e7e3d9;
+  --inner-bg: #f7f5ef;
+  --inner-bg-hi: #f0eee8;
+  --inner-border: #e7e3d9;
+  --grid-dot: rgba(28, 27, 25, 0.14);
+
+  /* 2.6 Ring chart / sparkline / AI orb */
+  --ring-hole: rgba(255, 255, 255, 0.85);
+  --ring-track: rgba(28, 27, 25, 0.1);
+  --spark-fill: rgba(59, 91, 219, 0.14);
+  --spark-grid: rgba(28, 27, 25, 0.06);
+  --num-color: #1c1b19;
+  --orb-core: #d9def5;
+  --orb-glow: rgba(59, 91, 219, 0.4);
+
+  /* 2.7 Icon / label / folder */
+  --folder-bg: linear-gradient(180deg, #a9c2f5, #6e8fe8);
+  --icon-shadow: 0 14px 30px -8px rgba(60, 50, 30, 0.22);
+  --label-color: rgba(28, 27, 25, 0.92);
+  --label-shadow: none;
+
+  /* 2.8 Dock / all apps */
+  --dock-bg: rgba(255, 255, 255, 0.9);
+  --dock-border: #e7e3d9;
+  --dock-shadow: 0 30px 60px -18px rgba(60, 50, 30, 0.32);
+  --all-bg: #f0eee8;
+  --all-fg: #1c1b19;
+  --all-border: #e7e3d9;
+
+  /* 2.9 Overlay / background / danger / drop */
+  --overlay-bg: rgba(40, 36, 28, 0.28);
+  /* Large sidebar panel glass: the paper theme avoids a solid pale fill (--card-bg=#fff),
+     using a semi-translucent pale tint plus a more restrained shadow instead */
+  --panel-bg: rgba(255, 255, 255, 0.42);
+  /* Fully opaque variant: in the paper theme this is the same solid pale fill as
+     --card-bg/--popup-bg (see the dark block's comment for the reasoning). */
+  --panel-bg-solid: #ffffff;
+  --panel-shadow: 0 2px 6px rgba(60, 50, 30, 0.05), 0 10px 24px -12px rgba(60, 50, 30, 0.18);
+  --remove-bg: #e0466a;
+  --drop-bg: rgba(59, 91, 219, 0.12);
+  --app-bg: #f7f5ef;
+
+  /* SP11: the paper theme's text is near-black (#1c1b19), so a dark photo needs
+     a white veil rather than a dark vignette behind it. Owner set the strength to
+     15% on 2026-08-08, down from the 55% this shipped with: at 55% the photo was
+     washed out, and the veil earns much less than it looks like it does here --
+     the paper theme's own surfaces (cards, chips, the topbar) already sit between
+     the photo and almost all of its text. Anything the veil alone has to carry
+     lives on the desktop, where labels have their own shadow. */
+  --wallpaper-scrim: linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.15));
+
+  /* SP11: first two values are deliberately identical to the dark block above --
+     these paint "what that base looks like", independent of the active theme.
+     The last two switch to paper-toned values for this theme. */
+  --app-bg-preview-blue: linear-gradient(160deg, #4a5d92, #2a3354 55%, #141a2b);
+  --app-bg-preview-light: linear-gradient(160deg, #ffffff, #f7f5ef);
+  --wallpaper-tile-label-bg: rgba(255, 255, 255, 0.72);
+  --wallpaper-tile-label-fg: #1c1b19;
+
+  /* 2.10 Blur (the paper theme doesn't use glass) */
+  --blur: none;
+  --overlay-blur: blur(8px);
+
+  /* Extended/semantic tokens (paper theme, taken from SearchDialog/MediaViewer's original
+     light-theme palette) */
+  --card: #ffffff;
+  --border: #e7e3d9;
+  --fg-subtle: #9a958a;
+  --divider: rgba(28, 27, 25, 0.08);
+  --hover: rgba(28, 27, 25, 0.045);
+  --accent-text: #3550c4;
+  --grad-a: #4c6fe8;
+  --grad-b: #6e5ae0;
+  /* Album no-cover gradient placeholder (see the :root token of the same name's comment);
+     the paper theme uses the same formula, and since --accent/--panel-bg are each already
+     defined for this theme, the result naturally comes out in this theme's colors. */
+  --album-cover-fallback: linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, var(--panel-bg)), var(--accent));
+  /* See the :root token of the same name's comment; the paper theme's accent is deeper, so
+     the mix percentage is raised to 70% to avoid the whole thing blurring into a near-dark
+     blob (actual contrast math is in PersonAvatar.vue / the task report). */
+  --avatar-fallback: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000));
+  --accent-soft: rgba(59, 91, 219, 0.11);
+  --accent-soft-2: rgba(59, 91, 219, 0.2);
+  --accent-soft-bd: rgba(59, 91, 219, 0.3);
+  /* Plan H Task 15 (2026-08-17) removed the sibling --place-row-bg/--place-row-border tokens
+     that used to sit here (confirmed zero consumers repo-wide). --place-thumb-active itself was
+     later removed -- see the dark `:root` block's own comment for why
+     (it was never actually consumed; re-verified zero consumers repo-wide in both blocks). */
+  /* Fix-5: the seven --pin-* geo-pin tokens that used to be redefined here (blue-family
+     light-mode values) are removed — see the dark `.photos-root` block's own Fix-5 comment
+     above for the full rationale. */
+  /* Same value in both themes, see the :root token of the same name's comment. */
+  --place-current-trip: #34c759;
+  /* Same value in both themes, see the :root token of the same name's comment (deviation
+     on record: didn't give the light theme a deeper-violet version as literally required
+     -- the reasoning is the same as the :root block's full write-up: it sits in exactly
+     the same context as --place-current-trip, permanently layered over the hero's fixed
+     darkening gradient, independent of whether the app skin is dark or paper-toned). */
+  --place-home-base: #c4b8ff;
+  /* theme-invariant, same value in both theme blocks — see the :root token's own comment
+     (Task 6 updated the literal from 0.10 to 0.30; the reasoning against --fg-faint is the same
+     as there — light --fg-faint is an opaque warm grey #9a958a, which would likewise turn into
+     an opaque block over the map canvas). */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
+  /* PlacesZoomBar.vue (P6a-T8) -- see the :root token of the same name's comment. An
+     exact port of Vue2 photos.scss:84's light-theme floating-bar-background literal. */
+  --float-bg: rgba(255, 255, 255, 0.85);
+  /* Plan H Task 15 (2026-08-17): see the :root token's own comment -- the light-theme
+     --zb-hover-bg/--zb-track-bg/--zb-thumb-shadow tier that used to be defined here was
+     removed alongside it, confirmed zero consumers repo-wide. */
+  --sem-bg: #e7f5ee; --sem-fg: #15754c; --sem-bd: #b7e2cc;
+  --dem-bg: #fbefd9; --dem-fg: #92600c; --dem-bd: #f0d9a8;
+  --nrm-bg: #f0eee8; --nrm-fg: #5c584f; --nrm-bd: #e0dcd1;
+  --hit-bg: #fce8a6; --hit-fg: #5a4a12;
+  --success: #15754c;
+  --hl-star: #c9992f;
+  /* Speaker palette (paper theme uses the deeper set, same hue family) */
+  --spk-1: oklch(0.52 0.15 255);
+  --spk-2: oklch(0.50 0.16 305);
+  --spk-3: oklch(0.53 0.12 200);
+  --spk-4: oklch(0.55 0.18 22);
+  --spk-5: oklch(0.52 0.15 150);
+  --wave-none: var(--fg-subtle);
+  --wave-dim: var(--fg-faint);
+  --remove-fg: #c0392b; --drop-bad: rgba(224, 70, 106, 0.12); --skeleton-bg: rgba(28, 27, 25, 0.05);
+  /* Usage bar's track background (see the :root token of the same name's comment): the
+     paper theme darkens it instead, so it's visible against the pale background. */
+  --usage-track: rgba(28, 27, 25, 0.12);
+  /* Warning/degraded semantics (see the :root token of the same name's comment). #FF9F0A
+     laid directly over the paper theme's pale background is only ~1.9:1, so the
+     foreground is darkened to a deep amber (matching --dem-fg's #92600c tier), while the
+     background/border get the paper theme's solid tints. */
+  --warn-fg: #96610a;
+  --warn-bg: #fdf3e2;
+  --warn-border: #f0d7a6;
+
+  /* SP7-P7a-T15: same as the :root token of the same name's comment -- the three media
+     category badge colors, same value in both theme blocks, doesn't flip with the skin. */
+  --badge-photo: rgba(50, 190, 230, 0.9);
+  --badge-video: rgba(255, 149, 10, 0.92);
+  --badge-ocr: rgba(16, 185, 129, 0.92);
+
+  /* SP7-P8a-T3: same as the :root token of the same name's comment -- storage card
+     capacity bar segment colors. The light theme tunes these for legibility (not a
+     straight copy of Vue2's only-ever-dark design):
+     --photos-seg-video is deepened from Vue2's mid-tone azure #5e94ff to #3560d8 -- the
+     original value looked washed-out and made segment boundaries unclear against this
+     theme's fully opaque --card-bg (#ffffff); deepening/saturating it keeps the same hue
+     family.
+     --photos-seg-raw is deepened from Vue2's pale pink #ff9ac2 to #c93f79 -- the pale pink
+     nearly disappeared into a plain pale background, so it's darkened into a rose of the
+     same hue to keep the segment outline legible.
+     --photos-seg-ai is darkened from Vue2's amber #ff9f0a to #a15f0a -- the same
+     established technique as --warn-fg's light-theme handling of the identical literal
+     color value (darken for contrast), but this is an independent category-label token
+     that doesn't directly borrow --warn-fg (that one is the "warning" semantic, this one
+     is the "which data category" semantic -- the same literal color value, two different
+     tokens). */
+  --photos-seg-video: #3560d8;
+  --photos-seg-raw: #c93f79;
+  --photos-seg-ai: #a15f0a;
+  /* alpha matches :root's 0.25 (an exact port of Vue2's other segment's
+     rgba(var(--ink),0.25)), RGB is swapped for this repo's light theme --fg's actual
+     decomposed value (#1c1b19 -> 28,27,25) -- the same established base-hue-swap formula
+     used elsewhere in this file. */
+  --photos-seg-other: rgba(28, 27, 25, 0.25);
+
+  /* P6 terminal/log console (terminal semantics are pinned dark, don't flip with the
+     theme; same value in both theme blocks, matching the old Vue2 implementation) */
+  --console-bg: #1e1e1e;
+  --console-fg: #d4d4d4;
+  /* Scrollbar thumb for permanently-dark-backed areas (monokai editor/logs/terminal): the
+     global scrollbar color flips with the theme, and in the light theme it would become a
+     dark thumb sitting on these permanently-dark backdrops (invisible) -- hence a
+     dedicated bright thumb here, same value in both themes */
+  --console-scroll-thumb: rgba(255, 255, 255, 0.32);
+  --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
+
+  /* Task 1: same values as the dark block above -- owner ruling: Time Machine looks the
+     same in both themes, so these are NOT re-derived for light/paper tone. Final-review
+     sweep (C2): the nine colleague-era light-block tokens that used to live here (--tm-bg/
+     --tm-fg/--tm-fg-muted/--tm-card-bg/--tm-card-bd/--tm-card-divider/--tm-card-shadow/
+     --tm-rail/--tm-rail-sub) were deleted alongside their dark-block counterparts -- see this
+     block's own opening comment above the dark block's matching note. */
+  --tm-glass-bg: rgba(8, 10, 22, 0.35);
+  --tm-glass-blur: blur(24px) saturate(1.05);
+  --tm-rail-text: rgba(255, 255, 255, 0.62);
+  --tm-rail-text-dim: rgba(255, 255, 255, 0.55);
+  --tm-accent: #7c3aed;
+  --tm-accent-hover: #6d28d9;
+  --tm-accent-glow: rgba(124, 58, 237, 0.9);
+  --tm-bar-scrim: linear-gradient(to top, rgba(6, 9, 26, 0.75), rgba(6, 9, 26, 0.25), transparent);
+  --tm-panel-bg: rgba(255, 255, 255, 0.9);
+  --tm-panel-bg-solid: #ffffff;
+  --tm-panel-border: rgba(0, 0, 0, 0.06);
+  --tm-hairline: rgba(0, 0, 0, 0.06);
+  --tm-text: #1f2430;
+  --tm-text-dim: #6b7280;
+  --tm-ghost-border: rgba(0, 0, 0, 0.15);
+  --tm-ghost-hover-bg: rgba(0, 0, 0, 0.05);
+  --tm-ghost-border-hover: rgba(0, 0, 0, 0.25);
+  --tm-control-radius: 10px;
+  --tm-panel-blur: blur(20px) saturate(1.2);
+  --tm-clone-media-placeholder-bg: rgba(255, 255, 255, 0.08);
+  /* Task 8 fix round: two more tokens, same "identical in both themes" rule as the rest of this
+     block. Pixel-pinned to Vue2 TimeMachineStage.vue's own literal `.tm-tick:hover` colors:
+     `--tm-rail-tick-hover` is the exact value `.tm-tick:hover .tm-tick__label { color }` and
+     `.tm-tick:hover .tm-tick__line { background }` both share; `--tm-rail-tick-manual` is
+     `.tm-tick__badge`'s own literal `color` (shown only on manual-type ticks -- Vue2 has no
+     equivalent auto/preop tick coloring to pin: `tm-tick--auto`/`tm-tick--preop` carry no CSS
+     rule of their own in the Vue2 source, confirmed by reading the whole `.tm-tick` block). */
+  --tm-rail-tick-hover: #ffffff;
+  --tm-rail-tick-manual: #f6c760;
+  /* Final review (C2) -- see the dark block's own comment on these two tokens for the full
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-rail-tick: rgba(255, 255, 255, 0.4);
+  --tm-rail-tick-sub: rgba(255, 255, 255, 0.2);
+  /* Task 9 (stepper + bottom bar) -- see the dark block's own comment on these six tokens for the
+     full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-stepper-btn-bg: rgba(255, 255, 255, 0.16);
+  --tm-stepper-btn-hover-bg: rgba(255, 255, 255, 0.28);
+  --tm-chrome-text: #ffffff;
+  --tm-stepper-time-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+  --tm-bottom-bar-exit-bg: rgba(255, 255, 255, 0.14);
+  --tm-bottom-bar-exit-hover-bg: rgba(255, 255, 255, 0.24);
+  /* Task 10 (entry pill) -- see the dark block's own comment on these three tokens for the full
+     Vue2/Bulma provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-entry-bg: #28c322;
+  --tm-entry-fg: #ffffff;
+  --tm-entry-hover-bg: #26b821;
+  /* Task 11 (SnapshotSettingsModal) -- see the dark block's own comment on these eight tokens
+     for the full Vue2 provenance; values are identical here (owner ruling: same look in both
+     themes). */
+  --tm-chip-bg: rgba(0, 0, 0, 0.05);
+  --tm-warn-text: #92400e;
+  --tm-warn-bg: rgba(245, 158, 11, 0.14);
+  --tm-warn-dot: #f59e0b;
+  --tm-dot-auto: #9ca3af;
+  --tm-danger: #dc2626;
+  --tm-danger-hover: #b91c1c;
+  --tm-switch-off-bg: rgba(0, 0, 0, 0.18);
+  --tm-panel-shadow: 0 24px 80px rgba(15, 20, 40, 0.28);
+  --tm-switch-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --tm-placeholder-text: #9ca3af;
+  /* Final review (Important 4) -- see the dark block's own comment on these two tokens for the
+     full Vue2 provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-action-bar-bg: rgb(49, 49, 54);
+  --tm-action-bar-item-hover-bg: rgb(86, 86, 90);
+  /* See the dark block's own comment on these tokens for the full Vue2 provenance;
+     values are identical here (owner ruling: same look in both themes).
+     `--tm-depth-shadow` retired here too -- see the dark block's own comment on this token's
+     removal for the full trace. */
+  --tm-fwin-shadow: 0 18px 50px rgba(5, 8, 30, 0.45);
+  --tm-depth-dim: #000;
+  --tm-gear-text: rgba(241, 245, 249, 0.75);
+  --tm-rail-skeleton: rgba(255, 255, 255, 0.28);
+  --tm-rail-text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  --tm-empty-title: #f1f5f9;
+  --tm-empty-sub: rgba(241, 245, 249, 0.7);
+  /* See the dark block's own comment on these three tokens for the full Vue2/Bulma
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-primary: #8950f2;
+  --tm-primary-hover: #8144f1;
+  --tm-primary-text: #5d11e9;
+  /* See the dark block's own comment for the full Vue2 provenance. */
+  --tm-modal-overlay-bg: rgba(0, 0, 0, 0.5);
+  /* See the dark block's own comment on these six tokens for the full Vue2
+     provenance; values are identical here (owner ruling: same look in both themes). */
+  --tm-rail-connector: rgba(0, 0, 0, 0.1);
+  --tm-dot-ring: rgba(0, 0, 0, 0.12);
+  --tm-history-item-hover: rgba(0, 0, 0, 0.035);
+  --tm-history-header-hover-bg: rgba(242, 243, 245, 0.95);
+  --tm-skeleton-shimmer-mid: rgba(0, 0, 0, 0.1);
+  --tm-scroll-thumb-hover: rgba(0, 0, 0, 0.3);
+  /* See the dark block's own comment for the full Vue2 provenance. */
+  --tm-banner-bg: #fef9c3;
+  --tm-banner-fg: #92400e;
+}
+
+/* Light theme: the scrollbar thumb color is already flipped inside the theme block by the
+   --scrollbar-thumb token (see the top-of-file `*` rule and THEMING.md §2.11). All that's
+   left here is to turn off the bokeh light spots and vignette (the paper theme doesn't
+   want bokeh).
+   Warning: don't write a scrollbar-color override back here -- writing it only on :root
+   can't beat the top `*` rule's per-element explicit declaration, and internal scroll
+   containers would go back to a pale thumb over an equally pale track (a bug fixed on
+   2026-08-13). */
+:root[data-theme="light"] body::before,
+:root[data-theme="light"] body::after { background: none; }
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--fg);
+  font-family: var(--font, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif);
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.icon { width: 20px; height: 20px; stroke: currentColor; stroke-width: var(--stroke, 1.9); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
+/* Translucent glass chip button (global), shared by HomeTopbar/AreaShell/ViewerShell */
+.bar-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 13px; border: 1px solid var(--chip-border); border-radius: var(--chip-radius, 999px); background: var(--chip-bg); color: var(--fg); font-size: 13px; font-weight: 500; cursor: pointer; backdrop-filter: var(--blur); transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; text-decoration: none; }
+.bar-btn:hover { background: var(--chip-bg-hi); }
+.bar-btn .icon { width: 16px; height: 16px; }
+
+/* ---- Soft-glow depth background (a dim environment that lets translucent panels
+   float above it) + parallax ---- */
+body {
+  background: var(--app-bg);
+  background-attachment: fixed;
+}
+/* Bokeh light-spot layer (Gaussian blur + easing + mouse-driven parallax) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -12%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(22vw 22vw at 22% 26%, rgba(150, 185, 255, 0.5), transparent 60%),
+    radial-gradient(18vw 18vw at 78% 30%, rgba(183, 155, 255, 0.42), transparent 62%),
+    radial-gradient(20vw 20vw at 60% 80%, rgba(95, 227, 176, 0.32), transparent 62%),
+    radial-gradient(12vw 12vw at 40% 60%, rgba(255, 255, 255, 0.18), transparent 60%);
+  filter: blur(46px);
+  transform: translate(calc(var(--mx, 0) * -30px), calc(var(--my, 0) * -30px));
+  transition: transform 0.45s var(--ease);
+  animation: floatField 30s var(--ease) infinite alternate;
+}
+/* Top soft glow + a subtle vignette, reinforcing depth */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 18%),
+    radial-gradient(120% 80% at 50% 120%, rgba(0, 0, 0, 0.32), transparent 55%);
+}
+
+/* ---- Shared animations ---- */
+@keyframes jiggle { 0%,100% { transform: rotate(-.55deg); } 50% { transform: rotate(.55deg); } }
+@keyframes itemIn { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes pop { 0% { transform: scale(.94); } 60% { transform: scale(1.03); } 100% { transform: scale(1); } }
+@keyframes pulse { 50% { box-shadow: 0 0 54px var(--orb-glow); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes floatField { to { transform: translate(3vw, 3vh) scale(1.08); } }
+
+/* ---- Reduced-motion mode ---- */
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; transition: none; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---- P4c: grid item states (global) ---- */
+/* Generic item */
+.grid-item { position: relative; min-width: 0; min-height: 0; touch-action: none; }
+
+/* Remove button: a danger-accent circle, shown in editing mode */
+.grid-item .remove {
+  display: none; position: absolute; z-index: 4; top: -10px; left: -10px; width: 24px; height: 24px;
+  border: 0; border-radius: 50%; background: var(--remove-bg); color: #fff; font-size: 16px; line-height: 1;
+  cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.35);
+}
+.grid-item.editing .remove { display: grid; place-items: center; }
+
+/* Resize handle: an accent circle plus an arrow in the bottom-right corner, shown only
+   on resizable items in editing mode */
+.resize-handle {
+  display: none; position: absolute; z-index: 5; right: -8px; bottom: -8px; width: 26px; height: 26px;
+  border-radius: 50%; background: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.5);
+  cursor: nwse-resize; touch-action: none;
+}
+.resize-handle::after {
+  content: ""; position: absolute; right: 7px; bottom: 8px; width: 8px; height: 8px;
+  border-right: 2px solid var(--on-accent, #fff); border-bottom: 2px solid var(--on-accent, #fff);
+}
+.grid-item.editing .resize-handle { display: block; }
+
+/* While resizing */
+.grid-item.resizing { z-index: 50; animation: none; transition: none; }
+.grid-item.resizing.card { box-shadow: var(--card-shadow-drag, var(--card-shadow-hi)); }
+.grid-item.resizing.bad-size { outline: 2px solid var(--remove-bg); outline-offset: -1px; }
+.grid-item.resizing.bad-size.card { box-shadow: 0 0 0 2px var(--remove-bg) inset; }
+
+/* Editing-mode jiggle (uses the global ±0.55deg) */
+.grid-item.editing { animation: jiggle .34s ease-in-out infinite; cursor: grab; }
+.grid-item.editing:nth-child(2n) { animation-delay: -.17s; }
+.grid-item.editing:nth-child(3n) { animation-delay: -.09s; }
+
+/* While dragging */
+.grid-item.dragging { z-index: 50; cursor: grabbing; animation: none; opacity: .96; }
+.grid-item.dragging .card { box-shadow: var(--card-shadow-drag, var(--card-shadow-hi)); }
+
+/* Staggered fade-in on load (the .intro class is added by GridCanvas on its first render;
+   this rule has no side effect on its own) */
+/* NOTE: GridCanvas doesn't currently set the .intro class -- the rule is in place, wiring
+   it up is deferred to a future task */
+.grid.intro .grid-item { animation: itemIn .5s var(--ease, ease) backwards; animation-delay: calc(var(--i, 0) * 32ms); }
+
+/* Landing bounce-back */
+.grid-item.pop { animation: pop .34s var(--ease, ease); }
+
+/* Editing mode: empty slots use a rounded dashed outline to mark available positions */
+.cell {
+  pointer-events: none;
+  border-radius: calc(var(--cell, 92px) * 0.167); /* scales with the cell, replacing the fixed --radius-sm */
+  border: 1.5px dashed var(--grid-dot, rgba(255,255,255,.26));
+  background: linear-gradient(rgba(255,255,255,.05), rgba(255,255,255,.02));
+}
+
+/* Drag-drop target hint */
+.drop-ghost { z-index: 1; border: 2px dashed var(--accent); border-radius: var(--radius); background: var(--drop-bg); pointer-events: none; }
+.drop-ghost.bad { border-color: var(--remove-bg); background: var(--drop-bad, rgba(255,80,100,.12)); }
+
+/* ---- P4c: app / folder / photo tile structure ---- */
+/* app/folder on the canvas: laid out vertically -> icon on top, label below */
+/* Tile internal sizing (gap/font-size/placeholder radius) all scale proportionally to
+   --cell, keeping the tile's shape stable at any zoom level;
+   ratios anchored to a comfortable 108px cell: gap 5/108≈0.046, font-size 16.7/108≈0.155,
+   radius 18/108≈0.167 */
+.kind-app, .kind-folder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); }
+/* Cap the tile root at the cell width (bug.txt #6, second form): .grid-item is a flex container,
+   and the SFC's tile roots (.app-tile/.folder-tile-wrap) are flex items with no width ceiling —
+   a nowrap long name stretches one out to its content width (the min-width:auto floor),
+   .app-label's max-width:100% then resolves against that stretched parent, the ellipsis never
+   triggers, and the overflow covers the neighbouring cell. Capping at 100% is what finally
+   constrains the label to the cell width so long names collapse to "…". */
+.kind-app .app-tile, .kind-folder .folder-tile-wrap { max-width: 100%; }
+/* Cap the tile root's width at the cell width (bug.txt #6, second form): .grid-item is a
+   flex container, and the SFC's tile root (.app-tile/.folder-tile-wrap), as a flex item,
+   has no upper width bound -- a long nowrap name would stretch it to its content width
+   (the min-width:auto floor), and .app-label's max-width:100% resolves against that
+   already-stretched parent, so the ellipsis never triggers and the overflow spills over
+   the neighboring tile. Once capped at 100%, the label is genuinely constrained by the
+   cell width and a long name collapses into "...". */
+.kind-app .app-tile, .kind-folder .folder-tile-wrap { max-width: 100%; }
+/* Icon square: rounded glass + a light foreground + icon-shadow */
+.app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 31%); color: #fff; box-shadow: var(--icon-shadow); }
+.app-ic .icon, .folder-ic .icon { width: 44%; height: 44%; }
+/* Folder icon = a full SVG with no backing plate (matches the filesystem look): transparent,
+   no border, no shadow, just centered and filling the space */
+.folder-ic { display: grid; place-items: center; width: 100%; height: 100%; background: none; box-shadow: none; }
+/* Canvas icon fills the square left over from "cell height minus label row" */
+.kind-app .app-ic, .kind-folder .folder-ic, .kind-folder .folder-tile { flex: 1 1 auto; min-height: 0; min-width: 0; width: auto; height: auto; aspect-ratio: 1; }
+/* Label */
+.app-label { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: max(11px, calc(var(--cell, 92px) * 0.155)); font-weight: 500; line-height: 1.25; color: var(--label-color, var(--fg)); text-shadow: var(--label-shadow, none); }
+/* Folder: a frosted rounded container + a 2x2 content thumbnail grid (iPad-style) */
+.folder-tile { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 12%; width: 100%; height: 100%; padding: 17%; border-radius: var(--icon-radius, 31%); background: var(--folder-glass, rgba(255,255,255,.16)); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); backdrop-filter: var(--blur); }
+.folder-tile i { border-radius: 26%; background: var(--folder-mini, linear-gradient(145deg, rgba(255,255,255,.55), rgba(255,255,255,.2))); }
+/* Photo tile */
+.kind-photo { padding: 0; }
+.photo-thumb { display: block; width: 100%; height: 100%; border-radius: var(--radius, 28px); border: 1px solid var(--card-border); box-shadow: var(--icon-shadow); }
+
+/* ---- P4c: app icon colors (skin-independent, vivid gradients) ---- */
+.ic-files    { background: linear-gradient(145deg, #88dbff, #168cff 62%, #1765db); }
+.ic-photos   { background: conic-gradient(from 20deg, #ff735f, #ffd54f, #60e27c, #55baff, #ca83ff, #ff735f); }
+.ic-video    { background: linear-gradient(145deg, #ff8a8a, #ef4444 60%, #b91c1c); }
+.ic-music    { background: linear-gradient(145deg, #ff9a8b, #ff4d8d 60%, #c026d3); }
+.ic-ai       { background: radial-gradient(circle at 64% 24%, var(--accent2), transparent 40%), radial-gradient(circle at 28% 80%, var(--accent), transparent 46%), var(--orb-core, #1a2050); }
+/* SP14 #98: matches the amber gradient baked into knowledge.svg's own <linearGradient>
+   (#D97706 -> #FBBF24) -- same brand-identity exception as the rest of this block. */
+.ic-knowledge { background: linear-gradient(145deg, #fbbf24, #d97706 65%, #b45309); }
+.ic-backup   { background: linear-gradient(145deg, #6ee7b7, #10b981 60%, #059669); }
+.ic-download { background: linear-gradient(145deg, #7dd3fc, #0ea5e9 60%, #0369a1); }
+.ic-docker   { background: linear-gradient(145deg, #7cc6ff, #2496ed 60%, #1d6fb8); }
+.ic-vm       { background: linear-gradient(145deg, #94a3b8, #475569 60%, #334155); }
+.ic-share    { background: linear-gradient(145deg, #fdba74, #fb923c 60%, #ea580c); }
+.ic-search   { background: linear-gradient(145deg, #c4b5fd, #8b5cf6 60%, #6d28d9); }
+.ic-settings { background: linear-gradient(145deg, #cbd5e1, #64748b 60%, #475569); }
+.ic-users    { background: linear-gradient(145deg, #67e8f9, #06b6d4 60%, #0e7490); }
+.ic-storage  { background: linear-gradient(145deg, #fcd34d, #f59e0b 60%, #b45309); }
+.ic-appstore { background: linear-gradient(145deg, #a5b4fc, #6366f1 60%, #4338ca); }
+.ic-terminal { background: linear-gradient(145deg, #52525b, #18181b); }
+.ic-all      { background: var(--all-bg); color: var(--all-fg); border: 1px solid var(--all-border, transparent); }
+/* Container apps: no dedicated color scheme, uses a neutral glass background to carry
+   the remote icon */
+.ic-app      { background: linear-gradient(145deg, rgba(255,255,255,.22), rgba(255,255,255,.08)); border: 1px solid var(--card-border); }
+
+/* ---- P4c: real-data icons / thumbnails (has-img: a remote <img> fills the rounded
+   square) ---- */
+.app-ic.has-img, .dock-ic.has-img { overflow: hidden; background: var(--card-bg, rgba(255,255,255,.1)); }
+.app-ic.has-img img, .dock-ic.has-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+.photo-thumb.has-img { background: none; overflow: hidden; }
+.photo-thumb.has-img img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+
+/* ---- Dock icons: GLOBAL so both DockApp and the HomeDock all-apps toggle button
+   (class="dock-app dock-toggle", whose .dock-ic lives outside DockApp's scope) get sized
+   + materialized identically. ---- */
+/* Fixed-width cell: icon plus text participate in layout as a single cell (the same
+   model as the desktop AppTile), width is determined solely by --app-size, and text
+   length no longer affects layout; overly long text is ellipsized inside .dock-label. */
+.dock-app { display: grid; justify-items: center; gap: 6px; width: var(--app-size, 64px); padding: 0; border: 0; background: transparent; cursor: pointer; touch-action: none; }
+.dock-ic {
+  display: grid; place-items: center;
+  width: var(--app-size, 64px); height: var(--app-size, 64px);
+  border-radius: var(--icon-radius, 31%); color: #fff; box-shadow: var(--icon-shadow);
+  transform-origin: bottom center;
+  transform: translateY(calc((var(--mag, 1) - 1) * -12px)) scale(var(--mag, 1));
+  transition: transform .14s var(--ease, ease), filter .18s;
+}
+.dock-ic.has-img { background: none; }
+.dock-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+.dock-ic svg { width: 58%; height: 58%; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.dock-app:hover .dock-ic { filter: brightness(1.08); }
+/* Stopped apps: dimmed and desaturated overall (matches desktop AppTile.stopped and
+   AddPanel .is-stopped) */
+.dock-app.is-stopped { opacity: 0.45; filter: grayscale(0.6); }
+.dock-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: max(13px, calc(var(--app-size, 64px) * 0.22)); color: var(--fg-muted); }
+
+/* ---- P4c: tile hover / press feedback (doesn't trigger in editing mode .editing, to
+   stay out of the way of jiggle/dragging) ---- */
+/* Icon base transition */
+.kind-app .app-ic,
+.kind-folder .folder-tile,
+.kind-folder .folder-ic,
+.kind-photo .photo-thumb { transition: transform .18s var(--ease, ease), box-shadow .18s var(--ease, ease), filter .18s var(--ease, ease); }
+/* On hover, raise the current item above its neighbors so it doesn't get clipped by
+   adjacent cells once scaled up */
+/* NOTE: In New-UI, .kind-* and .editing are BOTH on .grid-item root (no parent .grid.editing wrapper),
+   so the mapping is .grid-item:not(.editing).kind-*:hover (compound, not descendant). */
+.grid-item:not(.editing).kind-app:hover,
+.grid-item:not(.editing).kind-folder:hover,
+.grid-item:not(.editing).kind-photo:hover { z-index: 6; }
+/* Hover zoom: lift up + an inner accent glow + a bottom shadow */
+.grid-item:not(.editing).kind-app:hover .app-ic,
+.grid-item:not(.editing).kind-folder:hover .folder-tile,
+.grid-item:not(.editing).kind-folder:hover .folder-ic,
+.grid-item:not(.editing).kind-photo:hover .photo-thumb {
+  transform: translateY(-7px) scale(1.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .6),
+    inset 0 0 22px -4px var(--accent),
+    0 26px 48px -10px rgba(6, 10, 26, .66);
+  filter: brightness(1.1);
+}
+/* Folders are a backing-plate-less SVG: hover keeps the lift-and-scale, but drops the
+   square backing plate's glow/shadow (otherwise it draws a glowing rectangle around a
+   transparent icon) */
+.grid-item:not(.editing).kind-folder:hover .folder-ic { box-shadow: none; filter: none; }
+/* NOTE: .tile-2up is NOT emitted by GridItem in New-UI (item.w/h are available but no class is set).
+   Deferred: add .tile-2up emission to GridItem when w>=2 && h>=2 for gentler var(--card-hover) scale.
+   For now, scale(1.2) applies uniformly to all tile sizes. */
+/* Press-down sink */
+.grid-item:not(.editing).kind-app:active .app-ic,
+.grid-item:not(.editing).kind-folder:active .folder-tile,
+.grid-item:not(.editing).kind-photo:active .photo-thumb { transform: scale(.95); transition: transform .1s var(--ease, ease); }
+
+/* Files area deep-link ?highlight= location flash (attached to FileRow/FileTile roots,
+   a cross-component class kept global) */
+@keyframes file-flash-kf { 0%, 100% { background: transparent; } 30%, 70% { background: color-mix(in srgb, var(--accent) 28%, transparent); } }
+.file-flash { animation: file-flash-kf 1.25s ease 2; border-radius: 10px; }
+
+/* ══ SP11 wallpaper layer ══════════════════════════════════════════════════
+   Painted on <html>, not on a self-drawn element: the html background is always
+   the bottom-most paint (no z-index reasoning against body's pseudo-elements),
+   and listing --app-bg as the final background layer means a 404 image simply
+   is not painted and the theme gradient shows through -- a free fallback that
+   needs no JS onerror handler.
+   The shorthand (not background-image) is mandatory: --app-bg is a bare colour
+   in the light theme, and a colour is only legal in the last layer.
+   MUST stay after the light-theme `body::after { background: none }` rule above
+   -- equal specificity, source order decides. See styles/wallpaper.css.test.ts. */
+:root[data-wallpaper] {
+  background: var(--wallpaper-img) center / cover no-repeat, var(--app-bg);
+}
+:root[data-wallpaper] body { background: transparent; }
+:root[data-wallpaper] body::before { display: none; }
+/* body::after is `position: fixed; z-index: 0` (see the shared rule above), while
+   #app is a plain non-positioned block. Per CSS painting order, a positioned
+   element at z-index:0 paints ABOVE every non-positioned sibling/descendant that
+   follows it in the DOM -- so unmodified, this pseudo-element sits on top of the
+   ENTIRE app (cards, buttons, text), not just the wallpaper photo beneath it. That
+   was invisible with the default sheen (a 6%-white top gradient + a bottom
+   vignette reads as atmosphere), but the light theme's scrim is a near-opaque
+   white sheet, and painting that over the whole UI is what fogs every surface to
+   ~55% white and washes out near-black paper-theme text. `body` establishes no
+   stacking context, so the pseudo joins the root one; a negative z-index paints
+   it after the canvas (which carries the <html> wallpaper) but before every
+   block-level descendant, leaving it sandwiched between the wallpaper image and
+   the app content -- which is where a scrim belongs: modulating the photo, not
+   the UI on top of it. */
+:root[data-wallpaper] body::after { background: var(--wallpaper-scrim); z-index: -1; }

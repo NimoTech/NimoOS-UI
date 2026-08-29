@@ -1,0 +1,2419 @@
+/*
+ * Styles for the KVM area (route /kvm). Visuals copied 1:1 from the Vue2
+ * source (KVMFullPage component), its style (lang=scss scoped) block
+ * (layout: lines 1658-1973; main-empty: lines 1975-2015; narrow-screen
+ * responsive: lines 2740-2759; line numbers verified 2026-08-02).
+ *
+ * All colors go through var(--kvm-*) (CLAUDE hard constraint + this sprint's
+ * hard constraint #1); tokens are defined in the theme sp9 shard (under the
+ * theme directory) — the KVM area is fixed dark, both theme blocks hold the
+ * same values (see that file's comments).
+ *
+ * Sections covered across P5 (foundation from Task 2, filled in through
+ * Tasks 5-8):
+ * kvm-page / kvm-content / kvm-sidebar (incl. collapse) / kvm-sidebar-toggle /
+ * the kvm-header family / vm-list / empty-state / add-vm-btn / kvm-main /
+ * the main-empty family + the console- family / the sendkey- family /
+ * the spice- family / installation-banner / the kvm-progress- family
+ * (lines 465-1153). All sections were fully implemented by the end of
+ * Task 8; nothing remains that is "reserved for later tasks, class name only"
+ * (cleanup item 6, corrected in the full-branch final review: the previous
+ * comment here described the stale state from when Task 2 first laid the
+ * foundation and was never updated).
+ *
+ * Class-name mapping: the Vue2 root class is kvm-full-page with scoped nested
+ * selectors; New-UI has no scoped styles, so it uses a globally unique root
+ * class kvm-page plus flattened top-level selectors (nested & expanded into
+ * plain descendant selectors), with visual values preserved verbatim.
+ *
+ * ── P6 (create dialog / ISO selector / snapshots / VM settings / global settings) ──
+ * Task 0 only lays the foundation and writes no style rules for this part —
+ * the class names below are first registered in the ALLOWED whitelist of the
+ * kvmStyles test file in this directory; later tasks (Task 1 onward) fill the
+ * rules into this file one by one:
+ * kvm-dialog-overlay / kvm-dialog-content (shared dialog shell), create-vm-*
+ * and cv-* (create dialog), settings-tabs / settings-tab (VM settings tabs),
+ * snapshots-body and cv-snapshot-* (snapshot panel), os-selector-body and
+ * os-* / category-* / custom-* (OSSelector). Colors likewise all go through
+ * var(--kvm-*); the 23 tokens used are already defined in the theme sp9 shard
+ * (--kvm-modal-* / --kvm-field-* / --kvm-accent-hover-alt / --kvm-snapshot-* /
+ * --kvm-restore-* / --kvm-delete-bg-hover, etc.).
+ * (Task 11 wrap-up added a 24th, --kvm-snapshot-name-fg; the historical count
+ * is left unchanged — see the comments at that token's definition and
+ * consumption sites.)
+ *
+ * ⚠️⚠️ The slashes used to enumerate class names/tokens in the lines above
+ * MUST have spaces on both sides. An asterisk immediately followed by a slash
+ * forms the block-comment terminator and closes this comment EARLY. The
+ * remaining prose then gets parsed as CSS, and CSS error recovery eats
+ * everything up to the end of the next `{…}` block ⇒ the entire `.kvm-page`
+ * rule right below gets dropped, and the KVM page only fills the top half of
+ * the viewport with the background glow bleeding through. The owner spotted
+ * this at a glance during the 2026-08-05 P8 acceptance; at the time this file
+ * had TWO such comments — the other one swallowed cv-empty-state (the
+ * snapshot panel empty state). A guard now exists: see the "CSS comment
+ * integrity" section of the color-guard test in the styles directory,
+ * applied to every stylesheet in the repo.
+ * Likewise: no comment in this file may ever contain `*` directly followed by `/`.
+ * (Also never write a "dot + lowercase word" file suffix in comments here —
+ * the class-name whitelist test would treat it as a class name.)
+ */
+
+/* The global toast sits 118px up to clear the desktop dock. KVM is a full-screen
+ * page with no dock, so that offset parks notifications in the middle-bottom of
+ * the guest's console output.
+ *
+ * The override has to live on the root element, not on .kvm-page: the toast
+ * stack is mounted at app level and is a **sibling** of the page rather than a
+ * descendant, so a variable declared on .kvm-page never reaches it (verified in
+ * a real browser — the toast stayed at its default). Keying off :has() keeps it
+ * declarative: no mount or unmount hook to forget, and it stops applying the
+ * moment the page is gone.
+ * (Per the note at the top of this file, the comment above deliberately avoids
+ * writing that container's selector or its file suffix — the class-name
+ * whitelist reads both as undeclared class names.) */
+:root:has(.kvm-page) {
+  --toast-bottom: 24px;
+}
+
+.kvm-page {
+  display: flex;
+  height: 100vh;
+  background: var(--kvm-bg);
+  /* New-UI specific: the global theme styles attach soft-glow glass background
+   * layers to body::before/::after (position:fixed + z-index:0, the overall
+   * "make translucent panels float" ambience). Those two layers are not
+   * ancestors/descendants of .kvm-page but two other positioned children of
+   * body — per CSS stacking rules a statically positioned .kvm-page naturally
+   * sits below them regardless of DOM order, so without establishing a
+   * stacking context it gets covered by that glow/vignette (verified: without
+   * the two lines below, colored light spots bleed through in the right-hand
+   * empty area). KVM is the SOLID dark console hardcoded since Vue2, not a
+   * glass panel — none of that ambient light may show through, so we
+   * explicitly create a stacking context to sit on top. Vue2 has no such
+   * background layer; this is a necessary New-UI-only fix, neither a Vue2
+   * copy nor a logic bug carried over from it. */
+  position: relative;
+  z-index: 1;
+}
+
+.kvm-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Collapse toggle button (Vue2 :1671-1709) ── */
+.kvm-sidebar-toggle {
+  position: absolute;
+  left: 22rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--kvm-elev);
+  border: 1px solid var(--kvm-border);
+  border-left: none;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  width: 1.5rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 10;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.kvm-sidebar-toggle .toggle-icon {
+  /* Registered previously-undeclared deviation: Vue2 uses b-icon here (a bulma
+     component that ships an inline-block-like display); this is replaced with a
+     bare <span> placeholder. Inline elements ignore transform by default, so
+     inline-block must be set explicitly for the rotate(180deg) of the
+     .collapsed state below to take effect. */
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+.kvm-sidebar-toggle:hover {
+  color: var(--kvm-accent);
+  background: var(--kvm-border);
+}
+
+.kvm-sidebar-toggle.collapsed {
+  left: 0;
+  border-left: 1px solid var(--kvm-border);
+  border-right: none;
+  border-radius: 0.5rem 0 0 0.5rem;
+}
+
+.kvm-sidebar-toggle.collapsed .toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* ── Sidebar (Vue2 :1711-1973) ── */
+.kvm-sidebar {
+  width: 22rem;
+  background: var(--kvm-panel);
+  border-right: 1px solid var(--kvm-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.25s ease;
+}
+
+/* Collapse only applies at desktop width (same media query as Vue2) — narrow
+ * screens use the separate drawer-style responsive block below. */
+@media screen and (min-width: 769px) {
+  .kvm-sidebar.collapsed {
+    width: 0;
+    border-right: none;
+  }
+
+  .kvm-sidebar.collapsed .kvm-logo,
+  .kvm-sidebar.collapsed .kvm-title,
+  .kvm-sidebar.collapsed .kvm-status,
+  .kvm-sidebar.collapsed .vm-list,
+  .kvm-sidebar.collapsed .add-vm-btn,
+  .kvm-sidebar.collapsed .kvm-header {
+    display: none;
+  }
+}
+
+.kvm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: var(--kvm-panel);
+  border-bottom: 1px solid var(--kvm-border);
+  box-shadow: 0 2px 4px var(--kvm-shadow-soft);
+}
+
+.kvm-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.kvm-header-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.kvm-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kvm-logo {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+}
+
+.kvm-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--kvm-fg);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.kvm-settings-btn {
+  background: none;
+  border: none;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.kvm-settings-btn:hover:not(:disabled) {
+  color: var(--kvm-accent);
+}
+
+/* Review Minor fix: Vue2 has no disabled state (it never has "rendered but
+ * temporarily unusable" placeholder buttons), so this rule is a New-UI
+ * addition, not a Vue2 copy. The gear/add buttons sit disabled as shape
+ * placeholders until P6 (decided 2026-08-02), but without disabled visuals
+ * hovering still turns them purple-on-purple with a pointer cursor — they
+ * look clickable, a visible UX defect. The pattern copies the existing
+ * settings-area button convention ("hover guarded with not-disabled +
+ * disabled separately lowers opacity / swaps cursor"; the class name is not
+ * written out literally here to avoid tripping this file's class-name
+ * whitelist scanner), written in a reusable form — Task 5's ConsoleHeader
+ * will have the same kind of disabled button; just copy this pattern. */
+.kvm-settings-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kvm-status {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--kvm-fg-dim);
+}
+
+/* Task 8 token inventory: the default ("idle"/powered-off) fill of these three
+ * status-dot spots originally referenced --kvm-idle, which held the same
+ * literal as --kvm-fg-faint — no coincidence: the Vue2 source reuses the same
+ * color value in both scenarios (as the "stopped dot" fill and as the muted
+ * text color of console-hint-style elements; verified one by one at
+ * :1809/:1924/:2066 vs :2254/:2456/:2487 of the main KVM component source —
+ * identical literals). Two token names, one meaning: the same "most muted
+ * gray". Merged into one during the inventory; --kvm-idle has been removed
+ * from both theme blocks of the theme sp9 shard, and these three spots plus
+ * .console-hint below now uniformly use --kvm-fg-faint. */
+.kvm-status .status-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--kvm-fg-faint);
+}
+
+.kvm-status .status-dot.running {
+  background: var(--kvm-ok);
+  box-shadow: 0 0 8px var(--kvm-ok-glow);
+}
+
+.vm-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: var(--kvm-fg-dim);
+}
+
+.empty-state .empty-icon {
+  opacity: 0.4;
+  margin-bottom: 1rem;
+}
+
+.empty-state .empty-text {
+  font-size: 0.875rem;
+}
+
+.add-vm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: calc(100% - 1rem);
+  margin: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: var(--kvm-elev);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--kvm-fg);
+  transition: all 0.2s;
+}
+
+.add-vm-btn:hover:not(:disabled) {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent);
+}
+
+/* Same declared rationale as .kvm-settings-btn:disabled above; same reusable convention. */
+.add-vm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── VM list item (Vue2 :1843-1950) ── */
+.vm-list-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  margin-bottom: 0.25rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  border: 1px solid transparent;
+}
+
+.vm-list-item:hover {
+  background: var(--kvm-elev);
+}
+
+.vm-list-item.active {
+  background: var(--kvm-accent-soft);
+  border-color: var(--kvm-accent);
+}
+
+.vm-item-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  background: var(--kvm-elev);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.vm-item-icon .os-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+}
+
+.vm-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.vm-item-name {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--kvm-fg);
+  margin-bottom: 0.125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vm-item-specs {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--kvm-fg-dim);
+}
+
+.vm-item-status {
+  margin-left: 0.5rem;
+}
+
+.vm-item-status .status-indicator {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.vm-item-status .status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vm-item-status .status-dot.running {
+  background: var(--kvm-ok);
+  animation: breathe-green 2s ease-in-out infinite;
+}
+
+.vm-item-status .status-dot.stopped {
+  background: var(--kvm-fg-faint);
+}
+
+.vm-item-status .status-dot.paused {
+  background: var(--kvm-warn);
+  animation: breathe-yellow 2s ease-in-out infinite;
+}
+
+.vm-item-status .status-dot.suspended {
+  background: var(--kvm-warn);
+  animation: breathe-yellow 4s ease-in-out infinite;
+}
+
+.vm-item-status .status-dot.error {
+  background: var(--kvm-danger);
+  animation: breathe-red 2s ease-in-out infinite;
+}
+
+.vm-item-status .status-text {
+  font-size: 0.65rem;
+  color: var(--kvm-fg-dim);
+  white-space: nowrap;
+  margin-left: 0.375rem;
+}
+
+/* Three breathing keyframes (Vue2 :2762-2793) — used by the running / paused /
+ * suspended / error status dots. */
+@keyframes breathe-green {
+  0%, 100% {
+    box-shadow: 0 0 4px var(--kvm-ok-glow-weak);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px var(--kvm-ok-glow-strong);
+    transform: scale(1.1);
+  }
+}
+
+@keyframes breathe-yellow {
+  0%, 100% {
+    box-shadow: 0 0 4px var(--kvm-warn-glow-weak);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px var(--kvm-warn-glow-strong);
+    transform: scale(1.1);
+  }
+}
+
+@keyframes breathe-red {
+  0%, 100% {
+    box-shadow: 0 0 4px var(--kvm-danger-glow-weak);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 12px var(--kvm-danger-glow-strong);
+    transform: scale(1.1);
+  }
+}
+
+/* ── Right-hand main area (Vue2 :1975-2015) ── */
+.kvm-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--kvm-fg-dim);
+}
+
+.main-empty .empty-icon-ring {
+  width: 120px;
+  height: 120px;
+  border: 2px dashed var(--kvm-border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.main-empty .main-empty-icon {
+  opacity: 0.5;
+}
+
+.main-empty h3 {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--kvm-fg);
+  margin-bottom: 0.5rem;
+}
+
+.main-empty p {
+  font-size: 0.875rem;
+}
+
+/* ── Console header (Vue2 :2017-2135) ── */
+.vm-console-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.console-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: transparent;
+}
+
+.console-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.console-os-icon {
+  width: 2rem;
+  height: 2rem;
+}
+
+.console-title h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--kvm-fg);
+  margin: 0 0 0.125rem 0;
+}
+
+.console-status {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.console-status .status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.console-status .status-dot.running {
+  background: var(--kvm-ok);
+  animation: breathe-green 2s ease-in-out infinite;
+}
+
+.console-status .status-dot.stopped {
+  background: var(--kvm-fg-faint);
+}
+
+.console-status .status-dot.paused {
+  background: var(--kvm-warn);
+  animation: breathe-yellow 2s ease-in-out infinite;
+}
+
+.console-status .status-dot.suspended {
+  background: var(--kvm-warn);
+  animation: breathe-yellow 4s ease-in-out infinite;
+}
+
+.console-status .status-dot.error {
+  background: var(--kvm-danger);
+  animation: breathe-red 2s ease-in-out infinite;
+}
+
+.console-status .status-text {
+  font-size: 0.7rem;
+  color: var(--kvm-fg-dim);
+  white-space: nowrap;
+  margin-left: 0.375rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.console-status:hover .status-text {
+  opacity: 1;
+}
+
+.console-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.console-actions .action-btn {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
+  border: none;
+  background: var(--kvm-elev);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kvm-fg-dim);
+  transition: background 0.2s, color 0.2s;
+}
+
+.console-actions .action-btn:hover {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent);
+}
+
+/* Vue2 (:2124-2131) already styles the disabled state at opacity 0.35 (not the
+ * same thing as the 0.5 New-UI invented for kvm-settings-btn / add-vm-btn —
+ * the action-btn disabled state genuinely exists in Vue2; only the trigger
+ * changed in P5: Vue2 disables when canEditSettings is false, P5 keeps the
+ * Settings button permanently disabled as a pre-P6 placeholder, but the visual
+ * values are copied verbatim). Vue2 also nests an explicit disabled:hover
+ * fallback (resetting hover colors back to the non-hover defaults); kept here
+ * as well, instead of T4's :hover:not(:disabled) style — because this is real
+ * Vue2 visual behavior to copy 1:1, not a New-UI invented state. */
+.console-actions .action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.console-actions .action-btn:disabled:hover {
+  background: var(--kvm-elev);
+  color: var(--kvm-fg-dim);
+}
+
+/* ── Console placeholder area (subset of Vue2 :2202-2260) ──
+ * Task 5 only needs the small "show errors inline in the console area when an
+ * action fails" piece (hard constraint 9: no toast). The VNC canvas / power
+ * button (start-vm-btn / power-icon / power-svg) are the console body and
+ * belong to later tasks (they need the VNC connection state machine); not
+ * implemented here, and these classes are not referenced in the template —
+ * they were pre-registered in the class-name whitelist during T2, so this
+ * task needs no extra changes to that list. */
+.console-display {
+  flex: 1;
+  background: var(--kvm-bg);
+  border-radius: 0.75rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 0;
+  min-height: 300px;
+}
+
+/* Two blocks added in T6 (Vue2 :2210-2212 / :2218-2226, debt the review had
+ * already logged back in T5): fullscreen state zeroes the border radius; the
+ * canvas noVNC mounts is absolutely positioned to fill, with z-index above the
+ * placeholder layer — once useVncConsole establishes the connection and the
+ * canvas appears inside .console-display, it must cover the placeholder below
+ * (rather than be hidden by it), even if the v-if="!connected" placeholder has
+ * not yet been removed at that instant. */
+.console-display:fullscreen {
+  border-radius: 0;
+}
+
+/* Declared deviation (decided by the user after the 2026-08-03 on-device
+ * acceptance; the other half of the same fix as enabling scaleViewport in
+ * useVncConsole): the Vue2 rule (:2218-2226) uses `width/height: 100%
+ * !important` + object-fit: contain to wrestle the canvas size away from
+ * noVNC. On the Vue2 side that was a workaround — the scaleViewport it passed
+ * to the constructor was silently ignored, noVNC never scaled, and only CSS
+ * could stretch the canvas. Now that scaleViewport actually works, grabbing
+ * the size again breaks noVNC's mouse coordinate mapping: it converts click
+ * positions back to guest coordinates using its own computed scale (the
+ * display's absX/absY = coordinate ÷ scale), while !important makes the
+ * canvas element fill the whole container with the real picture centered by
+ * object-fit with black bars — the two no longer coincide.
+ * Probe measurements (container 900×600, guest 1280×800):
+ *   size grabbed   → element box 900×600, clicking the bottom-right corner
+ *                    maps to guest (1280, 853) — 53 beyond 800 vertically;
+ *                    every point's y coordinate is off by about 26 pixels;
+ *   size returned  → element box 900×563 (exactly the picture itself),
+ *                    bottom-right maps to (1280, 800) — precise.
+ * The picture rectangle is IDENTICAL under both (900×563, vertically
+ * centered), so this is a zero-visual-change logic correction. Container size
+ * changes (collapsing the sidebar / resizing the window / entering
+ * fullscreen) are recomputed by noVNC's own ResizeObserver (:284 and :581 of
+ * core/rfb; it observes the host element we pass in) — no CSS fallback needed. */
+.console-display canvas {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  z-index: 2;
+}
+
+.console-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--kvm-fg-dim);
+  /* Added in T6 (Vue2 :2236-2239, debt logged back in T5): the placeholder
+   * layer must be absolutely positioned to fill, below the canvas (z-index:1 <
+   * the canvas's z-index:2 above) — otherwise it stays in the document flow,
+   * stretches .console-display, and would not automatically drop underneath
+   * once the canvas appears. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.console-placeholder p {
+  font-size: 0.9rem;
+  margin: 0 0 0.25rem 0;
+  color: var(--kvm-fg);
+}
+
+/* Review Minor fix: the .console-placeholder parent selector is required
+ * (matching Vue2 :2252's `.console-placeholder .console-hint`, specificity
+ * (0,2,0)). Previously flattened to a top-level `.console-hint` (0,1,0), which
+ * loses to `.console-placeholder p` (0,1,1) above — it only got lucky because
+ * the sole consumer so far, `.console-hint.is-error` (0,2,0), also beats
+ * `.console-placeholder p`. The moment the next task (T6 noVNC) adds a plain
+ * .console-hint without .is-error, its color would be overridden by the p
+ * rule's var(--kvm-fg) — wrong color. Restore the parent selector to fully
+ * match Vue2's cascade. */
+.console-placeholder .console-hint {
+  font-size: 0.75rem;
+  color: var(--kvm-fg-faint);
+}
+
+.console-placeholder .console-hint.is-error {
+  color: var(--kvm-danger);
+}
+
+/* ── Large power-on/resume button (Vue2 :2261-2294) ── */
+.start-vm-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  width: 128px;
+  height: 128px;
+  border-radius: 1rem;
+}
+
+.start-vm-btn .power-icon {
+  width: 128px;
+  height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.start-vm-btn .power-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.start-vm-btn:hover:not(:disabled) {
+  background: transparent;
+}
+
+/* Vue2's disabled state is opacity 0.5 (hard constraint 6: taken 1:1 — not a
+ * coincidental match with New-UI's own 0.5 convention; this genuinely copies
+ * the Vue2 value). */
+.start-vm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── SendKey floating toolbar (Vue2 :2348-2438, verified 2026-08-02) ──
+ * This component renders as slot content into the ConsoleStage component's
+ * `.console-display` (wording corrected in the T7 review: the first version
+ * wanted `<Teleport :to="hostEl">`; the review pointed out that a plain
+ * `<slot />` on ConsoleStage is simpler with a smaller risk surface, so it
+ * was changed — see the comment at the top of the ConsoleStage component and
+ * the note at the `<ConsoleStage>` usage in the KvmPage view). Only this way
+ * can `.sendkey-toolbar`'s `position:absolute` be positioned relative to
+ * `.console-display` (itself position:relative), matching Vue2's DOM
+ * hierarchy (the toolbar is a direct child of `.console-display`), so the
+ * vertical-centering reference area does not additionally include the
+ * console-header height because of an extra New-UI wrapper div (a visual
+ * difference). SpiceInfoBar (Task 8) likewise renders as content of this same
+ * slot — see that component and the `.spice-info-bar` section in this file. */
+.sendkey-toolbar {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: var(--kvm-overlay);
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.5rem 0 0 0.5rem;
+  backdrop-filter: blur(8px);
+  z-index: 40;
+}
+
+.sendkey-divider {
+  border: none;
+  border-top: 1px solid var(--kvm-border);
+  margin: 0.25rem 0;
+  width: 100%;
+}
+
+.sendkey-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: none;
+  background: var(--kvm-elev);
+  border-radius: 0.375rem;
+  color: var(--kvm-fg);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.sendkey-btn:hover {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent);
+}
+
+.sendkey-btn.active {
+  background: var(--kvm-accent);
+  color: var(--kvm-on-accent);
+}
+
+.sendkey-btn .sendkey-hint {
+  position: absolute;
+  right: calc(100% + 0.5rem);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--kvm-elev);
+  color: var(--kvm-fg-dim);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.sendkey-btn:hover .sendkey-hint {
+  opacity: 1;
+}
+
+.sendkey-btn .fullscreen-svg,
+.sendkey-btn .sendkey-img {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.sendkey-slide-enter-active {
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+.sendkey-slide-leave-active {
+  transition: transform 0.15s ease-in, opacity 0.15s ease-in;
+}
+
+.sendkey-slide-enter-from {
+  transform: translateX(100%) translateY(-50%);
+  opacity: 0;
+}
+
+.sendkey-slide-leave-to {
+  transform: translateX(100%) translateY(-50%);
+  opacity: 0;
+}
+
+/* ── Overflow menu (Vue2 :2137-2200) ── */
+.dropdown-wrapper {
+  position: relative;
+}
+
+.overflow-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--kvm-panel);
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 8px 24px var(--kvm-shadow);
+  z-index: 50;
+  min-width: 10rem;
+  padding: 0.375rem;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--kvm-fg);
+  border-radius: 0.375rem;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.dropdown-item:hover {
+  background: var(--kvm-elev);
+}
+
+/* Added in Task 8: every Vue2 dropdown-item is preceded by a b-icon
+ * (:103-133); T5 only migrated the text and dropped the icon half of the
+ * "icon + text" layout (flagged by review, logged on task-8's incidental
+ * cleanup list). New-UI has no casa icon font, so per this area's existing
+ * convention (⚙ / ⋮ / ‹ etc.) monochrome text glyphs stand in — not a new
+ * visual language, the same placeholder technique applied to menu items. The
+ * fixed width left-aligns glyphs of varying width (▶ / ⊘ / ↻ / ‖ / ×); Vue2's
+ * b-icon size="is-small" is likewise a fixed box, so the value here need not
+ * be verbatim (the placeholder glyphs are not 1:1 graphics anyway), but the
+ * "reserve a fixed width for alignment" layout intent is 1:1. */
+.dropdown-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  flex-shrink: 0;
+}
+
+.dropdown-item.is-danger {
+  color: var(--kvm-danger);
+}
+
+.dropdown-item.is-danger:hover {
+  background: var(--kvm-danger-soft);
+}
+
+.toggle-indicator {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--kvm-toggle-off);
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-indicator.on {
+  background: var(--kvm-ok);
+}
+
+.confirm-text-danger {
+  color: var(--kvm-danger);
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--kvm-border);
+  margin: 0.25rem 0;
+}
+
+/* ── Progress overlay (drawn by New-UI, matching Vue2 :495-514's b-modal +
+ * b-message) ──
+ * The component itself Teleports to body — see the decision comment inside the
+ * ProgressOverlay component. z-index is 1000, the same magnitude as Dialog-type
+ * modals in the ui component library (it need not cover them, but must not be
+ * covered either — an in-progress stop/restart/delete should never be hidden
+ * behind another dialog). */
+.kvm-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--kvm-overlay);
+}
+
+.kvm-progress-card {
+  min-width: 16rem;
+  max-width: 20rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.75rem;
+  background: var(--kvm-panel);
+  border: 1px solid var(--kvm-border);
+  box-shadow: 0 8px 24px var(--kvm-shadow);
+  color: var(--kvm-fg);
+}
+
+.kvm-progress-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.kvm-progress-msg {
+  font-size: 0.85rem;
+  color: var(--kvm-fg-dim);
+}
+
+.kvm-spinner {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 2px solid var(--kvm-border);
+  border-top-color: var(--kvm-accent);
+  flex-shrink: 0;
+  animation: kvm-progress-spin 0.8s linear infinite;
+}
+
+@keyframes kvm-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Narrow screens (Vue2 :2740-2759) ──
+ * The Vue2 original uses &open (a selector combined with the open class) to
+ * toggle the sidebar drawer's expanded state, but the class open never appears
+ * in the template (toggleSidebar only changes sidebarCollapsed; nothing ever
+ * adds/removes open) — dead code. The ACTUAL Vue2 behavior on narrow screens
+ * is a permanently hidden drawer with no way to reopen it (a real Vue2 mobile
+ * bug, not a "deliberately unbuilt feature").
+ *
+ * ⚠️ Deviation from Vue2 (Task 8 wrap-up; fix the logic, don't copy the bug;
+ * declared): the values (position / width / transform / transition curve) are
+ * copied verbatim, but the `.active` trigger condition is added here — reusing
+ * the existing desktop collapse state (`collapsed`); on narrow screens
+ * `active = !collapsed`. `collapsed` defaults to false, so the sidebar is
+ * visible on first entry at narrow width (drawer open by default) and the same
+ * collapse button toggles it — no second set of state needed. See
+ * `:class="{ collapsed, active: !collapsed }"` in the VmSidebar component. */
+@media screen and (max-width: 768px) {
+  .kvm-sidebar {
+    width: 100%;
+    position: absolute;
+    left: 0;
+    top: 4rem;
+    bottom: 0;
+    z-index: 10;
+    transform: translateX(-100%);
+    transition: transform 0.3s;
+  }
+
+  .kvm-sidebar.active {
+    transform: translateX(0);
+  }
+
+  .kvm-main {
+    width: 100%;
+  }
+}
+
+/* ── SPICE connection info bar (Vue2 template :156-165 + styles :2795-2865,
+ * the latter in the FIRST, scoped style block) ──
+ * Renders into the ConsoleStage component's slot (the same slot as
+ * sendkey-toolbar above; see that comment for why). Every color value maps to
+ * an existing --kvm-* token: background is --kvm-overlay (the same
+ * semi-transparent dark as the SendKey toolbar / progress overlay), border is
+ * --kvm-warn-border, text is --kvm-warn (yellow family, matching the advisory
+ * "not yet switched to disk boot" nature of the message), and the close button
+ * reuses the existing --kvm-fg-dim / --kvm-fg "secondary icon button" pair —
+ * when T2 defined this token batch it picked the values from the Vue2
+ * literals right here; verified one by one, a full match, no new tokens
+ * needed. */
+.spice-info-bar {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  background: var(--kvm-overlay);
+  border: 1px solid var(--kvm-warn-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 16px var(--kvm-shadow);
+  backdrop-filter: blur(8px);
+  max-width: 36rem;
+}
+
+.spice-info-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.125rem;
+  font-size: 0.8rem;
+  color: var(--kvm-warn);
+  min-width: 0;
+}
+
+.spice-info-content code {
+  font-family: monospace;
+  color: var(--kvm-warn);
+  white-space: nowrap;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.spice-info-content .spice-agent-hint {
+  font-size: 0.75rem;
+  color: var(--kvm-warn);
+}
+
+.spice-info-close {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  background: transparent;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  transition: color 0.2s;
+}
+
+.spice-info-close:hover {
+  color: var(--kvm-fg);
+}
+
+/* Hard constraint 5: Vue3 transition class names are `-enter-from` /
+ * `-leave-to`; the Vue2 side wrote `-enter`. The whitelist registers the Vue3
+ * names, and only Vue3 names are used here — the Vue2 class that simply never
+ * fires under Vue3 is not kept. */
+.spice-toast-enter-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.spice-toast-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.spice-toast-enter-from {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-0.5rem);
+}
+
+.spice-toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-0.5rem);
+}
+
+/* ── Installation banner (Vue2 template :142-149 + styles :3096-3147) ──
+ * ⚠️ This stylesheet section is in Vue2's **second, non-scoped** style block (end of file,
+ * starting at :2875), not in the first scoped block where the SPICE info bar sits above.
+ * This is the only light-colored section on the whole page; the --kvm-banner-* token family
+ * applies a light blue background (defined back in T2, first consumed here). Button text
+ * color and loading spinner border color are both written as white literals in Vue2; we
+ * reuse the existing --kvm-on-accent token (also pure white, semantically "text on accent
+ * color", already in use by the SendKey toolbar's active state)—not a new token, not a
+ * hardcoded literal like Vue2. */
+.installation-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--kvm-banner-bg);
+  border-bottom: 1px solid var(--kvm-banner-border);
+  padding: 8px 16px;
+  color: var(--kvm-banner-fg);
+  font-size: 0.9rem;
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Task 8 review fix—added new element (no Vue2 counterpart; see InstallBanner component
+ * header comment): inline error text when eject fails. flex-basis:100% with flex-wrap:wrap
+ * makes it occupy its own row. When there's no error, this element never renders (v-if),
+ * so the original single-line layout is unaffected.
+ *
+ * ⚠️ Second review round fix: do NOT use --kvm-danger for this color. That red is
+ * designed for dark console backgrounds (dropdown-item.is-danger / confirm-text-danger
+ * etc. all sit on dark dropdown backgrounds). Applying it directly to this installation
+ * banner's light blue background (--kvm-banner-bg, the only light section on the page)
+ * yields contrast of only ~2.94:1, far below WCAG AA's 4.5:1 threshold for body text
+ * (verified by review testing + contrast checker: 2.935:1). Use instead
+ * --kvm-banner-error-fg, which is designed for light backgrounds and produces 5.723:1
+ * contrast against light blue. Full value and algorithm notes are in the theme sp9 shard
+ * (the file defining the --kvm-banner-* token family). */
+.banner-error {
+  flex-basis: 100%;
+  margin: 4px 0 0 0;
+  color: var(--kvm-banner-error-fg);
+  font-size: 0.8rem;
+}
+
+.banner-btn {
+  background-color: var(--kvm-banner-btn);
+  color: var(--kvm-on-accent);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.banner-btn:hover {
+  background-color: var(--kvm-banner-btn-hover);
+}
+
+.banner-btn.is-loading {
+  color: transparent;
+  pointer-events: none;
+  position: relative;
+}
+
+.banner-btn.is-loading::after {
+  content: "";
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  top: calc(50% - 0.5em);
+  left: calc(50% - 0.5em);
+  border: 2px solid var(--kvm-on-accent);
+  border-radius: 290486px;
+  border-right-color: transparent;
+  border-top-color: transparent;
+  animation: kvm-banner-spin 0.5s infinite linear;
+}
+
+/* Vue2 names this bare `spin` (in its own style block, naturally isolated from
+ * collisions elsewhere). This file is a flattened global stylesheet—it doesn't get the
+ * automatic keyframe name-mangling of single-file component scoped blocks—so a bare `spin`
+ * risks colliding with same-name global keyframes elsewhere in the app. Therefore we add
+ * a prefix. Values (duration/rate/angles) are copied verbatim; only the name got a prefix,
+ * which is not a visual deviation. */
+@keyframes kvm-banner-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(359deg);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 1: KvmDialog modal shell. Visual 1:1 match to Vue2 KVMFullPage component's
+ * .create-vm-modal family: header :2311-2343, body :2344-2346, footer :2702-2722.
+ * Color values swapped one-by-one to --kvm-* tokens. Container changed from
+ * buefy b-modal to reka-ui DialogRoot/DialogContent (declared structural deviation;
+ * see KvmDialog component header comment).
+ * ════════════════════════════════════════════════════════════════════ */
+
+.kvm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--kvm-overlay-strong);
+}
+
+.kvm-dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 92vw;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.create-vm-modal {
+  background: var(--kvm-modal-bg);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.create-vm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem 0.75rem;
+  /* New-UI specific: KvmDialog's head/body/foot are now direct children of a single
+   * flex column container (class kvm-dialog-content + create-vm-modal on the same
+   * element). Without flex-shrink:0, when content overflows vertically the header/footer
+   * get compressed along with the body. Vue2 doesn't have this problem (buefy's
+   * modal-card header/footer are never part of the internal scroll layout). */
+  flex-shrink: 0;
+}
+
+.create-vm-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--kvm-modal-fg);
+  margin: 0;
+}
+
+.create-vm-close {
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: transparent;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.create-vm-close:hover:not(:disabled) {
+  background: var(--kvm-field-elev);
+  color: var(--kvm-modal-fg);
+}
+
+.create-vm-close:disabled {
+  cursor: not-allowed;
+}
+
+.create-vm-body {
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  /* Intentional deviation (declared, brief Step 4): Vue2 gets scrolling from buefy's
+   * modal-card-body. New-UI's shell must provide it itself. Just adding overflow-y:auto
+   * is not enough—.create-vm-body is a child item in a flex column container
+   * (.kvm-dialog-content). Without flex:1 + min-height:0 it expands to natural content
+   * height and never actually triggers scrollbars. These two properties are the necessary
+   * companion to make the "shell provides scrolling" decision actually work; not a new
+   * semantic, just infrastructure. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.create-vm-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem 1.5rem 1.25rem;
+  flex-shrink: 0;
+}
+
+/* ── Form fields (cv-* family, shared by create and settings dialogs). Following
+ * Vue2 :2440-2524. Original file uses buefy's ::v-deep to pierce into component-internal
+ * <input>. New-UI has no buefy, so cv-input is the class directly on the <input> itself,
+ * and selectors are flattened. */
+
+.cv-field {
+  position: relative;
+  margin-bottom: 1.25rem;
+}
+
+.cv-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--kvm-fg-dim);
+  margin-bottom: 0.375rem;
+}
+
+.cv-hint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 0.7rem;
+  color: var(--kvm-fg-faint);
+}
+
+.cv-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cv-input-row .cv-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.cv-input {
+  background: var(--kvm-field-bg);
+  border: 1px solid var(--kvm-field-border);
+  color: var(--kvm-modal-fg);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  height: 2.5rem;
+  padding: 0 0.75rem;
+  width: 100%;
+}
+
+.cv-input::placeholder {
+  color: var(--kvm-fg-faint);
+}
+
+.cv-input:focus {
+  border-color: var(--kvm-accent);
+  box-shadow: 0 0 0 1px var(--kvm-accent-ring);
+}
+
+.cv-input-unit {
+  position: relative;
+}
+
+.cv-unit {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: var(--kvm-fg-faint);
+  pointer-events: none;
+}
+
+.cv-input-unit .cv-input {
+  padding-right: 4rem;
+}
+
+.cv-input-unit .cv-input[type="number"]::-webkit-inner-spin-button,
+.cv-input-unit .cv-input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cv-input-unit .cv-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* New class (intentional deviation, declared): Vue2 uses buefy `b-button
+ * type="is-primary" rounded` (footer buttons at create/snapshots/VM settings/global
+ * settings all share one visual form, lines 342/388/489/551). New-UI has no buefy,
+ * so we write an equivalent class.
+ *
+ * ⚠️ Border radius is 0.5rem, not pill/capsule (review correction; documented here
+ * to prevent Task 10 from copying it wrong). The `rounded` prop adds a buefy built-in
+ * rule that only touches two class selectors (button + is-rounded). But the page itself
+ * also writes a more specific rule in its scoped style block (:1657-2874 range):
+ * `create-vm-foot class → button element carrying the is-primary class
+ * { border-radius: 0.5rem; … }` (:2707-2720). Class names are deliberately not written
+ * as dot-prefixed selectors here — see the note at the snapshots-tab comment below.
+ * After Vue2's scoped compilation, this page rule gets an extra data-v attribute
+ * selector appended to its last compound selector—one more specificity level than
+ * buefy's rule. The page's rule wins, completely overriding the border-radius (and
+ * left/right padding) that `rounded` added. On this page `rounded` prop is a no-op;
+ * the rendered result is 0.5rem radius, not pill-shaped. Here we copy what renders,
+ * not what the prop name suggests. */
+.cv-primary-btn {
+  background: var(--kvm-accent);
+  color: var(--kvm-on-accent);
+  border: none;
+  padding: 0 2rem;
+  height: 2.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cv-primary-btn:hover:not(:disabled) {
+  background: var(--kvm-accent-hover);
+}
+
+.cv-primary-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* is-loading spinner technique reuses the existing pattern from P5's
+ * .banner-btn.is-loading (same @keyframes kvm-banner-spin, no duplication). */
+.cv-primary-btn.is-loading {
+  color: transparent;
+  pointer-events: none;
+  position: relative;
+}
+
+.cv-primary-btn.is-loading::after {
+  content: "";
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  top: calc(50% - 0.5em);
+  left: calc(50% - 0.5em);
+  border: 2px solid var(--kvm-on-accent);
+  border-radius: 290486px;
+  border-right-color: transparent;
+  border-top-color: transparent;
+  animation: kvm-banner-spin 0.5s infinite linear;
+}
+
+/* New class (intentional deviation, declared): Vue2 reports form validation/submission
+ * errors with toast notifications. This project's KVM area is committed to not using
+ * toast (hard constraint 7), so inline error display within the dialog is a new UI element. */
+.cv-error {
+  color: var(--kvm-danger);
+  font-size: 0.8rem;
+  margin-top: 0.35rem;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 2: Global settings dialog toggle switch (cv-switch). Container deviation
+ * (declared; KvmGlobalSettingsDialog component header comment): Vue2 uses
+ * buefy `b-switch`. New-UI has no buefy, so we draw a native checkbox styled to look
+ * like buefy's pill-shaped toggle. The native <input type="checkbox"> is visually
+ * hidden using standard clip-rect technique (not display:none—that would lose Tab
+ * keyboard accessibility and native checked semantics). The actual visible shapes are
+ * .cv-switch-track and .cv-switch-knob, driven by the :checked adjacent sibling
+ * selector to toggle between on/off styles—no JS class computation needed.
+ * ════════════════════════════════════════════════════════════════════ */
+.cv-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+  color: var(--kvm-modal-fg);
+  font-size: 0.875rem;
+}
+
+.cv-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}
+
+.cv-switch-track {
+  position: relative;
+  width: 2.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: var(--kvm-toggle-off);
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.cv-switch input:checked + .cv-switch-track {
+  background: var(--kvm-accent);
+}
+
+.cv-switch-knob {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--kvm-on-accent);
+  transition: transform 0.2s;
+}
+
+.cv-switch input:checked + .cv-switch-track .cv-switch-knob {
+  transform: translateX(1rem);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 5: OsSelector official template portion (category filter + card grid +
+ * three download states). Visual 1:1 match to Vue2 components/KVM/OSSelector
+ * component styles :426-562 + 768px media query :697-701. **Do NOT carry over**
+ * os-progress-wrap section (:513-527, zero matches in template, dead CSS).
+ * Container deviation (declared): Vue2 categories use buefy b-button
+ * (type is-primary/is-light). New-UI has no buefy, so .category-btn is hand-drawn,
+ * colors inferred from how buefy is-primary/is-light looks visually on dark panels
+ * (solid accent vs. panel gray background)—not a direct copy of any specific Vue2 rule.
+ * ════════════════════════════════════════════════════════════════════ */
+
+.os-selector-body {
+  /* Intentional deviation (structure, not visuals): KvmDialog's .create-vm-body
+   * already provides flex:1 + overflow-y:auto + 1.5rem padding left/right/top
+   * (this task doesn't repeat those three; repeating would stack a second scroll
+   * container inside .create-vm-body). Vue2's .os-selector-body is its own
+   * independent dialog shell's scroll body with 1.5rem on all four sides.
+   * New-UI reuses the same dialog shell. The only missing piece is the bottom padding
+   * that .create-vm-body deliberately leaves empty (it sets bottom to 0 to make room
+   * for footer buttons). This dialog has no footer, so we restore that padding to
+   * maintain Vue2's visual symmetry of "equal whitespace on all four sides". */
+  padding-bottom: 1.5rem;
+}
+
+.category-filter {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.category-btn {
+  padding: 0.375rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--kvm-border);
+  background: var(--kvm-elev);
+  color: var(--kvm-fg-dim);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* Use :not(.active) rather than hard constraint 7's :not(:disabled)—this button has
+ * no disabled state, only "currently selected" vs. "not selected" two states. Same reason:
+ * avoid the already-activated state (solid accent background) getting recolored by a hover
+ * rule, which would mislead the user into thinking "I selected it but maybe I can click it
+ * again and change it to another color". */
+.category-btn:hover:not(.active) {
+  color: var(--kvm-fg);
+  border-color: var(--kvm-fg-dim);
+}
+
+.category-btn.active {
+  background: var(--kvm-accent);
+  color: var(--kvm-on-accent);
+  border-color: var(--kvm-accent);
+}
+
+.os-section {
+  margin-bottom: 1.5rem;
+}
+
+.os-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.os-card {
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.75rem;
+  padding: 1rem 0.75rem 0.75rem;
+  text-align: center;
+  transition: box-shadow 0.2s, border-color 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--kvm-elev);
+}
+
+.os-card:hover {
+  box-shadow: 0 2px 10px var(--kvm-shadow-mid);
+  border-color: var(--kvm-accent);
+}
+
+.os-card.is-downloaded {
+  border-color: var(--kvm-ok);
+  background: var(--kvm-ok-faint);
+}
+
+.os-card.is-downloading {
+  border-color: var(--kvm-accent);
+  background: var(--kvm-accent-faint);
+}
+
+.os-icon-wrapper {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.os-icon-wrapper .os-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: contain;
+}
+
+.os-info {
+  margin-bottom: 0.5rem;
+}
+
+.os-info .os-name {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--kvm-fg);
+  margin-bottom: 0.125rem;
+}
+
+.os-info .os-version,
+.os-info .os-size {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--kvm-fg-dim);
+}
+
+.os-action-btn {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* Hard constraint 7 high-risk point: base class has no :hover (avoids the override
+ * trap; see file header comment). Each variant carries its own &:hover background,
+ * matching Vue2's SCSS nesting compilation result (.os-action-btn.is-download:hover
+ * etc., specificity (0,3,0))—three variants don't interfere with each other. */
+.os-action-btn.is-download {
+  background: var(--kvm-accent);
+  color: var(--kvm-on-accent);
+}
+
+.os-action-btn.is-download:hover {
+  /* Note: this is --kvm-accent-hover-alt, not the primary button's --kvm-accent-hover.
+   * The two token values differ; Vue2 itself has different colors in these two places,
+   * so we keep both 1:1 rather than unify them ourselves (value comparison in the P6
+   * token shard's comments where these tokens are defined). */
+  background: var(--kvm-accent-hover-alt);
+}
+
+.os-action-btn.is-selected {
+  background: var(--kvm-ok);
+  color: var(--kvm-on-accent);
+}
+
+.os-action-btn.is-selected:hover {
+  background: var(--kvm-ok-hover);
+}
+
+.os-action-btn.is-downloading-btn {
+  background: var(--kvm-accent-muted);
+  color: var(--kvm-accent);
+  cursor: not-allowed;
+}
+
+@media screen and (max-width: 768px) {
+  /* Separate media query block, not merged with the narrow-screen sidebar block
+   * above. In Vue2 this rule comes from OSSelector's own <style scoped> block (:697-701),
+   * while the narrow-screen sidebar rules come from KVMFullPage (:2740-2759)—two
+   * different components, two unrelated style blocks. They just happen to use the same
+   * 768px breakpoint. */
+  .os-grid {
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 6: IsoBrowser custom section (browse local ISO files). Visual 1:1 match to
+ * Vue2 components/KVM/OSSelector component styles :564-695. All tokens reused from
+ * P5/T2, no new tokens added (color-to-token mapping table in this task's report file).
+ * ════════════════════════════════════════════════════════════════════ */
+
+.custom-section {
+  margin-top: 0.5rem;
+}
+
+.custom-divider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  user-select: none;
+  padding: 0.5rem 0;
+  color: var(--kvm-fg-dim);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.custom-divider:hover {
+  color: var(--kvm-fg);
+}
+
+.custom-browse {
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--kvm-elev);
+}
+
+.custom-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--kvm-border);
+  background: var(--kvm-panel);
+}
+
+.custom-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--kvm-border);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* Hard constraint 7: hover must include :not(:disabled), and disabled must
+ * explicitly set cursor:not-allowed (when at root directory, up-button is disabled
+ * and must not look clickable). */
+.custom-back-btn:hover:not(:disabled) {
+  color: var(--kvm-fg);
+  border-color: var(--kvm-fg);
+}
+
+.custom-back-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.custom-path {
+  font-size: 0.8rem;
+  color: var(--kvm-fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-file-list {
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+/* Intentional deviation (container, declared): Vue2 uses buefy `b-loading`
+ * (built-in absolute positioning fills container + internal animation). New-UI has
+ * no buefy, so we reuse the existing `.kvm-spinner` (P6's progress overlay already
+ * uses the same spinner animation). Here we add flex centering to display it centered
+ * in this whitespace area. Vue2's b-loading naturally fills its container and comes
+ * with built-in centering; after switching implementation, we must explicitly add it
+ * back—not a new visual semantic, just infrastructure. */
+.custom-loading {
+  padding: 2rem;
+  position: relative;
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--kvm-fg-dim);
+  font-size: 0.8rem;
+}
+
+.custom-file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.custom-file-item:hover {
+  background: var(--kvm-accent-faint);
+}
+
+.custom-file-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--kvm-fg-dim);
+}
+
+.custom-file-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-file-name {
+  font-size: 0.8rem;
+  color: var(--kvm-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-file-size {
+  font-size: 0.7rem;
+  color: var(--kvm-fg-dim);
+}
+
+.custom-file-arrow {
+  flex-shrink: 0;
+  color: var(--kvm-fg-dim);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 7: CreateVmDialog creation form (8 fields + seven validators +
+ * osTemplate dependencies). Visual 1:1 match to Vue2 KVMFullPage component styles:
+ * .cv-iso-btn (:2544-2567) / .cv-cpu-group & .cv-cpu-btn (:2609-2637) /
+ * .cv-select family (:2638-2669) / .cv-firmware-group & .cv-firmware-btn (:2670-2701).
+ *
+ * ⚠️ Scope note (one discrepancy between brief's detail steps and the literal list—
+ * verified and narrowed accordingly): Brief's top "Files" section lists four blocks
+ * (cv-iso-btn/cv-cpu-group/cv-select/cv-firmware-group). Step 3's detailed instructions
+ * add another: cv-iso-eject (:2573-2592). Checking Vue2's create-vm-modal template
+ * (:396-494) confirms: the create dialog never has an "eject/change ISO" button.
+ * cv-iso-eject and its companion cv-ejected-text color are for *after* the VM is
+ * created, used in the VM settings dialog for disk swap/eject. This component doesn't
+ * render these two classes; bringing the style rules here would be dead CSS with no
+ * consumer. cv-iso-eject is already registered in the whitelist (Task 0 reserved slot);
+ * leave it for the task that actually renders it (VM settings dialog) to style; don't
+ * pre-occupy it here.
+ *
+ * Color values verified one-by-one against Vue2 literals and swapped for tokens
+ * (--kvm-field-bg/--kvm-field-border/--kvm-field-elev/--kvm-modal-fg/--kvm-fg-faint/
+ * --kvm-fg-dim/--kvm-accent/--kvm-accent-light/--kvm-accent-ring/--kvm-accent-soft).
+ * Mapping table in this task's report file. **No hex/rgba literals here**: this file's
+ * bare color literal guard doesn't strip comments, so writing them here triggers false
+ * positives (real bug we hit). --kvm-accent-soft is an existing token already in use
+ * earlier in this file (for example vm-list-item.active); two active states reusing it is
+ * no new token, not a color collision—the values match.
+ * ════════════════════════════════════════════════════════════════════ */
+
+.cv-iso-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0.75rem;
+  height: 2.5rem;
+  background: var(--kvm-field-bg);
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.375rem;
+  color: var(--kvm-modal-fg);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.cv-iso-btn .cv-placeholder {
+  color: var(--kvm-fg-faint);
+}
+
+.cv-iso-btn:hover {
+  border-color: var(--kvm-accent);
+}
+
+.cv-cpu-group {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.cv-cpu-btn {
+  width: 2.5rem;
+  height: 2.25rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: var(--kvm-field-elev);
+  color: var(--kvm-fg-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cv-cpu-btn:hover {
+  background: var(--kvm-field-border);
+  color: var(--kvm-modal-fg);
+}
+
+.cv-cpu-btn.active {
+  background: var(--kvm-accent-soft);
+  border-color: var(--kvm-accent);
+  color: var(--kvm-accent-light);
+}
+
+/* Hard constraint 7 high-risk point: Base class `.cv-cpu-btn:hover` (0,2,0) and
+ * `.cv-cpu-btn.active` (0,2,0) have equal specificity, so source order decides.
+ * Without explicitly giving active state its own :hover rule, mousing over an already-
+ * selected cell gets overridden by the base hover rule, showing the "unselected" gray
+ * background—looks like the active state disappeared. */
+.cv-cpu-btn.active:hover {
+  background: var(--kvm-accent-soft);
+  border-color: var(--kvm-accent);
+  color: var(--kvm-accent-light);
+}
+
+.cv-select {
+  position: relative;
+}
+
+.cv-select-native {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 2rem 0 0.75rem;
+  background: var(--kvm-field-bg);
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.375rem;
+  color: var(--kvm-modal-fg);
+  font-size: 0.875rem;
+  appearance: none;
+  cursor: pointer;
+}
+
+.cv-select-native:focus {
+  border-color: var(--kvm-accent);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--kvm-accent-ring);
+}
+
+.cv-select-arrow {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--kvm-fg-dim);
+  pointer-events: none;
+}
+
+.cv-firmware-group {
+  display: flex;
+  background: var(--kvm-field-bg);
+  border-radius: 0.375rem;
+  overflow: hidden;
+  border: 1px solid var(--kvm-field-border);
+}
+
+.cv-firmware-btn {
+  flex: 1;
+  height: 2.5rem;
+  border: none;
+  background: transparent;
+  color: var(--kvm-fg-dim);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cv-firmware-btn:hover {
+  background: var(--kvm-field-border);
+}
+
+.cv-firmware-btn.active {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent-light);
+}
+
+/* Same reasoning as .cv-cpu-btn.active:hover above (hard constraint 7 high-risk
+ * point)—this is the second place base hover would override .active. Add an explicit
+ * .active:hover rule here too, carrying its own background. */
+.cv-firmware-btn.active:hover {
+  background: var(--kvm-accent-soft);
+  color: var(--kvm-accent-light);
+}
+
+.cv-firmware-btn:first-child {
+  border-right: 1px solid var(--kvm-field-border);
+}
+
+/* Task 9 addition (hard constraint 11): In the VM settings dialog these two buttons
+ * are always disabled (following Vue2 :321-322; the create dialog's are clickable and
+ * don't need this rule). Vue2 source has no explicit CSS for disabled state—the button
+ * is unclickable but looks identical, which is a Vue2 gap (users can't distinguish
+ * "clicked but nothing happened" from "this was never clickable"). Hard constraint 11
+ * requires disabled to explicitly set cursor:not-allowed. We add it here without
+ * changing any other visuals (no opacity reduction—the firmware button's active/inactive
+ * background difference alone is enough to communicate "this is the current value, not
+ * an item I can operate", and adding opacity would make the selected option less salient). */
+.cv-firmware-btn:disabled {
+  cursor: not-allowed;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 9 addition (review Important: brief Step 2 required this section but it was
+ * missed; see task report "deviation registry" addendum): VM settings dialog's tab
+ * navigation at the top. Visual 1:1 match to Vue2 KVMFullPage component styles
+ * .settings-tabs / .settings-tab (:2877-2900).
+ *
+ * Color verification (no hex literals here—this file's bare color guard doesn't
+ * strip comments): bottom border reuses the same token as .cv-iso-btn /
+ * .cv-firmware-group etc., --kvm-field-border. Default text color uses --kvm-fg-dim. Hover text
+ * uses --kvm-fg (existing token already in use at .sendkey-btn etc. earlier in file).
+ * Active state's text and bottom border both use --kvm-accent. All four token values
+ * verified against the four color literals in Vue2's source rule—no new tokens.
+ * ════════════════════════════════════════════════════════════════════ */
+.settings-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--kvm-field-border);
+  margin: 0 1.5rem;
+}
+
+.settings-tab {
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  border: none;
+  color: var(--kvm-fg-dim);
+  font-size: 0.875rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.settings-tab:hover {
+  color: var(--kvm-fg);
+}
+
+.settings-tab.active {
+  color: var(--kvm-accent);
+  border-color: var(--kvm-accent);
+}
+
+/* Hard constraint 11/#14 high-risk point (same pattern already used twice in this
+ * file at .cv-cpu-btn.active:hover / .cv-firmware-btn.active:hover): base class
+ * `.settings-tab:hover` (0,2,0) and `.settings-tab.active` (0,1,0) have different
+ * specificity, so base wins. Without this rule, mousing over the currently selected
+ * tab gets its text color overridden by the hover rule's color to "unselected" gray—
+ * looks like the active state vanished. Explicitly add a :hover for active state here,
+ * with the same color as non-hover active. */
+.settings-tab.active:hover {
+  color: var(--kvm-accent);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 9: VM settings dialog ISO eject/mount dual-state button. Visual 1:1 match to
+ * Vue2 KVMFullPage component's eject button rule (:2573-2592). **Do NOT carry over**
+ * the pure text-color rule immediately above it (:2568-2571; the class is literally
+ * cv- prefix + ejected-text suffix; this file's class-name whitelist scanner treats
+ * bare class names even in comments as "appeared", so we intentionally don't write
+ * the full class name here)—Vue2 template never uses this class (grep of the whole
+ * file shows only this style definition), it's dead CSS, and this component doesn't
+ * render it.
+ *
+ * Color verification (no hex literals here—see file header notes about this file's
+ * bare color guard not stripping comments): background and border reuse two existing
+ * tokens from earlier in this file (.cv-iso-btn / .cv-cpu-btn etc.):
+ * --kvm-field-bg / --kvm-field-border. Text color uses --kvm-fg-dim. Hover state's
+ * red uses --kvm-danger. All four token values verified against the four color
+ * literals in Vue2's rule—no new tokens, not a color collision.
+ * ════════════════════════════════════════════════════════════════════ */
+.cv-iso-eject {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.375rem;
+  background: var(--kvm-field-bg);
+  color: var(--kvm-fg-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cv-iso-eject:hover {
+  background: var(--kvm-field-border);
+  color: var(--kvm-danger);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * Task 10: Snapshots tab. Visual 1:1 match to Vue2 KVMFullPage component styles:
+ * .cv-empty-state (:2940-2959) + .cv-snapshot-item / .cv-btn rules nested inside
+ * `.snapshots-body` (:2969-3090). The "Create Snapshot" primary button reuses the
+ * existing .cv-primary-btn from earlier in this file (carried in Task 1, identical
+ * to Vue2's snapshots-body "button element carrying the is-primary class" rule
+ * (:2724-2737); no duplication here.
+ * Note: class names intentionally not written as dot-prefixed selectors here—this
+ * file's class-name whitelist scanner treats bare class names even in comments as
+ * "appeared". Same technique as the `.cv-primary-btn` comment above and the prior
+ * ejected-text example in Task 9.
+ *
+ * **Do NOT carry over** two dead CSS blocks (grep confirmed zero template matches
+ * 2026-08-03; class names also not written dot-prefixed):
+ * - `cv-btn-create` (:3049-3058)—the "Create Snapshot" button is `b-button
+ *   type="is-primary" rounded`; this class is never used.
+ * - `cv-snapshot-list` (:2962-2966)—no template elements have this class.
+ * Also do NOT carry the nested `cv-field { margin-bottom... }` rule inside
+ * `cv-snapshot-info` (:2991-2996)—that selector requires a `cv-field` element
+ * nested inside `cv-snapshot-info`. In the template `cv-snapshot-info` directly
+ * holds three <span> elements, no nested `cv-field`. Also dead CSS.
+ *
+ * Color verification (**no hex literals here**—this file's bare color guard scans
+ * line-by-line without stripping comments, so they trigger false positives; task
+ * report has a full color-by-color verification table). `.cv-empty-state` background/
+ * border/text use existing tokens --kvm-field-bg / --kvm-field-border / --kvm-fg-faint,
+ * verified against Vue2's three colors. `.cv-snapshot-item` background uses new token
+ * --kvm-snapshot-bg; border reuses existing --kvm-field-border (Vue2's rule uses a
+ * dark gray literal that matches --kvm-field-elev numerically, but --kvm-field-border
+ * is already the "card border" semantic used throughout this file; the two dark grays
+ * are nearly indistinguishable on this dark background, so we reuse the token rather
+ * than add a near-duplicate gray). Hover border uses --kvm-accent; hover background
+ * uses new token --kvm-snapshot-hover. Snapshot name text uses existing
+ * --kvm-modal-fg (Vue2 writes pure white; on a dark card --kvm-modal-fg's light gray
+ * looks identical; we reuse the existing "main text in card" semantic token rather
+ * than add a new one). Description text uses new token --kvm-snapshot-desc-fg. Date
+ * text uses new token --kvm-snapshot-date-fg.
+ * ⚠️ Task 11 wrap-up correction: The prior sentences "border reuses
+ * --kvm-field-border" and "name text uses --kvm-modal-fg" were review-flagged as
+ * Minor deviations (color literals not 1:1); corrected to --kvm-field-elev and new
+ * token --kvm-snapshot-name-fg. Rationale in the comment directly next to
+ * .cv-snapshot-item / .cv-snapshot-name rules. History preserved here to keep
+ * review trail intact.
+ * `.cv-btn-restore` background/hover background/disabled background use new tokens
+ * --kvm-restore-bg / --kvm-restore-bg-hover / --kvm-restore-disabled-bg respectively;
+ * text reuses existing --kvm-on-accent. `.cv-btn-delete` background reuses existing
+ * --kvm-danger (matches Vue2's literal exactly, not coincidence—we defined this token
+ * earlier for console status dots and banner error color by copying that same Vue2
+ * global red); hover background uses new token --kvm-delete-bg-hover. All six tokens
+ * (--kvm-snapshot-* / --kvm-restore-* / --kvm-delete-bg-hover) were pre-defined in
+ * the theme sp9 shard (historical carryover from Task 1, noted in that shard's comments
+ * as "consumed by later tasks"). This is their first actual consumption, not new tokens.
+ *
+ * ⚠️ Hard constraint 4 high-risk point: Base class `.cv-btn` itself **has no** :hover
+ * rule (consistent with Vue2 source; only the two variants `.cv-btn-restore` and
+ * `.cv-btn-delete` each have their own hover)—so there's no "base hover overriding
+ * variant hover" risk here (the newui-css-hover-specificity-trap scenario requires
+ * the base to have :hover; we deliberately don't, so this hazard is cleanly avoided).
+ * ════════════════════════════════════════════════════════════════════ */
+.cv-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: var(--kvm-field-bg);
+  border: 1px solid var(--kvm-field-border);
+  border-radius: 0.375rem;
+  color: var(--kvm-fg-faint);
+}
+
+.cv-empty-state span {
+  font-size: 0.8rem;
+}
+
+/* Task 11 wrap-up fix (review Minor a; no hex literals here—this file's bare color
+ * guard scans line-by-line without stripping comments): Vue2's rule (:2976) uses a
+ * dark gray border literal. `--kvm-field-elev` is exactly that literal (theme sp9
+ * shard; already in use earlier at .cv-cpu-btn etc.), but it was previously
+ * mistakenly swapped for --kvm-field-border (another dark gray, visually almost
+ * indistinguishable but not 1:1 literal). Now corrected to the precisely matching
+ * existing token—zero new cost.
+ */
+/* Full-branch review addendum declaration (C1): Vue2's rule (:2977) has
+ * transition: `all 0.2s`. Here narrowed to just `border-color/background-color`.
+ * Review verified this selector's hover only changes those two properties (see :2121's
+ * hover rule), unlike `.cv-btn` (Minor c, already fixed in the comment above at
+ * :2175-2181) which would miss opacity and other transition properties. So **behavior
+ * is unchanged**. This is just an after-the-fact declaration that the narrowing
+ * happened, to avoid future review mistaking it for an undeclared deviation. */
+.snapshots-body .cv-snapshot-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
+  background: var(--kvm-snapshot-bg);
+  border: 1px solid var(--kvm-field-elev);
+  border-radius: 0.5rem;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.snapshots-body .cv-snapshot-item:hover {
+  border-color: var(--kvm-accent);
+  background: var(--kvm-snapshot-hover);
+}
+
+.snapshots-body .cv-snapshot-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Task 11 wrap-up fix (review Minor b; no hex literals—same reason as above):
+ * Vue2's rule (:3003) uses a pure white text literal. Previously mistakenly swapped
+ * for --kvm-modal-fg (light gray, not pure white). --kvm-on-accent's value is also
+ * pure white, but its semantic is "foreground on solid accent background" (used at
+ * places like .cv-btn-restore / .cv-btn-delete, text on solid color buttons). Reusing
+ * it for regular text on --kvm-snapshot-bg (dark gray card, not accent-colored)
+ * doesn't fit the semantic. Decision: add a new token with correct semantics, not
+ * reuse on-accent. Naming follows the existing --kvm-snapshot-desc-fg /
+ * --kvm-snapshot-date-fg family (all "some line of text in a snapshot card"), same
+ * values in both theme blocks (KVM area is fixed dark; see file header and theme sp9
+ * shard comments). Synced into the theme sp9 shard's test file's 24-token inventory. */
+.snapshots-body .cv-snapshot-name {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--kvm-snapshot-name-fg);
+  margin-bottom: 0.6rem;
+  white-space: normal;
+}
+
+.snapshots-body .cv-snapshot-desc {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--kvm-snapshot-desc-fg);
+  margin-bottom: 0.5rem;
+  white-space: normal;
+}
+
+/* Full-branch review fix (C2): Vue2's rule (:3021-3022) has two more declarations:
+ * `text-decoration: none` and `cursor: default`. Both were previously omitted—
+ * `cursor` is an observable difference. Mousing over the "Created: …" line without
+ * this rule shows the browser's default I-beam text cursor (looks selectable/editable),
+ * while Vue2 shows a regular arrow pointer. Add both; not new visuals, just completing
+ * what should have been there all along. */
+.snapshots-body .cv-snapshot-date {
+  display: block;
+  font-size: 0.725rem;
+  color: var(--kvm-snapshot-date-fg);
+  white-space: normal;
+  text-decoration: none;
+  cursor: default;
+}
+
+.snapshots-body .cv-snapshot-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-left: 2rem;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+/* Task 11 wrap-up fix (review Minor c): Vue2's rule (:3046) is `transition: all 0.2s`.
+ * Previously narrowed to `background-color 0.2s, border-color 0.2s` with no declaration—
+ * real impact: `.cv-btn-restore:disabled`'s `opacity: 0.4` animates together with `all`
+ * in Vue2, but snaps instantly after narrowing (visible jump when button toggles
+ * enabled/disabled on VM state change). Per hard constraint "undeclared deviation is a
+ * bug", fixed by reverting to `all 0.2s` to exactly match Vue2. No known reason to narrow
+ * transition scope here (unlike other all→split cases where we skip an unwanted property).
+ * Copying verbatim is simpler and less likely to miss something next time. */
+.cv-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.cv-btn-restore {
+  background: var(--kvm-restore-bg);
+  border-color: var(--kvm-restore-bg);
+  color: var(--kvm-on-accent);
+}
+
+.cv-btn-restore:hover:not(:disabled) {
+  background: var(--kvm-restore-bg-hover);
+  border-color: var(--kvm-restore-bg-hover);
+}
+
+.cv-btn-restore:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--kvm-restore-disabled-bg);
+  border-color: var(--kvm-restore-disabled-bg);
+}
+
+.cv-btn-delete {
+  background: var(--kvm-danger);
+  border-color: var(--kvm-danger);
+  color: var(--kvm-on-accent);
+}
+
+.cv-btn-delete:hover {
+  background: var(--kvm-delete-bg-hover);
+  border-color: var(--kvm-delete-bg-hover);
+}

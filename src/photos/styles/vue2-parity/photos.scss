@@ -1,0 +1,4822 @@
+/* === Nimo Photos · Apple Photos-inspired dark === */
+/* Fix round (2026-08-12): 6 bare top-level selectors that were confirmed to
+   collide with class names used in non-photos areas of this app (.scroll,
+   .skeleton, .lib-empty, .st-bar, .st-btn, .search-meta) have been prefixed
+   with `.photos-root ` below. In the Vue2 source these elements always
+   render inside `.photos-root` (including portaled ones, which re-apply the
+   `photos-root` class to their portal host — see PhotosPlacesView.vue's
+   cover-portal and NimoModelPicker.vue), so the prefix is behavior-preserving.
+   Left unprefixed, they would leak app-wide into non-photos areas the moment
+   the photos chunk loads (confirmed hit: bare `.search-meta` matched
+   src/ai/components/blocks/SearchResultsCard.vue, which has no <style> block
+   of its own to shadow it). All other unscoped selectors in this file are
+   photos-internal name collisions only and are intentionally left as-is. */
+.photos-root {
+  --bg: #0A0A0C;
+  --surface-1: #131318;
+  --surface-2: #1A1A20;
+  --surface-3: #22222A;
+  --line:        rgba(var(--ink), 0.06);
+  --line-strong: rgba(var(--ink), 0.10);
+  --line-stronger: rgba(var(--ink), 0.18);
+
+  --text-1: rgba(var(--ink), 0.95);
+  --text-2: rgba(var(--ink), 0.62);
+  --text-3: rgba(var(--ink), 0.42);
+  --text-4: rgba(var(--ink), 0.26);
+
+  /* Acceptance Fix-4 follow-up (controller diagnosis, 2026-08-18): this is a real property
+     (not a custom-property token), deliberately set on the BARE `.photos-root` rule itself, not
+     just on `.photos-root .app` (which already had its own `color: var(--text-1)`, further down
+     this file). Root cause of the owner's light-theme "white/illegible modal text" screenshot:
+     `.app` is the only element inside `.photos-root` that ever declared a `color` -- every
+     OVERLAY that renders as a sibling of `.app` (not a descendant), e.g. `.fav-modal-scrim`/
+     `.trash-modal-scrim`/AlbumPickerDialog/the slideshow, has titles/bodies with no `color`
+     declaration of their own (see e.g. `.trash-modal-title`/`.fav-modal-title` below, both
+     colorless by design, meant to inherit `var(--text-1)`). With no color anywhere on
+     `.photos-root` itself, "inherit" for those siblings fell through past `.photos-root` to
+     `<body>`'s GLOBAL app-wide theme color -- in the owner's combo (Photos set to its OWN light
+     theme, while the global New-UI theme stays on its dark default), that resolves to
+     near-white, painted on top of these siblings' near-white `--surface-1` modal background:
+     the exact bug. `.app`'s own content was always immune (it has its own explicit color rule),
+     which is why this was invisible until an .app-SIBLING overlay was screenshotted in that
+     specific theme combo. Both `.photos-root`/`.photos-root.is-light` blocks already define
+     `--text-1`, so this one declaration on the shared base rule is correct in both themes and
+     makes the whole `.photos-root` subtree color-self-contained, matching `.app`'s own
+     already-correct behavior instead of leaking to the page's unrelated global theme. */
+  color: var(--text-1);
+
+  --accent:      #6E5BFF;
+  --accent-soft: rgba(110,91,255,0.18);
+  --accent-glow: rgba(110,91,255,0.35);
+  --accent-hi:   #8A7AFF;
+
+  --success: #34C759;
+  --warning: #FF9F0A;
+  --danger:  #FF453A;
+  --info:    #5AC8FA;
+
+  /* Plan H Task 8 review fix: PhotosTrashView.vue's confirm-modal icon (:100-102) and its
+     hero/hero-button danger icons (:6/:20) use two literal Vue2 colors that are NEITHER of
+     this file's own `--accent`/`--danger` (both a different hue) NOR theme.css's app-wide
+     `--remove-fg` (which is itself re-themed per light/dark, #ff8a8a / #c0392b -- neither
+     value is Vue2's literal). Theme-invariant by design (Vue2 has no light/dark toggle at
+     all), same "identical literal in both blocks" convention as `--nimo-ring-*` below --
+     not a token-substitution gap, a deliberate parity choice.
+     Acceptance Fix-4 (owner ruling): `--trash-confirm-fg` was Vue2's literal blue (#5e94ff) --
+     repointed to this file's own purple `--accent` hex (#6E5BFF) so the non-danger confirm-modal
+     icon glyph reads coherently against the now-purple `.trash-btn-cta` CTA instead of clashing
+     blue-icon-next-to-purple-button. `--trash-danger-fg` is untouched (still Vue2's literal red)
+     -- same "keep destructive red" interpretation as `.trash-btn-cta-danger`'s own Fix-4 comment
+     below; flagged there for the owner to re-judge together with the CTA question. */
+  --trash-confirm-fg: #6E5BFF; /* confirm-modal icon, non-danger/restore case -- purple (Fix-4), was Vue2's literal #5e94ff */
+  --trash-danger-fg: #FF6B5C;  /* hero icon (:6), hero "Empty trash" button icon (:20), confirm-modal icon danger case (:101-102) */
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+
+  --topbar-h: 52px;
+  --sidebar-w: 224px;
+  --sidebar-w-collapsed: 56px;
+
+  /* Theme channel + semantic tokens. Dark values reproduce the current
+     pixels exactly; light overrides live in .photos-root.is-light below. */
+  --ink: 255, 255, 255;            /* rgba(var(--ink), X) == old rgba(255,255,255,X) in dark */
+  --accent-rgb: 110, 91, 255;      /* channel form of --accent, theme-invariant */
+  --menu-bg: rgba(22,22,30,0.96);  /* context menus / popovers */
+  --pop-bg:  rgba(22,22,30,0.92);  /* content-heavy floating panels */
+  --dropcard-bg: rgba(19,19,24,0.65); /* drop-zone card glass */
+  --lb-bg: #000;                      /* lightbox canvas */
+  --lb-chrome: rgba(0,0,0,0.6);       /* lightbox top/bottom bars */
+  --modal-bg: rgba(28,28,36,0.98); /* confirm dialogs */
+  --float-bg: rgba(20,20,28,0.85); /* floating bars / FAB */
+  --float-bg-hover: rgba(28,28,38,0.95);
+  --well-bg: rgba(0,0,0,0.35);     /* inset code/tool-output wells */
+  --accent-ink: #CFC6FF;           /* readable accent-tinted text */
+  --accent-ink-dim: rgba(179,155,255,0.6);
+  --hero-scrim: rgba(10,10,12,0.30); /* veil over blurred hero backdrops */
+
+  /* Plan G (Ask Nimo): FAB progress ring gradient endpoints. Theme-invariant by design (Vue2
+     itself never re-themes this ring), so both theme blocks carry the identical literal values --
+     not a token-substitution gap, a deliberate parity choice. */
+  --nimo-ring-from: #b39bff;
+  --nimo-ring-to: #6e5bff;
+  --nimo-ring-err-from: #FFB783;
+  --nimo-ring-err-to: #FF9F43;
+
+  /* The seven `--pin-bg`/
+     `--pin-stroke`/`--pin-active-bg`/`--pin-pulse`/`--pin-cluster-hover-bg`/`--pin-glow`/
+     `--pin-cluster-stroke` geo-pin tokens that used to live here (migrated from global
+     `theme.css`) carried the app's BLUE accent family
+     — a deviation from Vue2, which paints map pins with the PURPLE `--accent`/`--accent-rgb`
+     family directly (photos-places.scss:367-437), theme-constant with no light-mode override at
+     all (grep-verified against the Vue 2 panel's real source). PlacesMap.vue's own `<style scoped>`
+     rules that consumed these seven tokens have been deleted/trimmed (see that file's own
+     comments) so parity's own `rgba(var(--accent-rgb), …)`/`var(--accent)` rules
+     (photos-places.scss, same file) govern directly — restoring Vue2's purple. With that done,
+     these seven tokens have ZERO remaining consumers anywhere in this repo (grep-confirmed:
+     `/usr/bin/grep -rn 'pin-bg\|pin-stroke\|pin-active\|pin-pulse\|pin-cluster\|pin-glow' src/`
+     turns up only this now-deleted definition site and the also-updated test files) — removed
+     entirely rather than kept dormant. */
+}
+
+/* === Light theme — aligned 1:1 with the AI Agent palette
+   (src/views/AI/Agent/tokens.scss): warm-tinted oklch near-whites for
+   surfaces, cool near-black text. `is-light` must sit on the same element
+   as `photos-root`. Accent purple family and functional colors are
+   intentionally NOT overridden — hard requirement from the spec. === */
+.photos-root.is-light {
+  --bg: oklch(0.985 0.003 80);        /* = AI --bg-app */
+  --surface-1: oklch(0.975 0.004 80); /* = AI --bg-canvas */
+  --surface-2: oklch(0.96 0.004 80);  /* = AI --bg-sunken */
+  --surface-3: oklch(0.94 0.005 80);  /* = AI --bg-chip */
+  --line:          oklch(0.91 0.004 80); /* = AI --line */
+  --line-strong:   oklch(0.85 0.004 80); /* = AI --line-strong */
+  --line-stronger: oklch(0.78 0.004 80);
+
+  --text-1: oklch(0.22 0.005 260); /* = AI --text-primary */
+  --text-2: oklch(0.45 0.005 260); /* = AI --text-secondary */
+  --text-3: oklch(0.62 0.005 260); /* = AI --text-tertiary */
+  --text-4: oklch(0.75 0.005 260); /* = AI --text-quaternary */
+
+  --ink: 35, 37, 43; /* rgb approximation of AI --text-primary for alpha ramps */
+  --menu-bg: rgba(255,255,255,0.96);
+  --pop-bg:  rgba(255,255,255,0.92);  /* content-heavy floating panels */
+  --dropcard-bg: rgba(255,255,255,0.9);
+  --lb-bg: oklch(0.975 0.004 80);     /* = AI --bg-canvas */
+  --lb-chrome: rgba(255,255,255,0.8);
+  --modal-bg: oklch(1 0 0);           /* = AI --bg-elevated */
+  --float-bg: rgba(255,255,255,0.85); /* AI vibrancy glass family */
+  --float-bg-hover: rgba(255,255,255,0.96);
+  --well-bg: rgba(15,20,30,0.05);     /* AI shadow ink family */
+  --accent-ink: #5340E0;
+  --accent-ink-dim: rgba(83,64,224,0.55);
+  --hero-scrim: rgba(255,255,255,0.40);
+
+  /* Fix-5: the seven `--pin-*` geo-pin tokens that used to be redefined here (blue-family
+     light-mode values) are removed — see the dark `.photos-root` block's own Fix-5 comment above
+     for the full rationale. Vue2 has no light-mode override for pins at all (accent purple is
+     theme-constant there); this block correctly has none now either. */
+
+  /* Plan F Task 1 (glass-exception dark-band fix, 2026-08-15): PhotosTopbar.vue's `.search` box
+     is an owner-approved GLASS exception (see that component's own scoped-style comment) that
+     deliberately consumes the app's GLOBAL --chip-bg/--chip-border tokens (src/styles/theme.css)
+     instead of this file's own `.photos-root`-scoped parity tokens. Root cause of the owner's
+     "亮色顶部暗带" (light-top dark-band) report: this `.photos-root.is-light` block never
+     redefined those two token NAMES, so in the very common "photos-light + app-global-dark"
+     combination (Photos has its own light/dark toggle, independent of theme.css's app-wide
+     toggle — dark is theme.css's default `:root`, no `data-theme="light"` attribute needed to
+     hit it) the glass box fell straight through to theme.css's DARK values — a translucent
+     white gradient designed to glow on a dark AreaShell page — painted on top of THIS page's
+     own near-white --bg. Fix, scoped to photos only (theme.css itself is untouched — Task 1
+     brief requires this): give these two token NAMES a photos-private light-context value
+     here, so any photos glass exception consuming them (currently just PhotosTopbar's
+     `.search`) gets a legible light-glass look instead of silently falling through to
+     theme.css's dark design. Values are a translucent take on theme.css's own LIGHT
+     --chip-bg/--chip-border (theme.css:356-358, solid `#ffffff` / `#e7e3d9`) — same
+     white-on-light-warm-neutral direction, cited as the source, kept as a soft gradient + alpha
+     (using this block's own `--ink` channel for the border, same pattern `--line`/`--text-*`
+     use above) so the glass EFFECT itself — not just the color — still reads as glass rather
+     than a flat opaque chip. Dark mode (plain `.photos-root`, no `.is-light`) is intentionally
+     NOT touched here — it keeps falling through to theme.css's global tokens exactly as
+     before, byte-for-byte (see photosGlassSurfaces.test.ts's own guard for this). */
+  --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.62));
+  --chip-border: rgba(var(--ink), 0.14);
+
+  /* Plan G (Ask Nimo): FAB progress ring gradient endpoints. Theme-invariant by design (Vue2
+     itself never re-themes this ring), so both theme blocks carry the identical literal values --
+     not a token-substitution gap, a deliberate parity choice. */
+  --nimo-ring-from: #b39bff;
+  --nimo-ring-to: #6e5bff;
+  --nimo-ring-err-from: #FFB783;
+  --nimo-ring-err-to: #FF9F43;
+
+  /* Plan H Task 8 review fix: same theme-invariant pair as the dark `.photos-root` block above
+     (see its own comment) -- identical literal values, Vue2 has no light-mode override.
+     Acceptance Fix-4 (owner ruling): --trash-confirm-fg repointed to purple, same value as the
+     dark block above (kept identical across both -- see that block's own Fix-4 comment). */
+  --trash-confirm-fg: #6E5BFF;
+  --trash-danger-fg: #FF6B5C;
+}
+
+.photos-root * { box-sizing: border-box; }
+.photos-root button { background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.photos-root button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.photos-scroll { overflow-y: auto; }
+.photos-root .scroll { overflow-y: auto; }
+
+/* Hidden scrollbars across the whole Photos app — content still scrolls, the bar
+   is never shown. !important overrides every per-element scrollbar rule below. */
+.photos-root ::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+.photos-root, .photos-root * { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* === App grid === */
+/* Fix-2 item 6b (owner acceptance, 2026-08-13), New-UI-only structural addition, not a Vue2
+   pixel value -- `position: relative; z-index: 1` added below.
+   Root cause: New-UI's global `body::before`/`body::after` (theme.css:587-618) paint a
+   fixed, viewport-covering "aurora"/bokeh wash (blue/purple/teal radial gradients) at
+   `z-index: 0`, meant to glow through the app's *glass* shells (AreaShell-hosted pages --
+   photosGlassSurfaces.test.ts's own header comment documents this as the intended aesthetic
+   there). Photos opted OUT of that glass shell entirely (this very `.app` rule paints its own
+   fully opaque `var(--bg)`, matching Vue2 1:1, not a translucent panel) -- but a plain,
+   non-positioned block element (`.app`, unpositioned, no z-index) is painted *earlier* than a
+   `position: fixed; z-index: 0` sibling in the standard CSS stacking/paint order (CSS 2.1
+   Appendix E, step 3 vs step 6) regardless of how opaque its own background is -- paint order,
+   not opacity, decides this. So the aurora painted *on top* of `.app` all along; it simply
+   read as a plausible ambient dark-on-dark glow in Photos' own dark theme and was never
+   reported. `.photos-root.is-light`'s near-white `--bg` makes the exact same bleed-through
+   glaringly visible (a colourful gradient wash over a light page) -- that visibility gap, not
+   a difference in the underlying bug, is why this only surfaces as an owner-reported defect
+   now that photos-is-light exists. `position: relative; z-index: 1` promotes `.app` into the
+   positioned/z-index layer *above* the aurora's `z-index: 0` (same recipe already used by
+   ViewerShell.vue's own opaque shell over its own z-index:0 bokeh layer, `z-index: 1` on the
+   content layer there too) -- theme-invariant, fixes both of `.photos-root`'s own themes at
+   once, not a per-theme override. Harmless for descendants: it only changes the containing
+   block for `position: absolute` children (from the viewport to `.app`'s own box, which already
+   spans the full viewport 1:1 via `height: 100vh`+its own grid width, so no visible offset
+   changes), and does not affect `position: fixed` descendants at all (only
+   transform/filter/perspective/contain change the fixed containing block, not
+   position/z-index). */
+.photos-root .app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  height: 100vh;
+  position: relative;
+  z-index: 1;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+}
+.photos-root .app[data-collapsed="true"] {
+  grid-template-columns: var(--sidebar-w-collapsed) 1fr;
+}
+
+/* === Sidebar === */
+.photos-root .sidebar {
+  background: var(--surface-1);
+  border-right: 1px solid var(--line);
+  display: flex; flex-direction: column;
+  min-width: 0;
+}
+.photos-root .sidebar-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  height: var(--topbar-h);
+  border-bottom: 1px solid var(--line);
+}
+.photos-root .brand-icon {
+  width: 26px; height: 26px;
+  border-radius: 7px;
+  background: radial-gradient(120% 120% at 20% 20%, #B8AAFF 0%, var(--accent) 38%, #4032B8 90%);
+  position: relative;
+  flex: none;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 6px 14px -4px var(--accent-glow);
+}
+.photos-root .brand-icon::after {
+  content: ""; position: absolute; inset: 5px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.85);
+  clip-path: polygon(0 70%, 30% 35%, 55% 60%, 75% 35%, 100% 65%, 100% 100%, 0 100%);
+  opacity: 0.92;
+}
+.photos-root .brand-name { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.photos-root .brand-user { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+
+.photos-root .nav-section { padding: 10px 8px 6px; }
+.photos-root .nav-label {
+  font-size: 10px; font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 8px 10px 6px;
+}
+.photos-root .nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+.photos-root .nav-item:hover { background: var(--surface-3); color: var(--text-1); }
+.photos-root .nav-item[data-active="true"] { background: var(--accent-soft); color: var(--text-1); }
+.photos-root .nav-item[data-active="true"] .nav-icon { color: var(--accent-hi); }
+.photos-root .nav-icon { color: var(--text-3); flex: none; display: flex; }
+.photos-root .nav-count { margin-left: auto; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+.photos-root .sidebar-foot {
+  margin-top: auto;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.photos-root .index-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-3); }
+.photos-root .index-row .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  animation: photos-pulse 1.6s ease-in-out infinite;
+}
+/* Renamed from Vue2's `pulse` to avoid colliding with theme.css's global
+   `pulse` (keyframes ignore selector scoping); behavior-identical
+   self-consistent rename. */
+@keyframes photos-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.photos-root .storage-mini { font-size: 11px; color: var(--text-3); }
+.photos-root .storage-mini-bar {
+  height: 4px; border-radius: 99px;
+  background: rgba(var(--ink), 0.06);
+  overflow: hidden; margin-top: 6px;
+  position: relative;
+}
+.photos-root .storage-mini-bar > div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hi));
+  border-radius: inherit;
+}
+
+/* === Topbar === */
+.photos-root .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+.photos-root .topbar {
+  height: var(--topbar-h); flex: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+}
+.photos-root .topbar-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.photos-root .topbar-sub  { font-size: 11px; color: var(--text-3); }
+
+.photos-root .icon-btn {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  flex: none;
+}
+.photos-root .icon-btn:hover { background: var(--surface-3); color: var(--text-1); }
+.photos-root .icon-btn[data-active="true"] { background: var(--accent-soft); color: var(--accent-hi); }
+
+.photos-root .search {
+  flex: 1; max-width: 520px; height: 32px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-3);
+}
+.photos-root .search:focus-within { border-color: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); }
+.photos-root .search input {
+  flex: 1; background: transparent; border: 0; outline: 0;
+  color: var(--text-1); font: inherit;
+}
+.photos-root .search input::placeholder { color: var(--text-3); }
+.photos-root .search .kbd {
+  font-size: 10.5px; padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(var(--ink), 0.06);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+.photos-root .btn {
+  height: 32px; padding: 0 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font-size: 12.5px; font-weight: 500;
+}
+.photos-root .btn:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.photos-root .btn-primary { background: var(--accent); border-color: var(--accent); color: white; }
+.photos-root .btn-primary:hover { background: var(--accent-hi); }
+.photos-root .btn-ai {
+  background: linear-gradient(120deg, rgba(110,91,255,0.16), rgba(110,91,255,0.06));
+  border-color: var(--accent-soft);
+  color: var(--accent-hi);
+}
+.photos-root .btn-ai:hover { background: linear-gradient(120deg, rgba(110,91,255,0.25), rgba(110,91,255,0.10)); }
+
+/* === Toolbar === */
+.photos-root .toolbar {
+  height: 44px; flex: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  position: relative; z-index: 5;
+}
+/* margin/font reset overrides Bulma's global .tabs component (margin-bottom: 1.5rem,
+   font-size: 1rem) which otherwise shifts the toolbar tabs up off the row centre. */
+.photos-root .tabs { display: inline-flex; gap: 0; background: var(--surface-2); border-radius: 999px; padding: 3px; margin: 0; font-size: 12px; }
+.photos-root .tab {
+  height: 26px; padding: 0 12px;
+  border-radius: 999px; font-size: 12px;
+  color: var(--text-2); font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.photos-root .tab[data-active="true"] { background: var(--accent); color: white; box-shadow: 0 4px 12px -4px var(--accent-glow); }
+.photos-root .density { display: inline-flex; gap: 2px; background: var(--surface-2); border-radius: var(--r-sm); padding: 3px; }
+.photos-root .density button { width: 28px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; color: var(--text-3); }
+.photos-root .density button:hover { color: var(--text-1); }
+.photos-root .density button[data-active="true"] { background: var(--surface-3); color: var(--text-1); }
+.photos-root .muted-text { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* === Content viewport === */
+.photos-root .content {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 66px;
+  position: relative; overflow: hidden;
+}
+.photos-root .photos-wrap { overflow-y: auto; position: relative; }
+.photos-root .photos-wrap::-webkit-scrollbar { width: 0; }
+
+/* === Timeline === */
+.photos-root .month-group { padding: 0; }
+.photos-root .month-head {
+  position: sticky; top: 0; z-index: 4;
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 18px 20px 10px;
+  background: linear-gradient(180deg, var(--bg) 75%, rgba(10,10,12,0.0));
+  backdrop-filter: blur(8px);
+}
+.photos-root .month-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.photos-root .month-loc { color: var(--text-3); font-size: 13px; font-weight: 400; }
+.photos-root .month-count { margin-left: auto; color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.photos-root .grid { display: grid; gap: 3px; padding: 0 20px 20px; }
+.photos-root .grid[data-density="compact"]     { grid-template-columns: repeat(10, 1fr); gap: 2px; }
+.photos-root .grid[data-density="comfortable"] { grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.photos-root .grid[data-density="loose"]       { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+
+.photos-root .tile {
+  position: relative; aspect-ratio: 1/1;
+  overflow: hidden; border-radius: 3px;
+  background: var(--surface-2); cursor: pointer; isolation: isolate;
+}
+.photos-root .grid[data-density="loose"] .tile { border-radius: 6px; }
+.photos-root .tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s ease, filter 0.2s ease; }
+.photos-root .tile:hover img { transform: scale(1.04); }
+.photos-root .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
+.photos-root .tile[data-selected="true"]::before {
+  content: ""; position: absolute; inset: 0;
+  background: rgba(110,91,255,0.20); z-index: 2;
+}
+.photos-root .tile-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.55));
+  opacity: 0; transition: opacity 0.18s ease;
+  z-index: 3; pointer-events: none;
+}
+.photos-root .tile:hover .tile-overlay { opacity: 1; }
+.photos-root .tile:hover .tile-actions { opacity: 1; transform: translateY(0); }
+.photos-root .tile-actions {
+  position: absolute; top: 6px; right: 6px;
+  display: flex; gap: 4px;
+  opacity: 0; transform: translateY(-3px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 4;
+}
+.photos-root .tile-act {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+  color: rgba(255,255,255,0.9);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.photos-root .tile-act:hover { background: rgba(0,0,0,0.78); color: white; }
+.photos-root .tile-act[data-on="true"] { background: var(--accent); color: white; }
+.photos-root .tile-fav {
+  position: absolute; bottom: 6px; left: 6px; z-index: 3;
+  color: white; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
+.photos-root .tile-vid {
+  position: absolute; bottom: 6px; right: 6px;
+  display: flex; align-items: center; gap: 3px;
+  font-size: 10.5px; color: white;
+  font-variant-numeric: tabular-nums; font-weight: 500;
+  z-index: 3; text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  transition: opacity 0.15s;
+}
+/* When hover-scrub preview is active: the bottom black gradient and duration
+   badge yield to the preview's own time label/progress bar (same behavior as
+   YouTube). Its specificity ties with .tile:hover .tile-overlay / .tile:hover's
+   display rules at (0,0,4,0), so it can't win on source order alone (fragile) —
+   add !important to guarantee the hiding rule always wins. */
+.photos-root .tile[data-previewing="true"] .tile-overlay,
+.photos-root .tile[data-previewing="true"] .tile-vid { opacity: 0 !important; }
+.photos-root .tile-checkbox {
+  position: absolute; top: 6px; left: 6px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(255,255,255,0.7);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: transparent; z-index: 4;
+  opacity: 0; transition: opacity 0.15s;
+}
+.photos-root .tile:hover .tile-checkbox { opacity: 1; }
+.photos-root .app[data-selecting="true"] .tile-checkbox { opacity: 1; }
+.photos-root .tile[data-selected="true"] .tile-checkbox {
+  background: var(--accent); border-color: var(--accent); color: white; opacity: 1;
+}
+
+/* === Scrubber === */
+.photos-root .scrubber {
+  position: relative; border-left: 1px solid var(--line);
+  user-select: none;
+  /* fill grid row; overflow becomes scrollable so dense timelines don't squash */
+  min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* legacy Edge / IE */
+}
+.photos-root .scrubber::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.photos-root .scrubber-inner {
+  position: relative;
+}
+.photos-root .scrubber-tick {
+  position: absolute; left: 50%; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-3);
+  font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 500;
+}
+.photos-root .scrubber-tick::before { content: ""; width: 8px; height: 1px; background: var(--line-stronger); }
+.photos-root .scrubber-tick[data-major="true"] { color: var(--text-1); font-size: 14px; font-weight: 600; }
+.photos-root .scrubber-tick[data-major="true"]::before { width: 14px; background: var(--text-2); }
+.photos-root .scrubber-tick[data-active="true"] { color: var(--accent-hi); }
+.photos-root .scrubber-tick[data-active="true"]::before { background: var(--accent); width: 14px; }
+.photos-root .scrubber-thumb {
+  /* shift right by half of (tick ::before width 8 + gap 6) so it covers the
+     tick text, not the leading line decoration */
+  position: absolute; left: 50%; transform: translate(calc(-50% + 7px), -50%);
+  width: 28px; height: 22px; border-radius: 6px;
+  background: var(--accent); color: white;
+  font-size: 10.5px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px -2px var(--accent-glow);
+  pointer-events: none; font-variant-numeric: tabular-nums;
+}
+
+/* === Selection bar === */
+.photos-root .selectbar {
+  position: absolute; top: 50px;
+  left: 50%; transform: translateX(-50%);
+  z-index: 20;
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 6px 6px 16px;
+  background: var(--float-bg);
+  backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  box-shadow: 0 12px 40px -8px rgba(0,0,0,0.6);
+  animation: bar-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes bar-in { from { opacity: 0; transform: translate(-50%, -10px); } }
+.photos-root .selectbar-count { font-size: 13px; font-weight: 600; padding-right: 12px; border-right: 1px solid var(--line); margin-right: 8px; }
+.photos-root .selectbar-btn {
+  height: 30px; padding: 0 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; font-size: 12.5px; color: var(--text-1); font-weight: 500;
+}
+.photos-root .selectbar-btn:hover { background: var(--surface-3); }
+.photos-root .selectbar-btn[data-danger="true"]:hover { background: rgba(255, 69, 58, 0.18); color: var(--danger); }
+.photos-root .selectbar-btn[data-ai="true"] { background: var(--accent-soft); color: var(--accent-hi); }
+.photos-root .selectbar-btn[data-ai="true"]:hover { background: rgba(110,91,255,0.32); }
+
+/* === Lightbox === */
+/* Deviation (value, New-UI wins; English per repo convention -- z-index is an architecture
+   quantity, not a visual-parity one): Vue2's source z-index is 100, bumped to 200 here to match
+   PhotoLightbox.vue's own component-scoped z-index (also 200, see that file's <style> header
+   comment). New-UI's overlay z-map governs actual stacking order across the whole app (see
+   photosOverlayZIndex.test.ts), not Vue2's isolated page-local value -- 200 is what this
+   component already committed to. Both this global copy and the component's local one now
+   agree; Task 5 will make this copy the one that actually governs once the lightbox is
+   re-nested inside `.photos-root`. */
+.photos-root .lightbox {
+  position: fixed; inset: 0;
+  background: var(--lb-bg); z-index: 200;
+  display: grid;
+  grid-template-rows: 56px 1fr 88px;
+  animation: lb-in 0.22s ease-out;
+}
+.photos-root .lightbox[data-info="true"] {
+  grid-template-columns: 1fr 360px;
+  grid-template-areas: "top top" "main info" "strip info";
+}
+.photos-root .lightbox[data-info="false"] {
+  grid-template-columns: 1fr;
+  grid-template-areas: "top" "main" "strip";
+}
+@keyframes lb-in { from { opacity: 0; } }
+.photos-root .lb-top {
+  grid-area: top;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--lb-chrome); backdrop-filter: blur(12px);
+}
+.photos-root .lb-counter { color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.photos-root .lb-title { font-size: 13px; font-weight: 500; color: var(--text-1); }
+.photos-root .lb-main {
+  grid-area: main; position: relative;
+  display: grid; place-items: center; overflow: hidden;
+}
+.photos-root .lb-photo {
+  max-width: calc(100% - 80px); max-height: calc(100% - 24px);
+  object-fit: contain; border-radius: 3px;
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,0.8);
+  will-change: opacity, transform;
+}
+.photos-root .lb-media {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  will-change: opacity, transform;
+}
+.photos-root .lb-ocr-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.photos-root .lb-ocr-hit {
+  position: absolute; box-sizing: border-box;
+  border-radius: 4px;
+  background: rgba(255, 214, 10, 0.30);
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85), 0 0 12px rgba(255, 214, 10, 0.55);
+  animation: lb-ocr-pulse 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@keyframes lb-ocr-pulse {
+  0%   { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.lb-swap-next-enter-active,
+.lb-swap-prev-enter-active,
+.lb-swap-next-leave-active,
+.lb-swap-prev-leave-active {
+  transition: opacity 0.32s cubic-bezier(0.22, 0.61, 0.36, 1),
+              transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.lb-swap-next-enter   { opacity: 0; transform: translateX(36px) scale(0.97); }
+.lb-swap-next-leave-to { opacity: 0; transform: translateX(-36px) scale(0.97); }
+.lb-swap-prev-enter   { opacity: 0; transform: translateX(-36px) scale(0.97); }
+.lb-swap-prev-leave-to { opacity: 0; transform: translateX(36px) scale(0.97); }
+.photos-root .lb-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+  border: 1px solid var(--line-strong); color: white;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.photos-root .lb-nav:hover { background: rgba(0,0,0,0.8); }
+.photos-root .lb-nav[data-side="prev"] { left: 16px; }
+.photos-root .lb-nav[data-side="next"] { right: 16px; }
+.photos-root .lb-strip {
+  grid-area: strip;
+  display: flex; align-items: center; gap: 4px;
+  padding: 12px calc(50% - 28px);
+  background: var(--lb-chrome); border-top: 1px solid var(--line);
+  overflow-x: auto;
+}
+.photos-root .lb-strip::-webkit-scrollbar { height: 0; }
+.photos-root .lb-thumb {
+  width: 56px; height: 56px; border-radius: 6px;
+  overflow: hidden; flex: none; cursor: pointer;
+  opacity: 0.45;
+  transform: scale(0.92);
+  margin: 0;
+  will-change: transform, opacity;
+  transition:
+    opacity 0.32s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 0.4s cubic-bezier(0.34, 1.4, 0.64, 1),
+    box-shadow 0.3s ease,
+    outline-color 0.25s ease;
+  position: relative;
+}
+.photos-root .lb-thumb img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.photos-root .lb-thumb:hover { opacity: 0.85; transform: scale(0.98); }
+.photos-root .lb-thumb:hover img { transform: scale(1.05); }
+.photos-root .lb-thumb[data-active="true"] {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  transform: translateY(-4px) scale(1.18);
+  margin: 0 10px;
+  box-shadow: 0 8px 22px -6px rgba(0,0,0,0.7), 0 0 0 1px rgba(var(--ink), 0.04);
+}
+.photos-root .lb-thumb[data-active="true"] img { transform: scale(1.04); }
+.photos-root .lb-info {
+  grid-area: info;
+  background: var(--surface-1); border-left: 1px solid var(--line);
+  overflow-y: auto; padding: 18px 0;
+}
+.photos-root .info-section { padding: 12px 20px; border-bottom: 1px solid var(--line); }
+.photos-root .info-section:last-child { border-bottom: 0; }
+.photos-root .info-label { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.photos-root .info-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 12.5px; }
+.photos-root .info-row .k { color: var(--text-3); }
+.photos-root .info-row .v { color: var(--text-1); font-variant-numeric: tabular-nums; text-align: right; }
+.photos-root .info-row.editable .v { cursor: pointer; padding: 1px 5px; border-radius: 4px; border: 1px dashed transparent; }
+.photos-root .info-row.editable:hover .v { border-color: var(--line-stronger); background: var(--surface-2); }
+.photos-root .info-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 4px; color: rgba(var(--ink), 0.95); }
+.photos-root .info-subtitle { font-size: 12.5px; color: var(--text-3); }
+.photos-root .face-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.photos-root .face-chip { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; }
+.photos-root .face-avatar { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #FF9A8B, #C2E9FB); color: white; font-size: 10px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.photos-root .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.photos-root .tag { font-size: 11.5px; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--line); }
+.photos-root .tag[data-kind="ai"] { background: var(--accent-soft); color: var(--accent-hi); border-color: rgba(110,91,255,0.30); }
+.photos-root .map-mini { height: 132px; border-radius: 8px; overflow: hidden; position: relative; margin-top: 6px; background: var(--surface-2); }
+.photos-root .map-mini iframe { border: 0; width: 100%; height: 100%; display: block; }
+.photos-root .map-pin { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -100%); width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid white; box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.5); pointer-events: none; }
+.photos-root .path-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--line); font-family: var(--font-mono); font-size: 11.5px; color: var(--text-2); word-break: break-all; }
+.photos-root .path-row .open { margin-left: auto; color: var(--accent-hi); cursor: pointer; flex: none; }
+.photos-root .give-nimo {
+  margin: 12px 20px 0; width: calc(100% - 40px); height: 36px;
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(120deg, rgba(110,91,255,0.18), rgba(110,91,255,0.08));
+  border: 1px solid var(--accent-soft); color: var(--accent-hi);
+  font-size: 12.5px; font-weight: 500;
+}
+.photos-root .give-nimo:hover { background: linear-gradient(120deg, rgba(110,91,255,0.28), rgba(110,91,255,0.12)); }
+
+.photos-root .lb-confirm-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.photos-root .lb-confirm {
+  background: var(--modal-bg);
+  border: 1px solid rgba(var(--ink), 0.1);
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 320px;
+  width: 90%;
+  text-align: center;
+  .lb-confirm-icon { font-size: 32px; margin-bottom: 12px; }
+  .lb-confirm-title { font-size: 15px; font-weight: 600; color: var(--text-1); margin-bottom: 8px; }
+  .lb-confirm-body { font-size: 13px; color: rgba(var(--ink), 0.6); margin-bottom: 20px; }
+  .lb-confirm-foot {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    .trash-btn-ghost {
+      flex: 1;
+      height: 40px;
+      padding: 0 16px;
+      border-radius: 10px;
+      background: rgba(var(--ink), 0.08);
+      border: 1px solid rgba(var(--ink), 0.18);
+      color: var(--text-1);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .trash-btn-ghost:hover { background: rgba(var(--ink), 0.14); border-color: rgba(var(--ink), 0.28); }
+    .trash-btn-cta {
+      flex: 1.3;
+      height: 40px;
+      padding: 0 18px;
+      border-radius: 10px;
+      border: 0;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.12s, box-shadow 0.15s, filter 0.15s;
+    }
+    /* Non-destructive confirm button (e.g. "Convert to regular album"): in
+       the lb-confirm scope the base .trash-btn-cta only defines size and
+       white text, no background (the background gets reset to transparent
+       by .photos-root button reset, so on a white dialog it became a blank
+       pill — a bug found from a user screenshot); this fills in the accent
+       gradient, matching the color family of the global .trash-btn-cta
+       (photos.scss L2201). */
+    .trash-btn-cta-primary {
+      background: linear-gradient(135deg, #7aa7ff, #5e94ff);
+      box-shadow: 0 6px 18px -4px rgba(94, 148, 255, 0.55);
+    }
+    .trash-btn-cta-primary:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 10px 24px -6px rgba(94, 148, 255, 0.7); }
+    .trash-btn-cta-danger {
+      background: linear-gradient(135deg, #FF6B5C, #E0463A);
+      box-shadow: 0 6px 18px -4px rgba(255, 107, 92, 0.55);
+    }
+    .trash-btn-cta-danger:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 10px 24px -6px rgba(255, 107, 92, 0.7); }
+  }
+}
+
+.lb-confirm-enter-active, .lb-confirm-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+.lb-confirm-enter, .lb-confirm-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* === Ask Nimo FAB === */
+.photos-root .nimo-fab {
+  position: fixed; right: 24px; bottom: 24px;
+  height: 44px; padding: 0 18px 0 14px;
+  border-radius: 999px;
+  background: var(--float-bg); backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--line-strong); color: var(--text-1);
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: 13px; font-weight: 500;
+  box-shadow: 0 12px 40px -8px rgba(0,0,0,0.7), 0 0 0 1px rgba(110,91,255,0.10);
+  z-index: 148; /* Plan G: normalized to the drawer-adjacent overlay tier, was Vue2's raw 50 */
+  cursor: grab;
+  user-select: none;
+  transition: background 0.15s, transform 0.12s, box-shadow 0.15s;
+}
+.photos-root .nimo-fab:hover { background: var(--float-bg-hover); transform: translateY(-1px); }
+
+/* === FAB drag states === */
+.photos-root .nimo-fab.is-dragging,
+.photos-root .nimo-fab-mini.is-dragging {
+  cursor: grabbing !important;
+  transition: none !important;
+  box-shadow: 0 20px 50px -8px rgba(0,0,0,0.7), 0 0 0 2px rgba(110,91,255,0.35);
+}
+.photos-root .nimo-fab.is-dragging { transform: scale(1.04); }
+
+/* FAB dismiss × button */
+.photos-root .nimo-fab .nimo-fab-x {
+  width: 18px; height: 18px;
+  margin-left: 2px; margin-right: -4px;
+  border-radius: 50%;
+  background: rgba(var(--ink), 0.08);
+  color: rgba(var(--ink), 0.55);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  opacity: 0; transform: scale(0.8);
+  transition: opacity 0.16s, transform 0.16s, background 0.12s, color 0.12s;
+  pointer-events: none;
+}
+.photos-root .nimo-fab:hover .nimo-fab-x,
+.photos-root .nimo-fab:focus-within .nimo-fab-x {
+  opacity: 1; transform: scale(1); pointer-events: auto;
+}
+.photos-root .nimo-fab .nimo-fab-x:hover {
+  background: rgba(255,99,99,0.22); color: #FF8989;
+}
+
+/* FAB mini peek handle */
+.photos-root .nimo-fab-mini {
+  position: fixed; right: 0; top: auto; bottom: 24px;
+  width: 18px; height: 48px; padding: 0 0 0 2px;
+  border: 1px solid rgba(110,91,255,0.35); border-right: 0;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(135deg, rgba(110,91,255,0.7), rgba(138,122,255,0.6));
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; user-select: none;
+  box-shadow: -4px 0 14px rgba(0,0,0,0.35), -2px 0 10px rgba(110,91,255,0.3);
+  z-index: 50;
+  transition: width 0.18s cubic-bezier(0.2,0.8,0.2,1), background 0.16s, box-shadow 0.16s, padding 0.18s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.photos-root .nimo-fab-mini:hover:not(.is-dragging) {
+  width: 28px; padding-left: 6px;
+  background: linear-gradient(135deg, #6E5BFF, #8A7AFF);
+  box-shadow: -6px 0 22px rgba(0,0,0,0.4), -3px 0 18px rgba(110,91,255,0.55);
+}
+.photos-root .nimo-fab-mini svg { transition: transform 0.18s; }
+.photos-root .nimo-fab-mini:hover svg { transform: translateX(-1px); }
+
+/* FAB <-> mini swap transition */
+.photos-root .nimo-fab-swap-enter-active,
+.photos-root .nimo-fab-swap-leave-active {
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.2,0.8,0.2,1);
+}
+.photos-root .nimo-fab-swap-enter,
+.photos-root .nimo-fab-swap-leave-to { opacity: 0; }
+.photos-root .nimo-fab.nimo-fab-swap-enter,
+.photos-root .nimo-fab.nimo-fab-swap-leave-to { transform: scale(0.9) translateX(8px); }
+.photos-root .nimo-fab-mini.nimo-fab-swap-enter,
+.photos-root .nimo-fab-mini.nimo-fab-swap-leave-to { transform: translateX(100%); }
+/* Review fix (IMPORTANT #1): Vue2→Vue3 framework-difference fix, same precedent as
+   PlacesMap.vue's .pin-merge-enter-from and PhotoLightbox.vue's .lb-swap-*-enter-from. Vue3
+   renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept its name in
+   both versions). The three `-enter` selectors just above are the verbatim Vue2 transcription
+   (parity record, kept as documented dead source -- Vue3's <transition> never applies that
+   class name, so they never actually fire); this block supplies the real Vue3 selector so
+   AskNimoFab.vue's `<transition name="nimo-fab-swap">` swap animation actually runs. The
+   `-leave-to` half is unchanged between Vue2 and Vue3, so it needs no shim -- already covered
+   by the combined selectors above. */
+.photos-root .nimo-fab-swap-enter-from { opacity: 0; }
+.photos-root .nimo-fab.nimo-fab-swap-enter-from { transform: scale(0.9) translateX(8px); }
+.photos-root .nimo-fab-mini.nimo-fab-swap-enter-from { transform: translateX(100%); }
+
+/* FAB orb specific size */
+.photos-root .nimo-fab .nimo-orb {
+  background: url(../../assets/nimo-logo.png) center/cover no-repeat;
+  position: relative;
+  width: 34px;
+  height: 34px;
+}
+
+/* Popup body (handoff — simple padding, no scroll) */
+.photos-root .nimo-pop-body { padding: 6px 12px 12px; }
+
+/* nimo-prompt — standalone textarea (handoff spec) */
+.photos-root .nimo-prompt {
+  width: 100%; height: 80px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text-1);
+  font: inherit; resize: none;
+}
+.photos-root .nimo-prompt:focus {
+  outline: 0; border-color: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Suggest chips */
+.photos-root .nimo-suggest {
+  font-size: 11.5px; padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+.photos-root .nimo-suggest:hover { color: var(--text-1); border-color: var(--line-strong); }
+
+/* Pop footer */
+.photos-root .nimo-pop-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px 12px;
+}
+
+/* Pop divider + link */
+.photos-root .nimo-pop-divider { height: 1px; background: var(--line); margin: 4px 12px; }
+.photos-root .nimo-pop-link {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; font-size: 12px; color: var(--text-2);
+  border-top: 1px solid var(--line);
+}
+.photos-root .nimo-pop-link:hover { color: var(--accent-hi); background: var(--surface-2); }
+
+/* Import task progress card */
+.photos-root .nimo-task {
+  padding: 10px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--line); margin-bottom: 8px;
+}
+.photos-root .nimo-task-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 500; margin-bottom: 6px;
+}
+.photos-root .nimo-task-head .spinner {
+  width: 12px; height: 12px;
+  border: 1.5px solid var(--accent-soft); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+.photos-root .nimo-task-meta {
+  font-size: 11px; color: var(--text-3); display: flex; gap: 6px; align-items: center;
+}
+.photos-root .nimo-task-bar {
+  height: 3px; border-radius: 99px;
+  background: rgba(var(--ink), 0.06); margin-top: 8px; overflow: hidden;
+}
+.photos-root .nimo-task-bar > div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hi));
+  border-radius: inherit;
+}
+
+.photos-root .nimo-orb {
+  display: inline-block;
+  border-radius: 50%;
+  background: url(../../assets/nimo-logo.png) center/cover no-repeat;
+  flex-shrink: 0;
+}
+.photos-root .nimo-fab .running-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-hi); box-shadow: 0 0 8px var(--accent-glow); animation: photos-pulse 1.2s ease-in-out infinite; }
+.photos-root .nimo-pop {
+  position: fixed; right: 24px; bottom: 78px; width: 360px;
+  max-height: min(720px, 85vh);
+  display: flex; flex-direction: column;
+  background: var(--pop-bg); backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--line-strong); border-radius: 16px;
+  box-shadow: 0 24px 80px -12px rgba(0,0,0,0.7);
+  z-index: 190; /* Plan G: overlay tier, deliberately 10 below the lightbox's 200 so an
+                   in-chat photo tile always opens the lightbox on top regardless of DOM order */
+  overflow: hidden;
+  animation: pop-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(0.96); } }
+.photos-root .nimo-pop-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 14px 10px;
+}
+.photos-root .nimo-pop-head .nimo-orb {
+  width: 32px;
+  height: 32px;
+}
+.photos-root .nimo-pop-title { font-size: 13.5px; font-weight: 600; color: var(--text-1); }
+.photos-root .nimo-pop-sub { font-size: 11.5px; color: var(--text-3); }
+
+/* === Live Photo badge === */
+.photos-root .lb-live-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.2); /* lightbox chrome stays white on black */
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+/* Photo result card */
+.photos-root .nimo-photo-card {
+  background: rgba(var(--ink), 0.04);
+  border: 1px solid rgba(var(--ink), 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.photos-root .nimo-photo-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px 6px;
+  font-size: 10.5px; color: rgba(var(--ink), 0.55); font-weight: 500;
+}
+.photos-root .nimo-photo-card-all {
+  color: rgba(var(--accent-rgb), 0.65); cursor: pointer; font-size: 10px;
+}
+.photos-root .nimo-photo-card-all:hover { color: var(--accent); }
+.photos-root .nimo-photo-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+.photos-root .nimo-photo-card-tile {
+  aspect-ratio: 1;
+  overflow: hidden;
+  cursor: pointer;
+}
+.photos-root .nimo-photo-card-tile img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: opacity 0.2s;
+}
+.photos-root .nimo-photo-card-tile:hover img { opacity: 0.8; }
+
+// IndexStatusBar
+.index-status-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  background: rgba(var(--accent-rgb), 0.08);
+  border-top: 1px solid rgba(var(--accent-rgb), 0.2);
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+.index-bar-spinner { animation: spin 1s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.index-bar-text { flex: 1; }
+.index-bar-progress {
+  width: 120px; height: 3px; border-radius: 2px;
+  background: rgba(var(--ink), 0.1);
+  > div { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.3s; }
+}
+.index-bar-pct { min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; }
+.index-bar-btn {
+  padding: 4px 12px; border-radius: 9999px;
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent); border: 1px solid rgba(var(--accent-rgb), 0.3);
+  font-size: 0.75rem; cursor: pointer; transition: all 0.2s;
+  &:hover:not(:disabled) { background: rgba(var(--accent-rgb), 0.25); }
+  &:disabled { opacity: 0.4; cursor: default; }
+}
+
+.watch-dir-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 8px;
+  background: rgba(var(--ink), 0.04); margin-bottom: 6px;
+}
+.watch-dir-path { flex: 1; font-size: 0.8125rem; font-family: monospace; }
+.watch-dir-add { display: flex; gap: 8px; margin-top: 8px; }
+.watch-dir-input {
+  flex: 1; padding: 6px 10px; border-radius: 8px;
+  background: rgba(var(--ink), 0.06); color: var(--text-1);
+  border: 1px solid rgba(var(--ink), 0.12);
+  font-size: 0.875rem; font-family: monospace;
+}
+
+/* === Toolbar wrap (for filter panel positioning) === */
+.photos-root .toolbar-wrap {
+  position: relative; flex: none;
+}
+.photos-root .toolbar-wrap .icon-btn {
+  position: relative;
+  &[data-active] {
+    color: var(--accent-hi);
+  }
+}
+
+/* === Filter Panel === */
+.photos-root .filter-panel {
+  position: absolute; top: 44px; left: 0; right: 0;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 20px;
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  z-index: 6;
+  animation: bar-in 0.18s ease-out;
+}
+.photos-root .filter-row { display: flex; align-items: center; gap: 8px; }
+.photos-root .filter-label { font-size: 11px; color: var(--text-3); white-space: nowrap; min-width: 48px; }
+.photos-root .filter-select,
+.photos-root .filter-input {
+  height: 28px; padding: 0 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1); font: inherit; font-size: 12px; outline: none;
+  transition: border-color 0.15s;
+}
+.photos-root .filter-select:focus,
+.photos-root .filter-input:focus { border-color: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent-soft); }
+.photos-root .filter-input { min-width: 130px; }
+.photos-root .filter-clear {
+  margin-left: auto;
+  font-size: 11.5px; color: var(--accent-hi);
+  padding: 4px 12px; border-radius: var(--r-sm);
+  background: var(--accent-soft); border: 1px solid rgba(110,91,255,0.2);
+  cursor: pointer; transition: background 0.15s;
+}
+.photos-root .filter-clear:hover { background: rgba(110,91,255,0.28); }
+.photos-root .toolbar-filter-active { color: var(--accent-hi) !important; }
+
+/* New-UI annotation (Plan F Task 4, 2026-08-15): the `.lb-nav[data-disabled="true"]`/
+   `.lb-nav.shake` pair below is transcribed verbatim from Vue2 (byte-identical) but is DORMANT
+   on both sides of the port -- grep-confirmed against the Vue 2 panel's PhotosLightbox.vue: no Vue2 JS
+   anywhere sets a `data-disabled` attribute or a `.shake` class on `.lb-nav` (the prev/next
+   buttons only ever get the native `:disabled` boolean, which this rule's own selector doesn't
+   even target). New-UI's PhotoLightbox.vue wires the same native `:disabled` attribute the same
+   way and does not add `data-disabled`/`.shake` either. Per this task's controller ruling 5:
+   transcribe-only, keep dormant, do not wire either attribute/class in either script -- this
+   comment only documents that dormancy, it changes no rule. */
+/* === Lightbox nav boundary shake === */
+.photos-root .lb-nav[data-disabled="true"] { opacity: 0.25; cursor: default; }
+.photos-root .lb-nav.shake {
+  animation: lb-nav-shake 0.35s ease;
+}
+@keyframes lb-nav-shake {
+  0%,100% { transform: translateY(-50%) translateX(0); }
+  20%     { transform: translateY(-50%) translateX(-6px); }
+  60%     { transform: translateY(-50%) translateX(6px); }
+  80%     { transform: translateY(-50%) translateX(-3px); }
+}
+
+/* === Album Picker Overlay === */
+.photos-root .album-picker-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 250;
+}
+.photos-root .album-picker-panel {
+  width: 280px; max-height: 360px;
+  background: var(--surface-2);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 20px 60px -10px rgba(0,0,0,0.7);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: pop-in 0.2s ease-out;
+}
+.photos-root .album-picker-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px; font-weight: 600; flex: none;
+}
+.photos-root .album-picker-body { overflow-y: auto; flex: 1; padding: 6px 0; }
+.photos-root .album-picker-item {
+  padding: 9px 16px;
+  font-size: 13px; color: var(--text-1);
+  cursor: pointer; transition: background 0.12s;
+}
+.photos-root .album-picker-item:hover { background: var(--surface-3); }
+.photos-root .album-picker-new { color: var(--accent-hi); }
+.photos-root .album-picker-empty { padding: 16px; color: var(--text-3); font-size: 12px; text-align: center; }
+
+/* === Empty States === */
+.photos-root .empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; min-height: 320px; gap: 10px; padding: 40px;
+  color: var(--text-3);
+}
+.photos-root .empty-state-icon { opacity: 0.2; margin-bottom: 4px; }
+.photos-root .empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-2); }
+.photos-root .empty-state-desc {
+  font-size: 13px; color: var(--text-3);
+  text-align: center; max-width: 260px; line-height: 1.5;
+}
+.photos-root .empty-state-btn {
+  height: 36px; padding: 0 20px; margin-top: 8px;
+  border-radius: 999px;
+  background: var(--accent); border: none; color: white;
+  font-size: 13px; font-weight: 500; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  transition: background 0.15s;
+}
+.photos-root .empty-state-btn:hover { background: var(--accent-hi); }
+
+/* ============================================================
+   Library sub-views: Favorites / Archive / Recently Deleted
+   Shared shell + view-specific accents.
+   ============================================================ */
+
+.lib-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* --- HERO --- */
+.lib-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 32px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.lib-hero-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.lib-hero-icon[data-tint="warn"]   { background: rgba(255,59,48,0.12); }
+.lib-hero-icon[data-tint="archive"] { background: rgba(142,142,147,0.16); }
+.lib-hero-icon[data-tint="fav"]    { background: rgba(255,214,10,0.14); }
+.lib-hero-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+  color: var(--text-1);
+}
+.lib-hero-sub {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.lib-hero-sub b { color: var(--text-1); font-weight: 600; }
+.lib-hero-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Loaded-subset hint (Task F1): a lightweight caption shown above the
+   filter bar while favoritesExhausted === false, so it's clear the stat
+   cards/chips above only reflect the currently loaded page(s). */
+.fav-loaded-hint {
+  padding: 0 32px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* --- FILTERS / TOOLBAR --- */
+.lib-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 32px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.lib-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.lib-chip:hover { background: var(--surface-3); color: var(--text-1); }
+.lib-chip[data-active="true"] {
+  background: var(--accent-soft);
+  border-color: rgba(110,91,255,0.35);
+  color: var(--accent-hi);
+}
+.lib-chip .ct {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+  font-size: 10.5px;
+  padding-left: 2px;
+}
+.lib-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 99px;
+  background: var(--surface-2);
+}
+.lib-sort-label {
+  font-size: 11px;
+  color: var(--text-3);
+  padding: 0 6px;
+}
+.lib-sort button {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 99px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.lib-sort button[data-active="true"] {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+/* --- SCROLL AREA --- */
+.lib-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 32px 80px;
+}
+.lib-month-group { margin: 24px 0 0; }
+.lib-month-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 0 10px;
+  position: sticky;
+  top: 0;
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 80%, transparent 100%);
+  z-index: 2;
+}
+.lib-month-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.lib-month-count {
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 4px;
+}
+.lib-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.lib-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s;
+}
+.lib-tile:hover img { transform: scale(1.04); }
+.lib-tile-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.5) 100%);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.lib-tile:hover .lib-tile-overlay { opacity: 1; }
+.lib-tile-meta {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.lib-tile:hover .lib-tile-meta { opacity: 1; }
+.lib-tile-place {
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.92);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.lib-tile-star {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 99px;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.lib-tile:hover .lib-tile-star { opacity: 1; }
+.lib-tile-star:hover { background: rgba(0,0,0,0.7); }
+.lib-tile-star[data-active="true"] { opacity: 1; }
+
+/* Recently Deleted multi-select circle: matches the grid's .tile-checkbox
+   (hollow circle → filled check when selected) */
+.trash-tile-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  cursor: pointer;
+  z-index: 4;
+  transition: background 0.15s, border-color 0.15s;
+}
+.trash-tile-check[data-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* --- TOP FAVORITES STRIP --- */
+.fav-top-strip {
+  padding: 18px 32px 4px;
+}
+.fav-top-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.fav-top-head h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-1);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.fav-top-head .sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.fav-top-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr;
+  gap: 6px;
+  height: 200px;
+}
+.fav-top-card {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--surface-2);
+}
+.fav-top-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s;
+}
+.fav-top-card:hover img { transform: scale(1.05); }
+.fav-top-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.7) 100%);
+  pointer-events: none;
+}
+.fav-rank {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 99px;
+  background: rgba(255,214,10,0.95);
+  color: #1a1a20;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.fav-meta {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  color: white;
+}
+.fav-meta-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+.fav-meta-sub {
+  font-size: 10.5px;
+  opacity: 0.85;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+
+/* --- ARCHIVE: rules cards --- */
+.arc-rules {
+  padding: 18px 32px 4px;
+}
+.arc-rules-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.arc-rules-head h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-1);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.arc-rules-head .add-btn {
+  background: transparent;
+  border: 1px dashed var(--line-stronger);
+  border-radius: 8px;
+  padding: 4px 10px;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.arc-rules-head .add-btn:hover {
+  color: var(--accent-hi);
+  border-color: var(--accent);
+}
+.arc-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.arc-rule-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.arc-rule-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.arc-rule-body {
+  flex: 1;
+  min-width: 0;
+}
+.arc-rule-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-1);
+  margin-bottom: 2px;
+}
+.arc-rule-desc {
+  font-size: 10.5px;
+  color: var(--text-3);
+  line-height: 1.35;
+}
+.arc-rule-ct {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.arc-rule-switch {
+  width: 28px;
+  height: 16px;
+  border-radius: 99px;
+  background: var(--accent);
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.arc-rule-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 14px;
+  width: 12px;
+  height: 12px;
+  border-radius: 99px;
+  background: white;
+}
+.arc-rule-switch[data-on="false"] {
+  background: var(--surface-3);
+}
+.arc-rule-switch[data-on="false"]::after { left: 2px; }
+
+/* archive grouping by reason */
+.arc-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 24px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.arc-section-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+}
+.arc-section-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.arc-section-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.arc-section-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.arc-section-actions .arc-link {
+  background: transparent;
+  border: 0;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.arc-section-actions .arc-link:hover { color: var(--accent-hi); }
+
+/* --- INFO BANNER (archive) --- */
+.lib-info-banner {
+  margin: 14px 32px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(94,148,255,0.07);
+  border: 1px solid rgba(94,148,255,0.18);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.lib-info-banner .ic {
+  color: #5e94ff;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* trash tiles — extra countdown overlay */
+.trash-tile {
+  position: relative;
+}
+.trash-countdown {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 99px;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-size: 10.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+}
+.trash-countdown[data-urgent="true"] {
+  background: rgba(255,59,48,0.85);
+}
+.trash-countdown[data-warn="true"] {
+  background: rgba(255,149,0,0.85);
+}
+
+/* trash bulk selection bar */
+.trash-bulk-bar {
+  margin: 0 32px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.trash-bulk-bar .ct {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-1);
+}
+.trash-bulk-bar .spacer { flex: 1; }
+.trash-bulk-bar button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.trash-bulk-bar button:hover { color: var(--text-1); background: var(--surface-3); }
+.trash-bulk-bar button[data-danger="true"]:hover {
+  color: #FF5040;
+  border-color: rgba(255,59,48,0.3);
+  background: rgba(255,59,48,0.06);
+}
+
+/* --- EMPTY STATES --- */
+.photos-root .lib-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 80px 32px;
+  color: var(--text-3);
+}
+.lib-empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photos-root .lib-empty h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin: 0;
+}
+.photos-root .lib-empty p {
+  font-size: 13px;
+  color: var(--text-3);
+  text-align: center;
+  max-width: 340px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* --- SIDE STATS PANEL (Favorites right rail) --- */
+.fav-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 18px 32px 0;
+}
+.fav-stat-card {
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.fav-stat-card .label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+.fav-stat-card .value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.fav-stat-card .meta {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.fav-stat-bar {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  height: 6px;
+}
+.fav-stat-bar span {
+  flex: 1;
+  background: var(--accent-soft);
+  border-radius: 2px;
+}
+.fav-stat-bar span[data-hi="true"] { background: #FFD60A; }
+
+
+/* ============================================================
+   Favorites: Slideshow / Save as Album / Export
+   ============================================================ */
+
+/* Export menu (in hero actions) */
+.lib-hero-actions .btn[data-open="true"] {
+  box-shadow: 0 0 0 2px rgba(110, 91, 255, 0.4);
+}
+.lib-hero-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.fav-export-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 260px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 18px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255, 214, 10, 0.08);
+  z-index: 50;
+}
+.fav-export-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.12s;
+}
+.fav-export-item:hover { background: var(--surface-2); }
+.fav-export-icon {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  background: rgba(255, 214, 10, 0.14);
+  color: #FFD60A;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.fav-export-title { font-size: 12.5px; font-weight: 500; }
+.fav-export-desc { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+
+.fav-menu-enter-active, .fav-menu-leave-active {
+  transition: opacity 0.14s, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: top right;
+}
+.fav-menu-enter, .fav-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+/* Fix wave (post-final-review): Vue2->Vue3 framework-difference shim, same precedent as
+   .fav-slide-enter-from (~:2148) / .nimo-fab-swap-enter-from (~:890) / .chat-drawer-enter-from
+   (~:2623). Vue3 renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept
+   its name in both versions, so it needs no shim -- already covered by the rule above). Without
+   this, the Favorites place-filter menu pops in with no animation at all. */
+.fav-menu-enter-from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+
+/* Filter group dropdowns (People / Places / Years) */
+.fav-filter-wrap {
+  position: relative;
+  display: inline-block;
+}
+.fav-filter-wrap .lib-chip[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.fav-filter-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  min-width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  z-index: 40;
+}
+/* fav-filter-menu scrollbar rules removed — dead code:
+   .photos-root ::-webkit-scrollbar { display: none !important } above wins. */
+/* color uses !important to pin 95% white, bypassing the
+   .photos-root button { color: inherit } cascade */
+.photos-root .fav-filter-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  /* font-size is provided by the .has-text-full-04 class (CLAUDE.md 8.3
+     forbids hardcoding it) */
+  color: rgba(var(--ink), 0.95) !important;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.photos-root .fav-filter-item .fav-filter-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photos-root .fav-filter-item .ct {
+  font-variant-numeric: tabular-nums;
+  color: rgba(var(--ink), 0.55) !important;
+}
+.photos-root .fav-filter-item:hover { background: var(--surface-2); }
+.photos-root .fav-filter-item[data-active="true"] {
+  background: var(--accent-soft);
+  color: var(--accent) !important;
+}
+.photos-root .fav-filter-item.is-clear {
+  color: rgba(var(--ink), 0.55) !important;
+  border-bottom: 1px solid var(--line);
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 2px;
+}
+
+/* ============================================================
+   Slideshow overlay
+   ============================================================ */
+.fav-slideshow {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.fav-slide-img-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 80px 100px;
+  transition: opacity 0.7s ease, transform 1.2s ease-out;
+  pointer-events: none;
+}
+.fav-slide-img-wrap img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.fav-slide-caption {
+  position: absolute;
+  bottom: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 99px;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: white;
+  text-align: center;
+  max-width: 70vw;
+}
+.fav-slide-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.fav-slide-meta { font-size: 11.5px; color: rgba(255,255,255,0.66); margin-top: 2px; }
+
+.fav-slide-close,
+.fav-slide-nav {
+  position: absolute;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.12s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.fav-slide-close:hover,
+.fav-slide-nav:hover { background: rgba(255,255,255,0.18); }
+.fav-slide-close:active,
+.fav-slide-nav:active { transform: scale(0.94); }
+.fav-slide-close { top: 24px; right: 24px; width: 36px; height: 36px; }
+.fav-slide-nav-l { left: 24px; top: 50%; transform: translateY(-50%); }
+.fav-slide-nav-l:active { transform: translateY(-50%) scale(0.94); }
+.fav-slide-nav-r { right: 24px; top: 50%; transform: translateY(-50%); }
+.fav-slide-nav-r:active { transform: translateY(-50%) scale(0.94); }
+
+.fav-slide-controls {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 99px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 2;
+}
+.fav-slide-ctrl {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: white;
+  color: #111;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  border: 0;
+  transition: transform 0.12s;
+}
+.fav-slide-ctrl:hover { transform: scale(1.05); }
+.fav-slide-progress {
+  width: 220px;
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.15);
+  overflow: hidden;
+}
+.fav-slide-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #FFD60A, #FFAA00);
+  border-radius: inherit;
+  animation: fav-slide-fill linear forwards;
+  transform-origin: left center;
+}
+@keyframes fav-slide-fill {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+.fav-slide-count {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: center;
+}
+.fav-slide-sep {
+  width: 1px;
+  height: 18px;
+  background: rgba(255,255,255,0.15);
+  margin: 0 2px;
+}
+.fav-slide-speed-label {
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.fav-slide-speed {
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: 99px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(255,255,255,0.66);
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.12s, color 0.12s;
+}
+.fav-slide-speed:hover { color: white; background: rgba(255,255,255,0.08); }
+.fav-slide-speed[data-active="true"] {
+  background: rgba(255,214,10,0.16);
+  border-color: rgba(255,214,10,0.32);
+  color: #FFD60A;
+}
+
+.fav-slide-enter-active, .fav-slide-leave-active { transition: opacity 0.22s ease; }
+.fav-slide-enter, .fav-slide-leave-to { opacity: 0; }
+/* Task 5 review fix (Important 1): Vue2->Vue3 framework-difference shim, same precedent as
+   .nimo-fab-swap-enter-from (~:890) / .chat-drawer-enter-from (~:2623). Vue3 renamed the bare
+   `-enter` transition class to `-enter-from` (`-leave-to` kept its name in both versions, so it
+   needs no shim -- already covered by the rule above). Without this, Vue3 never applies the
+   opacity:0 starting state and the overlay snaps in with no fade. */
+.fav-slide-enter-from { opacity: 0; }
+
+/* ============================================================
+   Save as Album modal
+   ============================================================ */
+.fav-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.fav-modal {
+  width: 440px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.fav-modal-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.fav-modal-icon {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #FFD60A, #FFAA00);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 14px -4px rgba(255, 214, 10, 0.55);
+}
+.fav-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.fav-modal-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+
+.fav-modal-body {
+  padding: 18px 20px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fav-modal-field { display: flex; flex-direction: column; gap: 6px; }
+.fav-modal-label { font-size: 11.5px; font-weight: 500; color: var(--text-2); }
+.fav-modal-input {
+  width: 100%;
+  padding: 9px 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.fav-modal-input:focus { border-color: #FFD60A; background: var(--surface-1); }
+.fav-modal-note {
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.5;
+  padding: 9px 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.fav-modal-foot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
+.fav-btn-ghost {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.fav-btn-ghost:hover { background: var(--surface-3); }
+/* Acceptance Fix-4 (owner ruling, screenshot-verified): the Create-album CTA is now PURPLE in
+   BOTH themes, overriding Vue2's own literal amber (#FFD60A/#FFAA00 gradient, #29240B text) that
+   Fix-2 had faithfully transcribed one task ago -- the owner explicitly called this out as an
+   intentional Vue2 override, not a parity regression. Uses this file's own theme-invariant
+   `--accent`/`--accent-hi`/`--accent-glow`/`--accent-soft` family (identical in `.photos-root`
+   and `.photos-root.is-light`, see the header block's own comment: "Accent purple family ...
+   intentionally NOT overridden"), so this one edit already renders the same purple in both
+   themes with no separate light-mode rule needed. White text (theme-invariant, same convention
+   as `.trash-btn-cta`'s own `color: white` on its blue/red gradients below) replaces the old
+   dark-on-amber `#29240B`, since white is illegible on the old amber but reads correctly on the
+   new purple gradient in both themes. */
+.fav-btn-primary {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent-hi), var(--accent));
+  border: 0;
+  color: white;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  box-shadow: 0 4px 14px -4px var(--accent-glow);
+  transition: transform 0.12s, box-shadow 0.15s, opacity 0.15s;
+}
+.fav-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 22px -6px var(--accent-glow); }
+.fav-btn-primary:disabled {
+  background: var(--accent-soft);
+  color: var(--text-3);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.fav-modal-enter-active, .fav-modal-leave-active { transition: opacity 0.18s ease; }
+.fav-modal-enter-active .fav-modal, .fav-modal-leave-active .fav-modal {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease;
+}
+.fav-modal-enter, .fav-modal-leave-to { opacity: 0; }
+.fav-modal-enter .fav-modal, .fav-modal-leave-to .fav-modal {
+  transform: translateY(8px) scale(0.98);
+  opacity: 0;
+}
+
+/* ============================================================
+   Toast
+   ============================================================ */
+.fav-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(20, 18, 32, 0.92);
+  border: 1px solid rgba(255, 214, 10, 0.35);
+  border-radius: 99px;
+  color: var(--text-1);
+  font-size: 12.5px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.55), 0 0 0 1px rgba(255, 214, 10, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 300;
+}
+.fav-toast-enter-active, .fav-toast-leave-active {
+  transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.fav-toast-enter, .fav-toast-leave-to { opacity: 0; transform: translate(-50%, 8px); }
+
+
+/* ============================================================
+   Recently Deleted: confirm dialog + toast
+   ============================================================ */
+.trash-btn-danger { color: #FF6B5C; }
+.trash-btn-danger:hover:not(:disabled) {
+  background: rgba(255, 107, 92, 0.1);
+  border-color: rgba(255, 107, 92, 0.3);
+}
+.lib-hero-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.trash-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.trash-modal {
+  width: 420px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.7);
+  padding: 24px 24px 20px;
+  text-align: center;
+}
+.trash-modal[data-danger="true"] {
+  border-color: rgba(255, 107, 92, 0.25);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255, 107, 92, 0.1);
+}
+/* Acceptance Fix-4 (owner ruling): the non-danger icon circle now uses the same purple
+   `--accent-soft` family as the CTA below (was a literal blue rgba(94,148,255,…), Vue2's own
+   restore/informational blue) -- kept for coherence now that the CTA next to it is purple; the
+   danger variant is untouched (still literal red), see this file's own Fix-4 comment on
+   `.trash-btn-cta` below for why the danger tone was deliberately left alone. */
+.trash-modal-icon {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  margin: 4px auto 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.trash-modal[data-danger="true"] .trash-modal-icon {
+  background: rgba(255, 107, 92, 0.14);
+}
+.trash-modal-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+  text-wrap: balance;
+}
+.trash-modal-body {
+  font-size: 13px;
+  color: var(--text-3);
+  line-height: 1.5;
+  margin-bottom: 20px;
+  text-wrap: pretty;
+}
+.trash-modal-foot {
+  display: flex;
+  gap: 8px;
+}
+.trash-btn-ghost {
+  flex: 1;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.trash-btn-ghost:hover { background: var(--surface-3); }
+/* Acceptance Fix-4 (owner ruling, screenshot-verified): "右下角确认按钮得是紫色的，两色模式下也是"
+   -- the confirm modal's primary CTA is purple in both themes, overriding Vue2's own literal blue
+   gradient (#7aa7ff/#5e94ff). This BASE rule governs the non-danger case (restore-all confirm --
+   PhotosTrash.vue's `confirm.danger === false` path never adds the `-danger` modifier below), now
+   using this file's own theme-invariant `--accent`/`--accent-hi`/`--accent-glow` family (identical
+   in `.photos-root` and `.photos-root.is-light`), same reasoning as `.fav-btn-primary` above.
+   INTERPRETATION FLAGGED FOR OWNER RE-JUDGMENT: `.trash-btn-cta-danger` (empty-trash / delete-
+   forever confirms) is deliberately left red below, not purple -- the task brief's own hedge
+   ("if the destructive confirm previously used red and that distinction seems intentional, ...
+   NOTE this interpretation prominently") is read here as: red-for-destructive is a deliberate,
+   pre-existing safety signal (matches `.trash-btn-danger`'s hero-button red and the danger-tinted
+   modal border/icon a few rules up), so only the non-destructive base CTA turns purple. If the
+   owner actually wants ALL THREE confirms' CTAs purple (destructive included), only the
+   `.trash-btn-cta-danger` rule below needs to be pointed at the same purple family too. */
+.trash-btn-cta {
+  flex: 1.3;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent-hi), var(--accent));
+  border: 0;
+  color: white;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  box-shadow: 0 6px 18px -3px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform 0.12s, box-shadow 0.15s;
+}
+.trash-btn-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px -6px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.trash-btn-cta-danger {
+  background: linear-gradient(135deg, #FF7B6D, #E0463A);
+  box-shadow: 0 6px 18px -3px rgba(255, 107, 92, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.trash-btn-cta-danger:hover { box-shadow: 0 10px 26px -6px rgba(255, 107, 92, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+
+.trash-modal-enter-active, .trash-modal-leave-active { transition: opacity 0.18s ease; }
+.trash-modal-enter-active .trash-modal, .trash-modal-leave-active .trash-modal {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease;
+}
+.trash-modal-enter, .trash-modal-leave-to { opacity: 0; }
+.trash-modal-enter .trash-modal, .trash-modal-leave-to .trash-modal {
+  transform: translateY(8px) scale(0.97);
+  opacity: 0;
+}
+
+/* Toast (similar to fav-toast but red-orange accent) */
+.trash-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: rgba(20, 18, 32, 0.92);
+  border: 1px solid rgba(94, 148, 255, 0.32);
+  border-radius: 99px;
+  color: var(--text-1);
+  font-size: 12.5px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.55), 0 0 0 1px rgba(94, 148, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 300;
+}
+.trash-toast-undo {
+  padding: 4px 11px;
+  border-radius: 99px;
+  background: rgba(94, 148, 255, 0.18);
+  border: 1px solid rgba(94, 148, 255, 0.32);
+  color: #8FB6FF;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: background 0.15s;
+}
+.trash-toast-undo:hover { background: rgba(94, 148, 255, 0.32); }
+
+.trash-toast-enter-active, .trash-toast-leave-active {
+  transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.trash-toast-enter, .trash-toast-leave-to { opacity: 0; transform: translate(-50%, 8px); }
+
+/* === Upload Drawer === */
+.photos-root .upload-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 380px; max-width: 90vw; z-index: 50;
+  background: var(--surface-1); border-left: 1px solid var(--line);
+  display: flex; flex-direction: column;
+  box-shadow: -12px 0 32px rgba(0,0,0,0.35);
+}
+.upload-drawer-enter-active, .upload-drawer-leave-active {
+  transition: transform 0.22s cubic-bezier(.3,.7,.4,1), opacity 0.18s;
+}
+.upload-drawer-enter, .upload-drawer-leave-to { transform: translateX(100%); opacity: 0.5; }
+
+.photos-root .ud-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
+}
+.photos-root .ud-title {
+  font-size: 14px; font-weight: 600; color: var(--text-1);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.photos-root .ud-pill {
+  font-size: 10.5px; padding: 2px 8px; border-radius: 99px;
+  background: var(--accent-soft); color: var(--accent-hi); font-weight: 500;
+}
+
+.photos-root .ud-body {
+  flex: 1; overflow-y: auto; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  scrollbar-width: thin; scrollbar-color: rgba(110,91,255,0.55) transparent; scrollbar-gutter: stable;
+}
+.photos-root .ud-body::-webkit-scrollbar { width: 8px; }
+.photos-root .ud-body::-webkit-scrollbar-track {
+  background: rgba(110,91,255,0.06); margin: 6px 0; border-radius: 99px;
+}
+.photos-root .ud-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #9C8EFF, #6E5BFF); border-radius: 99px;
+  border: 2px solid var(--surface-1); background-clip: padding-box; min-height: 36px;
+}
+
+.photos-root .ud-field label { display: block; font-size: 11px; color: var(--text-2); margin-bottom: 6px; }
+.photos-root .ud-select { position: relative; }
+.photos-root .ud-select select {
+  appearance: none; -webkit-appearance: none; width: 100%; height: 32px; padding: 0 28px 0 10px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 7px; color: rgba(var(--ink), 0.95); font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.photos-root .ud-select select option { color: rgba(var(--ink), 0.95); background: var(--surface-2); }
+.photos-root .ud-select select:hover { border-color: var(--line-stronger); }
+.photos-root .ud-select > svg { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+
+.photos-root .ud-drop-small {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2); border: 1px dashed var(--line-stronger);
+  border-radius: 8px; padding: 8px 12px;
+  font-size: 12px; color: var(--text-2); cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.photos-root .ud-drop-small:hover { background: var(--surface-3); }
+.photos-root .ud-drop-small.is-drag { background: var(--accent-soft); border-color: var(--accent); color: var(--text-1); }
+.photos-root .ud-drop-small .ud-drop-types {
+  margin-left: auto; color: var(--text-4); font-size: 10px;
+}
+
+.photos-root .ud-sec-h {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 4px;
+  font-size: 10.5px; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.photos-root .ud-clear {
+  background: transparent; border: 0; color: var(--accent-hi); cursor: pointer;
+  font-size: 10.5px; text-transform: none;
+}
+.photos-root .ud-clear:hover { color: var(--text-1); }
+
+.photos-root .ud-queue { display: flex; flex-direction: column; gap: 8px; }
+
+.photos-root .ud-foot {
+  display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line);
+  align-items: center;
+}
+.photos-root .ud-stat { font-size: 11px; color: var(--text-3); flex: 1; }
+.photos-root .ud-btn {
+  height: 32px; padding: 0 14px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--text-1); font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer;
+}
+.photos-root .ud-btn:hover { background: var(--surface-3); }
+.photos-root .ud-btn-primary { background: var(--accent); border-color: var(--accent); color: white; }
+.photos-root .ud-btn-primary:hover { background: var(--accent-hi); }
+.photos-root .ud-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* === UploadFileCard === */
+.photos-root .ufc {
+  display: flex; gap: 12px; align-items: center;
+  padding: 10px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  overflow: hidden;
+  /* fade-out transition target */
+  max-height: 100px; opacity: 1;
+  transition: max-height 0.25s ease, opacity 0.25s ease,
+              padding 0.25s ease, margin 0.25s ease, border-color 0.25s ease;
+}
+.photos-root .ufc[data-fading] {
+  max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0;
+  margin-top: -8px; border-color: transparent;
+}
+.photos-root .ufc-thumb {
+  width: 56px; height: 56px; flex: none; border-radius: 8px;
+  background: var(--surface-3); object-fit: cover; display: block;
+}
+
+.photos-root .ufc-mid {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+}
+.photos-root .ufc-name {
+  font-size: 12.5px; font-weight: 500; color: var(--text-1);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.photos-root .ufc-sub {
+  font-size: 10.5px; color: var(--text-3);
+  display: flex; align-items: center; gap: 6px;
+}
+.photos-root .ufc-sep { color: var(--text-4); }
+.photos-root .ufc[data-status="error"] .ufc-sub { color: var(--danger); }
+
+.photos-root .ufc-bar {
+  height: 4px; background: var(--surface-3); border-radius: 99px; overflow: hidden; margin-top: 2px;
+}
+.photos-root .ufc-bar-fill {
+  height: 100%; background: var(--accent); border-radius: inherit; transition: width 0.2s ease;
+}
+.photos-root .ufc[data-status="done"]  .ufc-bar-fill { background: var(--success); }
+.photos-root .ufc[data-status="error"] .ufc-bar-fill { background: var(--danger); }
+
+.photos-root .ufc-right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 40px;
+}
+.photos-root .ufc-pct {
+  font-size: 11px; font-weight: 600; color: var(--accent-hi);
+  font-variant-numeric: tabular-nums;
+}
+.photos-root .ufc-pct-done { color: var(--success); font-size: 14px; }
+.photos-root .ufc-pct-err  { color: var(--danger); font-size: 14px; }
+.photos-root .ufc-pct-idle { color: var(--text-3); }
+
+.photos-root .ufc-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 99px;
+  background: transparent; border: 0; color: var(--text-3); cursor: pointer;
+}
+.photos-root .ufc-btn:hover { background: var(--surface-3); color: var(--text-1); }
+.photos-root .ufc-btn[data-act="retry"] { color: var(--accent-hi); }
+.photos-root .ufc-btn[data-act="retry"]:hover { color: #fff; background: var(--accent); }
+
+/* === Chat Drawer (from shell.js injectChatDrawerStyle) === */
+.photos-root .chat-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 96vw; z-index: 191; /* Plan G: same overlay tier as .nimo-pop, still below lightbox's 200 */
+  background: var(--surface-1); border-left: 1px solid var(--line);
+  display: flex; flex-direction: column;
+  box-shadow: -16px 0 40px rgba(0,0,0,0.5);
+}
+/* Review fix (residual #4): prefixed with `.photos-root`, matching the T10
+   `.nimo-fab-swap-enter-active`/`-leave-active` precedent (~:871-873) -- `.chat-drawer` itself
+   only ever renders inside `.photos-root` (AskNimoDrawer.vue), so this is behavior-preserving.
+   `-active` class names are unchanged between Vue2 and Vue3, so both halves of this rule fire. */
+.photos-root .chat-drawer-enter-active, .photos-root .chat-drawer-leave-active {
+  transition: transform 0.22s cubic-bezier(.3,.7,.4,1), opacity 0.18s;
+}
+/* `.chat-drawer-enter` is the verbatim Vue2 transcription (parity record, kept as documented
+   dead source, deliberately left unprefixed -- Vue3's <transition> never applies that class
+   name at all, renamed/superseded by `-enter-from` below, so prefixing it would change nothing
+   observable either way). */
+.chat-drawer-enter { transform: translateX(100%); opacity: 0.5; }
+/* Review fix (residual #4): `-leave-to` is unchanged between Vue2 and Vue3 (only `-enter` /
+   `-leave` themselves were renamed to `-enter-from` / `-leave-from`), so this half is live and
+   gets the same `.photos-root` prefix as its `-active` siblings above. */
+.photos-root .chat-drawer-leave-to { transform: translateX(100%); opacity: 0.5; }
+/* Review fix (Important, Task 12): Vue2->Vue3 framework-difference fix, same precedent as
+   .nimo-fab-swap-enter-from (~:890) / .pin-merge-enter-from / .lb-swap-*-enter-from. Vue3
+   renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept its name in
+   both versions, so it needs no shim -- already covered by the rule above). This rule supplies
+   the real Vue3 selector so AskNimoDrawer.vue's `<transition name="chat-drawer">` slide
+   actually runs. */
+/* Review fix (minor #9): prefixed with `.photos-root`, matching the T10
+   `.nimo-fab-swap-enter-from` shim precedent (~:890) -- `.chat-drawer` itself only ever renders
+   inside `.photos-root` (AskNimoDrawer.vue), so this is behavior-preserving. */
+.photos-root .chat-drawer-enter-from { transform: translateX(100%); opacity: 0.5; }
+.photos-root .cd-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
+}
+.photos-root .cd-title { font-size: 14px; font-weight: 600; color: var(--text-1); line-height: 1.2; }
+.photos-root .cd-body {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 14px;
+  scrollbar-width: thin; scrollbar-color: rgba(110,91,255,0.55) transparent; scrollbar-gutter: stable;
+}
+.photos-root .cd-body::-webkit-scrollbar { width: 10px; }
+.photos-root .cd-body::-webkit-scrollbar-track { background: rgba(110,91,255,0.06); margin: 6px 0; border-radius: 99px; }
+.photos-root .cd-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg,#9C8EFF,#6E5BFF); border-radius: 99px;
+  border: 2px solid var(--surface-1); background-clip: padding-box; min-height: 36px;
+}
+.photos-root .cd-msg { display: flex; gap: 8px; align-items: flex-start; }
+.photos-root .cd-msg-user { justify-content: flex-end; }
+.photos-root .cd-msg-agent .cd-bubble { background: var(--surface-2); border: 1px solid var(--line); max-width: 88%; }
+.photos-root .cd-msg-user .cd-bubble { background: var(--accent-soft); border: 1px solid rgba(110,91,255,0.28); max-width: 80%; }
+.photos-root .cd-avatar { flex-shrink: 0; padding-top: 6px; }
+.photos-root .cd-bubble { padding: 10px 12px; border-radius: 12px; font-size: 13px; line-height: 1.55; color: var(--text-1); }
+.photos-root .cd-text { white-space: pre-wrap; word-wrap: break-word; }
+.photos-root .cd-thinking { display: inline-flex; gap: 4px; padding: 6px 4px; }
+.photos-root .cd-thinking span {
+  width: 5px; height: 5px; border-radius: 99px; background: var(--accent-hi);
+  animation: cd-pulse 1.2s ease-in-out infinite;
+}
+.photos-root .cd-thinking span:nth-child(2) { animation-delay: .18s; }
+.photos-root .cd-thinking span:nth-child(3) { animation-delay: .36s; }
+@keyframes cd-pulse { 0%,100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+.photos-root .cd-tool {
+  margin-top: 6px; background: rgba(110,91,255,0.06);
+  border: 1px solid rgba(110,91,255,0.18); border-radius: 8px; padding: 8px 10px;
+}
+.photos-root .cd-tool-head { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--accent-hi); }
+.photos-root .cd-tool-name { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.photos-root .cd-tool-status {
+  font-weight: 400; color: var(--text-3); font-size: 10.5px;
+  padding: 2px 6px; border-radius: 99px; background: rgba(52,199,89,0.12);
+}
+.photos-root .cd-tool-args {
+  margin: 6px 0 0; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-2); white-space: pre-wrap; line-height: 1.4;
+}
+.photos-root .cd-result { margin-top: 8px; }
+.photos-root .cd-result-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-2); margin-bottom: 6px; }
+.photos-root .cd-result-act {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 3px;
+  background: transparent; border: 0; color: var(--accent-hi); font: inherit; font-size: 11px; cursor: pointer;
+}
+.photos-root .cd-result-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; }
+.photos-root .cd-result-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; display: block; }
+.photos-root .cd-result-more {
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  background: var(--surface-3); border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--text-2);
+}
+.photos-root .cd-places { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.photos-root .cd-place-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--surface-3); border-radius: 6px; font-size: 12px; }
+.photos-root .cd-place-name { flex: 1; }
+.photos-root .cd-place-ct { font-variant-numeric: tabular-nums; color: var(--text-3); }
+.photos-root .cd-suggests { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px 0; }
+.photos-root .cd-suggest {
+  height: 24px; padding: 0 10px; border-radius: 99px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--text-2); font: inherit; font-size: 11.5px; cursor: pointer;
+}
+.photos-root .cd-suggest:hover { background: var(--surface-3); color: var(--text-1); }
+.photos-root .cd-foot { padding: 10px 14px 14px; border-top: 1px solid var(--line); margin-top: 10px; }
+.photos-root .cd-input {
+  width: 100%; min-height: 60px; max-height: 160px; resize: vertical;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; color: inherit; font: inherit; font-size: 13px; line-height: 1.5; outline: none;
+}
+.photos-root .cd-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.photos-root .cd-foot-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.photos-root .cd-attach {
+  width: 30px; height: 30px; border-radius: 8px; background: transparent; border: 0;
+  color: var(--text-3); cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.photos-root .cd-attach:hover { background: var(--surface-2); color: var(--text-1); }
+.photos-root .cd-foot-hint { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.photos-root .cd-send {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px;
+  border-radius: 8px; background: var(--accent); border: 0;
+  color: white; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.photos-root .cd-send:hover { background: var(--accent-hi); }
+.photos-root .cd-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+
+/* === Search-specific styles (extends styles.css) === */
+.search-active {
+  height: 40px;
+  font-size: 13.5px;
+}
+.search-active input { font-size: 13.5px; }
+
+.search-hero {
+  padding: 28px 32px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.search-query-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.search-back-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px; flex: none;
+  color: var(--text-2); background: none; border: none;
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+  &:hover { background: var(--surface-2); color: var(--text-1); }
+}
+.search-query {
+  font-family: var(--font-display);
+  font-size: 26px; font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.search-query .kw { color: var(--accent-hi); }
+.photos-root .search-meta { color: var(--text-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.understood {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 12px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(110,91,255,0.30);
+  color: var(--accent-hi);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.understood .nimo-orb { width: 18px; height: 18px; }
+
+.filterbar {
+  padding: 12px 32px;
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+  background: var(--bg);
+  position: sticky; top: 0;
+  z-index: 6;
+}
+/* Positioned anchor for popovers; the clickable .fchip is a sibling of (not an
+   ancestor of) the popover, so a popover click cannot reach the toggle handler. */
+.fchip-wrap { position: relative; display: inline-flex; }
+.fchip {
+  height: 30px; padding: 0 12px;
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 12.5px;
+  position: relative; cursor: pointer;
+}
+.fchip:hover { background: var(--surface-3); color: var(--text-1); }
+.fchip[data-on="true"] { background: var(--accent-soft); border-color: rgba(110,91,255,0.30); color: var(--text-1); }
+.fchip[data-on="true"] .fchip-icon { color: var(--accent-hi); }
+.fchip-icon { color: var(--text-3); display: flex; }
+.fchip-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  margin-left: 2px; margin-right: -4px; color: var(--text-3);
+}
+.fchip-x:hover { background: rgba(var(--ink), 0.10); color: var(--text-1); }
+.filterbar-spacer { flex: 1; }
+.filterbar .clear { font-size: 12px; color: var(--text-3); padding: 6px 8px; }
+.filterbar .clear:hover { color: var(--accent-hi); }
+.save-smart {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px; border-radius: 999px;
+  background: linear-gradient(120deg, rgba(110,91,255,0.20), rgba(110,91,255,0.08));
+  border: 1px solid rgba(110,91,255,0.40);
+  color: var(--accent-hi); font-size: 12px; font-weight: 500;
+}
+.save-smart[data-saved="true"] {
+  background: rgba(52,199,89,0.14) !important;
+  border-color: rgba(52,199,89,0.35) !important;
+  color: #34C759 !important; cursor: default;
+}
+
+.fpop {
+  position: absolute; top: 36px; left: 0;
+  background: var(--menu-bg);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--line-strong); border-radius: 12px;
+  box-shadow: 0 24px 60px -12px rgba(0,0,0,0.7);
+  padding: 14px; width: 320px; z-index: 10;
+  animation: pop-in 0.18s cubic-bezier(0.34,1.56,0.64,1);
+  cursor: default; text-align: left;
+}
+.fpop-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-3); letter-spacing: 0.06em; margin-bottom: 10px; }
+.fpop-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.fpop-quick {
+  font-size: 12px; padding: 5px 10px; border-radius: 99px;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2);
+}
+.fpop-quick:hover, .fpop-quick[data-on="true"] { background: var(--accent-soft); color: var(--accent-hi); border-color: rgba(110,91,255,0.30); }
+.cal { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; margin-top: 12px; }
+.cal-cell { height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; cursor: pointer; }
+.cal-cell.dow { color: var(--text-3); font-size: 10.5px; font-weight: 600; cursor: default; height: 22px; }
+.cal-cell:hover { background: var(--surface-3); }
+.cal-cell.in { background: var(--accent-soft); color: var(--text-1); border-radius: 0; }
+.cal-cell.start { background: var(--accent); color: white; border-radius: 6px 0 0 6px; }
+.cal-cell.end { background: var(--accent); color: white; border-radius: 0 6px 6px 0; }
+.cal-cell.start.end { border-radius: 6px; }
+.cal-cell.blank { cursor: default; pointer-events: none; }
+.cal-cell.blank:hover { background: transparent; }
+.cal-cell.muted { color: var(--text-4); }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; margin-bottom: 2px; }
+.cal-nav { width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-2); background: transparent; border: 0; transition: all 0.2s; }
+.cal-nav:hover { background: var(--surface-3); color: var(--text-1); }
+.face-pop-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; max-height: 264px; overflow-y: auto; }
+.face-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.face-cell .face-avatar { width: 48px; height: 48px; font-size: 18px; border: 2px solid transparent; }
+.face-cell[data-on="true"] .face-avatar { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(110,91,255,0.20); }
+.face-cell-name { font-size: 11.5px; color: var(--text-2); }
+.face-cell-count { font-size: 10px; color: var(--text-4); }
+.fpop-search {
+  width: 100%; height: 30px; padding: 0 10px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--text-1); font: inherit; font-size: 12px; margin-bottom: 10px;
+}
+.fpop-search:focus { outline: 0; border-color: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.results-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 32px; font-size: 12.5px; color: var(--text-3);
+}
+.results-bar .sort { display: inline-flex; gap: 0; background: var(--surface-2); padding: 2px; border-radius: 99px; }
+.results-bar .sort button { padding: 4px 10px; font-size: 11.5px; border-radius: 99px; color: var(--text-3); font-weight: 500; }
+.results-bar .sort button[data-active="true"] { background: var(--surface-3); color: var(--text-1); }
+
+/* Below-cut long-tail collapsible bar (relevance-sorted search results only). */
+.more-results-bar {
+  display: flex; align-items: center; gap: 6px;
+  margin: 4px 32px 16px; padding: 9px 14px;
+  border-radius: 8px; border: 1px dashed var(--line);
+  background: var(--surface-2); color: var(--text-2);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.more-results-bar:hover { background: var(--surface-3); color: var(--text-1); }
+
+/* Infinite-scroll sentinel — fetches the next below-cut page (search-cut-tiering
+   pagination) once it enters the results panel's viewport (+ prefetch margin). */
+.load-more-sentinel {
+  display: flex; align-items: center; justify-content: center;
+  height: 1px; margin: 4px auto 24px; padding: 20px 0;
+}
+.load-more-status { font-size: 12px; font-weight: 500; color: var(--text-3); }
+
+.match-badge {
+  position: absolute; top: 6px; left: 6px;
+  padding: 2px 7px; border-radius: 99px; font-size: 10px; font-weight: 600;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(8px); color: white; z-index: 4;
+  display: flex; align-items: center; gap: 4px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.match-badge[data-kind="ai"]   { background: rgba(110,91,255,0.85); }
+.match-badge[data-kind="ocr"]  { background: rgba(52,199,89,0.85); }
+.match-badge[data-kind="face"] { background: rgba(255,159,10,0.85); }
+.match-badge[data-kind="tag"]  { background: rgba(90,200,250,0.85); }
+.match-score {
+  position: absolute; bottom: 6px; right: 6px;
+  font-size: 10px; font-variant-numeric: tabular-nums; color: white; font-weight: 600;
+  background: rgba(0,0,0,0.6); padding: 1px 6px; border-radius: 99px; z-index: 3;
+}
+
+/* Search-hit source label (bottom-right): replaces .match-score when the result
+   came from OCR text matching, whose score is a fixed 1.0 (not a real similarity)
+   and would be misleading shown as a percentage. Deliberately styled distinctly
+   from the top-left .type-badge (media type) — different corner, different color
+   family — since the two badges answer unrelated questions (what the asset is vs.
+   why it matched). */
+.match-source {
+  position: absolute; bottom: 6px; right: 6px;
+  font-size: 10px; font-weight: 700; color: white; letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: rgba(52,199,89,0.85); backdrop-filter: blur(8px);
+  padding: 2px 8px; border-radius: 99px; z-index: 3;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+/* Result type label (top-left): only two kinds — Photo / Video — color-coded */
+.type-badge {
+  position: absolute; top: 6px; left: 6px;
+  padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700;
+  color: white; z-index: 4; text-transform: uppercase; letter-spacing: 0.05em;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+.type-badge[data-type="photo"] { background: rgba(50,190,230,0.9); }   /* cyan */
+.type-badge[data-type="video"] { background: rgba(255,149,10,0.92); }  /* orange */
+.type-badge[data-type="ocr"] { background: rgba(16,185,129,0.92); }  /* emerald */
+.empty-search { text-align: center; padding: 80px 32px; max-width: 480px; margin: 0 auto; }
+.empty-search .nimo-orb { width: 68px; height: 68px; margin: 0 auto 16px; filter: drop-shadow(0 0 24px var(--accent-glow)); }
+.empty-search h2 { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; }
+.empty-search p { color: var(--text-3); font-size: 13.5px; line-height: 1.5; margin: 0 0 24px; }
+.empty-search .conditions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 24px; }
+.empty-search .conditions .fchip { font-size: 11.5px; height: 26px; }
+
+/* Pre-search state — panel opened from the search bar, before any query */
+.search-prestate { text-align: center; padding: 96px 32px 40px; max-width: 560px; margin: 0 auto; }
+.search-prestate .nimo-orb { width: 68px; height: 68px; margin: 0 auto 16px; filter: drop-shadow(0 0 24px var(--accent-glow)); }
+.search-prestate h2 { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; }
+.search-prestate p { color: var(--text-3); font-size: 13.5px; line-height: 1.5; margin: 0 0 28px; }
+.search-prestate .prestate-recent { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.search-prestate .prestate-recent-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+.search-prestate .prestate-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.search-prestate .prestate-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 99px;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2);
+  font-size: 12.5px; cursor: pointer; transition: all 0.12s;
+}
+.search-prestate .prestate-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hi); }
+.search-prestate .prestate-chip span { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.save-pop {
+  position: absolute; right: 0; top: calc(100% + 8px); width: 360px;
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(110,91,255,0.08);
+  z-index: 50; display: flex; flex-direction: column; overflow: hidden;
+}
+.save-pop-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.save-pop-icon { width: 28px; height: 28px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#6E5BFF,#8A7AFF); flex-shrink: 0; }
+.save-pop-title { font-size: 13.5px; font-weight: 600; }
+.save-pop-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.save-pop-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.save-pop-field { display: flex; flex-direction: column; gap: 5px; }
+.save-pop-label { font-size: 11px; font-weight: 500; color: var(--text-2); }
+.save-pop-input { padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; color: var(--text-1); font: inherit; font-size: 13px; outline: none; transition: border-color 0.12s, background 0.12s; }
+.save-pop-input:focus { border-color: var(--accent); background: var(--surface-1); }
+.save-pop-conds { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; max-height: 70px; overflow-y: auto; }
+.save-pop-cond { padding: 2px 9px; border-radius: 99px; background: var(--accent-soft); border: 1px solid rgba(110,91,255,0.3); color: var(--accent-hi); font-size: 11px; font-weight: 500; }
+.save-pop-toggle { display: flex; align-items: center; gap: 12px; padding: 9px 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.save-pop-foot { display: flex; justify-content: flex-end; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface-1); }
+.save-pop-enter-active, .save-pop-leave-active { transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.2,0.8,0.2,1); transform-origin: top right; }
+.save-pop-enter, .save-pop-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+
+.sv-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.sv-slider-marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-4); margin-top: 3px; }
+.sv-switch { position: relative; width: 36px; height: 20px; background: var(--surface-3); border-radius: 99px; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+.sv-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: left 0.18s cubic-bezier(0.2,0.8,0.2,1); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+.sv-switch[data-on="true"] { background: var(--accent); }
+.sv-switch[data-on="true"]::after { left: 18px; }
+.sv-btn-ghost { height: 32px; padding: 0 14px; background: transparent; border: 1px solid var(--line); color: var(--text-2); border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.sv-btn-primary { height: 32px; padding: 0 14px; background: var(--accent); border: 0; color: white; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.sv-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.save-toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--pop-bg); border: 1px solid rgba(110,91,255,0.35); border-radius: 99px; color: var(--text-1); font-size: 12.5px; box-shadow: 0 12px 36px rgba(0,0,0,0.55), 0 0 0 1px rgba(110,91,255,0.18); backdrop-filter: blur(12px); z-index: 300; }
+.save-toast-link { padding: 4px 11px; border-radius: 99px; background: rgba(110,91,255,0.2); border: 1px solid rgba(110,91,255,0.35); color: var(--accent-hi); font-size: 11.5px; font-weight: 600; text-decoration: none; transition: background 0.15s; margin-left: 2px; }
+.save-toast-link:hover { background: rgba(110,91,255,0.35); }
+.save-toast-enter-active, .save-toast-leave-active { transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2,0.8,0.2,1); }
+.save-toast-enter, .save-toast-leave-to { opacity: 0; transform: translate(-50%,8px); }
+
+.search-history { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.search-history-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-right: 4px; }
+.search-history-item { padding: 3px 10px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2); font-size: 11.5px; text-decoration: none; white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; transition: all 0.12s; }
+.search-history-item:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hi); }
+
+
+/* ============================================================
+   Settings page — Storage / AI
+   ============================================================ */
+.st-close-btn { margin-left: 4px; position: relative; }
+.st-close-btn:hover { color: var(--text-1); background: var(--surface-3); }
+.st-close-btn::after { content: "Esc"; position: absolute; top: calc(100% + 6px); right: 0; padding: 3px 7px; font-size: 10px; border-radius: 5px; background: rgba(20,18,32,0.95); border: 1px solid var(--line); color: var(--text-3); opacity: 0; pointer-events: none; transition: opacity 0.15s 0.4s; white-space: nowrap; }
+.st-close-btn:hover::after { opacity: 1; }
+
+.st-page { height: 100%; overflow-y: auto; padding: 32px 40px 80px; max-width: 880px; margin: 0 auto; width: 100%; scrollbar-width: thin; scrollbar-color: rgba(110,91,255,0.45) transparent; }
+.st-page::-webkit-scrollbar { width: 8px; }
+.st-page::-webkit-scrollbar-thumb { background: rgba(110,91,255,0.45); border-radius: 99px; }
+
+.st-hero { margin-bottom: 28px; }
+.st-hero h1 { font-family: var(--font-display); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 6px; }
+.st-hero p { font-size: 13.5px; color: var(--text-3); line-height: 1.5; margin: 0 0 16px; max-width: 600px; }
+.st-quicknav { display: flex; gap: 6px; }
+.st-quicknav a { padding: 5px 12px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2); font-size: 12px; text-decoration: none; transition: all 0.12s; }
+.st-quicknav a:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hi); }
+
+.st-card { background: var(--surface-1); border: 1px solid var(--line); border-radius: 16px; margin-bottom: 20px; overflow: hidden; scroll-margin-top: 24px; }
+.st-card-head { display: flex; align-items: center; gap: 12px; padding: 20px 22px 18px; }
+.st-card-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.st-card-icon[data-tint="storage"] { background: rgba(110,91,255,0.16); }
+.st-card-icon[data-tint="ai"] { background: linear-gradient(135deg,rgba(110,91,255,0.2),rgba(255,154,194,0.2)); }
+.photos-root .st-card-icon[data-tint="backup"] { background: rgba(10, 132, 255, 0.14); color: #0A84FF; }
+.st-card-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.st-card-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+
+.st-divider { height: 1px; background: var(--line); margin: 4px 22px; }
+.st-subhead { font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-1); margin: 16px 22px 4px; }
+.st-subhead-desc { font-size: 11.5px; color: var(--text-3); line-height: 1.45; margin: 0 22px 10px; max-width: 540px; }
+
+.st-row { display: flex; align-items: center; gap: 18px; padding: 14px 22px; }
+.st-row-text { flex: 1; min-width: 0; }
+.st-row-label { font-size: 13.5px; font-weight: 500; color: var(--text-1); line-height: 1.25; }
+.st-row-desc { font-size: 11.5px; color: var(--text-3); margin-top: 3px; line-height: 1.45; max-width: 480px; }
+.photos-root .st-row-stack { flex-direction: column; align-items: flex-start; gap: 10px; }
+.photos-root .st-sub-row { display: flex; align-items: center; gap: 10px; padding-left: 2px; }
+.photos-root .st-sub-label { font-size: 12px; color: var(--text-3); min-width: 80px; }
+.photos-root .st-select {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font-size: 13px;
+  padding: 6px 10px;
+  cursor: pointer;
+  &:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+}
+.photos-root .st-segmented-wide { width: 100%; }
+.photos-root .st-segmented-wide .st-seg { flex: 1; justify-content: center; }
+
+.st-storage-headline { text-align: right; }
+.st-storage-headline .big { font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.st-storage-headline .big span { font-family: var(--font-sans); font-size: 11.5px; color: var(--text-3); font-weight: 400; margin-left: 4px; letter-spacing: 0; }
+.st-storage-headline .sub { font-size: 11px; color: var(--text-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+.photos-root .st-bar { margin: 4px 22px 14px; height: 14px; background: rgba(var(--ink), 0.04); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; display: flex; }
+.st-bar-seg { height: 100%; border-right: 1px solid rgba(0,0,0,0.25); transition: width 0.4s ease; }
+.st-bar-seg:last-of-type { border-right: 0; }
+.st-bar-free { flex: 1; }
+.st-bar-legend { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px 14px; margin: 0 22px 18px; }
+.st-bar-legend .legend-row { display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
+.st-bar-legend .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.st-bar-legend .lbl { color: var(--text-2); flex: 1; min-width: 0; }
+.st-bar-legend .val { color: var(--text-3); font-variant-numeric: tabular-nums; font-size: 11px; }
+
+.st-segmented { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 2px; flex-shrink: 0; }
+.st-segmented button { flex: 1; padding: 6px 12px; border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: 12px; border-radius: 6px; cursor: pointer; transition: background 0.12s, color 0.12s; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.st-segmented button:hover { color: var(--text-1); }
+.st-segmented button[data-active="true"] { background: var(--accent); color: white; box-shadow: 0 1px 4px rgba(110,91,255,0.35); }
+
+.photos-root .st-btn { height: 32px; padding: 0 14px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-1); border-radius: 8px; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; transition: background 0.12s, border-color 0.12s; }
+.photos-root .st-btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--line-strong); }
+.photos-root .st-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.st-spinner { width: 12px; height: 12px; border: 2px solid rgba(var(--ink), 0.12); border-top-color: var(--accent); border-radius: 50%; animation: st-spin 0.8s linear infinite; }
+@keyframes st-spin { to { transform: rotate(360deg); } }
+.st-progress { height: 4px; border-radius: 99px; background: var(--surface-3); margin-top: 8px; overflow: hidden; }
+.st-progress > div { height: 100%; background: linear-gradient(90deg,#6E5BFF,#B8AAFF); transition: width 0.2s ease; }
+
+.st-privacy { display: flex; gap: 10px; padding: 12px 14px; background: rgba(52,199,89,0.08); border: 1px solid rgba(52,199,89,0.22); border-radius: 10px; margin-top: 14px; }
+.st-privacy[data-mode="cloud"] { background: rgba(255,159,10,0.1); border-color: rgba(255,159,10,0.32); }
+.st-privacy-icon { width: 26px; height: 26px; border-radius: 7px; background: rgba(52,199,89,0.16); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.st-privacy-title { font-size: 12.5px; font-weight: 600; color: #34C759; margin-bottom: 4px; }
+.st-privacy-body { font-size: 11.5px; color: var(--text-2); line-height: 1.5; }
+.photos-root .st-privacy[data-mode="cloud"] .st-privacy-icon { background: rgba(255, 159, 10, 0.16); }
+.photos-root .st-privacy[data-mode="cloud"] .st-privacy-title { color: #FF9F0A; }
+.photos-root .st-privacy-body b { color: var(--text-1); }
+
+.photos-root .st-devices { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.photos-root .st-device {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.photos-root .st-device-icon {
+  width: 36px; height: 36px; border-radius: 9px;
+  background: var(--surface-3);
+  display: flex; align-items: center; justify-content: center;
+  flex: none; color: var(--text-2);
+}
+.photos-root .st-device-name { font-size: 13px; font-weight: 500; color: var(--text-1); }
+.photos-root .st-device-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.photos-root .st-device-badge {
+  margin-left: auto; flex: none;
+  font-size: 11px; font-weight: 500;
+  padding: 3px 8px; border-radius: 99px;
+  &[data-state="online"]  { background: rgba(52,199,89,0.15);  color: #34C759; }
+  &[data-state="offline"] { background: rgba(255,69,58,0.12);  color: #FF453A; }
+  &[data-state="syncing"] { background: rgba(110,91,255,0.15); color: var(--accent-hi);
+    &::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 5px; animation: st-pulse 1.2s ease-in-out infinite; }
+  }
+}
+@keyframes st-pulse {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+}
+
+.photos-root .st-disabled-note {
+  font-size: 11.5px; color: var(--text-3);
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border-radius: 7px;
+  margin-top: 8px;
+}
+
+.st-features { display: flex; flex-direction: column; padding: 0 22px 14px; }
+.st-feature { display: flex; align-items: center; gap: 18px; padding: 11px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.st-feature:last-child { border-bottom: 0; }
+.st-feature-text { flex: 1; }
+.st-feature-text .lbl { font-size: 13px; color: var(--text-1); font-weight: 500; }
+.st-feature-text .desc { font-size: 11.5px; color: var(--text-3); margin-top: 2px; line-height: 1.4; }
+
+.st-switch { position: relative; width: 36px; height: 20px; background: var(--surface-3); border-radius: 99px; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+.st-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: left 0.18s cubic-bezier(0.2,0.8,0.2,1); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+.st-switch[data-on="true"] { background: var(--accent); }
+.st-switch[data-on="true"]::after { left: 18px; }
+
+.st-footer { display: flex; align-items: center; gap: 18px; padding: 18px 0 0; margin-top: 20px; border-top: 1px solid var(--line); font-size: 12px; }
+.st-footer-app { font-weight: 500; color: var(--text-2); }
+.st-footer-host { font-size: 11px; color: var(--text-4); margin-top: 2px; }
+.st-footer-link { color: var(--text-3); text-decoration: none; font-weight: 500; padding: 6px 10px; border-radius: 6px; transition: color 0.12s, background 0.12s; }
+.st-footer-link:hover { color: var(--text-1); background: var(--surface-2); }
+
+.st-fade-enter-active, .st-fade-leave-active { transition: opacity 0.18s ease, max-height 0.22s ease; overflow: hidden; }
+.st-fade-enter, .st-fade-leave-to { opacity: 0; max-height: 0; }
+.st-fade-enter-to, .st-fade-leave { opacity: 1; max-height: 800px; }
+
+/* === Toolbar Filter Popup === */
+.photos-root .tb-filter-dot {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent-hi);
+}
+.photos-root .tb-filter-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--menu-bg);
+  border: 1px solid rgba(var(--ink), 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  min-width: 240px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  z-index: 50;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.photos-root .tb-filter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(var(--ink), 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.photos-root .tb-filter-clear {
+  background: none;
+  border: none;
+  color: var(--accent-hi);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+.photos-root .tb-filter-section { margin-bottom: 10px; }
+.photos-root .tb-filter-label {
+  font-size: 11px;
+  color: rgba(var(--ink), 0.4);
+  margin-bottom: 6px;
+}
+.photos-root .tb-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  button {
+    padding: 4px 10px;
+    border-radius: 9999px;
+    border: 1px solid rgba(var(--ink), 0.12);
+    background: none;
+    color: rgba(var(--ink), 0.7);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    &[data-active], &:hover { background: var(--accent-hi); color: #fff; border-color: var(--accent-hi); }
+  }
+}
+.photos-root .tb-filter-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  color: rgba(var(--ink), 0.8);
+}
+
+.tb-pop-enter-active, .tb-pop-leave-active {
+  transition: opacity 0.15s, transform 0.15s;
+}
+.tb-pop-enter, .tb-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* === Skeleton loading === */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.photos-root .skeleton {
+  background: linear-gradient(90deg, rgba(var(--ink), 0.04) 25%, rgba(var(--ink), 0.08) 50%, rgba(var(--ink), 0.04) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 4px;
+}
+
+.st-toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--pop-bg); border: 1px solid rgba(110,91,255,0.35); border-radius: 99px; color: var(--text-1); font-size: 12.5px; box-shadow: 0 12px 36px rgba(0,0,0,0.55), 0 0 0 1px rgba(110,91,255,0.18); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); z-index: 300; }
+.st-toast-enter-active, .st-toast-leave-active { transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2,0.8,0.2,1); }
+.st-toast-enter, .st-toast-leave-to { opacity: 0; transform: translate(-50%,8px); }
+
+/* Settings Modal Header */
+.st-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-1);
+  flex-shrink: 0;
+}
+.st-modal-head .topbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+/* Settings full-page transition */
+.settings-page-enter-active,
+.settings-page-leave-active {
+  transition: opacity 0.18s ease;
+}
+.settings-page-enter,
+.settings-page-leave-to {
+  opacity: 0;
+}
+
+/* ============================================================
+ * Albums — Index + Detail (1:1 from handoff/03-albums)
+ * ============================================================ */
+
+/* ---- Index banner ---- */
+.photos-root .albums-banner {
+  padding: 20px 24px 14px;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(110,91,255,0.05), transparent 80%);
+}
+/* Don't want that purple gradient at the top in light mode */
+.photos-root.is-light .albums-banner { background: none; }
+.photos-root .albums-banner h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.photos-root .albums-banner .sub {
+  color: var(--text-3);
+  font-size: 12.5px;
+  margin-top: 4px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.photos-root .albums-banner .sub .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+.photos-root .albums-banner .actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 8px;
+}
+
+/* ---- Sort dropdown menu (extracted from inline) ---- */
+.photos-root .albums-sort-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 4px;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.photos-root .albums-sort-item {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-1);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.photos-root .albums-sort-item:hover { background: var(--surface-3); }
+.photos-root .albums-sort-item[data-active="true"] { background: var(--accent-soft); }
+.photos-root .albums-sort-item .lbl {
+  display: block;
+  font-weight: 500;
+}
+.photos-root .albums-sort-item .desc {
+  display: block;
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* ---- Tabs row ---- */
+.photos-root .albums-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ---- Scrollable body ---- */
+.photos-root .albums-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 24px 80px;
+}
+.photos-root .albums-section { margin-bottom: 36px; }
+.photos-root .albums-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 0 14px;
+}
+.photos-root .albums-section-head h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.photos-root .albums-section-head .sub {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* ---- My Albums grid ---- */
+.photos-root .album-grid-user {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+.photos-root .album-card {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: var(--r-lg);
+  padding: 4px;
+  transition: transform 0.18s ease;
+}
+.photos-root .album-card:hover { transform: translateY(-2px); }
+.photos-root .album-cover {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface-2);
+  box-shadow: 0 8px 20px -8px rgba(0,0,0,0.45), 0 0 0 1px var(--line);
+}
+.photos-root .album-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+.photos-root .album-card:hover .album-cover img { transform: scale(1.04); }
+.photos-root .album-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.55));
+  pointer-events: none;
+}
+.photos-root .album-cover-fallback {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #2A1F4A, var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photos-root .album-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+  padding: 2px 6px;
+}
+.photos-root .album-meta {
+  font-size: 11.5px;
+  color: var(--text-3);
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.photos-root .album-meta .sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-4);
+}
+
+/* ---- Smart album badge (overlaid on .album-cover, Task 1 card unification) ----
+   Once smart album cards render with the same structure as manual album cards,
+   they no longer use the standalone .sv-collage collage/.sv-collage-badge/
+   .sv-collage-status (that set is still shared and used by Moments/SV
+   detail, not removed); two new classes are started here instead, sized one
+   notch smaller to fit .album-cover's cover ratio. */
+.photos-root .album-cover .al-smart-badge {
+  position: absolute;
+  top: 8px; left: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 99px;
+  background: rgba(var(--accent-rgb), 0.85);
+  backdrop-filter: blur(8px);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.photos-root .album-cover .al-live-dot {
+  position: absolute;
+  top: 8px; right: 8px;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+}
+/* All of .live-dot's existing styles are descendant selectors tied to a
+   specific ancestor (.sv-collage-status/.live-pill etc.), there's no bare
+   .live-dot rule — so a size/color/breathing-animation set must be
+   explicitly added here for the .al-live-dot context (a hollow-dot bug found
+   in review), with values kept consistent with .sv-collage-status .live-dot;
+   the photos-pulse keyframes are defined earlier in this file (:203;
+   renamed from Vue2's `pulse` to avoid colliding with theme.css's global
+   `pulse`). */
+.photos-root .al-live-dot .live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #34C759;
+  box-shadow: 0 0 6px #34C759;
+  animation: photos-pulse 1.6s infinite;
+}
+.photos-root .al-live-dot[data-paused="true"] .live-dot {
+  background: #FF9F0A;
+  box-shadow: 0 0 6px #FF9F0A;
+  animation: none;
+}
+
+/* ---- Create new placeholder card ---- */
+/* Task 1 (card unification): .album-create's total height aligns with
+   .album-card — the outer layer changed to the same vertical flex + 8px gap
+   as .album-card, with the dashed border narrowed down to
+   .album-create-cover (placeholder with the same aspect ratio as
+   .album-cover), and an invisible text line left below to stretch out the
+   same height as .album-title/.album-meta (see the two visibility:hidden
+   lines in the template). */
+.photos-root .album-create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+  cursor: pointer;
+}
+.photos-root .album-create-cover {
+  aspect-ratio: 4 / 5;
+  border-radius: var(--r-lg);
+  border: 1.5px dashed var(--line-stronger);
+  background: var(--surface-1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-3);
+  transition: all 0.18s ease;
+}
+.photos-root .album-create:hover .album-create-cover {
+  border-color: var(--accent);
+  color: var(--accent-hi);
+  background: var(--accent-soft);
+}
+.photos-root .album-create .plus {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photos-root .album-create:hover .plus {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+
+/* ---- Shared albums grid (row card) ---- */
+.photos-root .album-grid-shared {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+.photos-root .shared-card {
+  display: flex;
+  gap: 14px;
+  padding: 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  align-items: center;
+}
+.photos-root .shared-card:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+.photos-root .shared-card .cover {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  flex: none;
+  position: relative;
+}
+.photos-root .shared-card .cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photos-root .shared-card .body { flex: 1; min-width: 0; }
+.photos-root .shared-card .title { font-size: 14px; font-weight: 600; }
+.photos-root .shared-card .meta {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.photos-root .shared-card .activity {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--accent-hi);
+}
+.photos-root .shared-card .activity .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-hi);
+  box-shadow: 0 0 6px var(--accent-glow);
+  animation: photos-pulse 1.4s ease-in-out infinite;
+}
+.photos-root .shared-card .stack {
+  display: inline-flex;
+  margin-top: 8px;
+}
+.photos-root .shared-card .stack .dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--surface-1);
+  overflow: hidden;
+  margin-left: -7px;
+  background: var(--surface-2);
+}
+.photos-root .shared-card .stack .dot:first-child { margin-left: 0; }
+.photos-root .shared-card .stack .dot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photos-root .shared-card .stack .more-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-3);
+}
+
+/* ---- Auxiliary controls inside the Album Detail action row/floating bar ----
+   2026-07-30 first round of feedback: the standalone .album-detail-toolbar
+   bar was removed entirely (smart album detail never had this layer).
+   .group (the selection/sort hint copy row) and .order-pill (the Sort pill)
+   used to be scoped under .album-detail-toolbar, and now each has a new
+   home — the header's .sv-actions action row (Sort pill, see the
+   v-if="!edit" branch inside sv-actions in PhotosAlbumDetail.vue) and the
+   edit-mode bottom .sv-select-bar floating bar (selection hint copy) —
+   .group is used in only these two places globally, so it's simply widened
+   to the .photos-root scope instead of duplicating an equivalent rule for
+   each; .order-pill is only used in the action row, keeping its original
+   scoping but reattached to .sv-actions. The rule bodies themselves are
+   unchanged.
+   2026-07-30 second round of feedback: PhotosSmartViewDetail also added the
+   same Sort pill in its own .sv-actions (see PhotosSmartViewDetail.vue), and
+   the selector is written as the generic .sv-actions .order-pill (not an
+   Album-specific class name), so the two components naturally share the
+   same rule — no need to add a separate one for SV. */
+.photos-root .group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.photos-root .sv-actions .order-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+/* ---- Album Detail photo grid ----
+   The old .album-detail-body (header/toolbar span the full width, only the
+   grid+sidebar two-column layout each scrolled on their own) two-column
+   container has been deprecated — this round folds the header/toolbar/grid
+   three sections entirely into .sv-detail-layout / .sv-detail-main (reusing
+   PhotosSmartViewDetail's matching structure and scroll semantics, see
+   photos-smartview.scss), no longer needing a duplicate equivalent
+   two-column grid defined. .album-photos-wrap is now a direct child of
+   sv-detail-main, scrolling along with the main column as a whole (no longer
+   carries its own overflow-y:auto, otherwise you'd get double scrollbars for
+   the main column + grid area), keeping only the 32px left/right padding to
+   align with the header/toolbar; the bottom gap is left to sv-detail-main's
+   own padding-bottom:60px. */
+.photos-root .album-photos-wrap {
+  min-width: 0;
+  padding: 16px 32px 0;
+}
+.photos-root .album-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 3px;
+}
+.photos-root .album-photo-grid .tile {
+  aspect-ratio: 1;
+  position: relative;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.photos-root .album-photo-grid .tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+.photos-root .album-photo-grid .tile:hover img { transform: scale(1.04); }
+.photos-root .album-photo-grid .tile[data-cover="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.photos-root .album-photo-grid .tile[data-cover="true"]::after {
+  content: "★ Cover";
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: rgba(110, 91, 255, 0.85);
+  color: white;
+  border-radius: 99px;
+  backdrop-filter: blur(6px);
+  z-index: 2;
+  pointer-events: none;
+}
+.photos-root .album-photo-grid .tile .drag-hint {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+.photos-root .album-photos-wrap[data-edit="true"] .album-photo-grid .tile .drag-hint { display: flex; }
+.photos-root .album-photos-wrap[data-edit="true"] .album-photo-grid .tile {
+  outline: 1px dashed var(--line-strong);
+  outline-offset: -1px;
+}
+/* Compact density: more columns, smaller tiles. */
+.photos-root .album-photo-grid.is-compact {
+  grid-template-columns: repeat(9, 1fr);
+}
+/* Fix-6 (owner acceptance, 2026-08-18, New-UI-only -- not a Vue2 port, no equivalent selector
+   exists in the source scss): drag-reorder smoothness. useAlbumDragSort toggles `.is-dragging`
+   on this container for the duration of a drag (see that composable's own header comment for the
+   full mechanism trace) -- `forceFallback: true` drags via real `mousemove`, so the actual cursor
+   keeps crossing sibling tiles while the floating ghost moves, firing each one's `:hover` zoom
+   transition on the way. That transition work has no visual purpose mid-drag and competes with
+   Sortable's own `animation: 150` FLIP move for the frame budget -- suppressed here exactly like
+   the Ask Nimo FAB's own `.is-dragging` already does for its drag (:860-867 above), reusing the
+   same `transition: none !important` idea. `will-change` is scoped to the same window (not a
+   permanent per-tile cost on albums with hundreds of photos) so the browser only pays the
+   compositor-layer promotion while tiles are actually being FLIP-animated into place. */
+.photos-root .album-photo-grid.is-dragging .tile img { transition: none !important; }
+.photos-root .album-photo-grid.is-dragging .tile { will-change: transform; }
+/* Per-tile "set as cover" button (hover-revealed; always visible for the
+   current cover). The discoverable place to pick an album cover. */
+.photos-root .album-photo-grid .tile .tile-cover-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  z-index: 3;
+}
+.photos-root .album-photo-grid .tile:hover .tile-cover-btn { opacity: 1; transform: scale(1); }
+.photos-root .album-photo-grid .tile .tile-cover-btn:hover { background: var(--accent); color: #fff; }
+.photos-root .album-photo-grid .tile .tile-cover-btn[data-on="true"] {
+  opacity: 1;
+  transform: scale(1);
+  background: var(--accent);
+  color: #fff;
+}
+/* Multi-select checkbox (edit mode). Top-left; the cover star sits top-right. */
+.photos-root .album-photo-grid .tile .tile-select-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  color: #fff;
+  z-index: 4;
+}
+.photos-root .album-photo-grid .tile[data-selected="true"] .tile-select-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+/* In edit mode the "★ Cover" badge would collide with the select check (both
+   top-left); the cover star button already conveys cover state. */
+.photos-root .album-photos-wrap[data-edit="true"] .album-photo-grid .tile[data-cover="true"]::after {
+  display: none;
+}
+
+/* ---- Album rail ---- */
+.photos-root .album-rail {
+  border-left: 1px solid var(--line);
+  background: var(--surface-1);
+  padding: 20px;
+  overflow-y: auto;
+}
+.photos-root .rail-section { margin-bottom: 22px; }
+.photos-root .rail-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+.photos-root .collab-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  position: relative;
+}
+.photos-root .collab-row .av {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: none;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.photos-root .collab-row .av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photos-root .collab-row .body { flex: 1; min-width: 0; }
+.photos-root .collab-row .nm { font-size: 13px; font-weight: 500; }
+.photos-root .collab-row .role { font-size: 11px; color: var(--text-3); }
+.photos-root .collab-row .role-pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+.photos-root .collab-row .role-pill[data-owner="true"] {
+  color: var(--accent-hi);
+  border-color: var(--accent-glow);
+  background: var(--accent-soft);
+}
+.photos-root .collab-row .member-x {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  opacity: 0;
+  margin-left: 2px;
+  transition: opacity 0.15s, background 0.12s;
+}
+.photos-root .collab-row:hover .member-x { opacity: 1; }
+.photos-root .collab-row .member-x:hover {
+  background: rgba(255, 107, 92, 0.18);
+  color: #FF6B5C;
+}
+.photos-root .collab-row.setting-row {
+  padding: 4px;
+  cursor: pointer;
+}
+
+/* ---- Toggle switch (extracted from inline) ---- */
+.photos-root .album-toggle {
+  width: 32px;
+  height: 18px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  position: relative;
+  flex: none;
+  transition: background 0.15s;
+}
+.photos-root .album-toggle[data-on="true"] { background: var(--accent); }
+.photos-root .album-toggle .album-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 99px;
+  background: white;
+  transition: left 0.18s cubic-bezier(0.2,0.8,0.2,1);
+}
+.photos-root .album-toggle[data-on="true"] .album-toggle-thumb { left: 16px; }
+
+/* ---- Invite box ---- */
+.photos-root .invite-box {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.photos-root .invite-box input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-1);
+  font: inherit;
+  padding: 6px 4px;
+}
+.photos-root .invite-box input::placeholder { color: var(--text-3); }
+.photos-root .invite-box .footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.photos-root .invite-box .perm-pill {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.photos-root .invite-box .send {
+  margin-left: auto;
+  background: var(--accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+}
+.photos-root .invite-box .send:hover { background: var(--accent-hi); }
+
+/* ---- Activity feed ---- */
+.photos-root .activity-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--line);
+}
+.photos-root .activity-row:last-child { border-bottom: 0; }
+.photos-root .activity-row .av {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: none;
+  background: var(--surface-2);
+}
+.photos-root .activity-row .av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photos-root .activity-row .av .nimo-av {
+  width: 100%;
+  height: 100%;
+  background: url("../../assets/nimo-logo.png") center/cover no-repeat;
+}
+.photos-root .activity-row .body { flex: 1; min-width: 0; }
+.photos-root .activity-row .nm { font-weight: 500; color: var(--text-1); }
+.photos-root .activity-row .when {
+  font-size: 10.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* ============================================================
+ * New album modal (extracted from reference inline styles)
+ * ============================================================ */
+.photos-root .albums-modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.photos-root .albums-modal {
+  width: 460px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px 22px 18px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.65);
+}
+/* Task 2 (creation merge): when source==='nimo', the panel embeds
+   PhotosSmartAlbumCreate's two-column form (main body + 320px preview
+   sidebar), which doesn't fit in the fixed 460px — widened to the same
+   width as this component's standalone-mode .sv-modal, and switched to a
+   vertical flex container so the embedded form's flex:1 takes effect and
+   handles its own internal scrolling (echoing .sv-modal-form/.sv-modal-side's
+   existing overflow-y:auto). */
+.photos-root .albums-modal.albums-modal-wide {
+  width: 820px;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.photos-root .albums-modal-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.photos-root .albums-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.photos-root .albums-modal-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+.photos-root .albums-modal-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.photos-root .albums-modal-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 16px;
+}
+.photos-root .albums-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.photos-root .albums-source-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.photos-root .albums-source-item[data-active="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+/* Task 2: the nimo option is grayed out/unselectable when
+   aiFeatures.smartview===false (the disabled look from the old standalone
+   New Smart Album button moved here). */
+.photos-root .albums-source-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.photos-root .albums-source-item .radio {
+  width: 14px;
+  height: 14px;
+  border-radius: 99px;
+  border: 2px solid var(--text-3);
+  flex-shrink: 0;
+  margin-top: 2px;
+  position: relative;
+}
+.photos-root .albums-source-item .radio[data-active="true"] { border-color: var(--accent-hi); }
+.photos-root .albums-source-item .radio .dot {
+  position: absolute;
+  inset: 2px;
+  border-radius: 99px;
+  background: var(--accent-hi);
+}
+.photos-root .albums-source-item .lbl { font-weight: 500; }
+.photos-root .albums-source-item .desc {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+.photos-root .albums-modal-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  margin-bottom: 14px;
+  cursor: pointer;
+}
+.photos-root .albums-modal-check .lbl { font-size: 12.5px; font-weight: 500; }
+.photos-root .albums-modal-check .desc {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+.photos-root .albums-modal-foot {
+  display: flex;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+.photos-root .albums-btn-ghost {
+  flex: 1;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s;
+}
+.photos-root .albums-btn-ghost:hover { background: var(--surface-3); }
+.photos-root .albums-btn-cta {
+  flex: 1.4;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--accent);
+  border: 0;
+  color: white;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px var(--accent-glow);
+  transition: background .15s, box-shadow .15s;
+}
+.photos-root .albums-btn-cta:disabled {
+  background: var(--accent-glow);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.photos-root .albums-btn-cta:not(:disabled):hover { background: var(--accent-hi); }
+
+.albums-modal-enter-active,
+.albums-modal-leave-active { transition: opacity 0.15s ease; }
+.albums-modal-enter,
+.albums-modal-leave-to { opacity: 0; }
+
+// === UploadFileCard visual sub-states ===
+.ufc .ufc-sub {
+  .ufc-restored {
+    color: var(--text-secondary, rgba(144,149,153,1));
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    &::before { content: '↺'; }
+  }
+  .ufc-meta-error { color: var(--danger, #FF453A); }
+  .ufc-meta-dup   { color: var(--text-secondary, rgba(144,149,153,1)); }
+  .ufc-meta-retry { color: hsl(48, 100%, 50%); }
+}
+
+.ufc[data-status='done'][data-dup] .ufc-bar-fill { background: rgba(144,149,153,0.5); }
+.ufc[data-retrying='1'] .ufc-bar-fill { background: hsl(48, 100%, 50%); }
+
+/* === NimoModelPicker === */
+.photos-root .nimo-mp { position: relative; display: inline-flex; }
+.photos-root .nimo-mp-trigger {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: 0; padding: 0;
+  color: var(--text-3); font-size: 11.5px; cursor: pointer;
+}
+.photos-root .nimo-mp-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(var(--ink), 0.3); flex-shrink: 0;
+}
+.photos-root .nimo-mp-dot.is-local { background: #93b8ff; box-shadow: 0 0 5px rgba(147,184,255,0.7); }
+.photos-root .nimo-mp-dot.is-cloud { background: #6ddc83; box-shadow: 0 0 5px rgba(109,220,131,0.7); }
+.photos-root .nimo-mp-chev { font-size: 9px; opacity: 0.6; }
+.photos-root .nimo-mp-list {
+  position: fixed;
+  min-width: 220px; max-height: 280px; overflow-y: auto;
+  z-index: 260; /* Plan G: reuses the established "fixed dropdown menu" tier, exact analog to
+                   .cluster-menu (photos-people.scss:1338) -- same UI role (portaled dropdown list) */
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.photos-root .nimo-mp-list::-webkit-scrollbar { width: 6px; }
+.photos-root .nimo-mp-list::-webkit-scrollbar-thumb { background: rgba(var(--ink), 0.18); border-radius: 6px; }
+.photos-root .nimo-mp-list::-webkit-scrollbar-track { background: transparent; }
+.photos-root .nimo-mp-group-label {
+  font-size: 10px; color: var(--text-3); letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 6px 8px 4px;
+}
+.photos-root .nimo-mp-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 8px; background: none; border: 0; border-radius: 6px;
+  color: var(--text-1); font-size: 12px; cursor: pointer; text-align: left;
+}
+.photos-root .nimo-mp-item:hover { background: rgba(var(--ink), 0.06); }
+.photos-root .nimo-mp-item.is-active { background: var(--accent-soft); }
+.photos-root .nimo-mp-item-name { flex: 1; }
+.photos-root .nimo-mp-item-prov { color: var(--text-3); font-size: 11px; }
+.photos-root .nimo-mp-radio {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+}
+.photos-root .nimo-mp-item.is-active .nimo-mp-radio {
+  border-color: var(--accent-hi);
+  background: var(--accent-hi);
+  box-shadow: inset 0 0 0 2px var(--surface-2);
+}
+.photos-root .nimo-mp-empty { padding: 10px; text-align: center; }
+.photos-root .nimo-mp-config {
+  background: transparent; border: 0; color: var(--accent-hi);
+  font-size: 11.5px; cursor: pointer;
+}
+
+/* === NimoChat === */
+.photos-root .nimo-chat {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+}
+.photos-root .nimo-chat.is-fullscreen { height: 100%; }
+.photos-root .nimo-chat-history {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.photos-root .nimo-chat-history::-webkit-scrollbar { width: 6px; }
+.photos-root .nimo-chat-history::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--accent), var(--accent-hi));
+  border-radius: 6px;
+}
+.photos-root .nimo-chat-history::-webkit-scrollbar-thumb:hover { background: var(--accent-hi); }
+.photos-root .nimo-chat-history::-webkit-scrollbar-track { background: transparent; }
+.photos-root .nimo-chat-suggest {
+  height: 26px; padding: 0 10px; border-radius: 9999px;
+  background: rgba(var(--ink), 0.06); border: 1px solid rgba(var(--ink), 0.08);
+  color: rgba(var(--ink), 0.78); font-size: 12px; cursor: pointer;
+  flex-shrink: 0;
+}
+.photos-root .nimo-chat-suggest:hover { background: rgba(var(--ink), 0.10); }
+.photos-root .msg { font-size: 13.5px; line-height: 1.5; padding: 8px 11px; border-radius: 10px; max-width: 86%; display: inline-flex; flex-direction: column; gap: 2px; }
+.photos-root .msg-u { align-self: flex-end; background: rgba(var(--accent-rgb), 0.30); border: 1px solid rgba(var(--accent-rgb), 0.45); color: var(--text-1); }
+.photos-root .msg-a { align-self: flex-start; background: rgba(var(--ink), 0.04); border: 1px solid rgba(var(--ink), 0.06); color: rgba(var(--ink), 0.92); }
+.photos-root .msg-cursor {
+  display: inline-block; width: 6px; height: 14px;
+  background: var(--accent-ink); margin-left: 2px;
+  vertical-align: middle; animation: nimoCursor 0.9s steps(2) infinite;
+}
+@keyframes nimoCursor { 50% { opacity: 0; } }
+.photos-root .msg-meta { font-size: 11.5px; color: rgba(var(--ink), 0.42); }
+.photos-root .msg-meta-err { color: #ff6b5c; }
+.photos-root .nimo-chat-input {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 6px 12px 10px;
+  flex-shrink: 0;
+}
+.photos-root .nimo-chat-foot-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.photos-root .nimo-chat-foot-spacer { flex: 1; }
+.photos-root .nimo-chat-textarea {
+  flex: 1; min-height: 38px; max-height: 90px; resize: none;
+  background: rgba(var(--ink), 0.04); border: 1px solid rgba(var(--ink), 0.08);
+  border-radius: 10px; padding: 9px 10px;
+  color: rgba(var(--ink), 0.78); font: inherit; font-size: 13.5px; outline: none;
+}
+.photos-root .nimo-chat-textarea::placeholder { color: rgba(var(--ink), 0.35); }
+.photos-root .nimo-chat-btn {
+  height: 28px; width: 28px; border-radius: 9999px; border: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.photos-root .nimo-chat-btn-send {
+  background: linear-gradient(135deg, #8a7aff, #6e5bff); color: #fff;
+  box-shadow: 0 4px 14px -4px rgba(110,91,255,0.55);
+}
+.photos-root .nimo-chat-btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+.photos-root .nimo-chat-btn-stop {
+  background: #ff6b5c; color: #fff;
+  box-shadow: 0 4px 14px -4px rgba(255,107,92,0.55);
+}
+
+/* === NimoChat message body (from PhotosAgentChat.vue's own <style>, not scoped in Vue2 --
+   global under .photos-root there too, so this is a straight append, no selector rewrite). === */
+.photos-root .nimo-md { line-height: 1.5; }
+.photos-root .nimo-md p { margin: 0 0 6px; }
+.photos-root .nimo-md p:last-child { margin-bottom: 0; }
+.photos-root .nimo-md ul,
+.photos-root .nimo-md ol { margin: 0 0 6px; padding-left: 18px; }
+.photos-root .nimo-md li { margin-bottom: 2px; }
+.photos-root .nimo-md code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-ink);
+  background: rgba(var(--accent-rgb), 0.16);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.photos-root .nimo-md pre {
+  background: var(--well-bg);
+  border: 1px solid rgba(var(--ink), 0.06);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+.photos-root .nimo-md pre code { background: transparent; padding: 0; font-size: 11px; }
+.photos-root .nimo-md strong { font-weight: 600; color: var(--accent-hi); }
+.photos-root .nimo-md em { font-style: italic; }
+.photos-root .nimo-md a { color: var(--accent-hi); text-decoration: underline; }
+.photos-root .nimo-md h1,
+.photos-root .nimo-md h2,
+.photos-root .nimo-md h3 { font-weight: 600; margin: 6px 0 4px; line-height: 1.3; }
+.photos-root .nimo-md table { border-collapse: collapse; margin: 4px 0 6px; font-size: 11px; max-width: 100%; }
+.photos-root .nimo-md th,
+.photos-root .nimo-md td { border: 1px solid rgba(var(--ink), 0.10); padding: 3px 6px; text-align: left; vertical-align: top; }
+.photos-root .nimo-md th { font-weight: 600; color: var(--accent-hi); background: rgba(var(--accent-rgb), 0.10); }
+
+.photos-root .nimo-tool-line { font-size: 10.5px; color: rgba(var(--ink), 0.38); padding: 1px 0; line-height: 1.3; }
+.photos-root .nimo-tool-line.is-running { color: var(--accent-ink-dim); animation: nimoToolPulse 1.4s ease-in-out infinite; }
+@keyframes nimoToolPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.photos-root .nimo-tool-err { color: #ff6b5c; }
+
+.photos-root .nimo-photo-grid { width: 100%; }
+.photos-root .nimo-photo-grid-label { font-size: 10.5px; color: rgba(var(--ink), 0.42); margin-bottom: 5px; }
+.photos-root .nimo-photo-grid-tiles { display: flex; flex-wrap: wrap; gap: 3px; }
+.photos-root .nimo-photo-tile {
+  width: 56px; height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(var(--ink), 0.06);
+  flex-shrink: 0;
+  position: relative;
+}
+.photos-root .nimo-photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.15s; }
+.photos-root .nimo-photo-tile:hover img { opacity: 0.8; }
+.photos-root .nimo-photo-tile-more {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600;
+  color: rgba(var(--ink), 0.6);
+  background: rgba(var(--ink), 0.08);
+}
+
+.photos-root .nimo-typing { display: inline-block; font-size: 14px; color: var(--accent-ink-dim); animation: nimoTyping 1.1s ease-in-out infinite; letter-spacing: 2px; }
+@keyframes nimoTyping { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+.photos-root .nimo-ctx-chip {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10.5px; color: var(--accent-ink);
+  background: rgba(var(--accent-rgb), 0.12);
+  border-radius: 6px; padding: 2px 8px; margin-bottom: 6px;
+  width: fit-content;
+}
+.photos-root .nimo-ctx-chip-x { background: none; border: none; color: rgba(var(--ink), 0.5); cursor: pointer; font-size: 12px; padding: 0 2px; }
+.photos-root .nimo-ctx-chip-x:hover { color: var(--text-1); }
+
+/* === Confirm/access_request card (from PhotosAgentConfirm.vue's own <style>) === */
+.photos-root .pac-wrap {
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(var(--ink), 0.04);
+  border: 1px solid rgba(var(--ink), 0.10);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 2px 0;
+}
+.photos-root .pac-desc { font-size: 11.5px; color: rgba(var(--ink), 0.80); line-height: 1.4; }
+.photos-root .pac-code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: rgba(var(--ink), 0.50);
+  background: var(--well-bg);
+  border-radius: 4px;
+  padding: 3px 6px;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+.photos-root .pac-btns { display: flex; align-items: center; gap: 6px; }
+.photos-root .pac-btn {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.photos-root .pac-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.photos-root .pac-btn-allow { background: var(--accent); color: white; border-color: var(--accent); }
+.photos-root .pac-btn-allow:not(:disabled):hover { background: var(--accent-hi); }
+.photos-root .pac-btn-deny {
+  background: rgba(var(--ink), 0.06);
+  color: rgba(var(--ink), 0.70);
+  border-color: rgba(var(--ink), 0.12);
+}
+.photos-root .pac-btn-deny:not(:disabled):hover { background: rgba(var(--ink), 0.12); }
+.photos-root .pac-err { font-size: 10.5px; color: #ff6b5c; }
+.photos-root .pac-result { font-size: 10.5px; }
+.photos-root .pac-result-allow { color: rgba(52,199,89,0.85); }
+.photos-root .pac-result-deny { color: rgba(var(--ink), 0.38); }
+
+/* === NimoTaskBar === */
+.photos-root .nimo-tb {
+  flex-shrink: 0;
+  /* Collapsed state blends in with the surrounding background: no fill/border */
+  background: transparent;
+  padding: 8px 12px 7px;
+}
+.photos-root .nimo-tb-top { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.photos-root .nimo-tb-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #6e5bff; box-shadow: 0 0 7px rgba(110,91,255,0.7);
+  animation: nimoTbPulse 1.2s ease-in-out infinite; flex-shrink: 0;
+}
+@keyframes nimoTbPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.photos-root .nimo-tb-label { font-size: 11.5px; font-weight: 600; color: var(--text-1); }
+.photos-root .nimo-tb-chev {
+  margin-left: auto; /* collapsed state is icon + "X background tasks" text, chevron right-aligned */
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1; font-size: 12px;
+  color: var(--text-3); transform: rotate(0deg); transition: transform 0.2s;
+}
+.photos-root .nimo-tb-chev[data-open="true"] { transform: rotate(180deg); }
+.photos-root .nimo-tb-bar { margin-top: 6px; height: 2px; background: rgba(var(--ink), 0.06); border-radius: 9999px; overflow: hidden; }
+.photos-root .nimo-tb-bar > i { display: block; height: 100%; background: linear-gradient(90deg, #8a7aff, #6e5bff); transition: width 0.35s ease; }
+.photos-root .nimo-tb-list { margin-top: 7px; padding-top: 6px; border-top: 1px solid rgba(var(--ink), 0.05); }
+.photos-root .nimo-tb-row { display: flex; align-items: center; padding: 2px 0; }
+.photos-root .nimo-tb-row-label { flex: 1; font-size: 11px; color: var(--text-2); }
+.photos-root .nimo-tb-row-pct { font-size: 10px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* === NimoTaskBar expanded per-type breakdown -- the .nimo-tb-list / .nimo-tb-row family above
+   is Vue2 photos.scss's OWN dead code, retained here only because that file was transcribed
+   whole; the block below is the live style, ported byte-exact from
+   NimoTaskBar.vue's own <style scoped> (the Vue 2 panel's src/views/Photos/NimoTaskBar.vue:111-157). === */
+.photos-root .nimo-tb-types {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  /* Vue2 NimoTaskBar.vue:117 -- task area when expanded: uses a background color distinct from
+     its surroundings, like a dropdown panel. */
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(var(--ink), 0.05);
+}
+/* Vue2 NimoTaskBar.vue:127 -- use theme color variables, following light/dark theme; don't
+   hardcode a color (otherwise white text would be invisible in light theme). */
+.photos-root .nimo-tb-type-head { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+.photos-root .nimo-tb-type-label { flex: 1; }
+.photos-root .nimo-tb-type-pct { font-size: 10px; font-variant-numeric: tabular-nums; color: var(--text-3); }
+.photos-root .nimo-tb-type-count { color: var(--text-3); opacity: 0.7; }
+/* Vue2 NimoTaskBar.vue:137 -- smooth progress bar animation: so even tasks the backend finishes
+   instantly still show a rolling effect. */
+.photos-root .nimo-tb-bar i { transition: width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.photos-root .nimo-tb-type.has-error .nimo-tb-bar i { background: #FF9F43; }
+.photos-root .nimo-tb-row-alert {
+  display: inline-block;
+  width: 14px; height: 14px; line-height: 14px;
+  border-radius: 999px;
+  background: #FF9F43; color: #fff;
+  font-size: 10px; text-align: center; font-weight: 700;
+}
+.photos-root .nimo-tb-error-detail {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 159, 67, 0.10);
+  border-left: 2px solid #FF9F43;
+  color: var(--text-2);
+  font-size: 0.75rem;
+}
+
+/* Auto-resume upload: lightweight corner notice bar */
+.recovery-notice {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 12px;
+  background: rgba(var(--surface-1, 30, 30, 36), 0.72);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid rgba(var(--ink), 0.10);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  color: var(--text-1);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.recovery-notice-icon { color: #6e5bff; font-size: 14px; line-height: 1; flex-shrink: 0; }
+.recovery-notice-text { flex: 1; white-space: nowrap; }
+.recovery-notice-action {
+  flex-shrink: 0;
+  border: none; background: rgba(110, 91, 255, 0.16); color: #6e5bff;
+  font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 8px; cursor: pointer;
+}
+.recovery-notice-action:hover { background: rgba(110, 91, 255, 0.26); }
+.recovery-notice-close {
+  flex-shrink: 0;
+  border: none; background: transparent; color: var(--text-3);
+  font-size: 16px; line-height: 1; padding: 0 2px; cursor: pointer;
+}
+.recovery-notice-close:hover { color: var(--text-1); }
+.recovery-notice-fade-enter-active, .recovery-notice-fade-leave-active { transition: opacity 0.25s, transform 0.25s; }
+.recovery-notice-fade-enter, .recovery-notice-fade-leave-to { opacity: 0; transform: translateY(8px); }
+
+/* === FAB progress ring (Task 17) === */
+.photos-root .nimo-fab-orb-wrap {
+  position: relative;
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.photos-root .nimo-fab-ring {
+  position: absolute; top: 50%; left: 50%;
+  width: 44px; height: 44px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: nimoRingIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes nimoRingIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+/* === FAB mini progress ring (Task 17 / spec gap fix) === */
+.photos-root .nimo-fab-mini-orb-wrap {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.photos-root .nimo-fab-mini-ring {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: nimoRingIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* === FAB ring transition (from PhotosAskNimo.vue's own <style scoped>) === */
+.photos-root .nimo-fab-ring stop,
+.photos-root .nimo-fab-mini-ring stop { transition: stop-color 0.3s; }
+.photos-root .nimo-fab-ring circle,
+.photos-root .nimo-fab-mini-ring circle { transition: stroke-dashoffset 0.5s cubic-bezier(0.22, 0.61, 0.36, 1); }
+
+/* ──────────────────────────────────────────────────────────────
+   Album detail — drag-to-reorder ghost
+   ────────────────────────────────────────────────────────────── */
+.tile-drag-ghost {
+  opacity: 0.4;
+  background: rgba(137, 80, 242, 0.15);
+  outline: 2px dashed rgba(137, 80, 242, 0.6);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Album library picker
+   ────────────────────────────────────────────────────────────── */
+.picker-scrim {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.picker-modal {
+  width: min(1100px, 92vw);
+  height: min(820px, 90vh);
+  background: var(--modal-bg);
+  border-radius: 14px;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.picker-head {
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid rgba(var(--ink), 0.06);
+}
+.picker-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.picker-sub   { font-size: 12px; color: rgba(var(--ink), 0.55); margin-top: 2px; }
+
+.picker-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.picker-empty {
+  color: rgba(var(--ink), 0.5); text-align: center; padding: 60px 20px;
+}
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+}
+.picker-tile {
+  position: relative; aspect-ratio: 1;
+  border-radius: 6px; overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.15s, outline-color 0.15s;
+  outline: 2px solid transparent;
+
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  &[data-selected="true"] {
+    outline-color: #8950F2;
+    transform: scale(0.94);
+  }
+  &[data-disabled="true"] {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+}
+.picker-tile-check, .picker-tile-existing {
+  position: absolute; top: 6px; right: 6px;
+  width: 18px; height: 18px; border-radius: 9999px;
+  display: flex; align-items: center; justify-content: center;
+}
+.picker-tile-check    { background: #8950F2; }
+.picker-tile-existing { background: rgba(255,255,255,0.25); }
+
+.picker-foot {
+  padding: 14px 20px;
+  display: flex; gap: 10px; justify-content: flex-end;
+  border-top: 1px solid rgba(var(--ink), 0.06);
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Album detail — loading skeleton
+   ────────────────────────────────────────────────────────────── */
+.album-tile-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--ink), 0.04) 0%,
+    rgba(var(--ink), 0.10) 50%,
+    rgba(var(--ink), 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: album-skeleton-shimmer 1.4s ease-in-out infinite;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  pointer-events: none;
+}
+@keyframes album-skeleton-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Place / spot jump-filter pill — shown in Library when arriving from Places. */
+.photos-root .place-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px 2px;
+}
+.photos-root .place-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 11px;
+  border-radius: 9999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-glow);
+  color: var(--accent-hi);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.photos-root .place-filter-crumb {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-hi);
+  font: inherit;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.photos-root .place-filter-crumb:hover { opacity: 0.7; text-decoration: underline; }
+.photos-root .place-filter-crumb.is-leaf { cursor: default; color: #fff; }
+.photos-root .place-filter-crumb.is-leaf:hover { opacity: 1; text-decoration: none; }
+.photos-root .place-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 9999px;
+  background: rgba(var(--ink), 0.08);
+  color: var(--accent-hi);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.photos-root .place-filter-clear:hover { background: rgba(var(--ink), 0.18); }
+.photos-root .place-filter-count {
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}

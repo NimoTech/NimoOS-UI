@@ -1,0 +1,311 @@
+/* Styles for Parser two pages (parser status / test sandbox) — SP8-P5c Task 2b
+ *
+ * 1:1 ported from Vue2 baseline two scoped styles (199 lines total, `git show main:` @ 7a6ee6b7):
+ *   ① `src/views/AI/Parser/parser-styles.scss` (74 lines)
+ *        → this file's `.parser-app .parser-status-page { … }` section
+ *   ② `src/views/AI/Parser/ParserTest.vue:245-369` inline `<style lang="scss" scoped>` (125 lines)
+ *        → this file's `.parser-app .parser-test-page { … }` section
+ *   ⚠️ The baseline `ParserTest.vue` does **not** `@import './parser-styles.scss'` (only the
+ *   `<style>` block in `ParserStatus.vue:162-164` imported it), so the two are **independently**
+ *   scoped styles, not one plus one patch.
+ *
+ * 【K23 — each page has its own scope, same-named classes not merged】Governance §3 K23 / Appendix
+ * B §B.1 C-2 testing: among the same-named complete selectors, only `.card` / `.page-header` /
+ * `.page-header h2` have identical declarations word-for-word, while `.row` (gap/padding vs
+ * gap/margin) · `h3` (status page has extra font-weight) · `li` (padding and dashed line positions
+ * both differ) · `.hint` (test page itself has two different versions) all differ. Merging = UI not
+ * 1:1 = regression. → the three word-for-word identical ones **stay in each scope per K23** ("keep
+ * things where they are").
+ *
+ * 【K9 — zero top-level bare selectors】The baseline's 60+ bare class names (`.card` `.row` `.hint`
+ * `.error` `.empty` …) and 9 element selectors (`h2` `h3` `b` `li` `p` `em` `strong` `input` `code`)
+ * are isolated by `scoped` in Vue2; moving into New-UI's global scss must be self-contained — every
+ * rule in this file is **nested under one of the two page scopes**, column 0 only allows three
+ * selectors: `.parser-app` / `.parser-app .parser-status-page` / `.parser-app .parser-test-page`
+ * (**descendant** selectors, see K31 below). Assertion (b) in `parserStyles.test.ts` pins this.
+ *
+ * 【K21 — where tokens come from】This file **declares no tokens**: the two token declaration block
+ * selectors in `knowledge.scss` were each expanded with a comma item by Task 2a
+ * (`.knowledge-app, .parser-app { … }` and `:root[data-theme="light"] .knowledge-app,
+ * :root[data-theme="light"] .parser-app { … }`), one declaration serving two scopes (precedent:
+ * `tokens.scss:31-32` with `.agent-app, .ai-toast-scope`). Therefore `.parser-app` also doesn't
+ * need and **cannot** declare `color-scheme` on its own — those two token blocks already have it.
+ * 🔴 Why can't we let the page root borrow `.knowledge-app` tokens: `.knowledge-app`'s token block
+ * in `knowledge.scss` is **shared with the full-screen two-column shell block** (Governance §6.1
+ * E-4), hanging it would turn these two normal flow pages into the first column of a 100vw grid
+ * and clip content. Similarly can't borrow `.agent-app` (it also has a shell, and `.agent-app .card`
+ * would collide at equal specificity with this file's `.card`, leaking overflow/box-shadow).
+ *
+ * 【Color scheme — Appendix B is the sole authority】The baseline has 19 instances of
+ * `var(fake-token, fallback)` syntax, those 6 fake token names (the `ns-` prefix family) have
+ * **zero declarations** in the Vue2 full repo (Governance §12.1 verification), what actually renders
+ * is the fallback value → Appendix B §B.2 builds mapping per **fallback value's semantics**, not by
+ * guessing from token names, and **doesn't preserve the `var(fake-token, …)` wrapper** (keeping it
+ * introduces a repo-wide undeclared dead reference into the new repo, Appendix B §B.9 self-check ⑦
+ * requires this file have zero remnants). Every color below is tagged with "baseline line number +
+ * Chinese semantics"; per R5, comments **don't write out the replaced color literals**. Zero hex
+ * color values in full text, zero function-style colors, zero named colors; zero `transparent`.
+ *
+ * 【K25 — dark mode differs from Vue2, intentional】Vue2 only has (actually rendered) one light set
+ * of values; this file uses two token tiers, dark tier follows token changes. User 2026-08-03
+ * direction: light tier visually matches Vue2 is sufficient. ⚠️ Appendix B choice ②: light tier
+ * `--warning` / `--success` noticeably deeper than Vue2 (pause/run indicators, `.warn`, `.score`,
+ * `.ok-hint` use these two tokens) — this is the warm-neutral paper-feel palette K2 sets for the
+ * whole AI area, coordinator decision A-2 **doesn't make special case for Parser two pages**,
+ * already in acceptance checklist.
+ *
+ * 【1:1 boundary】Apart from color syntax, layout / spacing / structure / declaration order / single-
+ * line multi-declaration formatting all copied word-for-word, including `font-family: ui-monospace,
+ * monospace` (**not swapped to `var(--font-mono)`** — that's a different font stack, would change
+ * actual rendering) and `opacity: 0.5`, `transition: background 0.15s` other non-color values.
+ */
+
+/* 【K22 — Vue2 doesn't have these three lines, newly added here, Governance §3 K22 authorized】
+ * `src/styles/theme.css:318` is `body { overflow: hidden }`; `/ai/parser` and `/ai/parser/test` in
+ * `knowledgeRoutes.ts:62-63` are **top-level routes** (not under KnowledgeLayout), without building
+ * our own scroll container, content exceeding viewport **can never be seen**. Precedent:
+ * `AreaShell.vue` with `.area-shell{height:100vh;height:100dvh}` + `.area-body{overflow:auto}`,
+ * `knowledge.scss` with `.knowledge-app` outer shell + `.k-scroll{overflow-y:auto}` inner scroller.
+ *
+ * 【K31 — `.parser-app` is the **outer wrapper element**, page root class on **inner element**
+ * (coordinator 2026-08-03 decision)】selector thus is **descendant** form `.parser-app .parser-status-page`,
+ * not compound form `.parser-app.parser-status-page`; both page templates written as
+ * `<div class="parser-app"><div class="parser-status-page">…</div></div>`, **one more DOM layer than
+ * baseline**. 🔴 Why must we split into two layers: the baseline page root comes with
+ * `max-width: 900px; margin: 0 auto`. If we make the scroll container and page root the **same
+ * element**, the `overflow-y: auto` scrollbar falls on the right edge of that 900px centered column
+ * (on wide screens around screen middle), whereas Vue2 scrolls the whole page with scrollbar at
+ * **viewport far right** — that's **user-visible UI not 1:1**; the extra DOM layer is not user-
+ * visible. The two precedent examples K22 cites above are already two elements (`.area-shell` +
+ * `.area-body`, `.knowledge-app` + `.k-scroll`), collapsing to one element would be divergence.
+ * 🔴 This block **only allows** these three structural property lines: zero color properties, zero
+ * `--x:` declarations (§6.1 landing constraint 1, assertion (c) in `parserStyles.test.ts` pins this).
+ */
+.parser-app {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+}
+
+/* ===== ParserStatus (parser status page) — baseline src/views/AI/Parser/parser-styles.scss:1-74 full section ===== */
+.parser-app .parser-status-page {
+  /* Baseline :1-5 */
+  padding: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+
+  /* Baseline :6-9 (identical word-for-word to test page `.page-header` / `h2`, each kept in scope per K23) */
+  .page-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+    h2 { margin: 0; font-size: 18px; }
+  }
+  /* Baseline :10-11 */
+  .refresh-btn { padding: 4px 12px; cursor: pointer; }
+  .header-actions { display: flex; gap: 12px; align-items: center; }
+  /* Baseline :12-17 */
+  .test-link {
+    font-size: 13px;
+    color: var(--accent); /* Baseline :14 link color */
+    text-decoration: none;
+    &:hover { text-decoration: underline; }
+  }
+
+  /* Baseline :19-25 (identical word-for-word to test page `.card`, each kept in scope per K23) */
+  .card {
+    background: var(--bg-elevated); /* Baseline :20 card solid background */
+    border: 1px solid var(--line-faint); /* Baseline :21 card border */
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  /* Baseline :26-29 */
+  .card.unreachable {
+    border-color: var(--danger); /* Baseline :27 error state border */
+    color: var(--danger); /* Baseline :28 error state foreground */
+  }
+  /* Baseline :30-45 */
+  .control-card {
+    .row { display: flex; align-items: center; gap: 16px; padding: 6px 0; }
+    .status-text {
+      font-weight: 500;
+      .dot {
+        display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+        background: var(--success); margin-right: 6px; /* Baseline :36 running indicator */
+        &.paused { background: var(--warning); /* Baseline :37 paused indicator */ }
+      }
+    }
+    .pause-btn { padding: 4px 12px; cursor: pointer; margin-left: auto; }
+    .concurrency-row { gap: 12px; }
+    .device-row { gap: 12px; flex-wrap: wrap; }
+    .resolved-hint { font-size: 11px; color: var(--text-tertiary); margin-left: auto; /* Baseline :43 tertiary muted helper text */ }
+    .radio { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  }
+  /* Baseline :46-49 */
+  .queue-card {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px;
+    .kv b { margin-left: 6px; }
+  }
+  /* Baseline :50-65 */
+  .folders-card {
+    h3 { margin: 0 0 10px; font-size: 14px; font-weight: 500; }
+    .empty { color: var(--text-tertiary); /* Baseline :52 tertiary muted empty state text */ }
+    .folder-list { list-style: none; padding: 0; margin: 0; }
+    .folder-row {
+      position: relative; display: grid;
+      grid-template-columns: 1fr 60px; align-items: center;
+      padding: 4px 0; gap: 8px;
+      .folder-path { font-family: ui-monospace, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .folder-count { text-align: right; font-weight: 500; }
+      .folder-bar {
+        position: absolute; left: 0; bottom: 0; height: 2px;
+        background: var(--accent); opacity: 0.5; /* Baseline :62 progress bar background (same value and semantics as link color) */
+      }
+    }
+  }
+  /* Baseline :66-74 */
+  .failures-card {
+    .toggle { background: none; border: none; cursor: pointer; padding: 0; font-size: 13px; }
+    .failure-list { list-style: none; padding: 0; margin: 8px 0 0;
+      li { padding: 6px 0; border-top: 1px dashed var(--line-faint); /* Baseline :69 dashed separator (same value and semantics as card border) */
+        .path { font-family: ui-monospace, monospace; font-size: 12px; }
+        .error { color: var(--danger); font-size: 11px; /* Baseline :71 error foreground */ }
+      }
+    }
+  }
+}
+
+/* ===== ParserTest (test sandbox page) — baseline src/views/AI/Parser/ParserTest.vue:245-369 inline <style> ===== */
+.parser-app .parser-test-page {
+  /* Baseline :246-250 */
+  padding: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+
+  /* Baseline :251-255 (`.page-header` / `h2` identical word-for-word to status page; `.back-link` only in this page) */
+  .page-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+    h2 { margin: 0; font-size: 18px; }
+    .back-link { font-size: 13px; color: var(--accent); text-decoration: none; /* Baseline :254 link color */ }
+  }
+  /* Baseline :256-262 (identical word-for-word to status page `.card`, each kept in scope per K23) */
+  .card {
+    background: var(--bg-elevated); /* Baseline :257 card solid background */
+    border: 1px solid var(--line-faint); /* Baseline :258 card border */
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  /* Baseline :263-264 */
+  .help-card p { margin: 4px 0; }
+  .help-card .small { font-size: 12px; color: var(--text-tertiary); /* Baseline :264 tertiary muted */ }
+  /* Baseline :265-318 */
+  .upload-card {
+    .dropzone {
+      border: 2px dashed var(--line-strong); /* Baseline :267 heavier dashed drop zone line than card border */
+      border-radius: 6px;
+      padding: 24px;
+      text-align: center;
+      transition: background 0.15s;
+      margin-bottom: 12px;
+      /* Baseline :273 — drag-in highlight: light accent background + accent border */
+      &.active { background: var(--accent-soft); border-color: var(--accent); }
+      &.has { padding: 12px 16px; }
+      .pick-btn { padding: 6px 14px; cursor: pointer; }
+      .hint { color: var(--text-tertiary); margin-left: 8px; font-size: 12px; /* Baseline :276 tertiary muted */ }
+      .file-meta {
+        display: flex; align-items: center; gap: 12px;
+        strong { font-family: ui-monospace, monospace; }
+        .clear-btn { margin-left: auto; background: none; border: none; cursor: pointer; font-size: 18px; }
+      }
+    }
+    .row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+    .params-row { flex-wrap: wrap; }
+    .param {
+      display: inline-flex; flex-direction: column; gap: 2px;
+      font-size: 11px; color: var(--text-secondary); /* Baseline :287 secondary muted (parameter labels darker than hints) */
+      input {
+        width: 80px; padding: 4px 6px;
+        border: 1px solid var(--line-faint); /* Baseline :290 input box border */
+        border-radius: 3px; font-family: ui-monospace, monospace;
+      }
+    }
+    .reset-btn { padding: 4px 10px; cursor: pointer; font-size: 12px; align-self: end; }
+    .hint-line { font-size: 11px; color: var(--text-tertiary); margin: 2px 0 8px; /* Baseline :295 tertiary muted */
+      em { color: var(--text-quaternary); /* Baseline :296 quaternary, lighter than tertiary */ }
+    }
+    .ok-hint em { color: var(--text-tertiary); font-style: normal; font-size: 11px; /* Baseline :298 tertiary muted */ }
+    .query-input {
+      flex: 1; padding: 6px 10px;
+      border: 1px solid var(--line-faint); /* Baseline :301 input box border */
+      border-radius: 4px;
+    }
+    .checkbox { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+    .submit-btn {
+      padding: 6px 16px; cursor: pointer;
+      /* Baseline :307 — solid accent background + foreground on solid accent (--text-on-accent only available on solid accent) */
+      background: var(--accent); color: var(--text-on-accent); border: none; border-radius: 4px;
+      &:disabled { opacity: 0.5; cursor: not-allowed; }
+    }
+    .ok-hint { color: var(--success); font-size: 13px; /* Baseline :310 success state foreground */ }
+    .error-box {
+      margin-top: 8px; padding: 8px 12px;
+      background: var(--danger-soft); /* Baseline :313 light danger color background */
+      border-left: 3px solid var(--danger); /* Baseline :314 danger color left border */
+      color: var(--danger); /* Baseline :315 error foreground */
+      font-size: 13px;
+    }
+  }
+  /* Baseline :319-329 */
+  .docling-card {
+    .toggle { background: none; border: none; cursor: pointer; padding: 0; font-size: 13px; }
+    .docling-md {
+      margin: 8px 0 0; padding: 10px 12px;
+      background: var(--accent-softer); /* Baseline :323 lightest accent background (lighter than :273) */
+      border-left: 3px solid var(--accent); /* Baseline :324 accent color left border */
+      font-family: ui-monospace, monospace; font-size: 12px;
+      white-space: pre-wrap; word-break: break-word;
+      max-height: 360px; overflow: auto;
+    }
+  }
+  /* Baseline :330-344 */
+  .scored-card {
+    h3 { margin: 0 0 10px; font-size: 14px; }
+    .warn { color: var(--warning); font-size: 12px; margin-bottom: 6px; /* Baseline :332 warning foreground */ }
+    .scored-list { list-style: none; padding: 0; margin: 0; }
+    .scored-list li { padding: 8px 0; border-top: 1px dashed var(--line-faint); /* Baseline :334 lightest separator line */ }
+    .scored-list li:first-child { border-top: none; }
+    .rank-line {
+      display: flex; gap: 12px; align-items: baseline; font-size: 12px;
+      .rank-no { font-weight: bold; }
+      .score { color: var(--success); /* Baseline :339 success state foreground */ }
+      .rerank-score { color: var(--accent); /* Baseline :340 accent foreground */ }
+      .chunk-ref { color: var(--text-tertiary); margin-left: auto; /* Baseline :341 tertiary muted */ }
+    }
+    .rank-text { font-family: ui-monospace, monospace; font-size: 12px; margin-top: 4px; white-space: pre-wrap; }
+  }
+  /* Baseline :345-368 */
+  .chunks-card {
+    h3 { margin: 0 0 10px; font-size: 14px; }
+    .empty { color: var(--text-tertiary); /* Baseline :347 tertiary muted empty state text */ }
+    .chunk-list { list-style: none; padding: 0; margin: 0; }
+    .chunk-item {
+      padding: 10px 0; border-top: 1px dashed var(--line-faint); /* Baseline :350 lightest separator line */
+      &:first-child { border-top: none; }
+    }
+    .chunk-head {
+      display: flex; gap: 12px; align-items: baseline; font-size: 13px; margin-bottom: 4px;
+      .hint { color: var(--text-tertiary); font-size: 11px; /* Baseline :355 tertiary muted */ }
+    }
+    .chunk-text {
+      font-family: ui-monospace, monospace; font-size: 12px;
+      background: var(--bg-chip); padding: 6px 8px; border-radius: 3px; /* Baseline :359 neutral chip background (monospace code block) */
+      white-space: pre-wrap; word-break: break-word; margin: 4px 0;
+      max-height: 160px; overflow: auto;
+    }
+    .emb-preview {
+      font-size: 11px; margin-top: 2px;
+      .emb-label { color: var(--text-tertiary); margin-right: 6px; /* Baseline :365 tertiary muted */ }
+      code { font-family: ui-monospace, monospace; color: var(--text-secondary); /* Baseline :366 secondary muted */ }
+    }
+  }
+}

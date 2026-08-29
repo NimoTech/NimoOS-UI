@@ -1,0 +1,223 @@
+// Line-by-line ported from the Vue 2 panel's `src/views/AI/MCP/mcp-styles.scss` (91 lines).
+// Vue2 original file header says "layered on top of skills-styles.scss shell classes" — this file
+// similarly only adds 18 `.mcp-*` classes; section container/list/detail shell classes
+// (`.sk-col*` / `.sk-detail*` / `.sk-meta-*` / `.sk-section*` / `.sk-modal*` etc.) provided by
+// `skills-styles.scss` / `sk-shared.scss` / `settings-styles.scss`; this file doesn't redefine them;
+// see design doc §4.2.
+//
+// Organization adjustment (non-behavior change): Vue2 `.mcp-transport[data-t="stdio"]` written separately
+// at :43 (author supplement); this file merges three transport variants (http/sse/stdio) into
+// `.mcp-transport` nested selector — render output identical to Vue2 :7-8 + :43 written separately,
+// just merged here for readability.
+//
+// Deviation from D10 (6 rgba literals → existing tokens; tokens.scss light/dark blocks verified to have values):
+//   - Vue2 :7  `.mcp-transport[data-t="http"]`       originally cyan ~ 14% transparency   → var(--teal-soft)
+//   - Vue2 :8  `.mcp-transport[data-t="sse"]`         originally purple ~ 12% transparency   → var(--purple-soft)
+//   - Vue2 :43 `.mcp-transport[data-t="stdio"]`       originally green ~ 14% transparency   → var(--success-soft)
+//   - Vue2 :74 `.mcp-test-result[data-ok="true"]`  bg originally green ~ 10% transparency → var(--success-soft)
+//                                                    border originally green ~ 30% transparency → var(--success-soft-border)
+//   - Vue2 :75 `.mcp-test-result[data-ok="false"]` bg originally red ~ 10% transparency → var(--danger-soft)
+//                                                    border originally red ~ 30% transparency → var(--danger-soft-border)
+// Expected new tokens in this task = 0 (all 6 tokens already exist in tokens.scss).
+
+.mcp-transport {
+  font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+  background: var(--bg-chip); color: var(--text-tertiary);
+  letter-spacing: 0.02em; text-transform: uppercase; font-family: var(--font-mono);
+  &[data-t="http"]  { background: var(--teal-soft);    color: var(--teal); }
+  &[data-t="sse"]   { background: var(--purple-soft);  color: var(--purple); }
+  &[data-t="stdio"] { background: var(--success-soft); color: var(--success); }
+}
+
+.mcp-config { padding: 4px 0; }
+.mcp-config-row {
+  display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+  border-top: 1px solid var(--line-faint);
+  &:first-child { border-top: 0; }
+  .lbl { width: 150px; flex-shrink: 0; font-size: 13px; font-weight: 500; color: var(--text-primary); }
+  .lbl .sub { display: block; font-size: 11px; font-weight: 400; color: var(--text-tertiary); margin-top: 1px; }
+  .val { flex: 1; min-width: 0; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+}
+.mcp-code {
+  font-family: var(--font-mono); font-size: 12.5px; background: var(--bg-sunken);
+  border: 1px solid var(--line-faint); border-radius: var(--r-sm); padding: 6px 10px;
+  color: var(--text-primary); white-space: nowrap; overflow-x: auto; flex: 1; min-width: 0;
+}
+
+// key/value editor rows in the add/edit modal
+.mcp-kv { display: flex; flex-direction: column; gap: 6px; }
+.mcp-kv-row { display: flex; gap: 6px; align-items: center; }
+.mcp-kv-row input { flex: 1; min-width: 0; }
+.mcp-kv-del {
+  width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--r-sm);
+  display: grid; place-items: center; color: var(--text-tertiary);
+  background: var(--bg-chip); border: 0; cursor: pointer;
+  &:hover { color: var(--danger); }
+}
+// Ancestor-qualified on purpose, exactly like `.set-app .sk-add-btn`
+// (skills-styles.scss): `settings-styles.scss` resets every `<button>` inside
+// `.set-app` (background/border/color/cursor/font), and that (0,1,1) selector
+// beats a bare `.mcp-kv-add` at (0,1,0) -- which flattened this button's
+// background, accent foreground and 12px/500 font into plain body text. The
+// element is a real button and the only interactive thing in an empty
+// headers/env field, so it has to look like one. Guarded by the specificity
+// comparison in styles/settingsStyles.test.ts.
+.set-app .mcp-kv-add {
+  align-self: flex-start; font-size: 12px; font-weight: 500; color: var(--accent);
+  background: var(--accent-softer); border: 0; padding: 5px 10px; border-radius: var(--r-sm); cursor: pointer;
+}
+.mcp-kv-hint { font-size: 11px; color: var(--text-tertiary); }
+
+// Arguments textarea (stdio) — monospace, matches .sk-field inputs
+.mcp-args {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+.mcp-args:focus { outline: none; border-color: var(--accent); }
+
+// Test connection button sits at the right of the Configuration section head
+.sk-section-head .mcp-test-btn { margin-left: auto; flex: none; }
+
+// Test result panel
+.mcp-test-hint { margin-top: 10px; font-size: 12px; color: var(--text-tertiary); }
+.mcp-test-result {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid var(--line);
+}
+.mcp-test-result[data-ok="true"]  { background: var(--success-soft); color: var(--success); border-color: var(--success-soft-border); }
+.mcp-test-result[data-ok="false"] { background: var(--danger-soft);  color: var(--danger);  border-color: var(--danger-soft-border); }
+.mcp-test-line { font-weight: 600; }
+.mcp-test-tools { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.mcp-tool-chip {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--bg-chip);
+  color: var(--text-secondary);
+}
+
+// #141: the negotiated MCP protocol version line under a successful test.
+.mcp-test-proto { margin-top: 6px; font-size: 13px; color: var(--text-secondary); }
+.mcp-test-proto.is-legacy { color: var(--warning); }
+
+// The "this result describes the pre-edit config" notice inside a successful
+// test panel. Needs its own color declaration: `.mcp-test-result[data-ok="true"]`
+// sets the success foreground on the whole panel, and this line is a caveat,
+// not part of the good news (same reason `.mcp-test-proto.is-legacy` above
+// restates its color).
+.mcp-test-stale { margin-top: 6px; font-size: 12.5px; color: var(--warning); }
+
+// [New this phase; no Vue2 counterpart — deviation D8] "Technical details" collapsible section on test failure.
+// Uses native <details>/<summary>; no new dependencies, naturally accessible, no component state.
+.mcp-test-detail {
+  margin-top: 6px;
+  summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    list-style: none;
+    &::-webkit-details-marker { display: none; }
+    &::before { content: '▸ '; }
+  }
+  &[open] > summary::before { content: '▾ '; }
+  pre {
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    background: var(--bg-sunken);
+    border: 1px solid var(--line-faint);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+}
+
+// Quick-add paste row (Add form only)
+.mcp-quickadd-row { display: flex; gap: 8px; align-items: center; }
+.mcp-quickadd-row input { flex: 1; }
+.mcp-quickadd-row .sk-btn { flex: none; white-space: nowrap; }
+
+// Task 20 (mcp-progressive-disclosure) — McpToolList.vue: per-server tool
+// list, per-tool + server-level approval toggles. All colors reuse existing
+// tokens, zero new tokens added.
+.mcp-tool-list-server-level {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px; border-radius: var(--r-sm);
+  background: var(--bg-chip); margin-bottom: 8px;
+}
+.mcp-tool-list-server-level-main { flex: 1; min-width: 0; }
+.mcp-tool-list-server-level .lbl { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.mcp-tool-list-server-level-hint { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+
+.mcp-tool-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+  padding: 10px 16px; border-top: 1px solid var(--line-faint);
+  &:first-child { border-top: 0; }
+}
+.mcp-tool-row-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.mcp-tool-row-name { font-family: var(--font-mono); font-size: 13px; color: var(--text-primary); }
+// Long-unseen tools: greyed out, distinct from the stale-reason hint below —
+// this is a purely visual "might not exist anymore" signal, not the same
+// thing as a void approval (see file-level comment in McpToolList.vue).
+.mcp-tool-row.is-missing .mcp-tool-row-name { color: var(--text-tertiary); }
+.mcp-tool-row.is-missing { opacity: 0.65; }
+
+// The desc-changed badge: a small pill next to the tool name.
+.mcp-tool-badge-desc-changed {
+  font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: var(--warning-soft); color: var(--warning);
+}
+
+// Per-row explanatory hints, each a full-width line under the name — kept
+// visually distinct from the badge above (different shape, own color per
+// hint kind) rather than reusing the pill treatment.
+.mcp-tool-row-hint { flex-basis: 100%; font-size: 11.5px; }
+.mcp-tool-row-hint-missing { color: var(--text-tertiary); }
+.mcp-tool-row-hint-stale { color: var(--danger); }
+
+.mcp-tool-row .sw[aria-disabled="true"],
+.mcp-tool-list-server-level .sw[aria-disabled="true"] {
+  opacity: 0.5; pointer-events: none;
+}
+.mcp-quickadd-err { margin-top: 6px; font-size: 12px; color: var(--danger); }
+
+// Task 21 (mcp-progressive-disclosure) — McpApprovalsSection.vue: cross-server
+// approvals overview, grouped by server. All colors reuse existing tokens,
+// zero new tokens added.
+.mcp-approvals-group {
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  &:last-child { margin-bottom: 0; }
+}
+.mcp-approvals-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.mcp-approvals-group-name {
+  flex: 1; min-width: 0;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text-primary);
+}
+.mcp-approvals-list { margin: 0; padding: 0; list-style: none; }
+.mcp-approvals-list li {
+  font-size: 13px; color: var(--text-secondary); padding: 5px 0;
+  border-top: 1px solid var(--line-faint);
+  &:first-child { border-top: 0; }
+}

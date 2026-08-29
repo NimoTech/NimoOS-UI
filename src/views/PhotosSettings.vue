@@ -1,0 +1,311 @@
+<!--
+  SP7-P8a-T5: settings page container — wires T3 (storage card) and T4 (AI card)
+  into one real routed page at `/photos/settings`. The shell originally copied the
+  AreaShell/.photos-layout/.photos-main structure from PhotosAlbums.vue:184-276
+  (that file's header comment already explains this layout is deliberately
+  duplicated per-view rather than factored out — same choice here).
+
+  Plan H Task 11 (re-shell): the transitional AreaShell/.photos-layout shell has been
+  swapped for the shared `.app` CSS Grid (PhotosSidebar + main.main > PhotosTopbar +
+  .photos-main), following every other re-shelled Photos view's own precedent
+  (PhotosFavorites.vue/PhotosTrash.vue's Task 1/8/9 comments). Per X-1/X-6 (see
+  askNimoHostMounted.test.ts's own negative case for this page), this page mounts no
+  Ask Nimo chat-drawer host and its PhotosTopbar carries no Ask Nimo button — Vue2's
+  own settings page has no Ask Nimo entry point in its topbar.
+
+  Source coordinates: Vue2 PhotosSettings.vue:1-36 (shell + hero + quick nav),
+  :194-214 (footer + toast), :383-386 (scrollTo), :487-491 (showToast, 2800ms),
+  :497-526 (mounted data fetch), :527-530 (unmount cleanup).
+
+  ── Architectural deviations on record (four, per project rule: "don't copy
+  Vue2's bugs/structure verbatim — fix the logic and record it in a comment") ──
+  1. Vue2 is a full-screen overlay (`position:fixed;inset:0;z-index:500`) that
+     carries its own `<photos-sidebar>` and its own topbar, toggled via an
+     `open` prop. New-UI uses a real route + the shared `.app` CSS Grid shell
+     (Plan H Task 11 re-shell, following every other re-shelled Photos view's
+     own precedent): this page mounts **one** PhotosSidebar + one
+     PhotosTopbar inside `.app` — this is not "the shell auto-generating a
+     sidebar", the dedup here means "exactly one PhotosSidebar copy on the
+     whole page", not "mount none at all". See the guard test below.
+     Review fix (Plan H Task 11, controller ruling — Minor 5): with AreaShell gone, this
+     page's own exit path is the same as every other one of the 10 already-re-shelled
+     Photos views — there is no dedicated "return to home" entry point on the page itself;
+     navigation is handled entirely by the shared PhotosSidebar's own nav links (a
+     region-level design decision, not a gap specific to this task).
+  2. No `open` prop, no ESC-to-close, no `$emit('close')` — the routed page
+     relies on the browser back button, consistent with the rest of this
+     area. Consequently there's also no global keydown listener equivalent to
+     Vue2 :497-501/:527-528.
+  3. (Reverted, entry updated by Plan H Task 11) The Photos-private theme toggle's real,
+     pixel-accurate location is the sidebar icon button (PhotosSidebar.vue's toggleTheme),
+     matching Vue2's own PhotosSidebar.vue:27-33. The stopgap segmented toggle this page used to
+     mount predates that real sidebar button; that window has since closed, so this page no
+     longer mounts a second, redundant entry point to the same usePhotosTheme() singleton.
+  4. The footer's "Sign out" is not migrated (D22) — New-UI already has a
+     global sign-out (`src/settings/panels/AccountPanel.vue:167` →
+     `useAuth().logout()`); the Vue2 one manually clears 4 localStorage keys
+     and redirects to `/logout`, which is inconsistent with New-UI's sign-out
+     path.
+
+  Implementation note (not one of the four mandatory deviation entries, but
+  still a visible difference from the source, recorded for the record): the
+  toast only keeps the text — it doesn't render Vue2's `photos-icon
+  :name="toast.icon"` icon, because this repo's Photos area has no
+  PhotosIcon.vue equivalent (confirmed zero hits via grep). T12
+  PhotosFilterChip.vue's header comment "deviation entry 1" reaches the same
+  conclusion (don't build a mini icon-mapping table if there's nothing to map
+  to). This repo's global toast (AppToast.vue) is also a plain text pill with
+  no icon, so the visuals here match this repo's existing toast rather than
+  rebuilding Vue2's icon + purple color scheme.
+
+  Data-fetch division of labor (an interface debt, already aligned with
+  T3/T4 — see both cards' header comments and task-5-report.md):
+  fetchStorage() is called by PhotosStorageCard itself in its own onMounted;
+  this container **does not call it again**. This container's mounted hook
+  only calls fetchAbout/fetchRetention/fetchScanInterval/fetchAiFeatures —
+  these four (out of the five fetches in Vue2 :497-526, minus loadStorage,
+  which the child component now owns).
+
+  `?section=` deep link: reads route.query.section, recognizing only
+  'storage'/'ai' (any other value — including Vue2's `settings=1` "just open,
+  don't scroll" semantics — is ignored, no scroll). T6's "Settings · AI
+  behavior" link will point to `/photos/settings?section=ai`.
+  Both paths are handled (review Important 1, filled in 2026-08-04): ① on
+  mount (`onMounted` + `nextTick`) ② when the query changes after mount (a
+  `watch(() => route.query.section, ...)` without `immediate`) — the latter
+  covers the case where "the user is already sitting on this page and either
+  hand-edits the address bar query, or some future in-page link points to
+  this page with only the section differing" — a scenario vue-router 4 won't
+  remount the component for. Both paths share the same
+  `scrollToSection`/`isSectionId` predicate; they are not allowed to each
+  maintain their own whitelist and drift apart.
+-->
+<script setup lang="ts">
+import '../photos/styles/vue2-parity'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
+import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
+import PhotosStorageCard from '../photos/components/PhotosStorageCard.vue'
+import PhotosAiCard from '../photos/components/PhotosAiCard.vue'
+import { usePhotosSettingsStore } from '../photos/stores/settings'
+
+interface ToastPayload { icon: string; text: string }
+
+const { t, locale } = useI18n()
+const { themeClass } = usePhotosTheme()
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
+const route = useRoute()
+const settings = usePhotosSettingsStore()
+
+const pageRef = ref<HTMLElement | null>(null)
+
+// Vue2 :302 — fallback to 'NAS' before the about fetch resolves.
+const deviceName = computed(() => settings.about?.deviceName || 'NAS')
+
+// Vue2 :352-361, same deviation entry as T4's AI card header comment
+// "deviation entry 1" — without an explicit locale this would follow the
+// system language rather than the in-app selected language. Here we
+// explicitly apply the existing relTime.ts/PlacesRail.vue convention to
+// convert to BCP-47.
+// Unlike lastBuiltText (T4): Vue2 :359-361's catch branch here falls back to
+// an empty string rather than the raw iso (that's how the source itself
+// behaves — carried over as-is, not a deviation of this entry).
+const librarySinceText = computed(() => {
+  const iso = settings.about?.librarySince
+  if (!iso) return ''
+  try {
+    const tag = locale.value.replace('_', '-')
+    return new Intl.DateTimeFormat(tag, { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(iso))
+  } catch {
+    return ''
+  }
+})
+
+// Vue2 :383-386 — a no-op when the target element isn't found, doesn't
+// throw (jsdom has no scrollIntoView implementation; just spy it out in
+// tests, no need for a real scroll).
+function scrollTo(id: string): void {
+  const el = pageRef.value?.querySelector('#' + id)
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// The whitelist is decided in exactly one place; the mounted path and the
+// "already on the page, query changed" path share the same function — they
+// are not allowed to each maintain their own predicate and drift apart over
+// time (verbatim from review Important 1's ruling).
+type SectionId = 'storage' | 'ai'
+function isSectionId(v: unknown): v is SectionId {
+  return v === 'storage' || v === 'ai'
+}
+function scrollToSection(section: unknown): void {
+  if (isSectionId(section)) scrollTo(section)
+}
+
+const toast = ref<ToastPayload | null>(null)
+let toastTimer: ReturnType<typeof setTimeout> | undefined
+
+// Vue2 :487-491 — receives the @toast events bubbled up from the two cards;
+// on repeat triggers you must clearTimeout before rescheduling, otherwise
+// the first toast's timer will prematurely cut off the second toast too
+// (mutation testing locks this down).
+function showToast(payload: ToastPayload): void {
+  toast.value = payload
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value = null }, 2800)
+}
+
+onMounted(() => {
+  void settings.fetchAbout()
+  void settings.fetchRetention()
+  void settings.fetchScanInterval()
+  void settings.fetchAiFeatures()
+
+  void nextTick(() => scrollToSection(route.query.section))
+})
+
+// Review Important 1 (2026-08-04): vue-router 4 doesn't remount the same
+// routed component when only the query changes — if the user is already
+// sitting on this page (e.g. hand-edits the address bar query, or some
+// future in-page link points here with only the section differing), the
+// single onMounted scroll can't reach this case. This adds a `watch`
+// without `immediate`: it doesn't fire again on mount (watch doesn't run
+// once at setup time by default), and only scrolls when the query actually
+// changes *after* mount — sharing the same scrollToSection/isSectionId
+// predicate as the mounted path, so they won't each maintain their own
+// whitelist and drift apart. The target elements (#storage/#ai) are
+// unconditionally rendered static content that doesn't get added/removed
+// based on the section, so this path doesn't need to wait for nextTick the
+// way the mounted path does.
+watch(() => route.query.section, (section) => scrollToSection(section))
+
+onUnmounted(() => {
+  clearTimeout(toastTimer)
+})
+</script>
+
+<template>
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <PhotosTopbar :collapsed="collapsed" :title="t('photosSettingsTitle')" :sub="t('photosSettingsSubtitle')" :show-search="false" @toggle-collapse="onToggleCollapse" />
+        <div class="photos-main">
+          <div ref="pageRef" class="ps-scroll scroll">
+            <div class="ps-hero">
+              <h1>{{ t('photosSettingsTitle') }}</h1>
+              <p>{{ t('photosSettingsHeroDesc') }}</p>
+              <div class="ps-quicknav">
+                <a href="#storage" @click.prevent="scrollTo('storage')">{{ t('photosSettingsNavStorage') }}</a>
+                <a href="#ai" @click.prevent="scrollTo('ai')">{{ t('photosSettingsNavAi') }}</a>
+              </div>
+            </div>
+
+            <PhotosStorageCard @toast="showToast" />
+            <PhotosAiCard @toast="showToast" />
+
+            <footer class="ps-footer">
+              <div class="ps-footer-app">
+                {{ t('photosSettingsFooterApp') }}<template v-if="settings.about?.version"> &middot; v{{ settings.about.version }}</template>
+              </div>
+              <div class="ps-footer-host">
+                {{ t('photosSettingsRunningOn') }} {{ deviceName }}<template v-if="librarySinceText"> &middot; {{ t('photosSettingsLibrarySince') }} {{ librarySinceText }}</template>
+              </div>
+            </footer>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <transition name="ps-toast">
+    <div v-if="toast" class="ps-toast" data-test="settings-toast" role="status" aria-live="polite">{{ toast.text }}</div>
+  </transition>
+</template>
+
+<style scoped>
+/* Plan H Task 11 (re-shell): the transitional AreaShell/.photos-layout shell + the pinned
+   `.sidebar` flex rule (both needed only while this page still used the old flex-row shell)
+   are deleted -- the shared `.app` CSS Grid's own column track now owns the sidebar width and
+   the height cap (same as every other re-shelled Photos view, e.g. PhotosFavorites.vue's own
+   Task 1 header comment). `.photos-main` has no parity counterpart (Vue2 has no such wrapper
+   div; a New-UI-only layout container, same as PhotosFavorites.vue/PhotosTrash.vue's identical
+   survivor rule), so it stays as-is. */
+.photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
+
+/* Review fix (Plan H Task 11, controller ruling — corrects a factually wrong claim this
+   comment used to make): parity photos.scss:3013-3248 DOES carry this page's anchors, under
+   Vue2's own original class names -- `.st-page`/`.st-hero`/`.st-quicknav`/`.st-footer*`/
+   `.st-toast` (Vue2 PhotosSettings.vue's own `.st-*` prefix). This page's own classes below
+   (`.ps-scroll`/`.ps-hero`/`.ps-quicknav`/`.ps-footer*`/`.ps-toast`) are NOT that parity
+   scss -- renaming this page's whole scroll/hero/quicknav/footer/toast block from `.ps-*` to
+   `.st-*` (which would also mean re-skinning the two child cards, PhotosStorageCard.vue/
+   PhotosAiCard.vue, to match `.st-card`/`.st-row`/etc.) is a full re-skin of this page's
+   content area, out of Plan H's re-shell scope (Plan H only re-skins the outer `.app`
+   shell/topbar, not each page's own body). These New-UI approximations survive here pending a
+   dedicated follow-up task to do that content re-skin. */
+.ps-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 4px 4px 24px; }
+
+/* Review fix (Plan H Task 11, controller ruling — Important 3): the `.app` shell above now
+   paints the photos-private dark `--bg`/`--text-1` pair unconditionally (see
+   photos.scss:218-225's `.photos-root .app` rule) regardless of the *global* New-UI theme —
+   these four text-color declarations used to read the *global* `--fg`/`--fg-muted` tokens,
+   which under the global light theme resolve to a dark color painted on top of this
+   photos-private dark background (a white-on-white-class legibility bug, just inverted).
+   Swapped to the photos-private `--text-1`/`--text-3` tokens (defined on `.photos-root`,
+   photos.scss:14-26), matching the values parity's own `.st-hero`/`.st-footer-app` rules use
+   for the same visual role. */
+.ps-hero h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--text-1); }
+.ps-hero p { font-size: 13px; color: var(--text-3); margin: 0 0 12px; max-width: 640px; }
+.ps-quicknav { display: flex; gap: 16px; }
+.ps-quicknav a { color: var(--accent-text); font-size: 13px; font-weight: 500; text-decoration: none; }
+.ps-quicknav a:hover { text-decoration: underline; }
+
+.ps-footer { display: flex; flex-direction: column; gap: 2px; padding: 12px 4px 4px; }
+.ps-footer-app { font-size: 12.5px; font-weight: 600; color: var(--text-1); }
+.ps-footer-host { font-size: 12px; color: var(--text-3); }
+
+/* Review Important (2026-08-04, caught by the full acceptance gate): this
+   visually borrows this repo's global toast (AppToast.vue) style language
+   (see the header comment's "Implementation note"), but this one is a
+   **page-local** overlay, not the global toast itself — do NOT copy
+   AppToast.vue's "must sit above every modal overlay in the whole repo"
+   1100, because that hard constraint only applies to *that* single global
+   instance (docs/THEMING.md §8: the "toast" in "toast must sit above every
+   modal overlay in the whole repo" refers specifically to AppToast.vue).
+   This was originally miscopied as 1100 here, colliding with the global
+   toast's layer, and `AppToast.zIndex.test.ts` flagged it red immediately —
+   that guard is repo-wide: any overlay with z-index ≥ 1100 gets flagged as
+   "would sit above the global toast". This settings page's local toast only
+   needs to cover **what this page itself renders**, which per §8's ladder
+   falls into the "local fixed bar 60–150" tier; but this page also mounts a
+   PhotosSidebar (architectural deviation entry 1), whose narrow-screen
+   drawer `.photos-sidebar.is-drawer` is 151 (with the `side-scrim` overlay
+   at 150) — already above that tier's nominal ceiling, which is a
+   pre-existing repo fact, not something introduced here. 160 sits just above
+   these two real same-page overlays (151/150) while staying well below the
+   entire "area-level/general dialog overlay" band starting at 200, and far
+   below the global toast's 1100 — it won't share a layer with anything.
+   See the guard test in this file below (locks <1100; does not lock
+   <1000/<200, because the convention itself only pins down the toast line —
+   the remaining numbers are choices made here based on measured same-page
+   overlays, not repo-wide invariants). */
+.ps-toast {
+  position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 160;
+  padding: 10px 18px; border-radius: 999px; border: 1px solid var(--chip-border);
+  background: var(--toast-bg); color: var(--toast-fg, var(--fg)); font-size: 13px;
+  box-shadow: var(--card-shadow-hi); backdrop-filter: var(--blur); white-space: nowrap;
+  pointer-events: none;
+}
+.ps-toast-enter-active, .ps-toast-leave-active { transition: opacity 0.2s, transform 0.2s var(--ease, ease); }
+.ps-toast-enter-from, .ps-toast-leave-to { opacity: 0; transform: translate(-50%, 12px); }
+
+/* Plan H Task 11: mobile column-collapse, copied from PhotosFavorites.vue's own Task 1
+   equivalent -- a New-UI-only mobile enhancement, no Vue2/parity source. */
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+}
+</style>

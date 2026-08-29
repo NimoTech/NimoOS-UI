@@ -1,0 +1,96 @@
+import { describe, it, expect, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createI18n } from 'vue-i18n'
+import zh from '../../i18n/zh_cn'
+import InstalledAppCard from './InstalledAppCard.vue'
+import type { InstalledApp } from '../stores/installedApps'
+
+const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+
+// AppActionsMenu is a Portal component; stub it to render the menu slot directly.
+// The real DropdownMenuItem injects MenuRootContext in setup() (provided by the real DropdownMenuRoot),
+// so mounting with Root stubbed throws "must be used within MenuRoot" (same pitfall as FileContextMenu.test) —
+// stub Item/Separator too, and only verify the pure conditional logic of "which items render + click emits";
+// positioning/keyboard behavior is left to on-device verification.
+const MenuStub = { template: '<div class="menu"><slot name="menu" /></div>' }
+const ItemStub = { emits: ['select'], template: '<div @click="$emit(\'select\')"><slot /></div>' }
+
+const BASE: InstalledApp = {
+  id: 'jellyfin', title: 'Jellyfin', icon: 'https://cdn/i.svg',
+  status: 'running', updateAvailable: false, isUncontrolled: false,
+  webUrl: 'http://h:8096/',
+}
+
+function mountCard(app: Partial<InstalledApp> = {}, pendingOp?: 'start' | 'stop' | 'restart' | 'update' | 'uninstall') {
+  return mount(InstalledAppCard, {
+    props: { app: { ...BASE, ...app }, pendingOp },
+    global: {
+      plugins: [i18n],
+      stubs: { AppActionsMenu: MenuStub, DropdownMenuItem: ItemStub, DropdownMenuSeparator: true },
+    },
+  })
+}
+
+describe('InstalledAppCard', () => {
+  it('running: main button = open (emit open), menu contains stop/restart/check and update/uninstall', async () => {
+    const w = mountCard()
+    await w.get('.card-primary').trigger('click')
+    expect(w.emitted('open')).toBeTruthy()
+    const menu = w.get('.menu').text()
+    expect(menu).toContain('停止')
+    expect(menu).toContain('重启')
+    expect(menu).toContain('检查并更新')
+    expect(menu).toContain('卸载')
+    expect(menu).not.toContain('启动')
+  })
+
+  it('exited: main button = start (emit action start), menu does not contain stop/restart', async () => {
+    const w = mountCard({ status: 'exited', webUrl: 'http://h:8096/' })
+    await w.get('.card-primary').trigger('click')
+    expect(w.emitted('action')![0]).toEqual(['start'])
+    const menu = w.get('.menu').text()
+    expect(menu).not.toContain('停止')
+    expect(menu).not.toContain('重启')
+  })
+
+  it('running but no webUrl: main button disabled', () => {
+    const w = mountCard({ webUrl: null })
+    expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
+  })
+
+  it('is_uncontrolled: menu does not contain check and update; update_available displays badge', () => {
+    const w = mountCard({ isUncontrolled: true, updateAvailable: true })
+    expect(w.get('.menu').text()).not.toContain('检查并更新')
+    expect(w.text()).toContain('可更新')
+  })
+
+  it('menu has settings item that emits settings', async () => {
+    const w = mountCard()
+    const items = w.get('.menu').findAll('div')
+    const settingsItem = items.find((it) => it.text() === '设置')
+    expect(settingsItem).toBeTruthy()
+    await settingsItem!.trigger('click')
+    expect(w.emitted('settings')).toHaveLength(1)
+  })
+
+  it('⋮ menu contains "terminal and logs", click emits console', async () => {
+    const w = mountCard()
+    const items = w.get('.menu').findAll('div')
+    const consoleItem = items.find((it) => it.text() === '终端与日志')
+    expect(consoleItem).toBeTruthy()
+    await consoleItem!.trigger('click')
+    expect(w.emitted('console')).toHaveLength(1)
+  })
+
+  it('pending: card in processing state, main button disabled', () => {
+    const w = mountCard({}, 'restart')
+    expect(w.text()).toContain('处理中')
+    expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
+  })
+
+  it('status label mapping: running=running, exited=stopped, unknown=unknown', () => {
+    expect(mountCard().text()).toContain('运行中')
+    expect(mountCard({ status: 'exited' }).text()).toContain('已停止')
+    expect(mountCard({ status: 'unknown' }).text()).toContain('未知')
+  })
+})
