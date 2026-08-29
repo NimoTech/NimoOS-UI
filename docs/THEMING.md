@@ -1,6 +1,6 @@
 # NimoOS-New-UI 配色主题参考（Theming）
 
-本文件是 New-UI（Vue 3 + TS + Vite，挂载于 `/app/`）**配色系统的权威参考**。它记录一套
+本文件是 NimoOS Web UI（Vue 3 + TS + Vite，服务于站点根路径）**配色系统的权威参考**。它记录一套
 可切换的颜色 token 体系，以及「一切可见颜色必须走 token」这条贯穿后续开发的约定。
 
 - 源代码真相：`src/styles/theme.css`（token 定义）。本文的「蓝色（现值）」列逐条对应该文件

@@ -1,10 +1,13 @@
-# NimoOS-New-UI
+# NimoOS Web UI
 
-NimoOS Web UI rewritten in **Vue 3 + TypeScript + Vite**.
+The web interface for NimoOS, built with **Vue 3 + TypeScript + Vite**.
 
-Uses **parallel new application + routing strangler (Strangler) strategy**: coexists with the old Vue 2 main application (mounted at `/`) on the same origin, this application is mounted at `/app/`, using hash routing (`/app/#/`), so new/migrated pages do not require changes to Gateway routing. Features are migrated from Vue 2 to here screen by screen, and once a screen is migrated, it is switched to the new application.
-
-Migrated main areas: **Login / Initialization Guide (Welcome)**, **Desktop Home** (app grid, Dock, widgets, Docker app recognition), **Files** (file management, upload, sharing, built-in viewers: images/videos/audio/PDF/Office/code/Markdown).
+It is served at the site root (`http://<host>/#/`) with hash routing, and covers the whole
+system: **Login / first-boot Welcome guide**, **Desktop Home** (app grid, Dock, widgets,
+Docker app recognition), **Files** (management, upload, sharing, built-in viewers for
+images/videos/audio/PDF/Office/code/Markdown, snapshot Time Machine), **App Store &
+installed apps**, **Storage & RAID**, **Virtual machines**, **Web terminal**, **Photos**,
+and the **AI assistant with its knowledge base**.
 
 ## Tech Stack
 
@@ -27,15 +30,16 @@ Migrated main areas: **Login / Initialization Guide (Welcome)**, **Desktop Home*
 git clone git@github.com:NimoTech/NimoOS-New-UI.git
 cd NimoOS-New-UI
 pnpm install
-pnpm dev        # dev server http://localhost:5273/app/
+pnpm dev        # dev server http://localhost:5273/
 ```
 
-The dev server requires an accessible NimoOS backend (Gateway) to provide APIs.
+The dev server requires an accessible NimoOS backend (Gateway) to provide APIs — API
+requests under `/v1|/v2|/v3` are proxied to it (see `vite.config.ts`).
 
 ### Common Commands
 
 ```bash
-pnpm dev                    # dev server (port 5273, base /app/)
+pnpm dev                    # dev server (port 5273)
 pnpm test                   # vitest full test suite
 pnpm test:watch             # vitest watch mode
 pnpm build                  # vue-tsc --noEmit type check + vite build → dist/
@@ -47,17 +51,21 @@ pnpm exec vue-tsc --noEmit  # type check only
 Initial directory setup (one-time only, the rsync target of `deploy.sh` must exist and be writable by the current user):
 
 ```bash
-sudo mkdir -p /var/lib/nimoos/www/app
-sudo chown "$USER:$USER" /var/lib/nimoos/www/app
+sudo mkdir -p /var/lib/nimoos/www
+sudo chown "$USER:$USER" /var/lib/nimoos/www
 ```
 
 After that, every deployment:
 
 ```bash
-./scripts/deploy.sh   # pnpm build + rsync --delete dist/ → /var/lib/nimoos/www/app/
+./scripts/deploy.sh   # pnpm build + rsync --delete dist/ → /var/lib/nimoos/www/
 ```
 
-Deployment to devices **must always go through this script**, do not manually write rsync/cp to `/var/lib`. After deployment, verify by accessing `http://<device-IP>/app/` in the browser.
+Deployment to devices **must always go through this script**, do not manually write rsync/cp
+to `/var/lib`. Besides laying out the build it protects the previous build's hashed chunks
+(so already-open tabs keep lazy-loading), and keeps the legacy `/app/` mount working as a
+redirect to `/` for old bookmarks. After deployment, verify by accessing
+`http://<device-IP>/` in the browser.
 
 ## Directory Structure
 
@@ -68,9 +76,15 @@ src/
 ├── stores/            # Pinia: session / locale / toast / utilization
 ├── composables/       # useAuth / useMessageBus / useUtilization / useValidation
 ├── home/              # desktop home: app grid, Dock, widgets, container event bridge
-├── files/             # files area: list, upload, sharing, viewers/ preview components
-├── views/             # page-level components: Home / Files / Login / Welcome
-├── i18n/              # zh_cn.ts + en_us.ts (locale.ts picks one), keys must be kept in sync
+├── files/             # files area: list, upload, sharing, snapshots, viewers/
+├── apps/              # app store and installed apps
+├── storage/           # volumes, drives, RAID
+├── kvm/               # virtual machines
+├── terminal/          # web terminal
+├── photos/            # photo library
+├── ai/                # AI assistant, knowledge base, settings
+├── views/             # page-level components
+├── i18n/              # zh_cn.ts + en_us.ts merge outlets over per-area slices
 └── styles/theme.css   # global theme tokens (see below)
 docs/
 ├── THEMING.md         # theme system authority document
@@ -87,12 +101,12 @@ docs/
 
 The language of a first visit follows the browser: any Chinese `navigator.language` gets `zh_cn`, everything else gets `en_us` (`src/i18n/locale.ts`, shared by `i18n/index.ts`, `main.ts`'s `getLang` and the Welcome picker). A language the user has picked is stored and always wins.
 
-When adding new copy keys, they must be added to **both** `src/i18n/zh_cn.ts` and `en_us.ts` — `parity.test.ts` asserts that both files have identical keys, test fails if one is missing.
+When adding new copy keys, they must be added to **both** the `zh_cn` and `en_us` sides of the same slice — `parity.test.ts` asserts that both languages have identical keys, test fails if one is missing.
 
 ### Authentication
 
 - JWT (access/refresh) stored in localStorage, failed auth is handled by shared package which attempts refresh on 401.
-- Auth failure handling order must not be reversed: **clear invalid tokens first, then redirect to `/app/#/login`** (otherwise route guards cause infinite redirect loops).
+- Auth failure handling order must not be reversed: **clear invalid tokens first, then redirect to `/#/login`** (otherwise route guards cause infinite redirect loops).
 
 ### Shared Package (`@nimotech/nimoos-service`)
 
@@ -102,5 +116,4 @@ and this package is served from that path, so file saves do not automatically tr
 disk cache (the module URL has `immutable` cache header), requiring **hard refresh** (`Ctrl-Shift-R`) to
 see new code. No need for `pnpm build`, clearing `.vite` cache, or `pnpm install` — unless
 `packages/service/src/*.ts` hardlinks in `node_modules/.pnpm/` get broken (after restart +
-hard refresh if still seeing old code, run `pnpm install` once to relink). Full explanation in `CLAUDE.md`
-section "Shared service package".
+hard refresh if still seeing old code, run `pnpm install` once to relink).

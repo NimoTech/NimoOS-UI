@@ -1,7 +1,7 @@
 # NimoOS 桌面第三方应用接入规范(`nimoos.*` label)
 
 > 面向对象:自己写 `docker run` / `docker-compose` 部署容器,想让应用图标和(可选)小组件
-> 自动出现在 NimoOS 桌面(`/app/`)上的开发者。
+> 自动出现在 NimoOS 桌面(`http://<host>/`)上的开发者。
 > 机制:纯 **Docker label 约定**,与部署方式无关 —— 手写 `docker run`、compose、还是商店应用,
 > 只要容器带了这些 label,New-UI 桌面就会在 ≤30 秒内自动识别并上桌,无需在商店注册、无需改网关路由。
 
@@ -53,14 +53,14 @@
 
 ## 3. 引用 `widget-kit.css`(模板)
 
-`widget-kit.css` 由桌面随构建发布在 `/app/widget-kit.css`,不占用网关任何路由。三行模板:
+`widget-kit.css` 由桌面随构建发布在 `/widget-kit.css`,不占用网关任何路由。三行模板:
 
 ```html
 <script>
   const q = new URLSearchParams(location.search)
   document.documentElement.dataset.theme = q.get('theme') || 'dark'
   const l = document.createElement('link'); l.rel = 'stylesheet'
-  l.href = (q.get('home') || '') + '/app/widget-kit.css?v=2'; document.head.appendChild(l)
+  l.href = (q.get('home') || '') + '/widget-kit.css?v=2'; document.head.appendChild(l)
 </script>
 ```
 
