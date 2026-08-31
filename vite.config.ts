@@ -64,15 +64,15 @@ export default defineConfig({
   base: '/',
   plugins: [vue(), copyPdfjsAssets(), emitVersionJson()],
   // ⚠️ The shared package @nimotech/nimoos-service must be excluded from dependency
-  // pre-bundling (hit during SP9-P1 acceptance; mistakenly deleted once during the SP13
-  // inlining, proven still broken in practice, and restored — see "SP13 lesson" below).
-  // It is a `file:` dependency (SP1-SP12 pointed at an external sibling repo; since SP13 it
+  // pre-bundling (hit in practice; mistakenly deleted once when the package was
+  // inlined, proven still broken, and restored — see the "inlining lesson" below).
+  // It is a `file:` dependency (it used to point at an external sibling repo; since the inlining it
   // points at in-repo `packages/service`); either way pnpm hardlinks its files into the
   // `.pnpm` directory — to Vite it is always an ordinary node_modules dependency (the
   // resolution chain ends under node_modules), so it gets pre-bundled into
   // node_modules/.vite/deps/. The pre-bundle cache invalidation criteria are
   // lockfile / config / dependency version numbers — **never dependency contents**. Before
-  // SP13 the package version was pinned at 0.0.1, so even manually rebuilding the external
+  // the inlining the package version was pinned at 0.0.1, so even manually rebuilding the external
   // repo never invalidated the cache and the dev server kept feeding the browser the old
   // bundle; newly added methods were all undefined in the browser (surfacing as
   // `xxx is not a function`, caught at call sites as "failed to save"). Unit tests use the
@@ -83,7 +83,7 @@ export default defineConfig({
   // default, and this package is served exactly via the node_modules/.pnpm/... path, so a
   // live process never notices source changes; a restart is required.
   //
-  // **SP13 (2026-08-07) lesson — do not delete this block again**: the inlining moved the
+  // **Inlining lesson — do not delete this block again**: the inlining moved the
   // package into this repo's `packages/service/` and changed the entry from `dist/index.js`
   // to `src/index.ts`; at the time we wrongly concluded "entry points at source ⇒ Vite
   // resolves from source and the pre-bundle cache trap naturally disappears" and deleted
@@ -104,15 +104,15 @@ export default defineConfig({
     include: ['axios'], // the excluded package above imports it internally; register explicitly to avoid "new dependency discovered → full page reload"
   },
   // dev and preview share the same proxy rule (APIs /v1|/v2|/v3 incl. the MessageBus WS,
-  // forwarded to the on-device gateway on port 80). SP9-P0 added the dev copy — previously
+  // forwarded to the on-device gateway on port 80). The dev copy was added later — previously
   // only preview had it, so login on the dev server always 404'd (been there).
   //
-  // SP8-P6-T3 merge: **port unified back to 5273** — `pnpm dev → http://localhost:5273/`
+  // **Port unified back to 5273** — `pnpm dev → http://localhost:5273/`
   // is the sole convention. The proxy forwards only the /v1 /v2 /v3 backend prefixes
   // (ws:true carries the MessageBus socket.io upgrade); everything else is the app itself.
   // host: true is needed for acceptance on LAN devices, kept.
   server: { port: 5273, host: true, proxy: DEV_PROXY },
-  // SP6 parallel acceptance (spec §5): serves only the build output. Real deploys still go through scripts/deploy.sh.
+  // Preview serves only the build output. Real deploys still go through scripts/deploy.sh.
   preview: {
     port: 5273,
     host: true,
